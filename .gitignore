@@ -1,0 +1,22 @@
+### IntelliJ IDEA ###
+.idea/
+*.iml
+out/
+
+### Gradle ###
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+
+### Spring / secrets ###
+application-local.yml
+application-local.properties
+.env
+*.cnf
+
+### Logs ###
+*.log
+.claude/logs/
+
+### macOS ###
+.DS_Store
