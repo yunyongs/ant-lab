@@ -27,6 +27,7 @@ This doc extends [PLAN.md](PLAN.md): the stock mock-trading MVP stays as planned
 | Data engineering without look-ahead: two-date storage, vintages, snapshots | §2.4, §4.2, §7.1 |
 | Quantitative method with honest validation: benchmarks, a frozen period, placebo tests, disclosed biases, and a live mock record | §4 |
 | Human-in-the-loop AI: LangGraph with Slack approval, RAG with citations, faithfulness checks | §8 |
+| Financial controls: performance attribution, implementation shortfall, budget vs. actual for costs, daily reconciliation, alert thresholds | §3.6, §3.8, §4.5, §5.3, §6.6–6.7 |
 | A two-service architecture with clear ownership: Java domain, Python quant and AI | §6 |
 | Delivery: Docker, GitHub Actions, cloud deployment, security | §6.4–6.5 |
 
@@ -234,7 +235,8 @@ Targets are computed for both accounts combined, then placed:
 4. If IRP still has room, fill it with risky ETFs in this order: gold (#13), S&P 500 (#2), then the rest by size. IRP's target risky share is at most 60%, which leaves a 10-point buffer under the legal 70% for price drift.
 5. Everything else goes to 연금저축.
 6. **Check:** total safe assets must be at least 40% of IRP's value. The lowest safe share in any pool is 25% (P2, P3), so this holds while IRP is up to 62% of the total. Beyond that, risky equity in IRP is swapped for #7 (Nasdaq exposure that still counts as safe). This slightly lowers total equity exposure, because #7 is half bonds; that cost is accepted.
-7. **Drift:** between 60% and 70%, nothing is sold, and proposals put new risky buys in 연금저축 instead of IRP. Above 70% (by price moves), nothing is sold automatically, new risky buys in IRP are blocked by law, and they are redirected to 연금저축.
+7. **Drift:** between 60% and 70%, nothing is sold, and proposals put new risky buys in 연금저축 instead of IRP. Above 70% (by price moves), nothing is sold automatically, new risky buys in IRP are blocked by law, and they are redirected to 연금저축 (within 연금저축's own cash, step 8).
+8. **Each account funds itself.** 연금저축 and IRP are separate legal accounts, and cash cannot move between them. Every account's buys must be paid for by that account's own cash and its own sells in the same proposal. If an account is short, its buys are scaled down (largest underweight kept first) and the remaining gap waits for the next contribution. The only cash that moves between accounts is a monthly contribution from `UNALLOCATED` (§6.6). The leftover gap is part of the implementation effect (§5.3), and the daily reconciliation checks that no other transfers happened. The worked example in §3.9 satisfies this: each account starts with ₩10M and its placement totals ₩10M.
 
 ### 3.6 Rebalancing rules
 
@@ -244,6 +246,30 @@ Targets are computed for both accounts combined, then placed:
 - **Pacing:** decreases are proposed in one step. Increases to risky ETFs are normally split into 2 weekly steps; in one step in extreme fear (Fear & Greed below 20), and in 3 weekly steps in extreme greed (above 80). Each later step is a new proposal with trigger `TRANCHE`, created by the next week's trigger check.
 - **Trade size:** whole shares only, no trade under ₩100,000; leftover cash goes to #12.
 - **Approval:** every proposal goes to Slack for approval before orders are sent to the KIS mock account (§6, §8). A proposal expires at the close of the second KRX trading day after it is posted.
+- **Drift breakdown:** each proposal explains why every ETF is off target, split into five parts that add up to the total drift:
+
+  | Part | Meaning |
+  |------|---------|
+  | Market | Price moves since the last rebalance |
+  | Regime | The target itself moved because pool probabilities changed |
+  | Unexecuted | Earlier proposals that were rejected, expired, or are waiting as later tranches |
+  | Contributions | New cash not yet invested |
+  | Rounding | Whole shares and the ₩100,000 minimum trade |
+
+  With t₀ the last executed rebalance, per ETF:
+
+  ```
+  total drift(t)  = held weight(t) − target weight(t)
+  regime          = −(target(t) − target(t₀))
+  market          = held weight(t) if nothing had been traded since t₀ − held weight(t₀)
+  contributions   = held weight(t) − that no-trade weight (cash added since t₀ dilutes every position)
+  unexecuted      = drift left at t₀ by rejected, expired or tranche-deferred lines
+  rounding        = drift left at t₀ by whole shares and the ₩100,000 minimum
+  check: regime + market + contributions + unexecuted + rounding = total drift(t)
+  ```
+
+  (unexecuted + rounding = held(t₀) − target(t₀), so the five parts telescope exactly to the total.)
+- **Line order in Slack:** largest won deviation first, then largest relative deviation, then lines drifting against the expected direction (for example an overweight that keeps growing).
 
 ### 3.7 Universe maintenance
 
@@ -253,7 +279,18 @@ A quarterly review, plus immediate review when: an ETF announces delisting or ge
 
 - Inside pension accounts, trades and distributions are not taxed until withdrawal, so rebalancing has no tax cost. Pension income up to ₩15M a year is taxed at 3.3–5.5% at withdrawal.
 - Foreign tax withheld on US dividends inside these ETFs is now settled at withdrawal rather than inside the account, which slightly lowers the in-account return of dividend-heavy ETFs such as #4.
-- Backtests charge each ETF's fee plus an assumed 0.05% per trade for commission and spread. KIS mock trades are free, so live mock results will look slightly better than real trading would.
+- Backtests charge each ETF's fee plus an assumed 0.05% per trade for commission and spread. KIS mock trades are free, so live mock results will look slightly better than real trading would. The system therefore also reports a **cost-adjusted mock return** that charges the same assumed 0.05% per trade, so live results compare fairly with the backtest.
+- **Tax credit as its own line.** Contributions earn a tax credit (up to ₩6M a year for 연금저축 and ₩9M combined with IRP; 13.2% or 16.5% including local tax depending on total salary — check current rates when implementing). At ₩9M a year that is ₩1.188M–₩1.485M. It is not investment return, so TWR and XIRR exclude it; the dashboard shows an **economic return including the tax credit** separately, and the attribution waterfall ends with a tax-credit bar (§5.3).
+  - **When it counts:** the credit is received at the next year-end tax settlement (연말정산), not when money is paid in. It is shown as **expected** (accrued at each contribution) until the settlement, then as **confirmed**.
+  - **Conditional:** terminating the account before pension age claws the benefit back through 16.5% other-income tax, so the dashboard labels it a conditional benefit.
+- **Cost budgets (budget vs. actual).** Each year starts with a static budget, and each month is also compared with a **flexed budget** that adjusts for the regime actually held, so a regime-driven change is not mistaken for overspending. A spending gap of more than 25% is flagged in the monthly review (§8.3).
+
+  | Budget | Static (set in January) | Flexed (each month) | Source |
+  |--------|-------------------------|---------------------|--------|
+  | Fund fees | 0.158% a year: the fee-weighted neutral allocation | Σ over pools of p_pool × that pool's fee rate (P1 0.116%, P2 0.177%, P3 0.160%, P4 0.179%), using the month's average probabilities | §3.2 fees × §3.3 columns |
+  | Turnover | The backtest's average annual turnover | The backtest's turnover in months with a similar pool mix | §4.5 |
+
+  The gap splits in two: **regime effect** = flexed − static (expected, caused by the regime) and **spending effect** = actual − flexed (caused by execution or a larger active-fund weight). Only the spending effect counts toward the 25% flag.
 
 ### 3.9 Worked example
 
@@ -327,6 +364,10 @@ The backtest runs the same code as the live system: §2.4 scoring, §3.3–3.5 t
 - **Frozen period:** 2023-01 onward is excluded from any parameter change, and results are reported for the full period and this period separately. It is not truly unseen, because the design was written in 2026; real out-of-sample evidence is the live mock record from M4 onward.
 - **Placebo:** regime labels shuffled in random blocks 1,000 times; the real signal should beat most shuffled ones.
 - **Reproducibility:** each run is stored with its configuration, git commit SHA and data snapshot date.
+- **Live vs. backtest (from M4):** every month, tracking difference = live mock return − backtest return for the same month, starting from the same holdings. The cumulative tracking difference is charted; a difference that keeps the same sign signals a systematic bias rather than noise.
+- **Implementation shortfall:** for each proposal, Σ (fill price − decision price) × quantity, plus the opportunity cost of lines not filled (rejected, expired, or deferred to later tranches). The decision price is the close on the day the trigger fired. This splits the live-vs-backtest gap into execution cost and delay cost.
+- **Regime calibration:** the weekly pool probabilities are forecasts, so they are scored with the Brier score: the mean over weeks of Σ over pools of (p_pool − o_pool)², where o = 1 for the realized pool and 0 otherwise. The realized pool is the quadrant of the (R, G) point recomputed six months later with revised data. A reliability chart shows whether "40% P4" weeks really end up in P4 about 40% of the time.
+- **Parallel run (backtest engine vs. live system):** §4.3 claims both run the same code. Every month, the backtest engine is re-run over the live month using the saved data snapshots, and its regime snapshots, target weights and proposal quantities are matched line by line against what the live system produced. They must be identical; any difference means code or data diverged and is an investigate item (§6.6). Tracking difference compares market outcomes; the parallel run compares the calculations themselves.
 
 ### 4.6 Known biases (disclosed with every result)
 
@@ -372,8 +413,65 @@ Computed per ETF, per account and for the total portfolio.
 | 8 | Performance | Cumulative return vs. benchmarks (log scale) | allocado |
 | 9 | Backtest | Equity curves, a pool-timeline ribbon under the curve, return by pool with n, rolling Sharpe, sensitivity heatmap | New |
 | 10 | Correlation | Heatmap of the 15 ETFs, weekly returns, 2 years | New |
+| 11 | Attribution waterfall | Neutral return → each effect → portfolio return → tax credit (§5.3) | New |
+| 12 | Drift breakdown | Stacked bars per ETF: market, regime, unexecuted, contributions, rounding (§3.6) | New |
+| 13 | Live vs. backtest | Cumulative tracking difference and implementation shortfall per proposal (§4.5) | New |
 
-Charts are built with Recharts in React. Chart #1 and the backtest page are the first things a visitor sees on the public demo.
+Charts are built with Recharts in React. Chart #1, the attribution waterfall (#11) and the backtest page are the first things a visitor sees on the public demo.
+
+### 5.3 Performance attribution
+
+The attribution answers "why did the portfolio beat or trail the neutral allocation?" by splitting the difference into named effects that add up exactly.
+
+**Benchmark:** the neutral allocation **net** of its own fund fees (0.158% a year) and its own trading costs, because that is what an investor could actually have earned by holding it.
+
+**Definitions** for one period (a month): bᵢ = neutral weight of ETF i, w⁰ᵢ = blended target weight before the FX tilt, w¹ᵢ = target after the FX tilt, wᵢ = weight actually held, rᵢ = gross return of ETF i's passive twin, R_b = Σ bᵢ rᵢ. Uninvested cash counts as one more item with return 0, so each set of weights sums to 1.
+
+- **Gross returns:** ETF prices already have fees taken out, so the gross return is the price return plus the daily fee accrual (feeᵢ / 365 per day).
+- **Passive twins:** #5 → #1, #6 → #3, and for #7 a 50/50 mix of #3 and #10 (the same mapping as the fallbacks in §3.4). A passive ETF is its own twin.
+- **What "implementation" holds:** everything between the tilted target and what is actually held: drift, approval delay, pacing, rounding, cash, the small-position moves (§3.4 step 2) and the IRP swap into #7 (§3.5 step 6).
+- **Optional:** NAV returns instead of market prices remove premium/discount noise, which matters for the small ETFs (#5, #14, #15).
+
+| Effect | Formula | What it measures |
+|--------|---------|------------------|
+| Regime allocation | Σ (w⁰ᵢ − bᵢ)(rᵢ − R_b) | The value of the regime signal (§2) |
+| FX tilt | Σ (w¹ᵢ − w⁰ᵢ)(rᵢ − R_b) | The value of the dollar-vs-won modifier (§2.5) |
+| Implementation | Σ (wᵢ − w¹ᵢ)(rᵢ − R_b) | See above |
+| Active selection | Σ wᵢ (r_actualᵢ − rᵢ), gross, over active ETFs (#5–7) | Whether active funds beat their passive twins before fees |
+| Fund fees above neutral | − (Σ wᵢ feeᵢ − Σ bᵢ feeᵢ) × days / 365 | Extra fees paid versus the neutral allocation; equals the fee variance against the static budget (§3.8) |
+| Trading costs above neutral | − (portfolio trading cost − neutral trading cost), both at the assumed 0.05% of traded value | Extra trading the regime system causes |
+
+Because Σ(wᵢ − bᵢ) = 0, the first three effects plus selection exactly equal the gross return difference; the two cost effects then turn it into the difference between the portfolio's net return and the neutral allocation's net return. Monthly effects are compounded over longer periods with Carino linking; any rounding residual is shown as its own small bar, never hidden. The same calculation runs on backtests (§4) and on the live mock account, per account and in total.
+
+**Example** (illustrative numbers, not results; computed by hand):
+
+```
+WATERFALL: one year — portfolio vs. neutral allocation
+
+Neutral allocation (net)                    +6.00%
+  |--[+] Regime allocation                  +1.80%p
+  |--[+] FX tilt                            +0.40%p
+  |--[+] Active selection (gross)           +0.30%p
+  |--[-] Implementation                     −0.25%p
+  |--[-] Trading costs above neutral        −0.15%p
+  |--[-] Fund fees above neutral            −0.10%p
+Portfolio (net)                             +8.00%
+  |--[+] Tax credit                         (₩ and % of contributions, shown separately)
+
+Excess return: +2.00%p
+```
+
+| Effect | %p | Share of excess | Cumulative |
+|--------|----|-----------------|------------|
+| Regime allocation | +1.80 | 90% | +1.80 |
+| FX tilt | +0.40 | 20% | +2.20 |
+| Active selection | +0.30 | 15% | +2.50 |
+| Implementation | −0.25 | −12.5% | +2.25 |
+| Trading costs above neutral | −0.15 | −7.5% | +2.10 |
+| Fund fees above neutral | −0.10 | −5% | +2.00 |
+| **Total** | **+2.00** | **100%** | |
+
+Reading it: here the regime signal earns most of the excess, the active funds earn more before fees (+0.30%p) than the whole extra fee bill (−0.10%p), and execution plus extra trading leak 0.40%p. If selection is ever smaller than the active funds' extra fees for a year, the universe review (§3.7) considers dropping them.
 
 ## 6. System architecture
 
@@ -414,6 +512,8 @@ Charts are built with Recharts in React. Chart #1 and the backtest page are the 
 | Weekdays 16:00 | Collect ETF closing prices (KIS) and Korean daily data (ECOS); CNN Fear & Greed once a day, stored in `collected` as indicator `CNN_FG` | Spring |
 | Weekdays 16:30 | Refresh risk metrics | Python, called by Spring |
 | Trading days 16:45 | Check proposal triggers (§3.6: monthly, bands, pool change); if one fires, run the proposal pipeline with the latest regime | Spring checks, Python runs the pipeline |
+| Trading days 17:00 | Daily reconciliation (§6.6) | Spring |
+| Month-end, within 3 trading days | Month-end reconciliation close (§6.6), then the parallel run (§4.5), then attribution (§5.3), drift breakdown, live-vs-backtest tracking and implementation shortfall (§4.5), cost budgets (§3.8); each step runs only if the previous one succeeded | Spring closes the books; Python runs the analytics |
 | Saturday 08:00 | Weekly regime evaluation, regime-change explanation, weekly report | Spring starts it, Python runs it |
 | On approval | Send orders to the KIS mock account, reconcile fills, update the ledger | Spring |
 
@@ -423,7 +523,7 @@ Every job writes a `job_run` row (start, end, status, rows, error). A failure or
 
 - **Mock environment only** (`openapivts.koreainvestment.com`), selected by Spring profile. The mock environment has its own domain, keys and transaction IDs, and a lower rate limit, so requests are throttled.
 - **Access tokens** are cached in the database and reused until shortly before expiry, because KIS limits how often new tokens can be issued.
-- **Order flow:** approved proposal → orders for each line, split so none exceeds ₩5M → poll for fills → write fills and ledger rows in one transaction.
+- **Order flow:** approved proposal → recompute and compare the content hash (§8.4) → orders for each line, split so none exceeds ₩5M → poll for fills → write fills and ledger rows in one transaction.
 - **No double orders:** each order row is inserted with a unique key `{proposal_line_id}-{n}` before it is sent. A second approval click finds the rows already there and sends nothing. A failed send is retried only after the KIS order inquiry confirms the order was not received.
 - **Order type and hours:** marketable limit orders (best ask for buys, best bid for sells) between 09:05 and 15:15. Approvals outside those hours are queued until the next session.
 - The two virtual pension accounts map to one KIS mock general account; the ledger keeps which account owns each share (§3.5).
@@ -438,9 +538,78 @@ Every job writes a `job_run` row (start, end, status, rows, error). A failure or
 ### 6.5 Security
 
 - Secrets (KIS keys, Slack signing secret, JWT key, LLM API key) live in environment variables and GitHub Actions secrets, never in the repo.
-- Every Slack request is verified with the signing secret before an approval is accepted.
+- Every Slack request is verified with the signing secret before an approval is accepted. The signature only proves the request came from Slack, so the clicking user's Slack ID must also be on an **approver allowlist** (the owner only); anyone else in the channel gets a rejection and the attempt is logged.
 - JWT: short-lived access token plus a refresh token in an httpOnly cookie, passwords hashed with BCrypt. Roles: `OWNER` (approve, run backtests) and the anonymous public demo (read-only).
 - The Python service is reachable only on the internal Docker network, with a service token.
+
+### 6.6 Daily reconciliation
+
+A control that proves the books add up, run after the close every trading day (§6.2). Each check writes a `reconciliation_run` row; every difference it finds becomes a `reconciling_item`.
+
+**Checks**
+
+| Check | Must hold |
+|-------|-----------|
+| Ledger vs. balance | Σ `cash_ledger.amount` = current cash, and the latest `balance_after` = current cash, per account |
+| Holdings vs. fills | `holding.quantity` = Σ buy fills − Σ sell fills, per account and ETF (quantities: zero tolerance) |
+| Inter-account transfers | Σ transfers out of `UNALLOCATED` = Σ contributions into 연금저축 and IRP, per day; transfers between 연금저축 and IRP = 0 (§3.5 step 8) |
+| Broker holdings | Holdings of the two virtual accounts combined = holdings reported by the KIS mock account |
+| Broker cash | Standard format below. The KIS mock account starts with a fixed virtual deposit set by KIS, which never equals our ₩20M, so the remainder is booked in a separate `UNALLOCATED` account. Monthly contributions are internal transfers from `UNALLOCATED`, because no real money is deposited |
+| Broker valuation | Our value (quantity × close) vs. the evaluation amount KIS reports, per account; tolerance 0.1% for price-snapshot timing |
+| Distributions | Every distribution with a passed pay date has a matching cash entry; every unexpected cash credit is matched to a distribution or flagged |
+| Proposals | Every `EXECUTED` proposal line has fills covering its quantity, or a recorded reason for the gap |
+
+**Standard format for broker cash** (bank-reconciliation style; both sides are adjusted to the same balance):
+
+```
+KIS cash balance                                          ₩X
+  + unsettled sells (receivable, T+2)                     ₩X
+  − unsettled buys (payable, T+2)                        (₩X)
+  ± items only at KIS (unrecorded distributions, fee differences)   ₩X
+Adjusted KIS balance                                      ₩X
+
+Book cash (연금저축 + IRP + UNALLOCATED)                  ₩X
+  ± items only in our books (orders sent, not yet confirmed)       ₩X
+Adjusted book balance                                     ₩X
+
+Difference                                                ₩0   ← anything else is an "investigate" item
+```
+
+**Reconciling items** are classified when they are created:
+
+| Category | Examples | Handling | Orders |
+|----------|----------|----------|--------|
+| Timing | Unsettled trades (T+2), fills not yet polled, distributions between record and pay date | `expected_clear_by` is set automatically; clears without action | Continue |
+| Adjustment | Fee or tax differences in whole won, a missing or duplicate fill record, an unrecorded distribution | Fixed by a new `ADJUSTMENT` ledger row linked to the item; existing rows are never edited | Continue if ≤ ₩100,000; stop if larger |
+| Investigate | Any difference without an explanation; the same kind of difference recurring | Root cause found and recorded before clearing | **Stop immediately** |
+
+**Aging** (business-day buckets, because the cycle is daily and settlement is T+2):
+
+| Age | Status | Action |
+|-----|--------|--------|
+| 0–2 trading days | Current | Monitor |
+| 3–5 trading days | Aging | Find out why it has not cleared; Slack alert |
+| 6–20 trading days | Overdue | Stop orders; listed in the weekly report |
+| Over 20 trading days | Stale | Resolve by an adjustment with the reason in the decision log |
+
+**Trending:** the count and amount of open items are tracked monthly. If open items exceed 0.5% of portfolio value, orders stop. A kind of difference that appears three months in a row gets an `[환경]` issue to fix the process behind it.
+
+**Month-end close:** the month-end reconciliation of every account (STOCK, PENSION_SAVINGS, IRP, UNALLOCATED) must be complete within 3 trading days after the last trading day of the month, with no investigate or overdue items. The system prepares it and the owner reviews it (`reviewed_at`). Until it is complete, the monthly review (§8.3) is not produced.
+
+### 6.7 Alert thresholds
+
+An alert fires when either threshold is crossed, following the usual materiality rule (an amount or a percentage, whichever comes first). Values are starting points to be tuned with the backtest.
+
+| Item | Amount | Percentage | Action |
+|------|--------|------------|--------|
+| Daily portfolio move | 2% of portfolio value | 2σ of daily returns | Slack alert |
+| Drawdown | — | Crossing −10%, −15%, −20% | Alert; at −20% a review note in the weekly report |
+| IRP risky share | — | 65% (before the legal 70%) | Early warning |
+| Active vs. passive twin | — | Trailing by more than 3%p over 3 months | Universe-review issue (§3.7) |
+| Live vs. backtest | — | Monthly tracking difference beyond ±2%p | Cause analysis in the monthly review |
+| Cost budgets | — | Spending effect more than 25% over the flexed budget year to date | Monthly review item (§3.8) |
+| Reconciliation | Adjustment item over ₩100,000, or any investigate item | Open items over 0.5% of portfolio value | Stop orders and alert (§6.6) |
+| Reconciliation aging | — | Any item older than 5 trading days | Stop orders; weekly report (§6.6) |
 
 ## 7. Data model and API draft
 
@@ -451,25 +620,36 @@ Key columns only; the DDL is written by hand during the phases. At M1 the MVP's 
 | Schema | Table | Key columns |
 |--------|-------|-------------|
 | core | `member` (from the MVP) | id, email (unique), password_hash, role (added) |
-| core | `account` | id, member_id, type (STOCK / PENSION_SAVINGS / IRP), name |
+| core | `account` | id, member_id, type (STOCK / PENSION_SAVINGS / IRP / UNALLOCATED), name — `UNALLOCATED` holds KIS mock cash not assigned to a pension account (§6.6) |
 | core | `etf` | id, ticker (unique), name, role, fee_rate (`NUMERIC(7,6)`, e.g. 0.000068), listed_on, hedged, irp_class (SAFE / RISKY / NOT_ALLOWED), proxy_symbol, active |
 | core | `etf_fallback` | etf_id, fallback_etf_id, share — one ETF can fall back to several (e.g. #7 → 50% #3, 50% #10) |
 | core | `holding` | account_id, etf_id, quantity, avg_price — unique (account_id, etf_id) |
-| core | `cash_ledger` | id, account_id, type, amount, balance_after, ref_id, created_at |
-| core | `proposal` | id, created_at, trigger (MONTHLY / BAND / POOL_CHANGE / TRANCHE), regime_snapshot_id, status (PENDING / APPROVED / REJECTED / EXPIRED / EXECUTED), decided_at, slack_message_ts |
+| core | `cash_ledger` | id, account_id, type (TRANSFER / BUY / SELL / FEE / DISTRIBUTION / ADJUSTMENT), amount, balance_after, ref_id, created_at — corrections are new `ADJUSTMENT` rows linked to a reconciling item |
+| core | `proposal` | id, created_at, trigger (MONTHLY / BAND / POOL_CHANGE / TRANCHE), regime_snapshot_id, content_hash, status (PENDING / APPROVED / REJECTED / EXPIRED / EXECUTED / HASH_MISMATCH), decided_at, slack_message_ts |
+| core | `approval_event` | id, proposal_id, decision (APPROVE / REJECT / DENIED), actor (Slack user ID or member id), channel (SLACK / WEB), signature_ok, allowlist_ok, content_hash, created_at — append-only |
 | core | `proposal_line` | id, proposal_id, account_id, etf_id, side, quantity, est_price, reason |
 | core | `broker_order` | id, proposal_line_id, idempotency_key (unique), kis_order_no, status, submitted_at |
 | core | `fill` | id, broker_order_id, price, quantity, fee, filled_at |
 | core | `job_run` | id, job_name, started_at, finished_at, status, rows, error |
+| core | `reconciliation_run` | id, run_at, check_name, account_id, expected, actual, difference, status (OK / EXPLAINED / UNEXPLAINED) |
+| core | `reconciling_item` | id, run_id, account_id, category (TIMING / ADJUSTMENT / INVESTIGATE), description, amount, quantity, originated_on, expected_clear_by, cleared_on, adjusting_entry_id, root_cause |
+| core | `month_end_close` | month, completed_at, all_accounts_ok, open_items_count, open_items_amount, reviewed_at |
 | collected | `indicator` | id, code, source (FRED / ECOS / CNN / KRX / DERIVED), series_id (null if derived), derived_from (input codes, e.g. #12 = KTB 3Y and `DGS2`), region, axis, transform, release_interval, normal_lag_days |
 | collected | `indicator_value` | indicator_id, ref_date, value, available_at, fetched_at, vintage — unique (indicator_id, ref_date, vintage) |
 | collected | `etf_price_daily` | etf_id, trade_date, close |
 | collected | `proxy_price_daily` | symbol, trade_date, close, adj_close (dividend-adjusted), currency |
+| collected | `etf_distribution` | etf_id, record_date, pay_date, amount_per_share — expected distributions for the reconciliation (§6.6) |
 | analytics | `indicator_signal` | indicator_id, as_of, z, weight, stale |
 | analytics | `regime_snapshot` | id, as_of, r, g, f, p1, p2, p3, p4, label, label_since, phase, stale_indicators, model_version |
 | analytics | `target_weight` | regime_snapshot_id, etf_id, weight |
 | analytics | `asset_metric` | etf_id, as_of, window, mdd, volatility, beta, sharpe, sortino, risk_contribution |
-| analytics | `portfolio_metric` | scope (IRP / PENSION_SAVINGS / TOTAL), as_of, window, twr, xirr, mdd, volatility, var95 |
+| analytics | `portfolio_metric` | scope (IRP / PENSION_SAVINGS / TOTAL), as_of, window, twr, xirr, mdd, volatility, var95, cost_adjusted_return, tax_credit_expected, tax_credit_confirmed, economic_return |
+| analytics | `attribution` | period_start, period_end, scope (IRP / PENSION_SAVINGS / TOTAL / backtest run id), effect (REGIME / FX / IMPLEMENTATION / SELECTION / FEES / TRADING / LINKING / TAX_CREDIT), value, unit (PCT_POINT / KRW) — TAX_CREDIT is stored in KRW |
+| analytics | `drift_breakdown` | as_of, etf_id, total, market, regime, unexecuted, contributions, rounding |
+| analytics | `execution_quality` | proposal_id, decision_value, fill_value, shortfall, opportunity_cost |
+| analytics | `tracking_record` | month, live_return, backtest_return, tracking_difference |
+| analytics | `regime_calibration` | week, p1, p2, p3, p4, realized_pool, brier, scored_at — scored six months after the week, once revised data fixes the realized pool (§4.5) |
+| analytics | `cost_budget` | year, month, kind (FEES / TURNOVER), static_budget, flexed_budget, actual, regime_effect, spending_effect |
 | analytics | `sentiment_score` | as_of, source (SELF_US / SELF_KR), value — CNN's raw value is in `collected` |
 | analytics | `report` | id, type (WEEKLY / REGIME_EXPLANATION), regime_snapshot_id, body, sources, created_at |
 | analytics | `backtest_run` | id, config, git_sha, data_as_of, metrics, created_at |
@@ -490,6 +670,9 @@ GET  /fear-greed                          CNN plus self-computed US/KR scores
 GET  /etfs | /etfs/{ticker}/metrics
 GET  /accounts | /accounts/{id}/holdings | /accounts/{id}/ledger
 GET  /portfolio/summary | /portfolio/performance?benchmark= | /portfolio/risk
+GET  /portfolio/attribution?from&to       Waterfall effects (§5.3)
+GET  /portfolio/drift                     Drift breakdown per ETF (§3.6)
+GET  /reports/monthly/latest              Attribution, tracking, shortfall, cost budgets
 GET  /proposals | /proposals/{id}
 POST /proposals/{id}/approve | /proposals/{id}/reject      OWNER only
 POST /slack/interactions                  Slack-signed button clicks
@@ -536,7 +719,16 @@ One rule covers every feature: **the LLM explains and answers, deterministic cod
 
 ### 8.3 Weekly macro report
 
-Every Saturday after the regime evaluation: regime and probabilities, what changed and why (8.2), key indicators, Fear & Greed, portfolio vs. benchmarks, and proposal status. Delivered to Slack and shown on the web.
+Every Saturday after the regime evaluation: regime and probabilities, what changed and why (8.2), key indicators, Fear & Greed, portfolio vs. benchmarks, and proposal status. Delivered to Slack and shown on the web. The first report after the month-end close (§6.6) adds a **monthly review**: the reconciliation summary with open items by age, the parallel-run result, the attribution waterfall (§5.3), live vs. backtest and implementation shortfall (§4.5), cost budgets (§3.8), and any thresholds crossed (§6.7).
+
+Every explanation of a difference follows one fixed format, the same one finance teams use for variance commentary:
+
+```
+[Item]: [favorable / unfavorable] [amount] ([%p]) vs. [neutral / last week / backtest / budget]
+Driver: 2–3 sentences naming the cause, with each contributing factor quantified
+Outlook: one-off / expected to continue / improving / worsening
+Action: none / monitor / investigate / reflect in the next proposal
+```
 
 ### 8.4 LangGraph proposal pipeline
 
@@ -548,6 +740,7 @@ trigger fired ─▶ load latest weekly regime ─▶ data-quality gate ─▶ b
 - **Data-quality gate:** if more than 4 of the 10 rates and growth indicators are stale (§2.4 step 3), or prices are missing, the pipeline stops and alerts instead of proposing. Regime evaluation and its explanation run in the Saturday job (§6.2), not in this pipeline.
 - **Risk checks** are plain code: the IRP 70% rule, maximum turnover per proposal, maximum order size, and holdings sufficient for every sell.
 - **Approval:** the graph pauses with LangGraph's interrupt and saves its state in PostgreSQL (a checkpointer). Approve or Reject, clicked in Slack or on the web, calls the same Spring service, which resumes the graph. Proposals expire at the close of the second KRX trading day after posting (§3.6).
+- **Approval evidence:** when a proposal is created, Spring stores a SHA-256 `content_hash` of its lines (account, ETF, side, quantity). Every decision appends an `approval_event` row: who (Slack user ID or web user), channel, time, whether the Slack signature and the allowlist check passed, and the hash that was shown. Right before sending orders, Spring recomputes the hash; if it differs from the approved hash, nothing is sent and the proposal is marked for review. So what was approved is exactly what is executed.
 - **Before the graph exists** (M4–M5), Spring builds proposals by calling `/quant/targets` and executes approvals directly; M6 moves the same steps into the graph.
 - **Who builds what:** Python computes target weights and quantities; Spring stores them as a `proposal` (it owns the `core` schema) and executes orders. Each order has a unique key derived from its proposal line (§6.3), so a double click cannot place an order twice.
 
@@ -558,10 +751,11 @@ trigger fired ─▶ load latest weekly regime ─▶ data-quality gate ─▶ b
 
 ### 8.6 Models and evaluation
 
-- **Models:** Claude through LangChain's Anthropic integration: a stronger model for explanations and reports, a smaller one for routing. Model IDs are pinned in config.
+- **Models:** an LLM through LangChain: a stronger model for explanations and reports, a smaller one for routing. The provider and model IDs are pinned in config.
 - **Evaluation:**
   - A golden set of about 20 questions with expected facts, run in CI with pytest.
   - Every answer is checked for faithfulness (numbers and citations) as in 8.2.
+  - Explanations of differences are also checked against common commentary faults: circular reasons ("returns were higher because returns rose"), unexplained "timing" or "one-off", lumping a material amount into "other", and naming only the largest driver while ignoring offsetting ones. Each effect in the text must match the attribution numbers.
 
 ## 9. Roadmap
 
@@ -571,8 +765,8 @@ The macro track starts after the stock mock-trading MVP in [PLAN.md](PLAN.md) an
 |-------|--------|------------------|-----------|
 | M1 Data foundation | PostgreSQL in Docker Compose, Flyway, ETF master (15), FRED/ECOS/KIS collectors with point-in-time storage, history backfill, `job_run` with Slack failure alerts, CI | Spring Boot + JPA, scheduling | Daily jobs run for 2 weeks without manual fixes |
 | M2 Quant engine | Python service skeleton; indicator transforms, regime scoring and targets; tests that reproduce the worked examples in §2.7 and §3.9 | Python alongside Spring | Weekly regime snapshots stored automatically |
-| M3 Backtest and analytics | Backtest engine, benchmarks, robustness grid, risk metrics | Python alongside Spring | Backtest report covering §4.4–4.6 |
-| M4 Accounts and approval | JWT auth, virtual accounts, ledger, placement, proposals, Slack approval, KIS mock orders and fills | Spring Security, external APIs | One monthly cycle approved in Slack and filled in the mock account |
+| M3 Backtest and analytics | Backtest engine, benchmarks, robustness grid, risk metrics, performance attribution (§5.3), regime calibration | Python alongside Spring | Backtest report covering §4.4–4.6 with an attribution waterfall |
+| M4 Accounts and approval | JWT auth, virtual accounts, ledger, placement, proposals with drift breakdown, Slack approval, KIS mock orders and fills, daily reconciliation, alert thresholds | Spring Security, external APIs | One monthly cycle approved in Slack, filled in the mock account, and closed by the month-end reconciliation with no unexplained or overdue items |
 | M5 Dashboard | React pages and the charts in §5.2, public demo, owner login | React | Demo page deployable |
 | M6 AI layer | RAG, regime explainer, weekly report, LangGraph pipeline, Ask page, golden-set evaluation | RAG, LangChain, LangGraph | Proposals flow through the graph; evaluation passes in CI |
 | M7 Deploy | Multi-arch images, OCI VM with Caddy, deploy workflow, backups, optional n8n | Docker, CI/CD, cloud | Public URL live; Slack approval works over HTTPS |
@@ -581,7 +775,7 @@ The backtest (M3) comes before orders (M4) on purpose: the design should earn ev
 
 ### 9.1 Who writes what
 
-The owner writes or edits the core logic: regime scoring, targets and placement, the ledger and order state machine, and the approval flow. Claude may draft scaffolding: collectors, DTOs, configuration, Docker and CI files, React components, and test skeletons. The owner reviews every file.
+The owner writes or edits the core logic: regime scoring, targets and placement, the ledger and order state machine, and the approval flow. The owner also reviews every other file before merge, including scaffolding such as collectors, DTOs, configuration, Docker and CI files, React components, and test skeletons.
 
 ### 9.2 Git workflow (run by the owner)
 
@@ -593,9 +787,12 @@ Each phase starts by adding its feature table here (M1-01, M1-02, …). Every fe
 
 - **Mock only.** The KIS base URL comes from the Spring profile, and the app refuses to start if a real-trading URL is configured without an explicit `trading.real-money=true` flag. Turning that on requires a decision-log entry first.
 - **A human approves every order** in Slack or on the web. Proposals expire at the close of the second KRX trading day after posting.
+- **Only the owner can approve:** Slack approvals must come from an allowlisted user ID, and orders are sent only if the proposal's content hash still matches the approved hash (§8.4).
 - **Limits per rebalancing proposal:** turnover at most 30% of the portfolio; no single order above ₩5M. Buys made only with new cash (initial funding and monthly contributions) are exempt from the turnover cap but still split into orders of at most ₩5M.
 - **Kill switch:** `trading.enabled=false` in config, or a Slack command, stops all order sending immediately.
 - **Data-quality gate:** stale or missing key data stops proposals; it never produces a guess.
+- **Reconciliation gate:** order sending stops while the daily reconciliation (§6.6) has any unexplained difference, an adjustment item over ₩100,000, an item older than 5 trading days, or open items over 0.5% of portfolio value. Normal timing items (such as T+2 settlement) do not stop orders.
+- **No cross-account funding:** a proposal never moves cash between 연금저축 and IRP (§3.5 step 8).
 - **The LLM never decides weights or orders** (§8).
 - **Personal use only.** The public demo shows the mock account and the method. It is not a signal service, gives no advice, and carries a disclaimer. A public recommendation service could fall under 유사투자자문업 rules.
 - **Content:** no copied book text in the RAG corpus; CNN Fear & Greed is shown with attribution and a link.
@@ -664,6 +861,17 @@ The earlier actstock-pipeline project used all three for a similar data volume; 
 | 2026-11-01 | Mock starting cash ₩10M + ₩10M, contributions ₩500k + ₩250k a month | Matches the ₩9M combined tax-credit limit |
 | 2026-11-01 | Stale indicators are dropped (binary), not decayed | Exponential decay would down-weight monthly data every cycle just before each release |
 | 2026-11-01 | Weekly regime, daily trigger checks; proposals expire after two trading days | A Saturday regime must be actionable on Monday; monthly and band triggers need a daily check |
+| 2026-11-01 | Performance attribution against the neutral allocation (regime, FX, implementation, selection, fees, trading) | Shows whether each design choice earns its keep, not just the total return |
+| 2026-11-01 | Tax credit shown as a separate line, outside TWR/XIRR | It is real economic value for a pension investor but not investment return |
+| 2026-11-01 | Daily reconciliation gates order sending (refined below: classified items, aging) | Money must add up before more money moves |
+| 2026-11-01 | Mock results also reported with assumed trading costs | Free mock fills would otherwise flatter live results against the backtest |
+| 2026-11-01 | Attribution benchmark is the neutral allocation net of its own costs; cost bars show only costs above neutral | Compares with what an investor could actually have earned, and ties the fee bar to the fee budget |
+| 2026-11-01 | Fee and turnover budgets are flexed by the month's regime mix | Separates regime-driven changes from real overspending |
+| 2026-11-01 | KIS mock cash reconciled through an `UNALLOCATED` account; contributions are internal transfers | The mock deposit is set by KIS and no real money is deposited |
+| 2026-11-01 | Approver allowlist and approval-time content hash | A Slack signature proves origin, not identity; the hash proves that what was approved is what is executed |
+| 2026-11-01 | Each pension account funds its own buys; no cash moves between 연금저축 and IRP | They are separate legal accounts; combined placement alone could produce orders that cannot be executed |
+| 2026-11-01 | Reconciling items are classified (timing / adjustment / investigate) and aged; only unexplained, large or overdue items stop orders | Normal T+2 timing would otherwise stop trading every day |
+| 2026-11-01 | Monthly parallel run of the backtest engine against the live month | Proves the "same code" claim by matching calculations, not just outcomes |
 
 ## Appendix C. References
 
@@ -721,4 +929,14 @@ Prior projects
 | VaR 95% | The daily loss exceeded on only 5% of days |
 | TWR, XIRR | Time-weighted return (ignores cash-flow timing); money-weighted return (includes contribution timing) |
 | Deadband | The margin around zero a score must clear before the label changes (§2.4) |
+| Performance attribution | Splitting the return difference against a benchmark into named effects that add up exactly (§5.3) |
+| Carino linking | A way to compound monthly attribution effects over several months so they still add up to the total difference |
+| Implementation shortfall | The cost of executing later or at worse prices than the decision price, plus trades never filled (§4.5) |
+| Tracking difference | Live return minus the return the backtest expected for the same period |
+| Brier score | Mean squared error of probability forecasts; 0 is perfect, lower is better (§4.5) |
+| Reconciliation | Checking that two records that should agree (ledger vs. balance, our books vs. the broker) really do (§6.6) |
+| Reconciling item | One difference found by a reconciliation, classified as timing, adjustment or investigate and tracked until it clears |
+| Aging | How long a reconciling item has stayed open; older items escalate (§6.6) |
+| Parallel run | Running two systems on the same inputs and matching their outputs line by line (§4.5) |
+| Materiality threshold | The size of a difference, in amount or percent, that is worth an alert or an explanation (§6.7) |
 | allocado, actstock-pipeline | The owner's earlier private projects: a US-focused 4-Pool portfolio app and a US ETF data pipeline |
