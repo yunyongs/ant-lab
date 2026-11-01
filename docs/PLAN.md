@@ -2,7 +2,7 @@
 
 A mock trading (모의투자) platform for Korean stocks. Users get virtual cash, buy and sell KOSPI/KOSDAQ stocks at simulated or real prices, and track their portfolio. Later versions add a trading journal, price alerts, and an AI layer over corporate filings.
 
-This is a learning project. It grows alongside the [slx-ai-campus](https://github.com/yunyongs/slx-ai-campus) bootcamp curriculum: each version uses what the current chapter teaches. All code is written by hand through the MVP; in the macro ETF track the owner writes the core logic and Claude may draft scaffolding (see [MACRO_ETF.md §9.1](MACRO_ETF.md#91-who-writes-what)).
+This is a learning project. It grows alongside the [slx-ai-campus](https://github.com/yunyongs/slx-ai-campus) bootcamp curriculum: each version uses what the current chapter teaches. All code is written by hand through the MVP; in the macro ETF track the owner writes the core logic and reviews every file (see [MACRO_ETF.md §9.1](MACRO_ETF.md#91-who-writes-what)).
 
 > The name "Ant Lab" (개미 연구소) is a working title and may change.
 
@@ -69,6 +69,18 @@ Key columns only; the DDL is written by hand in `db/`.
 
 Later: `watchlist`, `alert_rule`, `journal_entry`.
 
+### Accounting rules
+
+- **Cost basis:** decide how the average price changes on a buy and on a sell (design question 2) and record the rule here before writing `db/03_buy_sell.sql`.
+- **Rounding:** decide the column type and decimal places of each money column (design question 1) and record them here. Fees and tax are computed at full precision, then rounded once, by one rule, in one place in the code (check the broker's exact rule when real rates are added in V2).
+- **Daily P&L breakdown:** with no deposits or withdrawals, today's change in portfolio value (cash + holdings at today's close) splits into three parts that must add up to the total:
+  - price effect = (today's close − yesterday's close) × yesterday's quantity,
+  - trading effect = Σ over today's sells of (fill price − today's close) × quantity + Σ over today's buys of (today's close − fill price) × quantity,
+  - costs = − (fees + tax).
+
+  Realized profit is a different number: it counts the gain since purchase, much of which earlier days' valuations already showed, so it is reported on its own (user story 4) and never added to the daily breakdown. User story 5 shows this breakdown.
+- **Reconciliation:** the books must agree with themselves (Phase 0 item `P0-07`, then a daily job in the MVP): the sum of `cash_ledger.amount` equals `cash_account.balance`, the latest `balance_after` equals the balance, and each holding's quantity equals its buy fills minus its sell fills. Every difference is classified as timing, adjustment or investigate (design question 7), and an error is corrected by adding a new ledger row, never by editing an old one.
+
 ### Design questions to answer before writing the DDL
 
 1. Prices in won are whole numbers, but the average price usually is not. Which MySQL type fits each money column, and why is `DOUBLE` dangerous?
@@ -77,6 +89,7 @@ Later: `watchlist`, `alert_rule`, `journal_entry`.
 4. What is the difference between realized and unrealized profit, and which tables does each come from?
 5. Two sell orders for the same 10 shares arrive at the same moment. How do you stop both from succeeding?
 6. Why keep `balance_after` on every ledger row when `cash_account.balance` already exists?
+7. Your reconciliation finds that the ledger total and `cash_account.balance` differ by ₩1. List three possible causes, and for each say whether it is a timing difference (clears by itself), an adjustment (needs a correcting entry) or something to investigate.
 
 ## 6. MVP user stories
 
@@ -86,7 +99,7 @@ Feature numbers `MVP-01` to `MVP-06`, in the order below (see [CONVENTION.md](CO
 2. I see a list of stocks with current prices that change over time (simulated).
 3. I place a market buy: cash goes down, I get the shares, and a fill is recorded — all or nothing.
 4. I place a market sell: I cannot sell shares I do not own, and the realized profit is recorded.
-5. I see my portfolio: quantity, average price, current value, and return % per holding, plus totals.
+5. I see my portfolio: quantity, average price, current value, and return % per holding, plus totals, and what drove today's change (price effect, trading effect, costs).
 6. I see my order history and cash history.
 
 ## 7. API draft (from the Spring phase)
@@ -102,8 +115,10 @@ GET    /api/portfolio               Holdings, values, returns, totals
 GET    /api/cash/ledger             Cash history (paging)
 POST   /api/watchlist               Add to watchlist (V2)
 POST   /api/alerts                  Create price alert (V2)
-GET    /api/leaderboard             Ranking by return % (V3)
+GET    /api/leaderboard             Ranking by time-weighted return (V3)
 ```
+
+Leaderboard returns are time-weighted (TWR) so that deposits and withdrawals do not distort the ranking; each member's own page also shows the money-weighted return (MWR), the return on their own cash flows.
 
 ## 8. Roadmap
 
@@ -111,9 +126,9 @@ GET    /api/leaderboard             Ranking by return % (V3)
 |---------|----------|------------------|
 | Phase 0 | ERD, DDL, seed data, buy/sell as SQL transactions, portfolio query | MySQL (DDL, transactions) — now |
 | Phase 1 | Console app with DAOs: buy, sell, portfolio | JDBC |
-| MVP | REST API for the six user stories, layered architecture, validation, global exception handling | Spring Boot + JPA |
+| MVP | REST API for the six user stories, layered architecture, validation, global exception handling, daily reconciliation job that records each difference as a timing, adjustment or investigate item (same structure as [MACRO_ETF.md §6.6](MACRO_ETF.md#66-daily-reconciliation)) | Spring Boot + JPA |
 | V2 | Limit orders filled by a scheduled price check, cancel, watchlist, alerts, fees and tax | Spring (scheduling) |
-| V3 | Real price data, leaderboard, trading journal, charts | External APIs, React |
+| V3 | Real price data, leaderboard (TWR), trading journal, charts | External APIs, React |
 | V4 | DART filing Q&A (RAG), trade-coach agent over the journal, natural-language portfolio questions | RAG, LangChain, LangGraph |
 | V5 | Docker Compose (app + MySQL), GitHub Actions, cloud deployment | Docker, CI/CD, cloud |
 
@@ -137,7 +152,7 @@ With this track, V3–V5 above become an optional backlog: their shared infrastr
 
 ## 9. Phase 0 checklist (MySQL)
 
-Feature numbers `P0-01` to `P0-06`, in the order below (see [CONVENTION.md](CONVENTION.md)).
+Feature numbers `P0-01` to `P0-07`, in the order below (see [CONVENTION.md](CONVENTION.md)).
 
 - [ ] Sketch the ERD for the MVP tables (`docs/erd.*`)
 - [ ] Write the DDL: PKs, FKs, `NOT NULL`, `UNIQUE`, `CHECK` (e.g. quantity > 0) → `db/01_schema.sql`
@@ -145,6 +160,9 @@ Feature numbers `P0-01` to `P0-06`, in the order below (see [CONVENTION.md](CONV
 - [ ] "Buy 10 shares" as one transaction: cash, order, execution, holding (insert or update), ledger → `COMMIT`, or `ROLLBACK` on failure → `db/03_buy_sell.sql`
 - [ ] "Sell" as one transaction, refusing to sell more than held
 - [ ] Portfolio query: holdings joined with latest prices, value and return % → `db/04_portfolio.sql`
+- [ ] Reconciliation queries: each must return zero mismatches after the buy and sell scripts (see Accounting rules in §5) → `db/05_reconciliation.sql`
+  - Break the data on purpose (for example change one ledger amount in a copy) and classify what the queries report: timing, adjustment or investigate (design question 7)
+  - After answering design question 3, define a reconciliation check for `reserved` yourself and add it to the same file
 
 ## 10. Repo layout
 
