@@ -1,22 +1,273 @@
-### IntelliJ IDEA ###
-.idea/
-*.iml
-out/
+# =====================================================================
+# Ant Lab .gitignore
+# Stack: Java 21 / Spring Boot / Gradle · Python (FastAPI, pandas,
+# LangChain, LangGraph) · React (Vite) · PostgreSQL / MySQL · Docker
+# Rule of thumb: commit source, config templates and lock files;
+# never commit secrets, build output, caches, local data or IDE state.
+# =====================================================================
 
-### Gradle ###
+# ---------------------------------------------------------------------
+# Secrets and credentials (never commit; see docs/CONVENTION.md)
+# ---------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+!.env.*.example
+.envrc
+*.secret
+secrets/
+# Keys, certificates, keystores
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.truststore
+id_rsa*
+id_ed25519*
+# Cloud and service credentials (OCI, GCP, Slack, KIS token caches)
+.oci/
+credentials.json
+service-account*.json
+*-credentials.json
+kis-token*.json
+.kis/
+# MySQL client option files (may hold passwords)
+*.cnf
+.my.cnf
+.pgpass
+
+# ---------------------------------------------------------------------
+# Spring Boot configuration with real values
+# (commit application.yml with ${ENV_VAR} placeholders instead)
+# ---------------------------------------------------------------------
+application-local.yml
+application-local.yaml
+application-local.properties
+application-secret.yml
+application-secret.yaml
+application-secret.properties
+/HELP.md
+
+# ---------------------------------------------------------------------
+# Java / Gradle
+# ---------------------------------------------------------------------
 .gradle/
 build/
+!**/src/main/**/build/
+!**/src/test/**/build/
+*.class
+*.jar
+*.war
+*.ear
+# The Gradle wrapper jar must be committed (keep this after *.jar)
 !gradle/wrapper/gradle-wrapper.jar
+hs_err_pid*
+replay_pid*
+# Kotlin / Gradle daemon leftovers
+.kotlin/
 
-### Spring / secrets ###
-application-local.yml
-application-local.properties
-.env
-*.cnf
+# ---------------------------------------------------------------------
+# IntelliJ IDEA (solo repo: ignore all IDE state)
+# ---------------------------------------------------------------------
+.idea/
+*.iml
+*.ipr
+*.iws
+out/
+!**/src/main/**/out/
+!**/src/test/**/out/
 
-### Logs ###
+# Eclipse / STS / NetBeans / VS Code / Fleet
+.classpath
+.project
+.settings/
+.factorypath
+.apt_generated/
+.springBeans
+.sts4-cache/
+bin/
+!**/src/main/**/bin/
+!**/src/test/**/bin/
+nbproject/private/
+nbbuild/
+nbdist/
+.nb-gradle/
+.vscode/
+.fleet/
+.history/
+*.code-workspace
+
+# ---------------------------------------------------------------------
+# Python (quant + AI service)
+# ---------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.venv/
+venv/
+env/
+*.egg-info/
+.eggs/
+dist/
+wheels/
+pip-wheel-metadata/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.pyre/
+.pytype/
+.tox/
+.nox/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+.hypothesis/
+.ipynb_checkpoints/
+# Commit the lock file of whichever tool is used (uv.lock / poetry.lock)
+
+# ---------------------------------------------------------------------
+# AI: LangGraph / LangSmith / local models and embeddings
+# ---------------------------------------------------------------------
+.langgraph_api/
+.langsmith/
+/models/
+*.gguf
+*.safetensors
+*.onnx
+.cache/
+hf_cache/
+# Local vector store experiments (production vectors live in pgvector)
+chroma/
+faiss_index/
+*.faiss
+
+# ---------------------------------------------------------------------
+# Node / React (Vite)
+# ---------------------------------------------------------------------
+node_modules/
+.vite/
+.npm/
+.pnpm-store/
+.yarn/*
+!.yarn/releases
+coverage/
+*.tsbuildinfo
+.eslintcache
+.stylelintcache
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+# Commit package-lock.json (or pnpm-lock.yaml); do not ignore it
+
+# ---------------------------------------------------------------------
+# Data: downloads, caches, backtest output
+# (hand-written SQL in db/ and small seed files ARE committed)
+# ---------------------------------------------------------------------
+data/raw/
+data/cache/
+data/downloads/
+data/snapshots/
+backtest-results/
+reports/output/
+*.parquet
+*.feather
+*.arrow
+*.h5
+*.hdf5
+*.pkl
+*.pickle
+
+# ---------------------------------------------------------------------
+# Databases: local files and dumps
+# ---------------------------------------------------------------------
+*.db
+*.sqlite
+*.sqlite3
+*.dump
+*.backup
+*.sql.gz
+*.sql.zip
+pg_dump*/
+dumps/
+
+# ---------------------------------------------------------------------
+# Docker: local volumes and overrides
+# ---------------------------------------------------------------------
+docker-compose.override.yml
+compose.override.yml
+.docker-data/
+postgres-data/
+pgdata/
+mysql-data/
+n8n-data/
+caddy-data/
+caddy-config/
+
+# ---------------------------------------------------------------------
+# Infrastructure as code (if added later)
+# ---------------------------------------------------------------------
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+crash.log
+override.tf
+override.tf.json
+
+# ---------------------------------------------------------------------
+# Logs and temporary files
+# ---------------------------------------------------------------------
+logs/
 *.log
-.claude/logs/
+tmp/
+temp/
+*.tmp
+*.bak
+*.orig
+*.rej
 
-### macOS ###
+# ---------------------------------------------------------------------
+# Claude Code: local only, never committed
+# (CLAUDE.md, skills, settings, worktrees and logs stay on this machine)
+# ---------------------------------------------------------------------
+CLAUDE.md
+.claude/
+
+# ---------------------------------------------------------------------
+# Editors
+# ---------------------------------------------------------------------
+*.swp
+*.swo
+*~
+*.sublime-project
+*.sublime-workspace
+
+# ---------------------------------------------------------------------
+# Operating systems
+# ---------------------------------------------------------------------
+# macOS
 .DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+.fseventsd
+.TemporaryItems
+.VolumeIcon.icns
+# Windows
+Thumbs.db
+ehthumbs.db
+desktop.ini
+$RECYCLE.BIN/
+*.lnk
+# Linux
+.directory
+.Trash-*
+.nfs*
