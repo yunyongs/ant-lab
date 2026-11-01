@@ -8,3 +8,4 @@ Hand-written SQL for Phase 0 (see the checklist in [../docs/PLAN.md](../docs/PLA
 | `02_seed.sql` | Stocks, one member, starting cash |
 | `03_buy_sell.sql` | Buy and sell as transactions |
 | `04_portfolio.sql` | Portfolio query |
+| `05_reconciliation.sql` | Reconciliation checks: ledger vs. balance, holdings vs. fills |
