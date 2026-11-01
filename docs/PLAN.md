@@ -2,7 +2,7 @@
 
 A mock trading (모의투자) platform for Korean stocks. Users get virtual cash, buy and sell KOSPI/KOSDAQ stocks at simulated or real prices, and track their portfolio. Later versions add a trading journal, price alerts, and an AI layer over corporate filings.
 
-This is a learning project. It grows alongside the [slx-ai-campus](https://github.com/yunyongs/slx-ai-campus) bootcamp curriculum: each version uses what the current chapter teaches. All code is written by hand.
+This is a learning project. It grows alongside the [slx-ai-campus](https://github.com/yunyongs/slx-ai-campus) bootcamp curriculum: each version uses what the current chapter teaches. All code is written by hand through the MVP; in the macro ETF track the owner writes the core logic and Claude may draft scaffolding (see [MACRO_ETF.md §9.1](MACRO_ETF.md#91-who-writes-what)).
 
 > The name "Ant Lab" (개미 연구소) is a working title and may change.
 
@@ -14,7 +14,7 @@ This is a learning project. It grows alongside the [slx-ai-campus](https://githu
 - Practice the curriculum on one growing codebase: SQL → JDBC → Spring Boot + JPA → React → RAG/LangChain → Docker/CI/CD.
 - End up with a portfolio piece that shows domain modeling, consistency under concurrent requests, and an AI feature.
 
-Non-goals: real money, real brokerage orders, investment advice.
+Non-goals: real money, real-money brokerage orders (the macro track sends orders only to a KIS mock-trading account), investment advice.
 
 ## 2. Tech stack
 
@@ -22,12 +22,13 @@ Non-goals: real money, real brokerage orders, investment advice.
 |------|--------|-------|
 | Language | Java 21 | |
 | Backend | Spring Boot 3.x, Gradle | Generated from start.spring.io when the Spring chapter starts |
-| Database | MySQL 8 | PostgreSQL can be tried later in Docker |
+| Database | MySQL 8 → PostgreSQL 16 | MySQL for Phase 0–MVP (curriculum); PostgreSQL with pgvector from the macro track (M1) |
 | Mapping | JPA (main) | MyBatis optional for reporting/statistics queries |
 | Test | JUnit 5, Spring Boot Test | Concurrency tests on orders |
-| Frontend | React | V3 |
-| AI | RAG, LangChain, LangGraph | V4 |
-| Ops | Docker Compose, GitHub Actions, cloud | V5 |
+| Quant and AI service | Python, FastAPI, pandas | Macro track M2 |
+| Frontend | React | M5 (was V3) |
+| AI | RAG, LangChain, LangGraph | M6 (was V4) |
+| Ops | Docker Compose, GitHub Actions, OCI | CI from M1, deployment M7 (was V5) |
 
 ## 3. Korean market rules
 
@@ -79,6 +80,8 @@ Later: `watchlist`, `alert_rule`, `journal_entry`.
 
 ## 6. MVP user stories
 
+Feature numbers `MVP-01` to `MVP-06`, in the order below (see [CONVENTION.md](CONVENTION.md)).
+
 1. I sign up and get ₩10,000,000 in virtual cash.
 2. I see a list of stocks with current prices that change over time (simulated).
 3. I place a market buy: cash goes down, I get the shares, and a fill is recorded — all or nothing.
@@ -116,7 +119,25 @@ GET    /api/leaderboard             Ranking by return % (V3)
 
 Stretch goal: an order-book matching engine where users trade with each other.
 
+### Macro ETF track (after the MVP)
+
+A macro-driven ETF allocation system for 연금저축 and IRP: weekly regime scoring from US and Korean indicators, target weights for 15 Korean-listed ETFs, Slack-approved orders on a KIS mock account, and an AI layer. Full design: [MACRO_ETF.md](MACRO_ETF.md).
+
+| Phase | Builds | Curriculum stage |
+|-------|--------|------------------|
+| M1 | PostgreSQL, data collectors (FRED, ECOS, KIS), point-in-time storage, scheduled jobs, CI | Spring Boot + JPA, scheduling |
+| M2 | Python quant service: regime scoring and targets | Python alongside Spring |
+| M3 | Backtest and risk analytics | Python alongside Spring |
+| M4 | JWT auth, virtual pension accounts, proposals, Slack approval, KIS mock orders | Spring Security, external APIs |
+| M5 | React dashboard and charts, public demo | React |
+| M6 | RAG, regime explainer, weekly report, LangGraph pipeline, natural-language Q&A | RAG, LangChain, LangGraph |
+| M7 | Cloud deployment (OCI), deploy workflow, backups | Docker, CI/CD, cloud |
+
+With this track, V3–V5 above become an optional backlog: their shared infrastructure (KIS client, React, Docker, CI, cloud) is built once in M1–M7. The app moves from MySQL to PostgreSQL at M1.
+
 ## 9. Phase 0 checklist (MySQL)
+
+Feature numbers `P0-01` to `P0-06`, in the order below (see [CONVENTION.md](CONVENTION.md)).
 
 - [ ] Sketch the ERD for the MVP tables (`docs/erd.*`)
 - [ ] Write the DDL: PKs, FKs, `NOT NULL`, `UNIQUE`, `CHECK` (e.g. quantity > 0) → `db/01_schema.sql`
@@ -130,13 +151,15 @@ Stretch goal: an order-book matching engine where users trade with each other.
 ```
 ant-lab/
 ├── README.md
-├── CLAUDE.md        Rules for Claude in this repo (tutoring, no solution code)
+├── .github/         Issue and pull-request templates
 ├── docs/
-│   └── PLAN.md      This file
+│   ├── PLAN.md      This file
+│   ├── MACRO_ETF.md Design doc for the macro ETF track
+│   └── CONVENTION.md Git conventions
 └── db/              Hand-written DDL, seed data, practice queries
 ```
 
-The Spring Boot project is added at the repo root when the Spring chapter starts.
+The Spring Boot project is added at the repo root when the Spring chapter starts. The macro track later adds a Python service (from M2) and a React app (from M5) in their own top-level folders.
 
 ## 11. Learning log
 
@@ -145,3 +168,4 @@ One entry per phase: what was built, what was hard, what was learned.
 | Date | Phase | Notes |
 |------|-------|-------|
 | 2026-10-17 | Plan | Chose Korean-stock mock trading; repo created |
+| 2026-11-01 | Plan | Added the macro ETF track (M1–M7), design in MACRO_ETF.md |
