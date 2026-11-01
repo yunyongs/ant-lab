@@ -1,189 +1,189 @@
-# Ant Lab — Project Plan
+# Ant Lab — 프로젝트 계획
 
-A mock trading (모의투자) platform for Korean stocks. Users get virtual cash, buy and sell KOSPI/KOSDAQ stocks at simulated or real prices, and track their portfolio. Later versions add a trading journal, price alerts, and an AI layer over corporate filings.
+한국 주식 모의투자 플랫폼이다. 사용자는 가상 현금을 받아 KOSPI/KOSDAQ 종목을 시뮬레이션 가격 또는 실제 가격으로 사고팔고, 포트폴리오를 추적한다. 이후 버전에서는 매매 일지, 가격 알림, 기업 공시 기반 인공지능(AI, Artificial Intelligence) 기능을 추가한다.
 
-This is a learning project. It grows alongside the [slx-ai-campus](https://github.com/yunyongs/slx-ai-campus) bootcamp curriculum: each version uses what the current chapter teaches. All code is written by hand through the MVP; in the macro ETF track the owner writes the core logic and reviews every file (see [MACRO_ETF.md §9.1](MACRO_ETF.md#91-who-writes-what)).
+학습 프로젝트이다. [slx-ai-campus](https://github.com/yunyongs/slx-ai-campus) 부트캠프 커리큘럼과 함께 성장하며, 각 버전은 현재 챕터에서 배운 내용을 사용한다. 최소 기능 제품(MVP, Minimum Viable Product)까지는 모든 코드를 직접 작성하고, 매크로 상장지수펀드(ETF, Exchange-Traded Fund) 트랙에서는 소유자가 핵심 로직을 작성하고 모든 파일을 검토한다 ([MACRO_ETF.md §9.1](MACRO_ETF.md#91-역할-분담) 참고).
 
-> The name "Ant Lab" (개미 연구소) is a working title and may change.
+> "Ant Lab"(개미 연구소)은 가제이며 바뀔 수 있다.
 
 ---
 
-## 1. Goals
+## 1. 목표
 
-- Model a real domain: orders, fills, holdings, cash, with money that always adds up.
-- Practice the curriculum on one growing codebase: SQL → JDBC → Spring Boot + JPA → React → RAG/LangChain → Docker/CI/CD.
-- End up with a portfolio piece that shows domain modeling, consistency under concurrent requests, and an AI feature.
+- 실제 도메인을 모델링한다: 주문, 체결, 보유, 현금을 다루며 금액은 항상 맞아떨어져야 한다.
+- 하나의 코드베이스를 키워 가며 커리큘럼을 실습한다: 구조적 질의 언어(SQL, Structured Query Language) → 자바 데이터베이스 연결(JDBC, Java Database Connectivity) → Spring Boot + 자바 영속성 API(JPA, Java Persistence API) → React → 검색 증강 생성(RAG, Retrieval-Augmented Generation)/LangChain → Docker/지속적 통합·지속적 배포(CI/CD, Continuous Integration/Continuous Deployment).
+- 도메인 모델링, 동시 요청에서의 정합성, AI 기능을 보여 주는 포트폴리오를 완성한다.
 
-Non-goals: real money, real-money brokerage orders (the macro track sends orders only to a KIS mock-trading account), investment advice.
+비목표: 실제 돈, 실계좌 증권사 주문(매크로 트랙은 한국투자증권(KIS, Korea Investment & Securities) 모의투자 계좌로만 주문을 보낸다), 투자 조언.
 
-## 2. Tech stack
+## 2. 기술 스택
 
-| Area | Choice | Notes |
+| 영역 | 선택 | 비고 |
 |------|--------|-------|
-| Language | Java 21 | |
-| Backend | Spring Boot 3.x, Gradle | Generated from start.spring.io when the Spring chapter starts |
-| Database | MySQL 8 → PostgreSQL 16 | MySQL for Phase 0–MVP (curriculum); PostgreSQL with pgvector from the macro track (M1) |
-| Mapping | JPA (main) | MyBatis optional for reporting/statistics queries |
-| Test | JUnit 5, Spring Boot Test | Concurrency tests on orders |
-| Quant and AI service | Python, FastAPI, pandas | Macro track M2 |
-| Frontend | React | M5 (was V3) |
-| AI | RAG, LangChain, LangGraph | M6 (was V4) |
-| Ops | Docker Compose, GitHub Actions, OCI | CI from M1, deployment M7 (was V5) |
+| 언어 | Java 21 | |
+| 백엔드 | Spring Boot 3.x, Gradle | Spring 챕터 시작 시 start.spring.io로 생성 |
+| 데이터베이스 | MySQL 8 → PostgreSQL 16 | Phase 0–MVP는 MySQL(커리큘럼), 매크로 트랙(M1)부터 pgvector를 포함한 PostgreSQL |
+| 매핑 | JPA (주) | 리포트/통계 쿼리에 MyBatis 선택 사용 |
+| 테스트 | JUnit 5, Spring Boot Test | 주문 동시성 테스트 |
+| 퀀트·AI 서비스 | Python, FastAPI, pandas | 매크로 트랙 M2 |
+| 프런트엔드 | React | M5 (기존 V3) |
+| AI | RAG, LangChain, LangGraph | M6 (기존 V4) |
+| 운영 | Docker Compose, GitHub Actions, 오라클 클라우드 인프라(OCI, Oracle Cloud Infrastructure) | M1부터 CI, M7에 배포 (기존 V5) |
 
-## 3. Korean market rules
+## 3. 한국 시장 규칙
 
-| Rule | Real market | MVP | Later |
+| 규칙 | 실제 시장 | MVP | 이후 |
 |------|-------------|-----|-------|
-| Trading hours | 09:00–15:30 KST, weekdays, closed on holidays | Ignored (trade any time) | Reject or queue orders outside hours |
-| Tick size (호가단위) | Allowed price steps depend on the price range | Not needed (market orders only) | Validate limit prices |
-| Daily price limit | ±30% from the previous close | Price generator stays inside ±30% | Reject limit orders outside the band |
-| Fees and tax | Broker fee on buy/sell, transaction tax on sell | Configurable rates, default 0 | Real rates (check the current tax rate when implementing) |
-| Settlement | T+2 | Instant | Optional: "available to withdraw" vs "available to trade" |
-| Order unit | 1 share, no fractions | Whole-number quantity | Same |
+| 거래 시간 | 평일 09:00–15:30 한국 표준시(KST, Korea Standard Time), 공휴일 휴장 | 무시(언제든 거래) | 장외 시간 주문은 거부하거나 대기열에 넣음 |
+| 호가 단위 | 허용되는 가격 단위가 가격대에 따라 다름 | 불필요(시장가 주문만) | 지정가 검증 |
+| 가격제한폭 | 전일 종가 대비 ±30% | 가격 생성기가 ±30% 안에서만 움직임 | 범위를 벗어난 지정가 주문 거부 |
+| 수수료와 세금 | 매수/매도 시 증권사 수수료, 매도 시 거래세 | 요율 설정 가능, 기본값 0 | 실제 요율(구현 시점의 세율 확인) |
+| 결제 | T+2 | 즉시 | 선택: "출금 가능 금액"과 "주문 가능 금액" 구분 |
+| 주문 단위 | 1주, 소수점 불가 | 정수 수량 | 동일 |
 
-## 4. Price data sources
+## 4. 가격 데이터 소스
 
-| Source | Pros | Cons | When |
+| 소스 | 장점 | 단점 | 시기 |
 |--------|------|------|------|
-| Simulated generator (random walk) | No API key, offline, adjustable speed | Not real prices | MVP |
-| 공공데이터포털 (data.go.kr) 주식시세정보 | Free, official daily prices | One day behind | V2 |
-| 한국투자증권 KIS Developers Open API | Real-time quotes (REST + WebSocket), mock-trading mode | Account and token management | V3 |
-| DART Open API | Official corporate filings | Text-heavy | V4 (AI) |
+| 시뮬레이션 생성기(랜덤 워크) | 애플리케이션 프로그래밍 인터페이스(API, Application Programming Interface) 키 불필요, 오프라인, 속도 조절 가능 | 실제 가격 아님 | MVP |
+| 공공데이터포털 (data.go.kr) 주식시세정보 | 무료, 공식 일별 시세 | 하루 지연 | V2 |
+| 한국투자증권 KIS Developers Open API | 실시간 시세(표현 상태 전송(REST, Representational State Transfer) + WebSocket), 모의투자 모드 | 계좌와 토큰 관리 필요 | V3 |
+| 전자공시시스템(DART, Data Analysis, Retrieval and Transfer System) Open API | 공식 기업 공시 | 텍스트 위주 | V4 (AI) |
 
-Design rule: the order logic must not know where prices come from. Swapping the simulated source for a real one should not touch order code.
+설계 규칙: 주문 로직은 가격이 어디서 오는지 몰라야 한다. 시뮬레이션 소스를 실제 소스로 바꿔도 주문 코드는 건드리지 않아야 한다.
 
-## 5. Domain (MVP tables)
+## 5. 도메인 (MVP 테이블)
 
-Key columns only; the DDL is written by hand in `db/`.
+핵심 컬럼만 적는다. 데이터 정의 언어(DDL, Data Definition Language)는 `db/`에 직접 작성한다.
 
-| Table | Key columns |
+| 테이블 | 핵심 컬럼 |
 |-------|-------------|
 | `member` | id, email (unique), name, password, created_at |
 | `cash_account` | member_id, balance, reserved, version |
-| `stock` | id, ticker (unique, e.g. `005930`), name, market (KOSPI/KOSDAQ) |
+| `stock` | id, ticker (unique, 예: `005930`), name, market (KOSPI/KOSDAQ) |
 | `stock_price` | stock_id, price, traded_at |
 | `orders` | id, member_id, stock_id, side (BUY/SELL), type (MARKET/LIMIT), quantity, limit_price, status (PENDING/FILLED/CANCELED/REJECTED), created_at |
 | `execution` | id, order_id, fill_price, quantity, fee, tax, executed_at |
 | `holding` | member_id, stock_id, quantity, avg_price — unique (member_id, stock_id) |
 | `cash_ledger` | id, member_id, type, amount, balance_after, ref_order_id, created_at |
 
-Later: `watchlist`, `alert_rule`, `journal_entry`.
+이후 추가: `watchlist`, `alert_rule`, `journal_entry`.
 
-### Accounting rules
+### 회계 규칙
 
-- **Cost basis:** decide how the average price changes on a buy and on a sell (design question 2) and record the rule here before writing `db/03_buy_sell.sql`.
-- **Rounding:** decide the column type and decimal places of each money column (design question 1) and record them here. Fees and tax are computed at full precision, then rounded once, by one rule, in one place in the code (check the broker's exact rule when real rates are added in V2).
-- **Daily P&L breakdown:** with no deposits or withdrawals, today's change in portfolio value (cash + holdings at today's close) splits into three parts that must add up to the total:
-  - price effect = (today's close − yesterday's close) × yesterday's quantity,
-  - trading effect = Σ over today's sells of (fill price − today's close) × quantity + Σ over today's buys of (today's close − fill price) × quantity,
-  - costs = − (fees + tax).
+- **원가 기준:** 매수와 매도 시 평균단가가 어떻게 바뀌는지 정하고(설계 질문 2), `db/03_buy_sell.sql`을 작성하기 전에 그 규칙을 여기에 기록한다.
+- **반올림:** 각 금액 컬럼의 컬럼 타입과 소수 자릿수를 정하고(설계 질문 1) 여기에 기록한다. 수수료와 세금은 전체 정밀도로 계산한 뒤, 하나의 규칙에 따라 코드의 한 곳에서 한 번만 반올림한다(V2에서 실제 요율을 추가할 때 증권사의 정확한 규칙을 확인한다).
+- **일간 손익 분해:** 입출금이 없을 때, 오늘의 포트폴리오 가치 변동(현금 + 오늘 종가 기준 보유 평가액)은 세 부분으로 나뉘며, 합이 전체 변동과 같아야 한다:
+  - 가격 효과 = (오늘 종가 − 어제 종가) × 어제 수량,
+  - 매매 효과 = 오늘 매도 건별 (체결가 − 오늘 종가) × 수량의 합 + 오늘 매수 건별 (오늘 종가 − 체결가) × 수량의 합,
+  - 비용 = − (수수료 + 세금).
 
-  Realized profit is a different number: it counts the gain since purchase, much of which earlier days' valuations already showed, so it is reported on its own (user story 4) and never added to the daily breakdown. User story 5 shows this breakdown.
-- **Reconciliation:** the books must agree with themselves (Phase 0 item `P0-07`, then a daily job in the MVP): the sum of `cash_ledger.amount` equals `cash_account.balance`, the latest `balance_after` equals the balance, and each holding's quantity equals its buy fills minus its sell fills. Every difference is classified as timing, adjustment or investigate (design question 7), and an error is corrected by adding a new ledger row, never by editing an old one.
+  실현 손익은 다른 숫자이다. 매수 이후의 이익을 세는데, 그중 상당 부분은 이전 날들의 평가에 이미 반영되었으므로 따로 보고하며(사용자 스토리 4) 일간 분해에 더하지 않는다. 사용자 스토리 5에서 이 분해를 보여 준다.
+- **대사:** 장부는 스스로 일치해야 한다(Phase 0 항목 `P0-07`, 이후 MVP의 일일 작업): `cash_ledger.amount`의 합은 `cash_account.balance`와 같고, 최신 `balance_after`는 잔액과 같으며, 각 보유의 수량은 매수 체결 수량에서 매도 체결 수량을 뺀 값과 같다. 모든 차이는 시차, 조정, 조사 중 하나로 분류하며(설계 질문 7), 오류는 기존 원장 행을 수정하지 않고 새 원장 행을 추가해 바로잡는다.
 
-### Design questions to answer before writing the DDL
+### DDL 작성 전에 답할 설계 질문
 
-1. Prices in won are whole numbers, but the average price usually is not. Which MySQL type fits each money column, and why is `DOUBLE` dangerous?
-2. You hold 10 shares at ₩70,000 and buy 5 more at ₩76,000. What is the new average price? What happens to it when you sell 3?
-3. You have ₩1,000,000 and a pending limit buy for ₩800,000. Can you place a ₩500,000 market buy now? What is `reserved` for?
-4. What is the difference between realized and unrealized profit, and which tables does each come from?
-5. Two sell orders for the same 10 shares arrive at the same moment. How do you stop both from succeeding?
-6. Why keep `balance_after` on every ledger row when `cash_account.balance` already exists?
-7. Your reconciliation finds that the ledger total and `cash_account.balance` differ by ₩1. List three possible causes, and for each say whether it is a timing difference (clears by itself), an adjustment (needs a correcting entry) or something to investigate.
+1. 원화 가격은 정수이지만 평균단가는 보통 정수가 아니다. 각 금액 컬럼에 어떤 MySQL 타입이 맞으며, `DOUBLE`은 왜 위험한가?
+2. ₩70,000에 10주를 보유한 상태에서 ₩76,000에 5주를 더 산다. 새 평균단가는 얼마인가? 3주를 팔면 평균단가는 어떻게 되는가?
+3. ₩1,000,000을 보유하고 있고 ₩800,000짜리 지정가 매수 주문이 대기 중이다. 지금 ₩500,000 시장가 매수를 낼 수 있는가? `reserved`는 무엇을 위한 것인가?
+4. 실현 손익과 미실현 손익의 차이는 무엇이며, 각각 어느 테이블에서 나오는가?
+5. 같은 10주에 대한 매도 주문 두 건이 동시에 들어온다. 둘 다 성공하는 것을 어떻게 막는가?
+6. `cash_account.balance`가 이미 있는데 왜 모든 원장 행에 `balance_after`를 두는가?
+7. 대사 결과 원장 합계와 `cash_account.balance`가 ₩1 차이 난다. 가능한 원인 세 가지를 들고, 각각이 시차(저절로 해소됨), 조정(정정 분개 필요), 조사 대상 중 무엇인지 말하라.
 
-## 6. MVP user stories
+## 6. MVP 사용자 스토리
 
-Feature numbers `MVP-01` to `MVP-06`, in the order below (see [CONVENTION.md](CONVENTION.md)).
+기능 번호는 아래 순서대로 `MVP-01`부터 `MVP-06`까지이다([CONVENTION.md](CONVENTION.md) 참고).
 
-1. I sign up and get ₩10,000,000 in virtual cash.
-2. I see a list of stocks with current prices that change over time (simulated).
-3. I place a market buy: cash goes down, I get the shares, and a fill is recorded — all or nothing.
-4. I place a market sell: I cannot sell shares I do not own, and the realized profit is recorded.
-5. I see my portfolio: quantity, average price, current value, and return % per holding, plus totals, and what drove today's change (price effect, trading effect, costs).
-6. I see my order history and cash history.
+1. 회원 가입하면 가상 현금 ₩10,000,000을 받는다.
+2. 시간에 따라 변하는(시뮬레이션) 현재가와 함께 종목 목록을 본다.
+3. 시장가 매수를 낸다: 현금이 줄고, 주식을 받고, 체결이 기록된다 — 전부 되거나 전부 안 된다.
+4. 시장가 매도를 낸다: 보유하지 않은 주식은 팔 수 없고, 실현 손익이 기록된다.
+5. 포트폴리오를 본다: 보유 종목별 수량, 평균단가, 현재 평가액, 수익률 %와 합계, 그리고 오늘 변동의 원인(가격 효과, 매매 효과, 비용).
+6. 주문 내역과 현금 내역을 본다.
 
-## 7. API draft (from the Spring phase)
+## 7. API 초안 (Spring 단계부터)
 
 ```
-POST   /api/members                 Sign up (creates cash account with ₩10M)
-GET    /api/stocks                  Stock list with latest price
-GET    /api/stocks/{ticker}         Stock detail and recent prices
-POST   /api/orders                  Place order (side, type, ticker, quantity, limitPrice)
-GET    /api/orders                  My orders (status, period, paging)
-DELETE /api/orders/{id}             Cancel a pending order (V2)
-GET    /api/portfolio               Holdings, values, returns, totals
-GET    /api/cash/ledger             Cash history (paging)
-POST   /api/watchlist               Add to watchlist (V2)
-POST   /api/alerts                  Create price alert (V2)
-GET    /api/leaderboard             Ranking by time-weighted return (V3)
+POST   /api/members                 회원 가입 (₩10M 현금 계좌 생성)
+GET    /api/stocks                  최신가를 포함한 종목 목록
+GET    /api/stocks/{ticker}         종목 상세와 최근 가격
+POST   /api/orders                  주문 (side, type, ticker, quantity, limitPrice)
+GET    /api/orders                  내 주문 (상태, 기간, 페이징)
+DELETE /api/orders/{id}             대기 주문 취소 (V2)
+GET    /api/portfolio               보유, 평가액, 수익률, 합계
+GET    /api/cash/ledger             현금 내역 (페이징)
+POST   /api/watchlist               관심 종목 추가 (V2)
+POST   /api/alerts                  가격 알림 생성 (V2)
+GET    /api/leaderboard             시간가중수익률 순위 (V3)
 ```
 
-Leaderboard returns are time-weighted (TWR) so that deposits and withdrawals do not distort the ranking; each member's own page also shows the money-weighted return (MWR), the return on their own cash flows.
+리더보드 수익률은 입출금이 순위를 왜곡하지 않도록 시간가중수익률(TWR, Time-Weighted Return)로 계산한다. 각 회원의 개인 페이지에는 자신의 현금 흐름에 대한 수익률인 금액가중수익률(MWR, Money-Weighted Return)도 함께 보여 준다.
 
-## 8. Roadmap
+## 8. 로드맵
 
-| Version | Features | Curriculum stage |
+| 버전 | 기능 | 커리큘럼 단계 |
 |---------|----------|------------------|
-| Phase 0 | ERD, DDL, seed data, buy/sell as SQL transactions, portfolio query | MySQL (DDL, transactions) — now |
-| Phase 1 | Console app with DAOs: buy, sell, portfolio | JDBC |
-| MVP | REST API for the six user stories, layered architecture, validation, global exception handling, daily reconciliation job that records each difference as a timing, adjustment or investigate item (same structure as [MACRO_ETF.md §6.6](MACRO_ETF.md#66-daily-reconciliation)) | Spring Boot + JPA |
-| V2 | Limit orders filled by a scheduled price check, cancel, watchlist, alerts, fees and tax | Spring (scheduling) |
-| V3 | Real price data, leaderboard (TWR), trading journal, charts | External APIs, React |
-| V4 | DART filing Q&A (RAG), trade-coach agent over the journal, natural-language portfolio questions | RAG, LangChain, LangGraph |
-| V5 | Docker Compose (app + MySQL), GitHub Actions, cloud deployment | Docker, CI/CD, cloud |
+| Phase 0 | 엔터티 관계도(ERD, Entity-Relationship Diagram), DDL, 시드 데이터, SQL 트랜잭션으로 매수/매도, 포트폴리오 쿼리 | MySQL (DDL, 트랜잭션) — 현재 |
+| Phase 1 | 데이터 접근 객체(DAO, Data Access Object) 기반 콘솔 앱: 매수, 매도, 포트폴리오 | JDBC |
+| MVP | 여섯 가지 사용자 스토리의 REST API, 계층형 아키텍처, 검증, 전역 예외 처리, 각 차이를 시차·조정·조사 항목으로 기록하는 일일 대사 작업([MACRO_ETF.md §6.6](MACRO_ETF.md#66-일일-대사)과 같은 구조) | Spring Boot + JPA |
+| V2 | 가격 정기 점검으로 체결되는 지정가 주문, 취소, 관심 종목, 알림, 수수료와 세금 | Spring (스케줄링) |
+| V3 | 실제 가격 데이터, 리더보드(TWR), 매매 일지, 차트 | 외부 API, React |
+| V4 | DART 공시 Q&A(RAG), 매매 일지 기반 트레이드 코치 에이전트, 자연어 포트폴리오 질의 | RAG, LangChain, LangGraph |
+| V5 | Docker Compose (앱 + MySQL), GitHub Actions, 클라우드 배포 | Docker, CI/CD, 클라우드 |
 
-Stretch goal: an order-book matching engine where users trade with each other.
+확장 목표: 사용자끼리 거래하는 호가창 매칭 엔진.
 
-### Macro ETF track (after the MVP)
+### 매크로 ETF 트랙 (MVP 이후)
 
-A macro-driven ETF allocation system for 연금저축 and IRP: weekly regime scoring from US and Korean indicators, target weights for 15 Korean-listed ETFs, Slack-approved orders on a KIS mock account, and an AI layer. Full design: [MACRO_ETF.md](MACRO_ETF.md).
+연금저축과 개인형 퇴직연금(IRP, Individual Retirement Pension)을 위한 매크로 기반 ETF 자산배분 시스템이다: 미국·한국 지표로 매주 국면 점수를 매기고, 국내 상장 ETF 15종의 목표 비중을 정하며, KIS 모의 계좌에서 Slack 승인을 거쳐 주문하고, AI 레이어를 더한다. 전체 설계: [MACRO_ETF.md](MACRO_ETF.md).
 
-| Phase | Builds | Curriculum stage |
+| 단계 | 구축 내용 | 커리큘럼 단계 |
 |-------|--------|------------------|
-| M1 | PostgreSQL, data collectors (FRED, ECOS, KIS), point-in-time storage, scheduled jobs, CI | Spring Boot + JPA, scheduling |
-| M2 | Python quant service: regime scoring and targets | Python alongside Spring |
-| M3 | Backtest and risk analytics | Python alongside Spring |
-| M4 | JWT auth, virtual pension accounts, proposals, Slack approval, KIS mock orders | Spring Security, external APIs |
-| M5 | React dashboard and charts, public demo | React |
-| M6 | RAG, regime explainer, weekly report, LangGraph pipeline, natural-language Q&A | RAG, LangChain, LangGraph |
-| M7 | Cloud deployment (OCI), deploy workflow, backups | Docker, CI/CD, cloud |
+| M1 | PostgreSQL, 데이터 수집기(미국 연준 경제 데이터(FRED, Federal Reserve Economic Data), 한국은행 경제통계시스템(ECOS, Economic Statistics System), KIS), 시점 기준(point-in-time) 저장, 스케줄 작업, CI | Spring Boot + JPA, 스케줄링 |
+| M2 | Python 퀀트 서비스: 국면 점수와 목표 비중 | Spring과 병행하는 Python |
+| M3 | 백테스트와 리스크 분석 | Spring과 병행하는 Python |
+| M4 | JSON 웹 토큰(JWT, JSON Web Token) 인증, 가상 연금 계좌, 제안, Slack 승인, KIS 모의 주문 | Spring Security, 외부 API |
+| M5 | React 대시보드와 차트, 공개 데모 | React |
+| M6 | RAG, 국면 설명기, 주간 리포트, LangGraph 파이프라인, 자연어 Q&A | RAG, LangChain, LangGraph |
+| M7 | 클라우드 배포(OCI), 배포 워크플로, 백업 | Docker, CI/CD, 클라우드 |
 
-With this track, V3–V5 above become an optional backlog: their shared infrastructure (KIS client, React, Docker, CI, cloud) is built once in M1–M7. The app moves from MySQL to PostgreSQL at M1.
+이 트랙을 진행하면 위의 V3–V5는 선택 백로그가 된다: 공통 인프라(KIS 클라이언트, React, Docker, CI, 클라우드)는 M1–M7에서 한 번만 구축한다. 앱은 M1에서 MySQL에서 PostgreSQL로 옮긴다.
 
-## 9. Phase 0 checklist (MySQL)
+## 9. Phase 0 체크리스트 (MySQL)
 
-Feature numbers `P0-01` to `P0-07`, in the order below (see [CONVENTION.md](CONVENTION.md)).
+기능 번호는 아래 순서대로 `P0-01`부터 `P0-07`까지이다([CONVENTION.md](CONVENTION.md) 참고).
 
-- [ ] Sketch the ERD for the MVP tables (`docs/erd.*`)
-- [ ] Write the DDL: PKs, FKs, `NOT NULL`, `UNIQUE`, `CHECK` (e.g. quantity > 0) → `db/01_schema.sql`
-- [ ] Seed data: 5–10 KOSPI tickers (e.g. Samsung Electronics `005930`, SK hynix `000660`), one member, starting cash → `db/02_seed.sql`
-- [ ] "Buy 10 shares" as one transaction: cash, order, execution, holding (insert or update), ledger → `COMMIT`, or `ROLLBACK` on failure → `db/03_buy_sell.sql`
-- [ ] "Sell" as one transaction, refusing to sell more than held
-- [ ] Portfolio query: holdings joined with latest prices, value and return % → `db/04_portfolio.sql`
-- [ ] Reconciliation queries: each must return zero mismatches after the buy and sell scripts (see Accounting rules in §5) → `db/05_reconciliation.sql`
-  - Break the data on purpose (for example change one ledger amount in a copy) and classify what the queries report: timing, adjustment or investigate (design question 7)
-  - After answering design question 3, define a reconciliation check for `reserved` yourself and add it to the same file
+- [ ] MVP 테이블의 ERD 스케치 (`docs/erd.*`)
+- [ ] DDL 작성: 기본 키(PK, Primary Key), 외래 키(FK, Foreign Key), `NOT NULL`, `UNIQUE`, `CHECK`(예: quantity > 0) → `db/01_schema.sql`
+- [ ] 시드 데이터: KOSPI 종목 5–10개(예: 삼성전자 `005930`, SK하이닉스 `000660`), 회원 1명, 초기 현금 → `db/02_seed.sql`
+- [ ] "10주 매수"를 하나의 트랜잭션으로: 현금, 주문, 체결, 보유(insert 또는 update), 원장 → `COMMIT`, 실패 시 `ROLLBACK` → `db/03_buy_sell.sql`
+- [ ] "매도"를 하나의 트랜잭션으로, 보유 수량보다 많이 팔지 못하게 막기
+- [ ] 포트폴리오 쿼리: 보유와 최신가를 조인해 평가액과 수익률 % 계산 → `db/04_portfolio.sql`
+- [ ] 대사 쿼리: 매수·매도 스크립트 실행 후 각 쿼리의 불일치가 0건이어야 한다(§5 회계 규칙 참고) → `db/05_reconciliation.sql`
+  - 일부러 데이터를 깨뜨리고(예: 복사본에서 원장 금액 하나를 바꿈) 쿼리가 보고하는 내용을 시차, 조정, 조사로 분류한다(설계 질문 7)
+  - 설계 질문 3에 답한 뒤, `reserved`에 대한 대사 검사를 직접 정의해 같은 파일에 추가한다
 
-## 10. Repo layout
+## 10. 저장소 구조
 
 ```
 ant-lab/
 ├── README.md
-├── .github/         Issue and pull-request templates
+├── .github/         이슈와 풀 리퀘스트 템플릿
 ├── docs/
-│   ├── PLAN.md      This file
-│   ├── MACRO_ETF.md Design doc for the macro ETF track
-│   └── CONVENTION.md Git conventions
-└── db/              Hand-written DDL, seed data, practice queries
+│   ├── PLAN.md      이 파일
+│   ├── MACRO_ETF.md 매크로 ETF 트랙 설계 문서
+│   └── CONVENTION.md Git 컨벤션
+└── db/              직접 작성한 DDL, 시드 데이터, 실습 쿼리
 ```
 
-The Spring Boot project is added at the repo root when the Spring chapter starts. The macro track later adds a Python service (from M2) and a React app (from M5) in their own top-level folders.
+Spring Boot 프로젝트는 Spring 챕터를 시작할 때 저장소 루트에 추가한다. 매크로 트랙은 이후 Python 서비스(M2부터)와 React 앱(M5부터)을 각각 최상위 폴더에 추가한다.
 
-## 11. Learning log
+## 11. 학습 로그
 
-One entry per phase: what was built, what was hard, what was learned.
+단계마다 항목 하나: 무엇을 만들었고, 무엇이 어려웠고, 무엇을 배웠는지.
 
-| Date | Phase | Notes |
+| 날짜 | 단계 | 메모 |
 |------|-------|-------|
-| 2026-10-17 | Plan | Chose Korean-stock mock trading; repo created |
-| 2026-11-01 | Plan | Added the macro ETF track (M1–M7), design in MACRO_ETF.md |
+| 2026-10-17 | Plan | 한국 주식 모의투자로 결정, 저장소 생성 |
+| 2026-11-01 | Plan | 매크로 ETF 트랙(M1–M7) 추가, 설계는 MACRO_ETF.md |

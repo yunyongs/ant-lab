@@ -1,6 +1,6 @@
 # db
 
-Hand-written SQL for Phase 0 (see the checklist in [../docs/PLAN.md](../docs/PLAN.md#9-phase-0-checklist-mysql)).
+Hand-written SQL for Phase 0 (see the checklist in [../docs/PLAN.md](../docs/PLAN.md#9-phase-0-체크리스트-mysql)).
 
 | File | Contents |
 |------|----------|
