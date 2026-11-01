@@ -1,6 +1,6 @@
 # GIT 컨벤션 — Ant Lab
 
-> **1인 포트폴리오 저장소.** 팀 프로젝트 [3WHY_java-latecatcher](https://github.com/20260921-saltlux-llm-agent-service-2nd/3WHY_java-latecatcher)의 컨벤션을 1인용으로 옮겼다. 이슈 → 브랜치 → 커밋 → PR → 머지의 연결은 그대로 두고, 팀 리뷰(approve 2)는 셀프 리뷰로, 담당자 구분은 없앴다.
+> **1인 포트폴리오 저장소.** 팀 프로젝트 [3WHY_java-latecatcher](https://github.com/20260921-saltlux-llm-agent-service-2nd/3WHY_java-latecatcher)의 컨벤션을 1인용으로 옮겼다. 이슈 → 브랜치 → 커밋 → 풀 리퀘스트(PR, Pull Request) → 머지의 연결은 그대로 두고, 팀 리뷰(approve 2)는 셀프 리뷰로, 담당자 구분은 없앴다.
 > git 명령은 **소유자가 직접** 실행한다.
 > 예시의 이슈·PR 번호는 **설명용**이다. 실제 번호는 GitHub가 붙인다.
 
@@ -8,7 +8,7 @@
 
 ## 한눈에 보기
 
-기능 하나(**M1-02 FRED 수집기**)가 이슈부터 머지까지 가는 동안 번호가 어디에 붙는지 보여 준다.
+기능 하나인 **M1-02 미국 연준 경제 데이터(FRED, Federal Reserve Economic Data) 수집기**가 이슈부터 머지까지 가는 동안 번호가 어디에 붙는지 보여 준다.
 
 
 | 단계            | 형식                                       | 예                                                    |
@@ -17,7 +17,7 @@
 | 이슈            | `[기능번호] 제목`                              | `[M1-02] FRED 수집기 — 발표일과 함께 저장` → GitHub가 **#24** 부여 |
 | 라벨            | 종류 1개 + 파트 1개 이상                         | `◆ Feature` `collector` `db`                           |
 | 브랜치           | `종류/이슈번호-기능번호-영문이름`                      | `feat/24-M1-02-fred-collector`                       |
-| 커밋            | `태그: 제목` + body + `Refs #이슈번호`           | `feat: FRED 시계열을 발표일과 함께 저장` … `Refs #24`            |
+| 커밋            | `태그: 제목` + 본문 + `Refs #이슈번호`             | `feat: FRED 시계열을 발표일과 함께 저장` … `Refs #24`            |
 | **main pull** | push 전에 최신 `main`을 당겨 충돌·빌드 확인           | `git pull origin main` → `git status` → 빌드·테스트       |
 | push          | 충돌이 없을 때만                                | `git push -u origin feat/24-M1-02-fred-collector`    |
 | PR            | `태그: [기능번호] 제목 #이슈번호`                    | `feat: [M1-02] FRED 수집기 #24` → GitHub가 **#27** 부여    |
@@ -57,11 +57,11 @@
 
 | 단계 코드        | 단계                        | 기능 표가 있는 곳                                                                    |
 | ------------ | ------------------------- | ----------------------------------------------------------------------------- |
-| `P0`         | Phase 0 — MySQL 스키마와 트랜잭션 | [PLAN.md §9](PLAN.md#9-phase-0-checklist-mysql) 체크리스트 순서대로 `P0-01` \~ `P0-07` |
-| `P1`         | Phase 1 — JDBC 콘솔 앱       | 단계를 시작할 때 PLAN.md에 표를 만든다                                                     |
-| `MVP`        | Spring Boot REST API      | [PLAN.md §6](PLAN.md#6-mvp-user-stories) 사용자 스토리 순서대로 `MVP-01` \~ `MVP-06`    |
+| `P0`         | Phase 0 — MySQL 스키마와 트랜잭션 | [PLAN.md §9](PLAN.md#9-phase-0-체크리스트-mysql) 체크리스트 순서대로 `P0-01` \~ `P0-07` |
+| `P1`         | Phase 1 — 자바 데이터베이스 연결(JDBC, Java Database Connectivity) 콘솔 앱       | 단계를 시작할 때 PLAN.md에 표를 만든다                                                     |
+| `MVP`        | Spring Boot 표현 상태 전송(REST, Representational State Transfer) API      | [PLAN.md §6](PLAN.md#6-mvp-사용자-스토리) 사용자 스토리 순서대로 `MVP-01` \~ `MVP-06`    |
 | `V2`         | 지정가 주문, 알림 등              | 단계를 시작할 때 PLAN.md에 표를 만든다                                                     |
-| `M1` \~ `M7` | 매크로 ETF 트랙                | 단계를 시작할 때 [MACRO\_ETF.md §9](MACRO_ETF.md#9-roadmap)에 표를 만든다                  |
+| `M1` \~ `M7` | 매크로 상장지수펀드(ETF, Exchange-Traded Fund) 트랙                | 단계를 시작할 때 [MACRO\_ETF.md §9](MACRO_ETF.md#9-로드맵)에 표를 만든다                  |
 
 
 ### 규칙
@@ -73,9 +73,9 @@
    
    | 영역     | 언제                                      |
    | ------ | --------------------------------------- |
-   | `[환경]` | 빌드 설정, `.gitignore`, Docker, CI, 저장소 설정 |
+   | `[환경]` | 빌드 설정, `.gitignore`, Docker, 지속적 통합(CI, Continuous Integration), 저장소 설정 |
    | `[문서]` | README, PLAN, MACRO_ETF, CONVENTION    |
-   | `[논의]` | 혼자 정하기 전에 선택지를 정리해 둘 주제 (설계 결정 기록용)     |
+   | `[논의]` | 혼자 정하기 전에 선택지를 정리해 둘 주제 (설계 결정 로그용)     |
    
 
 ### 번호가 들어가는 곳
@@ -85,27 +85,27 @@
 | --------- | :-----: | :-----: | ------------------------------- |
 | 이슈 제목     | ✓     | (자동)  | `[M1-02] FRED 수집기 — 발표일과 함께 저장` |
 | 브랜치       | ✓     | ✓     | `feat/24-M1-02-fred-collector`  |
-| 커밋 header | —     | —     | `feat: FRED 시계열을 발표일과 함께 저장`    |
+| 커밋 헤더     | —     | —     | `feat: FRED 시계열을 발표일과 함께 저장`    |
 | 커밋 마지막 줄  | —     | ✓     | `Refs #24`                      |
 | PR 제목     | ✓     | ✓     | `feat: [M1-02] FRED 수집기 #24`    |
 | PR 본문     | —     | ✓     | `Closed #24`                    |
 | 머지 커밋     | ✓     | ✓     | PR 제목 그대로 + `Closed #24`        |
 
 
-커밋 header에는 번호를 넣지 않는다. 커밋은 작게 여러 개 만들기 때문이다. 마지막 줄의 `Refs #24`가 이슈 #24의 타임라인에 커밋을 자동으로 연결한다.
+커밋 헤더에는 번호를 넣지 않는다. 커밋은 작게 여러 개 만들기 때문이다. 마지막 줄의 `Refs #24`가 이슈 #24의 타임라인에 커밋을 자동으로 연결한다.
 
 ---
 
-## 1. Commit Rule
+## 1. 커밋 규칙
 
 - 설명은 **한글**로 쓴다. 태그와 코드·기술 용어(`BigDecimal`, `pgvector` 등)는 원래 표기 그대로 둔다.
 - 하나의 커밋 = 하나의 변경. 여러 기능을 한 커밋에 섞지 않는다.
-- **header만 적지 말고 body까지 꼭 적는다.**
+- **헤더만 적지 말고 본문까지 꼭 적는다.**
 - **마지막 줄에 `Refs #이슈번호`** 를 적는다.
 - 커밋은 소유자 이름으로만 남기며 **`Co-Authored-By` 트레일러를 붙이지 않는다.**
-- 비밀값(`.env`, KIS app key/secret, Slack signing secret, API 키)은 절대 커밋하지 않는다.
+- 비밀값(`.env`, 한국투자증권(KIS, Korea Investment & Securities) app key/secret, Slack signing secret, 애플리케이션 프로그래밍 인터페이스(API, Application Programming Interface) 키)은 절대 커밋하지 않는다.
 
-### Header — `태그: 제목`
+### 헤더 — `태그: 제목`
 
 `:` 뒤에만 공백이 있다. 번호와 탭 문자는 넣지 않는다.
 
@@ -123,18 +123,18 @@
 
 | ✕ 잘못된 예                     | 무엇이 문제인가               | ✓ 고친 예                          |
 | --------------------------- | ---------------------- | ------------------------------- |
-| `feat: M1-02 FRED 수집기`      | header에 기능 번호          | `feat: FRED 시계열을 발표일과 함께 저장`    |
-| `feat: 수집기 추가 - 재시도 - 로그 …` | body를 header 한 줄에 이어 씀 | header 한 줄 + 빈 줄 + `-` 목록 body  |
+| `feat: M1-02 FRED 수집기`      | 헤더에 기능 번호              | `feat: FRED 시계열을 발표일과 함께 저장`    |
+| `feat: 수집기 추가 - 재시도 - 로그 …` | 본문을 헤더 한 줄에 이어 씀     | 헤더 한 줄 + 빈 줄 + `-` 목록 본문      |
 | `feat:수집기`, `feat : 수집기`    | `:` 앞뒤 공백              | `feat: 수집기`                     |
 | `update`, `수정`              | 태그도 내용도 없음             | `fix: 휴일에 수집 잡이 실패로 기록되던 문제 수정` |
 
 
-### Body
+### 본문
 
 - 양에 구애받지 말고 **최대한 상세히** 쓴다.
 - **어떻게**보다 **무엇을, 왜** 바꿨는지 쓴다.
-- header 다음에 한 줄 띄우고 `-`로 시작하는 목록으로 쓴다.
-- body 다음에 한 줄 띄우고 `Refs #이슈번호`로 끝낸다.
+- 헤더 다음에 한 줄 띄우고 `-`로 시작하는 목록으로 쓴다.
+- 본문 다음에 한 줄 띄우고 `Refs #이슈번호`로 끝낸다.
 
 ```text
 feat: FRED 시계열을 발표일과 함께 저장
@@ -160,7 +160,7 @@ Refs #41
 
 ---
 
-## 2. Branch Rule
+## 2. 브랜치 규칙
 
 ### 이름 — `종류/이슈번호-기능번호-영문이름`
 
@@ -185,7 +185,7 @@ chore/30-ci-gradle-pytest           # [환경] — 기능 번호 없음
 docs/35-macro-etf-plan              # [문서] — 기능 번호 없음
 ```
 
-**`#`을 빼는 이유:** URL에서 `#`은 페이지 안 위치를 뜻해서 `github.com/…/tree/feat/#24-…` 링크가 브랜치를 열지 못한다. 일부 셸에서는 `#`이 든 이름을 따옴표로 감싸야 한다.
+**`#`을 빼는 이유:** 웹 주소(URL, Uniform Resource Locator)에서 `#`은 페이지 안 위치를 뜻해서 `github.com/…/tree/feat/#24-…` 링크가 브랜치를 열지 못한다. 일부 셸에서는 `#`이 든 이름을 따옴표로 감싸야 한다.
 
 ### 흐름 — `기능 브랜치` → `main`
 
@@ -209,7 +209,7 @@ docs/35-macro-etf-plan              # [문서] — 기능 번호 없음
     git switch feat/24-M1-02-fred-collector
    ```
 
-**옵션 — gh CLI** (이슈 연결까지 사이트와 같다)
+**옵션 — gh 명령줄 인터페이스(CLI, Command-Line Interface)** (이슈 연결까지 사이트와 같다)
 
 ```bash
 gh issue develop 24 --name feat/24-M1-02-fred-collector --base main --checkout
@@ -232,13 +232,13 @@ git switch -c feat/24-M1-02-fred-collector
 | 3   | **최신 `main`을 내 브랜치로 pull한다** | `git pull origin main`                                                                         |
 | 4   | **충돌이 없는지 확인한다**             | `git status`에 `both modified`가 없어야 한다                                                          |
 | 5   | 충돌이 있으면 해결하고 커밋한다            | `<<<<<<<` \~ `>>>>>>>` 구간 정리 → `git add` → `git commit`                                        |
-| 6   | **바꾼 영역의 빌드·테스트를 돌린다**       | Spring `./gradlew test` · Python `pytest` · React `npm run build` · SQL은 스크립트 실행 · 문서만 바꿨으면 생략 |
+| 6   | **바꾼 영역의 빌드·테스트를 돌린다**       | Spring `./gradlew test` · Python `pytest` · React `npm run build` · 구조적 질의 언어(SQL, Structured Query Language)는 스크립트 실행 · 문서만 바꿨으면 생략 |
 | 7   | 그 다음에 push한다                 | `git push -u origin 브랜치이름`                                                                     |
 
 
 ---
 
-## 3. Label Rule
+## 3. 라벨 규칙
 
 라벨은 **이슈와 PR**에 붙인다. 종류 라벨 하나가 이슈 템플릿, 이슈 제목 앞머리, 브랜치 종류, 커밋·PR 태그를 함께 정한다.
 
@@ -263,7 +263,7 @@ git switch -c feat/24-M1-02-fred-collector
 | `○ Suggestion` | `5-suggestion.md`           | `[논의]`                        | 만들지 않는다                      | —                |
 
 
-`○ Suggestion` 이슈는 코드를 바꾸지 않는다. 결론이 나면 결정을 댓글로 남기고, 해당 문서의 Decision log(예: MACRO_ETF.md 부록 B)에 옮긴 뒤 닫는다.
+`○ Suggestion` 이슈는 코드를 바꾸지 않는다. 결론이 나면 결정을 댓글로 남기고, 해당 문서의 결정 로그(예: MACRO_ETF.md 부록 B)에 옮긴 뒤 닫는다.
 
 ### 파트 라벨 — 바꾸는 영역으로 고른다
 
@@ -272,12 +272,12 @@ git switch -c feat/24-M1-02-fred-collector
 | ----------- | ----------------------------------------------- | ------------------------------------------ |
 | `db`        | `db/` SQL, Flyway 마이그레이션, 스키마                   | `01_schema.sql`, `V3__indicator_value.sql` |
 | `domain`    | Spring 도메인·서비스 (원장, 보유, 주문 상태, 제안·승인)           | `LedgerService`, `ProposalService`         |
-| `api`       | Spring 컨트롤러, DTO, 보안·JWT, Slack 연동              | `RegimeController`, `SecurityConfig`       |
-| `collector` | 데이터 수집과 스케줄 잡 (FRED, ECOS, KIS, CNN), `job_run` | `FredCollector`                            |
+| `api`       | Spring 컨트롤러, 데이터 전송 객체(DTO, Data Transfer Object), 보안·JSON 웹 토큰(JWT, JSON Web Token), Slack 연동              | `RegimeController`, `SecurityConfig`       |
+| `collector` | 데이터 수집과 스케줄 잡 (FRED, 한국은행 경제통계시스템(ECOS, Economic Statistics System), KIS, CNN), `job_run` | `FredCollector`                            |
 | `quant`     | Python 퀀트: 국면 채점, 목표 비중, 백테스트, 리스크 지표           | `regime.py`, `backtest.py`                 |
-| `ai`        | Python AI: RAG, LangGraph, 리포트, 자연어 질의          | `pipeline.py`                              |
+| `ai`        | Python 인공지능(AI, Artificial Intelligence): 검색 증강 생성(RAG, Retrieval-Augmented Generation), LangGraph, 리포트, 자연어 질의          | `pipeline.py`                              |
 | `web`       | React 앱과 차트                                     | `RegimeMap.tsx`                            |
-| `infra`     | Docker, 배포, OCI, 백업, n8n                        | `docker-compose.yml`, `Caddyfile`          |
+| `infra`     | Docker, 배포, 오라클 클라우드 인프라(OCI, Oracle Cloud Infrastructure), 백업, n8n                        | `docker-compose.yml`, `Caddyfile`          |
 | `config`    | 빌드 파일, `.gitignore`, `.github/` (템플릿, CI 워크플로)  | `build.gradle`, `ci.yml`                   |
 | `docs`      | `README.md`, `docs/`                            | PLAN, MACRO\_ETF, CONVENTION               |
 
@@ -299,7 +299,7 @@ git switch -c feat/24-M1-02-fred-collector
 
 ---
 
-## 4. Issue Rule
+## 4. 이슈 규칙
 
 ### 제목 — `[기능번호] 제목`
 
@@ -340,7 +340,7 @@ gh issue create \
 
 ---
 
-## 5. PR Rule
+## 5. PR 규칙
 
 PR 본문은 **`.github/PULL_REQUEST_TEMPLATE.md`가 정본**이다. 자동으로 채워지는 네 항목을 그대로 쓴다.
 
@@ -348,7 +348,7 @@ PR 본문은 **`.github/PULL_REQUEST_TEMPLATE.md`가 정본**이다. 자동으�
 2. PR 제목은 **`태그: [기능번호] 제목 #이슈번호`** 다. 기능 번호가 없으면 `[환경]`, `[문서]`를 쓴다.
 3. 라벨은 이슈와 같은 것을 붙인다.
 4. PR 하나는 **동작하는 기능 하나**. 30분 안에 다시 읽을 수 있는 크기로 유지한다. 커지면 이슈를 쪼갠다.
-5. 머지 방식은 **Merge commit** (squash 아님). 공들여 쓴 커밋 body를 `main` 히스토리에 남기기 위해서다.
+5. 머지 방식은 **Merge commit** (squash 아님). 공들여 쓴 커밋 본문을 `main` 히스토리에 남기기 위해서다.
 6. 단계가 시작되거나 끝나는 PR은 `README.md`의 Status 표와 `docs/PLAN.md` 로드맵을 함께 고친다.
 
 ```text
@@ -367,7 +367,7 @@ docs: [문서] 매크로 ETF 트랙 설계 문서 추가 #35
 | -------------------- | ---------------------------------------------------------------------------------------------------- |
 | **관련 이슈번호**          | `Closed #이슈번호`. 닫지 않고 참고만 할 이슈는 `관련 #번호`                                                             |
 | **해결하는 데 얼마나 걸렸나요?** | 이슈의 **예상 시간 대비 실제 시간** (`예상 4h / 실제 6h`). 차이가 크면 이유 한 줄                                              |
-| **PR Point**         | ① **변경 사항과 이유** — `-` 목록 (머지 커밋 body가 된다) ② **다시 볼 곳** — 고민한 선택지와 고른 이유 |
+| **PR Point**         | ① **변경 사항과 이유** — `-` 목록 (머지 커밋 본문이 된다) ② **다시 볼 곳** — 고민한 선택지와 고른 이유 |
 | **참고 사항**            | ① **확인 방법** — 실행 명령, 입력값, 기대 결과 ② 실습한 학습 항목 (커리큘럼 단계) ③ 후속 이슈 ④ 화면이 있으면 캡처                           |
 
 
@@ -378,8 +378,8 @@ docs: [문서] 매크로 ETF 트랙 설계 문서 추가 #35
 
 |            | 규칙                       |
 | ---------- | ------------------------ |
-| **Header** | **PR 제목 그대로**            |
-| **Body**   | PR Point의 **"변경 사항"** 목록 |
+| **헤더**     | **PR 제목 그대로**            |
+| **본문**     | PR Point의 **"변경 사항"** 목록 |
 | **마지막 줄**  | `Closed #이슈번호`           |
 
 
@@ -425,7 +425,7 @@ GitHub는 본인 PR을 approve할 수 없다. 그래서 approve 대신 아래 �
 - [ ] PR 제목이 `태그: [기능번호] 제목 #이슈번호` 형식이고, 브랜치 이름이 `종류/이슈번호-기능번호-영문이름` 형식인가
 - [ ] 종류 라벨 1개와 파트 라벨이 실제로 바뀐 영역과 맞나
 - [ ] 이슈의 Tasks가 모두 체크됐나
-- [ ] 커밋마다 `태그: 제목` + body + `Refs #이슈번호`가 있나 (`Co-Authored-By` 트레일러 없음)
+- [ ] 커밋마다 `태그: 제목` + 본문 + `Refs #이슈번호`가 있나 (`Co-Authored-By` 트레일러 없음)
 - [ ] 돈은 `BigDecimal` / `NUMERIC`인가 (`double`, `float`, `DOUBLE`, `FLOAT` 없음)
 - [ ] 비밀값(`.env`, 키, 비밀번호)이 섞이지 않았나
 - [ ] 다른 기능의 파일이 섞이지 않았나 (`git diff --stat main...HEAD`)

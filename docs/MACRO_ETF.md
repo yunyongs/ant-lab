@@ -1,199 +1,199 @@
-# Ant Lab — Macro ETF Allocation (design doc)
+# Ant Lab — 매크로 ETF 배분 (설계 문서)
 
-Status: draft · Last updated: 2026-11-01 · Owner: Yongseok Yun
+상태: 초안 · 최종 수정: 2026-11-01 · 소유자: Yongseok Yun
 
-> Personal learning project. Orders go to the KIS mock-trading (모의투자) account only, after human approval in Slack. No real money, not investment advice.
+> 개인 학습 프로젝트다. 주문은 Slack에서 사람이 승인한 뒤 한국투자증권(KIS, Korea Investment & Securities) 모의투자 계좌로만 나간다. 실제 자금은 쓰지 않으며 투자 권유가 아니다.
 
-This doc extends [PLAN.md](PLAN.md): the stock mock-trading MVP stays as planned, and the phases below add a macro-driven ETF allocation system on top of it. Korean and finance terms are explained in the glossary (Appendix D).
+이 문서는 [PLAN.md](PLAN.md)를 확장한다. 주식 모의투자 최소 기능 제품(MVP, Minimum Viable Product)은 계획대로 유지하고, 아래 단계들은 그 위에 매크로 기반 상장지수펀드(ETF, Exchange-Traded Fund) 배분 시스템을 추가한다. 한국 고유 용어와 금융 용어는 용어집(부록 D)에서 설명한다.
 
 ---
 
-## 1. Overview
+## 1. 개요
 
-**The problem.** Long-term pension investors in Korea (연금저축, IRP) can choose among hundreds of domestic ETFs, but most either hold a fixed mix forever or react to headlines. Well-known macro frameworks (Uragami Kunio's four market seasons, Bridgewater's All Weather, 오건영's rate and currency scenarios) describe which assets tend to work in which economic "season", but applying them takes discipline and data work that individuals rarely sustain.
+**문제.** 한국의 장기 연금 투자자(연금저축, 개인형 퇴직연금(IRP, Individual Retirement Pension))는 수백 개의 국내 ETF 중에서 고를 수 있지만, 대부분은 고정된 비중을 계속 들고 가거나 뉴스에 반응해 매매한다. 잘 알려진 매크로 프레임워크(우라가미 구니오의 주식시장 사계절, Bridgewater의 All Weather, 오건영의 금리·환율 시나리오)는 어떤 경제 "계절"에 어떤 자산이 잘 작동하는지 설명하지만, 이를 실제로 적용하려면 개인이 꾸준히 유지하기 어려운 규율과 데이터 작업이 필요하다.
 
-**What the system does.**
+**시스템이 하는 일.**
 
-1. Every week it scores 14 US, Korean and FX indicators. Ten of them estimate the probability of each of four economic seasons, defined by the direction of rates and growth; three drive a dollar-vs-won tilt, and one feeds a sentiment overlay (§2).
-2. It turns those probabilities into target weights for 15 Korean-listed ETFs and places them across a 연금저축 and an IRP account under each account's legal rules (§3).
-3. When the portfolio drifts or the season changes, it proposes trades in Slack. After the owner approves, it executes them on a KIS mock-trading account (§3.6, §8.4).
-4. It proves the method with a point-in-time backtest against static benchmarks (§4), tracks risk with MDD, beta and stress tests (§5), and uses an AI layer to explain regime changes, write a weekly report and answer questions with charts (§8).
+1. 매주 미국·한국·환율 지표 14개를 채점한다. 그중 10개는 금리와 성장의 방향으로 정의한 네 가지 경제 계절 각각의 확률을 추정하고, 3개는 달러 대 원화 틸트를 결정하며, 1개는 심리 오버레이에 쓰인다(§2).
+2. 이 확률을 국내 상장 ETF 15종의 목표 비중으로 바꾸고, 각 계좌의 법적 규칙에 따라 연금저축과 IRP 계좌에 배치한다(§3).
+3. 포트폴리오가 이탈하거나 계절이 바뀌면 Slack으로 매매를 제안한다. 소유자가 승인하면 KIS 모의투자 계좌에서 실행한다(§3.6, §8.4).
+4. 정적 비교 기준 대비 시점 기준(point-in-time) 백테스트로 방법론을 검증하고(§4), 최대 낙폭(MDD, Maximum Drawdown)·베타·스트레스 테스트로 위험을 추적하며, 인공지능(AI, Artificial Intelligence) 계층으로 국면 전환을 설명하고 주간 리포트를 작성하고 차트와 함께 질문에 답한다(§8).
 
-**What it demonstrates.**
+**보여 주는 역량.**
 
-| Skill | Where |
+| 역량 | 위치 |
 |-------|-------|
-| Domain modeling where money must add up: ledger, holdings, order state machine | §7, Spring Boot + PostgreSQL |
-| Data engineering without look-ahead: two-date storage, vintages, snapshots | §2.4, §4.2, §7.1 |
-| Quantitative method with honest validation: benchmarks, a frozen period, placebo tests, disclosed biases, and a live mock record | §4 |
-| Human-in-the-loop AI: LangGraph with Slack approval, RAG with citations, faithfulness checks | §8 |
-| Financial controls: performance attribution, implementation shortfall, budget vs. actual for costs, daily reconciliation, alert thresholds | §3.6, §3.8, §4.5, §5.3, §6.6–6.7 |
-| A two-service architecture with clear ownership: Java domain, Python quant and AI | §6 |
-| Delivery: Docker, GitHub Actions, cloud deployment, security | §6.4–6.5 |
+| 금액이 정확히 맞아야 하는 도메인 모델링: 원장, 보유, 주문 상태 머신 | §7, Spring Boot + PostgreSQL |
+| 미래 정보 사용(look-ahead) 없는 데이터 엔지니어링: 두 날짜 저장, 빈티지, 스냅샷 | §2.4, §4.2, §7.1 |
+| 정직한 검증을 갖춘 정량 방법론: 비교 기준, 동결 구간, 플라시보 테스트, 공개된 편향, 실운영 모의투자 기록 | §4 |
+| Human-in-the-loop AI: Slack 승인을 포함한 LangGraph, 출처를 인용하는 검색 증강 생성(RAG, Retrieval-Augmented Generation), 충실성(faithfulness) 검사 | §8 |
+| 재무 통제: 성과 기여도 분석(performance attribution), 실행 손실(implementation shortfall), 비용의 예산 대비 실적, 일일 대사, 알림 기준 | §3.6, §3.8, §4.5, §5.3, §6.6–6.7 |
+| 소유 경계가 명확한 2-서비스 아키텍처: Java 도메인, Python 퀀트·AI | §6 |
+| 배포: Docker, GitHub Actions, 클라우드 배포, 보안 | §6.4–6.5 |
 
-## 2. Investment framework: the 4-Pool regime
+## 2. 투자 프레임워크: 4-Pool 국면
 
-The system describes the economy as one of four "pools" (seasons) on two axes: the direction of rates and the direction of growth. Each week it scores a small set of US and Korean indicators, turns them into a probability for each pool, and blends the four pool allocations by those probabilities.
+시스템은 경제를 두 축, 즉 금리의 방향과 성장의 방향 위에 놓인 네 가지 "풀"(계절) 중 하나로 본다. 매주 소수의 미국·한국 지표를 채점해 각 풀의 확률로 바꾸고, 네 풀의 배분을 그 확률로 혼합한다.
 
-### 2.1 The four pools
+### 2.1 네 가지 풀
 
-"Rates" means the direction of policy-rate expectations and inflation momentum, not the level of yields. "Growth" means the direction of activity, not its level.
+"금리"는 수익률 수준이 아니라 정책금리 기대와 인플레이션 모멘텀의 방향을 뜻한다. "성장"도 수준이 아니라 경기 활동의 방향을 뜻한다.
 
-| Pool | Rates | Growth | Market character | Assets that tend to work |
+| 풀 | 금리 | 성장 | 시장 성격 | 잘 작동하는 경향이 있는 자산 |
 |------|-------|--------|------------------|--------------------------|
-| P1 Recession | ↓ | ↓ | Earnings fall, central banks cut, bonds rally, the dollar strengthens | Long Treasuries, Korean government bonds, USD, gold |
-| P2 Goldilocks | ↓ | ↑ | Liquidity-driven rally before earnings fully recover | Growth equities (Nasdaq 100), S&P 500, KOSPI, long bonds |
-| P3 Reflation | ↑ | ↑ | Earnings-driven rally while inflation and yields rise | Broad and dividend equities, gold, copper, short duration |
-| P4 Stagflation | ↑ | ↓ | Tightening hurts stocks and bonds at the same time | Cash (CD, short-term USD bonds), gold, dividend equities |
+| P1 침체 | ↓ | ↓ | 이익이 줄고 중앙은행이 금리를 내리며, 채권이 강세이고 달러가 강해진다 | 미국 장기국채, 한국 국고채, 달러, 금 |
+| P2 골디락스 | ↓ | ↑ | 이익이 완전히 회복되기 전 유동성이 이끄는 상승장 | 성장주(Nasdaq 100), S&P 500, 코스피(KOSPI, Korea Composite Stock Price Index), 장기채 |
+| P3 리플레이션 | ↑ | ↑ | 인플레이션과 금리가 오르는 가운데 이익이 이끄는 상승장 | 시장 전체·배당 주식, 금, 구리, 단기 듀레이션 |
+| P4 스태그플레이션 | ↑ | ↓ | 긴축이 주식과 채권을 동시에 끌어내린다 | 현금(CD, 미국 달러 단기채), 금, 배당주 |
 
-### 2.2 Where the pools come from
+### 2.2 풀의 출처
 
-The grid combines three well-known frameworks:
+이 격자는 잘 알려진 세 프레임워크를 결합한다.
 
-| Pool | Uragami Kunio, four market seasons (rates × earnings) | Bridgewater All Weather (growth × inflation vs. expectations) | 오건영 (신한은행), 『부의 시나리오』 (growth × prices) |
+| 풀 | 우라가미 구니오, 주식시장 사계절(금리 × 실적) | Bridgewater All Weather(기대 대비 성장 × 인플레이션) | 오건영(신한은행), 『부의 시나리오』(성장 × 물가) |
 |------|------|------|------|
-| P1 | 역실적장세: earnings and rates fall, stocks fall | Falling growth: nominal long bonds | 저성장·저물가: government bonds, dollar |
-| P2 | 금융장세: rate cuts and liquidity lift stocks before earnings | Rising growth, falling inflation: equities, nominal bonds | 고성장·저물가: equities |
-| P3 | 실적장세: earnings drive stocks while rates drift up | Rising growth, rising inflation: equities, commodities | 고성장·고물가: commodities, equities |
-| P4 | 역금융장세: tightening while earnings still look fine, stocks fall | Rising inflation, falling growth: inflation-linked bonds, commodities, gold | 저성장·고물가: gold, commodities, dollar |
+| P1 | 역실적장세: 실적과 금리가 하락하고 주가도 하락 | 성장 하락: 명목 장기채 | 저성장·저물가: 국채, 달러 |
+| P2 | 금융장세: 실적 회복 전에 금리 인하와 유동성이 주가를 끌어올림 | 성장 상승, 인플레이션 하락: 주식, 명목채권 | 고성장·저물가: 주식 |
+| P3 | 실적장세: 금리가 완만히 오르는 가운데 실적이 주가를 견인 | 성장 상승, 인플레이션 상승: 주식, 원자재 | 고성장·고물가: 원자재, 주식 |
+| P4 | 역금융장세: 실적이 아직 양호해 보이는데 긴축이 진행되어 주가 하락 | 인플레이션 상승, 성장 하락: 물가연동채, 원자재, 금 | 저성장·고물가: 금, 원자재, 달러 |
 
-Where the frameworks disagree, the design makes these choices:
+프레임워크 간 견해가 다른 지점에서 이 설계는 다음과 같이 선택한다.
 
-- **Direction first.** Uragami's seasons are a sequence: 금융장세 starts while growth data is still weak. Judged by levels it would look like P1 even though markets behave like P2, so indicators are scored mainly by their trend. A few whose level itself carries meaning (the Sahm rule, curve inversion, the leading index vs. 100, the rate gap) add a level term, as listed in §2.3.
-- **The rates axis includes inflation.** All Weather and 오건영 frame this axis as inflation, and yields can rise without inflation (term premium, bond supply). The rates axis therefore blends yields with core-inflation momentum.
-- **FX is its own axis.** 오건영 stresses the dollar, USD/KRW and the Korea–US rate gap. These do not fit the 2×2, so they become a modifier that tilts dollar versus won exposure inside a pool (§2.5).
-- **US and Korea are scored separately.** The Bank of Korea can cut while the Fed holds. Each axis has a US and a Korean score, blended with fixed weights.
+- **방향 우선.** 우라가미의 계절은 순서를 이룬다. 금융장세는 성장 데이터가 아직 약할 때 시작된다. 수준으로 판단하면 시장이 P2처럼 움직이는데도 P1으로 보이므로, 지표는 주로 추세로 채점한다. 수준 자체가 의미를 갖는 일부 지표(Sahm rule, 수익률 곡선 역전, 선행지수의 100 대비 위치, 금리차)는 §2.3에 적은 대로 수준 항을 추가한다.
+- **금리 축은 인플레이션을 포함한다.** All Weather와 오건영은 이 축을 인플레이션으로 정의하며, 수익률은 인플레이션 없이도 오를 수 있다(기간 프리미엄, 채권 공급). 그래서 금리 축은 수익률과 근원 인플레이션 모멘텀을 혼합한다.
+- **환율은 별도 축이다.** 오건영은 달러, 원/달러 환율(USD/KRW, US Dollar/Korean Won), 한미 금리차를 강조한다. 이들은 2×2에 들어맞지 않으므로, 풀 내부에서 달러 대 원화 노출을 기울이는 조정 축이 된다(§2.5).
+- **미국과 한국은 따로 채점한다.** 연준이 동결해도 한국은행은 인하할 수 있다. 각 축은 미국 점수와 한국 점수를 가지며, 둘을 고정 비중으로 혼합한다.
 
-### 2.3 Core indicators
+### 2.3 핵심 지표
 
-Fourteen indicators, chosen because each is free, available by API, released quickly, and has one role: rates (#1–4), growth (#5–9, #14), FX (#10–12) or sentiment (#13). ECOS codes were checked against the ECOS API on 2026-11-01.
+지표는 14개이며, 모두 무료이고, 응용 프로그램 인터페이스(API, Application Programming Interface)로 받을 수 있고, 빨리 발표되며, 하나의 역할만 맡는다는 기준으로 골랐다: 금리(#1–4), 성장(#5–9, #14), 환율(#10–12), 심리(#13). 한국은행 경제통계시스템(ECOS, Economic Statistics System) 코드는 2026-11-01에 ECOS API로 확인했다.
 
-| # | Indicator | Region | Axis | Transform | Frequency, lag | Source and code |
+| # | 지표 | 지역 | 축 | 변환 | 주기, 시차 | 출처 및 코드 |
 |---|-----------|--------|------|-----------|----------------|-----------------|
-| 1 | 2-year Treasury yield | US | Rates | 63-day change; level vs. 126-day MA | Daily, T+1 | FRED `DGS2` |
-| 2 | Core CPI | US | Rates (inflation) | 3-month annualized minus YoY (acceleration) | Monthly, ~2 weeks | FRED `CPILFESL` (ALFRED vintages) |
-| 3 | 국고채 3년, and 3Y minus 기준금리 | KR | Rates | 63-day change; spread below 0 means cuts are priced | Daily | ECOS `817Y002`/`010200000`; 기준금리 `722Y001`/`0101000` |
-| 4 | 소비자물가 총지수 | KR | Rates (inflation) | YoY and its 3-month change | Monthly, early next month | ECOS `901Y009`/`0` |
-| 5 | Initial jobless claims | US | Growth (inverted) | 4-week MA vs. 26-week MA, z-score | Weekly, ~5 days | FRED `ICSA` (ALFRED vintages) |
-| 6 | Real-time Sahm rule | US | Growth (inverted) | Level and 3-month change | Monthly | FRED `SAHMREALTIME` |
-| 7 | 10Y minus 3M Treasury curve | US | Growth | Level and 3-month change | Daily | FRED `T10Y3M` |
-| 8 | 선행지수 순환변동치 | KR | Growth | 3-month change; level vs. 100 | Monthly, ~T+30 | ECOS `901Y067`/`I16E` |
-| 9 | 수출금액 | KR | Growth | YoY of the 3-month average | Monthly | ECOS `901Y118`/`T002` |
-| 10 | USD/KRW | KR | FX | vs. 200-day MA; z-score of 63-day change | Daily | ECOS `731Y001`/`0000001` |
-| 11 | Broad trade-weighted dollar | Global | FX | 63-day change, z-score | Daily, published weekly | FRED `DTWEXBGS` |
-| 12 | Korea–US rate gap | KR/US | FX | 국고채 3Y − `DGS2`: level and 6-month change | Daily | Derived from #1 and #3 |
-| 13 | VIX | US | Sentiment | Level vs. 50-day MA, percentile | Daily | FRED `VIXCLS` |
-| 14 | Credit spreads | US, KR | Growth (inverted) | 63-day change | Daily | FRED `BAA10Y`; ECOS 회사채 AA− minus 국고채 3Y (`817Y002`/`010300000` − `010200000`) |
+| 1 | 미국 2년물 국채 수익률 | US | 금리 | 63일 변화; 126일 이동평균 대비 수준 | 일간, T+1 | 미국 연준 경제 데이터(FRED, Federal Reserve Economic Data) `DGS2` |
+| 2 | 근원 소비자물가지수(CPI, Consumer Price Index) | US | 금리(인플레이션) | 3개월 연율 환산치 − 전년 동월 대비(가속도) | 월간, 약 2주 | FRED `CPILFESL` (ALFRED 빈티지) |
+| 3 | 국고채 3년, 그리고 3년물 − 기준금리 | KR | 금리 | 63일 변화; 스프레드가 0 미만이면 인하가 가격에 반영된 것 | 일간 | ECOS `817Y002`/`010200000`; 기준금리 `722Y001`/`0101000` |
+| 4 | 소비자물가 총지수 | KR | 금리(인플레이션) | 전년 동월 대비와 그 3개월 변화 | 월간, 익월 초 | ECOS `901Y009`/`0` |
+| 5 | 신규 실업수당 청구건수 | US | 성장(역방향) | 4주 이동평균 대 26주 이동평균, z-score | 주간, 약 5일 | FRED `ICSA` (ALFRED 빈티지) |
+| 6 | 실시간 Sahm rule | US | 성장(역방향) | 수준과 3개월 변화 | 월간 | FRED `SAHMREALTIME` |
+| 7 | 미국 국채 10년물 − 3개월물 곡선 | US | 성장 | 수준과 3개월 변화 | 일간 | FRED `T10Y3M` |
+| 8 | 선행지수 순환변동치 | KR | 성장 | 3개월 변화; 100 대비 수준 | 월간, 약 T+30 | ECOS `901Y067`/`I16E` |
+| 9 | 수출금액 | KR | 성장 | 3개월 평균의 전년 동월 대비 | 월간 | ECOS `901Y118`/`T002` |
+| 10 | USD/KRW | KR | 환율 | 200일 이동평균 대비; 63일 변화의 z-score | 일간 | ECOS `731Y001`/`0000001` |
+| 11 | 광의 무역가중 달러지수 | 글로벌 | 환율 | 63일 변화, z-score | 일간, 주간 공표 | FRED `DTWEXBGS` |
+| 12 | 한미 금리차 | KR/US | 환율 | 국고채 3Y − `DGS2`: 수준과 6개월 변화 | 일간 | #1과 #3에서 산출 |
+| 13 | VIX | US | 심리 | 50일 이동평균 대비 수준, 백분위 | 일간 | FRED `VIXCLS` |
+| 14 | 신용 스프레드 | US, KR | 성장(역방향) | 63일 변화 | 일간 | FRED `BAA10Y`; ECOS 회사채 AA−와 국고채 3Y의 차 (`817Y002`/`010300000` − `010200000`) |
 
-Dropped on purpose:
+의도적으로 제외한 지표:
 
-| Indicator | Why it was dropped |
+| 지표 | 제외 이유 |
 |-----------|--------------------|
-| ISM manufacturing and services PMI | No free official API; FRED removed ISM series in 2016 |
-| Conference Board LEI, CME FedWatch | Proprietary. `DGS2` already prices the expected Fed path |
-| Fed funds rate, 10-year yield alone | Fed funds lags; the 10-year is noisy from term premium (kept only inside the curve) |
-| Real GDP, nonfarm payrolls | Quarterly or noisy and heavily revised; claims and the Sahm rule are faster |
-| Headline CPI | Energy noise; core CPI is the cleaner signal |
-| ICE BofA high-yield spread | FRED now shows only a rolling 3 years; replaced by `BAA10Y` |
-| S&P 500 vs. 200-day MA, commodity prices | Prices of what the system trades; as regime inputs they cause circular signals. Used only in the overlay (§2.6) |
+| 미국 공급관리자협회(ISM, Institute for Supply Management) 제조업·서비스업 구매관리자지수(PMI, Purchasing Managers' Index) | 무료 공식 API가 없다. FRED는 2016년에 ISM 시계열을 삭제했다 |
+| Conference Board 경기선행지수(LEI, Leading Economic Index), CME FedWatch | 독점 데이터다. `DGS2`가 이미 예상 연준 경로를 반영한다 |
+| 연방기금금리, 10년물 단독 | 연방기금금리는 후행한다. 10년물은 기간 프리미엄 때문에 잡음이 크다(곡선 안에서만 사용) |
+| 실질 국내총생산(GDP, Gross Domestic Product), 비농업 고용 | 분기 단위이거나 잡음이 크고 수정이 잦다. 실업수당 청구와 Sahm rule이 더 빠르다 |
+| 헤드라인 CPI | 에너지 잡음이 있다. 근원 CPI가 더 깨끗한 신호다 |
+| ICE BofA 하이일드 스프레드 | FRED가 이제 최근 3년치만 제공한다. `BAA10Y`로 대체했다 |
+| S&P 500의 200일 이동평균 대비 위치, 원자재 가격 | 시스템이 거래하는 대상의 가격이므로 국면 입력으로 쓰면 순환 신호가 생긴다. 오버레이(§2.6)에서만 사용한다 |
 
-### 2.4 Scoring
+### 2.4 채점
 
-The regime is evaluated weekly, on Saturday morning KST after the US close.
+국면은 매주, 미국 장 마감 후인 토요일 오전, 한국 표준시(KST, Korea Standard Time) 기준으로 평가한다.
 
-1. **Store each observation with two dates:** the period it describes and the date it became public. A value is used only from its public date onward, which prevents look-ahead in backtests.
-2. **Indicator signal:** apply the transform in §2.3, z-score each resulting series against a rolling 5-year mean and standard deviation, flip the sign so that positive always means "rates up" or "growth up", and clip to ±3. Where the transform lists two series (for example a change and a level), their z-scores are averaged.
-3. **Staleness:** an indicator is stale when no new value has become available (by `available_at`) for more than twice its normal release interval: 2 business days for daily series, 2 weeks for weekly series (including daily data published weekly, such as #11), 2 months for monthly series. Business days follow the source market's calendar, so holidays do not trigger it. Stale indicators are left out, flagged on the dashboard, and the remaining weights are re-normalized. If a whole region-axis group (for example R_KR) is stale, the other region's score takes its full weight; if more than 4 of the 10 rates and growth indicators are stale, the data-quality gate stops proposals (§8.4).
-4. **Axis scores:** within each region and axis, indicators are equally weighted: R_US = #1, #2; R_KR = #3, #4; G_US = #5, #6, #7, #14 (US); G_KR = #8, #9, #14 (KR). Then R (rates) = 0.5 × R_US + 0.5 × R_KR and G (growth) = 0.4 × G_US + 0.6 × G_KR. All weights are fixed in advance, not tuned on the backtest.
-5. **Smoothing:** an exponential moving average of R and G with a 4-week half-life (weekly α = 1 − 0.5^(1/4) ≈ 0.16).
-6. **Pool probabilities:** with `p_down = σ(−k·R)` and `p_up = σ(k·G)` (σ is the logistic function, k = 2 to start), using the smoothed R and G:
+1. **관측값마다 두 날짜를 저장한다:** 값이 설명하는 기간과 값이 공개된 날짜다. 값은 공개일 이후에만 사용하므로 백테스트에서 미래 정보 사용(look-ahead)을 막는다.
+2. **지표 신호:** §2.3의 변환을 적용하고, 결과 시계열마다 최근 5년 이동 평균과 표준편차로 z-score를 구한 뒤, 양수가 항상 "금리 상승" 또는 "성장 상승"을 뜻하도록 부호를 맞추고 ±3에서 자른다. 변환에 두 시계열(예: 변화와 수준)이 있으면 두 z-score를 평균한다.
+3. **오래된(stale) 데이터:** 정상 발표 주기의 두 배가 넘도록 새 값이 공개되지 않으면(`available_at` 기준) 그 지표는 stale로 본다. 일간 시계열은 영업일 2일, 주간 시계열(#11처럼 주간 공표되는 일간 데이터 포함)은 2주, 월간 시계열은 2개월이다. 영업일은 원천 시장의 달력을 따르므로 휴일 때문에 발동하지 않는다. stale 지표는 제외하고 대시보드에 표시하며, 나머지 비중을 다시 정규화한다. 한 지역-축 그룹 전체(예: R_KR)가 stale이면 다른 지역 점수가 비중 전체를 가져가고, 금리·성장 지표 10개 중 4개 넘게 stale이면 데이터 품질 게이트가 제안을 중단한다(§8.4).
+4. **축 점수:** 각 지역과 축 안에서 지표는 동일 비중이다: R_US = #1, #2; R_KR = #3, #4; G_US = #5, #6, #7, #14 (US); G_KR = #8, #9, #14 (KR). 그다음 R(금리) = 0.5 × R_US + 0.5 × R_KR, G(성장) = 0.4 × G_US + 0.6 × G_KR이다. 모든 비중은 사전에 고정하며 백테스트로 튜닝하지 않는다.
+5. **평활:** R과 G에 반감기 4주의 지수이동평균(EMA, Exponential Moving Average)을 적용한다(주간 α = 1 − 0.5^(1/4) ≈ 0.16).
+6. **풀 확률:** 평활된 R, G를 사용해 `p_down = σ(−k·R)`, `p_up = σ(k·G)`로 두면(σ는 로지스틱 함수, 시작값 k = 2):
    - P1 = p_down × (1 − p_up)
    - P2 = p_down × p_up
    - P3 = (1 − p_down) × p_up
    - P4 = (1 − p_down) × (1 − p_up)
 
-   The four always sum to 1, and target weights are the probability-weighted blend of the four pool allocations (§3), so the portfolio shifts gradually instead of jumping.
-7. **Pool label (with hysteresis):** the label is the quadrant of the smoothed (R, G) point, but a side changes only after R (or G) has been beyond zero on the new side by more than 0.25 (the "deadband") for two consecutive weeks, and a new label is held for at least 4 weeks (the hold applies to the label as a whole). The first label is simply the quadrant of the first smoothed point. The label is for display, explanations and the pool-change trigger (§3.6); target weights always come from the probabilities in step 6.
-8. **Phase:** from the labeled pool's probability: WATCH below 0.35, ALERT 0.35–0.50, TRANSITION 0.50–0.65, CONVICTION 0.65 and above. These thresholds are starting values to be checked walk-forward.
+   네 값의 합은 항상 1이며, 목표 비중은 네 풀 배분(§3)을 확률로 가중 혼합한 값이므로 포트폴리오가 급변하지 않고 점진적으로 이동한다.
+7. **풀 라벨(히스테리시스 적용):** 라벨은 평활된 (R, G) 점이 속한 사분면이다. 다만 R(또는 G)이 새 방향으로 0을 0.25("데드밴드") 넘게 두 주 연속 넘어서야 그 축의 방향이 바뀌고, 새 라벨은 최소 4주 유지한다(유지 기간은 라벨 전체에 적용한다). 첫 라벨은 첫 평활 점의 사분면으로 정한다. 라벨은 표시, 설명, 풀 변경 트리거(§3.6)에만 쓰며, 목표 비중은 항상 6단계의 확률에서 나온다.
+8. **단계:** 라벨이 붙은 풀의 확률로 정한다: 0.35 미만은 WATCH, 0.35–0.50은 ALERT, 0.50–0.65는 TRANSITION, 0.65 이상은 CONVICTION. 이 기준은 시작값이며 walk-forward로 검증한다.
 
-Weekly output: the four probabilities, the pool label and phase, R, G, the FX score F, and the list of stale indicators.
+주간 출력: 네 확률, 풀 라벨과 단계, R, G, 환율 점수 F, stale 지표 목록.
 
-### 2.5 FX modifier
+### 2.5 환율 조정 축
 
-F = mean z-score of three specific terms: USD/KRW vs. its 200-day MA (#10), the broad dollar's 63-day change (#11), and the negative of the Korea–US gap's 6-month change (#12). F uses only these terms, not the averaged two-series signals of §2.4 step 2. F above 0 means a strengthening dollar: inside each pool's allocation, dollar assets get a small tilt up and won assets a matching tilt down. F below 0 does the opposite. The size of the tilt is set in §3. F never changes the pool.
+F = 세 가지 특정 항의 z-score 평균이다: USD/KRW의 200일 이동평균 대비 위치(#10), 광의 달러지수의 63일 변화(#11), 한미 금리차 6개월 변화의 음수(#12). F는 §2.4 2단계의 두 시계열 평균 신호가 아니라 이 항들만 사용한다. F가 0보다 크면 달러 강세를 뜻하며, 각 풀의 배분 안에서 달러 자산 비중을 조금 올리고 원화 자산 비중을 같은 만큼 내린다. F가 0보다 작으면 반대로 한다. 틸트 크기는 §3에서 정한다. F는 풀을 바꾸지 않는다.
 
-### 2.6 Sentiment overlay
+### 2.6 심리 오버레이
 
-A Fear & Greed score, computed by the system itself, sets the pace of trades but never the pool.
+시스템이 직접 계산하는 Fear & Greed 점수는 매매 속도를 정할 뿐 풀은 정하지 않는다.
 
-- **US score:** percentile ranks over a rolling 3 years of VIX vs. its 50-day MA, SPY vs. its 125-day MA, the change in `BAA10Y`, and SPY minus IEF 20-day returns, averaged.
-- **KR score:** the same with VKOSPI, KOSPI vs. its 125-day MA, the Korean credit spread, the 20-day change in USD/KRW, and foreign net buying.
-- **Use:** the average of the self-computed US and KR scores changes how fast increases to risky ETFs are proposed (§3.6): normally in 2 weekly steps, in one step in extreme fear (below 20), and in 3 weekly steps in extreme greed (above 80). CNN's value is displayed but not used in decisions, so the system never depends on an unofficial endpoint.
-- **CNN Fear & Greed:** shown next to the system's own scores on the dashboard, with "Source: CNN" and a link to CNN's page. CNN has no official API, and its terms appear to restrict automated access, so the value is fetched at most once a day from the undocumented endpoint used by the CNN page. If that endpoint breaks or is blocked, the dashboard shows only the self-computed scores.
+- **미국 점수:** 최근 3년 이동 구간에서 변동성 지수(VIX, CBOE Volatility Index)의 50일 이동평균 대비 위치, SPY의 125일 이동평균 대비 위치, `BAA10Y`의 변화, SPY − IEF 20일 수익률의 백분위 순위를 구해 평균한다.
+- **한국 점수:** 같은 방식으로 코스피 200 변동성 지수(VKOSPI, Volatility Index of KOSPI 200), KOSPI의 125일 이동평균 대비 위치, 한국 신용 스프레드, USD/KRW의 20일 변화, 외국인 순매수를 사용한다.
+- **용도:** 자체 계산한 미국·한국 점수의 평균이 위험 ETF 증액 제안 속도를 바꾼다(§3.6). 평소에는 2주에 걸쳐 2단계로, 극단적 공포(20 미만)에서는 한 번에, 극단적 탐욕(80 초과)에서는 3주에 걸쳐 3단계로 나눈다. CNN 값은 표시만 하고 의사결정에는 쓰지 않으므로 시스템이 비공식 엔드포인트에 의존하지 않는다.
+- **CNN Fear & Greed:** 대시보드에서 시스템 자체 점수 옆에 "출처: CNN"과 CNN 페이지 링크를 함께 표시한다. CNN은 공식 API가 없고 약관상 자동 접근을 제한하는 것으로 보이므로, CNN 페이지가 쓰는 비공개 엔드포인트에서 하루 최대 한 번만 값을 가져온다. 이 엔드포인트가 깨지거나 차단되면 대시보드는 자체 계산 점수만 보여 준다.
 
-### 2.7 Worked example
+### 2.7 계산 예시
 
-Illustrative numbers, not real data (computed by hand, k = 2):
+실제 데이터가 아닌 예시 수치다(손으로 계산, k = 2).
 
-| Step | Value |
+| 단계 | 값 |
 |------|-------|
 | R_US = +0.6, R_KR = −0.2 | R = 0.5(0.6) + 0.5(−0.2) = **+0.20** |
 | G_US = −0.5, G_KR = −0.3 | G = 0.4(−0.5) + 0.6(−0.3) = **−0.38** |
 | p_down = σ(−0.40), p_up = σ(−0.76) | 0.401, 0.319 |
 | P1, P2, P3, P4 | 0.273, 0.128, 0.191, **0.408** |
-| Highest probability and phase | P4 Stagflation, ALERT |
+| 최고 확률과 단계 | P4 스태그플레이션, ALERT |
 
-R = +0.20 is inside the 0.25 deadband, so the label does not change this week; assuming last week's label was already P4, it stays P4. Target weights for that week would be 27% of the P1 allocation, 13% of P2, 19% of P3 and 41% of P4, whatever the label.
+R = +0.20은 데드밴드 0.25 안에 있으므로 이번 주 라벨은 바뀌지 않는다. 지난주 라벨이 이미 P4였다고 가정하면 P4가 유지된다. 그 주의 목표 비중은 라벨과 무관하게 P1 배분의 27%, P2의 13%, P3의 19%, P4의 41%를 혼합한 값이 된다.
 
-### 2.8 Known limitations
+### 2.8 알려진 한계
 
-- **Korean data has no vintages.** ECOS publishes only the latest revised values, and the leading index (#8) is revised monthly. Backtests apply release lags, disclose the revision bias, and the system saves its own snapshot of every fetch from day one.
-- **Some pools are rare.** P4 periods since 2000 are few, so per-pool statistics always show the number of months behind them.
-- **Fixed parameters.** Blend weights, k, the deadband and the phase thresholds are set in advance; any tuning is walk-forward only.
-- **Unverified items:** whether VKOSPI is available from the KRX Open API, and how large Korean leading-index revisions are.
+- **한국 데이터에는 빈티지가 없다.** ECOS는 최신 수정치만 공개하며, 선행지수(#8)는 매월 수정된다. 백테스트는 발표 시차를 적용하고 수정 편향을 공개하며, 시스템은 첫날부터 매 수집마다 자체 스냅샷을 저장한다.
+- **일부 풀은 드물다.** 2000년 이후 P4 구간은 적으므로, 풀별 통계에는 항상 근거가 된 개월 수를 함께 표시한다.
+- **고정 파라미터.** 혼합 비중, k, 데드밴드, 단계 기준은 사전에 정하며, 튜닝은 walk-forward로만 한다.
+- **미확인 항목:** VKOSPI를 한국거래소(KRX, Korea Exchange) Open API에서 받을 수 있는지, 한국 선행지수의 수정 폭이 얼마나 큰지.
 
-## 3. ETF universe, accounts, and target weights
+## 3. ETF 유니버스, 계좌, 목표 비중
 
-This section turns §2's pool probabilities into ETF weights, then places them in two virtual pension accounts and produces order proposals.
+이 절은 §2의 풀 확률을 ETF 비중으로 바꾸고, 두 개의 가상 연금 계좌에 배치한 뒤 주문 제안을 만든다.
 
-Starting assumptions for the mock accounts: 연금저축 ₩10M and IRP ₩10M, plus monthly contributions of ₩500k and ₩250k. That is ₩9M a year, the combined tax-credit limit (₩6M for 연금저축, ₩9M including IRP).
+모의 계좌의 시작 가정: 연금저축 ₩10M, IRP ₩10M, 월 적립금(납입) ₩500k와 ₩250k. 연간 ₩9M으로, 세액공제 합산 한도(연금저축 ₩6M, IRP 포함 ₩9M)와 같다.
 
-### 3.1 Selection criteria
+### 3.1 선정 기준
 
-- Listed in Korea and allowed in pension accounts (no leveraged or inverse ETFs).
-- **FX-unhedged by default.** A hedged "(H)" ETF is allowed only where no unhedged, pension-eligible ETF gives the needed exposure. Today there is one exception: oil (#15).
-- Net assets ≥ ₩500억, fee ≤ 0.50% for passive ETFs and ≤ 0.80% for active ones.
-- A proxy series exists for backtesting before the ETF's listing date (§4).
+- 국내 상장이며 연금 계좌에서 매수할 수 있어야 한다(레버리지·인버스 ETF 제외).
+- **기본은 환노출(환헤지 없음).** 환헤지 "(H)" ETF는 필요한 노출을 주는 환노출형 연금 편입 가능 ETF가 없을 때만 허용한다. 현재 예외는 원유(#15) 하나다.
+- 순자산 ≥ ₩500억, 보수는 패시브 ETF ≤ 0.50%, 액티브 ETF ≤ 0.80%.
+- ETF 상장일 이전 구간의 백테스트를 위한 대체 지수(proxy) 시계열이 있어야 한다(§4).
 
-### 3.2 Universe (15 ETFs)
+### 3.2 유니버스(ETF 15종)
 
-Fees and net assets are from funetf as of 2026-10-30 (114260 from Samsung's 2026-09-30 factsheet). "IRP class" is how the IRP 70% rule treats the ETF. ⚠ marks a value not yet confirmed from an official source.
+보수와 순자산은 2026-10-30 기준 funetf 자료다(114260은 삼성자산운용 2026-09-30 팩트시트). "IRP 구분"은 IRP 70% 규칙이 해당 ETF를 어떻게 분류하는지를 뜻한다. ⚠는 공식 출처로 아직 확인하지 않은 값이다.
 
-| # | Ticker | Name | Role | Fee | Listed | Net assets (₩억) | IRP class | Backtest proxy before listing |
+| # | 티커 | 종목명 | 역할 | 보수 | 상장일 | 순자산(₩억) | IRP 구분 | 상장 전 백테스트 대체 지수 |
 |---|--------|------|------|-----|--------|------------------|-----------|-------------------------------|
-| 1 | 069500 | KODEX 200 | KR equity | 0.15% | 2002-10-14 | 225,019 | Risky | KOSPI 200 index |
-| 2 | 360750 | TIGER 미국S&P500 | US equity | 0.0068% | 2020-08-07 | 211,217 | Risky | SPY × USD/KRW |
-| 3 | 133690 | TIGER 미국나스닥100 | US growth equity | 0.0068% | 2010-10-18 | 116,954 | Risky | QQQ × USD/KRW |
-| 4 | 458730 | TIGER 미국배당다우존스 | US dividend equity | 0.01% | 2023-06-20 | 46,150 | Risky | SCHD × USD/KRW |
-| 5 | 476850 | KoAct 배당성장액티브 | KR dividend growth (active) | 0.50% | 2024-02-27 | 951 | Risky | Its benchmark index ⚠ |
-| 6 | 426030 | TIME 미국나스닥100액티브 | US growth (active) | 0.80% | 2022-05-11 | 23,565 | Risky | QQQ × USD/KRW + assumed tracking error |
-| 7 | 0019K0 | TIME 미국나스닥100채권혼합50액티브 | Nasdaq + bonds 50/50 (active) | 0.25% | 2025-03-25 | 5,718 | Safe | ~50% QQQ + 50% short bonds ⚠ |
-| 8 | 476760 | ACE 미국30년국채액티브 | US long Treasuries | 0.05% | 2024-03-12 | 4,558 | Safe | TLT × USD/KRW |
-| 9 | 148070 | KIWOOM 국고채10년 | KR long bonds | 0.05% | 2011-10-20 | 3,794 | Safe | KR 10Y total return from ECOS yields |
-| 10 | 114260 | KODEX 국고채3년 | KR short bonds | 0.15% | 2009-07 | ~4,980 | Safe | KR 3Y total return from ECOS yields |
-| 11 | 329750 | TIGER 미국달러단기채권액티브 | USD cash | 0.30% | 2019-07-24 | 7,422 | Safe ⚠ | BIL × USD/KRW |
-| 12 | 459580 | KODEX CD금리액티브(합성) | KRW cash | 0.02% | 2023-06-08 | 70,851 | Safe | CD 91-day rate (ECOS) |
-| 13 | 411060 | ACE KRX금현물 | Gold | 0.19% | 2021-12-15 | 35,735 | Risky | GLD × USD/KRW |
-| 14 | 160580 | TIGER 구리실물 | Copper | 0.83% | 2012-12-17 | 1,506 | Risky ⚠ | CPER × USD/KRW |
-| 15 | 261220 | KODEX WTI원유선물(H) | Oil (hedged exception) | 0.35% | 2016-12-27 | 512 | Not allowed in IRP ⚠ | S&P GSCI Crude Oil ER in USD, no FX conversion |
+| 1 | 069500 | KODEX 200 | 한국 주식 | 0.15% | 2002-10-14 | 225,019 | 위험 | KOSPI 200 지수 |
+| 2 | 360750 | TIGER 미국S&P500 | 미국 주식 | 0.0068% | 2020-08-07 | 211,217 | 위험 | SPY × USD/KRW |
+| 3 | 133690 | TIGER 미국나스닥100 | 미국 성장주 | 0.0068% | 2010-10-18 | 116,954 | 위험 | QQQ × USD/KRW |
+| 4 | 458730 | TIGER 미국배당다우존스 | 미국 배당주 | 0.01% | 2023-06-20 | 46,150 | 위험 | SCHD × USD/KRW |
+| 5 | 476850 | KoAct 배당성장액티브 | 한국 배당성장(액티브) | 0.50% | 2024-02-27 | 951 | 위험 | 해당 비교 지수 ⚠ |
+| 6 | 426030 | TIME 미국나스닥100액티브 | 미국 성장주(액티브) | 0.80% | 2022-05-11 | 23,565 | 위험 | QQQ × USD/KRW + 가정한 추적 오차 |
+| 7 | 0019K0 | TIME 미국나스닥100채권혼합50액티브 | 나스닥 + 채권 50/50(액티브) | 0.25% | 2025-03-25 | 5,718 | 안전 | 약 50% QQQ + 50% 단기채 ⚠ |
+| 8 | 476760 | ACE 미국30년국채액티브 | 미국 장기국채 | 0.05% | 2024-03-12 | 4,558 | 안전 | TLT × USD/KRW |
+| 9 | 148070 | KIWOOM 국고채10년 | 한국 장기채 | 0.05% | 2011-10-20 | 3,794 | 안전 | ECOS 금리로 계산한 한국 10년물 총수익 |
+| 10 | 114260 | KODEX 국고채3년 | 한국 단기채 | 0.15% | 2009-07 | ~4,980 | 안전 | ECOS 금리로 계산한 한국 3년물 총수익 |
+| 11 | 329750 | TIGER 미국달러단기채권액티브 | 달러 현금성 | 0.30% | 2019-07-24 | 7,422 | 안전 ⚠ | BIL × USD/KRW |
+| 12 | 459580 | KODEX CD금리액티브(합성) | 원화 현금성 | 0.02% | 2023-06-08 | 70,851 | 안전 | CD 91일물 금리(ECOS) |
+| 13 | 411060 | ACE KRX금현물 | 금 | 0.19% | 2021-12-15 | 35,735 | 위험 | GLD × USD/KRW |
+| 14 | 160580 | TIGER 구리실물 | 구리 | 0.83% | 2012-12-17 | 1,506 | 위험 ⚠ | CPER × USD/KRW |
+| 15 | 261220 | KODEX WTI원유선물(H) | 원유(환헤지 예외) | 0.35% | 2016-12-27 | 512 | IRP 편입 불가 ⚠ | 달러 기준 S&P GSCI Crude Oil ER, 환산 없음 |
 
-Copper's 0.83% fee breaks the fee rule; it stays because it is the only unhedged, pension-eligible growth-sensitive commodity, and it is capped at 5%. No unhedged broad-commodity ETF exists in Korea: futures-based ones are hedged and fail IRP's derivatives limit, so P3 and P4's inflation hedge rests on gold, copper and oil. The oil ETF (#15) holds futures for the same reason, which is why it can only go in 연금저축; Mirae lists its own futures commodity ETFs as not allowed in 퇴직연금.
+구리의 보수 0.83%는 보수 기준을 어기지만, 환노출형이면서 연금 편입이 가능한 유일한 경기 민감 원자재이므로 유지하고 비중 상한을 5%로 둔다. 국내에는 환노출형 광의 원자재 ETF가 없다. 선물 기반 상품은 환헤지형이며 IRP의 파생상품 한도에 걸리므로, P3와 P4의 인플레이션 헤지는 금, 구리, 원유에 의존한다. 원유 ETF(#15)도 같은 이유로 선물을 보유하므로 연금저축에만 담을 수 있다. 미래에셋은 자사 선물형 원자재 ETF를 퇴직연금 편입 불가로 분류한다.
 
-### 3.3 Target allocation per pool
+### 3.3 풀별 목표 배분
 
-Each pool has a full allocation (%). The week's target is the probability-weighted blend of the four (§2.4 step 6). "Neutral" is the blend when all four pools are 25%.
+각 풀은 완전한 배분(%)을 가진다. 그 주의 목표는 네 배분을 확률로 가중 혼합한 값이다(§2.4 6단계). "중립"은 네 풀이 모두 25%일 때의 혼합이다.
 
-| # | ETF | P1 Recession | P2 Goldilocks | P3 Reflation | P4 Stagflation | Neutral |
+| # | ETF | P1 침체 | P2 골디락스 | P3 리플레이션 | P4 스태그플레이션 | 중립 |
 |---|-----|-----|-----|-----|-----|-----|
 | 1 | KODEX 200 | 0 | 15 | 15 | 0 | 7.5 |
 | 2 | TIGER 미국S&P500 | 10 | 25 | 20 | 0 | 13.75 |
@@ -210,93 +210,93 @@ Each pool has a full allocation (%). The week's target is the probability-weight
 | 13 | ACE KRX금현물 | 15 | 5 | 10 | 20 | 12.5 |
 | 14 | TIGER 구리실물 | 0 | 5 | 5 | 0 | 2.5 |
 | 15 | KODEX WTI원유선물(H) | 0 | 0 | 5 | 10 | 3.75 |
-| | **Equity exposure** (0019K0 counted as half) | 17.5 | 67.5 | 55 | 15 | 38.75 |
-| | **IRP-safe assets** | 70 | 25 | 25 | 55 | 43.75 |
+| | **주식 노출**(0019K0은 절반으로 계산) | 17.5 | 67.5 | 55 | 15 | 38.75 |
+| | **IRP 안전 자산** | 70 | 25 | 25 | 55 | 43.75 |
 
-These numbers are a first draft to be checked by the backtest (§4), not tuned to it. They respect the risk limits: equity never above 80% (the highest is P2 at 67.5%) and never below 15% (P4), active equity funds (#5–7) at most 15% in every pool, no ETF above 35%, copper at most 5%.
+이 수치는 백테스트(§4)로 검증할 초안이며, 백테스트에 맞춰 튜닝하지 않았다. 위험 한도는 지킨다: 주식은 80%를 넘지 않고(최고는 P2의 67.5%) 15% 아래로 내려가지 않으며(P4), 액티브 주식형(#5–7)은 모든 풀에서 최대 15%, 단일 ETF는 최대 35%, 구리는 최대 5%다.
 
-### 3.4 Adjustments after blending
+### 3.4 혼합 후 조정
 
-Applied in this order:
+다음 순서로 적용한다.
 
-Each ETF has a **fallback**: where its weight goes if it is too small or unavailable. #5 → #1, #6 → #3, #7 → half #3 and half #10, #14 → #13, #15 → #12. The others have none.
+각 ETF에는 **대체 ETF**가 있다. 비중이 너무 작거나 사용할 수 없을 때 그 비중이 옮겨 가는 곳이다. #5 → #1, #6 → #3, #7 → #3 절반과 #10 절반, #14 → #13, #15 → #12. 나머지는 대체 ETF가 없다.
 
-1. **FX tilt.** With F from §2.5 clipped to [−1, +1], move up to 5 × F percentage points in total, half within equity (KR #1, #5 → US #2–4, #6) and half within bonds and cash (KR #9, #10, #12 → US #8, #11). Within each group, the amount is taken from the won ETFs in proportion to their weights and added to the dollar ETFs in proportion to theirs; if the won ETFs hold less than the amount, only what they hold moves. F below 0 reverses the direction. Gold, commodities and #7 are not tilted.
-2. **Small positions.** A weight below 2% moves to the ETF's fallback, which avoids tiny trades in costly funds. For an ETF without a fallback, a weight below 2% is rounded to 0 and goes to #12. Fallbacks are applied once, in the order #5, #6, #7, #14, #15; anything still below 2% afterwards goes to #12.
-3. **Active-fund replacement.** If an active ETF is delisted or warned under KRX's rule (correlation to benchmark below 0.7 for 3 months), all of its weight moves to its fallback until the universe review (§3.7) picks a replacement.
+1. **환율 틸트.** §2.5의 F를 [−1, +1]로 자르고, 총 최대 5 × F 퍼센트포인트를 옮긴다. 절반은 주식 안에서(한국 #1, #5 → 미국 #2–4, #6), 절반은 채권·현금 안에서(한국 #9, #10, #12 → 미국 #8, #11) 옮긴다. 각 그룹 안에서 이동량은 원화 ETF에서 각자의 비중에 비례해 빼고 달러 ETF에 각자의 비중에 비례해 더한다. 원화 ETF 보유분이 이동량보다 적으면 보유분만큼만 옮긴다. F가 0보다 작으면 방향이 반대다. 금, 원자재, #7은 틸트하지 않는다.
+2. **소액 포지션.** 2% 미만 비중은 해당 ETF의 대체 ETF로 옮겨, 비용이 큰 펀드의 소액 매매를 피한다. 대체 ETF가 없는 ETF는 2% 미만이면 0으로 반올림하고 #12로 보낸다. 대체는 #5, #6, #7, #14, #15 순서로 한 번만 적용하며, 이후에도 2% 미만인 비중은 #12로 보낸다.
+3. **액티브 ETF 교체.** 액티브 ETF가 상장폐지되거나 KRX 규칙(3개월간 비교 지수와의 상관계수 0.7 미만)에 따라 경고를 받으면, 유니버스 검토(§3.7)에서 대체 종목을 고를 때까지 비중 전체를 대체 ETF로 옮긴다.
 
-### 3.5 Account placement
+### 3.5 계좌 배치
 
-Targets are computed for both accounts combined, then placed:
+목표는 두 계좌를 합산해 계산한 뒤 다음 순서로 배치한다.
 
-1. Convert target weights to won using the total value of both accounts.
-2. Put ETFs that IRP cannot hold (#15) in 연금저축.
-3. Fill IRP with safe ETFs first. If the safe ETFs are worth more than IRP, the excess stays in 연금저축, starting with the most cash-like (#12, then #11, then #10), so long bonds stay in IRP.
-4. If IRP still has room, fill it with risky ETFs in this order: gold (#13), S&P 500 (#2), then the rest by size. IRP's target risky share is at most 60%, which leaves a 10-point buffer under the legal 70% for price drift.
-5. Everything else goes to 연금저축.
-6. **Check:** total safe assets must be at least 40% of IRP's value. The lowest safe share in any pool is 25% (P2, P3), so this holds while IRP is up to 62% of the total. Beyond that, risky equity in IRP is swapped for #7 (Nasdaq exposure that still counts as safe). This slightly lowers total equity exposure, because #7 is half bonds; that cost is accepted.
-7. **Drift:** between 60% and 70%, nothing is sold, and proposals put new risky buys in 연금저축 instead of IRP. Above 70% (by price moves), nothing is sold automatically, new risky buys in IRP are blocked by law, and they are redirected to 연금저축 (within 연금저축's own cash, step 8).
-8. **Each account funds itself.** 연금저축 and IRP are separate legal accounts, and cash cannot move between them. Every account's buys must be paid for by that account's own cash and its own sells in the same proposal. If an account is short, its buys are scaled down (largest underweight kept first) and the remaining gap waits for the next contribution. The only cash that moves between accounts is a monthly contribution from `UNALLOCATED` (§6.6). The leftover gap is part of the implementation effect (§5.3), and the daily reconciliation checks that no other transfers happened. The worked example in §3.9 satisfies this: each account starts with ₩10M and its placement totals ₩10M.
+1. 두 계좌의 총평가액으로 목표 비중을 원화 금액으로 바꾼다.
+2. IRP가 보유할 수 없는 ETF(#15)는 연금저축에 둔다.
+3. IRP를 안전 ETF부터 채운다. 안전 ETF 금액이 IRP보다 크면 초과분은 가장 현금에 가까운 것부터(#12, #11, #10 순) 연금저축에 남겨, 장기채가 IRP에 머물게 한다.
+4. IRP에 여유가 있으면 위험 ETF를 금(#13), S&P 500(#2), 나머지는 규모순으로 채운다. IRP의 목표 위험 자산 비중은 최대 60%로, 법정 70%보다 10%포인트 낮게 두어 가격 변동에 대비한다.
+5. 나머지는 모두 연금저축에 둔다.
+6. **검증:** 안전 자산 총액은 IRP 평가액의 40% 이상이어야 한다. 어느 풀에서든 안전 자산 비중의 최저치는 25%(P2, P3)이므로, IRP가 전체의 62% 이하인 동안에는 이 조건이 성립한다. 그 이상이면 IRP의 위험 주식을 #7(안전 자산으로 분류되면서 나스닥 노출을 주는 ETF)로 바꾼다. #7은 절반이 채권이므로 전체 주식 노출이 조금 줄어들며, 이 비용은 감수한다.
+7. **이탈:** 60%와 70% 사이에서는 아무것도 매도하지 않고, 제안은 새 위험 자산 매수를 IRP 대신 연금저축에 배정한다. (가격 변동으로) 70%를 넘으면 자동 매도는 하지 않으며, IRP의 새 위험 자산 매수는 법적으로 막히므로 연금저축으로 돌린다(연금저축 자체 현금 범위 안에서, 8단계).
+8. **각 계좌는 스스로 자금을 댄다.** 연금저축과 IRP는 법적으로 별개의 계좌이며 서로 현금을 옮길 수 없다. 각 계좌의 매수 대금은 같은 제안 안에서 그 계좌 자체의 현금과 매도 대금으로 충당해야 한다. 계좌 현금이 부족하면 매수를 줄이고(비중 부족분이 가장 큰 것부터 유지) 남은 차이는 다음 적립금을 기다린다. 계좌 간에 이동하는 현금은 `UNALLOCATED`에서 들어오는 월 적립금뿐이다(§6.6). 남은 차이는 실행 효과(§5.3)에 포함되며, 일일 대사가 다른 이체가 없었음을 확인한다. §3.9의 계산 예시도 이를 만족한다: 각 계좌가 ₩10M으로 시작하고 배치 합계도 ₩10M이다.
 
-### 3.6 Rebalancing rules
+### 3.6 리밸런싱 규칙
 
-- **Regime evaluation:** weekly (§2.4).
-- **Proposal triggers:** (a) the first trading day of each month; (b) any ETF more than 5 percentage points, or 25% relative, away from its target, measured on both accounts combined; (c) a change of pool label (§2.4 step 7). Triggers are checked after the close on every trading day (§6.2); a proposal always uses the latest weekly regime.
-- **Contributions first:** monthly contributions buy underweight ETFs before any sale is proposed. Sales are proposed only if a band is still breached afterwards.
-- **Pacing:** decreases are proposed in one step. Increases to risky ETFs are normally split into 2 weekly steps; in one step in extreme fear (Fear & Greed below 20), and in 3 weekly steps in extreme greed (above 80). Each later step is a new proposal with trigger `TRANCHE`, created by the next week's trigger check.
-- **Trade size:** whole shares only, no trade under ₩100,000; leftover cash goes to #12.
-- **Approval:** every proposal goes to Slack for approval before orders are sent to the KIS mock account (§6, §8). A proposal expires at the close of the second KRX trading day after it is posted.
-- **Drift breakdown:** each proposal explains why every ETF is off target, split into five parts that add up to the total drift:
+- **국면 평가:** 매주(§2.4).
+- **제안 트리거:** (a) 매월 첫 거래일, (b) 두 계좌 합산 기준으로 어떤 ETF든 목표에서 5%포인트 또는 상대 25% 넘게 벗어날 때, (c) 풀 라벨 변경(§2.4 7단계). 트리거는 매 거래일 장 마감 후 확인하며(§6.2), 제안은 항상 최신 주간 국면을 사용한다.
+- **적립금 우선:** 월 적립금으로 비중이 부족한 ETF를 먼저 산 뒤에야 매도를 제안한다. 그 뒤에도 밴드를 벗어난 경우에만 매도를 제안한다.
+- **속도 조절:** 비중 축소는 한 번에 제안한다. 위험 ETF 증액은 평소 2주에 걸쳐 2단계로 나누고, 극단적 공포(Fear & Greed 20 미만)에서는 한 번에, 극단적 탐욕(80 초과)에서는 3주에 걸쳐 3단계로 나눈다. 이후의 각 단계는 다음 주 트리거 확인에서 만들어지는, 트리거가 `TRANCHE`인 새 제안이다.
+- **매매 단위:** 정수 주만 거래하며, ₩100,000 미만 매매는 하지 않는다. 남은 현금은 #12로 간다.
+- **승인:** 모든 제안은 KIS 모의 계좌로 주문을 보내기 전에 Slack 승인을 거친다(§6, §8). 제안은 게시 후 두 번째 KRX 거래일 장 마감에 만료된다.
+- **이탈 분해:** 각 제안은 ETF마다 목표에서 벗어난 이유를, 합하면 전체 이탈이 되는 다섯 부분으로 나눠 설명한다.
 
-  | Part | Meaning |
-  |------|---------|
-  | Market | Price moves since the last rebalance |
-  | Regime | The target itself moved because pool probabilities changed |
-  | Unexecuted | Earlier proposals that were rejected, expired, or are waiting as later tranches |
-  | Contributions | New cash not yet invested |
-  | Rounding | Whole shares and the ₩100,000 minimum trade |
+  | 항목 | 의미 |
+  |---------|---------|
+  | 시장 | 직전 리밸런싱 이후의 가격 변동 |
+  | 국면 | 풀 확률이 바뀌어 목표 자체가 이동한 부분 |
+  | 미실행 | 거절·만료되었거나 이후 분할 단계로 대기 중인 이전 제안 |
+  | 적립금 | 아직 투자하지 않은 신규 현금 |
+  | 반올림 | 정수 주와 최소 매매 금액 ₩100,000 |
 
-  With t₀ the last executed rebalance, per ETF:
+  t₀를 마지막으로 실행된 리밸런싱 시점이라 할 때, ETF별로 다음과 같다.
 
   ```
-  total drift(t)  = held weight(t) − target weight(t)
-  regime          = −(target(t) − target(t₀))
-  market          = held weight(t) if nothing had been traded since t₀ − held weight(t₀)
-  contributions   = held weight(t) − that no-trade weight (cash added since t₀ dilutes every position)
-  unexecuted      = drift left at t₀ by rejected, expired or tranche-deferred lines
-  rounding        = drift left at t₀ by whole shares and the ₩100,000 minimum
-  check: regime + market + contributions + unexecuted + rounding = total drift(t)
+  전체 이탈(t)  = 보유 비중(t) − 목표 비중(t)
+  국면          = −(목표(t) − 목표(t₀))
+  시장          = t₀ 이후 매매가 없었다면의 보유 비중(t) − 보유 비중(t₀)
+  적립금        = 보유 비중(t) − 그 무매매 비중 (t₀ 이후 추가된 현금이 모든 포지션을 희석)
+  미실행        = t₀에 거절·만료·분할 연기된 라인이 남긴 이탈
+  반올림        = t₀에 정수 주와 ₩100,000 최소 금액이 남긴 이탈
+  검산: 국면 + 시장 + 적립금 + 미실행 + 반올림 = 전체 이탈(t)
   ```
 
-  (unexecuted + rounding = held(t₀) − target(t₀), so the five parts telescope exactly to the total.)
-- **Line order in Slack:** largest won deviation first, then largest relative deviation, then lines drifting against the expected direction (for example an overweight that keeps growing).
+  (미실행 + 반올림 = 보유(t₀) − 목표(t₀)이므로, 다섯 부분의 합은 정확히 전체 이탈과 같아진다.)
+- **Slack 라인 순서:** 원화 기준 괴리가 가장 큰 것부터, 그다음 상대 괴리가 큰 것, 그다음 예상 방향과 반대로 이탈하는 라인(예: 계속 커지는 비중 초과) 순이다.
 
-### 3.7 Universe maintenance
+### 3.7 유니버스 관리
 
-A quarterly review, plus immediate review when: an ETF announces delisting or gets a correlation warning; net assets fall below ₩300억; a fee changes; or an unhedged alternative appears for the hedged slot (#15). Universe changes go into the decision log.
+분기마다 검토하며, 다음 경우에는 즉시 검토한다: ETF가 상장폐지를 공시하거나 상관계수 경고를 받을 때, 순자산이 ₩300억 아래로 떨어질 때, 보수가 바뀔 때, 환헤지 슬롯(#15)에 환노출형 대안이 나올 때. 유니버스 변경은 결정 로그에 기록한다.
 
-### 3.8 Tax and costs
+### 3.8 세금과 비용
 
-- Inside pension accounts, trades and distributions are not taxed until withdrawal, so rebalancing has no tax cost. Pension income up to ₩15M a year is taxed at 3.3–5.5% at withdrawal.
-- Foreign tax withheld on US dividends inside these ETFs is now settled at withdrawal rather than inside the account, which slightly lowers the in-account return of dividend-heavy ETFs such as #4.
-- Backtests charge each ETF's fee plus an assumed 0.05% per trade for commission and spread. KIS mock trades are free, so live mock results will look slightly better than real trading would. The system therefore also reports a **cost-adjusted mock return** that charges the same assumed 0.05% per trade, so live results compare fairly with the backtest.
-- **Tax credit as its own line.** Contributions earn a tax credit (up to ₩6M a year for 연금저축 and ₩9M combined with IRP; 13.2% or 16.5% including local tax depending on total salary — check current rates when implementing). At ₩9M a year that is ₩1.188M–₩1.485M. It is not investment return, so TWR and XIRR exclude it; the dashboard shows an **economic return including the tax credit** separately, and the attribution waterfall ends with a tax-credit bar (§5.3).
-  - **When it counts:** the credit is received at the next year-end tax settlement (연말정산), not when money is paid in. It is shown as **expected** (accrued at each contribution) until the settlement, then as **confirmed**.
-  - **Conditional:** terminating the account before pension age claws the benefit back through 16.5% other-income tax, so the dashboard labels it a conditional benefit.
-- **Cost budgets (budget vs. actual).** Each year starts with a static budget, and each month is also compared with a **flexed budget** that adjusts for the regime actually held, so a regime-driven change is not mistaken for overspending. A spending gap of more than 25% is flagged in the monthly review (§8.3).
+- 연금 계좌 안에서는 매매 차익과 분배금이 인출 시까지 과세되지 않으므로 리밸런싱에 세금 비용이 없다. 연 ₩15M 이하의 연금소득은 인출 시 3.3–5.5%로 과세된다.
+- 이 ETF들이 받는 미국 배당의 원천징수 외국납부세액은 이제 계좌 안이 아니라 인출 시 정산되므로, #4처럼 배당 비중이 큰 ETF의 계좌 내 수익률이 조금 낮아진다.
+- 백테스트는 ETF별 보수와 함께 수수료와 호가 스프레드로 매매당 0.05%를 가정해 차감한다. KIS 모의 매매는 비용이 없어 실운영 모의 결과가 실제 매매보다 조금 좋아 보인다. 그래서 시스템은 매매당 같은 0.05%를 차감한 **비용 반영 모의 수익률**도 보고해, 실운영 결과를 백테스트와 공정하게 비교한다.
+- **세액공제는 별도 항목으로.** 적립금(납입)에는 세액공제가 붙는다(연금저축 연 ₩6M, IRP 합산 ₩9M 한도; 총급여에 따라 지방소득세 포함 13.2% 또는 16.5% — 구현 시 현행 세율 확인). 연 ₩9M이면 ₩1.188M–₩1.485M이다. 이는 투자 수익이 아니므로 시간가중수익률(TWR, Time-Weighted Return)과 확장 내부수익률(XIRR, Extended Internal Rate of Return)에서 제외하고, 대시보드는 **세액공제 포함 경제적 수익률**을 따로 보여 주며, 성과 기여도 분석 폭포 차트는 세액공제 막대로 끝난다(§5.3).
+  - **반영 시점:** 세액공제는 납입 시점이 아니라 다음 연말정산 때 받는다. 연말정산 전까지는 **예상**(납입마다 발생 인식)으로, 이후에는 **확정**으로 표시한다.
+  - **조건부:** 연금 수령 연령 전에 계좌를 해지하면 16.5% 기타소득세로 혜택이 환수되므로, 대시보드는 이를 조건부 혜택으로 표시한다.
+- **비용 예산(예산 대비 실적).** 매년 정적 예산으로 시작하고, 매월은 실제 보유한 국면에 맞춰 조정한 **변동 예산**과도 비교해, 국면에 따른 변화를 과다 지출로 오인하지 않게 한다. 지출 차이가 25%를 넘으면 월간 리뷰(§8.3)에서 표시한다.
 
-  | Budget | Static (set in January) | Flexed (each month) | Source |
+  | 예산 | 정적(1월 설정) | 변동(매월) | 근거 |
   |--------|-------------------------|---------------------|--------|
-  | Fund fees | 0.158% a year: the fee-weighted neutral allocation | Σ over pools of p_pool × that pool's fee rate (P1 0.116%, P2 0.177%, P3 0.160%, P4 0.179%), using the month's average probabilities | §3.2 fees × §3.3 columns |
-  | Turnover | The backtest's average annual turnover | The backtest's turnover in months with a similar pool mix | §4.5 |
+  | 펀드 보수 | 연 0.158%: 보수 가중 중립 배분 | 그달 평균 확률을 사용한 Σ(풀별 p_pool × 해당 풀의 보수율) (P1 0.116%, P2 0.177%, P3 0.160%, P4 0.179%) | §3.2 보수 × §3.3 열 |
+  | 회전율 | 백테스트의 연평균 회전율 | 풀 구성이 비슷한 달의 백테스트 회전율 | §4.5 |
 
-  The gap splits in two: **regime effect** = flexed − static (expected, caused by the regime) and **spending effect** = actual − flexed (caused by execution or a larger active-fund weight). Only the spending effect counts toward the 25% flag.
+  차이는 둘로 나뉜다: **국면 효과** = 변동 − 정적(국면이 만든 예상된 차이), **지출 효과** = 실적 − 변동(실행 또는 더 큰 액티브 ETF 비중이 만든 차이). 25% 기준에는 지출 효과만 반영한다.
 
-### 3.9 Worked example
+### 3.9 계산 예시
 
-Continuing §2.7 (P1 0.273, P2 0.128, P3 0.191, P4 0.408), with F = 0 and a ₩20M total. Computed by hand; values rounded, so totals may be off by 0.1.
+§2.7에 이어(P1 0.273, P2 0.128, P3 0.191, P4 0.408), F = 0, 총액 ₩20M으로 계산한다. 손으로 계산했고 값은 반올림했으므로 합계가 0.1 차이 날 수 있다.
 
-| ETF | Blended | After small-position rule | ₩ | Account |
+| ETF | 혼합 | 소액 포지션 규칙 적용 후 | ₩ | 계좌 |
 |-----|---------|---------------------------|---|---------|
 | KODEX 200 | 4.8 | 4.8 | 960k | 연금저축 |
 | TIGER 미국S&P500 | 9.8 | 9.8 | 1.95M | 연금저축 |
@@ -314,168 +314,168 @@ Continuing §2.7 (P1 0.273, P2 0.128, P3 0.191, P4 0.408), with F = 0 and a ₩2
 | TIGER 구리실물 | 1.6 | 0 | – | – |
 | KODEX WTI원유선물(H) | 5.0 | 5.0 | 1.01M | 연금저축 |
 
-Safe assets total 49.5% (₩9.9M), so IRP is almost entirely safe (99%) and 연금저축 holds the risky sleeve. Orders are the difference between these targets and current holdings, rounded down to whole shares.
+안전 자산 합계는 49.5%(₩9.9M)이므로 IRP는 거의 전부(99%) 안전 자산이고, 연금저축이 위험 자산 부분을 담는다. 주문은 이 목표와 현재 보유의 차이를 정수 주로 내림한 값이다.
 
-### 3.10 Unverified items
+### 3.10 미확인 항목
 
-- IRP classification of #11 (USD short bonds), #14 (copper) and #15 (oil futures).
-- The composition of #7 and the benchmark of #5.
-- Whether a ₩500억 floor is enough for daily liquidity at this account size (likely, but not measured).
+- #11(달러 단기채), #14(구리), #15(원유 선물)의 IRP 분류.
+- #7의 구성과 #5의 비교 지수.
+- ₩500억 하한이 이 계좌 규모의 일일 유동성에 충분한지(아마 충분하지만 측정하지 않았다).
 
-## 4. Backtest method
+## 4. 백테스트 방법
 
-The backtest answers one question: does following the regime signal beat holding the same ETFs at neutral weights, after costs and without hindsight?
+백테스트는 한 가지 질문에 답한다: 비용을 반영하고 사후 정보 없이 볼 때, 국면 신호를 따르는 것이 같은 ETF를 중립 비중으로 보유하는 것보다 나은가?
 
-### 4.1 Period and price history
+### 4.1 기간과 가격 이력
 
-- **Main window: 2007-01 to the latest month.** It includes the 2008 crisis, the 2011 euro crisis, 2015–16, the 2020 crash and the 2022 inflation shock, so every pool appears at least once.
-- **Warm-up: 2002–2006.** Indicator z-scores need history before the first signal; early z-scores use an expanding window.
-- **ETF returns before listing come from proxies** (the last column of §3.2). US proxies are total-return series in USD, converted to KRW with daily USD/KRW (FRED `DEXKOUS`), because the Korean ETFs are unhedged. The hedged oil ETF uses the USD index return without FX conversion, plus the hedge carry: CD 91-day rate minus the US 3-month T-bill rate (FRED `DTB3`), which is a cost when Korean rates are lower.
-- **Splicing:** each ETF uses its proxy until its listing date, then its own price history.
-- **Proxy data:** dividend-adjusted daily closes for the US ETFs (and SPY/IEF for the Fear & Greed score), loaded once from a free historical source (Stooq or Yahoo adjusted close) and kept current with the KIS overseas daily-price API. Korean ETF prices come from KIS.
-- **Gaps:** `DTWEXBGS` starts in 2006; before that the discontinued major-currency index `DTWEXM` is spliced in. Copper before CPER (2011) and cash before BIL (2007) use FRED commodity and T-bill series.
+- **본 구간: 2007-01부터 최근 월까지.** 2008년 금융위기, 2011년 유로존 위기, 2015–16년, 2020년 폭락, 2022년 인플레이션 충격을 포함하므로 모든 풀이 최소 한 번 나타난다.
+- **준비 구간: 2002–2006.** 지표 z-score는 첫 신호 전에 이력이 필요하며, 초기 z-score는 확장 윈도우를 쓴다.
+- **상장 전 ETF 수익률은 대체 지수(proxy)에서 가져온다**(§3.2 마지막 열). 국내 ETF가 환노출형이므로, 미국 대체 지수는 달러 기준 총수익 시계열을 일간 USD/KRW(FRED `DEXKOUS`)로 원화 환산한다. 환헤지 원유 ETF는 환산 없이 달러 지수 수익률에 헤지 캐리를 더한다. 헤지 캐리는 양도성예금증서(CD, Certificate of Deposit) 91일물 금리 − 미국 3개월 단기국채(T-bill, Treasury bill) 금리(FRED `DTB3`)이며, 한국 금리가 더 낮으면 비용이 된다.
+- **연결:** 각 ETF는 상장일까지 대체 지수를, 그 이후에는 자체 가격 이력을 사용한다.
+- **대체 지수 데이터:** 미국 ETF(및 Fear & Greed 점수용 SPY/IEF)의 배당 조정 일간 종가는 무료 과거 데이터 출처(Stooq 또는 Yahoo 수정 종가)에서 한 번 적재하고, 이후 KIS 해외 일별 시세 API로 갱신한다. 국내 ETF 가격은 KIS에서 가져온다.
+- **공백:** `DTWEXBGS`는 2006년에 시작하므로 그 이전은 단종된 주요 통화 지수 `DTWEXM`을 연결한다. CPER(2011) 이전의 구리와 BIL(2007) 이전의 현금은 FRED 원자재 및 T-bill 시계열을 쓴다.
 
-### 4.2 No hindsight
+### 4.2 사후 정보 배제
 
-- **Point-in-time values.** Revised US series (`CPILFESL`, `ICSA`) use ALFRED vintages: the value as first published, not today's revised value. `SAHMREALTIME` is real-time by construction. Daily market series are not revised.
-- **Korean release lags.** ECOS has no vintages, so each Korean value is used only after a conservative lag: CPI +7 days, exports +15 days, leading index +35 days after the reference month ends.
-- **Same timing as live.** The regime is evaluated on Saturday with data available by then; triggers are checked after each trading day's close (§6.2), and trades fill at the next trading day's close, assuming approval the same evening.
-- **Rolling statistics only.** No full-sample means, standard deviations or thresholds.
+- **시점 기준 값.** 수정되는 미국 시계열(`CPILFESL`, `ICSA`)은 과거 빈티지 아카이브(ALFRED, ArchivaL Federal Reserve Economic Data)의 빈티지, 즉 오늘의 수정치가 아니라 최초 발표값을 쓴다. `SAHMREALTIME`은 구조상 실시간 값이다. 일간 시장 시계열은 수정되지 않는다.
+- **한국 발표 시차.** ECOS에는 빈티지가 없으므로 각 한국 값은 보수적 시차 이후에만 쓴다: 기준월 종료 후 CPI +7일, 수출 +15일, 선행지수 +35일.
+- **실운영과 같은 타이밍.** 국면은 토요일에 그때까지 공개된 데이터로 평가하고, 트리거는 매 거래일 장 마감 후 확인하며(§6.2), 같은 날 저녁 승인을 가정해 다음 거래일 종가에 체결한다.
+- **이동 통계만 사용.** 전체 표본 평균, 표준편차, 기준값을 쓰지 않는다.
 
-### 4.3 Simulation rules
+### 4.3 시뮬레이션 규칙
 
-The backtest runs the same code as the live system: §2.4 scoring, §3.3–3.5 targets and placement, and §3.6 rebalancing (monthly proposals, bands, contributions first, whole shares). Every proposal is treated as approved. Costs: each ETF's fee accrued daily, plus 0.05% per trade. Contributions follow §3's ₩500k + ₩250k a month.
+백테스트는 실운영 시스템과 같은 코드를 실행한다: §2.4 채점, §3.3–3.5 목표와 배치, §3.6 리밸런싱(월간 제안, 밴드, 적립금 우선, 정수 주). 모든 제안은 승인된 것으로 본다. 비용: ETF별 보수를 매일 발생 처리하고 매매당 0.05%를 더한다. 적립금은 §3의 월 ₩500k + ₩250k를 따른다.
 
-### 4.4 Benchmarks
+### 4.4 비교 기준
 
-| Benchmark | What it tests |
+| 비교 기준 | 검증 대상 |
 |-----------|---------------|
-| Neutral static (same 15 ETFs, neutral weights, monthly rebalance) | **The main test:** the value of the regime signal itself |
-| Hard switching (allocado-style threshold counting, 100% into the dominant pool) | Whether soft probabilities and hysteresis beat simple switching |
-| All Weather-style static (30% equity, 55% bonds, 15% gold and commodities) | Whether a dynamic system beats a well-known static one |
-| 60/40 in KRW (30% S&P 500, 30% KOSPI 200, 40% KR 10-year bonds) | A plain balanced portfolio |
-| KOSPI 200 and S&P 500 in KRW | Market reference only |
+| 중립 정적(같은 15종, 중립 비중, 월간 리밸런싱) | **핵심 검증:** 국면 신호 자체의 가치 |
+| 하드 스위칭(allocado식 기준값 카운팅, 우세 풀에 100%) | 확률 기반 혼합과 히스테리시스가 단순 스위칭보다 나은지 |
+| All Weather식 정적(주식 30%, 채권 55%, 금·원자재 15%) | 동적 시스템이 잘 알려진 정적 포트폴리오보다 나은지 |
+| 원화 기준 60/40(S&P 500 30%, KOSPI 200 30%, 한국 10년물 국채 40%) | 단순 균형 포트폴리오 |
+| 원화 기준 KOSPI 200과 S&P 500 | 시장 참고용 |
 
-### 4.5 Metrics and outputs
+### 4.5 지표와 산출물
 
-- **Returns and risk:** CAGR, volatility, MDD, Sharpe and Sortino (risk-free rate: CD 91-day), Calmar, annual turnover.
-- **Regime behavior:** time in each pool, pool changes per year, and return by pool with the number of months behind each figure.
-- **Robustness:** a sensitivity grid over k, the deadband and the blend weights, shown as a heatmap. This checks that results do not depend on one lucky setting; it is not used to pick the best setting.
-- **Frozen period:** 2023-01 onward is excluded from any parameter change, and results are reported for the full period and this period separately. It is not truly unseen, because the design was written in 2026; real out-of-sample evidence is the live mock record from M4 onward.
-- **Placebo:** regime labels shuffled in random blocks 1,000 times; the real signal should beat most shuffled ones.
-- **Reproducibility:** each run is stored with its configuration, git commit SHA and data snapshot date.
-- **Live vs. backtest (from M4):** every month, tracking difference = live mock return − backtest return for the same month, starting from the same holdings. The cumulative tracking difference is charted; a difference that keeps the same sign signals a systematic bias rather than noise.
-- **Implementation shortfall:** for each proposal, Σ (fill price − decision price) × quantity, plus the opportunity cost of lines not filled (rejected, expired, or deferred to later tranches). The decision price is the close on the day the trigger fired. This splits the live-vs-backtest gap into execution cost and delay cost.
-- **Regime calibration:** the weekly pool probabilities are forecasts, so they are scored with the Brier score: the mean over weeks of Σ over pools of (p_pool − o_pool)², where o = 1 for the realized pool and 0 otherwise. The realized pool is the quadrant of the (R, G) point recomputed six months later with revised data. A reliability chart shows whether "40% P4" weeks really end up in P4 about 40% of the time.
-- **Parallel run (backtest engine vs. live system):** §4.3 claims both run the same code. Every month, the backtest engine is re-run over the live month using the saved data snapshots, and its regime snapshots, target weights and proposal quantities are matched line by line against what the live system produced. They must be identical; any difference means code or data diverged and is an investigate item (§6.6). Tracking difference compares market outcomes; the parallel run compares the calculations themselves.
+- **수익과 위험:** 연평균 성장률(CAGR, Compound Annual Growth Rate), 변동성, MDD, Sharpe와 Sortino(무위험 수익률: CD 91일물), Calmar, 연간 회전율.
+- **국면 동작:** 풀별 체류 기간, 연간 풀 변경 횟수, 각 수치의 근거 개월 수를 함께 표시한 풀별 수익률.
+- **견고성:** k, 데드밴드, 혼합 비중에 대한 민감도 그리드를 히트맵으로 보여 준다. 결과가 운 좋은 설정 하나에 의존하지 않는지 확인하는 용도이며, 최적 설정을 고르는 데 쓰지 않는다.
+- **동결 구간:** 2023-01 이후는 어떤 파라미터 변경에도 쓰지 않으며, 결과는 전체 기간과 이 구간을 따로 보고한다. 설계를 2026년에 작성했으므로 진정한 미관측 구간은 아니다. 실제 표본 외(out-of-sample) 근거는 M4부터의 실운영 모의투자 기록이다.
+- **플라시보:** 국면 라벨을 무작위 블록 단위로 1,000번 섞는다. 실제 신호는 섞은 결과 대부분을 이겨야 한다.
+- **재현성:** 각 실행은 설정, git 커밋 해시(SHA, Secure Hash Algorithm), 데이터 스냅샷 날짜와 함께 저장한다.
+- **실운영 대 백테스트(M4부터):** 매월 같은 보유에서 출발해 추적 차이 = 실운영 모의 수익률 − 같은 달 백테스트 수익률을 계산한다. 누적 추적 차이를 차트로 그리며, 부호가 계속 같은 차이는 잡음이 아니라 체계적 편향을 뜻한다.
+- **실행 손실:** 제안마다 Σ (체결가 − 결정 가격) × 수량에, 체결되지 않은 라인(거절, 만료, 이후 분할 단계로 연기)의 기회비용을 더한다. 결정 가격은 트리거가 발동한 날의 종가다. 이로써 실운영과 백테스트의 차이를 실행 비용과 지연 비용으로 나눈다.
+- **국면 보정:** 주간 풀 확률은 예측이므로 Brier score로 채점한다. Brier score는 주별 Σ(풀별 (p_pool − o_pool)²)의 평균이며, o는 실현된 풀이면 1, 아니면 0이다. 실현된 풀은 6개월 뒤 수정 데이터로 다시 계산한 (R, G) 점의 사분면이다. 신뢰도 차트(reliability chart)는 "P4 40%"였던 주가 실제로 약 40% 비율로 P4가 되는지 보여 준다.
+- **병행 대사(백테스트 엔진 대 실운영 시스템):** §4.3은 둘이 같은 코드를 실행한다고 주장한다. 매월 저장된 데이터 스냅샷으로 해당 실운영 월에 대해 백테스트 엔진을 다시 실행하고, 그 국면 스냅샷, 목표 비중, 제안 수량을 실운영 시스템의 산출물과 라인 단위로 대조한다. 둘은 동일해야 하며, 차이가 있으면 코드나 데이터가 갈라진 것이므로 조사 항목이 된다(§6.6). 추적 차이는 시장 결과를 비교하고, 병행 대사는 계산 자체를 비교한다.
 
-### 4.6 Known biases (disclosed with every result)
+### 4.6 알려진 편향(모든 결과와 함께 공개)
 
-- Korean leading-index revisions (§2.8).
-- Proxy returns differ from the real ETFs' tracking.
-- The universe was chosen in 2026: an ETF that failed earlier would not be in it (survivorship bias).
-- The pool allocation tables (§3.3) were written by someone who knows market history, including the frozen period. The honest check is the live mock record.
+- 한국 선행지수 수정(§2.8).
+- 대체 지수 수익률은 실제 ETF의 추적과 다르다.
+- 유니버스는 2026년에 골랐으므로, 그 전에 실패한 ETF는 포함되지 않는다(생존 편향).
+- 풀 배분표(§3.3)는 동결 구간을 포함한 시장 역사를 아는 사람이 작성했다. 정직한 검증 수단은 실운영 모의투자 기록이다.
 
-## 5. Risk analytics and dataviz
+## 5. 위험 분석과 데이터 시각화
 
-All metrics are computed by the Python service, stored in `analytics` tables, and served to React through Spring.
+모든 지표는 Python 서비스가 계산해 `analytics` 테이블에 저장하고, Spring을 거쳐 React에 제공한다.
 
-### 5.1 Metrics
+### 5.1 지표
 
-Computed per ETF, per account and for the total portfolio.
+ETF별, 계좌별, 전체 포트폴리오에 대해 계산한다.
 
-| Metric | Formula | Window |
+| 지표 | 공식 | 기간 |
 |--------|---------|--------|
-| MDD and current drawdown | min over t of [ P_t / (max of P_s for s ≤ t) ] − 1 | Full history and rolling 3 years |
-| Volatility | stdev(daily log returns) × √252 | 63 and 252 days |
-| Beta | cov(r_asset, r_bench) / var(r_bench) | 252 days |
-| Sharpe | (mean return − risk-free) / volatility, annualized | Rolling 3 years |
-| Sortino | (mean return − risk-free) / downside deviation | Rolling 3 years |
-| Risk contribution | each ETF's share of portfolio volatility | 252 days |
-| VaR 95% | 5th percentile of historical 1-day returns | 2 years |
-| Return | time-weighted (TWR) and money-weighted (XIRR, since contributions arrive monthly) | Since start, YTD, 1 year |
+| MDD와 현재 낙폭 | min over t of [ P_t / (max of P_s for s ≤ t) ] − 1 | 전체 이력과 최근 3년 이동 |
+| 변동성 | stdev(일간 로그 수익률) × √252 | 63일, 252일 |
+| 베타 | cov(r_asset, r_bench) / var(r_bench) | 252일 |
+| Sharpe | (평균 수익률 − 무위험 수익률) / 변동성, 연율화 | 최근 3년 이동 |
+| Sortino | (평균 수익률 − 무위험 수익률) / 하방 편차 | 최근 3년 이동 |
+| 위험 기여도 | 포트폴리오 변동성 중 각 ETF가 차지하는 몫 | 252일 |
+| 위험가치(VaR, Value at Risk) 95% | 과거 1일 수익률의 5번째 백분위수 | 2년 |
+| 수익률 | 시간가중(TWR)과 금액가중(XIRR, 적립금이 매월 들어오므로) | 시작 이후, 연초 대비(YTD, Year-To-Date), 1년 |
 
-- **Beta benchmarks:** Korean holdings vs. KODEX 200; US holdings vs. TIGER 미국S&P500 (a KRW series, so FX is included). Cross-market betas and correlations use weekly returns, because Korean and US trading hours do not overlap.
-- **Risk-free rate:** CD 91-day (ECOS `817Y002`/`010502000`).
-- **Stress tests:** replay the portfolio's actual target weights through real proxy returns in 2008-09 to 2009-02, 2020-02 to 2020-03, and 2022. This replaces allocado's "beta × index drawdown" estimate.
+- **베타 비교 기준:** 국내 보유는 KODEX 200 대비, 미국 보유는 TIGER 미국S&P500 대비(원화 시계열이므로 환율 포함)로 계산한다. 한국과 미국의 거래 시간이 겹치지 않으므로 시장 간 베타와 상관계수는 주간 수익률로 계산한다.
+- **무위험 수익률:** CD 91일물(ECOS `817Y002`/`010502000`).
+- **스트레스 테스트:** 포트폴리오의 실제 목표 비중을 2008-09부터 2009-02까지, 2020-02부터 2020-03까지, 2022년의 실제 대체 지수 수익률로 재현한다. allocado의 "베타 × 지수 낙폭" 추정을 대체한다.
 
-### 5.2 Charts
+### 5.2 차트
 
-| # | Chart | What it shows | Idea from |
+| # | 차트 | 보여 주는 내용 | 아이디어 출처 |
 |---|-------|---------------|-----------|
-| 1 | Regime map | R (x) vs. G (y) scatter with the four pools as quadrants; the current point plus a 12-week trail | New |
-| 2 | Pool probabilities | Stacked area of P1–P4 over time, phase label, current gauges | allocado scenario page |
-| 3 | Indicator panel | Small multiples of each indicator's z-score, with stale-data flags | allocado trigger matrix |
-| 4 | Fear & Greed | CNN index and the self-computed US and KR scores; history vs. S&P 500 and KOSPI; returns after extreme-fear events | allocado Market Pulse |
-| 5 | Accounts | 연금저축 and IRP donuts; target vs. actual bars with drift bands; IRP risky-share gauge against the 70% limit | New |
-| 6 | Beta map | x = beta, volatility or \|MDD\| (toggle), y = weight, bubble size = risk contribution | allocado beta map |
-| 7 | Drawdown | Underwater chart of the portfolio vs. benchmarks | allocado |
-| 8 | Performance | Cumulative return vs. benchmarks (log scale) | allocado |
-| 9 | Backtest | Equity curves, a pool-timeline ribbon under the curve, return by pool with n, rolling Sharpe, sensitivity heatmap | New |
-| 10 | Correlation | Heatmap of the 15 ETFs, weekly returns, 2 years | New |
-| 11 | Attribution waterfall | Neutral return → each effect → portfolio return → tax credit (§5.3) | New |
-| 12 | Drift breakdown | Stacked bars per ETF: market, regime, unexecuted, contributions, rounding (§3.6) | New |
-| 13 | Live vs. backtest | Cumulative tracking difference and implementation shortfall per proposal (§4.5) | New |
+| 1 | 국면 맵 | R(x) 대 G(y) 산점도, 네 풀을 사분면으로 표시; 현재 점과 12주 궤적 | 신규 |
+| 2 | 풀 확률 | 시간에 따른 P1–P4 누적 영역 차트, 단계 라벨, 현재 게이지 | allocado 시나리오 페이지 |
+| 3 | 지표 패널 | 지표별 z-score 소형 다중 차트(small multiples), stale 데이터 표시 | allocado 트리거 매트릭스 |
+| 4 | Fear & Greed | CNN 지수와 자체 계산한 미국·한국 점수; S&P 500·KOSPI 대비 이력; 극단적 공포 이후 수익률 | allocado Market Pulse |
+| 5 | 계좌 | 연금저축과 IRP 도넛 차트; 이탈 밴드를 표시한 목표 대 실제 막대; 70% 한도 대비 IRP 위험 자산 비중 게이지 | 신규 |
+| 6 | 베타 맵 | x = 베타, 변동성 또는 \|MDD\|(전환), y = 비중, 버블 크기 = 위험 기여도 | allocado 베타 맵 |
+| 7 | 낙폭 | 비교 기준 대비 포트폴리오의 수중(underwater) 차트 | allocado |
+| 8 | 성과 | 비교 기준 대비 누적 수익률(로그 스케일) | allocado |
+| 9 | 백테스트 | 자산 곡선, 곡선 아래 풀 타임라인 리본, n을 표시한 풀별 수익률, 이동 Sharpe, 민감도 히트맵 | 신규 |
+| 10 | 상관관계 | 15종 ETF 히트맵, 주간 수익률, 2년 | 신규 |
+| 11 | 성과 기여도 폭포 차트 | 중립 수익률 → 각 효과 → 포트폴리오 수익률 → 세액공제(§5.3) | 신규 |
+| 12 | 이탈 분해 | ETF별 누적 막대: 시장, 국면, 미실행, 적립금, 반올림(§3.6) | 신규 |
+| 13 | 실운영 대 백테스트 | 누적 추적 차이와 제안별 실행 손실(§4.5) | 신규 |
 
-Charts are built with Recharts in React. Chart #1, the attribution waterfall (#11) and the backtest page are the first things a visitor sees on the public demo.
+차트는 React에서 Recharts로 만든다. 공개 데모에서 방문자가 가장 먼저 보는 것은 차트 #1, 성과 기여도 폭포 차트(#11), 백테스트 페이지다.
 
-### 5.3 Performance attribution
+### 5.3 성과 기여도 분석
 
-The attribution answers "why did the portfolio beat or trail the neutral allocation?" by splitting the difference into named effects that add up exactly.
+성과 기여도 분석은 "포트폴리오가 왜 중립 배분을 이기거나 밑돌았는가?"에 답하기 위해, 그 차이를 정확히 합산되는 이름 붙은 효과들로 나눈다.
 
-**Benchmark:** the neutral allocation **net** of its own fund fees (0.158% a year) and its own trading costs, because that is what an investor could actually have earned by holding it.
+**비교 기준:** 자체 펀드 보수(연 0.158%)와 자체 매매 비용을 **차감한** 중립 배분이다. 투자자가 그것을 보유했을 때 실제로 얻을 수 있었던 수익이기 때문이다.
 
-**Definitions** for one period (a month): bᵢ = neutral weight of ETF i, w⁰ᵢ = blended target weight before the FX tilt, w¹ᵢ = target after the FX tilt, wᵢ = weight actually held, rᵢ = gross return of ETF i's passive twin, R_b = Σ bᵢ rᵢ. Uninvested cash counts as one more item with return 0, so each set of weights sums to 1.
+**정의**(한 기간 = 한 달): bᵢ = ETF i의 중립 비중, w⁰ᵢ = 환율 틸트 전 혼합 목표 비중, w¹ᵢ = 환율 틸트 후 목표 비중, wᵢ = 실제 보유 비중, rᵢ = ETF i 패시브 쌍둥이의 총(gross) 수익률, R_b = Σ bᵢ rᵢ. 미투자 현금은 수익률 0인 항목 하나로 보므로 각 비중 집합의 합은 1이다.
 
-- **Gross returns:** ETF prices already have fees taken out, so the gross return is the price return plus the daily fee accrual (feeᵢ / 365 per day).
-- **Passive twins:** #5 → #1, #6 → #3, and for #7 a 50/50 mix of #3 and #10 (the same mapping as the fallbacks in §3.4). A passive ETF is its own twin.
-- **What "implementation" holds:** everything between the tilted target and what is actually held: drift, approval delay, pacing, rounding, cash, the small-position moves (§3.4 step 2) and the IRP swap into #7 (§3.5 step 6).
-- **Optional:** NAV returns instead of market prices remove premium/discount noise, which matters for the small ETFs (#5, #14, #15).
+- **총수익률(gross):** ETF 가격에는 이미 보수가 빠져 있으므로, 총수익률은 가격 수익률에 일별 보수 발생분(하루 feeᵢ / 365)을 더한 값이다.
+- **패시브 쌍둥이:** #5 → #1, #6 → #3, #7은 #3과 #10의 50/50 혼합(§3.4의 대체 ETF와 같은 매핑)이다. 패시브 ETF는 자기 자신이 쌍둥이다.
+- **"실행 효과"에 포함되는 것:** 틸트 후 목표와 실제 보유 사이의 모든 것이다. 이탈, 승인 지연, 속도 조절, 반올림, 현금, 소액 포지션 이동(§3.4 2단계), IRP의 #7 교체(§3.5 6단계)가 해당한다.
+- **선택 사항:** 시장 가격 대신 순자산가치(NAV, Net Asset Value) 수익률을 쓰면 프리미엄/디스카운트 잡음이 사라지며, 소형 ETF(#5, #14, #15)에서 의미가 있다.
 
-| Effect | Formula | What it measures |
+| 효과 | 공식 | 측정 대상 |
 |--------|---------|------------------|
-| Regime allocation | Σ (w⁰ᵢ − bᵢ)(rᵢ − R_b) | The value of the regime signal (§2) |
-| FX tilt | Σ (w¹ᵢ − w⁰ᵢ)(rᵢ − R_b) | The value of the dollar-vs-won modifier (§2.5) |
-| Implementation | Σ (wᵢ − w¹ᵢ)(rᵢ − R_b) | See above |
-| Active selection | Σ wᵢ (r_actualᵢ − rᵢ), gross, over active ETFs (#5–7) | Whether active funds beat their passive twins before fees |
-| Fund fees above neutral | − (Σ wᵢ feeᵢ − Σ bᵢ feeᵢ) × days / 365 | Extra fees paid versus the neutral allocation; equals the fee variance against the static budget (§3.8) |
-| Trading costs above neutral | − (portfolio trading cost − neutral trading cost), both at the assumed 0.05% of traded value | Extra trading the regime system causes |
+| 국면 배분 효과 | Σ (w⁰ᵢ − bᵢ)(rᵢ − R_b) | 국면 신호의 가치(§2) |
+| 환율 틸트 효과 | Σ (w¹ᵢ − w⁰ᵢ)(rᵢ − R_b) | 달러 대 원화 조정 축의 가치(§2.5) |
+| 실행 효과 | Σ (wᵢ − w¹ᵢ)(rᵢ − R_b) | 위 설명 참조 |
+| 액티브 선택 효과 | Σ wᵢ (r_actualᵢ − rᵢ), 보수 차감 전 기준, 액티브 ETF(#5–7) 대상 | 액티브 ETF가 보수 차감 전 패시브 쌍둥이를 이기는지 |
+| 중립 대비 추가 펀드 보수 | − (Σ wᵢ feeᵢ − Σ bᵢ feeᵢ) × days / 365 | 중립 배분 대비 더 낸 보수. 정적 예산 대비 보수 차이와 같다(§3.8) |
+| 중립 대비 추가 매매 비용 | − (포트폴리오 매매 비용 − 중립 매매 비용), 둘 다 매매 금액의 0.05% 가정 | 국면 시스템이 유발한 추가 매매 |
 
-Because Σ(wᵢ − bᵢ) = 0, the first three effects plus selection exactly equal the gross return difference; the two cost effects then turn it into the difference between the portfolio's net return and the neutral allocation's net return. Monthly effects are compounded over longer periods with Carino linking; any rounding residual is shown as its own small bar, never hidden. The same calculation runs on backtests (§4) and on the live mock account, per account and in total.
+Σ(wᵢ − bᵢ) = 0이므로 처음 세 효과와 선택 효과의 합은 총수익률 차이와 정확히 같다. 두 비용 효과는 이를 포트폴리오 순수익률과 중립 배분 순수익률의 차이로 바꾼다. 월간 효과는 Carino linking으로 장기간에 걸쳐 복리 연결하며, 반올림 잔차는 숨기지 않고 별도의 작은 막대로 표시한다. 같은 계산을 백테스트(§4)와 실운영 모의 계좌에 계좌별·합산으로 실행한다.
 
-**Example** (illustrative numbers, not results; computed by hand):
+**예시**(결과가 아닌 예시 수치, 손으로 계산):
 
 ```
-WATERFALL: one year — portfolio vs. neutral allocation
+폭포 차트: 1년 — 포트폴리오 대 중립 배분
 
-Neutral allocation (net)                    +6.00%
-  |--[+] Regime allocation                  +1.80%p
-  |--[+] FX tilt                            +0.40%p
-  |--[+] Active selection (gross)           +0.30%p
-  |--[-] Implementation                     −0.25%p
-  |--[-] Trading costs above neutral        −0.15%p
-  |--[-] Fund fees above neutral            −0.10%p
-Portfolio (net)                             +8.00%
-  |--[+] Tax credit                         (₩ and % of contributions, shown separately)
+중립 배분 (순)                              +6.00%
+  |--[+] 국면 배분 효과                     +1.80%p
+  |--[+] 환율 틸트 효과                     +0.40%p
+  |--[+] 액티브 선택 효과 (총)              +0.30%p
+  |--[-] 실행 효과                          −0.25%p
+  |--[-] 중립 대비 추가 매매 비용           −0.15%p
+  |--[-] 중립 대비 추가 펀드 보수           −0.10%p
+포트폴리오 (순)                             +8.00%
+  |--[+] 세액공제                           (₩ 금액과 납입액 대비 %, 별도 표시)
 
-Excess return: +2.00%p
+초과 수익률: +2.00%p
 ```
 
-| Effect | %p | Share of excess | Cumulative |
+| 효과 | %p | 초과 수익 중 비중 | 누적 |
 |--------|----|-----------------|------------|
-| Regime allocation | +1.80 | 90% | +1.80 |
-| FX tilt | +0.40 | 20% | +2.20 |
-| Active selection | +0.30 | 15% | +2.50 |
-| Implementation | −0.25 | −12.5% | +2.25 |
-| Trading costs above neutral | −0.15 | −7.5% | +2.10 |
-| Fund fees above neutral | −0.10 | −5% | +2.00 |
-| **Total** | **+2.00** | **100%** | |
+| 국면 배분 효과 | +1.80 | 90% | +1.80 |
+| 환율 틸트 효과 | +0.40 | 20% | +2.20 |
+| 액티브 선택 효과 | +0.30 | 15% | +2.50 |
+| 실행 효과 | −0.25 | −12.5% | +2.25 |
+| 중립 대비 추가 매매 비용 | −0.15 | −7.5% | +2.10 |
+| 중립 대비 추가 펀드 보수 | −0.10 | −5% | +2.00 |
+| **합계** | **+2.00** | **100%** | |
 
-Reading it: here the regime signal earns most of the excess, the active funds earn more before fees (+0.30%p) than the whole extra fee bill (−0.10%p), and execution plus extra trading leak 0.40%p. If selection is ever smaller than the active funds' extra fees for a year, the universe review (§3.7) considers dropping them.
+해석: 이 예시에서는 국면 신호가 초과 수익 대부분을 벌고, 액티브 ETF는 보수 차감 전 초과 수익(+0.30%p)이 추가 보수 전체(−0.10%p)보다 크며, 실행과 추가 매매로 0.40%p가 샌다. 어느 해든 선택 효과가 액티브 ETF의 추가 보수보다 작으면 유니버스 검토(§3.7)에서 제외를 검토한다.
 
-## 6. System architecture
+## 6. 시스템 아키텍처
 
-### 6.1 Components
+### 6.1 구성 요소
 
 ```
                  ┌──────────────┐      ┌───────────────────────────┐
@@ -493,140 +493,140 @@ Reading it: here the regime signal earns most of the excess, the active funds ea
                                        n8n (optional): report delivery, alert fan-out
 ```
 
-| Component | Responsibility | Tech |
+| 구성 요소 | 책임 | 기술 |
 |-----------|----------------|------|
-| Spring Boot API | System of record: users, virtual accounts, ledger, holdings, proposals, approvals, orders and fills. Data collectors, job scheduling, Slack integration, KIS client. Public REST API. | Java 21, Spring Boot 3, Spring Security + JWT, JPA, Flyway, `@Scheduled` |
-| Python service | Quant: indicator transforms, regime scoring, targets, backtests, risk metrics. AI: RAG, regime explainer, weekly report, LangGraph pipeline, natural-language Q&A. Internal only. | Python 3.12, FastAPI, pandas, LangChain, LangGraph |
-| PostgreSQL | Schemas, each written by one service: `core` and `collected` by Spring; `analytics`, `rag` and `agent` (LangGraph checkpoints) by Python. Both services may read everything. | PostgreSQL 16, pgvector |
-| React | Dashboard, portfolio, proposals, backtest, Ask page. Public read-only demo plus owner login. | React, Vite, Recharts |
-| Slack | `#antlab-proposals` (interactive approve/reject), `#antlab-alerts` (job failures, stale data), weekly report | Slack app with signed requests |
-| n8n | Optional low-code flows, such as delivering the weekly report or fanning out alerts, triggered by webhooks from Spring | n8n in Docker |
+| Spring Boot API | 기록 시스템(system of record): 사용자, 가상 계좌, 원장, 보유, 제안, 승인, 주문과 체결. 데이터 수집기, 작업 스케줄링, Slack 연동, KIS 클라이언트. 공개 표현 상태 전이(REST, Representational State Transfer) API. | Java 21, Spring Boot 3, Spring Security + JWT, 자바 영속성 API(JPA, Java Persistence API), Flyway, `@Scheduled` |
+| Python 서비스 | 퀀트: 지표 변환, 국면 채점, 목표, 백테스트, 위험 지표. AI: RAG, 국면 전환 설명, 주간 리포트, LangGraph 파이프라인, 자연어 질의응답(Q&A, Question and Answer). 내부 전용. | Python 3.12, FastAPI, pandas, LangChain, LangGraph |
+| PostgreSQL | 스키마마다 쓰기를 맡는 서비스는 하나다: `core`와 `collected`는 Spring, `analytics`, `rag`, `agent`(LangGraph 체크포인트)는 Python. 읽기는 두 서비스 모두 전체에 대해 가능하다. | PostgreSQL 16, pgvector |
+| React | 대시보드, 포트폴리오, 제안, 백테스트, Ask 페이지. 공개 읽기 전용 데모와 소유자 로그인. | React, Vite, Recharts |
+| Slack | `#antlab-proposals`(대화형 승인/거절), `#antlab-alerts`(작업 실패, stale 데이터), 주간 리포트 | 서명된 요청을 쓰는 Slack 앱 |
+| n8n | Spring의 webhook으로 시작하는 선택적 로우코드 흐름(주간 리포트 전달, 알림 분배 등) | Docker의 n8n |
 
-**Why two services:** Java owns the transactional domain where money must add up; Python owns statistics and LLM work, where its libraries are far ahead. Only one service writes each table, so ownership stays clear. Quant logic lives only in Python, so the backtest and the live system run the same code.
+**두 서비스로 나눈 이유:** Java는 금액이 정확히 맞아야 하는 트랜잭션 도메인을 맡고, Python은 라이브러리가 훨씬 앞선 통계와 대규모 언어 모델(LLM, Large Language Model) 작업을 맡는다. 테이블마다 쓰는 서비스가 하나뿐이라 소유 관계가 명확하다. 퀀트 로직은 Python에만 있으므로 백테스트와 실운영 시스템이 같은 코드를 실행한다.
 
-### 6.2 Schedule (KST)
+### 6.2 일정(KST)
 
-| When | Job | Owner |
+| 시점 | 작업 | 담당 |
 |------|-----|-------|
-| Daily 07:30 | Collect US data (FRED) after the US close | Spring |
-| Weekdays 16:00 | Collect ETF closing prices (KIS) and Korean daily data (ECOS); CNN Fear & Greed once a day, stored in `collected` as indicator `CNN_FG` | Spring |
-| Weekdays 16:30 | Refresh risk metrics | Python, called by Spring |
-| Trading days 16:45 | Check proposal triggers (§3.6: monthly, bands, pool change); if one fires, run the proposal pipeline with the latest regime | Spring checks, Python runs the pipeline |
-| Trading days 17:00 | Daily reconciliation (§6.6) | Spring |
-| Month-end, within 3 trading days | Month-end reconciliation close (§6.6), then the parallel run (§4.5), then attribution (§5.3), drift breakdown, live-vs-backtest tracking and implementation shortfall (§4.5), cost budgets (§3.8); each step runs only if the previous one succeeded | Spring closes the books; Python runs the analytics |
-| Saturday 08:00 | Weekly regime evaluation, regime-change explanation, weekly report | Spring starts it, Python runs it |
-| On approval | Send orders to the KIS mock account, reconcile fills, update the ledger | Spring |
+| 매일 07:30 | 미국 장 마감 후 미국 데이터(FRED) 수집 | Spring |
+| 평일 16:00 | ETF 종가(KIS)와 한국 일간 데이터(ECOS) 수집; CNN Fear & Greed는 하루 한 번 수집해 `collected`에 지표 `CNN_FG`로 저장 | Spring |
+| 평일 16:30 | 위험 지표 갱신 | Python(Spring이 호출) |
+| 거래일 16:45 | 제안 트리거 확인(§3.6: 월간, 밴드, 풀 변경); 발동하면 최신 국면으로 제안 파이프라인 실행 | Spring이 확인, Python이 파이프라인 실행 |
+| 거래일 17:00 | 일일 대사(§6.6) | Spring |
+| 월말, 3거래일 이내 | 월말 대사 결산(§6.6), 이어서 병행 대사(§4.5), 성과 기여도 분석(§5.3), 이탈 분해, 실운영 대 백테스트 추적과 실행 손실(§4.5), 비용 예산(§3.8). 각 단계는 이전 단계가 성공했을 때만 실행 | Spring이 장부를 마감, Python이 분석 실행 |
+| 토요일 08:00 | 주간 국면 평가, 국면 전환 설명, 주간 리포트 | Spring이 시작, Python이 실행 |
+| 승인 시 | KIS 모의 계좌로 주문 전송, 체결 대조, 원장 갱신 | Spring |
 
-Every job writes a `job_run` row (start, end, status, rows, error). A failure or stale data posts to `#antlab-alerts`.
+모든 작업은 `job_run` 행(시작, 종료, 상태, 행 수, 오류)을 기록한다. 실패나 stale 데이터는 `#antlab-alerts`에 게시한다.
 
-### 6.3 KIS integration
+### 6.3 KIS 연동
 
-- **Mock environment only** (`openapivts.koreainvestment.com`), selected by Spring profile. The mock environment has its own domain, keys and transaction IDs, and a lower rate limit, so requests are throttled.
-- **Access tokens** are cached in the database and reused until shortly before expiry, because KIS limits how often new tokens can be issued.
-- **Order flow:** approved proposal → recompute and compare the content hash (§8.4) → orders for each line, split so none exceeds ₩5M → poll for fills → write fills and ledger rows in one transaction.
-- **No double orders:** each order row is inserted with a unique key `{proposal_line_id}-{n}` before it is sent. A second approval click finds the rows already there and sends nothing. A failed send is retried only after the KIS order inquiry confirms the order was not received.
-- **Order type and hours:** marketable limit orders (best ask for buys, best bid for sells) between 09:05 and 15:15. Approvals outside those hours are queued until the next session.
-- The two virtual pension accounts map to one KIS mock general account; the ledger keeps which account owns each share (§3.5).
+- **모의 환경 전용**(`openapivts.koreainvestment.com`)이며 Spring profile로 선택한다. 모의 환경은 도메인, 키, 거래 식별자(ID, Identifier)가 별도이고 호출 한도가 낮으므로 요청 속도를 제한한다.
+- **액세스 토큰**은 데이터베이스(DB, Database)에 캐시해 만료 직전까지 재사용한다. KIS가 새 토큰 발급 빈도를 제한하기 때문이다.
+- **주문 흐름:** 승인된 제안 → 콘텐츠 해시 재계산·비교(§8.4) → 라인별 주문(₩5M을 넘지 않도록 분할) → 체결 폴링 → 체결과 원장 행을 한 트랜잭션으로 기록.
+- **이중 주문 방지:** 각 주문 행은 전송 전에 고유 키 `{proposal_line_id}-{n}`으로 삽입한다. 승인을 두 번 클릭해도 이미 있는 행을 찾으므로 아무것도 보내지 않는다. 전송 실패는 KIS 주문 조회로 주문이 접수되지 않았음을 확인한 뒤에만 재시도한다.
+- **주문 유형과 시간:** 09:05부터 15:15 사이에 즉시 체결 가능한 지정가 주문(매수는 최우선 매도호가, 매도는 최우선 매수호가)을 낸다. 이 시간 밖의 승인은 다음 장까지 대기열에 둔다.
+- 두 가상 연금 계좌는 KIS 모의 종합계좌 하나에 매핑되며, 원장이 각 주식을 어느 계좌가 소유하는지 기록한다(§3.5).
 
-### 6.4 Deployment and CI
+### 6.4 배포와 CI
 
-- **Local:** Docker Compose runs PostgreSQL, Spring, Python, React (dev server) and optionally n8n.
-- **CI (GitHub Actions), from the first phase:** on every pull request, build and test Java (Gradle) and Python (pytest), lint, and build Docker images. On merge to `main`, push multi-architecture images to GitHub Container Registry.
-- **Hosting:** one OCI Always Free Ampere (ARM) VM running Docker Compose behind Caddy for HTTPS. HTTPS is required because Slack only sends interactive button clicks to a public HTTPS URL. Deployment is a manual workflow the owner triggers. Paid and GCP options are in Appendix A.
-- **Backups:** nightly `pg_dump` to object storage.
+- **로컬:** Docker Compose로 PostgreSQL, Spring, Python, React(개발 서버), 선택적으로 n8n을 실행한다.
+- **지속적 통합(CI, Continuous Integration), GitHub Actions, 첫 단계부터:** 모든 풀 리퀘스트(PR, Pull Request)에서 Java(Gradle)와 Python(pytest)을 빌드·테스트하고, lint를 돌리고, Docker 이미지를 빌드한다. `main`에 병합되면 멀티 아키텍처 이미지를 GitHub Container Registry에 푸시한다.
+- **호스팅:** 오라클 클라우드 인프라(OCI, Oracle Cloud Infrastructure) Always Free Ampere(ARM) 가상 머신(VM, Virtual Machine) 한 대에서 Caddy 뒤에 Docker Compose를 띄워 보안 HTTP(HTTPS, Hypertext Transfer Protocol Secure)를 제공한다. Slack은 대화형 버튼 클릭을 공개 HTTPS 웹 주소(URL, Uniform Resource Locator)로만 보내므로 HTTPS가 필수다. 배포는 소유자가 직접 실행하는 수동 워크플로다. 유료 및 구글 클라우드 플랫폼(GCP, Google Cloud Platform) 옵션은 부록 A에 있다.
+- **백업:** 매일 밤 `pg_dump`를 오브젝트 스토리지에 저장한다.
 
-### 6.5 Security
+### 6.5 보안
 
-- Secrets (KIS keys, Slack signing secret, JWT key, LLM API key) live in environment variables and GitHub Actions secrets, never in the repo.
-- Every Slack request is verified with the signing secret before an approval is accepted. The signature only proves the request came from Slack, so the clicking user's Slack ID must also be on an **approver allowlist** (the owner only); anyone else in the channel gets a rejection and the attempt is logged.
-- JWT: short-lived access token plus a refresh token in an httpOnly cookie, passwords hashed with BCrypt. Roles: `OWNER` (approve, run backtests) and the anonymous public demo (read-only).
-- The Python service is reachable only on the internal Docker network, with a service token.
+- 비밀값(KIS 키, Slack signing secret, JSON 웹 토큰(JWT, JSON Web Token) 키, LLM API 키)은 환경 변수와 GitHub Actions secrets에 두며, 저장소에는 절대 넣지 않는다.
+- 모든 Slack 요청은 승인을 받아들이기 전에 signing secret으로 검증한다. 서명은 요청이 Slack에서 왔다는 것만 증명하므로, 클릭한 사용자의 Slack ID도 **승인자 허용 목록**(소유자만)에 있어야 한다. 채널의 다른 사람은 거부되며 시도가 로그에 남는다.
+- JWT: 수명이 짧은 액세스 토큰과 httpOnly 쿠키에 담긴 리프레시 토큰을 쓰고, 비밀번호는 BCrypt로 해시한다. 역할: `OWNER`(승인, 백테스트 실행)와 익명 공개 데모(읽기 전용).
+- Python 서비스는 내부 Docker 네트워크에서만, 서비스 토큰으로 접근할 수 있다.
 
-### 6.6 Daily reconciliation
+### 6.6 일일 대사
 
-A control that proves the books add up, run after the close every trading day (§6.2). Each check writes a `reconciliation_run` row; every difference it finds becomes a `reconciling_item`.
+장부가 맞는다는 것을 증명하는 통제로, 매 거래일 장 마감 후 실행한다(§6.2). 각 점검은 `reconciliation_run` 행을 기록하고, 발견한 차이는 각각 `reconciling_item`이 된다.
 
-**Checks**
+**점검 항목**
 
-| Check | Must hold |
+| 점검 | 성립해야 하는 조건 |
 |-------|-----------|
-| Ledger vs. balance | Σ `cash_ledger.amount` = current cash, and the latest `balance_after` = current cash, per account |
-| Holdings vs. fills | `holding.quantity` = Σ buy fills − Σ sell fills, per account and ETF (quantities: zero tolerance) |
-| Inter-account transfers | Σ transfers out of `UNALLOCATED` = Σ contributions into 연금저축 and IRP, per day; transfers between 연금저축 and IRP = 0 (§3.5 step 8) |
-| Broker holdings | Holdings of the two virtual accounts combined = holdings reported by the KIS mock account |
-| Broker cash | Standard format below. The KIS mock account starts with a fixed virtual deposit set by KIS, which never equals our ₩20M, so the remainder is booked in a separate `UNALLOCATED` account. Monthly contributions are internal transfers from `UNALLOCATED`, because no real money is deposited |
-| Broker valuation | Our value (quantity × close) vs. the evaluation amount KIS reports, per account; tolerance 0.1% for price-snapshot timing |
-| Distributions | Every distribution with a passed pay date has a matching cash entry; every unexpected cash credit is matched to a distribution or flagged |
-| Proposals | Every `EXECUTED` proposal line has fills covering its quantity, or a recorded reason for the gap |
+| 원장 대 잔고 | 계좌별로 Σ `cash_ledger.amount` = 현재 현금이고, 최신 `balance_after` = 현재 현금 |
+| 보유 대 체결 | 계좌·ETF별로 `holding.quantity` = Σ 매수 체결 − Σ 매도 체결(수량: 허용 오차 0) |
+| 계좌 간 이체 | 일별로 `UNALLOCATED`에서 나간 이체 합계 = 연금저축과 IRP로 들어간 적립금 합계; 연금저축과 IRP 간 이체 = 0(§3.5 8단계) |
+| 증권사 보유 | 두 가상 계좌의 보유 합계 = KIS 모의 계좌가 보고한 보유 |
+| 증권사 현금 | 아래 표준 양식. KIS 모의 계좌는 KIS가 정한 고정 가상 예수금으로 시작하므로 우리의 ₩20M과 같을 수 없으며, 나머지는 별도의 `UNALLOCATED` 계좌에 기록한다. 실제 입금이 없으므로 월 적립금은 `UNALLOCATED`에서의 내부 이체다 |
+| 증권사 평가액 | 계좌별 자체 평가액(수량 × 종가) 대 KIS가 보고한 평가금액; 가격 스냅샷 시차를 고려해 허용 오차 0.1% |
+| 분배금 | 지급일이 지난 모든 분배금에 대응하는 현금 기록이 있고, 예상하지 못한 현금 입금은 모두 분배금과 대응시키거나 표시한다 |
+| 제안 | 모든 `EXECUTED` 제안 라인은 수량을 채우는 체결이 있거나, 차이에 대한 사유가 기록되어 있다 |
 
-**Standard format for broker cash** (bank-reconciliation style; both sides are adjusted to the same balance):
+**증권사 현금 표준 양식**(은행 잔고 대사 방식; 양쪽을 같은 잔고로 조정한다):
 
 ```
-KIS cash balance                                          ₩X
-  + unsettled sells (receivable, T+2)                     ₩X
-  − unsettled buys (payable, T+2)                        (₩X)
-  ± items only at KIS (unrecorded distributions, fee differences)   ₩X
-Adjusted KIS balance                                      ₩X
+KIS 현금 잔고                                             ₩X
+  + 미결제 매도 (미수금, T+2)                             ₩X
+  − 미결제 매수 (미지급금, T+2)                          (₩X)
+  ± KIS에만 있는 항목 (미기록 분배금, 보수 차이)          ₩X
+조정 후 KIS 잔고                                          ₩X
 
-Book cash (연금저축 + IRP + UNALLOCATED)                  ₩X
-  ± items only in our books (orders sent, not yet confirmed)       ₩X
-Adjusted book balance                                     ₩X
+장부 현금 (연금저축 + IRP + UNALLOCATED)                  ₩X
+  ± 우리 장부에만 있는 항목 (전송했으나 미확인 주문)      ₩X
+조정 후 장부 잔고                                         ₩X
 
-Difference                                                ₩0   ← anything else is an "investigate" item
+차이                                                      ₩0   ← 그 밖의 차이는 모두 "조사" 항목이다
 ```
 
-**Reconciling items** are classified when they are created:
+**차이 항목**은 생성 시 분류한다.
 
-| Category | Examples | Handling | Orders |
+| 분류 | 예시 | 처리 | 주문 |
 |----------|----------|----------|--------|
-| Timing | Unsettled trades (T+2), fills not yet polled, distributions between record and pay date | `expected_clear_by` is set automatically; clears without action | Continue |
-| Adjustment | Fee or tax differences in whole won, a missing or duplicate fill record, an unrecorded distribution | Fixed by a new `ADJUSTMENT` ledger row linked to the item; existing rows are never edited | Continue if ≤ ₩100,000; stop if larger |
-| Investigate | Any difference without an explanation; the same kind of difference recurring | Root cause found and recorded before clearing | **Stop immediately** |
+| 시차 | 미결제 매매(T+2), 아직 폴링하지 않은 체결, 기준일과 지급일 사이의 분배금 | `expected_clear_by`를 자동 설정하며, 조치 없이 해소된다 | 계속 |
+| 조정 | 원 단위 보수·세금 차이, 누락되거나 중복된 체결 기록, 미기록 분배금 | 항목에 연결된 새 `ADJUSTMENT` 원장 행으로 수정하며, 기존 행은 절대 수정하지 않는다 | ₩100,000 이하면 계속, 초과면 중단 |
+| 조사 | 설명되지 않는 모든 차이; 같은 종류의 차이 반복 | 해소 전에 근본 원인을 찾아 기록한다 | **즉시 중단** |
 
-**Aging** (business-day buckets, because the cycle is daily and settlement is T+2):
+**경과일 관리**(주기가 일간이고 결제가 T+2이므로 영업일 구간으로 나눈다):
 
-| Age | Status | Action |
+| 경과 | 상태 | 조치 |
 |-----|--------|--------|
-| 0–2 trading days | Current | Monitor |
-| 3–5 trading days | Aging | Find out why it has not cleared; Slack alert |
-| 6–20 trading days | Overdue | Stop orders; listed in the weekly report |
-| Over 20 trading days | Stale | Resolve by an adjustment with the reason in the decision log |
+| 0–2 거래일 | 정상 | 모니터링 |
+| 3–5 거래일 | 경과 | 해소되지 않은 이유 파악; Slack 알림 |
+| 6–20 거래일 | 기한 초과 | 주문 중단; 주간 리포트에 기재 |
+| 20 거래일 초과 | 장기 미해소(stale) | 결정 로그에 사유를 남기고 조정으로 해소 |
 
-**Trending:** the count and amount of open items are tracked monthly. If open items exceed 0.5% of portfolio value, orders stop. A kind of difference that appears three months in a row gets an `[환경]` issue to fix the process behind it.
+**추세 관리:** 미해결 항목의 건수와 금액을 매월 추적한다. 미해결 항목이 포트폴리오 평가액의 0.5%를 넘으면 주문을 중단한다. 같은 종류의 차이가 3개월 연속 나타나면 그 원인이 된 프로세스를 고치기 위해 `[환경]` 이슈를 만든다.
 
-**Month-end close:** the month-end reconciliation of every account (STOCK, PENSION_SAVINGS, IRP, UNALLOCATED) must be complete within 3 trading days after the last trading day of the month, with no investigate or overdue items. The system prepares it and the owner reviews it (`reviewed_at`). Until it is complete, the monthly review (§8.3) is not produced.
+**월말 결산:** 모든 계좌(STOCK, PENSION_SAVINGS, IRP, UNALLOCATED)의 월말 대사는 그달 마지막 거래일 후 3거래일 이내에, 조사 항목이나 기한 초과 항목 없이 완료해야 한다. 시스템이 준비하고 소유자가 검토한다(`reviewed_at`). 완료되기 전에는 월간 리뷰(§8.3)를 만들지 않는다.
 
-### 6.7 Alert thresholds
+### 6.7 알림 기준
 
-An alert fires when either threshold is crossed, following the usual materiality rule (an amount or a percentage, whichever comes first). Values are starting points to be tuned with the backtest.
+두 기준 중 하나라도 넘으면 알림이 발생하며, 일반적인 중요성 기준 원칙(금액 또는 비율 중 먼저 도달하는 쪽)을 따른다. 값은 시작값이며 백테스트로 조정한다.
 
-| Item | Amount | Percentage | Action |
+| 항목 | 금액 | 비율 | 조치 |
 |------|--------|------------|--------|
-| Daily portfolio move | 2% of portfolio value | 2σ of daily returns | Slack alert |
-| Drawdown | — | Crossing −10%, −15%, −20% | Alert; at −20% a review note in the weekly report |
-| IRP risky share | — | 65% (before the legal 70%) | Early warning |
-| Active vs. passive twin | — | Trailing by more than 3%p over 3 months | Universe-review issue (§3.7) |
-| Live vs. backtest | — | Monthly tracking difference beyond ±2%p | Cause analysis in the monthly review |
-| Cost budgets | — | Spending effect more than 25% over the flexed budget year to date | Monthly review item (§3.8) |
-| Reconciliation | Adjustment item over ₩100,000, or any investigate item | Open items over 0.5% of portfolio value | Stop orders and alert (§6.6) |
-| Reconciliation aging | — | Any item older than 5 trading days | Stop orders; weekly report (§6.6) |
+| 일간 포트폴리오 변동 | 포트폴리오 평가액의 2% | 일간 수익률의 2σ | Slack 알림 |
+| 낙폭 | — | −10%, −15%, −20% 돌파 | 알림; −20%에서는 주간 리포트에 검토 메모 |
+| IRP 위험 자산 비중 | — | 65%(법정 70% 도달 전) | 조기 경고 |
+| 액티브 대 패시브 쌍둥이 | — | 3개월간 3%p 넘게 뒤처짐 | 유니버스 검토 이슈(§3.7) |
+| 실운영 대 백테스트 | — | 월간 추적 차이 ±2%p 초과 | 월간 리뷰에서 원인 분석 |
+| 비용 예산 | — | 연초 이후 지출 효과가 변동 예산을 25% 넘게 초과 | 월간 리뷰 항목(§3.8) |
+| 대사 | ₩100,000 초과 조정 항목, 또는 모든 조사 항목 | 미해결 항목이 포트폴리오 평가액의 0.5% 초과 | 주문 중단 및 알림(§6.6) |
+| 대사 경과일 | — | 5거래일보다 오래된 항목 | 주문 중단; 주간 리포트(§6.6) |
 
-## 7. Data model and API draft
+## 7. 데이터 모델과 API 초안
 
-Key columns only; the DDL is written by hand during the phases. At M1 the MVP's tables move to PostgreSQL with the rest: the macro track reuses `member` as its user table, `holding` and `cash_ledger` become keyed by `account_id` (each member gets accounts), and the stock track's `orders`/`execution` stay separate from the ETF `broker_order`/`fill`. Money uses `NUMERIC(19,4)` in SQL and `BigDecimal` in Java (Python's `Decimal` where it touches money); weights use `NUMERIC(9,6)`. Statistics such as z-scores are not money and may use floating point.
+핵심 컬럼만 적는다. 데이터 정의어(DDL, Data Definition Language)는 각 단계에서 직접 작성한다. M1에서 MVP의 테이블도 나머지와 함께 PostgreSQL로 옮긴다. 매크로 트랙은 `member`를 사용자 테이블로 재사용하고, `holding`과 `cash_ledger`는 `account_id`를 키로 갖게 되며(회원마다 계좌를 가짐), 주식 트랙의 `orders`/`execution`은 ETF의 `broker_order`/`fill`과 분리해 유지한다. 금액은 구조화 질의 언어(SQL, Structured Query Language)에서 `NUMERIC(19,4)`, Java에서 `BigDecimal`(금액을 다루는 Python 코드에서는 `Decimal`)을 쓰고, 비중은 `NUMERIC(9,6)`을 쓴다. z-score 같은 통계값은 금액이 아니므로 부동소수점을 써도 된다.
 
-### 7.1 Tables
+### 7.1 테이블
 
-| Schema | Table | Key columns |
+| 스키마 | 테이블 | 핵심 컬럼 |
 |--------|-------|-------------|
-| core | `member` (from the MVP) | id, email (unique), password_hash, role (added) |
-| core | `account` | id, member_id, type (STOCK / PENSION_SAVINGS / IRP / UNALLOCATED), name — `UNALLOCATED` holds KIS mock cash not assigned to a pension account (§6.6) |
-| core | `etf` | id, ticker (unique), name, role, fee_rate (`NUMERIC(7,6)`, e.g. 0.000068), listed_on, hedged, irp_class (SAFE / RISKY / NOT_ALLOWED), proxy_symbol, active |
-| core | `etf_fallback` | etf_id, fallback_etf_id, share — one ETF can fall back to several (e.g. #7 → 50% #3, 50% #10) |
+| core | `member`(MVP에서 가져옴) | id, email (unique), password_hash, role(추가) |
+| core | `account` | id, member_id, type (STOCK / PENSION_SAVINGS / IRP / UNALLOCATED), name — `UNALLOCATED`는 연금 계좌에 배정되지 않은 KIS 모의 현금을 보유(§6.6) |
+| core | `etf` | id, ticker (unique), name, role, fee_rate (`NUMERIC(7,6)`, 예: 0.000068), listed_on, hedged, irp_class (SAFE / RISKY / NOT_ALLOWED), proxy_symbol, active |
+| core | `etf_fallback` | etf_id, fallback_etf_id, share — ETF 하나가 여러 대체 ETF를 가질 수 있음(예: #7 → 50% #3, 50% #10) |
 | core | `holding` | account_id, etf_id, quantity, avg_price — unique (account_id, etf_id) |
-| core | `cash_ledger` | id, account_id, type (TRANSFER / BUY / SELL / FEE / DISTRIBUTION / ADJUSTMENT), amount, balance_after, ref_id, created_at — corrections are new `ADJUSTMENT` rows linked to a reconciling item |
+| core | `cash_ledger` | id, account_id, type (TRANSFER / BUY / SELL / FEE / DISTRIBUTION / ADJUSTMENT), amount, balance_after, ref_id, created_at — 정정은 차이 항목에 연결된 새 `ADJUSTMENT` 행으로 기록 |
 | core | `proposal` | id, created_at, trigger (MONTHLY / BAND / POOL_CHANGE / TRANCHE), regime_snapshot_id, content_hash, status (PENDING / APPROVED / REJECTED / EXPIRED / EXECUTED / HASH_MISMATCH), decided_at, slack_message_ts |
-| core | `approval_event` | id, proposal_id, decision (APPROVE / REJECT / DENIED), actor (Slack user ID or member id), channel (SLACK / WEB), signature_ok, allowlist_ok, content_hash, created_at — append-only |
+| core | `approval_event` | id, proposal_id, decision (APPROVE / REJECT / DENIED), actor(Slack 사용자 ID 또는 member id), channel (SLACK / WEB), signature_ok, allowlist_ok, content_hash, created_at — 추가 전용(append-only) |
 | core | `proposal_line` | id, proposal_id, account_id, etf_id, side, quantity, est_price, reason |
 | core | `broker_order` | id, proposal_line_id, idempotency_key (unique), kis_order_no, status, submitted_at |
 | core | `fill` | id, broker_order_id, price, quantity, fee, filled_at |
@@ -634,55 +634,55 @@ Key columns only; the DDL is written by hand during the phases. At M1 the MVP's 
 | core | `reconciliation_run` | id, run_at, check_name, account_id, expected, actual, difference, status (OK / EXPLAINED / UNEXPLAINED) |
 | core | `reconciling_item` | id, run_id, account_id, category (TIMING / ADJUSTMENT / INVESTIGATE), description, amount, quantity, originated_on, expected_clear_by, cleared_on, adjusting_entry_id, root_cause |
 | core | `month_end_close` | month, completed_at, all_accounts_ok, open_items_count, open_items_amount, reviewed_at |
-| collected | `indicator` | id, code, source (FRED / ECOS / CNN / KRX / DERIVED), series_id (null if derived), derived_from (input codes, e.g. #12 = KTB 3Y and `DGS2`), region, axis, transform, release_interval, normal_lag_days |
+| collected | `indicator` | id, code, source (FRED / ECOS / CNN / KRX / DERIVED), series_id(산출 지표면 null), derived_from(입력 코드, 예: #12 = 국고채(KTB, Korea Treasury Bond) 3Y와 `DGS2`), region, axis, transform, release_interval, normal_lag_days |
 | collected | `indicator_value` | indicator_id, ref_date, value, available_at, fetched_at, vintage — unique (indicator_id, ref_date, vintage) |
 | collected | `etf_price_daily` | etf_id, trade_date, close |
-| collected | `proxy_price_daily` | symbol, trade_date, close, adj_close (dividend-adjusted), currency |
-| collected | `etf_distribution` | etf_id, record_date, pay_date, amount_per_share — expected distributions for the reconciliation (§6.6) |
+| collected | `proxy_price_daily` | symbol, trade_date, close, adj_close(배당 조정), currency |
+| collected | `etf_distribution` | etf_id, record_date, pay_date, amount_per_share — 대사용 예상 분배금(§6.6) |
 | analytics | `indicator_signal` | indicator_id, as_of, z, weight, stale |
 | analytics | `regime_snapshot` | id, as_of, r, g, f, p1, p2, p3, p4, label, label_since, phase, stale_indicators, model_version |
 | analytics | `target_weight` | regime_snapshot_id, etf_id, weight |
 | analytics | `asset_metric` | etf_id, as_of, window, mdd, volatility, beta, sharpe, sortino, risk_contribution |
 | analytics | `portfolio_metric` | scope (IRP / PENSION_SAVINGS / TOTAL), as_of, window, twr, xirr, mdd, volatility, var95, cost_adjusted_return, tax_credit_expected, tax_credit_confirmed, economic_return |
-| analytics | `attribution` | period_start, period_end, scope (IRP / PENSION_SAVINGS / TOTAL / backtest run id), effect (REGIME / FX / IMPLEMENTATION / SELECTION / FEES / TRADING / LINKING / TAX_CREDIT), value, unit (PCT_POINT / KRW) — TAX_CREDIT is stored in KRW |
+| analytics | `attribution` | period_start, period_end, scope (IRP / PENSION_SAVINGS / TOTAL / 백테스트 실행 id), effect (REGIME / FX / IMPLEMENTATION / SELECTION / FEES / TRADING / LINKING / TAX_CREDIT), value, unit (PCT_POINT / KRW) — TAX_CREDIT는 KRW로 저장 |
 | analytics | `drift_breakdown` | as_of, etf_id, total, market, regime, unexecuted, contributions, rounding |
 | analytics | `execution_quality` | proposal_id, decision_value, fill_value, shortfall, opportunity_cost |
 | analytics | `tracking_record` | month, live_return, backtest_return, tracking_difference |
-| analytics | `regime_calibration` | week, p1, p2, p3, p4, realized_pool, brier, scored_at — scored six months after the week, once revised data fixes the realized pool (§4.5) |
+| analytics | `regime_calibration` | week, p1, p2, p3, p4, realized_pool, brier, scored_at — 수정 데이터로 실현 풀이 확정되는 6개월 뒤에 채점(§4.5) |
 | analytics | `cost_budget` | year, month, kind (FEES / TURNOVER), static_budget, flexed_budget, actual, regime_effect, spending_effect |
-| analytics | `sentiment_score` | as_of, source (SELF_US / SELF_KR), value — CNN's raw value is in `collected` |
+| analytics | `sentiment_score` | as_of, source (SELF_US / SELF_KR), value — CNN 원값은 `collected`에 저장 |
 | analytics | `report` | id, type (WEEKLY / REGIME_EXPLANATION), regime_snapshot_id, body, sources, created_at |
 | analytics | `backtest_run` | id, config, git_sha, data_as_of, metrics, created_at |
 | rag | `document` | id, source, title, published_on, url, language |
 | rag | `chunk` | id, document_id, text, embedding (vector) |
 
-`indicator_value` keeps every fetch as a new vintage, which is how the Korean data gets its own point-in-time history from day one (§2.8).
+`indicator_value`는 매 수집을 새 빈티지로 보관하며, 이렇게 해서 한국 데이터도 첫날부터 자체 시점 기준(point-in-time) 이력을 갖게 된다(§2.8).
 
-### 7.2 Public API (Spring, `/api/v1`)
+### 7.2 공개 API (Spring, `/api/v1`)
 
 ```
 POST /auth/login | /auth/refresh | /auth/logout
-GET  /regime/current                      Pool probabilities, phase, R, G, F, stale flags
+GET  /regime/current                      풀 확률, 단계, R, G, F, stale 표시
 GET  /regime/history?from&to
-GET  /indicators                          Latest signal per indicator
+GET  /indicators                          지표별 최신 신호
 GET  /indicators/{code}/series
-GET  /fear-greed                          CNN plus self-computed US/KR scores
+GET  /fear-greed                          CNN 및 자체 계산 US/KR 점수
 GET  /etfs | /etfs/{ticker}/metrics
 GET  /accounts | /accounts/{id}/holdings | /accounts/{id}/ledger
 GET  /portfolio/summary | /portfolio/performance?benchmark= | /portfolio/risk
-GET  /portfolio/attribution?from&to       Waterfall effects (§5.3)
-GET  /portfolio/drift                     Drift breakdown per ETF (§3.6)
-GET  /reports/monthly/latest              Attribution, tracking, shortfall, cost budgets
+GET  /portfolio/attribution?from&to       폭포 차트 효과 (§5.3)
+GET  /portfolio/drift                     ETF별 이탈 분해 (§3.6)
+GET  /reports/monthly/latest              성과 기여도, 추적, 실행 손실, 비용 예산
 GET  /proposals | /proposals/{id}
-POST /proposals/{id}/approve | /proposals/{id}/reject      OWNER only
-POST /slack/interactions                  Slack-signed button clicks
+POST /proposals/{id}/approve | /proposals/{id}/reject      OWNER 전용
+POST /slack/interactions                  Slack 서명된 버튼 클릭
 GET  /backtests | /backtests/{id}
-POST /backtests                           OWNER only
+POST /backtests                           OWNER 전용
 POST /ask                                 { question } → { answer, charts[], sources[] }
 GET  /reports/weekly/latest
 ```
 
-### 7.3 Internal API (Python, called only by Spring)
+### 7.3 내부 API (Python, Spring만 호출)
 
 ```
 POST /quant/regime/evaluate     POST /quant/targets       POST /quant/backtest
@@ -690,253 +690,253 @@ POST /quant/metrics/refresh     POST /ai/explain-regime   POST /ai/weekly-report
 POST /ai/ask                    POST /ai/pipeline/run     POST /ai/pipeline/resume
 ```
 
-`/quant/targets` takes current holdings and prices from Spring and returns target weights plus order quantities per account. Python never calls Slack or KIS; when the pipeline needs to post to Slack or execute, it calls Spring.
+`/quant/targets`는 Spring에서 현재 보유와 가격을 받아 목표 비중과 계좌별 주문 수량을 반환한다. Python은 Slack이나 KIS를 직접 호출하지 않으며, 파이프라인이 Slack에 게시하거나 주문을 실행해야 할 때는 Spring을 호출한다.
 
-## 8. AI features
+## 8. AI 기능
 
-One rule covers every feature: **the LLM explains and answers, deterministic code decides.** Pool probabilities, target weights, quantities and risk checks come from tested code; the LLM never changes them.
+모든 기능에 하나의 규칙이 적용된다: **LLM은 설명하고 답하며, 결정은 결정론적 코드가 한다.** 풀 확률, 목표 비중, 수량, 위험 점검은 테스트된 코드에서 나오며, LLM은 이를 바꾸지 않는다.
 
-### 8.1 RAG knowledge base
+### 8.1 RAG 지식 베이스
 
-- **Corpus:**
-  - FOMC statements and minutes (federalreserve.gov).
-  - Bank of Korea 통화정책방향 decisions and minutes (bok.or.kr).
-  - Bridgewater's public All Weather articles.
-  - The owner's own notes on Uragami, Dalio and 오건영. Notes only: no copied book text.
-- **Pipeline:**
-  - Split documents by section, then into chunks of about 500 tokens.
-  - Embed with a multilingual model, because the corpus is half Korean (for example bge-m3, which can run locally).
-  - Store the vectors in pgvector.
-  - Search with hybrid retrieval: PostgreSQL full-text search plus vector similarity.
-- **Every answer cites its sources** (document title and date).
+- **코퍼스:**
+  - 미국 연방공개시장위원회(FOMC, Federal Open Market Committee) 성명서와 의사록(federalreserve.gov).
+  - 한국은행 통화정책방향 결정문과 의사록(bok.or.kr).
+  - Bridgewater의 공개 All Weather 글.
+  - 우라가미, Dalio, 오건영에 대한 소유자 자신의 노트. 노트만 포함하며 책 원문은 복사하지 않는다.
+- **파이프라인:**
+  - 문서를 절 단위로 나눈 뒤 약 500토큰 크기의 청크로 나눈다.
+  - 코퍼스의 절반이 한국어이므로 다국어 모델로 임베딩한다(예: 로컬에서 실행할 수 있는 bge-m3).
+  - 벡터는 pgvector에 저장한다.
+  - 하이브리드 검색을 쓴다: PostgreSQL 전문 검색과 벡터 유사도를 함께 사용한다.
+- **모든 답변은 출처를 인용한다**(문서 제목과 날짜).
 
-### 8.2 Regime-change explainer
+### 8.2 국면 전환 설명 에이전트
 
-- **Trigger:** the pool label or phase changes (§2.4 steps 7–8).
-- **Inputs:** the indicators that moved R and G most since last week (computed deterministically), plus passages retrieved for them (for example the latest FOMC and BOK statements, and the framework notes for the new pool).
-- **Output:** a short Korean explanation with numbers and citations, posted to Slack and stored with the regime snapshot. Example: "P3 → P4: core CPI accelerated while Korean exports turned down…"
-- **Check:** every number in the text must appear in the tool outputs; otherwise the text is rejected and regenerated.
+- **트리거:** 풀 라벨 또는 단계 변경(§2.4 7–8단계).
+- **입력:** 지난주 이후 R과 G를 가장 크게 움직인 지표(결정론적으로 계산)와, 이에 대해 검색한 문단(예: 최신 FOMC·한국은행 성명, 새 풀에 대한 프레임워크 노트).
+- **출력:** 수치와 인용을 담은 짧은 한국어 설명으로, Slack에 게시하고 국면 스냅샷과 함께 저장한다. 예: "P3 → P4: 근원 CPI가 가속하는 동안 한국 수출이 하락 전환…"
+- **검증:** 본문의 모든 수치는 도구 출력에 있어야 하며, 그렇지 않으면 본문을 거부하고 다시 생성한다.
 
-### 8.3 Weekly macro report
+### 8.3 주간 매크로 리포트
 
-Every Saturday after the regime evaluation: regime and probabilities, what changed and why (8.2), key indicators, Fear & Greed, portfolio vs. benchmarks, and proposal status. Delivered to Slack and shown on the web. The first report after the month-end close (§6.6) adds a **monthly review**: the reconciliation summary with open items by age, the parallel-run result, the attribution waterfall (§5.3), live vs. backtest and implementation shortfall (§4.5), cost budgets (§3.8), and any thresholds crossed (§6.7).
+매주 토요일 국면 평가 후 작성한다: 국면과 확률, 무엇이 왜 바뀌었는지(8.2), 핵심 지표, Fear & Greed, 비교 기준 대비 포트폴리오, 제안 상태. Slack으로 전달하고 웹에도 표시한다. 월말 결산(§6.6) 후 첫 리포트에는 **월간 리뷰**를 추가한다: 경과일별 미해결 항목을 포함한 대사 요약, 병행 대사 결과, 성과 기여도 폭포 차트(§5.3), 실운영 대 백테스트와 실행 손실(§4.5), 비용 예산(§3.8), 넘은 알림 기준(§6.7).
 
-Every explanation of a difference follows one fixed format, the same one finance teams use for variance commentary:
-
-```
-[Item]: [favorable / unfavorable] [amount] ([%p]) vs. [neutral / last week / backtest / budget]
-Driver: 2–3 sentences naming the cause, with each contributing factor quantified
-Outlook: one-off / expected to continue / improving / worsening
-Action: none / monitor / investigate / reflect in the next proposal
-```
-
-### 8.4 LangGraph proposal pipeline
+차이에 대한 모든 설명은 재무팀이 차이 분석 코멘트(variance commentary)에 쓰는 것과 같은 고정 양식을 따른다.
 
 ```
-trigger fired ─▶ load latest weekly regime ─▶ data-quality gate ─▶ build proposal ─▶ risk checks
-   ─▶ post to Slack (via Spring) ─▶ [interrupt: wait for approval] ─▶ execute (Spring) ─▶ report
+[항목]: [중립 / 지난주 / 백테스트 / 예산] 대비 [유리 / 불리] [금액] ([%p])
+원인: 원인을 밝히는 2–3문장, 각 기여 요인을 수치로 제시
+전망: 일회성 / 지속 예상 / 개선 중 / 악화 중
+조치: 없음 / 모니터링 / 조사 / 다음 제안에 반영
 ```
 
-- **Data-quality gate:** if more than 4 of the 10 rates and growth indicators are stale (§2.4 step 3), or prices are missing, the pipeline stops and alerts instead of proposing. Regime evaluation and its explanation run in the Saturday job (§6.2), not in this pipeline.
-- **Risk checks** are plain code: the IRP 70% rule, maximum turnover per proposal, maximum order size, and holdings sufficient for every sell.
-- **Approval:** the graph pauses with LangGraph's interrupt and saves its state in PostgreSQL (a checkpointer). Approve or Reject, clicked in Slack or on the web, calls the same Spring service, which resumes the graph. Proposals expire at the close of the second KRX trading day after posting (§3.6).
-- **Approval evidence:** when a proposal is created, Spring stores a SHA-256 `content_hash` of its lines (account, ETF, side, quantity). Every decision appends an `approval_event` row: who (Slack user ID or web user), channel, time, whether the Slack signature and the allowlist check passed, and the hash that was shown. Right before sending orders, Spring recomputes the hash; if it differs from the approved hash, nothing is sent and the proposal is marked for review. So what was approved is exactly what is executed.
-- **Before the graph exists** (M4–M5), Spring builds proposals by calling `/quant/targets` and executes approvals directly; M6 moves the same steps into the graph.
-- **Who builds what:** Python computes target weights and quantities; Spring stores them as a `proposal` (it owns the `core` schema) and executes orders. Each order has a unique key derived from its proposal line (§6.3), so a double click cannot place an order twice.
+### 8.4 LangGraph 제안 파이프라인
 
-### 8.5 Natural-language questions with charts
+```
+트리거 발동 ─▶ 최신 주간 국면 로드 ─▶ 데이터 품질 게이트 ─▶ 제안 생성 ─▶ 위험 점검
+   ─▶ Slack 게시 (Spring 경유) ─▶ [interrupt: 승인 대기] ─▶ 실행 (Spring) ─▶ 리포트
+```
 
-- The Ask page accepts questions such as "How did the portfolio do in P4 periods?" or "Which ETF adds the most risk?"
-- **How it works:** the LLM calls a fixed set of read-only analytics tools (regime history, performance, drawdown, beta map, return by pool). Each tool returns data plus a chart spec, which React renders as a Recharts chart beside the text answer. No free-form SQL.
+- **데이터 품질 게이트:** 금리·성장 지표 10개 중 4개 넘게 stale이거나(§2.4 3단계) 가격이 없으면, 파이프라인은 제안하지 않고 멈춘 뒤 알림을 보낸다. 국면 평가와 그 설명은 이 파이프라인이 아니라 토요일 작업(§6.2)에서 실행한다.
+- **위험 점검**은 일반 코드다: IRP 70% 규칙, 제안당 최대 회전율, 최대 주문 크기, 모든 매도에 대한 보유 수량 충분 여부.
+- **승인:** 그래프는 LangGraph의 interrupt로 멈추고 상태를 PostgreSQL에 저장한다(checkpointer). Slack이나 웹에서 누른 Approve 또는 Reject는 같은 Spring 서비스를 호출하고, 이 서비스가 그래프를 재개한다. 제안은 게시 후 두 번째 KRX 거래일 장 마감에 만료된다(§3.6).
+- **승인 증거:** 제안이 생성되면 Spring은 라인(계좌, ETF, 매수/매도, 수량)의 SHA-256 `content_hash`를 저장한다. 모든 결정은 `approval_event` 행을 추가한다: 누가(Slack 사용자 ID 또는 웹 사용자), 채널, 시각, Slack 서명과 허용 목록 검사 통과 여부, 화면에 표시된 해시. 주문을 보내기 직전에 Spring이 해시를 다시 계산하며, 승인된 해시와 다르면 아무것도 보내지 않고 제안을 검토 대상으로 표시한다. 따라서 승인된 내용이 정확히 그대로 실행된다.
+- **그래프가 생기기 전**(M4–M5)에는 Spring이 `/quant/targets`를 호출해 제안을 만들고 승인 건을 직접 실행한다. M6에서 같은 단계를 그래프로 옮긴다.
+- **역할 분담:** Python은 목표 비중과 수량을 계산하고, Spring은 이를 `proposal`로 저장하며(`core` 스키마 소유) 주문을 실행한다. 각 주문은 제안 라인에서 파생한 고유 키를 가지므로(§6.3) 두 번 클릭해도 주문이 두 번 나가지 않는다.
 
-### 8.6 Models and evaluation
+### 8.5 차트를 포함한 자연어 질문
 
-- **Models:** an LLM through LangChain: a stronger model for explanations and reports, a smaller one for routing. The provider and model IDs are pinned in config.
-- **Evaluation:**
-  - A golden set of about 20 questions with expected facts, run in CI with pytest.
-  - Every answer is checked for faithfulness (numbers and citations) as in 8.2.
-  - Explanations of differences are also checked against common commentary faults: circular reasons ("returns were higher because returns rose"), unexplained "timing" or "one-off", lumping a material amount into "other", and naming only the largest driver while ignoring offsetting ones. Each effect in the text must match the attribution numbers.
+- Ask 페이지는 "P4 구간에서 포트폴리오 성과는 어땠나?", "위험을 가장 많이 더하는 ETF는?" 같은 질문을 받는다.
+- **동작 방식:** LLM은 고정된 읽기 전용 분석 도구 세트(국면 이력, 성과, 낙폭, 베타 맵, 풀별 수익률)를 호출한다. 각 도구는 데이터와 차트 스펙을 반환하고, React가 이를 텍스트 답변 옆에 Recharts 차트로 렌더링한다. 자유 형식 SQL은 허용하지 않는다.
 
-## 9. Roadmap
+### 8.6 모델과 평가
 
-The macro track starts after the stock mock-trading MVP in [PLAN.md](PLAN.md) and follows the [slx-ai-campus](https://github.com/yunyongs/slx-ai-campus) curriculum (bootcamp ends 2027-03-24). The stock track's V3–V5 features become an optional backlog; the infrastructure they planned (KIS client, React, Docker, CI, cloud) is built once, in these phases. The whole app moves from MySQL to PostgreSQL at M1.
+- **모델:** LangChain을 통해 LLM을 쓴다. 설명과 리포트에는 더 강한 모델, 라우팅에는 더 작은 모델을 쓴다. 제공자와 모델 ID는 설정에 고정한다.
+- **평가:**
+  - 기대 사실을 포함한 약 20개 질문의 골든 세트를 CI에서 pytest로 실행한다.
+  - 모든 답변은 8.2와 같이 충실성(수치와 인용)을 검사한다.
+  - 차이에 대한 설명은 흔한 코멘트 오류도 검사한다: 순환 논리("수익률이 올라서 수익률이 높았다"), 설명 없는 "시차"나 "일회성", 중요한 금액을 "기타"로 뭉뚱그리기, 상쇄 요인을 무시하고 가장 큰 요인만 언급하기. 본문의 각 효과는 성과 기여도 수치와 일치해야 한다.
 
-| Phase | Builds | Curriculum stage | Done when |
+## 9. 로드맵
+
+매크로 트랙은 [PLAN.md](PLAN.md)의 주식 모의투자 MVP 이후에 시작하며 [slx-ai-campus](https://github.com/yunyongs/slx-ai-campus) 커리큘럼(부트캠프 종료 2027-03-24)을 따른다. 주식 트랙의 V3–V5 기능은 선택적 백로그가 되고, 그 기능들이 계획했던 인프라(KIS 클라이언트, React, Docker, CI, 클라우드)는 이 단계들에서 한 번만 구축한다. 앱 전체는 M1에서 MySQL에서 PostgreSQL로 옮긴다.
+
+| 단계 | 구축 내용 | 커리큘럼 단계 | 완료 조건 |
 |-------|--------|------------------|-----------|
-| M1 Data foundation | PostgreSQL in Docker Compose, Flyway, ETF master (15), FRED/ECOS/KIS collectors with point-in-time storage, history backfill, `job_run` with Slack failure alerts, CI | Spring Boot + JPA, scheduling | Daily jobs run for 2 weeks without manual fixes |
-| M2 Quant engine | Python service skeleton; indicator transforms, regime scoring and targets; tests that reproduce the worked examples in §2.7 and §3.9 | Python alongside Spring | Weekly regime snapshots stored automatically |
-| M3 Backtest and analytics | Backtest engine, benchmarks, robustness grid, risk metrics, performance attribution (§5.3), regime calibration | Python alongside Spring | Backtest report covering §4.4–4.6 with an attribution waterfall |
-| M4 Accounts and approval | JWT auth, virtual accounts, ledger, placement, proposals with drift breakdown, Slack approval, KIS mock orders and fills, daily reconciliation, alert thresholds | Spring Security, external APIs | One monthly cycle approved in Slack, filled in the mock account, and closed by the month-end reconciliation with no unexplained or overdue items |
-| M5 Dashboard | React pages and the charts in §5.2, public demo, owner login | React | Demo page deployable |
-| M6 AI layer | RAG, regime explainer, weekly report, LangGraph pipeline, Ask page, golden-set evaluation | RAG, LangChain, LangGraph | Proposals flow through the graph; evaluation passes in CI |
-| M7 Deploy | Multi-arch images, OCI VM with Caddy, deploy workflow, backups, optional n8n | Docker, CI/CD, cloud | Public URL live; Slack approval works over HTTPS |
+| M1 데이터 기반 | Docker Compose의 PostgreSQL, Flyway, ETF 마스터(15), 시점 기준 저장을 갖춘 FRED/ECOS/KIS 수집기, 과거 데이터 백필, Slack 실패 알림을 포함한 `job_run`, CI | Spring Boot + JPA, 스케줄링 | 일일 작업이 수동 수정 없이 2주간 실행됨 |
+| M2 퀀트 엔진 | Python 서비스 골격; 지표 변환, 국면 채점, 목표; §2.7과 §3.9 계산 예시를 재현하는 테스트 | Spring과 함께 쓰는 Python | 주간 국면 스냅샷이 자동으로 저장됨 |
+| M3 백테스트와 분석 | 백테스트 엔진, 비교 기준, 견고성 그리드, 위험 지표, 성과 기여도 분석(§5.3), 국면 보정 | Spring과 함께 쓰는 Python | 성과 기여도 폭포 차트를 포함해 §4.4–4.6을 다루는 백테스트 리포트 |
+| M4 계좌와 승인 | JWT 인증, 가상 계좌, 원장, 배치, 이탈 분해를 포함한 제안, Slack 승인, KIS 모의 주문과 체결, 일일 대사, 알림 기준 | Spring Security, 외부 API | 월간 주기 1회가 Slack에서 승인되고 모의 계좌에서 체결되며, 미설명·기한 초과 항목 없이 월말 대사로 마감됨 |
+| M5 대시보드 | React 페이지와 §5.2의 차트, 공개 데모, 소유자 로그인 | React | 데모 페이지를 배포할 수 있음 |
+| M6 AI 계층 | RAG, 국면 전환 설명 에이전트, 주간 리포트, LangGraph 파이프라인, Ask 페이지, 골든 세트 평가 | RAG, LangChain, LangGraph | 제안이 그래프를 거쳐 흐르고, CI에서 평가를 통과함 |
+| M7 배포 | 멀티 아키텍처 이미지, Caddy를 쓰는 OCI VM, 배포 워크플로, 백업, 선택적 n8n | Docker, CI/CD, 클라우드 | 공개 URL이 가동되고, HTTPS로 Slack 승인이 동작함 |
 
-The backtest (M3) comes before orders (M4) on purpose: the design should earn evidence before execution is built.
+백테스트(M3)를 주문(M4)보다 먼저 두는 것은 의도적이다: 실행을 구축하기 전에 설계가 근거를 확보해야 한다.
 
-### 9.1 Who writes what
+### 9.1 역할 분담
 
-The owner writes or edits the core logic: regime scoring, targets and placement, the ledger and order state machine, and the approval flow. The owner also reviews every other file before merge, including scaffolding such as collectors, DTOs, configuration, Docker and CI files, React components, and test skeletons.
+소유자는 핵심 로직을 직접 작성하거나 수정한다: 국면 채점, 목표와 배치, 원장과 주문 상태 머신, 승인 흐름. 또한 수집기, 데이터 전송 객체(DTO, Data Transfer Object), 설정, Docker·CI 파일, React 컴포넌트, 테스트 골격 같은 스캐폴딩을 포함해 나머지 모든 파일을 병합 전에 검토한다.
 
-### 9.2 Git workflow (run by the owner)
+### 9.2 Git 워크플로(소유자가 운영)
 
-Each phase starts by adding its feature table here (M1-01, M1-02, …). Every feature then goes issue → branch → commits → pull request → merge commit, with a self-review and (from M1) green CI before merging, and a `m<N>-done` tag at the end of the phase. The full rules are in [CONVENTION.md](CONVENTION.md).
+각 단계는 여기에 해당 기능 표(M1-01, M1-02, …)를 추가하며 시작한다. 이후 모든 기능은 이슈 → 브랜치 → 커밋 → PR → merge commit 순서로 진행하며, 병합 전에 셀프 리뷰와 (M1부터) 통과한 CI를 거치고, 단계가 끝나면 `m<N>-done` 태그를 단다. 전체 규칙은 [CONVENTION.md](CONVENTION.md)에 있다.
 
-## 10. Guardrails and non-goals
+## 10. 가드레일과 비목표
 
-### 10.1 Guardrails
+### 10.1 가드레일
 
-- **Mock only.** The KIS base URL comes from the Spring profile, and the app refuses to start if a real-trading URL is configured without an explicit `trading.real-money=true` flag. Turning that on requires a decision-log entry first.
-- **A human approves every order** in Slack or on the web. Proposals expire at the close of the second KRX trading day after posting.
-- **Only the owner can approve:** Slack approvals must come from an allowlisted user ID, and orders are sent only if the proposal's content hash still matches the approved hash (§8.4).
-- **Limits per rebalancing proposal:** turnover at most 30% of the portfolio; no single order above ₩5M. Buys made only with new cash (initial funding and monthly contributions) are exempt from the turnover cap but still split into orders of at most ₩5M.
-- **Kill switch:** `trading.enabled=false` in config, or a Slack command, stops all order sending immediately.
-- **Data-quality gate:** stale or missing key data stops proposals; it never produces a guess.
-- **Reconciliation gate:** order sending stops while the daily reconciliation (§6.6) has any unexplained difference, an adjustment item over ₩100,000, an item older than 5 trading days, or open items over 0.5% of portfolio value. Normal timing items (such as T+2 settlement) do not stop orders.
-- **No cross-account funding:** a proposal never moves cash between 연금저축 and IRP (§3.5 step 8).
-- **The LLM never decides weights or orders** (§8).
-- **Personal use only.** The public demo shows the mock account and the method. It is not a signal service, gives no advice, and carries a disclaimer. A public recommendation service could fall under 유사투자자문업 rules.
-- **Content:** no copied book text in the RAG corpus; CNN Fear & Greed is shown with attribution and a link.
+- **모의투자 전용.** KIS base URL은 Spring profile에서 정해지며, 명시적인 `trading.real-money=true` 플래그 없이 실거래 URL이 설정되면 앱이 시작을 거부한다. 이 플래그를 켜려면 먼저 결정 로그에 기록해야 한다.
+- **모든 주문은 사람이 승인한다**(Slack 또는 웹). 제안은 게시 후 두 번째 KRX 거래일 장 마감에 만료된다.
+- **소유자만 승인할 수 있다:** Slack 승인은 허용 목록에 있는 사용자 ID에서 와야 하며, 제안의 콘텐츠 해시가 승인된 해시와 여전히 일치할 때만 주문을 보낸다(§8.4).
+- **리밸런싱 제안당 한도:** 회전율은 포트폴리오의 최대 30%, 단일 주문은 ₩5M 이하. 신규 현금(초기 자금과 월 적립금)만으로 하는 매수는 회전율 상한에서 제외하지만, ₩5M 이하 주문으로 분할한다.
+- **킬 스위치:** 설정의 `trading.enabled=false` 또는 Slack 명령으로 모든 주문 전송을 즉시 멈춘다.
+- **데이터 품질 게이트:** 핵심 데이터가 stale이거나 없으면 제안을 중단하며, 추정값으로 대신하지 않는다.
+- **대사 게이트:** 일일 대사(§6.6)에 설명되지 않은 차이, ₩100,000 초과 조정 항목, 5거래일보다 오래된 항목, 또는 포트폴리오 평가액의 0.5%를 넘는 미해결 항목이 있는 동안 주문 전송을 멈춘다. 정상적인 시차 항목(T+2 결제 등)은 주문을 멈추지 않는다.
+- **계좌 간 자금 이동 금지:** 제안은 연금저축과 IRP 사이에 현금을 옮기지 않는다(§3.5 8단계).
+- **LLM은 비중이나 주문을 결정하지 않는다**(§8).
+- **개인 용도 전용.** 공개 데모는 모의 계좌와 방법론을 보여 줄 뿐이다. 신호 서비스가 아니며 투자 조언을 하지 않고 면책 문구를 표시한다. 공개 추천 서비스는 유사투자자문업 규정에 해당할 수 있다.
+- **콘텐츠:** RAG 코퍼스에 책 원문을 복사하지 않는다. CNN Fear & Greed는 출처 표기와 링크를 함께 표시한다.
 
-### 10.2 Non-goals
+### 10.2 비목표
 
-- Real-money trading (for now; see 10.3).
-- Multiple users, intraday trading, leveraged or inverse ETFs, and individual stocks in this track.
-- Machine-learning market prediction: the regime model is rules-based and explainable on purpose.
-- Tax optimization beyond asset location between 연금저축 and IRP.
+- 실거래(당분간; 10.3 참조).
+- 이 트랙에서의 다중 사용자, 일중 매매, 레버리지·인버스 ETF, 개별 주식.
+- 머신러닝 기반 시장 예측: 국면 모델은 의도적으로 규칙 기반이며 설명 가능하다.
+- 연금저축과 IRP 간 자산 배치를 넘어서는 세금 최적화.
 
-### 10.3 Future decision: real money
+### 10.3 향후 결정: 실거래
 
-If real trading is ever enabled, 연금저축 orders may work through the KIS API (community reports, not officially confirmed). IRP orders reportedly do not, so IRP would stay manual: the system would post the IRP order list to Slack and the owner would place it in the KIS app.
+실거래를 켜게 되면 연금저축 주문은 KIS API로 가능할 수 있다(커뮤니티 보고이며 공식 확인은 아니다). IRP 주문은 불가능하다고 알려져 있어 IRP는 수동으로 남는다: 시스템이 IRP 주문 목록을 Slack에 게시하면 소유자가 KIS 앱에서 주문한다.
 
 ---
 
-## Appendix A. Paid options and scale-up
+## 부록 A. 유료 옵션과 확장
 
-Start free; upgrade only when a concrete limit is hit. Free-tier limits and prices change, so check the provider's current pages before deciding.
+무료로 시작하고, 구체적인 한계에 부딪혔을 때만 업그레이드한다. 무료 티어 한도와 가격은 바뀌므로 결정 전에 제공자의 최신 페이지를 확인한다.
 
-### A.1 Cloud
+### A.1 클라우드
 
-| Option | What it adds | When to consider |
+| 옵션 | 추가되는 것 | 고려 시점 |
 |--------|--------------|------------------|
-| OCI Always Free (starting point) | Ampere ARM VM, block storage, object storage | Default for M7 |
-| OCI pay-as-you-go account | Removes the risk of idle Always Free instances being reclaimed; larger shapes | If the free VM gets reclaimed or runs out of memory |
-| OCI Database with PostgreSQL (managed) | Managed backups, patching, high availability | If running PostgreSQL yourself becomes the bottleneck |
-| OCI Kubernetes Engine (OKE) | Kubernetes practice on the same cloud | As a learning goal only (see A.3) |
-| GCP Cloud Run + Cloud SQL (PostgreSQL with pgvector) | Containers that scale to zero, managed database, Cloud Scheduler, Secret Manager | If you prefer managed services over a VM |
+| OCI Always Free(시작점) | Ampere ARM VM, 블록 스토리지, 오브젝트 스토리지 | M7 기본값 |
+| OCI 종량제 계정 | 유휴 Always Free 인스턴스가 회수될 위험 제거; 더 큰 shape | 무료 VM이 회수되거나 메모리가 부족할 때 |
+| OCI Database with PostgreSQL(관리형) | 관리형 백업, 패치, 고가용성 | PostgreSQL 직접 운영이 병목이 될 때 |
+| OCI Kubernetes Engine(OKE) | 같은 클라우드에서 Kubernetes 실습 | 학습 목표로만(A.3 참조) |
+| GCP Cloud Run + Cloud SQL(pgvector를 포함한 PostgreSQL) | 0까지 축소되는 컨테이너, 관리형 DB, Cloud Scheduler, Secret Manager | VM보다 관리형 서비스를 선호할 때 |
 
-### A.2 Data and AI
+### A.2 데이터와 AI
 
-| Option | What it adds |
+| 옵션 | 추가되는 것 |
 |--------|--------------|
-| ISM PMI license | The most-watched US growth survey (§2.3 dropped it for lack of a free API) |
-| CME FedWatch data | Market-implied Fed probabilities |
-| KRX data products | Official VKOSPI and Korean index history for the KR Fear & Greed score |
-| LangSmith | Tracing and evaluation dashboards for the LangGraph pipeline |
+| ISM PMI 라이선스 | 가장 주목받는 미국 성장 서베이(§2.3에서 무료 API가 없어 제외) |
+| CME FedWatch 데이터 | 시장에 내재된 연준 금리 확률 |
+| KRX 데이터 상품 | 한국 Fear & Greed 점수를 위한 공식 VKOSPI와 한국 지수 이력 |
+| LangSmith | LangGraph 파이프라인용 추적·평가 대시보드 |
 
-### A.3 When Kafka, Airflow or Kubernetes would be justified
+### A.3 Kafka, Airflow, Kubernetes가 정당화되는 경우
 
-| Tool | Justified when | Today |
+| 도구 | 정당화되는 경우 | 현재 |
 |------|----------------|-------|
-| Kafka | Many real-time producers and consumers, e.g. KIS WebSocket quotes for hundreds of tickers | Overkill: a few hundred rows a day. Direct upserts suffice. |
-| Airflow | Many independent pipelines with backfills, owned by a data team | Overkill: about five daily jobs. Spring `@Scheduled` + `job_run` suffices. |
-| Kubernetes | Several services needing autoscaling and rolling deploys | Overkill for one user; worth it only as a deliberate learning exercise |
+| Kafka | 실시간 생산자와 소비자가 많을 때(예: 수백 종목의 KIS WebSocket 호가) | 과하다: 하루 수백 행이다. 직접 upsert로 충분하다. |
+| Airflow | 데이터팀이 소유하고 백필이 필요한 독립 파이프라인이 많을 때 | 과하다: 일일 작업이 약 5개다. Spring `@Scheduled` + `job_run`으로 충분하다. |
+| Kubernetes | 오토스케일링과 롤링 배포가 필요한 서비스가 여럿일 때 | 사용자 1명에게는 과하다. 의도적인 학습 과제로서만 가치가 있다 |
 
-The earlier actstock-pipeline project used all three for a similar data volume; this plan keeps them as optional exercises.
+이전 actstock-pipeline 프로젝트는 비슷한 데이터 규모에 세 가지를 모두 썼다. 이 계획에서는 선택적 실습 과제로 남겨 둔다.
 
-## Appendix B. Decision log
+## 부록 B. 결정 로그
 
-| Date | Decision | Why |
+| 날짜 | 결정 | 이유 |
 |------|----------|-----|
-| 2026-11-01 | Extend Ant Lab with new phases instead of a separate repo | One growing portfolio codebase |
-| 2026-11-01 | PostgreSQL (with pgvector) instead of MySQL for these phases | One DB covers app data and RAG embeddings |
-| 2026-11-01 | Python AI service called by Spring Boot | LangChain/LangGraph are Python-native |
-| 2026-11-01 | KIS mock account with Slack approval; no real-money orders for now | Safety first; real orders are a later decision |
-| 2026-11-01 | Korean-listed ETFs, ~15, FX-unhedged by default (exceptions below) | Simpler universe; USD/KRW exposure is part of the strategy |
-| 2026-11-01 | 연금저축 and IRP modeled as virtual sub-accounts; orders run on one KIS mock general account | KIS mock trading supports only the general account (`01`), not pension accounts (`22`, `29`) |
-| 2026-11-01 | Soft pool probabilities with hysteresis instead of threshold counting | Fixes allocado's flip-flopping and latest-value-only checks |
-| 2026-11-01 | Fear & Greed is a pacing overlay, never a regime input | Price-based signals would make the regime flip-flop |
-| 2026-11-01 | Show CNN Fear & Greed on the dashboard with attribution; self-computed US/KR scores as fallback | It is a widely followed public index; no official API, so fetch once a day and degrade gracefully |
-| 2026-11-01 | Hedged (H) ETFs allowed only when no unhedged, pension-eligible ETF exists; first exception: oil (261220) | Korea has no unhedged broad-commodity or oil ETF that pension accounts can hold |
-| 2026-11-01 | Each pool has a full allocation, blended by probability; targets computed for both accounts combined, then placed (IRP safe-first) | Keeps the strategy in one place and uses IRP's safe-asset rule as asset location |
-| 2026-11-01 | Mock starting cash ₩10M + ₩10M, contributions ₩500k + ₩250k a month | Matches the ₩9M combined tax-credit limit |
-| 2026-11-01 | Stale indicators are dropped (binary), not decayed | Exponential decay would down-weight monthly data every cycle just before each release |
-| 2026-11-01 | Weekly regime, daily trigger checks; proposals expire after two trading days | A Saturday regime must be actionable on Monday; monthly and band triggers need a daily check |
-| 2026-11-01 | Performance attribution against the neutral allocation (regime, FX, implementation, selection, fees, trading) | Shows whether each design choice earns its keep, not just the total return |
-| 2026-11-01 | Tax credit shown as a separate line, outside TWR/XIRR | It is real economic value for a pension investor but not investment return |
-| 2026-11-01 | Daily reconciliation gates order sending (refined below: classified items, aging) | Money must add up before more money moves |
-| 2026-11-01 | Mock results also reported with assumed trading costs | Free mock fills would otherwise flatter live results against the backtest |
-| 2026-11-01 | Attribution benchmark is the neutral allocation net of its own costs; cost bars show only costs above neutral | Compares with what an investor could actually have earned, and ties the fee bar to the fee budget |
-| 2026-11-01 | Fee and turnover budgets are flexed by the month's regime mix | Separates regime-driven changes from real overspending |
-| 2026-11-01 | KIS mock cash reconciled through an `UNALLOCATED` account; contributions are internal transfers | The mock deposit is set by KIS and no real money is deposited |
-| 2026-11-01 | Approver allowlist and approval-time content hash | A Slack signature proves origin, not identity; the hash proves that what was approved is what is executed |
-| 2026-11-01 | Each pension account funds its own buys; no cash moves between 연금저축 and IRP | They are separate legal accounts; combined placement alone could produce orders that cannot be executed |
-| 2026-11-01 | Reconciling items are classified (timing / adjustment / investigate) and aged; only unexplained, large or overdue items stop orders | Normal T+2 timing would otherwise stop trading every day |
-| 2026-11-01 | Monthly parallel run of the backtest engine against the live month | Proves the "same code" claim by matching calculations, not just outcomes |
+| 2026-11-01 | 별도 저장소 대신 새 단계로 Ant Lab을 확장 | 하나의 성장하는 포트폴리오 코드베이스 |
+| 2026-11-01 | 이 단계들에서 MySQL 대신 PostgreSQL(pgvector 포함) | DB 하나로 앱 데이터와 RAG 임베딩을 모두 처리 |
+| 2026-11-01 | Spring Boot가 호출하는 Python AI 서비스 | LangChain/LangGraph는 Python 네이티브 |
+| 2026-11-01 | Slack 승인을 거치는 KIS 모의 계좌; 당분간 실거래 주문 없음 | 안전 우선; 실거래 주문은 이후에 결정 |
+| 2026-11-01 | 국내 상장 ETF 약 15종, 기본 환노출(예외는 아래) | 유니버스 단순화; USD/KRW 노출은 전략의 일부 |
+| 2026-11-01 | 연금저축과 IRP를 가상 하위 계좌로 모델링; 주문은 KIS 모의 종합계좌 하나에서 실행 | KIS 모의투자는 연금 계좌(`22`, `29`)가 아닌 종합계좌(`01`)만 지원 |
+| 2026-11-01 | 기준값 카운팅 대신 히스테리시스를 적용한 확률 기반(soft) 풀 판정 | allocado의 잦은 전환과 최신값만 보는 점검 문제를 해결 |
+| 2026-11-01 | Fear & Greed는 속도 조절 오버레이이며 국면 입력으로 쓰지 않음 | 가격 기반 신호는 국면을 자주 뒤집는다 |
+| 2026-11-01 | 대시보드에 출처를 표기해 CNN Fear & Greed 표시; 자체 계산 US/KR 점수를 대체 수단으로 둠 | 널리 쓰이는 공개 지수지만 공식 API가 없으므로 하루 한 번 가져오고, 장애 시 기능을 단계적으로 축소 |
+| 2026-11-01 | 환헤지(H) ETF는 환노출형 연금 편입 가능 ETF가 없을 때만 허용; 첫 예외: 원유(261220) | 국내에는 연금 계좌가 보유할 수 있는 환노출형 광의 원자재·원유 ETF가 없다 |
+| 2026-11-01 | 풀마다 완전한 배분을 두고 확률로 혼합; 목표는 두 계좌 합산으로 계산한 뒤 배치(IRP 안전 자산 우선) | 전략을 한곳에 유지하고, IRP의 안전 자산 규칙을 자산 배치에 활용 |
+| 2026-11-01 | 모의 시작 현금 ₩10M + ₩10M, 적립금 월 ₩500k + ₩250k | 세액공제 합산 한도 ₩9M과 일치 |
+| 2026-11-01 | stale 지표는 감쇠하지 않고 제외(이진 처리) | 지수 감쇠는 매 발표 직전마다 월간 데이터 비중을 깎는다 |
+| 2026-11-01 | 주간 국면, 일간 트리거 확인; 제안은 2거래일 후 만료 | 토요일 국면이 월요일에 실행 가능해야 하고, 월간·밴드 트리거는 매일 확인해야 한다 |
+| 2026-11-01 | 중립 배분 대비 성과 기여도 분석(국면, 환율, 실행, 선택, 보수, 매매) | 총수익률만이 아니라 각 설계 선택이 제값을 하는지 보여 준다 |
+| 2026-11-01 | 세액공제는 TWR/XIRR 밖의 별도 항목으로 표시 | 연금 투자자에게 실제 경제적 가치지만 투자 수익은 아니다 |
+| 2026-11-01 | 일일 대사가 주문 전송을 통제(아래에서 보완: 항목 분류, 경과일 관리) | 더 많은 돈이 움직이기 전에 금액이 맞아야 한다 |
+| 2026-11-01 | 모의 결과는 가정 매매 비용을 반영한 값도 보고 | 그렇지 않으면 무료 모의 체결 때문에 실운영 결과가 백테스트보다 좋아 보인다 |
+| 2026-11-01 | 성과 기여도 비교 기준은 자체 비용을 차감한 중립 배분; 비용 막대는 중립 대비 추가 비용만 표시 | 투자자가 실제로 얻을 수 있었던 수익과 비교하고, 보수 막대를 보수 예산과 연결한다 |
+| 2026-11-01 | 보수·회전율 예산을 그달의 국면 구성에 맞춰 변동 조정 | 국면에 따른 변화를 실제 과다 지출과 분리 |
+| 2026-11-01 | KIS 모의 현금은 `UNALLOCATED` 계좌로 대사; 적립금은 내부 이체 | 모의 예수금은 KIS가 정하며 실제 입금이 없다 |
+| 2026-11-01 | 승인자 허용 목록과 승인 시점 콘텐츠 해시 | Slack 서명은 출처를 증명할 뿐 신원은 증명하지 않으며, 해시는 승인된 내용이 곧 실행되는 내용임을 증명한다 |
+| 2026-11-01 | 각 연금 계좌는 자체 매수 자금을 충당; 연금저축과 IRP 간 현금 이동 없음 | 법적으로 별개 계좌이며, 합산 배치만으로는 실행할 수 없는 주문이 나올 수 있다 |
+| 2026-11-01 | 차이 항목은 분류(시차 / 조정 / 조사)하고 경과일을 관리; 미설명·대규모·기한 초과 항목만 주문을 중단 | 그렇지 않으면 정상적인 T+2 시차 때문에 매일 거래가 멈춘다 |
+| 2026-11-01 | 백테스트 엔진과 실운영 월을 비교하는 월간 병행 대사 | 결과뿐 아니라 계산을 대조해 "같은 코드" 주장을 증명 |
 
-## Appendix C. References
+## 부록 C. 참고 자료
 
-Frameworks
-- Uragami Kunio's four seasons (summary): https://www.mt.co.kr/stock/2009/12/18/2009121807212118118
+프레임워크
+- 우라가미 구니오의 사계절(요약): https://www.mt.co.kr/stock/2009/12/18/2009121807212118118
 - Bridgewater, The All Weather Story: https://www.bridgewater.com/research-and-insights/the-all-weather-story
-- 오건영, 『부의 시나리오』 (Kyobo): https://ebook-product.kyobobook.co.kr/dig/epd/ebook/E000002991075
-- 오건영 on the Korea–US rate gap and USD/KRW: https://nocutnews.co.kr/news/6539529
+- 오건영, 『부의 시나리오』(교보문고): https://ebook-product.kyobobook.co.kr/dig/epd/ebook/E000002991075
+- 한미 금리차와 USD/KRW에 대한 오건영의 견해: https://nocutnews.co.kr/news/6539529
 
-Data
-- FRED removal of ISM data (2016): https://fred.stlouisfed.org/news/2016/06/institute-for-supply-management-data-to-be-removed-from-fred
-- KIS Open API official samples: https://github.com/koreainvestment/open-trading-api
+데이터
+- FRED의 ISM 데이터 삭제(2016): https://fred.stlouisfed.org/news/2016/06/institute-for-supply-management-data-to-be-removed-from-fred
+- KIS Open API 공식 샘플: https://github.com/koreainvestment/open-trading-api
 
-Pension rules
+연금 규정
 - 국세청 연금계좌 세액공제: https://www.nts.go.kr/nts/cm/cntnts/cntntsView.do?cntntsId=7875
 - 금융위원회, 채권혼합형 주식 편입 한도 (2023-06-01): https://www.fsc.go.kr/no010101/80098
 - KB자산운용 연금 계좌 투자 상품 가이드 (2026-08-05): https://kbam.co.kr/pension/guide/pension-account-investment-products-guide
-- 미래에셋 TIGER 연금 투자 가능 상품 (commodities): https://investments.miraeasset.com/tigeretf/ko/pension/commodities-investment-currencies/list.do
+- 미래에셋 TIGER 연금 투자 가능 상품(원자재): https://investments.miraeasset.com/tigeretf/ko/pension/commodities-investment-currencies/list.do
 
-ETFs
-- TIMEFOLIO ETF lineup: https://timeetf.co.kr/m11_list.php?cate=001
-- KRX active-ETF correlation rule and the 2026 delisting: https://www.fnnews.com/news/202607051815576445
-- ETF fees and net assets: funetf.co.kr product pages (as of 2026-10-30)
+ETF
+- TIMEFOLIO ETF 라인업: https://timeetf.co.kr/m11_list.php?cate=001
+- KRX 액티브 ETF 상관계수 규정과 2026년 상장폐지: https://www.fnnews.com/news/202607051815576445
+- ETF 보수와 순자산: funetf.co.kr 상품 페이지(2026-10-30 기준)
 
-Prior projects
-- allocado (private): the 4-Pool model, beta map and Market Pulse ideas
-- actstock-pipeline (private): table naming and per-day upsert patterns
+이전 프로젝트
+- allocado(비공개): 4-Pool 모델, 베타 맵, Market Pulse 아이디어
+- actstock-pipeline(비공개): 테이블 명명과 일별 upsert 패턴
 
-## Appendix D. Glossary
+## 부록 D. 용어집
 
-| Term | Meaning |
+| 용어 | 의미 |
 |------|---------|
-| ₩억 | 100 million won (₩100,000,000). "Net assets ₩5,000억" = ₩500 billion |
-| 연금저축 (pension savings account) | Tax-advantaged personal pension account; can hold domestic-listed ETFs, no leveraged or inverse ETFs, no risky-asset cap |
-| IRP (Individual Retirement Pension) | Tax-advantaged retirement account under the 퇴직연금 (retirement pension) rules |
-| IRP 70% rule | Risky assets may be at most 70% of an IRP; at least 30% must be "safe" assets (bond, cash-like and qualifying bond-mixed funds). Price drift above 70% blocks new risky buys but forces no sale |
-| Safe / risky | The IRP classification of each ETF under the rule above |
-| 모의투자 | Mock (paper) trading: KIS's simulated account with fake money |
-| KIS | 한국투자증권 (Korea Investment & Securities), whose Open API provides quotes and orders |
-| FRED / ALFRED | St. Louis Fed's economic database / its archive of past data vintages ("as first published") |
-| ECOS | Bank of Korea's economic statistics system and API |
-| KRX | Korea Exchange |
-| VKOSPI | Korea's volatility index on KOSPI 200 options (Korean counterpart of VIX) |
-| 국고채, 기준금리 | Korean government bonds; the Bank of Korea base (policy) rate |
-| 선행지수 순환변동치 | Cyclical component of Korea's composite leading index; above 100 means above trend |
-| 회사채 AA− | Korean corporate bonds rated AA−; its spread over government bonds measures credit stress |
-| CD rate | 91-day certificate-of-deposit rate, Korea's short-term reference rate |
-| 통화정책방향 | The Bank of Korea's monetary policy decision statement |
-| 유사투자자문업 | Korea's regulated category for paid or public investment-signal services |
-| (H), (합성) | ETF name tags: FX-hedged; synthetic (holds swaps instead of the assets) |
-| Sahm rule | Recession signal: the 3-month average unemployment rate rising 0.5 points above its 12-month low |
-| Term premium | Extra yield investors demand for holding long bonds instead of rolling short ones |
-| ER (excess return) | A futures index return without the interest on collateral |
-| Sortino, Calmar | Return per unit of downside volatility; CAGR divided by MDD |
-| VaR 95% | The daily loss exceeded on only 5% of days |
-| TWR, XIRR | Time-weighted return (ignores cash-flow timing); money-weighted return (includes contribution timing) |
-| Deadband | The margin around zero a score must clear before the label changes (§2.4) |
-| Performance attribution | Splitting the return difference against a benchmark into named effects that add up exactly (§5.3) |
-| Carino linking | A way to compound monthly attribution effects over several months so they still add up to the total difference |
-| Implementation shortfall | The cost of executing later or at worse prices than the decision price, plus trades never filled (§4.5) |
-| Tracking difference | Live return minus the return the backtest expected for the same period |
-| Brier score | Mean squared error of probability forecasts; 0 is perfect, lower is better (§4.5) |
-| Reconciliation | Checking that two records that should agree (ledger vs. balance, our books vs. the broker) really do (§6.6) |
-| Reconciling item | One difference found by a reconciliation, classified as timing, adjustment or investigate and tracked until it clears |
-| Aging | How long a reconciling item has stayed open; older items escalate (§6.6) |
-| Parallel run | Running two systems on the same inputs and matching their outputs line by line (§4.5) |
-| Materiality threshold | The size of a difference, in amount or percent, that is worth an alert or an explanation (§6.7) |
-| allocado, actstock-pipeline | The owner's earlier private projects: a US-focused 4-Pool portfolio app and a US ETF data pipeline |
+| ₩억 | 1억 원(₩100,000,000). "순자산 ₩5,000억" = ₩500 billion(5천억 원) |
+| 연금저축 (pension savings account) | 세제 혜택이 있는 개인연금 계좌. 국내 상장 ETF를 보유할 수 있고, 레버리지·인버스 ETF는 불가하며, 위험 자산 한도가 없다 |
+| IRP (Individual Retirement Pension) | 퇴직연금 규정을 따르는 세제 혜택 퇴직 계좌 |
+| IRP 70% rule | IRP에서 위험 자산은 최대 70%이며, 최소 30%는 "안전" 자산(채권, 현금성, 요건을 충족하는 채권혼합형 펀드)이어야 한다. 가격 변동으로 70%를 넘으면 신규 위험 자산 매수는 막히지만 매도를 강제하지는 않는다 |
+| Safe / risky | 위 규칙에 따른 ETF별 IRP 분류(안전/위험 자산) |
+| 모의투자 | 가상 매매(paper trading): 가짜 돈을 쓰는 KIS의 모의 계좌 |
+| KIS | 한국투자증권(Korea Investment & Securities). Open API로 시세와 주문 기능을 제공한다 |
+| FRED / ALFRED | 세인트루이스 연준의 경제 데이터베이스 / 과거 데이터 빈티지("최초 발표 기준")를 보관한 아카이브 |
+| ECOS | 한국은행 경제통계시스템과 API |
+| KRX | 한국거래소 |
+| VKOSPI | KOSPI 200 옵션 기반 한국 변동성 지수(VIX의 한국판) |
+| 국고채, 기준금리 | 한국 국채; 한국은행 기준(정책)금리 |
+| 선행지수 순환변동치 | 한국 경기종합 선행지수의 순환 성분. 100을 넘으면 추세보다 위에 있다는 뜻이다 |
+| 회사채 AA− | AA− 등급 국내 회사채. 국고채 대비 스프레드로 신용 스트레스를 측정한다 |
+| CD rate | 91일물 양도성예금증서 금리. 한국의 단기 기준 금리다 |
+| 통화정책방향 | 한국은행의 통화정책 결정문 |
+| 유사투자자문업 | 유료 또는 공개 투자 신호 서비스에 대한 한국의 규제 업종 |
+| (H), (합성) | ETF 이름 표기: 환헤지; 합성(기초자산 대신 스왑을 보유) |
+| Sahm rule | 경기침체 신호: 실업률 3개월 평균이 직전 12개월 최저치보다 0.5%포인트 이상 오르는 것 |
+| Term premium | 단기채를 반복 매수하는 대신 장기채를 보유하는 대가로 투자자가 요구하는 추가 수익률(기간 프리미엄) |
+| ER (excess return) | 담보 이자를 제외한 선물 지수 수익률 |
+| Sortino, Calmar | 하방 변동성 단위당 수익률; CAGR을 MDD로 나눈 값 |
+| VaR 95% | 전체 일수 중 5%에서만 초과되는 일간 손실 |
+| TWR, XIRR | 시간가중 수익률(현금흐름 시점 무시); 금액가중 수익률(납입 시점 반영) |
+| Deadband | 라벨이 바뀌기 전에 점수가 넘어야 하는 0 주변의 여유 폭(데드밴드)(§2.4) |
+| Performance attribution | 비교 기준 대비 수익률 차이를 정확히 합산되는 이름 붙은 효과로 나누는 것(성과 기여도 분석)(§5.3) |
+| Carino linking | 월간 성과 기여 효과를 여러 달에 걸쳐 복리 연결해도 전체 차이와 합이 맞도록 하는 방법 |
+| Implementation shortfall | 결정 가격보다 늦게 또는 불리한 가격에 실행한 비용과, 끝내 체결되지 않은 매매의 비용(실행 손실)(§4.5) |
+| Tracking difference | 실운영 수익률 − 같은 기간 백테스트가 예상한 수익률(추적 차이) |
+| Brier score | 확률 예측의 평균 제곱 오차. 0이 완벽하며 낮을수록 좋다(§4.5) |
+| Reconciliation | 일치해야 하는 두 기록(원장 대 잔고, 자체 장부 대 증권사)이 실제로 일치하는지 확인하는 것(대사)(§6.6) |
+| Reconciling item | 대사에서 발견된 개별 차이(차이 항목). 시차, 조정, 조사로 분류하고 해소될 때까지 추적한다 |
+| Aging | 차이 항목이 미해결로 남은 기간(경과일 관리). 오래된 항목일수록 상향 보고한다(§6.6) |
+| Parallel run | 같은 입력으로 두 시스템을 실행하고 산출물을 라인 단위로 대조하는 것(병행 대사)(§4.5) |
+| Materiality threshold | 알림이나 설명이 필요한 차이의 크기, 금액 또는 비율 기준(중요성 기준)(§6.7) |
+| allocado, actstock-pipeline | 소유자의 이전 비공개 프로젝트: 미국 중심 4-Pool 포트폴리오 앱과 미국 ETF 데이터 파이프라인 |
