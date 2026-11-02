@@ -54,7 +54,7 @@
 
 ## 5. 도메인 (MVP 테이블)
 
-핵심 컬럼만 적는다. 데이터 정의 언어(DDL, Data Definition Language)는 `db/`에 직접 작성한다.
+핵심 컬럼만 적는다. 데이터 정의 언어(DDL, Data Definition Language)는 `db/`에 직접 작성한다. 컬럼 타입·키·제약·관계를 포함한 전체 ERD는 [erd.md](erd.md)를 본다.
 
 | 테이블 | 핵심 컬럼 |
 |-------|-------------|
@@ -63,7 +63,7 @@
 | `stock` | id, ticker (unique, 예: `005930`), name, market (KOSPI/KOSDAQ) |
 | `stock_price` | stock_id, price, traded_at |
 | `orders` | id, member_id, stock_id, side (BUY/SELL), type (MARKET/LIMIT), quantity, limit_price, status (PENDING/FILLED/CANCELED/REJECTED), created_at |
-| `execution` | id, order_id, fill_price, quantity, fee, tax, executed_at |
+| `execution` | id, order_id, fill_price, quantity, fee, tax, realized_pnl (매도만), executed_at |
 | `holding` | member_id, stock_id, quantity, avg_price — unique (member_id, stock_id) |
 | `cash_ledger` | id, member_id, type, amount, balance_after, ref_order_id, created_at |
 
@@ -72,7 +72,8 @@
 ### 회계 규칙
 
 - **원가 기준:** 매수와 매도 시 평균단가가 어떻게 바뀌는지 정하고(설계 질문 2), `db/03_buy_sell.sql`을 작성하기 전에 그 규칙을 여기에 기록한다.
-- **반올림:** 각 금액 컬럼의 컬럼 타입과 소수 자릿수를 정하고(설계 질문 1) 여기에 기록한다. 수수료와 세금은 전체 정밀도로 계산한 뒤, 하나의 규칙에 따라 코드의 한 곳에서 한 번만 반올림한다(V2에서 실제 요율을 추가할 때 증권사의 정확한 규칙을 확인한다).
+  - 실현 손익은 매도 체결 시 `execution.realized_pnl`에 기록한다(매수 체결은 NULL). 이동평균 원가는 매수마다 바뀌므로 매도 시점의 값을 남겨야 과거 매도의 실현 손익을 다시 계산할 수 있다. 비용(수수료·세금)을 실현 손익에서 뺄지는 설계 질문 4로 남겨 둔다.
+- **반올림:** 모든 금액 컬럼은 `DECIMAL(19,4)`이다(설계 질문 1, [erd.md](erd.md)의 D1). 현금 값(`amount`, `balance`, `balance_after`, `reserved`, `fee`, `tax`)과 가격(`price`, `limit_price`, `fill_price`)은 원 단위 정수 값만 저장하고 DB가 `CHECK (col = ROUND(col, 0))`로 강제하며, `avg_price`와 `realized_pnl`은 소수 4자리까지 저장한다. 수수료와 세금은 전체 정밀도로 계산한 뒤, 하나의 규칙에 따라 코드의 한 곳에서 한 번만 반올림한다(V2에서 실제 요율을 추가할 때 증권사의 정확한 규칙을 확인한다).
 - **일간 손익 분해:** 입출금이 없을 때, 오늘의 포트폴리오 가치 변동(현금 + 오늘 종가 기준 보유 평가액)은 세 부분으로 나뉘며, 합이 전체 변동과 같아야 한다:
   - 가격 효과 = (오늘 종가 − 어제 종가) × 어제 수량,
   - 매매 효과 = 오늘 매도 건별 (체결가 − 오늘 종가) × 수량의 합 + 오늘 매수 건별 (오늘 종가 − 체결가) × 수량의 합,
@@ -124,7 +125,7 @@ GET    /api/leaderboard             시간가중수익률 순위 (V3)
 
 | 버전 | 기능 | 커리큘럼 단계 |
 |---------|----------|------------------|
-| Phase 0 | 엔터티 관계도(ERD, Entity-Relationship Diagram), DDL, 시드 데이터, SQL 트랜잭션으로 매수/매도, 포트폴리오 쿼리 | MySQL (DDL, 트랜잭션) — 현재 |
+| Phase 0 | 엔티티 관계도(ERD, Entity-Relationship Diagram), DDL, 시드 데이터, SQL 트랜잭션으로 매수/매도, 포트폴리오 쿼리 | MySQL (DDL, 트랜잭션) — 현재 |
 | Phase 1 | 데이터 접근 객체(DAO, Data Access Object) 기반 콘솔 앱: 매수, 매도, 포트폴리오 | JDBC |
 | MVP | 여섯 가지 사용자 스토리의 REST API, 계층형 아키텍처, 검증, 전역 예외 처리, 각 차이를 시차·조정·조사 항목으로 기록하는 일일 대사 작업([MACRO_ETF.md §6.6](MACRO_ETF.md#66-일일-대사)과 같은 구조) | Spring Boot + JPA |
 | V2 | 가격 정기 점검으로 체결되는 지정가 주문, 취소, 관심 종목, 알림, 수수료와 세금 | Spring (스케줄링) |
@@ -154,7 +155,7 @@ GET    /api/leaderboard             시간가중수익률 순위 (V3)
 
 기능 번호는 아래 순서대로 `P0-01`부터 `P0-07`까지이다([CONVENTION.md](CONVENTION.md) 참고).
 
-- [ ] MVP 테이블의 ERD 스케치 (`docs/erd.*`)
+- [x] MVP 테이블의 ERD 스케치 (`docs/erd.*`)
 - [ ] DDL 작성: 기본 키(PK, Primary Key), 외래 키(FK, Foreign Key), `NOT NULL`, `UNIQUE`, `CHECK`(예: quantity > 0) → `db/01_schema.sql`
 - [ ] 시드 데이터: KOSPI 종목 5–10개(예: 삼성전자 `005930`, SK하이닉스 `000660`), 회원 1명, 초기 현금 → `db/02_seed.sql`
 - [ ] "10주 매수"를 하나의 트랜잭션으로: 현금, 주문, 체결, 보유(insert 또는 update), 원장 → `COMMIT`, 실패 시 `ROLLBACK` → `db/03_buy_sell.sql`
@@ -172,6 +173,7 @@ ant-lab/
 ├── .github/         이슈와 풀 리퀘스트 템플릿
 ├── docs/
 │   ├── PLAN.md      이 파일
+│   ├── erd.md       MVP 테이블 ERD와 엔티티 정의서
 │   ├── MACRO_ETF.md 매크로 ETF 트랙 설계 문서
 │   └── CONVENTION.md Git 컨벤션
 └── db/              직접 작성한 DDL, 시드 데이터, 실습 쿼리
