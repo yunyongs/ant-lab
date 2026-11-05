@@ -1,4 +1,4 @@
-# GIT 컨벤션 — Ant Lab
+# GIT 컨벤션 — my Fund Manager (가칭, 저장소 이름은 ant-lab)
 
 > **1인 포트폴리오 저장소.** 팀 프로젝트 [3WHY_java-latecatcher](https://github.com/20260921-saltlux-llm-agent-service-2nd/3WHY_java-latecatcher)의 컨벤션을 1인용으로 옮겼다. 이슈 → 브랜치 → 커밋 → 풀 리퀘스트(PR, Pull Request) → 머지의 연결은 그대로 두고, 팀 리뷰(approve 2)는 셀프 리뷰로, 담당자 구분은 없앴다.
 > git 명령은 **소유자가 직접** 실행한다.
@@ -57,11 +57,11 @@
 
 | 단계 코드        | 단계                        | 기능 표가 있는 곳                                                                    |
 | ------------ | ------------------------- | ----------------------------------------------------------------------------- |
-| `P0`         | Phase 0 — MySQL 스키마와 트랜잭션 | [PLAN.md §9](PLAN.md#9-phase-0-체크리스트-mysql) 체크리스트 순서대로 `P0-01` \~ `P0-07` |
-| `P1`         | Phase 1 — 자바 데이터베이스 연결(JDBC, Java Database Connectivity) 콘솔 앱       | 단계를 시작할 때 PLAN.md에 표를 만든다                                                     |
-| `MVP`        | Spring Boot 표현 상태 전송(REST, Representational State Transfer) API      | [PLAN.md §6](PLAN.md#6-mvp-사용자-스토리) 사용자 스토리 순서대로 `MVP-01` \~ `MVP-06`    |
-| `V2`         | 지정가 주문, 알림 등              | 단계를 시작할 때 PLAN.md에 표를 만든다                                                     |
-| `M1` \~ `M7` | 매크로 상장지수펀드(ETF, Exchange-Traded Fund) 트랙                | 단계를 시작할 때 [MACRO\_ETF.md §9](MACRO_ETF.md#9-로드맵)에 표를 만든다                  |
+| `P0`         | Phase 0 — SQL(PostgreSQL) 스키마와 트랜잭션 | [PLAN.md §11.1](PLAN.md#111-phase-0-체크리스트-sql-postgresql-17) 체크리스트 순서대로 `P0-01` \~ `P0-21` (`P0-01`·`P0-02`는 v1 도메인) |
+| `P1`         | Phase 1 — 자바 데이터베이스 연결(JDBC, Java Database Connectivity) 콘솔 앱       | 단계를 시작할 때 PLAN.md §11에 표를 만든다                                                     |
+| `MVP`        | Spring Boot 표현 상태 전송(REST, Representational State Transfer) API      | [PLAN.md §8](PLAN.md#8-사용자-스토리) 사용자 스토리 순서대로 `MVP-01` \~ `MVP-07`    |
+| `V2` \~ `V5` | PLAN.md §11의 V2(비용·케이스·대가), V3(앱), V4(AI), V5(배포)              | 단계를 시작할 때 PLAN.md §11에 표를 만든다                                                     |
+| `M1` \~ `M4` | 수집기·CI, Python 엔진, 점수 백테스트, 전망 모드(PLAN.md §11)                | 단계를 시작할 때 PLAN.md §11에 표를 만든다                  |
 
 
 ### 규칙
@@ -342,7 +342,7 @@ gh issue create \
 
 ## 5. PR 규칙
 
-PR 본문은 **`.github/PULL_REQUEST_TEMPLATE.md`가 정본**이다. 자동으로 채워지는 네 항목을 그대로 쓴다.
+PR 본문은 **`.github/PULL_REQUEST_TEMPLATE.md`가 정본**이다. 자동으로 채워지는 세 항목을 그대로 쓴다.
 
 1. **이슈를 먼저** 만들고, 그 이슈 화면에서 브랜치를 만든다.
 2. PR 제목은 **`태그: [기능번호] 제목 #이슈번호`** 다. 기능 번호가 없으면 `[환경]`, `[문서]`를 쓴다.
