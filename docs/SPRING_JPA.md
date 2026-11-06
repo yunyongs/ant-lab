@@ -58,7 +58,7 @@ Flyway는 Spring 챕터의 범위를 조금 넘는 도구다. 처음에는 `V1__
 | 기본 키 | `Long` | `BIGINT GENERATED ALWAYS AS IDENTITY` | `@Id @GeneratedValue(strategy = IDENTITY)` | §4.2 |
 | 낙관적 잠금 버전 | `long` | `BIGINT NOT NULL DEFAULT 0` | `@Version` | `season`, `cash_account`에만(§5.3) |
 
-`MoneyMath`(common): 턴별 가격 = round(시작가 × 누적 곱 Π(1+rᵢ))(누적 곱은 `BigDecimal` 그대로 들고 있다가 **마지막에 한 번** `RoundingMode.HALF_UP`으로 원 단위), 평가액 합계, 평균단가(소수 4자리) — **반올림이 일어나는 유일한 클래스**. PLAN §5.2 "반올림은 코드 한 곳에서"의 그 한 곳이다. 매달 반올림한 값에 다시 수익률을 곱하면 Python 엔진과 1원씩 어긋나므로 누적 곱 방식이 정본이다.
+`MoneyMath`(common): 턴별 가격 = round(시작가 × 누적 곱 Π(1+rᵢ)) (rᵢ = 원화 결합 수익률 (1+r현지)(1+r환율) − 1, 시작가 = 0턴 원화 가격)(누적 곱은 `BigDecimal` 그대로 들고 있다가 **마지막에 한 번** `RoundingMode.HALF_UP`으로 원 단위), 평가액 합계, 평균단가(소수 4자리) — **반올림이 일어나는 유일한 클래스**. PLAN §5.2 "반올림은 코드 한 곳에서"의 그 한 곳이다. 매달 반올림한 값에 다시 수익률을 곱하면 Python 엔진과 1원씩 어긋나므로 누적 곱 방식이 정본이다.
 
 ### 4.2 키와 식별자
 
@@ -78,15 +78,15 @@ Flyway는 Spring 챕터의 범위를 조금 넘는 도구다. 처음에는 `V1__
 | 테이블 | 이유 | 매핑 |
 |---|---|---|
 | `cash_ledger`, `execution` | 추가 전용 원장. 정정은 반대 부호 `ADJUSTMENT` 행 | `@Immutable`(Hibernate), setter 없음, 생성자만. `@Immutable`은 UPDATE를 무시하고 경고하므로, 테스트에서 "원장 수정 시도 → 변경 없음"을 확인한다 |
-| `season_path`, `turn_price`, `formation_change`, `reconciliation_log`, `turn_feed` | 이력·정본 가격·"사용자가 본 그대로"의 피드(PLAN §4.13) | 같음 |
+| `season_path`, `turn`, `turn_price`, `formation_change`, `reconciliation_log`, `turn_feed` | 이력·턴 스냅샷·정본 가격·"사용자가 본 그대로"의 피드(PLAN §4.13) | 같음 |
 | `asset_group`, `asset`, `month_block`, `asset_month_return`, `fx_month`, `month_event`, `asset_position`, `asset_month_attention` | 읽기 전용 역사·종목 풀 데이터(적재 스크립트가 쓴다 — Phase 0는 SQL, 이후 Java 배치. Python은 읽기만, PLAN §10) | `@Immutable` + 리포지토리는 조회 메서드만(`save` 없음 — `Repository<T, ID>`를 직접 상속해 `findBy…`만 선언) |
 
 Hibernate의 `@Immutable`은 "이 엔티티는 바뀌지 않는다"는 선언이다. 변경 감지(dirty checking: 트랜잭션 끝에 엔티티가 바뀌었는지 비교해 UPDATE를 만드는 것)를 건너뛰어 읽기 성능도 좋아진다.
 
 ### 4.5 감사 컬럼
 
-- `created_at TIMESTAMPTZ NOT NULL DEFAULT now()`를 모든 테이블에. DB 기본값은 적재 스크립트·직접 SQL이 넣는 행을 위한 것이고, JPA가 넣는 행은 Auditing 값이 우선한다(둘 다 "넣은 순간"이라 충돌하지 않는다). Spring Data JPA Auditing(`@CreatedDate`, `@EnableJpaAuditing`)으로 채운다.
-- `updated_at`은 가변 엔티티(`member`, `season`, `cash_account`, `holding`)에만.
+- `created_at TIMESTAMPTZ NOT NULL DEFAULT now()`를 모든 테이블에. DB 기본값은 적재 스크립트·직접 SQL이 넣는 행을 위한 것이고, JPA가 넣는 행은 Auditing 값이 우선한다(DB 기본값 `now()`는 트랜잭션 시작 시각이라 한 트랜잭션의 행이 같은 값을 갖는다 — 행 사이 순서가 필요한 곳은 erd 7.5 규칙 16). Spring Data JPA Auditing(`@CreatedDate`, `@EnableJpaAuditing`)으로 채운다.
+- `updated_at`은 가변 엔티티(`member`, `season`, `lineup`, `cash_account`, `holding`)에만.
 - 시각은 앱 서버의 `Clock` 빈에서 받는다(테스트에서 고정 시각을 넣기 위해).
 
 ### 4.6 비공개 컬럼
@@ -131,11 +131,11 @@ TurnService.advance(seasonId, expectedTurnNo)
   1. season = findByIdForUpdate; currentTurnNo == expectedTurnNo 검사
   2. account = findBySeasonIdForUpdate
   3. nextBlock = seasonPathRepo.findBySeasonIdAndTurnNo(seasonId, expectedTurnNo + 1)
-  4. returns = assetMonthReturnRepo.findByMonthBlockId(nextBlock)   -- 풀의 모든 종목(사용자는 아무 종목이나 살 수 있다)
+  4. returns = assetMonthReturnRepo.findByMonthBlockId(nextBlock)   -- 풀의 모든 종목(사용자는 아무 종목이나 살 수 있다). 시즌 기준일 풀(`asset_position`)로 거르고 `fx_month`와 결합
      (이력 없는 달은 대체 수익률 — V2, MVP는 풀 제한으로 항상 있음)
   5. 풀의 종목마다 누적 곱 갱신 → price' = MoneyMath.priceAt(시작가, 누적 곱) → INSERT turn_price (약 180행)
   6. 적립금(V2) → cash_ledger. (ETF 보수는 원장에서 빼지 않는다 — 수정 종가에 이미 반영, PLAN §4.6)
-  7. INSERT turn(턴 번호, 평가액, 현금, 누적 낙폭, 포지션별 비중 — 현금은 골키퍼)
+  7. INSERT turn(턴 번호, 평가액, 현금, 누적 낙폭, 포지션별 평가액 — 현금은 골키퍼, 비중은 조회)
   7b. 소음 피드·독려 알림 생성 → INSERT turn_feed (PLAN §4.13). 생성기(FeedGenerator)의 입력 타입은 "이 턴까지의 가격·관심 지수·사건 태그"만 담는 값 객체로 제한해 다음 블록을 넘길 수 없게 한다. 난수는 시즌 시드 + 턴 번호에서 파생
   8. 기준 포트폴리오 4개도 같은 가격으로 한 턴 진행(리밸런싱·비용 규칙은 PLAN §4.6·§4.10·§6.1, scoring 패키지, 같은 트랜잭션)
   9. 대사(§6) — 불일치면 예외 → 전부 롤백
@@ -150,7 +150,7 @@ TurnService.advance(seasonId, expectedTurnNo)
 
 - 전술 변경: `season` 락 → `season.current_formation_*` 갱신 + `formation_change` INSERT. 같은 턴에 두 번 바꾸면 마지막 것만 남지 않고 둘 다 기록된다(복기용). 턴 전환과 같은 락 순서. 변경 뒤의 매도·매수는 보통 주문이고, 주문 트랜잭션 안에서 `orders.formation_change_id`를 채운다(어느 변경에 묶는지의 규칙은 PLAN §5.1).
 - 세금(V2)이 들어오면 원장 행(`TAX`)을 매도 주문 트랜잭션과 턴 전환 트랜잭션에서 추가한다. 세율·과세 시점·이연 표시는 PLAN §4.6이 정한다. 이 문서는 "어느 트랜잭션에서 원장에 쓰는가"만 정한다.
-- 포지션 지정·변경: `lineup` 행의 구간을 닫고 새 행을 연다. 주문과 같은 트랜잭션(신규 매수 시) 또는 단독 트랜잭션(보유 중 변경).
+- 포지션 지정·변경: `lineup` 행의 구간을 닫고 새 행을 연다. 주문과 같은 트랜잭션(신규 매수 시) 또는 단독 트랜잭션(보유 중 변경). 단독 변경도 전술 변경처럼 `season` 락 → 상태(`IN_PROGRESS`)·`expectedTurnNo` 검사 → 구간 닫기·열기 순서를 따른다(턴 전환과 겹칠 때 옛 턴 번호로 구간을 닫지 않도록).
 
 ## 6. 대사(턴마다)
 
@@ -160,8 +160,8 @@ TurnService.advance(seasonId, expectedTurnNo)
 |---|---|
 | 현금 잔액 = Σ 원장 금액 | `SELECT COALESCE(SUM(amount),0) FROM cash_ledger WHERE season_id = ?` ↔ `cash_account.balance` |
 | 보유 수량 = Σ 매수 − Σ 매도 | `execution`을 `asset_id`로 묶어 합산 ↔ `holding.quantity` |
-| 평가액 = Σ 보유 × `turn_price` | `turn.total_value` ↔ `holding` ⋈ `turn_price` 합 |
-| `turn_price` = round(시작가 × Π(1+r)) | 저장값 ↔ `asset_month_return`과 `season_path`로 재계산(표본 종목 몇 개만, 전수는 M2 병행 대사) |
+| 평가액 = Σ 보유 × `turn_price` | `turn.holdings_value` ↔ `holding` ⋈ `turn_price` 합, `turn.cash_balance` ↔ `cash_account.balance`(총액 `total_value` = 둘의 합은 CHECK) |
+| `turn_price` = round(시작가 × Π(1+r)) (r = 원화 결합 수익률 (1+r현지)(1+r환율) − 1, 시작가 = 0턴 원화 가격) | 저장값 ↔ `asset_month_return`과 `season_path`로 재계산(표본 종목 몇 개만, 전수는 M2 병행 대사) |
 | 현재 포메이션 = 마지막 `formation_change.after` (없으면 시작 포메이션) | 중복 컬럼과 이력의 일치 |
 
 - 결과는 `reconciliation_log`(시즌, 턴, 항등식, 기대, 실제, 차이, 분류)에 남긴다. 일치해도 한 행(기록이 있어야 "검사했다"를 증명한다).

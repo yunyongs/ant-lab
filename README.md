@@ -16,7 +16,7 @@
 
 - 계획, 게임 규칙, 도메인, 점수, 로드맵: [docs/PLAN.md](docs/PLAN.md)
 - Spring Boot + JPA 기술 설계: [docs/SPRING_JPA.md](docs/SPRING_JPA.md)
-- 도메인 ERD와 엔티티 정의서: [docs/erd.md](docs/erd.md) (v1 도메인 기준, PLAN §5.1로 다시 그릴 예정)
+- 도메인 ERD와 엔티티 정의서: [docs/erd.md](docs/erd.md) (PLAN §5.1 기준)
 - 엔진 방법론(국면·지표·사후 정보 배제·백테스트): [docs/MACRO_ETF.md](docs/MACRO_ETF.md)
 - Git 컨벤션(이슈, 브랜치, 커밋, 풀 리퀘스트(PR, Pull Request)): [docs/CONVENTION.md](docs/CONVENTION.md)
 - 이 프로젝트와 함께 성장하는 학습 저장소: [slx-ai-campus](https://github.com/yunyongs/slx-ai-campus)
