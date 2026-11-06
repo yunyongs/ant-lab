@@ -34,7 +34,7 @@
 | --------------------- | ---------------------------------------------------- | ------------------------------------ |
 | 이슈 만들기                | **Issues → New issue** → 템플릿 고르기                     | `gh issue create`                    |
 | 브랜치 만들기               | **이슈 화면 → Development → Create a branch**            | `gh issue develop` / `git switch -c` |
-| 커밋 · main pull · push | 터미널 또는 IntelliJ의 Git 메뉴                              | `git commit`, `git pull`, `git push` |
+| 커밋 · main pull · push | 터미널 또는 VS Code의 소스 제어(`Ctrl` + `Shift` + `G`)      | `git commit`, `git pull`, `git push` |
 | PR 만들기                | **Compare &amp; pull request**                       | `gh pr create`                       |
 | 셀프 리뷰                 | **Files changed** 탭에서 한 줄씩 읽기                        | `gh pr diff`                         |
 | 머지                    | **Merge pull request** → 메시지 고치기 → **Confirm merge** | `gh pr merge --merge`                |

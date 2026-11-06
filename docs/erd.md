@@ -9,7 +9,7 @@
 | 기능 | 이 문서에서 하는 일 | 상태 |
 |---|---|---|
 | P0-03 | 공통 규칙, 전체 관계도, 설계 질문 답, **역사 데이터와 종목 풀** 8개 테이블의 확정 정의서 | 완료 |
-| P0-04 | **회원·시즌·피드·대사** 9개(6절)와 **시즌 계좌** 5개(7절) 정의서, 대사 규칙의 v2 이전, v1 계좌 정의를 v2로 바꾸고 부록 삭제 | 이 PR |
+| P0-04 | **회원·시즌·피드·대사** 9개(6절)와 **시즌 계좌** 5개(7절) 정의서, 대사 규칙의 v2 이전, v1 계좌 정의를 v2로 바꾸고 부록 삭제 | 완료 |
 
 **정본 규칙:** 타입·키·제약 이름·구분값은 이 문서가 정본이다. [PLAN.md](PLAN.md)나 [SPRING_JPA.md](SPRING_JPA.md)와 어긋나면 이 문서를 따르고, 어긋난 문서를 같은 PR에서 고친다(PLAN §12).
 
@@ -536,7 +536,7 @@ erDiagram
 | ck_asset_position_volatility | CK | asset_position | volatility >= 0 |
 | ck_asset_position_max_drawdown | CK | asset_position | max_drawdown BETWEEN -1 AND 0 |
 | ck_asset_position_system_position | CK | asset_position | system_position IN ('GOALKEEPER','DEFENDER','MIDFIELDER','FORWARD_TARGET','FORWARD_BREAKOUT','FORWARD_DEFENSIVE') |
-| ck_asset_position_judgment_all_or_none | CK | asset_position | num_nulls(window_start, window_end, months_used, up_participation, down_participation, volatility, max_drawdown, system_position) IN (0, 8) — 판정 8컬럼이 모두 NULL이거나 모두 NOT NULL (카탈로그 표기는 `= ANY (ARRAY[0, 8])`) |
+| ck_asset_position_judgment_all_or_none | CK | asset_position | num_nulls(window_start, window_end, months_used, up_participation, down_participation, volatility, max_drawdown, system_position) IN (0, 8) |
 | idx_asset_position_base_date | IDX | asset_position | (base_date) |
 | pk_month_block | PK | month_block | (id) |
 | uq_month_block_month_start | UQ | month_block | (month_start) |
@@ -549,8 +549,8 @@ erDiagram
 | ck_month_block_growth_pair | CK | month_block | (growth_dir IS NULL) = (growth_strength IS NULL) AND (growth_strength IS NULL OR growth_strength >= 0) |
 | ck_month_block_fx_pair | CK | month_block | (fx_dir IS NULL) = (fx_strength IS NULL) AND (fx_strength IS NULL OR fx_strength >= 0) |
 | ck_month_block_sentiment_pair | CK | month_block | (sentiment_dir IS NULL) = (sentiment_strength IS NULL) AND (sentiment_strength IS NULL OR sentiment_strength >= 0) |
-| ck_month_block_prob_range | CK | month_block | prob_p1 BETWEEN 0 AND 1 AND prob_p2 BETWEEN 0 AND 1 AND prob_p3 BETWEEN 0 AND 1 AND prob_p4 BETWEEN 0 AND 1 (NULL이면 통과) |
-| ck_month_block_prob_all_or_none | CK | month_block | num_nulls(prob_p1, prob_p2, prob_p3, prob_p4) IN (0, 4) — 넷이 모두 NULL이거나 모두 NOT NULL (카탈로그 표기는 `= ANY (ARRAY[0, 4])`) |
+| ck_month_block_prob_range | CK | month_block | prob_p1 BETWEEN 0 AND 1 AND prob_p2 BETWEEN 0 AND 1 AND prob_p3 BETWEEN 0 AND 1 AND prob_p4 BETWEEN 0 AND 1 |
+| ck_month_block_prob_all_or_none | CK | month_block | num_nulls(prob_p1, prob_p2, prob_p3, prob_p4) IN (0, 4) |
 | ck_month_block_prob_sum | CK | month_block | prob_p1 IS NULL OR ABS(prob_p1 + prob_p2 + prob_p3 + prob_p4 - 1) <= 0.0002 |
 | pk_asset_month_return | PK | asset_month_return | (id) |
 | uq_asset_month_return_asset_month | UQ | asset_month_return | (asset_id, month_block_id) |
@@ -583,6 +583,8 @@ erDiagram
 | ck_asset_month_attention_z_window | CK | asset_month_attention | attention_z IS NULL OR window_months >= 2 |
 | ck_asset_month_attention_index_needs_z | CK | asset_month_attention | attention_z IS NOT NULL OR attention_index IS NULL |
 | idx_asset_month_attention_month_block | IDX | asset_month_attention | (month_block_id) |
+
+정의 칸은 DDL에 그대로 들어가는 SQL 식이다. `num_nulls(…) IN (0, n)`은 n개 컬럼이 모두 NULL이거나 모두 NOT NULL이라는 뜻이고(카탈로그 표기는 `= ANY (ARRAY[0, n])`), `ck_month_block_prob_range`는 NULL이면 통과한다(3값 논리, 2절 CHECK). 카탈로그(`pg_get_constraintdef`)는 괄호·캐스트·`IN`·`BETWEEN`을 바꿔 적으므로 DDL 검증 쿼리는 이 칸의 식을 PostgreSQL에 다시 파싱시켜 비교한다(`db/01_schema_history_check.sql`).
 
 **개수 (DDL 검증 쿼리의 `pg_catalog` 대조 숫자):**
 
