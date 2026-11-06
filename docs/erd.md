@@ -621,7 +621,499 @@ FK 8개 = 5.2의 관계 R1–R8 = 5.1 관계선 8개이다. FK 컬럼 중 UNIQUE
 | H7 | ETF의 상장월 이전 달은 `PROXY_INDEX`, 이후는 `ACTUAL`이다(상장월 자체는 `PROXY_INDEX`, 다음 달부터 `ACTUAL` — 초안, P0-08이 확정). V1 개별 주식은 전부 `ACTUAL`이다. V1: `market = 'KR'` → `return_basis = 'PRICE'`, `'US'` → `'TOTAL'` | P0-08 |
 | H8 | `attention_index`(와 `attention_z`·`streak`)는 그 달까지의 종목 자신의 수익률로만 계산된다(뒤 달을 바꿔도 불변) | P0-11 |
 
-## 6. 설계 결정
+## 6. 회원·시즌·피드·대사
+
+PLAN §5.1의 "사용자"(`member`)와 "시즌" 영역 9개 테이블을 확정한다. `season`이 중심이고 나머지 7개가 시즌에 매달린다(`member`는 시즌의 부모). 이 절의 테이블은 **게임 쪽 쓰기**가 있다 — 역사 데이터(5절)는 읽기만 하고 이 9개가 시즌 상태를 쌓는다. 시즌 안의 돈은 7절(`cash_account` 이하 5개)이 맡는다. 턴 번호의 뜻은 D23이다: `season.current_turn_no` = 마지막으로 적용된 턴(0 = 시즌 시작·팀 구성), 매매·전술 변경·포지션 지정 행의 `turn_no` = 그때의 `current_turn_no`, `turn`·`turn_feed` 행은 턴 1부터, `turn_price`는 0턴(기준일 가격)부터 있다.
+
+### 6.1 관계도
+
+관계선은 자식 테이블이 속한 절의 그림에 그린다. 앵커(`asset`, `month_block`, `month_event`, `asset_group`)는 다른 절의 부모라 컬럼 없이 이름만 그린다.
+
+```mermaid
+erDiagram
+    MEMBER["회원 (member)"] {
+        BIGINT id PK "회원번호 | NN | IDENTITY"
+        VARCHAR(255) email UK "이메일 | NN"
+        VARCHAR(50) name "이름 | NN"
+        VARCHAR(255) password "비밀번호 해시 | NN"
+        TIMESTAMPTZ created_at "가입일시 | NN | now()"
+        TIMESTAMPTZ updated_at "수정일시 | NN | now()"
+    }
+    SEASON["시즌 (season)"] {
+        BIGINT id PK "시즌번호 | NN | IDENTITY"
+        BIGINT member_id FK "회원번호 | NN"
+        VARCHAR(11) status "시즌 상태 | NN | IN_PROGRESS"
+        SMALLINT path_length "경로 길이 | NN"
+        SMALLINT current_turn_no "현재 턴 | NN | 0"
+        SMALLINT abandoned_turn_no "포기 턴 | NULL"
+        BIGINT seed "시드 | NN"
+        VARCHAR(20) engine_version "엔진 버전 | NN"
+        DATE data_snapshot_date "데이터 스냅샷 날짜 | NN"
+        DATE base_date "기준일 | NN"
+        NUMERIC(19,4) initial_cash "초기 자금 | NN"
+        NUMERIC(12,8) fee_rate "수수료율 | NN"
+        NUMERIC(12,8) risk_limit "위험 선언 | NN"
+        SMALLINT start_goalkeeper "시작 골키퍼 비중 | NN"
+        SMALLINT start_defender "시작 수비수 비중 | NN"
+        SMALLINT start_midfielder "시작 미드필더 비중 | NN"
+        SMALLINT start_forward "시작 공격수 비중 | NN"
+        SMALLINT current_goalkeeper "현재 골키퍼 비중 | NN"
+        SMALLINT current_defender "현재 수비수 비중 | NN"
+        SMALLINT current_midfielder "현재 미드필더 비중 | NN"
+        SMALLINT current_forward "현재 공격수 비중 | NN"
+        BIGINT version "낙관적 락 버전 | NN | 0"
+        TIMESTAMPTZ created_at "생성일시 | NN | now()"
+        TIMESTAMPTZ updated_at "수정일시 | NN | now()"
+    }
+    SEASON_PATH["시즌 경로 (season_path)"] {
+        BIGINT id PK "경로번호 | NN | IDENTITY"
+        BIGINT season_id FK "시즌번호 | NN"
+        SMALLINT turn_no "턴 번호 | NN"
+        BIGINT month_block_id FK "월 블록번호 | NN"
+        TIMESTAMPTZ created_at "생성일시 | NN | now()"
+    }
+    TURN["턴 스냅샷 (turn)"] {
+        BIGINT id PK "턴 스냅샷번호 | NN | IDENTITY"
+        BIGINT season_id FK "시즌번호 | NN"
+        SMALLINT turn_no "턴 번호 | NN"
+        NUMERIC(19,4) cash_balance "현금 잔액 | NN"
+        NUMERIC(19,4) holdings_value "보유 평가액 | NN"
+        NUMERIC(19,4) total_value "총 평가액 | NN"
+        NUMERIC(19,4) goalkeeper_value "골키퍼 평가액 | NN"
+        NUMERIC(19,4) defender_value "수비수 평가액 | NN"
+        NUMERIC(19,4) midfielder_value "미드필더 평가액 | NN"
+        NUMERIC(19,4) forward_value "공격수 평가액 | NN"
+        NUMERIC(12,8) drawdown "누적 낙폭 | NN"
+        TIMESTAMPTZ created_at "생성일시 | NN | now()"
+    }
+    TURN_PRICE["턴 가격 (turn_price)"] {
+        BIGINT id PK "가격번호 | NN | IDENTITY"
+        BIGINT season_id FK "시즌번호 | NN"
+        SMALLINT turn_no "턴 번호 | NN"
+        BIGINT asset_id FK "종목번호 | NN"
+        NUMERIC(19,4) price "가격 | NN"
+        TIMESTAMPTZ created_at "생성일시 | NN | now()"
+    }
+    LINEUP["라인업 (lineup)"] {
+        BIGINT id PK "라인업번호 | NN | IDENTITY"
+        BIGINT season_id FK "시즌번호 | NN"
+        BIGINT asset_id FK "종목번호 | NN"
+        VARCHAR(17) declared_position "선언 포지션 | NN"
+        SMALLINT start_turn "시작 턴 | NN"
+        SMALLINT end_turn "끝 턴 | NULL"
+        TIMESTAMPTZ created_at "생성일시 | NN | now()"
+        TIMESTAMPTZ updated_at "수정일시 | NN | now()"
+    }
+    FORMATION_CHANGE["포메이션 변경 (formation_change)"] {
+        BIGINT id PK "변경번호 | NN | IDENTITY"
+        BIGINT season_id FK "시즌번호 | NN"
+        SMALLINT turn_no "턴 번호 | NN"
+        SMALLINT before_goalkeeper "이전 골키퍼 비중 | NN"
+        SMALLINT before_defender "이전 수비수 비중 | NN"
+        SMALLINT before_midfielder "이전 미드필더 비중 | NN"
+        SMALLINT before_forward "이전 공격수 비중 | NN"
+        SMALLINT after_goalkeeper "이후 골키퍼 비중 | NN"
+        SMALLINT after_defender "이후 수비수 비중 | NN"
+        SMALLINT after_midfielder "이후 미드필더 비중 | NN"
+        SMALLINT after_forward "이후 공격수 비중 | NN"
+        VARCHAR(200) reason "사유 | NULL"
+        TIMESTAMPTZ created_at "생성일시 | NN | now()"
+    }
+    TURN_FEED["턴 피드 (turn_feed)"] {
+        BIGINT id PK "피드번호 | NN | IDENTITY"
+        BIGINT season_id FK "시즌번호 | NN"
+        SMALLINT turn_no "턴 번호 | NN"
+        SMALLINT seq "표시 순서 | NN"
+        VARCHAR(6) kind "종류 | NN"
+        BIGINT asset_id FK "대상 종목번호 | NULL"
+        BIGINT asset_group_id FK "대상 그룹번호 | NULL"
+        BIGINT month_event_id FK "사건 태그번호 | NULL"
+        BOOLEAN category_hidden "범주 비공개 여부 | NN | FALSE"
+        VARCHAR(4) direction "방향 | NULL"
+        SMALLINT strength "강도 | NULL"
+        SMALLINT repeat_count "재생산 횟수 | NN | 0"
+        VARCHAR(40) template_id "템플릿 id | NN"
+        JSONB template_vars "템플릿 변수 | NN | 빈 객체"
+        VARCHAR(300) body "문장 | NN"
+        TIMESTAMPTZ created_at "생성일시 | NN | now()"
+    }
+    RECONCILIATION_LOG["대사 기록 (reconciliation_log)"] {
+        BIGINT id PK "대사기록번호 | NN | IDENTITY"
+        BIGINT season_id FK "시즌번호 | NN"
+        SMALLINT turn_no "턴 번호 | NN"
+        SMALLINT attempt_no "시도 번호 | NN"
+        VARCHAR(20) check_code "검사 코드 | NN"
+        VARCHAR(8) status "결과 | NN"
+        NUMERIC(19,4) expected_value "기대값 | NULL"
+        NUMERIC(19,4) actual_value "실제값 | NULL"
+        NUMERIC(19,4) diff_value "차이 | NULL"
+        INTEGER mismatch_count "불일치 수 | NN"
+        VARCHAR(11) classification "분류 | NULL"
+        JSONB detail "상세 | NULL"
+        TIMESTAMPTZ created_at "생성일시 | NN | now()"
+    }
+    ASSET["종목 (asset)"]
+    MONTH_BLOCK["월 블록 (month_block)"]
+    MONTH_EVENT["달 사건 태그 (month_event)"]
+    ASSET_GROUP["종목 그룹 (asset_group)"]
+    MEMBER ||..o{ SEASON : "R9 시즌을 연다"
+    SEASON ||..|{ SEASON_PATH : "R10 경로를 갖는다"
+    MONTH_BLOCK ||..o{ SEASON_PATH : "R11 턴에 배정된다"
+    SEASON ||..o{ TURN : "R12 턴이 쌓인다"
+    SEASON ||..o{ TURN_PRICE : "R13 가격이 기록된다"
+    ASSET ||..o{ TURN_PRICE : "R14 턴마다 가격을 갖는다"
+    SEASON ||..o{ LINEUP : "R15 라인업을 갖는다"
+    ASSET ||..o{ LINEUP : "R16 포지션이 선언된다"
+    SEASON ||..o{ FORMATION_CHANGE : "R17 전술을 바꾼다"
+    SEASON ||..o{ TURN_FEED : "R18 피드를 본다"
+    MONTH_EVENT |o..o{ TURN_FEED : "R19 사건 피드가 된다"
+    ASSET |o..o{ TURN_FEED : "R20 종목 피드이다"
+    ASSET_GROUP |o..o{ TURN_FEED : "R21 그룹 피드이다"
+    SEASON ||..o{ RECONCILIATION_LOG : "R22 대사된다"
+```
+
+### 6.2 관계 요약
+
+R9–R22는 3.1의 같은 번호와 같다. 모두 비식별 `..`이다 — 자식의 PK가 대리 키 `id`라서 부모 키를 PK에 넣지 않는다. FK가 없는 연결은 이유가 있다: `season.base_date` ↛ `asset_position`(UNIQUE가 `(asset_id, base_date)`라 단독 참조 불가 → 검증 규칙 S2), `turn_price` ↛ `turn`(R13의 근거), `turn` ↛ `season_path`(턴 번호만 같다).
+
+| # | 부모 → 자식 | 카디널리티 | 선 | 근거 |
+|---|---|---|---|---|
+| R9 | `member` → `season` | 1 : 0..N | 비식별 `..` | 질문 1. 진행 중 시즌 최대 3개는 서비스 규칙(6.5) |
+| R10 | `season` → `season_path` | 1 : 1..N | 비식별 `..` | 최소 1·개수 = `path_length`는 검증 규칙 S1(DDL은 부모를 먼저 INSERT하므로 최소를 못 막는다) |
+| R11 | `month_block` → `season_path` | 1 : 0..N | 비식별 `..` | 턴마다 실제 달 하나. 같은 달이 여러 턴·시즌에 배정될 수 있다 |
+| R12 | `season` → `turn` | 1 : 0..N | 비식별 `..` | 턴마다 한 행(`uq_turn_season_turn`). 0턴 행은 없다 |
+| R13 | `season` → `turn_price` | 1 : 0..N | 비식별 `..` | `turn`을 부모로 두지 않는다 — 0턴 가격에는 `turn` 행이 없고 같은 트랜잭션에서 가격을 먼저 넣는다 |
+| R14 | `asset` → `turn_price` | 1 : 0..N | 비식별 `..` | 시즌 기준일 풀의 모든 종목이 턴마다 한 행(대사 규칙 12, 검증 규칙 S3) |
+| R15 | `season` → `lineup` | 1 : 0..N | 비식별 `..` | 보유 구간마다 한 행(질문 6) |
+| R16 | `asset` → `lineup` | 1 : 0..N | 비식별 `..` |  |
+| R17 | `season` → `formation_change` | 1 : 0..N | 비식별 `..` | 변경 이력(질문 7) |
+| R18 | `season` → `turn_feed` | 1 : 0..N | 비식별 `..` | 턴마다 0개 이상, 순서 `seq` |
+| R19 | `month_event` → `turn_feed` | 0..1 : 0..N | 비식별 `..` | `ck_turn_feed_event`: `kind = 'EVENT'`일 때만 있다 |
+| R20 | `asset` → `turn_feed` | 0..1 : 0..N | 비식별 `..` | `ck_turn_feed_target_kind`가 종류별 대상을 정한다 |
+| R21 | `asset_group` → `turn_feed` | 0..1 : 0..N | 비식별 `..` | `SPREAD`(확대)가 그룹을 가리킨다 |
+| R22 | `season` → `reconciliation_log` | 1 : 0..N | 비식별 `..` | (시도, 규칙)마다 한 행 |
+
+### 6.3 엔티티 정의서
+
+노출 구분(`[노출]`/`[복기 전용]`/`[내부]`)은 코멘트 앞머리에 붙는다. 금액 `₩`는 `NUMERIC(19,4)` + 원 단위 CHECK이다. 포메이션 비중은 `SMALLINT` 정수 %이다. 가변 엔티티(`member`, `season`, `lineup`)만 `updated_at`을 갖는다. 모든 FK는 `ON DELETE RESTRICT ON UPDATE RESTRICT`이다(2절).
+
+#### 회원 (member)
+
+| 키 | 논리명 | 물리명 | 타입 | NULL | 기본값 | 코멘트 |
+| --- | --- | --- | --- | --- | --- | --- |
+| PK | 회원번호 | id | BIGINT | NN | IDENTITY | `[내부]` `pk_member` |
+| UK | 이메일 | email | VARCHAR(255) | NN |  | `[내부]` `uq_member_email`: `CREATE UNIQUE INDEX uq_member_email ON member (lower(email))` — 표현식 유일 인덱스라 제약이 아니라 `pg_indexes`에 있다(2절). 일반 UNIQUE는 두지 않는다(`lower()` 유일이 포함). v1 동작 `a@x.com` = `A@X.COM`을 유지한다. 형식 검사는 DB가 아니라 MVP `@Valid`가 맡는다 |
+|  | 이름 | name | VARCHAR(50) | NN |  | `[노출]` 표시 이름 |
+|  | 비밀번호 해시 | password | VARCHAR(255) | NN |  | `[내부]` 해시만 저장(BCrypt 60자 수용), 평문 금지. 이름은 PLAN 용어를 유지한다(v1) |
+|  | 가입일시 | created_at | TIMESTAMPTZ | NN | now() | `[내부]` |
+|  | 수정일시 | updated_at | TIMESTAMPTZ | NN | now() | `[내부]` 가변 엔티티(D6) |
+
+#### 시즌 (season)
+
+| 키 | 논리명 | 물리명 | 타입 | NULL | 기본값 | 코멘트 |
+| --- | --- | --- | --- | --- | --- | --- |
+| PK | 시즌번호 | id | BIGINT | NN | IDENTITY | `[내부]` `pk_season` |
+| FK | 회원번호 | member_id | BIGINT | NN |  | `[내부]` → member.id (R9). `fk_season_member`, `idx_season_member`. "진행 중 시즌 최대 3개"는 행 집합 규칙이라 서비스가 검사한다(6.5의 서비스 규칙) |
+|  | 시즌 상태 | status | VARCHAR(11) | NN | 'IN_PROGRESS' | `[노출]` `ck_season_status`: `status IN ('IN_PROGRESS','ABANDONING','FINISHED')`. `ABANDONING` = 포기한 뒤 남은 턴을 자동 진행하는 중(SPRING_JPA §5.3). 포기한 시즌도 끝나면 `FINISHED`(PLAN §4.1-7). 채점 단계 상태(`SCORING`)는 SPRING_JPA §12-1이 정해지면 목록에 더한다 |
+|  | 경로 길이 | path_length | SMALLINT | NN |  | `[노출]` 총 턴 수. `ck_season_path_length`: `path_length > 0`(Q9 — 60/120은 MVP 서비스 규칙, Phase 0은 10) |
+|  | 현재 턴 | current_turn_no | SMALLINT | NN | 0 | `[노출]` 마지막으로 적용된 턴(0 = 시즌 시작·팀 구성 단계, D23). `ck_season_current_turn_no`: `current_turn_no BETWEEN 0 AND path_length`. `ck_season_finished_turn`: `status <> 'FINISHED' OR current_turn_no = path_length` |
+|  | 포기 턴 | abandoned_turn_no | SMALLINT | NULL |  | `[노출]` 포기한 턴. NULL = 포기하지 않음. `ck_season_abandoned_turn_no`: `abandoned_turn_no IS NULL OR abandoned_turn_no BETWEEN 0 AND current_turn_no`. `ck_season_abandoning`: `status <> 'ABANDONING' OR abandoned_turn_no IS NOT NULL`. `ck_season_abandoned_status`: `status <> 'IN_PROGRESS' OR abandoned_turn_no IS NULL` — 진행 중인 시즌에 포기 턴이 있는 상태를 막는다(`FINISHED`는 양쪽 허용). "3턴 안에 포기 = 미시작"(PLAN §4.1-7)은 이 값에서 조회한다 |
+|  | 시드 | seed | BIGINT | NN |  | `[내부]` 경로·피드·예상 분포 난수의 원천(PLAN §4.2·§4.3·§4.13). 같은 시드 = 같은 경로라 시즌이 끝나기 전에는 어디에도 나가지 않는다 |
+|  | 엔진 버전 | engine_version | VARCHAR(20) | NN |  | `[내부]` 재현성(PLAN §4.2). Phase 0 값 예: `p0-sql` |
+|  | 데이터 스냅샷 날짜 | data_snapshot_date | DATE | NN |  | `[내부]` 역사 데이터를 고정한 날짜(PLAN §4.2) |
+|  | 기준일 | base_date | DATE | NN |  | `[내부]` 이 시즌이 쓰는 `asset_position` 스냅샷의 기준일(Q2, D14). **FK 대상이 없다** — `asset_position`의 UNIQUE는 `(asset_id, base_date)`라 `base_date` 단독을 참조할 수 없다. 그 기준일의 풀이 있고 판정이 채워졌는지는 검증 규칙 S2가 본다 |
+|  | 초기 자금 | initial_cash | NUMERIC(19,4) | NN |  | `[노출]` ₩. 초기 자금(기본 ₩30,000,000, PLAN §4.1-1). `ck_season_initial_cash_pos`: `initial_cash > 0`, `ck_season_initial_cash_won`: `initial_cash = ROUND(initial_cash, 0)`. DB 기본값을 두지 않는다 — 시즌을 만들 때 값을 박아 재현성을 지킨다(D30). 첫 `DEPOSIT`의 금액과 같다(대사 규칙 1) |
+|  | 수수료율 | fee_rate | NUMERIC(12,8) | NN |  | `[노출]` 수수료율(PLAN §4.6 초안 0.0005). `ck_season_fee_rate`: `fee_rate >= 0 AND fee_rate < 1`. 시즌에 박아 두어야 요율이 바뀐 뒤에도 지난 시즌을 검산(대사 규칙 14)·재현할 수 있다(D30) |
+|  | 위험 선언 | risk_limit | NUMERIC(12,8) | NN |  | `[노출]` 감수할 최대 낙폭, **0 이하 소수**(−0.20 = −20%, `asset_position.max_drawdown`·`turn.drawdown`과 같은 부호). `ck_season_risk_limit`: `risk_limit IN (-0.10, -0.20, -0.30, -0.40)`(PLAN §4.1-1). 시즌 내내 고정(PLAN §4.10) |
+|  | 시작 골키퍼 비중 | start_goalkeeper | SMALLINT | NN |  | `[노출]` 시작 포메이션의 골키퍼(현금) 비중, 정수 %(PLAN §4.10, 질문 7). `ck_season_start_formation_sum`: 네 값의 합 = 100. `ck_season_start_formation_range`: 네 값 모두 `BETWEEN 0 AND 100`(합 100만으로는 −10·110을 못 막는다). `ck_season_start_goalkeeper_min`: `start_goalkeeper >= 1` — 현금은 골키퍼이고 0%이면 팀이 아니다 |
+|  | 시작 수비수 비중 | start_defender | SMALLINT | NN |  | `[노출]` 시작 포메이션의 수비수 비중(위 CHECK 3개가 함께 건다) |
+|  | 시작 미드필더 비중 | start_midfielder | SMALLINT | NN |  | `[노출]` 시작 포메이션의 미드필더 비중 |
+|  | 시작 공격수 비중 | start_forward | SMALLINT | NN |  | `[노출]` 시작 포메이션의 공격수 비중(`FORWARD_*` 3종을 묶은 값, PLAN §4.10) |
+|  | 현재 골키퍼 비중 | current_goalkeeper | SMALLINT | NN |  | `[노출]` 현재 포메이션 — **의도적 중복**(PLAN §5.3-7). `ck_season_current_formation_sum`, `ck_season_current_formation_range`, `ck_season_current_goalkeeper_min`이 시작 값과 같은 규칙을 건다. 마지막 `formation_change`의 이후 값과 같은지는 대사 규칙 15 |
+|  | 현재 수비수 비중 | current_defender | SMALLINT | NN |  | `[노출]` 현재 포메이션의 수비수 비중 |
+|  | 현재 미드필더 비중 | current_midfielder | SMALLINT | NN |  | `[노출]` 현재 포메이션의 미드필더 비중 |
+|  | 현재 공격수 비중 | current_forward | SMALLINT | NN |  | `[노출]` 현재 포메이션의 공격수 비중 |
+|  | 낙관적 락 버전 | version | BIGINT | NN | 0 | `[내부]` `@Version`(SPRING_JPA §4.1·§5.3) |
+|  | 생성일시 | created_at | TIMESTAMPTZ | NN | now() | `[내부]` |
+|  | 수정일시 | updated_at | TIMESTAMPTZ | NN | now() | `[내부]` 가변 엔티티 |
+
+- `season`의 상태·포메이션·위험 선언은 PLAN §4.1·§4.10의 값이다. `mode`(감독/전망, M4)와 `style_master_id`(V2)는 3.2의 컬럼 스케치이며 해당 단계가 `ALTER TABLE`로 더하므로 이 정의서에 넣지 않는다. 월 적립금·소음 수준은 V2다.
+- 시작·현재 포메이션 8개와 `current_turn_no`·`status`는 이력과 겹치는 **의도적 중복**이다(현재 포메이션 ↔ `formation_change`는 대사 규칙 15). 위험 선언은 시즌 내내 바뀌지 않는다.
+- CHECK 17개: 상태 1, 턴 4(`path_length`, `current_turn_no`, `finished_turn`, `abandoned_turn_no`), 포기 2(`abandoning`, `abandoned_status`), 금액 2, 요율 1, 위험 1, 포메이션 6. 포함 관계 CHECK(`range` ⊇ `goalkeeper_min`의 일부)는 2절 규칙대로 일부러 둔다.
+
+#### 시즌 경로 (season_path)
+
+| 키 | 논리명 | 물리명 | 타입 | NULL | 기본값 | 코멘트 |
+| --- | --- | --- | --- | --- | --- | --- |
+| PK | 경로번호 | id | BIGINT | NN | IDENTITY | `[내부]` `pk_season_path` |
+| FK | 시즌번호 | season_id | BIGINT | NN |  | `[내부]` → season.id (R10). `fk_season_path_season`. `uq_season_path_season_turn (season_id, turn_no)`의 앞 컬럼이라 FK 인덱스를 겸한다 |
+|  | 턴 번호 | turn_no | SMALLINT | NN |  | `[노출]` `ck_season_path_turn_no`: `turn_no >= 1`(0턴은 기준일 — 블록이 없다). 상한과 빈틈 없음은 검증 규칙 S1 |
+| FK | 월 블록번호 | month_block_id | BIGINT | NN |  | `[복기 전용]` 이 턴에 배정된 실제 달 → month_block.id (R11). `fk_season_path_month_block`, `idx_season_path_month_block` — 최근 시즌과 같은 블록의 반복을 피하는 조회(PLAN §4.2). 시즌 종료 전에는 어디에도 나가지 않는다 |
+|  | 생성일시 | created_at | TIMESTAMPTZ | NN | now() | `[내부]` |
+
+불변(SPRING_JPA §4.4). 시즌 시작 트랜잭션에서 전부 저장한다(SPRING_JPA §5.3). 시즌 종료 전에는 `month_block_id`가 어디에도 나가지 않는다 — 날짜와 사건이 곧 이 값이다.
+
+#### 턴 스냅샷 (turn)
+
+| 키 | 논리명 | 물리명 | 타입 | NULL | 기본값 | 코멘트 |
+| --- | --- | --- | --- | --- | --- | --- |
+| PK | 턴 스냅샷번호 | id | BIGINT | NN | IDENTITY | `[내부]` `pk_turn` |
+| FK | 시즌번호 | season_id | BIGINT | NN |  | `[내부]` → season.id (R12). `fk_turn_season`. `uq_turn_season_turn (season_id, turn_no)`의 앞 컬럼 — "같은 턴 두 번"의 마지막 안전망(SPRING_JPA §5.3) |
+|  | 턴 번호 | turn_no | SMALLINT | NN |  | `[노출]` `ck_turn_turn_no`: `turn_no >= 1`(0턴 행은 없다 — 0턴 값은 `turn_price`와 `cash_ledger`에 있다) |
+|  | 현금 잔액 | cash_balance | NUMERIC(19,4) | NN |  | `[노출]` ₩. 스냅샷 시점의 `cash_account.balance` |
+|  | 보유 평가액 | holdings_value | NUMERIC(19,4) | NN |  | `[노출]` ₩. Σ 보유 수량 × `turn_price(t)`(PLAN §5.2 평가액, 대사 규칙 11) |
+|  | 총 평가액 | total_value | NUMERIC(19,4) | NN |  | `[노출]` ₩. `ck_turn_total_value`: `total_value = holdings_value + cash_balance`. SPRING_JPA §6이 이 이름을 쓴다 |
+|  | 골키퍼 평가액 | goalkeeper_value | NUMERIC(19,4) | NN |  | `[노출]` ₩. 선언 포지션(`lineup`) 기준 포지션별 평가액, **현금은 골키퍼**에 들어간다(PLAN §4.10). `ck_turn_position_sum`: 네 값의 합 = `total_value`. `ck_turn_goalkeeper_cash`: `goalkeeper_value >= cash_balance`. 비중 = 값 ÷ `total_value`는 조회가 계산한다(D24) |
+|  | 수비수 평가액 | defender_value | NUMERIC(19,4) | NN |  | `[노출]` ₩. `DEFENDER` 평가액 |
+|  | 미드필더 평가액 | midfielder_value | NUMERIC(19,4) | NN |  | `[노출]` ₩. `MIDFIELDER` 평가액 |
+|  | 공격수 평가액 | forward_value | NUMERIC(19,4) | NN |  | `[노출]` ₩. `FORWARD_TARGET`·`FORWARD_BREAKOUT`·`FORWARD_DEFENSIVE` 3종을 공격으로 묶은 평가액. 금액 7개(`cash_balance`~`forward_value`)에 `ck_turn_amounts_nonneg`(모두 `>= 0`)와 `ck_turn_amounts_won`(모두 원 단위)이 건다 |
+|  | 누적 낙폭 | drawdown | NUMERIC(12,8) | NN |  | `[노출]` 0 이하. `total_value ÷ max(initial_cash, 1..t턴의 total_value) − 1` — 시작 고점에 초기 자금을 넣어 팀 구성 수수료도 손실로 보인다(PLAN §4.6 "비용은 반드시 결과에"). `ck_turn_drawdown`: `drawdown BETWEEN -1 AND 0`. 8자리 반올림은 대입 반올림이다(2절 "숫자 대입") |
+|  | 생성일시 | created_at | TIMESTAMPTZ | NN | now() | `[내부]` |
+
+- 공통 CHECK 2개: `ck_turn_amounts_nonneg`(금액 7개 모두 `>= 0`), `ck_turn_amounts_won`(7개 모두 원 단위). CHECK는 모두 7개다.
+- **스냅샷 시점:** 턴 t를 적용하는 트랜잭션에서 `turn_price(t)` INSERT 뒤, 그 순간의 보유·현금·열린 `lineup`으로 만든다(SPRING_JPA §5.3 5 → 7단계). 불변이다. 기준 포트폴리오 4개의 턴별 값은 이 테이블에 두지 않는다(MVP에서 다시 볼 것, 8절).
+
+#### 턴 가격 (turn_price)
+
+| 키 | 논리명 | 물리명 | 타입 | NULL | 기본값 | 코멘트 |
+| --- | --- | --- | --- | --- | --- | --- |
+| PK | 가격번호 | id | BIGINT | NN | IDENTITY | `[내부]` `pk_turn_price` |
+| FK | 시즌번호 | season_id | BIGINT | NN |  | `[내부]` → season.id (R13). `fk_turn_price_season`. `uq_turn_price_season_turn_asset (season_id, turn_no, asset_id)`의 앞 컬럼이라 FK 인덱스를 겸한다 |
+|  | 턴 번호 | turn_no | SMALLINT | NN |  | `[노출]` `ck_turn_price_turn_no`: `turn_no >= 0`(0턴 = 기준일 가격) |
+| FK | 종목번호 | asset_id | BIGINT | NN |  | `[내부]` → asset.id (R14). `fk_turn_price_asset`, `idx_turn_price_asset` |
+|  | 가격 | price | NUMERIC(19,4) | NN |  | `[노출]` ₩, **원화 환산 포함**. `ck_turn_price_price_pos`: `price > 0`, `ck_turn_price_price_won`: `price = ROUND(price, 0)`. 0턴 = `round(base_price × base_fx_rate, 0)`, t턴 = `round(0턴 가격 × Π(1+r현지)(1+r환율), 0)` — PLAN §5.2 문자 그대로(D16). 체결·평가의 **유일한** 가격이다(대사 규칙 13) |
+|  | 생성일시 | created_at | TIMESTAMPTZ | NN | now() | `[내부]` |
+
+- **행 집합:** 턴마다 **시즌 기준일 풀 전체**(`asset_position.base_date = season.base_date`의 종목) — SPRING_JPA §12-6의 초안. 완전성은 대사 규칙 12와 검증 규칙 S3가 본다.
+- **누적 곱은 저장하지 않는다**(D25). `NUMERIC(12,8)`로 저장하면 그 순간 반올림돼 PLAN §5.2의 "정확한 소수 유지"가 깨지고, 정밀도 무제한 `NUMERIC`은 2절 타입 규칙 밖이다. 매 턴 `season_path`와 수익률에서 다시 곱한다(60턴 × 약 180종목, 무시할 비용).
+- **시즌 중 종목 정보**로 나가는 것은 종목명·시장·유형·그룹·`turn_price`·시스템 판정·이력 비율이다. 나가지 않는 것은 `asset.listed_on`(복기 전용)과 턴별 `return_kind`다. 이력 비율(`ACTUAL` 비율)은 **재생 표본 전체**에서 계산하고 시즌 경로로 계산하지 않는다 — 경로 기준이면 턴이 지날수록 값이 바뀌어 단서가 된다.
+- 지난 시즌의 금액은 이 스냅샷이 정본이라 역사 행(5절)을 정정해도 바뀌지 않는다.
+
+#### 라인업 (lineup)
+
+| 키 | 논리명 | 물리명 | 타입 | NULL | 기본값 | 코멘트 |
+| --- | --- | --- | --- | --- | --- | --- |
+| PK | 라인업번호 | id | BIGINT | NN | IDENTITY | `[내부]` `pk_lineup` |
+| FK | 시즌번호 | season_id | BIGINT | NN |  | `[내부]` → season.id (R15). `fk_lineup_season`. `idx_lineup_season_asset (season_id, asset_id)`는 FK 인덱스를 겸하는 전체 인덱스이다 — `uq_lineup_open`은 열린 행만 담는 부분 인덱스라 FK 인덱스를 대신하지 못한다 |
+| FK | 종목번호 | asset_id | BIGINT | NN |  | `[내부]` → asset.id (R16). `fk_lineup_asset`, `idx_lineup_asset` |
+|  | 선언 포지션 | declared_position | VARCHAR(17) | NN |  | `[노출]` `ck_lineup_declared_position`: `declared_position IN ('GOALKEEPER','DEFENDER','MIDFIELDER','FORWARD_TARGET','FORWARD_BREAKOUT','FORWARD_DEFENSIVE')` — `ck_asset_position_system_position`과 글자 단위로 같은 목록(SPRING_JPA §4.1) |
+|  | 시작 턴 | start_turn | SMALLINT | NN |  | `[노출]` 구간 시작(그 매수·지정의 `turn_no`) |
+|  | 끝 턴 | end_turn | SMALLINT | NULL |  | `[노출]` 구간 끝. NULL = 보유 중. `ck_lineup_turns`: `start_turn >= 0 AND (end_turn IS NULL OR end_turn >= start_turn)` |
+|  | 생성일시 | created_at | TIMESTAMPTZ | NN | now() | `[내부]` |
+|  | 수정일시 | updated_at | TIMESTAMPTZ | NN | now() | `[내부]` 구간을 닫을 때 `end_turn`을 UPDATE하므로 가변 엔티티이다 |
+
+- `uq_lineup_open`: `CREATE UNIQUE INDEX uq_lineup_open ON lineup (season_id, asset_id) WHERE end_turn IS NULL` — 같은 종목의 열린 구간 1개를 DDL이 강제한다(질문 6).
+- 구간은 **반열림 [start_turn, end_turn)** 이다(D26). 턴 t에서 포지션을 바꾸면 이전 행의 `end_turn = t`, 새 행의 `start_turn = t`로 맞닿고 겹치지 않는다. `end_turn = start_turn`은 턴을 한 번도 겪지 않은 구간(같은 매매 구간 안에서 사고판 경우)으로 허용한다. 같은 종목의 모든 구간 쌍(열린 구간은 `end_turn` = +∞로 본다)이 겹치지 않음(`s1 < e2 AND s2 < e1`이면 겹침)은 대사 규칙 18이 본다.
+
+#### 포메이션 변경 (formation_change)
+
+| 키 | 논리명 | 물리명 | 타입 | NULL | 기본값 | 코멘트 |
+| --- | --- | --- | --- | --- | --- | --- |
+| PK | 변경번호 | id | BIGINT | NN | IDENTITY | `[내부]` `pk_formation_change`. 같은 턴의 여러 변경은 id 순(SPRING_JPA §5.4 "둘 다 기록") |
+| FK | 시즌번호 | season_id | BIGINT | NN |  | `[내부]` → season.id (R17). `fk_formation_change_season`, `idx_formation_change_season_turn (season_id, turn_no)` |
+|  | 턴 번호 | turn_no | SMALLINT | NN |  | `[노출]` 변경한 턴(그때의 `current_turn_no`). `ck_formation_change_turn_no`: `turn_no >= 0` |
+|  | 이전 골키퍼 비중 | before_goalkeeper | SMALLINT | NN |  | `[노출]` 이전 포메이션 — 의도적 중복(직전 변경의 이후 값 또는 시작 값, 대사 규칙 15). `ck_formation_change_before_sum`: 합 = 100, `ck_formation_change_before_range`: 넷 모두 `BETWEEN 0 AND 100`, `ck_formation_change_before_goalkeeper_min`: `before_goalkeeper >= 1` |
+|  | 이전 수비수 비중 | before_defender | SMALLINT | NN |  | `[노출]` 이전 수비수 비중 |
+|  | 이전 미드필더 비중 | before_midfielder | SMALLINT | NN |  | `[노출]` 이전 미드필더 비중 |
+|  | 이전 공격수 비중 | before_forward | SMALLINT | NN |  | `[노출]` 이전 공격수 비중 |
+|  | 이후 골키퍼 비중 | after_goalkeeper | SMALLINT | NN |  | `[노출]` 이후 포메이션. `ck_formation_change_after_sum`, `ck_formation_change_after_range`, `ck_formation_change_after_goalkeeper_min`이 이전 값과 같은 규칙을 건다 |
+|  | 이후 수비수 비중 | after_defender | SMALLINT | NN |  | `[노출]` 이후 수비수 비중 |
+|  | 이후 미드필더 비중 | after_midfielder | SMALLINT | NN |  | `[노출]` 이후 미드필더 비중 |
+|  | 이후 공격수 비중 | after_forward | SMALLINT | NN |  | `[노출]` 이후 공격수 비중 |
+|  | 사유 | reason | VARCHAR(200) | NULL |  | `[노출]` 선택 한 줄 사유(PLAN §4.10). 복기에서 실제 사건 옆에 놓인다 |
+|  | 생성일시 | created_at | TIMESTAMPTZ | NN | now() | `[내부]` |
+
+- `ck_formation_change_changed`: 이전 4개와 이후 4개를 행 비교(`<>`)해 아무것도 바꾸지 않은 변경을 막는다(여덟 컬럼이 모두 NN이라 NULL 문제가 없다). CHECK는 8개다.
+- `uq_formation_change_id_season_turn (id, season_id, turn_no)`은 `orders`의 복합 FK 대상이다(D29).
+- **변경 비용은 저장하지 않는다**(D31): `formation_change_id`로 묶인 주문의 수수료·세금 합을 조회한다(PLAN §5.1 시즌 계좌 비고). 불변 엔티티라 나중에 비용을 채울 수 없다. 불변(SPRING_JPA §4.4).
+
+#### 턴 피드 (turn_feed)
+
+| 키 | 논리명 | 물리명 | 타입 | NULL | 기본값 | 코멘트 |
+| --- | --- | --- | --- | --- | --- | --- |
+| PK | 피드번호 | id | BIGINT | NN | IDENTITY | `[내부]` `pk_turn_feed`. `uq_turn_feed_id_season (id, season_id)` — `orders` 복합 FK의 대상(D29) |
+| FK | 시즌번호 | season_id | BIGINT | NN |  | `[내부]` → season.id (R18). `fk_turn_feed_season`. `uq_turn_feed_season_turn_seq (season_id, turn_no, seq)`의 앞 컬럼이라 FK 인덱스를 겸한다 |
+|  | 턴 번호 | turn_no | SMALLINT | NN |  | `[노출]` `ck_turn_feed_turn_no`: `turn_no >= 1` |
+|  | 표시 순서 | seq | SMALLINT | NN |  | `[노출]` 그 턴 안의 표시 순서("보인 그대로"의 일부). `ck_turn_feed_seq`: `seq >= 1` |
+|  | 종류 | kind | VARCHAR(6) | NN |  | `[복기 전용]` `ck_turn_feed_kind`: `kind IN ('RISE','FALL','ECHO','SPREAD','FADE','EVENT','NUDGE')` — 상승·하락·재생산·확대·소모·사건 카드·독려 알림(PLAN §4.13·§5.1). **시즌 중 DTO에 나가지 않는다**: `EVENT`가 보이면 "어느 항목이 신호였나"(복기에서 공개, PLAN §4.13)가 샌다. 화면 배치에 필요한 것은 `NUDGE` → 알림, 나머지 → 피드의 2분류뿐이며 DTO에서 파생한다. `kind`를 빼는 것만으로는 부족하다 — 피드 안에서 대상이 없는 항목은 `EVENT`뿐이므로(`ck_turn_feed_target_kind`) 시즌 중 DTO와 화면은 대상 유무·`template_id`·주문 동선으로 사건 카드를 가를 수 없게 만든다(MVP) |
+| FK | 대상 종목번호 | asset_id | BIGINT | NULL |  | `[노출]` 대상 종목 → asset.id (R20). `fk_turn_feed_asset`, `idx_turn_feed_asset`. 피드에서 주문으로 가는 동선의 출발점(`orders.source = 'FEED'`) |
+| FK | 대상 그룹번호 | asset_group_id | BIGINT | NULL |  | `[노출]` 대상 그룹 → asset_group.id (R21). `fk_turn_feed_asset_group`, `idx_turn_feed_asset_group` |
+| FK | 사건 태그번호 | month_event_id | BIGINT | NULL |  | `[복기 전용]` 사건 카드의 태그 → month_event.id (R19). `fk_turn_feed_month_event`, `idx_turn_feed_month_event`. 범주·유형은 **복사하지 않고** 이 id로만 가리킨다(D27) |
+|  | 범주 비공개 여부 | category_hidden | BOOLEAN | NN | FALSE | `[내부]` 그 턴에 "충격 — 범주 비공개" 카드였는지(PLAN §4.11 고유 사건 예외, 5.3 `month_event`의 희소 사건 규칙). 표본 수는 태그를 더 편집하면 바뀌므로 판정 결과를 저장해야 "보인 그대로"이다. `ck_turn_feed_category_hidden`: `NOT category_hidden OR kind = 'EVENT'` |
+|  | 방향 | direction | VARCHAR(4) | NULL |  | `[내부]` `ck_turn_feed_direction`: `direction IN ('UP','DOWN')`(NULL 통과) — `month_event.direction`과 같은 코드. 문장에 반영된다 |
+|  | 강도 | strength | SMALLINT | NULL |  | `[내부]` `ck_turn_feed_strength`: `strength BETWEEN 1 AND 3`(NULL 통과). 사건 카드는 `month_event.strength`, 소음은 관심 단계(P0-18) |
+|  | 재생산 횟수 | repeat_count | SMALLINT | NN | 0 | `[내부]` `ck_turn_feed_repeat_count`: `repeat_count >= 0 AND (kind <> 'ECHO' OR repeat_count >= 1)` |
+|  | 템플릿 id | template_id | VARCHAR(40) | NN |  | `[내부]` `feed/` 템플릿 id, **바꾸지 않는다** — 문장을 고치면 새 id(Q10) |
+|  | 템플릿 변수 | template_vars | JSONB | NN | '{}' | `[내부]` 변수 값(종목명·그룹명·수익률·순위 …). `ck_turn_feed_template_vars`: `jsonb_typeof(template_vars) = 'object'`. 기본값은 빈 객체 |
+|  | 문장 | body | VARCHAR(300) | NN |  | `[노출]` **렌더된 문장 — 사용자가 본 그대로**(Q10). 연도·날짜·풀 밖 고유명사·절대 수치 금지(P0-13 템플릿 검사, P0-18 생성 검사) |
+|  | 생성일시 | created_at | TIMESTAMPTZ | NN | now() | `[내부]` |
+
+- `ck_turn_feed_target_one`: `num_nonnulls(asset_id, asset_group_id) <= 1` — 종목과 그룹을 함께 가리키지 못한다.
+- `ck_turn_feed_target_kind`: `(kind IN ('RISE','FALL','ECHO','FADE') AND num_nonnulls(asset_id, asset_group_id) = 1) OR (kind = 'SPREAD' AND asset_group_id IS NOT NULL) OR (kind = 'EVENT' AND asset_id IS NULL AND asset_group_id IS NULL) OR kind = 'NUDGE'` — 종류별로 대상이 정해진다(`NUDGE`는 대상 없음 가능).
+- `ck_turn_feed_event`: `(kind = 'EVENT') = (month_event_id IS NOT NULL)`. CHECK는 11개다.
+- 불변(SPRING_JPA §4.4). 사건 카드의 태그는 **그 턴 블록의 태그**여야 한다 → 검증 규칙 S5(다음 블록 참조 금지, PLAN §4.13). 지난 시즌의 피드는 이 스냅샷이 정본이라 사건 태그 정정에 바뀌지 않는다.
+
+#### 대사 기록 (reconciliation_log)
+
+| 키 | 논리명 | 물리명 | 타입 | NULL | 기본값 | 코멘트 |
+| --- | --- | --- | --- | --- | --- | --- |
+| PK | 대사기록번호 | id | BIGINT | NN | IDENTITY | `[내부]` `pk_reconciliation_log` |
+| FK | 시즌번호 | season_id | BIGINT | NN |  | `[내부]` → season.id (R22). `fk_reconciliation_log_season`. `uq_reconciliation_log_season_turn_attempt_code (season_id, turn_no, attempt_no, check_code)`의 앞 컬럼이라 FK 인덱스를 겸한다 |
+|  | 턴 번호 | turn_no | SMALLINT | NN |  | `[내부]` 검사한 턴. 턴 전환이면 **넘어가려던 턴**(t+1 — 롤백되면 `current_turn_no`보다 1 크다), 수동 검사(P0-16)면 현재 턴. `ck_reconciliation_log_turn_no`: `turn_no >= 0` |
+|  | 시도 번호 | attempt_no | SMALLINT | NN |  | `[내부]` 같은 턴의 몇 번째 시도인지(롤백 뒤 재시도, 할당 규칙은 9절 P0-17). `ck_reconciliation_log_attempt_no`: `attempt_no >= 1` |
+|  | 검사 코드 | check_code | VARCHAR(20) | NN |  | `[내부]` 대사 규칙 코드(7.5의 `check_code` 열과 1:1). `ck_reconciliation_log_check_code`: 17개 코드의 목록 CHECK(6.4 표) |
+|  | 결과 | status | VARCHAR(8) | NN |  | `[내부]` `ck_reconciliation_log_status`: `status IN ('MATCH','MISMATCH')` |
+|  | 기대값 | expected_value | NUMERIC(19,4) | NULL |  | `[내부]` 스칼라로 표현되는 항등식(현금 합, 평가액 …)의 기대값. 연속성처럼 스칼라가 아닌 규칙은 NULL. 수량 합도 담을 수 있어 원 단위 CHECK는 걸지 않는다. `ck_reconciliation_log_values`: `num_nulls(expected_value, actual_value, diff_value) IN (0, 3) AND (diff_value IS NULL OR diff_value = actual_value - expected_value)` |
+|  | 실제값 | actual_value | NUMERIC(19,4) | NULL |  | `[내부]` 실제 값(기대값과 같은 규칙 — 수량 합도 담아 원 단위 CHECK 없음) |
+|  | 차이 | diff_value | NUMERIC(19,4) | NULL |  | `[내부]` 실제 − 기대(기대값과 같은 규칙 — 수량 합도 담아 원 단위 CHECK 없음). `ck_reconciliation_log_match_diff`: `status <> 'MATCH' OR diff_value IS NULL OR diff_value = 0` — 차이가 있는 일치를 막는다(역방향은 강제하지 않는다 — 항목별 상쇄) |
+|  | 불일치 수 | mismatch_count | INTEGER | NN |  | `[내부]` 불일치 항목 수. `ck_reconciliation_log_mismatch`: `mismatch_count >= 0 AND (status = 'MATCH') = (mismatch_count = 0)` |
+|  | 분류 | classification | VARCHAR(11) | NULL |  | `[내부]` 시차·조정·조사(PLAN §5.2 — MVP는 전부 `INVESTIGATE`). `ck_reconciliation_log_classification`: `classification IN ('TIMING','ADJUSTMENT','INVESTIGATE')`(NULL 통과). `ck_reconciliation_log_status_classification`: `(status = 'MATCH') = (classification IS NULL)` |
+|  | 상세 | detail | JSONB | NULL |  | `[내부]` 불일치 항목 목록(주문 id·종목 id·행 id 등). 일치하면 NULL |
+|  | 생성일시 | created_at | TIMESTAMPTZ | NN | now() | `[내부]` |
+
+- `uq_reconciliation_log_season_turn_attempt_code`가 한 (시도, 규칙)당 한 행을 지킨다. CHECK는 9개다.
+- **일치해도 기록한다**(PLAN §5.2). 성공한 턴은 턴 트랜잭션 안에서 함께 커밋되고, 실패한 턴은 롤백이 끝난 뒤 새 트랜잭션으로 기록된다(SPRING_JPA §6 `TurnFacade` — 락을 쥔 채 `REQUIRES_NEW`로 쓰면 FK 검사가 그 락을 기다린다). 불변(SPRING_JPA §4.4).
+
+### 6.4 제약과 인덱스
+
+한 행이 제약 하나다. 이름은 DDL의 `CONSTRAINT`/`CREATE INDEX` 이름과 글자 단위로 같아야 하며 DDL 검증 쿼리가 `pg_constraint`·`pg_indexes`와 자동 대조한다. 종류 `UQ`는 UNIQUE 제약, `UQI`는 UNIQUE **인덱스**(표현식·부분 — `pg_constraint`에 없고 `pg_indexes`에만 있다), `IDX`는 FK 인덱스나 조회 인덱스다. 표현식 유일 인덱스와 부분 유일 인덱스가 `pg_indexes`에 `uq_` 이름으로 나타나고 `pg_constraint`에는 없다(PostgreSQL 17.11에서 확인: `pg_indexes`의 정의는 `lower((email)::text)`와 `WHERE (end_turn IS NULL)`로 나온다). `jsonb_typeof`·`num_nonnulls`·`num_nulls`·`lower`·`ROUND(numeric, int)`는 모두 IMMUTABLE이라 CHECK·인덱스 식에 쓸 수 있고, 행 비교 `<>`도 CHECK에 쓸 수 있다. 행 비교에 NULL이 끼면 결과가 NULL이라 CHECK가 통과하므로 `ck_formation_change_changed`는 8개 컬럼이 모두 NN이어야 성립한다.
+
+| 이름 | 종류 | 테이블 | 정의 |
+|---|---|---|---|
+| pk_member | PK | member | (id) |
+| uq_member_email | UQI | member | UNIQUE INDEX (lower(email)) — 표현식 유일 인덱스, `pg_constraint`가 아니라 `pg_indexes`에 있다 |
+| pk_season | PK | season | (id) |
+| fk_season_member | FK | season | (member_id) → member.id (R9) |
+| ck_season_status | CK | season | status IN ('IN_PROGRESS','ABANDONING','FINISHED') |
+| ck_season_path_length | CK | season | path_length > 0 |
+| ck_season_current_turn_no | CK | season | current_turn_no BETWEEN 0 AND path_length |
+| ck_season_finished_turn | CK | season | status <> 'FINISHED' OR current_turn_no = path_length |
+| ck_season_abandoned_turn_no | CK | season | abandoned_turn_no IS NULL OR abandoned_turn_no BETWEEN 0 AND current_turn_no |
+| ck_season_abandoning | CK | season | status <> 'ABANDONING' OR abandoned_turn_no IS NOT NULL |
+| ck_season_abandoned_status | CK | season | status <> 'IN_PROGRESS' OR abandoned_turn_no IS NULL |
+| ck_season_initial_cash_pos | CK | season | initial_cash > 0 |
+| ck_season_initial_cash_won | CK | season | initial_cash = ROUND(initial_cash, 0) |
+| ck_season_fee_rate | CK | season | fee_rate >= 0 AND fee_rate < 1 |
+| ck_season_risk_limit | CK | season | risk_limit IN (-0.10, -0.20, -0.30, -0.40) |
+| ck_season_start_formation_sum | CK | season | start_goalkeeper + start_defender + start_midfielder + start_forward = 100 |
+| ck_season_start_formation_range | CK | season | start_goalkeeper BETWEEN 0 AND 100 AND start_defender BETWEEN 0 AND 100 AND start_midfielder BETWEEN 0 AND 100 AND start_forward BETWEEN 0 AND 100 |
+| ck_season_start_goalkeeper_min | CK | season | start_goalkeeper >= 1 |
+| ck_season_current_formation_sum | CK | season | current_goalkeeper + current_defender + current_midfielder + current_forward = 100 |
+| ck_season_current_formation_range | CK | season | current_goalkeeper BETWEEN 0 AND 100 AND current_defender BETWEEN 0 AND 100 AND current_midfielder BETWEEN 0 AND 100 AND current_forward BETWEEN 0 AND 100 |
+| ck_season_current_goalkeeper_min | CK | season | current_goalkeeper >= 1 |
+| idx_season_member | IDX | season | (member_id) |
+| pk_season_path | PK | season_path | (id) |
+| uq_season_path_season_turn | UQ | season_path | (season_id, turn_no) |
+| fk_season_path_season | FK | season_path | (season_id) → season.id (R10) |
+| fk_season_path_month_block | FK | season_path | (month_block_id) → month_block.id (R11) |
+| ck_season_path_turn_no | CK | season_path | turn_no >= 1 |
+| idx_season_path_month_block | IDX | season_path | (month_block_id) |
+| pk_turn | PK | turn | (id) |
+| uq_turn_season_turn | UQ | turn | (season_id, turn_no) |
+| fk_turn_season | FK | turn | (season_id) → season.id (R12) |
+| ck_turn_turn_no | CK | turn | turn_no >= 1 |
+| ck_turn_total_value | CK | turn | total_value = holdings_value + cash_balance |
+| ck_turn_position_sum | CK | turn | goalkeeper_value + defender_value + midfielder_value + forward_value = total_value |
+| ck_turn_goalkeeper_cash | CK | turn | goalkeeper_value >= cash_balance |
+| ck_turn_drawdown | CK | turn | drawdown BETWEEN -1 AND 0 |
+| ck_turn_amounts_nonneg | CK | turn | cash_balance >= 0 AND holdings_value >= 0 AND total_value >= 0 AND goalkeeper_value >= 0 AND defender_value >= 0 AND midfielder_value >= 0 AND forward_value >= 0 |
+| ck_turn_amounts_won | CK | turn | cash_balance = ROUND(cash_balance, 0) AND holdings_value = ROUND(holdings_value, 0) AND total_value = ROUND(total_value, 0) AND goalkeeper_value = ROUND(goalkeeper_value, 0) AND defender_value = ROUND(defender_value, 0) AND midfielder_value = ROUND(midfielder_value, 0) AND forward_value = ROUND(forward_value, 0) |
+| pk_turn_price | PK | turn_price | (id) |
+| uq_turn_price_season_turn_asset | UQ | turn_price | (season_id, turn_no, asset_id) |
+| fk_turn_price_season | FK | turn_price | (season_id) → season.id (R13) |
+| fk_turn_price_asset | FK | turn_price | (asset_id) → asset.id (R14) |
+| ck_turn_price_turn_no | CK | turn_price | turn_no >= 0 |
+| ck_turn_price_price_pos | CK | turn_price | price > 0 |
+| ck_turn_price_price_won | CK | turn_price | price = ROUND(price, 0) |
+| idx_turn_price_asset | IDX | turn_price | (asset_id) |
+| pk_lineup | PK | lineup | (id) |
+| uq_lineup_open | UQI | lineup | UNIQUE INDEX (season_id, asset_id) WHERE end_turn IS NULL — 부분 유일 인덱스, `pg_indexes`에 있다 |
+| fk_lineup_season | FK | lineup | (season_id) → season.id (R15) |
+| fk_lineup_asset | FK | lineup | (asset_id) → asset.id (R16) |
+| ck_lineup_declared_position | CK | lineup | declared_position IN ('GOALKEEPER','DEFENDER','MIDFIELDER','FORWARD_TARGET','FORWARD_BREAKOUT','FORWARD_DEFENSIVE') |
+| ck_lineup_turns | CK | lineup | start_turn >= 0 AND (end_turn IS NULL OR end_turn >= start_turn) |
+| idx_lineup_season_asset | IDX | lineup | (season_id, asset_id) — FK 인덱스를 겸하는 전체 인덱스 |
+| idx_lineup_asset | IDX | lineup | (asset_id) |
+| pk_formation_change | PK | formation_change | (id) |
+| uq_formation_change_id_season_turn | UQ | formation_change | (id, season_id, turn_no) — `orders` 복합 FK의 대상 |
+| fk_formation_change_season | FK | formation_change | (season_id) → season.id (R17) |
+| ck_formation_change_turn_no | CK | formation_change | turn_no >= 0 |
+| ck_formation_change_before_sum | CK | formation_change | before_goalkeeper + before_defender + before_midfielder + before_forward = 100 |
+| ck_formation_change_before_range | CK | formation_change | before_goalkeeper BETWEEN 0 AND 100 AND before_defender BETWEEN 0 AND 100 AND before_midfielder BETWEEN 0 AND 100 AND before_forward BETWEEN 0 AND 100 |
+| ck_formation_change_before_goalkeeper_min | CK | formation_change | before_goalkeeper >= 1 |
+| ck_formation_change_after_sum | CK | formation_change | after_goalkeeper + after_defender + after_midfielder + after_forward = 100 |
+| ck_formation_change_after_range | CK | formation_change | after_goalkeeper BETWEEN 0 AND 100 AND after_defender BETWEEN 0 AND 100 AND after_midfielder BETWEEN 0 AND 100 AND after_forward BETWEEN 0 AND 100 |
+| ck_formation_change_after_goalkeeper_min | CK | formation_change | after_goalkeeper >= 1 |
+| ck_formation_change_changed | CK | formation_change | (before_goalkeeper, before_defender, before_midfielder, before_forward) <> (after_goalkeeper, after_defender, after_midfielder, after_forward) |
+| idx_formation_change_season_turn | IDX | formation_change | (season_id, turn_no) |
+| pk_turn_feed | PK | turn_feed | (id) |
+| uq_turn_feed_season_turn_seq | UQ | turn_feed | (season_id, turn_no, seq) |
+| uq_turn_feed_id_season | UQ | turn_feed | (id, season_id) — `orders` 복합 FK의 대상 |
+| fk_turn_feed_season | FK | turn_feed | (season_id) → season.id (R18) |
+| fk_turn_feed_month_event | FK | turn_feed | (month_event_id) → month_event.id (R19) |
+| fk_turn_feed_asset | FK | turn_feed | (asset_id) → asset.id (R20) |
+| fk_turn_feed_asset_group | FK | turn_feed | (asset_group_id) → asset_group.id (R21) |
+| ck_turn_feed_turn_no | CK | turn_feed | turn_no >= 1 |
+| ck_turn_feed_seq | CK | turn_feed | seq >= 1 |
+| ck_turn_feed_kind | CK | turn_feed | kind IN ('RISE','FALL','ECHO','SPREAD','FADE','EVENT','NUDGE') |
+| ck_turn_feed_category_hidden | CK | turn_feed | NOT category_hidden OR kind = 'EVENT' |
+| ck_turn_feed_direction | CK | turn_feed | direction IN ('UP','DOWN') |
+| ck_turn_feed_strength | CK | turn_feed | strength BETWEEN 1 AND 3 |
+| ck_turn_feed_repeat_count | CK | turn_feed | repeat_count >= 0 AND (kind <> 'ECHO' OR repeat_count >= 1) |
+| ck_turn_feed_template_vars | CK | turn_feed | jsonb_typeof(template_vars) = 'object' |
+| ck_turn_feed_target_one | CK | turn_feed | num_nonnulls(asset_id, asset_group_id) <= 1 |
+| ck_turn_feed_target_kind | CK | turn_feed | (kind IN ('RISE','FALL','ECHO','FADE') AND num_nonnulls(asset_id, asset_group_id) = 1) OR (kind = 'SPREAD' AND asset_group_id IS NOT NULL) OR (kind = 'EVENT' AND asset_id IS NULL AND asset_group_id IS NULL) OR kind = 'NUDGE' |
+| ck_turn_feed_event | CK | turn_feed | (kind = 'EVENT') = (month_event_id IS NOT NULL) |
+| idx_turn_feed_asset | IDX | turn_feed | (asset_id) |
+| idx_turn_feed_asset_group | IDX | turn_feed | (asset_group_id) |
+| idx_turn_feed_month_event | IDX | turn_feed | (month_event_id) |
+| pk_reconciliation_log | PK | reconciliation_log | (id) |
+| uq_reconciliation_log_season_turn_attempt_code | UQ | reconciliation_log | (season_id, turn_no, attempt_no, check_code) |
+| fk_reconciliation_log_season | FK | reconciliation_log | (season_id) → season.id (R22) |
+| ck_reconciliation_log_turn_no | CK | reconciliation_log | turn_no >= 0 |
+| ck_reconciliation_log_attempt_no | CK | reconciliation_log | attempt_no >= 1 |
+| ck_reconciliation_log_check_code | CK | reconciliation_log | check_code IN ('ACCOUNT_OPENING','CASH_SUM','LEDGER_CHAIN','ORDER_LEDGER','HOLDING_QTY','ORDER_FILL','EXEC_VALUES','RESERVED_ZERO','VALUATION','TURN_PRICE','FILL_PRICE','FEE_RULE','FORMATION','FORMATION_BIND','LINEUP_HOLDING','LINEUP_OVERLAP','POSITION_VALUE') |
+| ck_reconciliation_log_status | CK | reconciliation_log | status IN ('MATCH','MISMATCH') |
+| ck_reconciliation_log_values | CK | reconciliation_log | num_nulls(expected_value, actual_value, diff_value) IN (0, 3) AND (diff_value IS NULL OR diff_value = actual_value - expected_value) |
+| ck_reconciliation_log_match_diff | CK | reconciliation_log | status <> 'MATCH' OR diff_value IS NULL OR diff_value = 0 |
+| ck_reconciliation_log_mismatch | CK | reconciliation_log | mismatch_count >= 0 AND (status = 'MATCH') = (mismatch_count = 0) |
+| ck_reconciliation_log_classification | CK | reconciliation_log | classification IN ('TIMING','ADJUSTMENT','INVESTIGATE') |
+| ck_reconciliation_log_status_classification | CK | reconciliation_log | (status = 'MATCH') = (classification IS NULL) |
+
+**개수 (DDL 검증 쿼리의 `pg_catalog` 대조 숫자):**
+
+| 테이블 | PK | UNIQUE(제약) | UNIQUE 인덱스(`uq_`) | FK | CHECK | INDEX(`idx_`) |
+|---|---|---|---|---|---|---|
+| member | 1 | 0 | 1 | 0 | 0 | 0 |
+| season | 1 | 0 | 0 | 1 | 17 | 1 |
+| season_path | 1 | 1 | 0 | 2 | 1 | 1 |
+| turn | 1 | 1 | 0 | 1 | 7 | 0 |
+| turn_price | 1 | 1 | 0 | 2 | 3 | 1 |
+| lineup | 1 | 0 | 1 | 2 | 2 | 2 |
+| formation_change | 1 | 1 | 0 | 1 | 8 | 1 |
+| turn_feed | 1 | 2 | 0 | 4 | 11 | 3 |
+| reconciliation_log | 1 | 1 | 0 | 1 | 9 | 0 |
+| **§6 소계** | **9** | **7** | **2** | **14** | **58** | **9** |
+
+FK 14개 = 6.2의 R9–R22 = 6.1 관계선 14개다. FK 컬럼 중 UNIQUE의 앞 컬럼이라 인덱스를 이미 갖는 것(`season_path.season_id`, `turn.season_id`, `turn_price.season_id`, `turn_feed.season_id`, `reconciliation_log.season_id`)과 `idx_lineup_season_asset`·`idx_formation_change_season_turn`이 앞 컬럼으로 덮는 것(`lineup.season_id`, `formation_change.season_id`)에는 별도 `idx_`를 만들지 않는다. `idx_` 9개는 FK 인덱스 7개(`season.member_id`, `season_path.month_block_id`, `turn_price.asset_id`, `lineup.asset_id`, `turn_feed.asset_id`·`asset_group_id`·`month_event_id`)와 조회 인덱스 2개(`idx_lineup_season_asset`, `idx_formation_change_season_turn`)다.
+
+### 6.5 DDL로 막지 못해 검증 쿼리가 검사할 규칙
+
+`CHECK`는 한 행 안의 컬럼만 볼 수 있다. 아래는 DDL로 강제할 수 없어 시즌 시작·피드 생성·적재 뒤의 검증 쿼리가 잡아야 하는 규칙이다(5.5의 H1–H8과 같은 성격이며 `reconciliation_log`에는 기록하지 않는다. 턴마다 도는 규칙은 7.5의 대사 규칙이다).
+
+| # | 규칙 | 검사하는 기능 |
+|---|---|---|
+| S1 | `season_path` 행 수 = `path_length`이고 `turn_no`가 1..`path_length`에 빈틈이 없고, 각 블록의 `month_start`가 재생 범위 안이다 — 재생 시작(2007-01) 이후이고 기준일이 속한 해의 1월 1일보다 앞(Phase 0은 날짜 조건, 준비 구간 표시 방법은 8절 첫 줄) | P0-14 |
+| S2 | `season.base_date`의 `asset_position` 행이 있고 판정이 모두 채워져 있다(H2의 연장 — FK가 없으므로) | P0-14 전제 |
+| S3 | `turn_price`는 0..`current_turn_no`의 모든 턴에 풀 전체 행이 있고, `turn`은 1..`current_turn_no`에 빈틈이 없다 | P0-17 |
+| S4 | 달력 정렬: 턴 k의 블록 월 = `((k − 1) % 12) + 1`(1년차 1월 = 실제 1월, PLAN §4.11). 블록 안 연속은 5.3 `month_block`의 "직전 달 행이 있을 때만" 규칙. ±1개월·조건 해제 예외(PLAN §4.11)는 엔진 단계이고 Phase 0 손 경로는 엄격하게 본다 | P0-14 |
+| S5 | `turn_feed.month_event_id`의 `month_block` = `season_path(season, turn_no)`의 블록(**다음 블록 참조 금지**, PLAN §4.13). `category_hidden` = 그 시점 `event_type` 표본 수 < 3 | P0-18 |
+| S6 | `orders.source = 'ALERT'`이면 참조 `turn_feed.kind = 'NUDGE'`, `'FEED'`이면 `kind <> 'NUDGE'` | P0-19 |
+| S7 | `orders.turn_no` ≤ `season.current_turn_no`이고 `turn_no` < `path_length`(종료 뒤 매매 없음), 포기한 시즌은 `turn_no` ≤ `abandoned_turn_no`(포기한 턴 안에서 포기 뒤에 넣은 주문은 포기 시각을 저장하지 않아 사후에 볼 수 없다 — 작성 시 검사가 막는다). 작성 시 검사(지난 턴·종료 뒤 주문 거부)는 SPRING_JPA §5.2 1단계(락 아래 `status = IN_PROGRESS`·`currentTurnNo == expectedTurnNo`)가 맡는다 | P0-15·P0-19 |
+
+**서비스 규칙(쿼리 대상이 아니다 — MVP 서비스 검증):** 진행 중 시즌 최대 3개(PLAN §4.1-7, 질문 1), 시즌 길이 60/120(Q9), 포메이션 프리셋(PLAN §4.10), 단일 종목 비중 한도(PLAN §7 예시 30% — 정해지면 `season` 컬럼 추가 여부를 그때 결정).
+
+## 8. 설계 결정
 
 소유자가 확정한 결정(v1은 2026-11-02, v2는 Gate 0·Gate 1 2026-11-05)이다. "탈락"은 검토했지만 택하지 않은 대안이다. **번호는 바꾸지 않는다** — D1–D7·D9(시즌 계좌, v1 그대로)는 부록 A에 있고, D8과 D10은 아래에 있으며, 새 결정은 D11부터이다.
 
@@ -652,7 +1144,7 @@ FK 8개 = 5.2의 관계 R1–R8 = 5.1 관계선 8개이다. FK 컬럼 중 UNIQUE
 - 축 방향 결정 규칙(히스테리시스 여부)과 강도 상한(±3 절단이면 `CHECK (… <= 3)`).
 - `event_type`·`outcome` 목록 CHECK 전환(V2 전체 편집 뒤). 지금은 형식 CHECK + `events/README.md` 목록이라 철자 오류를 DB가 못 잡는다(검증 규칙 H6).
 
-## 7. 하류 기능 약속
+## 9. 하류 기능 약속
 
 | 소비 기능 | 약속 |
 |---|---|
