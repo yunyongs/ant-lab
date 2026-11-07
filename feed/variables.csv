@@ -1,0 +1,15 @@
+name,type,source,turn_offset,kinds,max_len
+asset_name,name,"대상 종목 asset.name (turn_feed.asset_id)",0,RISE;FALL;ECHO;FADE;NUDGE,100
+group_name,name,"대상 그룹 asset_group.name (turn_feed.asset_group_id)",0,RISE;FALL;ECHO;SPREAD;FADE;NUDGE,50
+focus_name,name,"그 턴 관심 지수 1위 풀 종목의 asset.name (이름은 '다음'이 아니라 그 턴의 값)",0,FADE,100
+ret,pct_signed,"대상 종목의 원화 턴 수익률 turn_price(t) / turn_price(t-1) - 1 (정본 가격, 화면 가격과 같은 숫자)",0,RISE;FALL;ECHO;NUDGE,8
+prev_ret,pct_signed,"같은 식, 턴 t-1",-1,ECHO,8
+group_ret,pct_signed,"그룹 소속 풀 종목 ret의 동일 가중 평균 (소수 8자리 반올림 뒤 저장)",0,RISE;FALL;ECHO;SPREAD,8
+rank,int,"그 턴 풀 안 ret 순위 (상승은 내림차순, 하락은 오름차순, 1부터, 동률은 P0-18이 정한다)",0,RISE;FALL;NUDGE,3
+streak,int,"시즌 경로의 같은 방향 연속 턴 수 (turn_price 부호로 센다, asset_month_attention.streak 아님)",0,RISE;FALL;ECHO,3
+repeat,int,"turn_feed.repeat_count",0,ECHO,3
+attention_rank,int,"그 턴 관심 지수 순위 (조회, 저장 안 함)",0,FADE,3
+cash_weight,pct_unsigned,"그 턴 현금 / 총평가액 (turn의 현금·평가액 컬럼은 P0-06 DDL 기준)",0,NUDGE,4
+trade_count,int,"직전 매매 구간의 체결 수 (orders.turn_no = t-1)",-1,NUDGE,4
+idle_turns,int,"체결 없는 턴이 이어진 수",0,NUDGE,3
+reaction,pct_signed,"그 턴 블록 사건 태그의 month_event.reaction_change",0,EVENT,8

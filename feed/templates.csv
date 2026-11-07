@@ -1,0 +1,54 @@
+template_id,kind,status,target,direction,strength,event_category,event_type,outcome,category_hidden,text
+rise.inflow.v1,RISE,ACTIVE,ASSET,UP,,,,,false,{asset_name} 이달 {ret} — 자금 몰려
+rise.rank.v1,RISE,ACTIVE,ASSET,UP,,,,,false,"상승률 {rank}위 {asset_name}, 추가 상승 기대"
+rise.demand.v1,RISE,ACTIVE,ASSET,UP,,,,,false,수요 회복 기대감에 {asset_name} {ret} 강세
+rise.group.v1,RISE,ACTIVE,GROUP,UP,,,,,false,시장 전반 훈풍 속 {group_name} 평균 {group_ret} — 매수세 뚜렷
+rise.theme.v1,RISE,ACTIVE,GROUP,UP,,,,,false,"{group_name} 관련주 동반 상승, 평균 {group_ret}"
+rise.politics.v1,RISE,ACTIVE,GROUP,UP,,,,,false,주요국 정치 이슈 부각 — 이달 관련 반응 {group_ret}
+rise.policy.v1,RISE,ACTIVE,GROUP,UP,,,,,false,경제 정책 관련 소식 — 이달 관련 반응 {group_ret}
+rise.sweep.v1,RISE,ACTIVE,GROUP,UP,,,,,false,시장 전반 급변 — 이달 반응 {group_ret}
+rise.sweepwide.v1,RISE,ACTIVE,GROUP,UP,,,,,false,시장 전체가 크게 흔들렸다 — 이달 관련 반응 {group_ret}
+rise.geo.v1,RISE,ACTIVE,GROUP,UP,,,,,false,주요 지역 지정학 이슈 부각 — 이달 관련 시장 {group_ret}
+rise.trade.v1,RISE,ACTIVE,GROUP,UP,,,,,false,주요 교역국 통상 소식 — 이달 반응 {group_ret}
+rise.commodity.v1,RISE,ACTIVE,GROUP,UP,,,,,false,원자재 가격 관련 소식 — 이달 관련 시장 {group_ret}
+rise.credit.v1,RISE,ACTIVE,GROUP,UP,,,,,false,금융권 신용 이슈 부각 — 이달 반응 {group_ret}
+rise.health.v1,RISE,ACTIVE,GROUP,UP,,,,,false,보건 관련 이슈 부각 — 이달 관련 시장 {group_ret}
+fall.panic.v1,FALL,ACTIVE,ASSET,DOWN,,,,,false,"{asset_name} 이달 {ret} 급락, 공포 확산"
+fall.streak.v1,FALL,ACTIVE,ASSET,DOWN,,,,,false,{asset_name} {streak}달 연속 하락 — 바닥 논쟁
+fall.rate.v1,FALL,ACTIVE,ASSET,DOWN,,,,,false,금리 부담에 {asset_name} {ret} — 매물 쏟아져
+fall.group.v1,FALL,ACTIVE,GROUP,DOWN,,,,,false,"{group_name} 전반 약세 — 평균 {group_ret}, 투자 심리 위축"
+fall.market.v1,FALL,ACTIVE,GROUP,DOWN,,,,,false,시장 전반 급변 속 {group_name} 평균 {group_ret} — 불안 커져
+fall.geo.v1,FALL,ACTIVE,GROUP,DOWN,,,,,false,주요 지역 지정학 이슈 부각 — 이달 관련 시장 {group_ret}
+fall.trade.v1,FALL,ACTIVE,GROUP,DOWN,,,,,false,주요 교역국 통상 소식 — 이달 반응 {group_ret}
+fall.credit.v1,FALL,ACTIVE,GROUP,DOWN,,,,,false,금융권 신용 이슈 부각 — 이달 반응 {group_ret}
+fall.health.v1,FALL,ACTIVE,GROUP,DOWN,,,,,false,보건 관련 이슈 부각 — 이달 관련 시장 {group_ret}
+fall.sweep.v1,FALL,ACTIVE,GROUP,DOWN,,,,,false,시장 전반 급변 — 이달 반응 {group_ret}
+fall.sweepwide.v1,FALL,ACTIVE,GROUP,DOWN,,,,,false,시장 전체가 크게 흔들렸다 — 이달 관련 반응 {group_ret}
+fall.politics.v1,FALL,ACTIVE,GROUP,DOWN,,,,,false,주요국 정치 이슈 부각 — 이달 관련 반응 {group_ret}
+fall.policy.v1,FALL,ACTIVE,GROUP,DOWN,,,,,false,경제 정책 관련 소식 — 이달 관련 반응 {group_ret}
+echo.again.v1,ECHO,ACTIVE,ASSET,UP,,,,,false,{asset_name} 또 올랐다 — 지난달 {prev_ret}에 이어 이달 {ret}
+echo.repeat.v1,ECHO,ACTIVE,ASSET,UP,,,,,false,"{asset_name} 이달 {ret}, 상승 소식 {repeat}번째 이어져"
+echo.down.v1,ECHO,ACTIVE,ASSET,DOWN,,,,,false,{asset_name} 또 내렸다 — 지난달 {prev_ret}에 이어 이달 {ret}
+echo.worry.v1,ECHO,ACTIVE,ASSET,DOWN,,,,,false,{asset_name} 우려 재확산 — {streak}달째 약세 흐름
+spread.sector.v1,SPREAD,ACTIVE,GROUP,UP,,,,,false,"{group_name} 전반으로 매수세 번져, 평균 {group_ret}"
+spread.theme.v1,SPREAD,ACTIVE,GROUP,UP,,,,,false,{group_name} 업종 전체 관심 집중 — 평균 {group_ret}
+spread.sell.v1,SPREAD,ACTIVE,GROUP,DOWN,,,,,false,"{group_name} 전반으로 매도 확산, 평균 {group_ret}"
+spread.chill.v1,SPREAD,ACTIVE,GROUP,DOWN,,,,,false,{group_name} 관련주 줄줄이 약세 — 평균 {group_ret}
+spread.commodity.v1,SPREAD,ACTIVE,GROUP,DOWN,,,,,false,원자재 가격 관련 소식 — 이달 관련 시장 {group_ret}
+fade.cool.v1,FADE,ACTIVE,ASSET,,,,,,false,{asset_name} 관심 식어 거래 한산 — 시선은 {focus_name} 쪽으로
+fade.quiet.v1,FADE,ACTIVE,ASSET,,,,,,false,"{asset_name} 열기 가라앉아, 관심 순위 {attention_rank}위로 밀려"
+fade.move.v1,FADE,ACTIVE,ASSET,,,,,,false,{asset_name} 주목도 하락 — 관심은 {focus_name} 쪽으로 이동
+event.geopolitics.v1,EVENT,ACTIVE,NONE,,,GEOPOLITICS,,,false,주요 지역 지정학 이슈 부각 — 이달 관련 시장 {reaction}
+event.trade.v1,EVENT,ACTIVE,NONE,,,TRADE,,,false,주요 교역국 통상 소식 — 이달 반응 {reaction}
+event.politics.v1,EVENT,ACTIVE,NONE,,,POLITICS,,,false,주요국 정치 이슈 부각 — 이달 관련 반응 {reaction}
+event.supply_shock.v1,EVENT,ACTIVE,NONE,,,SUPPLY_SHOCK,,,false,원자재 가격 관련 소식 — 이달 관련 시장 {reaction}
+event.financial.v1,EVENT,ACTIVE,NONE,,,FINANCIAL,,,false,금융권 신용 이슈 부각 — 이달 반응 {reaction}
+event.policy.v1,EVENT,ACTIVE,NONE,,,POLICY,,,false,경제 정책 관련 소식 — 이달 관련 반응 {reaction}
+event.health.v1,EVENT,ACTIVE,NONE,,,HEALTH,,,false,보건 관련 이슈 부각 — 이달 관련 시장 {reaction}
+event.hidden.v1,EVENT,ACTIVE,NONE,,,,,,true,시장 전반 급변 — 이달 반응 {reaction}
+event.hidden_wide.v1,EVENT,ACTIVE,NONE,,,,,,true,시장 전체가 크게 흔들렸다 — 이달 관련 반응 {reaction}
+nudge.mover.v1,NUDGE,ACTIVE,ASSET,,,,,,false,"{asset_name} 이달 {ret}, 변동 상위 {rank}위 — 지금 보기"
+nudge.watch.v1,NUDGE,ACTIVE,ASSET,,,,,,false,{asset_name} 호가가 바쁘게 움직입니다 — 지금 확인해 보세요
+nudge.cash.v1,NUDGE,ACTIVE,NONE,,,,,,false,현금 비중 {cash_weight} — 기회를 놓치고 있지 않나요
+nudge.idle.v1,NUDGE,ACTIVE,NONE,,,,,,false,직전 매매 구간 거래 {trade_count}건 — 시장은 쉬지 않습니다
+nudge.rest.v1,NUDGE,ACTIVE,NONE,,,,,,false,{idle_turns}번째 쉬는 턴 — 지켜만 보고 계신가요

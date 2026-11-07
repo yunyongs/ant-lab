@@ -60,7 +60,7 @@
 
 ## 3. 전체 관계도
 
-확정 22개와 MVP 스케치 3개는 3.1에, V2 이후 스케치 16개는 3.2에 따로 그린다. 한 그림이 25개 이하라 읽히고, 확정과 스케치가 그림 단위로 구분된다. 같은 엔티티 이름이 여러 그림에 나오는 것은 앵커이다.
+확정 22개와 MVP 스케치 3개는 3.1에, V2 이후 스케치 16개와 에이전트 스케치(PLAN v3) 6개는 3.2에 따로 그린다. 한 그림이 25개 이하라 읽히고, 확정과 스케치가 그림 단위로 구분된다. 같은 엔티티 이름이 여러 그림에 나오는 것은 앵커이다.
 
 ### 3.1 확정 22개 + MVP 스케치 3개
 
@@ -197,8 +197,35 @@ erDiagram
 | `thesis_verdict` | `id` | `thesis` 1 : 0..N — 판정, 근거, 판정자, 이의 | M4 |
 | `member_attribute` | `id`, UNIQUE (`member_id`, 속성 코드) | `member` 1 : 0..N — 속성 × 누적 점수·표본 수 | M4 |
 | `hall_of_fame` | `id` | `member` 1 : 0..N — 기둥 또는 종합, 기수, 등재 시점 스냅샷, 공개 동의 | M4 (API), V3 (화면) |
+| `agent_profile` | `member_id` PK·FK(에이전트 회원만 — FK만으로는 강제되지 않으므로 강제 방식은 AG-02, 예: `orders`의 복합 FK 패턴 D29) | `member` 1 : 0..1 — 소유자, 페르소나 키, 모델 경로·id, 상태 (PLAN §4.16) | AG-02 |
+| `season_agent_config` | `season_id` PK·FK | `season` 1 : 0..1 — 시즌 시작 때 한 번 남기는 불변 설정(페르소나 버전·해시, 모델, 온도, 시드, 프롬프트·러너 버전, 메모리 버전) | AG-02 |
+| `agent_call` | `id`, UNIQUE (`season_id`, 턴 번호, 시도 번호, 호출 종류) | `season` 1 : 0..N — 요청·응답 원문, 파싱 결과, 거부 목록, 실제 모델, 토큰, 비용(`NUMERIC`), 지연. 불변·추가 전용(기록 재생의 재료) | AG-02 |
+| `agent_memory` | `id`, UNIQUE (`member_id`, 층, 버전) | `member` 1 : 0..N — 시즌 반성·운용 노트의 불변 버전, 출처 시즌 | AG-05 |
+| `detection_test`·`detection_result` | `id` | 시험 묶음(모델 × 입력 조건) 1 : 0..N 표본 달 결과(정답 여부·추정값). 보고 전용, AG-01은 파일 출력으로 시작 | AG-01 |
 
-테이블이 아닌 컬럼 스케치 둘: `season.mode`(감독/전망, M4), `season.style_master_id`(선택, FK → `master.id`, V2). 둘 다 `season`의 정의서(6.3)에는 넣지 않고 해당 단계가 `ALTER TABLE`로 더한다.
+에이전트 펀드 매니저(PLAN v3, §4.16)의 스케치는 따로 그린다. 앵커는 `member`와 `season` 둘이다. **초안 — AG-02 이후 확정 단계에 해당 기능이 컬럼을 정한다.**
+
+```mermaid
+erDiagram
+    MEMBER["회원 (member)"]
+    SEASON["시즌 (season)"]
+    AGENT_PROFILE["에이전트 프로필 (agent_profile) (스케치)"]
+    SEASON_AGENT_CONFIG["시즌 에이전트 설정 (season_agent_config) (스케치)"]
+    AGENT_CALL["에이전트 호출 (agent_call) (스케치)"]
+    AGENT_MEMORY["에이전트 메모리 (agent_memory) (스케치)"]
+    DETECTION_TEST["탐지 시험 (detection_test) (스케치)"]
+    DETECTION_RESULT["탐지 결과 (detection_result) (스케치)"]
+    MEMBER ||..o| AGENT_PROFILE : "에이전트이면 프로필을 갖는다 (kind = AGENT)"
+    SEASON ||..o| SEASON_AGENT_CONFIG : "에이전트 시즌이면 설정을 남긴다"
+    SEASON ||..o{ AGENT_CALL : "호출을 기록한다"
+    MEMBER ||..o{ AGENT_MEMORY : "메모리를 쌓는다"
+    DETECTION_TEST ||..o{ DETECTION_RESULT : "표본 달별 결과를 갖는다"
+    DETECTION_TEST ||..o{ SEASON_AGENT_CONFIG : "참조된다 (선택)"
+```
+
+위 표의 에이전트 6개 행(`agent_profile` ~ `detection_test`·`detection_result`)이 이 그림의 정의다. 종목 가명 매핑 테이블은 두지 않는다 — 에이전트도 감독 모드에서 사람과 같은 실명을 본다(PLAN §4.16).
+
+테이블이 아닌 컬럼 스케치 셋: `season.mode`(감독/전망, M4), `season.style_master_id`(선택, FK → `master.id`, V2), `member.kind`(`HUMAN`/`AGENT`, AG-02 — 에이전트 펀드 매니저도 `member`의 한 종류라 `season.member_id` 이하 하류 테이블이 그대로다; 사람만 `email`·`password`를 가지므로 두 컬럼이 NULL 허용으로 바뀌고 CHECK 둘이 붙는다: `kind IN ('HUMAN','AGENT')`, `(kind = 'HUMAN' AND email IS NOT NULL AND password IS NOT NULL) OR (kind = 'AGENT' AND email IS NULL AND password IS NULL)`. 이름은 AG-02에서 6.4 규칙(`ck_member_…`)으로 정한다. PLAN v3). 셋 다 `season`·`member`의 정의서(6.3)에는 넣지 않고 해당 단계가 `ALTER TABLE`로 더한다. `orders.source`에 `AGENT`를 넣지 않는다 — 주문의 출발점과 주체는 다른 축이다(8절 "MVP에서 다시 볼 것").
 
 ## 4. 설계 질문 답
 
@@ -472,7 +499,7 @@ erDiagram
 | UK | 사건 키 | event_key | VARCHAR(40) | NN | | `[내부]` `events/` 파일의 태그 id, **바꾸지 않는다**(P0-13 템플릿 id와 같은 규칙). `uq_month_event_event_key`(적재 자연 키 — 다시 적재해도(`event_key` 기준 갱신) 피드 참조가 유지된다. FK `RESTRICT`라 참조된 태그는 지울 수 없다) |
 | FK | 월 블록번호 | month_block_id | BIGINT | NN | | `[내부]` → month_block.id (R6). `fk_month_event_month_block`, `idx_month_event_month_block (month_block_id)` |
 | | 범주 | category | VARCHAR(12) | NN | | `[노출]` (유형 표본 수 3 이상일 때만) 대분류(PLAN §4.11의 7개). `ck_month_event_category`: `IN ('GEOPOLITICS','TRADE','POLITICS','SUPPLY_SHOCK','FINANCIAL','POLICY','HEALTH')` |
-| | 사건 유형 | event_type | VARCHAR(30) | NN | | `[노출]` (유형 표본 수 3 이상일 때만) 세부 유형 코드(예: `US_PRESIDENTIAL_ELECTION`, `US_MIDTERM`, `ARMED_CONFLICT`, `TARIFF`, `OIL_SHOCK`, `BANK_FAILURE`, `PANDEMIC`). `ck_month_event_event_type_format`: `event_type ~ '^[A-Z][A-Z0-9_]*$'`. 목록은 `events/README.md`(P0-09). **"고유 사건 예외"(n < 3 → "충격 — 범주 비공개")와 통계 보드 사건 조건의 단위**이다(D18) |
+| | 사건 유형 | event_type | VARCHAR(30) | NN | | `[노출]` (유형 표본 수 3 이상일 때만) 세부 유형 코드(예: `US_PRESIDENTIAL_ELECTION`, `US_MIDTERM`, `ARMED_CONFLICT`, `TARIFF`, `OIL_SHOCK`, `BANK_FAILURE`, `PANDEMIC`). `ck_month_event_event_type_format`: `event_type ~ '^[A-Z][A-Z0-9_]*$'`. 목록은 `events/README.md`(P0-09). **"고유 사건 예외"(n < 3 → 범주를 말하지 않는 카드, PLAN §4.11)와 통계 보드 사건 조건의 단위**이다(D18) |
 | | 단계 | phase | VARCHAR(7) | NN | | `[노출]` (유형 표본 수 3 이상일 때만) 시작·지속·종료(당시 인식 기준, PLAN §4.11). `ck_month_event_phase`: `phase IN ('START','ONGOING','END')` |
 | | 결과 | outcome | VARCHAR(20) | NULL | | `[노출]` (유형 표본 수 3 이상일 때만) 결과 코드(정권 교체 `CHANGE`/유지 `KEEP`, 과반 상실 `MAJORITY_LOST`/유지 `MAJORITY_KEPT`, 관세 `IMPOSED`/`RETALIATED`/`AGREED`, 분쟁 `ESCALATED`/`CEASEFIRE` …). `ck_month_event_outcome_format`: `outcome IS NULL OR outcome ~ '^[A-Z][A-Z_]*$'`. 유형별 허용 값은 `events/README.md` |
 | | 방향 | direction | VARCHAR(4) | NULL | | `[노출]` (유형 표본 수 3 이상일 때만) 대상의 방향(유가 +/−). `ck_month_event_direction`: `direction IN ('UP','DOWN')`(NULL 통과) |
@@ -939,7 +966,7 @@ R9–R22는 3.1의 같은 번호와 같다. 모두 비식별 `..`이다 — 자�
 | FK | 대상 종목번호 | asset_id | BIGINT | NULL |  | `[노출]` 대상 종목 → asset.id (R20). `fk_turn_feed_asset`, `idx_turn_feed_asset`. 피드에서 주문으로 가는 동선의 출발점(`orders.source = 'FEED'`) |
 | FK | 대상 그룹번호 | asset_group_id | BIGINT | NULL |  | `[노출]` 대상 그룹 → asset_group.id (R21). `fk_turn_feed_asset_group`, `idx_turn_feed_asset_group` |
 | FK | 사건 태그번호 | month_event_id | BIGINT | NULL |  | `[복기 전용]` 사건 카드의 태그 → month_event.id (R19). `fk_turn_feed_month_event`, `idx_turn_feed_month_event`. 범주·유형은 **복사하지 않고** 이 id로만 가리킨다(D27) |
-|  | 범주 비공개 여부 | category_hidden | BOOLEAN | NN | FALSE | `[내부]` 그 턴에 "충격 — 범주 비공개" 카드였는지(PLAN §4.11 고유 사건 예외, 5.3 `month_event`의 희소 사건 규칙). 표본 수는 태그를 더 편집하면 바뀌므로 판정 결과를 저장해야 "보인 그대로"이다. `ck_turn_feed_category_hidden`: `NOT category_hidden OR kind = 'EVENT'` |
+|  | 범주 비공개 여부 | category_hidden | BOOLEAN | NN | FALSE | `[내부]` 그 턴에 범주를 말하지 않는 카드(PLAN §4.11 고유 사건 예외 — 화면 문장은 소음과 같은 중립 문체, "범주 비공개" 글자는 내지 않는다)였는지(5.3 `month_event`의 희소 사건 규칙). 표본 수는 태그를 더 편집하면 바뀌므로 판정 결과를 저장해야 "보인 그대로"이다. `ck_turn_feed_category_hidden`: `NOT category_hidden OR kind = 'EVENT'` |
 |  | 방향 | direction | VARCHAR(4) | NULL |  | `[내부]` `ck_turn_feed_direction`: `direction IN ('UP','DOWN')`(NULL 통과) — `month_event.direction`과 같은 코드. 문장에 반영된다 |
 |  | 강도 | strength | SMALLINT | NULL |  | `[내부]` `ck_turn_feed_strength`: `strength BETWEEN 1 AND 3`(NULL 통과). 사건 카드는 `month_event.strength`, 소음은 관심 단계(P0-18) |
 |  | 재생산 횟수 | repeat_count | SMALLINT | NN | 0 | `[내부]` `ck_turn_feed_repeat_count`: `repeat_count >= 0 AND (kind <> 'ECHO' OR repeat_count >= 1)` |
@@ -1514,6 +1541,8 @@ v2에서 새로 생긴 FK는 R26·R27(`orders`의 복합 FK)과 6절의 14개다
 - 지난 턴 스냅샷의 재검증(체결·원장 경계로 재구성)을 어디서 할지 — 규칙 11·19는 턴 전환 전용이다.
 - 사건 카드(`EVENT`)도 관련 그룹·종목을 가리킬 수 있게 `ck_turn_feed_target_kind`를 풀지(주문 동선이 소음 항목과 같아진다 — 화면 설계와 함께).
 - V2 월 적립금이 들어오면 입금이 낙폭의 고점을 올려 낙폭이 줄어 보이므로 낙폭을 입출금 보정 기준으로 바꾼다(6.3 `turn.drawdown`).
+- `member.kind`·`agent_profile`(PLAN v3, 안 A) — AG-02에서 확정한다. 사람만 이메일·비밀번호를 가지므로 `email`·`password`를 NULL 허용으로 바꾸고 3.2의 CHECK 둘(종류 목록, 종류별 자격 증명 — 사람은 둘 다 있음, 에이전트는 둘 다 없음)을 함께 만든다. 기본값 `'HUMAN'`은 기존 회원 행을 그대로 두는 `ALTER TABLE … ADD COLUMN`을 위해서다(표현식 유일 인덱스 `uq_member_email`은 NULL 여러 개를 허용하므로 그대로 동작).
+- `orders.source`에 `AGENT`를 넣지 않는다 — 주체는 `member.kind`가 알고, `source`는 출발점(랭킹·피드·알림·벤치·직접)을 그대로 남겨야 에이전트의 독려 반응·소음 반응(PLAN §6.2)을 잴 수 있다(PLAN §4.16). 사람 주문의 `source`는 서버가 관측한 화면 경로(7절 정의의 "자기 신고가 아님")이고, 에이전트 주문은 응답의 출발점 참조를 서버가 그 턴 노출 기록과 대조해 기록한다 — AG-02에서 7절 정의 칸에 이 예외를 적는다.
 - `event_type`·`outcome` 목록 CHECK 전환(V2 전체 편집 뒤). 지금은 형식 CHECK + `events/README.md` 목록이라 철자 오류를 DB가 못 잡는다(검증 규칙 H6).
 
 ## 9. 하류 기능 약속
@@ -1534,6 +1563,7 @@ v2에서 새로 생긴 FK는 R26·R27(`orders`의 복합 FK)과 6절의 14개다
 | P0-16 대사 쿼리 | 7.5 규칙 1–19의 번호와 `check_code` 그대로 절을 나눈다. 규칙 4는 총액 판정 + 유형별 진단. 결과를 `reconciliation_log`에 (시도, 규칙)마다 한 행, 일치해도 기록한다. 수동 검사의 `turn_no` = 현재 턴이고 규칙 11·19를 뺀 15개만 돈다 |
 | P0-17 턴 진행 | `turn_price` → `turn`(6.3 스냅샷 정의와 낙폭 정의) → 대사 → `current_turn_no` 갱신, 마지막 턴이면 `FINISHED`. 누적 곱은 저장하지 않고 정확한 `numeric`으로 곱한 뒤 한 번 반올림한다(120턴이면 소수 최대 1,920자리 — PostgreSQL 17.11에서 확인: 8자리 수익률 240개를 정확한 `numeric`으로 곱한 값이 Python `Fraction` 정확값과 같고 1 ms 미만이었다. `numeric`의 한도는 소수점 아래 16,383자리). 롤백 뒤 `reconciliation_log`를 따로 기록한다(`turn_no` = t+1). `attempt_no`는 로그 트랜잭션에서 `season`을 `FOR UPDATE`로 잠근 뒤 그 (시즌, 턴)의 `max(attempt_no) + 1`로 정하고(없으면 1) 23505(`uq_reconciliation_log_season_turn_attempt_code`)면 다시 읽어 재시도한다. 성공한 턴과 수동 검사도 같은 번호 공간을 쓴다. 시즌 중 종목 정보에 `listed_on`·턴별 `return_kind`를 내지 않고 이력 비율은 재생 표본 전체 기준으로 계산한다 |
 | P0-18 피드 생성 | 턴마다 `turn_feed`(`seq` 1..n, `template_id`·`template_vars`·`body`). 사건 카드는 그 턴 블록의 태그만 쓰고(검증 규칙 S5), n < 3 유형은 `category_hidden = TRUE`. 범주·유형을 피드 행에 복사하지 않는다. 사건 카드의 화면 모양(대상·동선)이 소음 항목과 구별되지 않는지 복기 전 확인 항목에 적는다 |
+| P0-18·MVP DTO | 에이전트 펀드 매니저(PLAN §4.16)의 TurnView는 사람 화면 DTO를 만드는 **같은 조립 코드의 출력**을 직렬화한다(컬럼을 따로 고르지 않는다) — 에이전트 전용 부분(메모리, 최근 자기 매매·사유, 직전 턴 거부 사유)은 그 뒤에 덧붙이며 자기 기록과 `[노출]` 값으로만 만든다. `[복기 전용]`·`[내부]` 컬럼은 에이전트에게도 시즌 중에 내지 않는다. 음성 사례: 턴별 `return_kind`, n < 3 사건 범주, 현재 턴 이후 행이 TurnView에 없을 것. 노출 컬럼 표시(`[노출]`)를 바꾸면 사람 화면과 에이전트 입력이 함께 바뀐다 |
 | P0-19 전술 변경 | `formation_change`(before = 현재, after = 새 값) + `season.current_*` 갱신 → 같은 턴 주문에 `formation_change_id`(대사 규칙 16 — 변경·주문 모두 `created_at = clock_timestamp()`를 명시한다), 피드에서 시작한 주문은 `source = 'FEED'` + `turn_feed_id`(검증 규칙 S6). 매도 체결의 `realized_pnl`(D9), 전량 매도 시 `holding` 0·`lineup` 닫기(`end_turn = turn_no`) |
 | P0-20 성적 집계 | 비중은 `turn`의 포지션별 평가액 ÷ `total_value`(D24). 포메이션 준수의 기준은 "턴 시작 시점 포메이션" = 그 턴 번호보다 작은 `turn_no`의 마지막 변경 after(없으면 시작 값, PLAN §6.2). 위험 준수는 `turn.drawdown` vs `season.risk_limit`, 변경 비용은 `formation_change_id` 묶음의 수수료 합, 독려 반응은 `orders.source IN ('RANKING','FEED','ALERT')` |
 | MVP | 엔티티: 불변 `season_path`·`turn`·`turn_price`·`formation_change`·`turn_feed`·`reconciliation_log`·`execution`·`cash_ledger`, 가변 `member`·`season`·`cash_account`·`holding`·`lineup`. DTO는 `[복기 전용]` 컬럼(`season_path.month_block_id`, `turn_feed.kind`·`month_event_id`)과 `[내부]` 컬럼을 시즌 중에 내지 않는다. 복합 FK는 `Long` id 컬럼 그대로 매핑한다. `orders`는 넣은 뒤 바뀌지 않으며 `@Immutable` 여부는 MVP에서 정한다(V2 지정가가 오면 상태가 바뀐다). DTO 테스트로 공개 필드 조합(대상 NULL 여부 포함)으로 `EVENT`를 판별할 수 없는지 확인한다 |
