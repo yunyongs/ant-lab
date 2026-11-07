@@ -16,6 +16,8 @@
 
 > 학습 프로젝트이며 투자 조언이 아니다. 훈련장(모의 시즌)은 실제 돈이나 실계좌 주문을 쓰지 않고, 에이전트의 매매도 모의 시즌 안에서만 일어난다. 실계좌 운용(R3)은 소유자 자금·사람 승인을 전제로 한 후속 계획이다. 예상 분포는 예측이 아니라 과거 데이터로 만든 가능성의 범위다.
 
+릴리스는 둘이다: **릴리스 v1**은 모의 투자 전체(웹 페이지·데스크탑 앱·모바일 앱), **릴리스 v2**는 실제 투자(소유자 자금·사람 승인, R3)다([PLAN §1.2](docs/PLAN.md#12-릴리스--v1모의-투자과-v2실제-투자)).
+
 - 계획, 게임 규칙, 도메인, 점수, 로드맵: [docs/PLAN.md](docs/PLAN.md)
 - Spring Boot + JPA 기술 설계: [docs/SPRING_JPA.md](docs/SPRING_JPA.md)
 - 도메인 ERD와 엔티티 정의서: [docs/erd.md](docs/erd.md) (PLAN §5.1 기준)
@@ -29,14 +31,15 @@
 |---|---|---|
 | Plan v2 | 제품 방향 전환(포트폴리오 매니저 훈련 게임), 기술 설계 | 승인 (2026-11-05) |
 | Plan v3 | 에이전트 펀드 매니저(사람·에이전트 공존, 모의 직접 매매, 지식 축적, 종합 리더보드) | 승인 (2026-11-07) |
-| Phase 0 — SQL(PostgreSQL 17) | 새 도메인 ERD·DDL, 역사 데이터 표본 적재, SQL 트랜잭션으로 시즌 1판, 대사·집계 쿼리 | 진행 중 — 기능 표 P0-03–P0-21([PLAN §11.1](docs/PLAN.md#111-phase-0-체크리스트-sql-postgresql-17)), v1 DDL(P0-02)은 대체됨 |
+| Plan v3.1 | 릴리스 v1(모의)·v2(실제 투자), 단계 코드 EXT·APP·AI·OPS, 확장 구간(1997-01–)과 새 기술 전환기 케이스(닷컴 ↔ 생성형 AI) | 소유자 결정 반영 (2026-11-07) |
+| Phase 0 — SQL(PostgreSQL 17) | 새 도메인 ERD·DDL, 역사 데이터 표본 적재, SQL 트랜잭션으로 시즌 1판, 대사·집계 쿼리 | 진행 중 — 기능 표 P0-03–P0-21([PLAN §11.1](docs/PLAN.md#111-phase-0-체크리스트-sql-postgresql-17)), PLAN v1 DDL(P0-02)은 대체됨 |
 | Phase 1 — JDBC | 콘솔 앱(시즌·팀·턴·매매·성적표), 단순 부트스트랩 | 시작 전 |
 | MVP — Spring Boot + JPA | 전체 역사 데이터 적재, 사용자 스토리 1–7의 REST API, 턴 전환 트랜잭션, 대사, 피드·랭킹·알림, 점수 | 시작 전 |
 | M1–M3 | 수집기·CI, Python 엔진, 점수 백테스트 | 계획됨 |
-| V2 · M4 · V3 · V4 · V5 | 비용·케이스 훈련·대가 라이브러리, 전망 모드·리그·전당 API, 모바일·데스크탑 앱, AI 복기, 배포 | 계획됨 ([로드맵](docs/PLAN.md#11-로드맵커리큘럼-순서-유지)) |
+| EXT · M4 · APP · AI · OPS | 비용·케이스 훈련·대가 라이브러리, 전망 모드·리그·전당 API, 웹 페이지·모바일·데스크탑 앱, AI 복기, 배포 | 계획됨 ([로드맵](docs/PLAN.md#11-로드맵커리큘럼-순서-유지)) |
 | AG | 에이전트 펀드 매니저(OpenRouter·구독 모델·Ollama, 페르소나, 누출 탐지 시험, 리더보드) | 계획됨 (PLAN v3, 2026-11-07) |
 | R1 · R2 · R3 | 거장 추적(13F·X), 우수 매니저의 복제 봇, 에이전트의 실전 운용(소유자 자금, 사람 승인부터) | 계획됨 (PLAN v2.1, 2026-11-06) |
 
 ## 기술 스택
 
-Java 21 · Spring Boot 3 · PostgreSQL 17 · JPA (리포트 쿼리에 MyBatis 선택) · Python (FastAPI, pandas, 시뮬레이션 엔진) · 모바일 앱 중심 + 데스크탑 앱 (React Native, React — 이후) · RAG / LangChain / LangGraph (이후) · Docker, GitHub Actions, 오라클 클라우드 인프라(OCI, Oracle Cloud Infrastructure) (이후)
+Java 21 · Spring Boot 3 · PostgreSQL 17 · JPA (리포트 쿼리에 MyBatis 선택) · Python (FastAPI, pandas, 시뮬레이션 엔진) · 모바일 앱 중심 + 데스크탑 앱 + 웹 페이지 (React Native, React — 이후) · RAG / LangChain / LangGraph (이후) · Docker, GitHub Actions, 오라클 클라우드 인프라(OCI, Oracle Cloud Infrastructure) (이후)

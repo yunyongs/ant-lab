@@ -4,6 +4,8 @@
 
 [PLAN.md §5](PLAN.md#5-도메인과-회계-규칙)의 테이블을 컬럼·타입·키·관계·제약까지 그린 논리/물리 설계이다. 이 문서는 PostgreSQL 17 기준 v2이며, v1(MVP 8테이블, MySQL)은 커밋 `ecb10d9`에 있다. DDL(`db/` 아래 SQL)과 검증 쿼리가 이 문서의 표를 그대로 옮겨 쓴다.
 
+이 문서에서 v1·v2는 erd 문서의 판이며 릴리스([PLAN §1.2](PLAN.md#12-릴리스--v1모의-투자과-v2실제-투자))가 아니다. 단계 이름은 PLAN v3.1에서 바뀌었다(V2 → EXT, V3 → APP, V4 → AI, V5 → OPS, 첫 규칙 집합 V1 → MVP).
+
 **진행 상태:** 이 문서는 한 번에 쓰지 않고 두 번에 나눠 제자리에서 다시 썼다. 두 번 모두 끝났다.
 
 | 기능 | 이 문서에서 하는 일 | 상태 |
@@ -60,7 +62,7 @@
 
 ## 3. 전체 관계도
 
-확정 22개와 MVP 스케치 3개는 3.1에, V2 이후 스케치 16개와 에이전트 스케치(PLAN v3) 6개는 3.2에 따로 그린다. 한 그림이 25개 이하라 읽히고, 확정과 스케치가 그림 단위로 구분된다. 같은 엔티티 이름이 여러 그림에 나오는 것은 앵커이다.
+확정 22개와 MVP 스케치 3개는 3.1에, EXT 이후 스케치 16개와 에이전트 스케치(PLAN v3) 6개는 3.2에 따로 그린다. 한 그림이 25개 이하라 읽히고, 확정과 스케치가 그림 단위로 구분된다. 같은 엔티티 이름이 여러 그림에 나오는 것은 앵커이다.
 
 ### 3.1 확정 22개 + MVP 스케치 3개
 
@@ -133,7 +135,7 @@ erDiagram
 
 R9–R22의 관계 요약은 6.2에, R23–R32는 7.2에 있다. MVP 스케치 3개의 관계는 위 그림의 "스케치" 선이며 MVP에서 컬럼과 함께 확정한다.
 
-### 3.2 V2 이후 스케치 관계도
+### 3.2 EXT 이후 스케치 관계도
 
 이름과 관계선만 있고 정의서는 없다(PLAN §5.1). 앵커(`member`, `season`, `asset`, `lineup`, `turn_feed`)는 이름만 다시 쓴다. **초안 — 확정 단계에 해당 기능이 컬럼을 정한다.**
 
@@ -181,22 +183,22 @@ erDiagram
 
 | 이름 | 키(초안) | 관계(초안) | 확정 단계 |
 |---|---|---|---|
-| `feed_mark` | `id`, UNIQUE (`turn_feed_id`) | `turn_feed` 1 : 0..1 — 사용자의 신호/소음 표시 | V2 |
-| `member_wallet` | `id`, UNIQUE (`member_id`) | `member` 1 : 0..1 — 게임 머니(시즌 자금과 별개, PLAN §6.6) | V2 |
-| `case_study` | `id`, UNIQUE (코드) | `case_candidate`·`case_play`의 부모 — 전환기, 기간, 턴 수 | V2 데이터, V3 화면 |
-| `case_candidate` | `id`, UNIQUE (`case_study_id`, 후보 코드) | `case_study` 1 : 0..N — 가린 이름, 실제 이름, 승자 여부 | V2 데이터, V3 화면 |
-| `case_candidate_year` | `id`, UNIQUE (`case_candidate_id`, 연도) | `case_candidate` 1 : 0..N — 재무·서사·수익률, 출처 | V2 데이터, V3 화면 |
-| `case_play` | `id` | `member` 1 : 0..N, `case_study` 1 : 0..N — 턴별 배분, 선별 점수 | V2 데이터, V3 화면 |
-| `master` | `id`, UNIQUE (코드) | `master_rule`의 부모 — 대가, 요약, 출처 | V2 |
-| `master_rule` | `id`, UNIQUE (`master_id`, 규칙 키) | `master` 1 : 0..N — 측정식 또는 질문, 선호 포메이션, 행동 규칙 | V2 |
-| `asset_fundamental` | `id`, UNIQUE (`asset_id`, 기준일) | `asset` 1 : 0..N — 종목 × 기준일 재무 | V2 |
-| `lineup_check` | `id`, UNIQUE (`lineup_id`, `master_rule_id`) | `lineup` 1 : 0..N, `master_rule` 1 : 0..N — 체크 결과 | V2 |
-| `league` | `id` | `league_entry`의 부모 | V3 |
-| `league_entry` | `id`, UNIQUE (`league_id`, `season_id`) | `league` 1 : 0..N, `season` 1 : 0..N | V3 |
+| `feed_mark` | `id`, UNIQUE (`turn_feed_id`) | `turn_feed` 1 : 0..1 — 사용자의 신호/소음 표시 | EXT |
+| `member_wallet` | `id`, UNIQUE (`member_id`) | `member` 1 : 0..1 — 게임 머니(시즌 자금과 별개, PLAN §6.6) | EXT |
+| `case_study` | `id`, UNIQUE (코드) | `case_candidate`·`case_play`의 부모 — 전환기, 기간, 턴 수 | EXT 데이터, APP 화면 |
+| `case_candidate` | `id`, UNIQUE (`case_study_id`, 후보 코드) | `case_study` 1 : 0..N — 가린 이름, 실제 이름, 승자 여부 | EXT 데이터, APP 화면 |
+| `case_candidate_year` | `id`, UNIQUE (`case_candidate_id`, 연도) | `case_candidate` 1 : 0..N — 재무·서사·수익률, 출처 | EXT 데이터, APP 화면 |
+| `case_play` | `id` | `member` 1 : 0..N, `case_study` 1 : 0..N — 턴별 배분, 선별 점수 | EXT 데이터, APP 화면 |
+| `master` | `id`, UNIQUE (코드) | `master_rule`의 부모 — 대가, 요약, 출처 | EXT |
+| `master_rule` | `id`, UNIQUE (`master_id`, 규칙 키) | `master` 1 : 0..N — 측정식 또는 질문, 선호 포메이션, 행동 규칙 | EXT |
+| `asset_fundamental` | `id`, UNIQUE (`asset_id`, 기준일) | `asset` 1 : 0..N — 종목 × 기준일 재무 | EXT |
+| `lineup_check` | `id`, UNIQUE (`lineup_id`, `master_rule_id`) | `lineup` 1 : 0..N, `master_rule` 1 : 0..N — 체크 결과 | EXT |
+| `league` | `id` | `league_entry`의 부모 | APP |
+| `league_entry` | `id`, UNIQUE (`league_id`, `season_id`) | `league` 1 : 0..N, `season` 1 : 0..N | APP |
 | `thesis` | `id` | `season` 1 : 0..N, `asset` 1 : 0..N — 주장·수치·기한·기록 시각, 수정 불가 | M4 |
 | `thesis_verdict` | `id` | `thesis` 1 : 0..N — 판정, 근거, 판정자, 이의 | M4 |
 | `member_attribute` | `id`, UNIQUE (`member_id`, 속성 코드) | `member` 1 : 0..N — 속성 × 누적 점수·표본 수 | M4 |
-| `hall_of_fame` | `id` | `member` 1 : 0..N — 기둥 또는 종합, 기수, 등재 시점 스냅샷, 공개 동의 | M4 (API), V3 (화면) |
+| `hall_of_fame` | `id` | `member` 1 : 0..N — 기둥 또는 종합, 기수, 등재 시점 스냅샷, 공개 동의 | M4 (API), APP (화면) |
 | `agent_profile` | `member_id` PK·FK(에이전트 회원만 — FK만으로는 강제되지 않으므로 강제 방식은 AG-02, 예: `orders`의 복합 FK 패턴 D29) | `member` 1 : 0..1 — 소유자, 페르소나 키, 모델 경로·id, 상태 (PLAN §4.16) | AG-02 |
 | `season_agent_config` | `season_id` PK·FK | `season` 1 : 0..1 — 시즌 시작 때 한 번 남기는 불변 설정(페르소나 버전·해시, 모델, 온도, 시드, 프롬프트·러너 버전, 메모리 버전) | AG-02 |
 | `agent_call` | `id`, UNIQUE (`season_id`, 턴 번호, 시도 번호, 호출 종류) | `season` 1 : 0..N — 요청·응답 원문, 파싱 결과, 거부 목록, 실제 모델, 토큰, 비용(`NUMERIC`), 지연. 불변·추가 전용(기록 재생의 재료) | AG-02 |
@@ -225,7 +227,7 @@ erDiagram
 
 위 표의 에이전트 6개 행(`agent_profile` ~ `detection_test`·`detection_result`)이 이 그림의 정의다. 종목 가명 매핑 테이블은 두지 않는다 — 에이전트도 감독 모드에서 사람과 같은 실명을 본다(PLAN §4.16).
 
-테이블이 아닌 컬럼 스케치 셋: `season.mode`(감독/전망, M4), `season.style_master_id`(선택, FK → `master.id`, V2), `member.kind`(`HUMAN`/`AGENT`, AG-02 — 에이전트 펀드 매니저도 `member`의 한 종류라 `season.member_id` 이하 하류 테이블이 그대로다; 사람만 `email`·`password`를 가지므로 두 컬럼이 NULL 허용으로 바뀌고 CHECK 둘이 붙는다: `kind IN ('HUMAN','AGENT')`, `(kind = 'HUMAN' AND email IS NOT NULL AND password IS NOT NULL) OR (kind = 'AGENT' AND email IS NULL AND password IS NULL)`. 이름은 AG-02에서 6.4 규칙(`ck_member_…`)으로 정한다. PLAN v3). 셋 다 `season`·`member`의 정의서(6.3)에는 넣지 않고 해당 단계가 `ALTER TABLE`로 더한다. `orders.source`에 `AGENT`를 넣지 않는다 — 주문의 출발점과 주체는 다른 축이다(8절 "MVP에서 다시 볼 것").
+테이블이 아닌 컬럼 스케치 셋: `season.mode`(감독/전망, M4), `season.style_master_id`(선택, FK → `master.id`, EXT), `member.kind`(`HUMAN`/`AGENT`, AG-02 — 에이전트 펀드 매니저도 `member`의 한 종류라 `season.member_id` 이하 하류 테이블이 그대로다; 사람만 `email`·`password`를 가지므로 두 컬럼이 NULL 허용으로 바뀌고 CHECK 둘이 붙는다: `kind IN ('HUMAN','AGENT')`, `(kind = 'HUMAN' AND email IS NOT NULL AND password IS NOT NULL) OR (kind = 'AGENT' AND email IS NULL AND password IS NULL)`. 이름은 AG-02에서 6.4 규칙(`ck_member_…`)으로 정한다. PLAN v3). 셋 다 `season`·`member`의 정의서(6.3)에는 넣지 않고 해당 단계가 `ALTER TABLE`로 더한다. `orders.source`에 `AGENT`를 넣지 않는다 — 주문의 출발점과 주체는 다른 축이다(8절 "MVP에서 다시 볼 것").
 
 ## 4. 설계 질문 답
 
@@ -243,7 +245,7 @@ PLAN §5.3의 질문 1–7과 Phase 0 기능 표의 질문 Q8–Q13에 대한 �
 | Q8 | 기준일 가격(현지 통화)·기준일 환율은 `asset_position`에 둔다. 0턴 원화 가격 = round(`base_price` × `base_fx_rate`), t턴 가격 = round(0턴 원화 가격 × Π(1+r현지)(1+r환율)) — PLAN §5.2 문자 그대로(누적 곱은 정확한 소수로 두고 가격마다 반올림은 한 번) | 5.3 `asset_position`, 6.3 `turn_price`, 대사 규칙 12 | 위치 확정, 공식은 PLAN §5.2 |
 | Q9 | `CHECK (path_length > 0)`, 60/120은 MVP 서비스 규칙 | 6.3 `season` | — |
 | Q10 | `turn_feed`에 템플릿 id + 변수 값 + 렌더된 문장을 저장한다. 템플릿은 `feed/` 파일이고 id는 바꾸지 않는다 | 6.3 `turn_feed` | 변수 값은 JSONB(D27) |
-| Q11 | `asset`이 그룹 하나를 FK로 가지고(`asset_group_id`), 시장은 `asset.market`. 다대다(테마)는 V2 매핑 테이블 | 5.3 `asset_group`·`asset` | — |
+| Q11 | `asset`이 그룹 하나를 FK로 가지고(`asset_group_id`), 시장은 `asset.market`. 다대다(테마)는 EXT 매핑 테이블 | 5.3 `asset_group`·`asset` | — |
 | Q12 | 시가총액 **시장 내 순위**를 `asset_position.market_cap_rank`에 둔다(표본은 손으로 채움, ETF는 NULL) | 5.3 `asset_position` | `asset` → `asset_position`(기준일 값이므로) |
 | Q13 | `orders`에 `turn_no` | 7.3 `orders` | — |
 
@@ -392,22 +394,22 @@ erDiagram
 | | 생성일시 | created_at | TIMESTAMPTZ | NN | now() | `[내부]` |
 
 - 시장(국내·미국)은 그룹이 아니라 `asset.market`이다(Q11). 그룹은 시장을 가로지른다(국내 반도체 + 미국 반도체 = `SEMICONDUCTOR`). 시장별 그룹 관심 지수가 필요하면 조회에서 `market`으로 나눈다.
-- 다대다(테마)는 V2 매핑 테이블로 푼다. 이번 스케치에는 넣지 않는다(PLAN §5.1에 없음).
+- 다대다(테마)는 EXT 매핑 테이블로 푼다. 이번 스케치에는 넣지 않는다(PLAN §5.1에 없음).
 
 #### 종목 (asset)
 
 | 키 | 논리명 | 물리명 | 타입 | NULL | 기본값 | 코멘트 |
 | --- | --- | --- | --- | --- | --- | --- |
 | PK | 종목번호 | id | BIGINT | NN | IDENTITY | `[내부]` `pk_asset` |
-| UK | 시장 | market | VARCHAR(2) | NN | | `[노출]` `uq_asset_market_ticker (market, ticker)`의 앞 컬럼. `ck_asset_market`: `market IN ('KR','US')`. 국가 시장 — 거래소 구분은 V1에 필요 없다(수수료·세금·통화가 국가 단위, PLAN §4.6·§9) |
+| UK | 시장 | market | VARCHAR(2) | NN | | `[노출]` `uq_asset_market_ticker (market, ticker)`의 앞 컬럼. `ck_asset_market`: `market IN ('KR','US')`. 국가 시장 — 거래소 구분은 MVP에 필요 없다(수수료·세금·통화가 국가 단위, PLAN §4.6·§9) |
 | UK | 종목코드 | ticker | VARCHAR(12) | NN | | `[노출]` 적재 자연 키(`market`과 함께 UNIQUE). `ck_asset_ticker_upper`: `ticker = UPPER(ticker)` — 대소문자만 다른 중복을 막는다(PostgreSQL 비교는 대소문자를 구분). 예 `005930`, `069500`, `AAPL`, `BRK.B`. 숫자 전용 CHECK는 없다(영문이 섞인 코드가 있음) |
 | | 종목명 | name | VARCHAR(100) | NN | | `[노출]` 종목 풀의 이름은 피드에 나와도 된다(PLAN §4.13이 금지하는 것은 "종목 풀의 이름 외의 고유명사") |
 | | 종목 유형 | asset_type | VARCHAR(5) | NN | | `[노출]` `ck_asset_asset_type`: `asset_type IN ('STOCK','ETF')` — 국내 주식·국내 ETF·미국 주식·미국 ETF를 `market` × `asset_type`으로 구분 |
 | | 거래 통화 | currency | VARCHAR(3) | NN | | `[내부]` `ck_asset_currency`: `currency IN ('KRW','USD')`. `ck_asset_market_currency`: `market`과 `currency`의 짝(KR-KRW, US-USD). **의도적 중복** — `market`에서 `currency`가 정해지는 함수 종속(3NF 위반)을 CHECK로 묶어 두고, `fx_month.currency`와 바로 조인한다 |
 | FK | 그룹번호 | asset_group_id | BIGINT | NN | | `[노출]` (그룹 이름으로) → asset_group.id (R1). `fk_asset_asset_group`, `idx_asset_asset_group` |
-| | 상장일 | listed_on | DATE | NN | | `[복기 전용]` 실제 날짜라 시즌 중에는 나가지 않는다. 쓰임: 풀 선정(V1 개별 주식은 2007-01 이전 상장만 — PLAN §4.7, DDL로 강제하지 않는다)과 검증 규칙 H7의 상장월 경계 |
-| | 수익률 기준 | return_basis | VARCHAR(5) | NN | | `[노출]` `ck_asset_return_basis`: `return_basis IN ('PRICE','TOTAL')` — V1 국내는 가격 수익률, 미국은 총수익률(PLAN §4.6). 성적표의 "국내 종목은 배당 제외" 공개 문구의 근거. `market`과의 짝(KR → `PRICE`, US → `TOTAL`)은 **의도적 중복**이며 국내 총수익률 도입(M1 배당 파이프라인) 때 풀리므로 CHECK가 아니라 검증 규칙 H7이 본다 |
-| | 대체 지수명 | proxy_index_name | VARCHAR(100) | NULL | | `[노출]` 상장 전 구간에 쓰는 추종 지수 이름(PLAN §4.7, ETF). `ck_asset_proxy_etf`: `proxy_index_name IS NULL OR asset_type = 'ETF'` — V1 규칙이며 V2 대체 수익률을 도입할 때 바꾼다 |
+| | 상장일 | listed_on | DATE | NN | | `[복기 전용]` 실제 날짜라 시즌 중에는 나가지 않는다. 쓰임: 풀 선정(MVP 개별 주식은 2007-01 이전 상장만 — PLAN §4.7, DDL로 강제하지 않는다)과 검증 규칙 H7의 상장월 경계 |
+| | 수익률 기준 | return_basis | VARCHAR(5) | NN | | `[노출]` `ck_asset_return_basis`: `return_basis IN ('PRICE','TOTAL')` — MVP 국내는 가격 수익률, 미국은 총수익률(PLAN §4.6). 성적표의 "국내 종목은 배당 제외" 공개 문구의 근거. `market`과의 짝(KR → `PRICE`, US → `TOTAL`)은 **의도적 중복**이며 국내 총수익률 도입(M1 배당 파이프라인) 때 풀리므로 CHECK가 아니라 검증 규칙 H7이 본다 |
+| | 대체 지수명 | proxy_index_name | VARCHAR(100) | NULL | | `[노출]` 상장 전 구간에 쓰는 추종 지수 이름(PLAN §4.7, ETF). `ck_asset_proxy_etf`: `proxy_index_name IS NULL OR asset_type = 'ETF'` — Phase 0 규칙이다(Phase 0 표본은 2007-01부터라 개별 주식 대체가 없다). 확장 구간(PLAN §4.7)의 개별 주식 대체를 위해 MVP Flyway에서 바꾼다(§9 MVP) |
 | | 생성일시 | created_at | TIMESTAMPTZ | NN | now() | `[내부]` |
 
 - **기준일은 `asset`에 두지 않는다.** 풀은 연 1회 갱신되고(PLAN §7) 같은 종목이 여러 기준일의 풀에 들 수 있으므로, 기준일은 "종목 × 기준일" 행(`asset_position`)의 키이다. 기준일 시점의 풀 구성 = 그 기준일의 `asset_position` 행 집합(D14).
@@ -463,7 +465,7 @@ erDiagram
   남는 위험은 `NEUTRAL`인데 강도가 큰 행 같은 의미 불일치이며, 경계값이 MVP 결정이라 지금은 막을 수 없다.
 - 지표 14개 변환값은 **스케치**이다. MVP 데이터 준비 때 컬럼 vs JSONB vs 긴 테이블을 정한다(PLAN §5.3 질문 5).
 - 국면 라벨(PLAN §3 "월 블록 … 국면 라벨")은 확률의 최댓값에서 나오는 파생값이라 저장하지 않는다. M2에서 필요하면 다시 본다.
-- 재생 표본 범위(2007-01 – 기준일 전년 말, PLAN §4.2·§4.7)는 컬럼이 아니라 조회 조건이다. 준비 구간(2002–2006, PLAN §7)도 `month_block` 행이 되며(수익률 FK 때문) 재생 대상에서는 조건으로 뺀다.
+- 재생 표본 범위(PLAN §4.7: 확장 구간 1997-01부터 + 본 구간 2007-01부터 — Phase 0 표본은 2007-01부터)는 컬럼이 아니라 조회 조건이다. 준비 구간(PLAN §7)도 `month_block` 행이 되며(수익률 FK 때문) 재생 대상에서는 조건으로 뺀다.
 - 연속성: 표본이 2012-04와 2023-01 사이에서 끊긴다. "직전 달" = `month_start - INTERVAL '1 month'`인 행이 **있을 때만** 연속으로 본다(P0-11·P0-14가 따른다).
 
 #### 종목 달 수익률 (asset_month_return)
@@ -474,7 +476,7 @@ erDiagram
 | FK | 종목번호 | asset_id | BIGINT | NN | | `[내부]` → asset.id (R3). `fk_asset_month_return_asset`. `uq_asset_month_return_asset_month (asset_id, month_block_id)`의 앞 컬럼이라 FK 인덱스를 겸한다(종목별 달 순서 조회) |
 | FK | 월 블록번호 | month_block_id | BIGINT | NN | | `[내부]` → month_block.id (R4). `fk_asset_month_return_month_block`, `idx_asset_month_return_month_block (month_block_id)` — 턴 진행: 한 달의 풀 전체 |
 | | 현지 통화 월 수익률 | local_return | NUMERIC(12,8) | NN | | `[노출]` (턴 결과로) **현지 통화** 월 수익률(Q3). 기준은 `asset.return_basis`. `ck_asset_month_return_local_return`: `local_return >= -1` |
-| | 수익률 종류 | return_kind | VARCHAR(11) | NN | 'ACTUAL' | `[노출]` (이력 비율로) **턴별로 노출하지 않는다 — 종목 전체의 `ACTUAL` 비율만 나간다**(상장 전 달임이 곧 날짜 단서: ETF 상장일은 공개 정보라 "이번 달은 대체 지수"가 보이면 연도의 상한이 샌다). `ck_asset_month_return_return_kind`: `return_kind IN ('ACTUAL','PROXY_INDEX')`. `PROXY_INDEX` = 상장 전 달의 추종 지수 수익률에서 보수/12를 뺀 값(PLAN §4.6·§4.7). V2에 합성 대체 수익률 값을 더한다. "이력 62%" 표시(PLAN §4.7)의 근거 |
+| | 수익률 종류 | return_kind | VARCHAR(11) | NN | 'ACTUAL' | `[노출]` (이력 비율로) **턴별로 노출하지 않는다 — 종목 전체의 `ACTUAL` 비율만 나간다**(상장 전 달임이 곧 날짜 단서: ETF 상장일은 공개 정보라 "이번 달은 대체 지수"가 보이면 연도의 상한이 샌다). `ck_asset_month_return_return_kind`: `return_kind IN ('ACTUAL','PROXY_INDEX')`. `PROXY_INDEX` = 상장 전 달의 추종 지수 수익률에서 보수/12를 뺀 값(PLAN §4.6·§4.7 — Phase 0 정의, MVP 확장 구간에서 넓히는 뜻은 §9 MVP). EXT에 합성 대체 수익률 값을 더한다. "이력 62%" 표시(PLAN §4.7)의 근거 |
 | | 생성일시 | created_at | TIMESTAMPTZ | NN | now() | `[내부]` |
 
 - 원화 수익률은 저장하지 않는다. (1 + `local_return`)(1 + `fx_month.fx_change`) − 1을 조회에서 결합한다(Q3·Q8). 결합은 `asset.currency`로 `fx_month`에 LEFT JOIN하며, KRW는 `fx_change = 0`, USD는 그 달 행이 없으면 오류로 본다(H4) — 일괄 `COALESCE(…, 0)`은 USD 누락을 0%로 숨기므로 쓰지 않는다.
@@ -485,7 +487,7 @@ erDiagram
 | --- | --- | --- | --- | --- | --- | --- |
 | PK | 환율번호 | id | BIGINT | NN | IDENTITY | `[내부]` `pk_fx_month` |
 | FK | 월 블록번호 | month_block_id | BIGINT | NN | | `[내부]` → month_block.id (R5). `fk_fx_month_month_block`. `uq_fx_month_month_block_currency (month_block_id, currency)`의 앞 컬럼이라 FK 인덱스를 겸한다 |
-| | 통화 | currency | VARCHAR(3) | NN | | `[내부]` `ck_fx_month_currency`: `currency IN ('USD')` — V1은 달러뿐이며 통화가 늘면 목록만 바꾼다. `asset.currency`와 같은 코드 |
+| | 통화 | currency | VARCHAR(3) | NN | | `[내부]` `ck_fx_month_currency`: `currency IN ('USD')` — MVP는 달러뿐이며 통화가 늘면 목록만 바꾼다. `asset.currency`와 같은 코드 |
 | | 환율 변화율 | fx_change | NUMERIC(12,8) | NN | | `[노출]` (환율 축·통계 보드) 그 통화 1단위의 원화 가격 월말 대비 변화율(FRED `DEXKOUS` 월말 관측치, PLAN §7). `ck_fx_month_fx_change`: `fx_change > -1` |
 | | 생성일시 | created_at | TIMESTAMPTZ | NN | now() | `[내부]` |
 
@@ -528,7 +530,7 @@ erDiagram
 | | 생성일시 | created_at | TIMESTAMPTZ | NN | now() | `[내부]` |
 
 - `attention_z`·`streak`·`attention_index`는 **종목 자신의 수익률만으로 계산한다(풀 구성과 무관)**. 순위는 저장하지 않는다 — 풀은 기준일마다 바뀌므로 순위는 풀 상대값이다("변동성 상위 20%"와 같은 원칙). 시즌 기준일의 `asset_position` 풀로 걸러 `RANK() OVER (PARTITION BY month_block_id ORDER BY attention_index DESC)`로 조회하고 동률 규칙은 P0-11이 정한다.
-- 사후 정보 배제(PLAN §4.5): 모든 값은 그 달까지의 수익률로만 계산한다(P0-11 테스트, 검증 규칙 H8). 그룹 관심 지수는 저장하지 않고 소속 종목 평균으로 조회한다(PLAN §4.13, §5.1 "통계 보드 테이블 없음"과 같은 방침). 거래량 z-score는 V2 컬럼이다.
+- 사후 정보 배제(PLAN §4.5): 모든 값은 그 달까지의 수익률로만 계산한다(P0-11 테스트, 검증 규칙 H8). 그룹 관심 지수는 저장하지 않고 소속 종목 평균으로 조회한다(PLAN §4.13, §5.1 "통계 보드 테이블 없음"과 같은 방침). 거래량 z-score는 EXT 컬럼이다.
 
 ### 5.4 제약과 인덱스
 
@@ -641,7 +643,7 @@ FK 8개 = 5.2의 관계 R1–R8 = 5.1 관계선 8개이다. FK 컬럼 중 UNIQUE
 | H4 | 표본 달마다 `fx_month`의 USD 행이 1개 있다 | P0-08 |
 | H5 | `month_event`의 노출 컬럼에 연도·날짜·풀 밖 고유명사가 없다 | P0-09 |
 | H6 | `event_type`·`outcome` 값이 `events/README.md` 목록 안에 있다 | P0-09 |
-| H7 | ETF의 상장월 이전 달은 `PROXY_INDEX`, 이후는 `ACTUAL`이다(상장월 자체는 `PROXY_INDEX`, 다음 달부터 `ACTUAL` — P0-08에서 확정: 상장월에는 직전 월말 ETF 가격이 없어 한 달 전체의 실제 수익률을 만들 수 없기 때문이다. 검증 SQL은 `month_start <= date_trunc('month', listed_on)` ⇔ `PROXY_INDEX`로 본다). V1 개별 주식은 전부 `ACTUAL`이다. V1: `market = 'KR'` → `return_basis = 'PRICE'`, `'US'` → `'TOTAL'` | P0-08 |
+| H7 | ETF의 상장월 이전 달은 `PROXY_INDEX`, 이후는 `ACTUAL`이다(상장월 자체는 `PROXY_INDEX`, 다음 달부터 `ACTUAL` — P0-08에서 확정: 상장월에는 직전 월말 ETF 가격이 없어 한 달 전체의 실제 수익률을 만들 수 없기 때문이다. 검증 SQL은 `month_start <= date_trunc('month', listed_on)` ⇔ `PROXY_INDEX`로 본다). MVP 개별 주식은 전부 `ACTUAL`이다. MVP: `market = 'KR'` → `return_basis = 'PRICE'`, `'US'` → `'TOTAL'` | P0-08 |
 | H8 | `attention_index`(와 `attention_z`·`streak`)는 그 달까지의 종목 자신의 수익률로만 계산된다(뒤 달을 바꿔도 불변) | P0-11 |
 
 ## 6. 회원·시즌·피드·대사
@@ -864,7 +866,7 @@ R9–R22는 3.1의 같은 번호와 같다. 모두 비식별 `..`이다 — 자�
 |  | 생성일시 | created_at | TIMESTAMPTZ | NN | now() | `[내부]` |
 |  | 수정일시 | updated_at | TIMESTAMPTZ | NN | now() | `[내부]` 가변 엔티티 |
 
-- `season`의 상태·포메이션·위험 선언은 PLAN §4.1·§4.10의 값이다. `mode`(감독/전망, M4)와 `style_master_id`(V2)는 3.2의 컬럼 스케치이며 해당 단계가 `ALTER TABLE`로 더하므로 이 정의서에 넣지 않는다. 월 적립금·소음 수준은 V2다.
+- `season`의 상태·포메이션·위험 선언은 PLAN §4.1·§4.10의 값이다. `mode`(감독/전망, M4)와 `style_master_id`(EXT)는 3.2의 컬럼 스케치이며 해당 단계가 `ALTER TABLE`로 더하므로 이 정의서에 넣지 않는다. 월 적립금·소음 수준은 EXT다.
 - 시작·현재 포메이션 8개와 `current_turn_no`·`status`는 이력과 겹치는 **의도적 중복**이다(현재 포메이션 ↔ `formation_change`는 대사 규칙 15). 위험 선언은 시즌 내내 바뀌지 않는다.
 - CHECK 19개: 상태 1, 턴 4(`path_length`, `current_turn_no`, `finished_turn`, `abandoned_turn_no`), 포기 2(`abandoning`, `abandoned_status`), 금액 2, 요율 3(`fee_rate_kr`, `fee_rate_us`, `fx_spread_rate`), 위험 1, 포메이션 6. 포함 관계 CHECK(`range` ⊇ `goalkeeper_min`의 일부)는 2절 규칙대로 일부러 둔다.
 
@@ -1286,7 +1288,7 @@ v1 CHECK 4개 그대로다. `reserved`와 그 CHECK 2개는 지정가가 없는 
 |  | 체결가 | fill_price | NUMERIC(19,4) | NN |  | `[노출]` ₩. `ck_execution_fill_price_pos`: `fill_price > 0`, `ck_execution_fill_price_won`: `fill_price = ROUND(fill_price, 0)`. = `turn_price(orders.turn_no)`(대사 규칙 13). 체결 대금 = `fill_price × quantity`도 정수가 되어 원장 `amount`와 오차 없이 맞는다(대사 규칙 4) |
 |  | 체결 수량 | quantity | INTEGER | NN |  | `[노출]` `ck_execution_quantity_pos`: `quantity > 0` |
 |  | 수수료 | fee | NUMERIC(19,4) | NN | 0 | `[노출]` ₩. `ck_execution_fee_nonneg`: `fee >= 0`, `ck_execution_fee_won`: `fee = ROUND(fee, 0)`. = `round(fill_price × quantity × rate(asset.market), 0)`. rate(`KR`) = `season.fee_rate_kr`, rate(`US`) = `season.fee_rate_us + season.fx_spread_rate`(대사 규칙 14, 반올림은 코드 한 곳 — PLAN §5.2). 환전 비용도 이 값 안에 들어 있어 `FEE` 한 행으로 남는다(D4) |
-|  | 세금 | tax | NUMERIC(19,4) | NN | 0 | `[노출]` ₩. `ck_execution_tax_nonneg`: `tax >= 0`, `ck_execution_tax_won`: `tax = ROUND(tax, 0)`. V1은 항상 0(세금은 V2, PLAN §4.6). 매수 체결의 0은 대사 규칙 8이 검사한다 |
+|  | 세금 | tax | NUMERIC(19,4) | NN | 0 | `[노출]` ₩. `ck_execution_tax_nonneg`: `tax >= 0`, `ck_execution_tax_won`: `tax = ROUND(tax, 0)`. MVP는 항상 0(세금은 EXT, PLAN §4.6). 매수 체결의 0은 대사 규칙 8이 검사한다 |
 |  | 실현 손익 | realized_pnl | NUMERIC(19,4) | NULL |  | `[노출]` ₩. 매도 체결만 값, 매수는 NULL. 소수 4자리까지 저장하며 원 단위 CHECK가 없다(D1·D9). `round_half_up((체결가 − 체결 직전 avg_price) × 매도 수량, 4)`, 수수료·세금은 빼지 않는다(D9) |
 |  | 체결일시 | created_at | TIMESTAMPTZ | NN | now() | `[내부]` 체결 시각. v1의 `executed_at`을 이 컬럼이 대신한다 — 같은 순간을 두 번 저장하지 않는다 |
 
@@ -1310,7 +1312,7 @@ CHECK 7개(v1 그대로). 불변(SPRING_JPA §4.4). 주문 1 : 체결 1이 보�
 | --- | --- | --- | --- | --- | --- | --- |
 | PK | 원장번호 | id | BIGINT | NN | IDENTITY | `[내부]` `pk_cash_ledger`. **잠금 전제:** 같은 시즌 안에서 기록 순서 = id 순서이려면, 원장 행을 넣는 모든 트랜잭션이 직전 `balance_after`를 읽기 **전에** 같은 트랜잭션에서 `season` → `cash_account` 순으로 `SELECT … FOR UPDATE`를 해야 한다(SPRING_JPA §5.2 락 순서). identity 값은 커밋 순서가 아니라 할당 순서이므로 이 직렬화가 있어야 성립한다. PostgreSQL 기본 격리 수준 READ COMMITTED는 문장마다 새 스냅샷을 쓰므로, 잠금을 얻은 **뒤의** 일반 `SELECT`는 앞 트랜잭션이 커밋한 원장 행을 본다(PostgreSQL 17.11 두 세션 실험으로 확인: T1이 일반 SELECT로 시작한 뒤 `season` `FOR UPDATE`에서 T2의 커밋까지 기다렸고, 잠근 뒤의 일반 SELECT가 T2의 새 `balance_after`를 봤다). v1(MySQL REPEATABLE READ)은 트랜잭션의 첫 읽기 시점 스냅샷을 써서 잠근 뒤에도 그 행을 못 볼 수 있어 잠금 읽기로 읽어야 했다. 격리 수준을 REPEATABLE READ 이상으로 올리면 잠근 행이 그 사이 바뀐 경우 직렬화 실패(SQLSTATE 40001, 확인: `season` 잠금은 통과하고 T2가 바꾼 `cash_account` 행을 `FOR UPDATE`로 잠그는 문장에서 'could not serialize access due to concurrent update')가 나 재시도가 필요하다. 잠금 없는 일반 SELECT는 트랜잭션 시작 스냅샷의 옛 값을 계속 본다. "최신 `balance_after`" = 그 시즌에서 id가 가장 큰 행 |
 | FK | 시즌번호 | season_id | BIGINT | NN |  | `[내부]` → **cash_account.season_id** (R31, 원장은 계좌의 원장 — D6). `fk_cash_ledger_cash_account`, `idx_cash_ledger_season_id (season_id, id)` — 페이징·최신 `balance_after` 조회(v1 `idx_cash_ledger_member_id`) |
-|  | 원장 유형 | type | VARCHAR(12) | NN |  | `[노출]` `ck_cash_ledger_type`: `type IN ('DEPOSIT','BUY','SELL','FEE','TAX','ADJUSTMENT')`. `TAX` 행은 세금이 들어오는 V2부터 생긴다(PLAN §5.1) |
+|  | 원장 유형 | type | VARCHAR(12) | NN |  | `[노출]` `ck_cash_ledger_type`: `type IN ('DEPOSIT','BUY','SELL','FEE','TAX','ADJUSTMENT')`. `TAX` 행은 세금이 들어오는 EXT부터 생긴다(PLAN §5.1) |
 |  | 부호 있는 금액 | amount | NUMERIC(19,4) | NN |  | `[노출]` ₩. 입금 +, 출금 −. Σ amount = balance(대사 규칙 2). `ck_cash_ledger_amount_sign`: `(type IN ('DEPOSIT','SELL') AND amount > 0) OR (type IN ('BUY','FEE','TAX') AND amount < 0) OR (type = 'ADJUSTMENT' AND amount <> 0)`, `ck_cash_ledger_amount_won`: `amount = ROUND(amount, 0)` |
 |  | 거래 후 잔액 | balance_after | NUMERIC(19,4) | NN |  | `[노출]` ₩. `ck_cash_ledger_balance_after_nonneg`: `balance_after >= 0`, `ck_cash_ledger_balance_after_won`: `balance_after = ROUND(balance_after, 0)`. 직전 행 기준 누적(대사 규칙 3) |
 | FK | 참조 주문번호 | ref_order_id | BIGINT | NULL |  | `[내부]` → orders.id (R32). `fk_cash_ledger_order`, `idx_cash_ledger_ref_order`. `ck_cash_ledger_ref_order`: `(type IN ('BUY','SELL','FEE','TAX') AND ref_order_id IS NOT NULL) OR (type = 'DEPOSIT' AND ref_order_id IS NULL) OR type = 'ADJUSTMENT'`. **복합 FK** `(ref_order_id, season_id)` → `orders (id, season_id)`(D29) — 원장 행의 시즌이 참조 주문의 시즌과 같음을 DB가 막는다(v1 대사 규칙 5의 이동) |
@@ -1411,7 +1413,7 @@ FK 10개 = 7.2의 R23–R32 = 7.1 관계선 10개다. `idx_` 8개는 FK 인덱�
 | 5 | 원장 행의 시즌 = 참조 주문의 시즌 | — | 5 | **DDL로 이동** — 복합 FK `fk_cash_ledger_order`(D29). 쿼리 대상이 아니다 |
 | 6 | `holding.quantity` = Σ 매수 체결 수량 − Σ 매도 체결 수량, 양방향(`FULL OUTER JOIN` — v1의 `LEFT JOIN` 두 개 `UNION`을 대체). `avg_price`는 대사하지 않는다(체결 이력 재생이 필요, D9) | HOLDING_QTY | 6 | PLAN §5.2 항등식 ② |
 | 7 | 주문 상태 ↔ 체결: `FILLED`면 Σ 체결 수량 = 주문 수량이고 그 밖의 상태 행은 0건(v2는 `FILLED`만 쓴다). 주문은 `type = 'MARKET'`이고 `limit_price`가 NULL이다 | ORDER_FILL | 7 | |
-| 8 | 체결 값: 매수는 `realized_pnl` NULL이고 `tax` = 0, 매도는 `realized_pnl` NOT NULL. V1은 매도 체결도 `tax` = 0(세금은 V2) | EXEC_VALUES | 8 | |
+| 8 | 체결 값: 매수는 `realized_pnl` NULL이고 `tax` = 0, 매도는 `realized_pnl` NOT NULL. MVP는 매도 체결도 `tax` = 0(세금은 EXT) | EXEC_VALUES | 8 | |
 | 9 | `cash_account.reserved` = 0(지정가가 없다, PLAN §4.6) | RESERVED_ZERO | 9 | v1은 "P0-07에서 정의" → 정의 완료(D2) |
 | 10 | 원장 UPDATE/DELETE 금지 — 추가 전용은 규칙과 권한(`@Immutable`, MVP의 `GRANT`/`REVOKE`)으로 지킨다. 정정은 `ADJUSTMENT` 행 추가 | — | 10 | 쿼리 대상 아님 |
 | 11 | 평가액: 새 `turn` 행의 `holdings_value` = Σ `holding.quantity` × `turn_price(t)`, `cash_balance` = `cash_account.balance`, `drawdown` = `round(total_value ÷ max(initial_cash, 1..t턴의 total_value) − 1, 8)`(예: 초기 100, 총액 120 → 90이면 −0.25000000) | VALUATION | 새 | PLAN §5.2 항등식 ③, SPRING_JPA §6. **턴 전환 전용** — 수동 검사에서는 돌리지 않고 기록하지 않는다(현재 턴의 매매가 스냅샷 뒤에 있다) |
@@ -1493,10 +1495,10 @@ v2에서 새로 생긴 FK는 R26·R27(`orders`의 복합 FK)과 6절의 14개다
 
 | # | 결정 | 근거 | 탈락한 대안 |
 |---|---|---|---|
-| D1 | 모든 금액을 `NUMERIC(19,4)`로 한다. 현금 값(`amount`, `balance`, `balance_after`, `reserved`, `fee`, `tax`)·평가액(`turn`의 금액 7개)과 가격(`turn_price.price`, `limit_price`, `fill_price`)은 원 단위 정수 값만 저장하고 `CHECK (col = ROUND(col, 0))`로 DB가 강제, `avg_price`·`realized_pnl`은 소수 4자리까지 저장 | PLAN §5.2 회계 규칙 "반올림". 타입이 하나라 단순하고 평균단가의 소수를 표현한다. 원 단위 정수 CHECK는 `NUMERIC(15,0)`(탈락한 대안)의 장점 — 소수가 원장에 못 들어간다는 DB 보장 — 만 가져왔다. `reserved`는 `balance`에서 빼서 주문 가능 금액을 만들므로 같은 단위여야 해서 포함하고, 가격도 정수로 묶어야 체결 대금(가격 × 수량)이 정수가 되어 대사 규칙 4가 원 미만 차이를 내지 않는다(호가 단위 자체는 강제하지 않음). `avg_price`·`realized_pnl`은 계산 결과라 소수를 허용한다. **보장의 범위는 저장값이다:** `NUMERIC(19,4)`는 소수 다섯째 자리 이하를 경고 없이 4자리로 반올림하므로(2절 "숫자 대입") `100.00001`은 `100.0000`으로 저장되어 통과하고 `100.00005`는 `100.0001`이 되어 CHECK(23514 `ck_cash_ledger_amount_won`)가 막는다(PostgreSQL 17.11에서 확인: `100.00001` → 저장 `100.0000`·통과, `100.00005`·`100.5`·`-100.00005` → 23514, `100.00004` → `100.0000` 통과). 입력 원본의 소수 거부는 코드가 맡는다. **V3 외화(소수 통화) 도입 시 이 CHECK들을 바꿔야 한다.** `DOUBLE PRECISION`·`REAL`·`FLOAT`은 이진 부동소수점이라 0.1 같은 값을 정확히 표현하지 못해 합계 대사가 어긋나므로 쓰지 않는다 | `BIGINT`(원) + `avg_price`만 `NUMERIC`(타입이 섞임), `NUMERIC(15,0)`(수수료 중간값·평균단가 소수를 저장할 수 없음, 장점만 CHECK로 채택) |
-| D2 | `cash_account.reserved`를 유지하고 `CHECK (reserved >= 0 AND reserved <= balance)`. v2는 지정가가 없어(PLAN §4.6) 항상 0이며 대사 규칙 9가 `reserved` = 0을 본다. `orders.type`·`limit_price`·상태 `PENDING`·`CANCELED`와 그 CHECK도 v1 구조를 그대로 둔다 — v2는 `MARKET`·`FILLED`만 쓴다 | P0-04 Gate 1 결정(2026-11-06). PLAN §5.1 시즌 계좌 비고("이전 ERD의 정의·CHECK를 유지")가 정한 승인 범위를 지키고, v1 CHECK 24개를 이름 그대로 옮겨(7.6) P0-02의 음성 사례를 재사용한다. 지정가가 들어오는 날(V2 이후 검토) 스키마 변경이 없다. 대기 주문 합계와의 일치 검사는 그때 정한다 | 지정가 관련 컬럼·CHECK를 삭제하고 상태 목록을 줄이는 안(쓰이지 않는 구조는 없어지지만 PLAN §5.1 비고와 P0-02 음성 사례를 다시 써야 하고, 지정가가 필요해지면 되살려야 함), PENDING 주문 합계로 매번 계산(집계·다중 행 잠금), 별도 `cash_hold` 테이블(과설계) |
+| D1 | 모든 금액을 `NUMERIC(19,4)`로 한다. 현금 값(`amount`, `balance`, `balance_after`, `reserved`, `fee`, `tax`)·평가액(`turn`의 금액 7개)과 가격(`turn_price.price`, `limit_price`, `fill_price`)은 원 단위 정수 값만 저장하고 `CHECK (col = ROUND(col, 0))`로 DB가 강제, `avg_price`·`realized_pnl`은 소수 4자리까지 저장 | PLAN §5.2 회계 규칙 "반올림". 타입이 하나라 단순하고 평균단가의 소수를 표현한다. 원 단위 정수 CHECK는 `NUMERIC(15,0)`(탈락한 대안)의 장점 — 소수가 원장에 못 들어간다는 DB 보장 — 만 가져왔다. `reserved`는 `balance`에서 빼서 주문 가능 금액을 만들므로 같은 단위여야 해서 포함하고, 가격도 정수로 묶어야 체결 대금(가격 × 수량)이 정수가 되어 대사 규칙 4가 원 미만 차이를 내지 않는다(호가 단위 자체는 강제하지 않음). `avg_price`·`realized_pnl`은 계산 결과라 소수를 허용한다. **보장의 범위는 저장값이다:** `NUMERIC(19,4)`는 소수 다섯째 자리 이하를 경고 없이 4자리로 반올림하므로(2절 "숫자 대입") `100.00001`은 `100.0000`으로 저장되어 통과하고 `100.00005`는 `100.0001`이 되어 CHECK(23514 `ck_cash_ledger_amount_won`)가 막는다(PostgreSQL 17.11에서 확인: `100.00001` → 저장 `100.0000`·통과, `100.00005`·`100.5`·`-100.00005` → 23514, `100.00004` → `100.0000` 통과). 입력 원본의 소수 거부는 코드가 맡는다. **외화(소수 통화) 현금을 도입하면(단계 미정 — PLAN §5.3 질문 3) 이 CHECK들을 바꿔야 한다.** `DOUBLE PRECISION`·`REAL`·`FLOAT`은 이진 부동소수점이라 0.1 같은 값을 정확히 표현하지 못해 합계 대사가 어긋나므로 쓰지 않는다 | `BIGINT`(원) + `avg_price`만 `NUMERIC`(타입이 섞임), `NUMERIC(15,0)`(수수료 중간값·평균단가 소수를 저장할 수 없음, 장점만 CHECK로 채택) |
+| D2 | `cash_account.reserved`를 유지하고 `CHECK (reserved >= 0 AND reserved <= balance)`. v2는 지정가가 없어(PLAN §4.6) 항상 0이며 대사 규칙 9가 `reserved` = 0을 본다. `orders.type`·`limit_price`·상태 `PENDING`·`CANCELED`와 그 CHECK도 v1 구조를 그대로 둔다 — v2는 `MARKET`·`FILLED`만 쓴다 | P0-04 Gate 1 결정(2026-11-06). PLAN §5.1 시즌 계좌 비고("이전 ERD의 정의·CHECK를 유지")가 정한 승인 범위를 지키고, v1 CHECK 24개를 이름 그대로 옮겨(7.6) P0-02의 음성 사례를 재사용한다. 지정가가 들어오는 날(EXT 이후 검토) 스키마 변경이 없다. 대기 주문 합계와의 일치 검사는 그때 정한다 | 지정가 관련 컬럼·CHECK를 삭제하고 상태 목록을 줄이는 안(쓰이지 않는 구조는 없어지지만 PLAN §5.1 비고와 P0-02 음성 사례를 다시 써야 하고, 지정가가 필요해지면 되살려야 함), PENDING 주문 합계로 매번 계산(집계·다중 행 잠금), 별도 `cash_hold` 테이블(과설계) |
 | D3 | 주문 1 : 체결 0..N, `execution.order_id`는 UNIQUE 아님 | PLAN §5.1 `orders`/`execution`. v2의 주문은 접수와 체결이 한 번이라 1 : 1이 보통이나 1 : N 구조를 유지한다 — 분할 체결 확장 여지가 있고 비용이 없다. 체결 0건 주문(`PENDING`·`REJECTED`)도 같은 구조로 표현된다 | 1 : 1(분할 체결이 오면 제약 제거 필요), 테이블 통합(상태와 사실이 섞임) |
-| D4 | 원장 `type`은 `DEPOSIT`/`BUY`/`SELL`/`FEE`/`TAX`/`ADJUSTMENT`, 부호 있는 `amount` + 부호 `CHECK`, 계좌 개설 시 `DEPOSIT` 행(`ref_order_id` NULL을 `CHECK`로 강제, `ADJUSTMENT`는 주문 참조 선택). 수수료·세금은 별도 `FEE`·`TAX` 행(0원이면 행 생략). `FEE` 행은 수수료 > 0이면 생긴다(V1 요율은 시장별 `season.fee_rate_kr`·`fee_rate_us`와 환전 비용률 `fx_spread_rate`, 초안 0.015%·0.25%·0.10%. 환전 비용은 별도 유형 없이 체결 수수료에 합쳐 한 행, PLAN §4.6) | PLAN §5.2 대사 "Σ amount = balance"를 만족하려면 부호 있는 금액과 개설 입금 행이 필요하다. 비용 합계를 원장만으로 확인할 수 있고(성적표의 "비용" 항목), MACRO_ETF §7.1과 같은 구조라 M1 통합이 쉽다. 초기 자금은 `DEPOSIT`이고 금액은 `season.initial_cash`와 같다(대사 규칙 1) | 비용을 BUY/SELL 금액에 포함(조인 필요, 구조 다름 — 합친 행은 대사 규칙 4의 유형별 진단이 잡는다), 부호 CHECK 없음(부호 실수를 DB가 못 잡음) |
+| D4 | 원장 `type`은 `DEPOSIT`/`BUY`/`SELL`/`FEE`/`TAX`/`ADJUSTMENT`, 부호 있는 `amount` + 부호 `CHECK`, 계좌 개설 시 `DEPOSIT` 행(`ref_order_id` NULL을 `CHECK`로 강제, `ADJUSTMENT`는 주문 참조 선택). 수수료·세금은 별도 `FEE`·`TAX` 행(0원이면 행 생략). `FEE` 행은 수수료 > 0이면 생긴다(MVP 요율은 시장별 `season.fee_rate_kr`·`fee_rate_us`와 환전 비용률 `fx_spread_rate`, 초안 0.015%·0.25%·0.10%. 환전 비용은 별도 유형 없이 체결 수수료에 합쳐 한 행, PLAN §4.6) | PLAN §5.2 대사 "Σ amount = balance"를 만족하려면 부호 있는 금액과 개설 입금 행이 필요하다. 비용 합계를 원장만으로 확인할 수 있고(성적표의 "비용" 항목), MACRO_ETF §7.1과 같은 구조라 M1 통합이 쉽다. 초기 자금은 `DEPOSIT`이고 금액은 `season.initial_cash`와 같다(대사 규칙 1) | 비용을 BUY/SELL 금액에 포함(조인 필요, 구조 다름 — 합친 행은 대사 규칙 4의 유형별 진단이 잡는다), 부호 CHECK 없음(부호 실수를 DB가 못 잡음) |
 | D5 | **v2에서 대체됨.** v1의 `stock_price`(종목 가격 이력 테이블)는 시즌 스냅샷 `turn_price`와 역사 `asset_month_return`으로 바뀌었다(D16, 6.3 `turn_price`) | 게임의 가격은 시즌마다 다른 경로에서 나오므로 전역 가격 이력이 의미가 없다. 시즌 가격은 `turn_price`가 정본이고 체결·평가는 그 값만 쓴다(PLAN §5.2) | v1의 탈락 대안(`stock.current_price` 컬럼, `stock_latest_price` 테이블)은 테이블 자체가 사라져 해당 없음 |
 | D6 | `cash_account` PK = `season_id`(식별 1:1), `holding`은 대리 키 `id` + UNIQUE `(season_id, asset_id)`, `cash_ledger.season_id`는 `cash_account.season_id` 참조 | PLAN §5.1 — 계좌가 회원이 아니라 시즌에 1:1이다. 1:1을 DB가 보장하고, JPA 복합 키를 피하며, 원장이 "계좌의 원장"임이 FK로 드러난다 | 모든 테이블 대리 키(`cash_account`에 PLAN에 없는 id), `holding` 복합 PK(JPA 학습 부담) |
 | D7 | 전량 매도해도 `holding` 행을 유지하고 `quantity = 0`, `avg_price = 0`. 이 쌍을 `CHECK ((quantity = 0 AND avg_price = 0) OR (quantity > 0 AND avg_price > 0))`로 강제한다 | PLAN §5.2 대사 "보유 수량 = 매수 − 매도". 체결은 있는데 보유 행이 없으면 곧 이상 신호이고, 매도 SQL이 UPDATE 하나로 끝난다. 포트폴리오 쿼리는 `quantity > 0`으로 거른다 | 행 삭제(매도 SQL 분기, 정상 부재와 누락 구분 어려움) |
@@ -1505,10 +1507,10 @@ v2에서 새로 생긴 FK는 R26·R27(`orders`의 복합 FK)과 6절의 14개다
 | D10 | 표기는 `docs/erd.md`의 Mermaid `erDiagram` + 엔티티 정의서 | GitHub가 바로 렌더링하고 텍스트라 PR diff로 리뷰할 수 있으며, 소유자가 이미 쓰는 노트 형식이다. 결정 근거를 같은 파일에 둔다 | dbdiagram.io DBML(DDL 자동 생성이 직접 작성 목표를 우회), 이미지(diff·리뷰 불가) |
 | D11 | 시각 컬럼은 `TIMESTAMPTZ`(기본값 `now()`), Java `Instant`. 날짜(달·기준일·상장일)는 `DATE` | 저장값이 시간대와 무관한 순간이라 v1의 "서버가 UTC면 `created_at`만 9시간 어긋남" 문제가 규칙이 아니라 타입으로 사라진다(SPRING_JPA §4.1·§4.5). 이 게임의 시각 컬럼은 감사·기록용이고 날짜는 `DATE`라 표시 변환이 필요한 곳이 적다. 트레이드오프: `created_at::date`가 세션 `timezone`에 따라 달라져 "오늘" 조회는 `AT TIME ZONE 'Asia/Seoul'`을 쓴다 | `TIMESTAMP(6)` + "모두 KST로 저장" 규칙(`now()`가 세션 시간대로 값을 만드는 v1과 같은 함정이 남음 — DB·JDBC·서버 설정 세 곳을 맞춰야 함) |
 | D12 | 대리 키 `GENERATED ALWAYS AS IDENTITY` + 자연 키 `UNIQUE`. 적재는 스테이징 테이블에 `\copy` 한 뒤 자연 키 조인으로 `INSERT … SELECT`(CSV에 id가 없음) | SPRING_JPA §4.2·§7. `GENERATED ALWAYS`는 INSERT·UPDATE의 id 지정을 428C9로 막지만 `COPY … (id, …)`는 값을 받아들이고 시퀀스를 올리지 않는다(PostgreSQL 17.11에서 확인). 그래서 적재의 `COPY` 컬럼 목록에는 `id`를 넣지 않는다(스테이징 + 자연 키 조인, 하류 약속 P0-08에도 적음) | `BY DEFAULT`(id를 손으로 넣을 수 있어 시퀀스와 어긋날 위험), `SERIAL`(구식, 시퀀스 소유권·권한이 따로 논다), 자연 키를 PK로(JPA 복합 키, FK 컬럼이 늘어남) |
-| D13 | `asset` → `asset_group` 1 : N(`asset.asset_group_id` NN), 시장은 `asset.market` | Q11. 그룹이 시장을 가로질러야 "반도체"가 국내·미국을 함께 묶고, "확대" 피드의 그룹 관심 지수가 쓴다 | 시장별로 쪼갠 그룹(국내 반도체·미국 반도체가 별개가 됨), 다대다 매핑 테이블(테마는 V2에 필요해질 때) |
+| D13 | `asset` → `asset_group` 1 : N(`asset.asset_group_id` NN), 시장은 `asset.market` | Q11. 그룹이 시장을 가로질러야 "반도체"가 국내·미국을 함께 묶고, "확대" 피드의 그룹 관심 지수가 쓴다 | 시장별로 쪼갠 그룹(국내 반도체·미국 반도체가 별개가 됨), 다대다 매핑 테이블(테마는 EXT에 필요해질 때) |
 | D14 | `asset_position` = 종목 × 기준일 스냅샷: 풀 구성 + 기준일 가격·환율 + 시스템 판정. 판정 8컬럼은 전부-또는-없음 CHECK | 같은 키(종목 × 기준일)의 속성이 한 행에 모인다. 행은 P0-08이 가격과 함께 만들고 판정은 P0-10이 UPDATE로 채우므로 NULL 허용이 필요하고, 부분 채움은 CHECK가 막는다. 기준일 환율이 USD 종목 수만큼 반복되는 중복(3NF 위반)은 검증 규칙 H1이 잡는다 — v1이 `balance`·`avg_price`를 중복 저장하고 대사로 검증한 방식과 같다 | 기준일 단위 테이블 `pool_base` + FK(테이블 9개로 PLAN §5.1과 확정 22개를 바꿔야 하고, 판정 NN을 지키려면 기준일 가격 적재 순서가 꼬임), 0턴 원화 가격만 저장하고 환율은 버림(현지 가격·기준 환율이 사라져 달러 현금 같은 선택지가 막힘) |
 | D15 | 시가총액 순위는 `asset_position.market_cap_rank`, **시장 내** 순위, ETF는 NULL | Q12. 기준일마다 바뀌는 값이라 `asset`이 아니라 종목 × 기준일 행에 둔다. 타겟형 판정(PLAN §4.10)의 입력이다 | `asset`에 순위(기준일 값이 덮어써짐), 타겟형 판정에서 시가총액 조건 제외(P0-08에서 20종목의 순위를 못 채우면 되돌릴 안으로 남김) |
-| D16 | 수익률은 **현지 통화**로 저장하고 환율 변화는 `fx_month`에 따로 둔다. 원화 결합은 `turn_price`를 만들 때 한다: 0턴 원화 가격 = round(`base_price` × `base_fx_rate`), t턴 = round(0턴 원화 가격 × Π(1+r현지)(1+r환율)) — PLAN §5.2 문자 그대로. 대체 수익률 구분은 `return_kind VARCHAR(11)`(`ACTUAL`/`PROXY_INDEX`) | Q3, Q8. 정본 문서와 같아 문서 수정이 없고, 화면의 0턴 가격과 이후 가격이 같은 출발점에서 나와 사용자가 검산할 수 있다. 환율을 분리하면 달러 현금 도입 때도 수익률이 그대로이다. `return_kind`는 V2 합성 대체 수익률이 값 한 줄로 들어온다. 트레이드오프: 0턴 반올림 오차(≤ 0.5원)가 누적 곱만큼 커지지만 두 엔진이 같은 규칙을 쓰므로 대사에는 영향이 없다 | 원화 수익률 저장(환율이 섞여 분리 불가), t턴 = round(`base_price` × `base_fx_rate` × Π…)(수학적으로는 정확하나 PLAN §5.2·SPRING_JPA의 "시작가"와 달라 문서 수정이 필요하고 0턴 표시 가격 검산이 1원씩 어긋날 수 있음), `is_proxy BOOLEAN`(V2에서 "어떤 대체인지" 컬럼을 또 만들어야 함) |
+| D16 | 수익률은 **현지 통화**로 저장하고 환율 변화는 `fx_month`에 따로 둔다. 원화 결합은 `turn_price`를 만들 때 한다: 0턴 원화 가격 = round(`base_price` × `base_fx_rate`), t턴 = round(0턴 원화 가격 × Π(1+r현지)(1+r환율)) — PLAN §5.2 문자 그대로. 대체 수익률 구분은 `return_kind VARCHAR(11)`(`ACTUAL`/`PROXY_INDEX`) | Q3, Q8. 정본 문서와 같아 문서 수정이 없고, 화면의 0턴 가격과 이후 가격이 같은 출발점에서 나와 사용자가 검산할 수 있다. 환율을 분리하면 달러 현금 도입 때도 수익률이 그대로이다. `return_kind`는 EXT 합성 대체 수익률이 값 한 줄로 들어온다. 트레이드오프: 0턴 반올림 오차(≤ 0.5원)가 누적 곱만큼 커지지만 두 엔진이 같은 규칙을 쓰므로 대사에는 영향이 없다 | 원화 수익률 저장(환율이 섞여 분리 불가), t턴 = round(`base_price` × `base_fx_rate` × Π…)(수학적으로는 정확하나 PLAN §5.2·SPRING_JPA의 "시작가"와 달라 문서 수정이 필요하고 0턴 표시 가격 검산이 1원씩 어긋날 수 있음), `is_proxy BOOLEAN`(EXT에서 "어떤 대체인지" 컬럼을 또 만들어야 함) |
 | D17 | 축 4개의 방향·강도와 국면 확률 4개는 `month_block`의 NULL 허용 컬럼, 지표 14개 변환값은 MVP 데이터 준비 때 결정 | PLAN §5.3 질문 5. Phase 0에는 검증할 데이터가 없는 컬럼을 만들지 않는다. MVP에서 마이그레이션 하나가 든다 | 지금 JSONB 컬럼 `indicators` 하나(타입·CHECK·NULL 규칙을 DB가 못 지킴, Phase 0 값 없음), 긴 테이블 `month_indicator`(테이블 추가로 확정 22개를 벗어남, 조회마다 피벗) |
 | D18 | `month_event`는 노출/복기 전용 컬럼을 구분하고, 표본 수의 단위인 `event_type`과 바뀌지 않는 파일 id `event_key`를 둔다 | PLAN §4.11. "고유 사건 예외"(n < 3)와 통계 보드 조건이 `event_type` 단위이고, 피드가 FK로 가리키는 태그를 다시 적재해도 유지하려면 불변 키가 필요하다 | `category`만 두고 유형은 `title`로 구분(표본 수 단위가 사라짐), 태그 id 없이 `title`로 매칭(실제 이름이 바뀌면 참조가 깨지고 복기 전용 값이 키가 됨) |
 | D19 | 관심 지수의 구성 요소(`attention_z`, `streak`, `attention_index`, `window_months`)를 따로 저장하고(순위는 풀 상대값이라 저장하지 않는다), 창이 부족하면 NULL로 둔다 | PLAN §4.13, §4.5. 지수 공식이 바뀌어도 구성 요소로 다시 계산하고 검증(H8)할 수 있으며, 표본이 끊긴 곳에서 가짜 값을 만들지 않는다 | 지수만 저장(공식 변경·사후 정보 검증 불가), 창 부족을 0으로 채움(NULL과 실제 0이 섞임), 순위 저장(R1-A: 모집단을 "적재된 모든 종목"으로 정의 — 풀이 둘이 되는 순간 저장 순위가 어느 시즌에도 맞지 않고, 다시 매기면 지난 시즌 재현이 흔들림) |
@@ -1525,10 +1527,10 @@ v2에서 새로 생긴 FK는 R26·R27(`orders`의 복합 FK)과 6절의 14개다
 | D30 | 시즌에 `fee_rate_kr`·`fee_rate_us`·`fx_spread_rate`·`initial_cash`·`base_date`·`engine_version`·`data_snapshot_date`·`seed`를 DB 기본값 없이 박는다 | 국내·미국 요율, 환전 비용률, 초기 자금이 바뀐 뒤에도 지난 시즌을 검산(대사 규칙 14)·재현한다(PLAN §4.2). DB 기본값이 있으면 코드의 누락이 조용히 기본값으로 메워진다 | DB 기본값, 엔진 버전에서 요율 유도(엔진 버전이 같아도 요율이 바뀔 수 있음) |
 | D31 | 전술 변경 비용은 저장하지 않고 `formation_change_id`로 묶인 주문의 수수료·세금 합을 조회한다 | PLAN §5.1 비고 그대로이고 값이 한 곳(`execution`)에만 있다. 변경 행은 불변이고 주문이 변경 뒤에 생기므로 나중에 비용을 채울 수 없다 | `formation_change`에 비용 컬럼(불변과 충돌), 변경 ↔ 주문 매핑 테이블(다대다가 아님 — 테이블이 늘어 확정 22개를 벗어남) |
 
-**문서 구성 결정:** 관계도는 확정 22개 + MVP 스케치 3개(컬럼 없음), V2 이후 스케치, 영역 상세(컬럼 있음)의 셋으로 나눴다 — 한 그림이 25개 이하라 읽힌다(탈락: 42개를 한 `erDiagram`에 그리기는 배치가 읽기 어렵고 PR diff가 커짐, 전체를 `flowchart`로 그리기는 카디널리티 표기가 D10과 어긋남). v1 계좌 정의는 P0-03에서 MySQL 타입 그대로 부록에 옮겨 두었다가 P0-04에서 7절로 v2로 바꿔 쓰고 부록을 지웠다 — v1과의 대응은 7.6 대조표가 남긴다. 시즌 영역(6절 9개)과 시즌 계좌(7절 5개)를 둘로 나눈 것은 DDL ②·③의 분할과 1:1이라 각 DDL 기능이 한 절만 읽으면 되기 때문이다(탈락: 14개를 한 절에 두기는 한 그림에 14개 + 앵커 4개가 되어 읽기 어렵다).
+**문서 구성 결정:** 관계도는 확정 22개 + MVP 스케치 3개(컬럼 없음), EXT 이후 스케치, 영역 상세(컬럼 있음)의 셋으로 나눴다 — 한 그림이 25개 이하라 읽힌다(탈락: 42개를 한 `erDiagram`에 그리기는 배치가 읽기 어렵고 PR diff가 커짐, 전체를 `flowchart`로 그리기는 카디널리티 표기가 D10과 어긋남). v1 계좌 정의는 P0-03에서 MySQL 타입 그대로 부록에 옮겨 두었다가 P0-04에서 7절로 v2로 바꿔 쓰고 부록을 지웠다 — v1과의 대응은 7.6 대조표가 남긴다. 시즌 영역(6절 9개)과 시즌 계좌(7절 5개)를 둘로 나눈 것은 DDL ②·③의 분할과 1:1이라 각 DDL 기능이 한 절만 읽으면 되기 때문이다(탈락: 14개를 한 절에 두기는 한 그림에 14개 + 앵커 4개가 되어 읽기 어렵다).
 
 **MVP에서 다시 볼 것:**
-- 준비 구간(2002–2006) 달을 `month_block`에 넣을 때 재생 표본에서 빼는 방법(조회 조건 vs 플래그 컬럼).
+- 준비 구간(PLAN §7) 달을 `month_block`에 넣을 때 재생 표본에서 빼는 방법(조회 조건 vs 플래그 컬럼).
 - 지표 14개 변환값(PLAN §5.3 질문 5)과 국면 라벨 저장 여부(M2).
 - 역사 테이블 읽기 전용을 DB 역할 `GRANT`로 강제(D21).
 - 역사 행 정정 정책(제자리 갱신 vs 정정 버전, 데이터 스냅샷 날짜 PLAN §4.2). 시즌이 참조한 행은 FK `RESTRICT`로 지울 수 없다.
@@ -1540,10 +1542,10 @@ v2에서 새로 생긴 FK는 R26·R27(`orders`의 복합 FK)과 6절의 14개다
 - `season.status`에 채점 단계(`SCORING`)를 더할지(SPRING_JPA §12-1).
 - 지난 턴 스냅샷의 재검증(체결·원장 경계로 재구성)을 어디서 할지 — 규칙 11·19는 턴 전환 전용이다.
 - 사건 카드(`EVENT`)도 관련 그룹·종목을 가리킬 수 있게 `ck_turn_feed_target_kind`를 풀지(주문 동선이 소음 항목과 같아진다 — 화면 설계와 함께).
-- V2 월 적립금이 들어오면 입금이 낙폭의 고점을 올려 낙폭이 줄어 보이므로 낙폭을 입출금 보정 기준으로 바꾼다(6.3 `turn.drawdown`).
+- EXT 월 적립금이 들어오면 입금이 낙폭의 고점을 올려 낙폭이 줄어 보이므로 낙폭을 입출금 보정 기준으로 바꾼다(6.3 `turn.drawdown`).
 - `member.kind`·`agent_profile`(PLAN v3, 안 A) — AG-02에서 확정한다. 사람만 이메일·비밀번호를 가지므로 `email`·`password`를 NULL 허용으로 바꾸고 3.2의 CHECK 둘(종류 목록, 종류별 자격 증명 — 사람은 둘 다 있음, 에이전트는 둘 다 없음)을 함께 만든다. 기본값 `'HUMAN'`은 기존 회원 행을 그대로 두는 `ALTER TABLE … ADD COLUMN`을 위해서다(표현식 유일 인덱스 `uq_member_email`은 NULL 여러 개를 허용하므로 그대로 동작).
 - `orders.source`에 `AGENT`를 넣지 않는다 — 주체는 `member.kind`가 알고, `source`는 출발점(랭킹·피드·알림·벤치·직접)을 그대로 남겨야 에이전트의 독려 반응·소음 반응(PLAN §6.2)을 잴 수 있다(PLAN §4.16). 사람 주문의 `source`는 서버가 관측한 화면 경로(7절 정의의 "자기 신고가 아님")이고, 에이전트 주문은 응답의 출발점 참조를 서버가 그 턴 노출 기록과 대조해 기록한다 — AG-02에서 7절 정의 칸에 이 예외를 적는다.
-- `event_type`·`outcome` 목록 CHECK 전환(V2 전체 편집 뒤). 지금은 형식 CHECK + `events/README.md` 목록이라 철자 오류를 DB가 못 잡는다(검증 규칙 H6).
+- `event_type`·`outcome` 목록 CHECK 전환(EXT 전체 편집 뒤). 지금은 형식 CHECK + `events/README.md` 목록이라 철자 오류를 DB가 못 잡는다(검증 규칙 H6).
 
 ## 9. 하류 기능 약속
 
@@ -1566,4 +1568,4 @@ v2에서 새로 생긴 FK는 R26·R27(`orders`의 복합 FK)과 6절의 14개다
 | P0-18·MVP DTO | 에이전트 펀드 매니저(PLAN §4.16)의 TurnView는 사람 화면 DTO를 만드는 **같은 조립 코드의 출력**을 직렬화한다(컬럼을 따로 고르지 않는다) — 에이전트 전용 부분(메모리, 최근 자기 매매·사유, 직전 턴 거부 사유)은 그 뒤에 덧붙이며 자기 기록과 `[노출]` 값으로만 만든다. `[복기 전용]`·`[내부]` 컬럼은 에이전트에게도 시즌 중에 내지 않는다. 음성 사례: 턴별 `return_kind`, n < 3 사건 범주, 현재 턴 이후 행이 TurnView에 없을 것. 노출 컬럼 표시(`[노출]`)를 바꾸면 사람 화면과 에이전트 입력이 함께 바뀐다 |
 | P0-19 전술 변경 | `formation_change`(before = 현재, after = 새 값) + `season.current_*` 갱신 → 같은 턴 주문에 `formation_change_id`(대사 규칙 16 — 변경·주문 모두 `created_at = clock_timestamp()`를 명시한다), 피드에서 시작한 주문은 `source = 'FEED'` + `turn_feed_id`(검증 규칙 S6). 매도 체결의 `realized_pnl`(D9), 전량 매도 시 `holding` 0·`lineup` 닫기(`end_turn = turn_no`) |
 | P0-20 성적 집계 | 비중은 `turn`의 포지션별 평가액 ÷ `total_value`(D24). 포메이션 준수의 기준은 "턴 시작 시점 포메이션" = 그 턴 번호보다 작은 `turn_no`의 마지막 변경 after(없으면 시작 값, PLAN §6.2). 위험 준수는 `turn.drawdown` vs `season.risk_limit`, 변경 비용은 `formation_change_id` 묶음의 수수료 합, 독려 반응은 `orders.source IN ('RANKING','FEED','ALERT')` |
-| MVP | 엔티티: 불변 `season_path`·`turn`·`turn_price`·`formation_change`·`turn_feed`·`reconciliation_log`·`execution`·`cash_ledger`, 가변 `member`·`season`·`cash_account`·`holding`·`lineup`. DTO는 `[복기 전용]` 컬럼(`season_path.month_block_id`, `turn_feed.kind`·`month_event_id`)과 `[내부]` 컬럼을 시즌 중에 내지 않는다. 복합 FK는 `Long` id 컬럼 그대로 매핑한다. `orders`는 넣은 뒤 바뀌지 않으며 `@Immutable` 여부는 MVP에서 정한다(V2 지정가가 오면 상태가 바뀐다). DTO 테스트로 공개 필드 조합(대상 NULL 여부 포함)으로 `EVENT`를 판별할 수 없는지 확인한다 |
+| MVP | 엔티티: 불변 `season_path`·`turn`·`turn_price`·`formation_change`·`turn_feed`·`reconciliation_log`·`execution`·`cash_ledger`, 가변 `member`·`season`·`cash_account`·`holding`·`lineup`. DTO는 `[복기 전용]` 컬럼(`season_path.month_block_id`, `turn_feed.kind`·`month_event_id`)과 `[내부]` 컬럼을 시즌 중에 내지 않는다. 복합 FK는 `Long` id 컬럼 그대로 매핑한다. `orders`는 넣은 뒤 바뀌지 않으며 `@Immutable` 여부는 MVP에서 정한다(EXT 지정가가 오면 상태가 바뀐다). DTO 테스트로 공개 필드 조합(대상 NULL 여부 포함)으로 `EVENT`를 판별할 수 없는지 확인한다. 확장 구간(PLAN §4.7)에서 실제 이력이 없는 달(상장 전, 또는 상장 뒤라도 출처에 시세가 없는 달)은 대체 수익률을 쓴다 — 개별 주식은 같은 시장의 대표 지수, ETF는 추종 지수가 먼저이고 없을 때 대표 지수다(PLAN §4.7). 그래서 MVP Flyway에서 함께 고친다: `ck_asset_proxy_etf`와 `proxy_index_name`의 뜻(개별 주식도 대체 지수명을 가지고, 추종 지수가 없는 ETF는 대표 지수 이름을 가짐), 검증 규칙 H7의 '개별 주식은 전부 `ACTUAL`'과 'ETF 상장 후는 `ACTUAL`'(확장 구간의 시세 없는 달은 예외), `PROXY_INDEX`의 뜻(상장 전 달뿐 아니라 확장 구간의 시세 없는 달도, 추종 지수 또는 대표 지수의 수익률 — 보수/12 차감은 지수로 채운 ETF 달만, PLAN §4.6), 재생 범위 조건(검증 규칙 S1)의 시작. `return_kind` 값 목록은 그대로다. 5.3·5.5의 정의는 Phase 0 표본(2007-01부터) 기준이라 그대로 둔다 |
