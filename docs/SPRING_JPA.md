@@ -122,7 +122,7 @@ OrderService.place(seasonId, expectedTurnNo, side, assetId, qty, declaredPositio
 
 - 비관적 락(`@Lock(LockModeType.PESSIMISTIC_WRITE)` = `SELECT … FOR UPDATE`): 같은 시즌에 두 요청이 동시에 오면 둘째가 **기다렸다가** 첫째의 결과 위에서 검증한다. PostgreSQL의 기본 격리 수준 READ COMMITTED에서 보통 SELECT는 락을 잡지 않으므로, 락 없이 잔액을 읽으면 두 요청이 같은 잔액을 보고 둘 다 "충분하다"고 판단해 둘 다 커밋한다 — 잔액이 음수가 된다. `FOR UPDATE`는 둘째 SELECT를 첫째 트랜잭션이 끝날 때까지 기다리게 하고, 풀리면 **커밋된 최신 행**을 다시 읽는다(Phase 0의 두 세션 실습 P0-15가 이것을 보여 준다).
 - 락 순서는 항상 **season → cash_account**. 턴 전환(§5.3)도 같은 순서라 교착이 나지 않는다.
-- 멱등성: 요청에 `expectedTurnNo`를 받아 "이미 넘어간 턴에 대한 주문"을 거부한다. 같은 주문을 두 번 보내는 것(더블 클릭)은 V2에서 `Idempotency-Key` 헤더 + `orders.client_key UNIQUE`로 막는다. MVP는 턴 번호 검사까지.
+- 멱등성: 요청에 `expectedTurnNo`를 받아 "이미 넘어간 턴에 대한 주문"을 거부한다. 같은 주문을 두 번 보내는 것(더블 클릭)은 EXT에서 `Idempotency-Key` 헤더 + `orders.client_key UNIQUE`로 막는다. MVP는 턴 번호 검사까지.
 
 ### 5.3 턴 전환
 
@@ -132,9 +132,9 @@ TurnService.advance(seasonId, expectedTurnNo)
   2. account = findBySeasonIdForUpdate
   3. nextBlock = seasonPathRepo.findBySeasonIdAndTurnNo(seasonId, expectedTurnNo + 1)
   4. returns = assetMonthReturnRepo.findByMonthBlockId(nextBlock)   -- 풀의 모든 종목(사용자는 아무 종목이나 살 수 있다). 시즌 기준일 풀(`asset_position`)로 거르고 `fx_month`와 결합
-     (이력 없는 달은 대체 수익률 — V2, MVP는 풀 제한으로 항상 있음)
+     (이력 없는 달은 대체 수익률 — EXT, MVP는 풀 제한으로 항상 있음)
   5. 풀의 종목마다 누적 곱 갱신 → price' = MoneyMath.priceAt(시작가, 누적 곱) → INSERT turn_price (약 180행)
-  6. 적립금(V2) → cash_ledger. (ETF 보수는 원장에서 빼지 않는다 — 수정 종가에 이미 반영, PLAN §4.6)
+  6. 적립금(EXT) → cash_ledger. (ETF 보수는 원장에서 빼지 않는다 — 수정 종가에 이미 반영, PLAN §4.6)
   7. INSERT turn(턴 번호, 평가액, 현금, 누적 낙폭, 포지션별 평가액 — 현금은 골키퍼, 비중은 조회)
   7b. 소음 피드·독려 알림 생성 → INSERT turn_feed (PLAN §4.13). 생성기(FeedGenerator)의 입력 타입은 "이 턴까지의 가격·관심 지수·사건 태그"만 담는 값 객체로 제한해 다음 블록을 넘길 수 없게 한다. 난수는 시즌 시드 + 턴 번호에서 파생
   8. 기준 포트폴리오 4개도 같은 가격으로 한 턴 진행(리밸런싱·비용 규칙은 PLAN §4.6·§4.10·§6.1, scoring 패키지, 같은 트랜잭션)
@@ -149,7 +149,7 @@ TurnService.advance(seasonId, expectedTurnNo)
 ### 5.4 전술 변경·포지션 지정
 
 - 전술 변경: `season` 락 → `season.current_formation_*` 갱신 + `formation_change` INSERT. 같은 턴에 두 번 바꾸면 마지막 것만 남지 않고 둘 다 기록된다(복기용). 턴 전환과 같은 락 순서. 변경 뒤의 매도·매수는 보통 주문이고, 주문 트랜잭션 안에서 `orders.formation_change_id`를 채운다(어느 변경에 묶는지의 규칙은 PLAN §5.1).
-- 세금(V2)이 들어오면 원장 행(`TAX`)을 매도 주문 트랜잭션과 턴 전환 트랜잭션에서 추가한다. 세율·과세 시점·이연 표시는 PLAN §4.6이 정한다. 이 문서는 "어느 트랜잭션에서 원장에 쓰는가"만 정한다.
+- 세금(EXT)이 들어오면 원장 행(`TAX`)을 매도 주문 트랜잭션과 턴 전환 트랜잭션에서 추가한다. 세율·과세 시점·이연 표시는 PLAN §4.6이 정한다. 이 문서는 "어느 트랜잭션에서 원장에 쓰는가"만 정한다.
 - 포지션 지정·변경: `lineup` 행의 구간을 닫고 새 행을 연다. 주문과 같은 트랜잭션(신규 매수 시) 또는 단독 트랜잭션(보유 중 변경). 단독 변경도 전술 변경처럼 `season` 락 → 상태(`IN_PROGRESS`)·`expectedTurnNo` 검사 → 구간 닫기·열기 순서를 따른다(턴 전환과 겹칠 때 옛 턴 번호로 구간을 닫지 않도록).
 
 ## 6. 대사(턴마다)
@@ -177,7 +177,7 @@ TurnService.advance(seasonId, expectedTurnNo)
 ## 8. 조회와 성능
 
 - **N+1 금지:** 목록을 돌며 연관을 하나씩 읽는 패턴. 성적표·턴 결과처럼 여러 테이블을 묶는 조회는 **JPQL 생성자 표현식**(`SELECT new antlab.season.TurnResultDto(…)`) 또는 네이티브 쿼리로 DTO를 바로 만든다. 엔티티 그래프(`@EntityGraph`)는 연관이 꼭 필요한 곳(시즌 상세)에만.
-- 리포트성 쿼리(통계 보드 V2, 리그 순위 V3)는 MyBatis를 쓸 수 있다(PLAN §10). 한 테이블을 두 도구가 **쓰지는** 않는다 — MyBatis는 읽기만.
+- 리포트성 쿼리(통계 보드 EXT, 리그 순위 APP)는 MyBatis를 쓸 수 있다(PLAN §10). 한 테이블을 두 도구가 **쓰지는** 않는다 — MyBatis는 읽기만.
 - 인덱스는 DDL에 `idx_` 접두로 둔다(P0-02 규칙). JPA의 `@Index`는 쓰지 않는다(`validate`는 인덱스를 검사하지 않으므로 DDL이 유일한 출처).
 - 목록 API는 `Pageable`. 시즌 목록·주문 이력은 페이지로.
 - 턴 전환 1회의 쿼리 수 목표(초안): 보유 종목 수와 무관하게 20개 이하. 테스트에서 쿼리 수를 센다(`DataSource` 프록시 또는 Hibernate 통계).
@@ -215,7 +215,7 @@ antlab:
     block-mean-length: 6
 ```
 
-프로필: `local`(실습 DB, SQL 로그 켬), `test`(`antlab_test`, Flyway clean 허용), `prod`(V5). 비밀값(DB 비밀번호)은 환경 변수로만.
+프로필: `local`(실습 DB, SQL 로그 켬), `test`(`antlab_test`, Flyway clean 허용), `prod`(OPS). 비밀값(DB 비밀번호)은 환경 변수로만.
 
 ## 11. Phase 1(JDBC) → MVP(JPA) 대응표
 
@@ -235,6 +235,6 @@ Phase 1에서 트랜잭션·락·반올림을 손으로 한 번 해 보는 것�
 1. 성적표 계산을 마지막 턴 전환과 같은 트랜잭션에 둘지 분리할지(초안: 같이. 느리면 분리하고 `season.status = SCORING` 추가).
 2. `holding`을 엔티티로 두고 UPSERT할지, `execution` 집계로만 계산할지(초안: 엔티티 — 조회가 잦고 대사로 집계와 대조).
 3. 네이티브 쿼리와 JPQL의 경계(초안: 대사·집계는 네이티브, 나머지는 JPQL).
-4. `Idempotency-Key`(V2) 저장 방식.
+4. `Idempotency-Key`(EXT) 저장 방식.
 5. ~~PostgreSQL 이전 때 `IDENTITY` 처리~~ — 처음부터 PostgreSQL이라 해소(2026-11-05). `GENERATED ALWAYS AS IDENTITY` + JPA `IDENTITY`로 간다. 시퀀스 + `SEQUENCE` 전략(배치 INSERT 가능)으로 바꿀지는 성능이 문제될 때만.
 6. `turn_price`를 풀 전체(턴마다 약 180행, 5년 시즌 10,800행)로 둘지 "보유 + 기준 종목"만 두고 나머지는 주문 때 계산할지(초안: 풀 전체 — 조회가 단순하고 병행 대사가 전수 비교가 된다).
