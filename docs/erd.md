@@ -251,7 +251,7 @@ PLAN §5.3의 질문 1–7과 Phase 0 기능 표의 질문 Q8–Q13에 대한 �
 
 ## 5. 역사 데이터와 종목 풀
 
-PLAN §5.1의 "종목 풀"(`asset_group`, `asset`, `asset_position`)과 "역사 데이터"(`month_block`, `asset_month_return`, `fx_month`, `month_event`, `asset_month_attention`) 8개 테이블을 확정한다. 모두 **적재 전용**이다 — 게임(시즌)은 읽기만 한다. 적재 쪽 쓰기는 INSERT와 `asset_position` 판정을 채우는 한 번의 UPDATE(P0-10)뿐이다. 시즌이 참조한 뒤의 정정 정책은 MVP 데이터 준비에서 정한다 — 지난 시즌의 금액·피드는 `turn_price`·`turn_feed` 스냅샷이 정본이라 역사 행 정정에 바뀌지 않는다. 6절의 시즌 영역 테이블이 이 8개를 FK로 가리킨다.
+PLAN §5.1의 "종목 풀"(`asset_group`, `asset`, `asset_position`)과 "역사 데이터"(`month_block`, `asset_month_return`, `fx_month`, `month_event`, `asset_month_attention`) 8개 테이블을 확정한다. 모두 **적재 전용**이다 — 게임(시즌)은 읽기만 한다. 적재 쪽 쓰기는 INSERT와 두 가지 UPDATE뿐이다 — `asset_position` 판정을 채우는 한 번(P0-10)과 `month_block.events_reviewed`를 FALSE에서 TRUE로만 바꾸는 한 번(P0-09, 되돌리지 않는다). 시즌이 참조한 뒤의 정정 정책은 MVP 데이터 준비에서 정한다 — 지난 시즌의 금액·피드는 `turn_price`·`turn_feed` 스냅샷이 정본이라 역사 행 정정에 바뀌지 않는다. 6절의 시즌 영역 테이블이 이 8개를 FK로 가리킨다.
 
 ### 5.1 관계도
 
@@ -498,14 +498,14 @@ erDiagram
 | 키 | 논리명 | 물리명 | 타입 | NULL | 기본값 | 코멘트 |
 | --- | --- | --- | --- | --- | --- | --- |
 | PK | 사건번호 | id | BIGINT | NN | IDENTITY | `[내부]` `pk_month_event`. 6.3 `turn_feed.month_event_id`의 FK 대상 |
-| UK | 사건 키 | event_key | VARCHAR(40) | NN | | `[내부]` `events/` 파일의 태그 id, **바꾸지 않는다**(P0-13 템플릿 id와 같은 규칙). `uq_month_event_event_key`(적재 자연 키 — 다시 적재해도(`event_key` 기준 갱신) 피드 참조가 유지된다. FK `RESTRICT`라 참조된 태그는 지울 수 없다) |
+| UK | 사건 키 | event_key | VARCHAR(40) | NN | | `[내부]` `events/` 파일의 태그 id, **바꾸지 않는다**(P0-13 템플릿 id와 같은 규칙). `uq_month_event_event_key`(적재 자연 키 — 다시 적재해도 같은 키의 행을 그대로 두므로 피드 참조가 유지된다(값이 다르면 적재가 멈춘다 — 정정 정책은 MVP). FK `RESTRICT`라 참조된 태그는 지울 수 없다) |
 | FK | 월 블록번호 | month_block_id | BIGINT | NN | | `[내부]` → month_block.id (R6). `fk_month_event_month_block`, `idx_month_event_month_block (month_block_id)` |
 | | 범주 | category | VARCHAR(12) | NN | | `[노출]` (유형 표본 수 3 이상일 때만) 대분류(PLAN §4.11의 7개). `ck_month_event_category`: `IN ('GEOPOLITICS','TRADE','POLITICS','SUPPLY_SHOCK','FINANCIAL','POLICY','HEALTH')` |
 | | 사건 유형 | event_type | VARCHAR(30) | NN | | `[노출]` (유형 표본 수 3 이상일 때만) 세부 유형 코드(예: `US_PRESIDENTIAL_ELECTION`, `US_MIDTERM`, `ARMED_CONFLICT`, `TARIFF`, `OIL_SHOCK`, `BANK_FAILURE`, `PANDEMIC`). `ck_month_event_event_type_format`: `event_type ~ '^[A-Z][A-Z0-9_]*$'`. 목록은 `events/README.md`(P0-09). **"고유 사건 예외"(n < 3 → 범주를 말하지 않는 카드, PLAN §4.11)와 통계 보드 사건 조건의 단위**이다(D18) |
 | | 단계 | phase | VARCHAR(7) | NN | | `[노출]` (유형 표본 수 3 이상일 때만) 시작·지속·종료(당시 인식 기준, PLAN §4.11). `ck_month_event_phase`: `phase IN ('START','ONGOING','END')` |
 | | 결과 | outcome | VARCHAR(20) | NULL | | `[노출]` (유형 표본 수 3 이상일 때만) 결과 코드(정권 교체 `CHANGE`/유지 `KEEP`, 과반 상실 `MAJORITY_LOST`/유지 `MAJORITY_KEPT`, 관세 `IMPOSED`/`RETALIATED`/`AGREED`, 분쟁 `ESCALATED`/`CEASEFIRE` …). `ck_month_event_outcome_format`: `outcome IS NULL OR outcome ~ '^[A-Z][A-Z_]*$'`. 유형별 허용 값은 `events/README.md` |
 | | 방향 | direction | VARCHAR(4) | NULL | | `[노출]` (유형 표본 수 3 이상일 때만) 대상의 방향(유가 +/−). `ck_month_event_direction`: `direction IN ('UP','DOWN')`(NULL 통과) |
-| | 강도 단계 | strength | SMALLINT | NN | | `[노출]` 1–3단계(그 달의 시장 반응 변화율 기준, 경계값은 P0-09). `ck_month_event_strength`: `strength BETWEEN 1 AND 3` |
+| | 강도 단계 | strength | SMALLINT | NN | | `[노출]` 1–3단계(그 달의 시장 반응 변화율 기준, 절댓값 5%·10% 경계 — events/README.md, P0-09). `ck_month_event_strength`: `strength BETWEEN 1 AND 3` |
 | | 반응 변화율 | reaction_change | NUMERIC(12,8) | NULL | | `[노출]` 카드에 보이는 변화율("이 달 유가 +28%" → 0.28, PLAN §4.11 "변화율은 보여 준다"). `ck_month_event_reaction_change`: `reaction_change IS NULL OR reaction_change >= -1` |
 | | 실제 이름 | title | VARCHAR(100) | NN | | `[복기 전용]` 실제 이름("리먼 브러더스 파산") |
 | | 출처 | source | VARCHAR(500) | NN | | `[복기 전용]` URL 또는 서지 |
@@ -514,7 +514,7 @@ erDiagram
 
 - 노출 컬럼(`category`~`reaction_change`)에는 연도·날짜·고유명사가 들어갈 수 없다. 코드값 CHECK가 대부분 막고, 남는 것은 P0-09의 검사 쿼리이다(검증 규칙 H5).
 - **희소 사건 규칙:** 유형(`event_type`) 표본 수가 3 미만이면 카드에는 `strength`·`reaction_change`만 나가고 `category`·`event_type`·`phase`·`outcome`·`direction`은 복기 전까지 나가지 않는다. PLAN §4.11의 '범주'(고유 사건 예외)는 이 문서의 `event_type` 단위이다.
-- 유형별 표본 수 = `event_type`별 `phase = 'START'` 태그 수이다(한 사건이 여러 달 이어져도 1회). 정의는 P0-09가 확정하고 이 문장을 고칠 수 있다.
+- 유형별 표본 수 n = 재생 표본의 달에 태그가 하나 이상 있는 **에피소드** 수이다(`event_key` 앞 6글자가 에피소드이고, 한 사건이 여러 달 이어져도 1회). 표본 밖에서 시작한 사건도 센다. 정본 쿼리는 `events/README.md`(P0-09 확정).
 
 #### 종목 달 관심 지수 (asset_month_attention)
 
