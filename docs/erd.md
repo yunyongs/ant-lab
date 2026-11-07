@@ -25,7 +25,7 @@
 
 - **DB:** PostgreSQL 17, 스키마는 `public` 하나(D21). DB는 `ENCODING 'UTF8'`로 만든다(구체 명령은 DDL 기능의 `db/README.md`).
 - **키:** 모든 테이블은 대리 키 `id BIGINT GENERATED ALWAYS AS IDENTITY`를 쓰고 PK 이름은 `pk_{테이블}`이다. 자연 키(적재에 쓰는 코드)는 `UNIQUE`로만 둔다. 예외는 `cash_account`(7.3, PK = `season_id`, 식별 1:1)이다(D12, v1 D6).
-- **금액:** `NUMERIC(19,4)`(가격·현금·대금·평가액·원장·환율 수준). 원 단위 정수 CHECK(`col = ROUND(col, 0)`, v1 D1)는 **원화 금액**에만 건다(6절·7절의 테이블, 단 `holding.avg_price`·`execution.realized_pnl`은 소수 4자리를 저장하므로 제외). 5절의 8개 테이블에서 금액은 `asset_position.base_price`(현지 통화라 원 단위 CHECK 없음)와 `base_fx_rate` 둘이다.
+- **금액:** `NUMERIC(19,4)`(가격·현금·대금·평가액·원장·환율 수준). 원 단위 정수 CHECK(`col = ROUND(col, 0)`, v1 D1)는 **원화 금액**에만 건다(6절·7절의 테이블, 단 `holding.avg_price`·`execution.realized_pnl`은 소수 4자리를 저장하므로 제외). PostgreSQL `NUMERIC`은 `'NaN'`을 받고 NaN은 자기와 같고 어떤 수보다도 크게 비교되므로, 7절의 금액 CHECK는 `col <> 'NaN'::numeric`을 함께 둔다(D32). 5·6절에는 아직 없다(후속 이슈 #32). 5절의 8개 테이블에서 금액은 `asset_position.base_price`(현지 통화라 원 단위 CHECK 없음)와 `base_fx_rate` 둘이다.
 - **비율:** 수익률·환율 변화·변동성·최대 낙폭·참여율·z-score·강도처럼 **금액이 아닌 비율은 모두 `NUMERIC(12,8)`** 하나다(D20). 확률만 `NUMERIC(5,4)`, 포메이션 비중은 `SMALLINT`(6.3 `season`)이다. 엔진 메모리에서 비율을 `float64`로 다루는 것은 PLAN §5.2의 "금지의 범위"에 따르며, 저장값은 이 타입이다. 정수 4자리를 넘는 값은 22003으로 거부된다 — 분모가 0에 가까운 계산은 계산 기능이 처리 규칙을 정한다(임의 0 대입·무통보 절단 금지).
 - **금지 타입:** `DOUBLE PRECISION`, `REAL`, `FLOAT`를 컬럼 타입으로 쓰지 않는다(금액은 PLAN §5.2, 비율은 저장값을 정확한 소수로 두기 위해).
 - **정수:** 작은 수(순위·개월 수·연속 수·강도 단계)는 `SMALLINT`, 수량은 `INTEGER`(7.3), 키는 `BIGINT`.
@@ -1249,13 +1249,13 @@ R23–R32는 3.1의 같은 번호와 같다. `cash_account`만 식별 `--`이고
 | 키 | 논리명 | 물리명 | 타입 | NULL | 기본값 | 코멘트 |
 | --- | --- | --- | --- | --- | --- | --- |
 | PK, FK | 시즌번호 | season_id | BIGINT | NN |  | `[내부]` → season.id (R23). PK = FK(식별 1:1, D6). `pk_cash_account`, `fk_cash_account_season`. v1의 `member_id`가 `season_id`로 바뀐 것이다 |
-|  | 잔액 | balance | NUMERIC(19,4) | NN | 0 | `[노출]` ₩. 신용 없음: `ck_cash_account_balance_nonneg`: `balance >= 0`. 원 단위 정수만 저장: `ck_cash_account_balance_won`: `balance = ROUND(balance, 0)` |
-|  | 예약금 | reserved | NUMERIC(19,4) | NN | 0 | `[내부]` ₩. `ck_cash_account_reserved_range`: `reserved >= 0 AND reserved <= balance`, `ck_cash_account_reserved_won`: `reserved = ROUND(reserved, 0)`. 주문 가능 금액 = balance − reserved. **v2는 지정가가 없어(PLAN §4.6) 항상 0**이다 → 대사 규칙 9. v1 구조를 그대로 둔다(D2) |
+|  | 잔액 | balance | NUMERIC(19,4) | NN | 0 | `[노출]` ₩. 신용 없음: `ck_cash_account_balance_nonneg`: `balance >= 0`. 원 단위 정수만 저장: `ck_cash_account_balance_won`: `balance = ROUND(balance, 0) AND balance <> 'NaN'::numeric` |
+|  | 예약금 | reserved | NUMERIC(19,4) | NN | 0 | `[내부]` ₩. `ck_cash_account_reserved_range`: `reserved >= 0 AND reserved <= balance`, `ck_cash_account_reserved_won`: `reserved = ROUND(reserved, 0) AND reserved <> 'NaN'::numeric`. 주문 가능 금액 = balance − reserved. **v2는 지정가가 없어(PLAN §4.6) 항상 0**이다 → 대사 규칙 9. v1 구조를 그대로 둔다(D2) |
 |  | 낙관적 락 버전 | version | BIGINT | NN | 0 | `[내부]` `@Version` |
 |  | 생성일시 | created_at | TIMESTAMPTZ | NN | now() | `[내부]` v1에 없던 컬럼(2절 "모든 테이블") |
 |  | 수정일시 | updated_at | TIMESTAMPTZ | NN | now() | `[내부]` 가변 엔티티. v1에 없던 컬럼 |
 
-v1 CHECK 4개 그대로다. `reserved`와 그 CHECK 2개는 지정가가 없는 v2에서도 유지한다(D2).
+v1 CHECK 4개다(원 단위 2개에 NaN 거부를 더함, D32). `reserved`와 그 CHECK 2개는 지정가가 없는 v2에서도 유지한다(D2).
 
 #### 주문 (orders)
 
@@ -1268,14 +1268,14 @@ v1 CHECK 4개 그대로다. `reserved`와 그 CHECK 2개는 지정가가 없는 
 |  | 매수매도 구분 | side | VARCHAR(4) | NN |  | `[노출]` `ck_orders_side`: `side IN ('BUY','SELL')` |
 |  | 주문 유형 | type | VARCHAR(6) | NN | 'MARKET' | `[내부]` `ck_orders_type`: `type IN ('MARKET','LIMIT')`. **v2는 `MARKET`만 쓴다**(PLAN §4.6 — 지정가 없음). `LIMIT`은 v1 구조를 남긴 값이다(D2). `type`은 PostgreSQL의 비예약 키워드라 따옴표 없이 컬럼 이름으로 쓸 수 있다(PostgreSQL 17.11에서 확인: `pg_get_keywords()`에서 `type`은 비예약(`U`)이고 `orders.type`·`cash_ledger.type`을 따옴표 없이 생성·조회·INSERT했다) |
 |  | 수량 | quantity | INTEGER | NN |  | `[노출]` `ck_orders_quantity_pos`: `quantity > 0` — 1주 단위 정수 |
-|  | 지정가 | limit_price | NUMERIC(19,4) | NULL |  | `[내부]` ₩. `ck_orders_limit_price`: `(type = 'MARKET' AND limit_price IS NULL) OR (type = 'LIMIT' AND limit_price IS NOT NULL AND limit_price > 0)`, `ck_orders_limit_price_won`: `limit_price = ROUND(limit_price, 0)`(NULL이면 통과). v2에서는 항상 NULL |
+|  | 지정가 | limit_price | NUMERIC(19,4) | NULL |  | `[내부]` ₩. `ck_orders_limit_price`: `(type = 'MARKET' AND limit_price IS NULL) OR (type = 'LIMIT' AND limit_price IS NOT NULL AND limit_price > 0)`, `ck_orders_limit_price_won`: `limit_price = ROUND(limit_price, 0) AND limit_price <> 'NaN'::numeric`(NULL이면 통과). v2에서는 항상 NULL |
 |  | 주문 상태 | status | VARCHAR(10) | NN | 'PENDING' | `[내부]` `ck_orders_status`: `status IN ('PENDING','FILLED','CANCELED','REJECTED')`. v2 주문은 접수와 체결이 한 번이라 `FILLED`로 넣는다(SPRING_JPA §5.2 5단계). 검증 실패는 예외·롤백이라 `REJECTED` 행도 생기지 않는다 → 대사 규칙 7 |
 |  | 출발점 | source | VARCHAR(7) | NN |  | `[노출]` 주문의 출발점(PLAN §4.13). `ck_orders_source`: `source IN ('RANKING','FEED','ALERT','BENCH','DIRECT')` — 랭킹 보드·피드 항목·알림·벤치·검색/직접. DB 기본값이 없다 — 서버가 반드시 기록한다(자기 신고가 아님) |
 | FK | 전술 변경번호 | formation_change_id | BIGINT | NULL |  | `[내부]` 전술 변경에 따른 매매 → formation_change.id (R26). `fk_orders_formation_change`, `idx_orders_formation_change`. **복합 FK** `(formation_change_id, season_id, turn_no)` → `formation_change (id, season_id, turn_no)`(D29) — 다른 시즌·다른 턴의 변경에는 묶이지 못한다(PLAN §5.1 "같은 턴 안"). 변경 뒤 같은 턴의 주문이 **빠짐없이** 묶이는지는 대사 규칙 16 |
 | FK | 피드 항목번호 | turn_feed_id | BIGINT | NULL |  | `[내부]` 출발한 피드·알림 항목 → turn_feed.id (R27). `fk_orders_turn_feed`, `idx_orders_turn_feed`. **복합 FK** `(turn_feed_id, season_id)` → `turn_feed (id, season_id)`(D29). `ck_orders_source_feed`: `(source IN ('FEED','ALERT')) = (turn_feed_id IS NOT NULL)`. `ALERT` ↔ `kind = 'NUDGE'`는 검증 규칙 S6 |
 |  | 주문일시 | created_at | TIMESTAMPTZ | NN | now() | `[내부]` |
 
-- **v2는 `MARKET`·`FILLED`만 쓴다**(PLAN §4.6). `type`·`limit_price`·`status` 목록과 그 CHECK는 v1을 그대로 둔다(D2). CHECK는 9개: v1 6개 + 새 3개(`ck_orders_turn_no`, `ck_orders_source`, `ck_orders_source_feed`).
+- **v2는 `MARKET`·`FILLED`만 쓴다**(PLAN §4.6). `type`·`limit_price`·`status` 목록과 그 CHECK는 v1을 그대로 둔다(D2). CHECK는 9개: v1 6개(`ck_orders_limit_price_won`에 NaN 거부를 더함, D32) + 새 3개(`ck_orders_turn_no`, `ck_orders_source`, `ck_orders_source_feed`).
 - **복합 FK(MATCH SIMPLE)**: 자식 컬럼 중 하나라도 NULL이면 검사하지 않는다 — `formation_change_id`·`turn_feed_id`가 NULL인 주문(전술 변경과 무관한 주문, 피드 밖에서 시작한 주문)은 통과한다. 참조 대상의 UNIQUE가 정확히 같은 컬럼 목록이어야 하고 없으면 `CREATE TABLE`이 SQLSTATE 42830으로 실패한다(PostgreSQL 17.11에서 확인, `confmatchtype = 's'`). 한 컬럼이라도 NULL이면 부모를 전혀 검사하지 않으므로(`formation_change_id`만 NULL이어도 통과) 복합 FK의 나머지 컬럼(`season_id`·`turn_no`)이 NOT NULL이어야 NULL 우회가 하나뿐이다 — 이 문서의 3개는 모두 그렇다.
 - `uq_orders_id_season (id, season_id)`는 `cash_ledger` 복합 FK의 대상이다(D29).
 
@@ -1285,14 +1285,14 @@ v1 CHECK 4개 그대로다. `reserved`와 그 CHECK 2개는 지정가가 없는 
 | --- | --- | --- | --- | --- | --- | --- |
 | PK | 체결번호 | id | BIGINT | NN | IDENTITY | `[내부]` `pk_execution` |
 | FK | 주문번호 | order_id | BIGINT | NN |  | `[내부]` → orders.id (R28). UNIQUE 아님(주문 1 : 체결 0..N, D3). `fk_execution_order`, `idx_execution_order` |
-|  | 체결가 | fill_price | NUMERIC(19,4) | NN |  | `[노출]` ₩. `ck_execution_fill_price_pos`: `fill_price > 0`, `ck_execution_fill_price_won`: `fill_price = ROUND(fill_price, 0)`. = `turn_price(orders.turn_no)`(대사 규칙 13). 체결 대금 = `fill_price × quantity`도 정수가 되어 원장 `amount`와 오차 없이 맞는다(대사 규칙 4) |
+|  | 체결가 | fill_price | NUMERIC(19,4) | NN |  | `[노출]` ₩. `ck_execution_fill_price_pos`: `fill_price > 0`, `ck_execution_fill_price_won`: `fill_price = ROUND(fill_price, 0) AND fill_price <> 'NaN'::numeric`. = `turn_price(orders.turn_no)`(대사 규칙 13). 체결 대금 = `fill_price × quantity`도 정수가 되어 원장 `amount`와 오차 없이 맞는다(대사 규칙 4) |
 |  | 체결 수량 | quantity | INTEGER | NN |  | `[노출]` `ck_execution_quantity_pos`: `quantity > 0` |
-|  | 수수료 | fee | NUMERIC(19,4) | NN | 0 | `[노출]` ₩. `ck_execution_fee_nonneg`: `fee >= 0`, `ck_execution_fee_won`: `fee = ROUND(fee, 0)`. = `round(fill_price × quantity × rate(asset.market), 0)`. rate(`KR`) = `season.fee_rate_kr`, rate(`US`) = `season.fee_rate_us + season.fx_spread_rate`(대사 규칙 14, 반올림은 코드 한 곳 — PLAN §5.2). 환전 비용도 이 값 안에 들어 있어 `FEE` 한 행으로 남는다(D4) |
-|  | 세금 | tax | NUMERIC(19,4) | NN | 0 | `[노출]` ₩. `ck_execution_tax_nonneg`: `tax >= 0`, `ck_execution_tax_won`: `tax = ROUND(tax, 0)`. MVP는 항상 0(세금은 EXT, PLAN §4.6). 매수 체결의 0은 대사 규칙 8이 검사한다 |
-|  | 실현 손익 | realized_pnl | NUMERIC(19,4) | NULL |  | `[노출]` ₩. 매도 체결만 값, 매수는 NULL. 소수 4자리까지 저장하며 원 단위 CHECK가 없다(D1·D9). `round_half_up((체결가 − 체결 직전 avg_price) × 매도 수량, 4)`, 수수료·세금은 빼지 않는다(D9) |
+|  | 수수료 | fee | NUMERIC(19,4) | NN | 0 | `[노출]` ₩. `ck_execution_fee_nonneg`: `fee >= 0`, `ck_execution_fee_won`: `fee = ROUND(fee, 0) AND fee <> 'NaN'::numeric`. = `round(fill_price × quantity × rate(asset.market), 0)`. rate(`KR`) = `season.fee_rate_kr`, rate(`US`) = `season.fee_rate_us + season.fx_spread_rate`(대사 규칙 14, 반올림은 코드 한 곳 — PLAN §5.2). 환전 비용도 이 값 안에 들어 있어 `FEE` 한 행으로 남는다(D4) |
+|  | 세금 | tax | NUMERIC(19,4) | NN | 0 | `[노출]` ₩. `ck_execution_tax_nonneg`: `tax >= 0`, `ck_execution_tax_won`: `tax = ROUND(tax, 0) AND tax <> 'NaN'::numeric`. MVP는 항상 0(세금은 EXT, PLAN §4.6). 매수 체결의 0은 대사 규칙 8이 검사한다 |
+|  | 실현 손익 | realized_pnl | NUMERIC(19,4) | NULL |  | `[노출]` ₩. 매도 체결만 값, 매수는 NULL. 소수 4자리까지 저장하며 원 단위 CHECK가 없다(D1·D9). `ck_execution_realized_pnl_not_nan`: `realized_pnl <> 'NaN'::numeric`(NULL이면 통과). `round_half_up((체결가 − 체결 직전 avg_price) × 매도 수량, 4)`, 수수료·세금은 빼지 않는다(D9) |
 |  | 체결일시 | created_at | TIMESTAMPTZ | NN | now() | `[내부]` 체결 시각. v1의 `executed_at`을 이 컬럼이 대신한다 — 같은 순간을 두 번 저장하지 않는다 |
 
-CHECK 7개(v1 그대로). 불변(SPRING_JPA §4.4). 주문 1 : 체결 1이 보통이나 1 : N 구조를 유지한다(D3).
+CHECK 8개(v1 7개에 NaN 전용 1개 추가, D32). 불변(SPRING_JPA §4.4). 주문 1 : 체결 1이 보통이나 1 : N 구조를 유지한다(D3).
 
 #### 보유 (holding)
 
@@ -1302,7 +1302,7 @@ CHECK 7개(v1 그대로). 불변(SPRING_JPA §4.4). 주문 1 : 체결 1이 보�
 | FK | 시즌번호 | season_id | BIGINT | NN |  | `[내부]` → season.id (R29). `fk_holding_season`. `uq_holding_season_asset (season_id, asset_id)`의 앞 컬럼이라 FK 인덱스를 겸한다(v1 `uq_holding_member_stock`) |
 | FK | 종목번호 | asset_id | BIGINT | NN |  | `[내부]` → asset.id (R30). `fk_holding_asset`, `idx_holding_asset` |
 |  | 보유 수량 | quantity | INTEGER | NN |  | `[노출]` 전량 매도 뒤에도 행을 유지하고 0으로 둔다(D7). 0 이상 규칙은 `avg_price` 행의 CHECK가 강제한다 |
-|  | 평균단가 | avg_price | NUMERIC(19,4) | NN | 0 | `[노출]` 원화, 소수 4자리까지 저장(원 단위 CHECK 없음, D1). `ck_holding_quantity_avg_price`: `(quantity = 0 AND avg_price = 0) OR (quantity > 0 AND avg_price > 0)`. 이동평균, 수수료 제외: 매수 때 `round_half_up((기존 수량 × 기존 평균 + 체결 수량 × 체결가) ÷ 새 수량, 4)`, 부분 매도는 평균 유지, 전량 매도 시 0(D9). 값 자체는 대사하지 않는다(체결 이력 재생이 필요) |
+|  | 평균단가 | avg_price | NUMERIC(19,4) | NN | 0 | `[노출]` 원화, 소수 4자리까지 저장(원 단위 CHECK 없음, D1). `ck_holding_quantity_avg_price`: `(quantity = 0 AND avg_price = 0) OR (quantity > 0 AND avg_price > 0 AND avg_price <> 'NaN'::numeric)`. 이동평균, 수수료 제외: 매수 때 `round_half_up((기존 수량 × 기존 평균 + 체결 수량 × 체결가) ÷ 새 수량, 4)`, 부분 매도는 평균 유지, 전량 매도 시 0(D9). 값 자체는 대사하지 않는다(체결 이력 재생이 필요) |
 |  | 생성일시 | created_at | TIMESTAMPTZ | NN | now() | `[내부]` v1에 없던 컬럼 |
 |  | 수정일시 | updated_at | TIMESTAMPTZ | NN | now() | `[내부]` 가변 엔티티. v1에 없던 컬럼 |
 
@@ -1313,12 +1313,12 @@ CHECK 7개(v1 그대로). 불변(SPRING_JPA §4.4). 주문 1 : 체결 1이 보�
 | PK | 원장번호 | id | BIGINT | NN | IDENTITY | `[내부]` `pk_cash_ledger`. **잠금 전제:** 같은 시즌 안에서 기록 순서 = id 순서이려면, 원장 행을 넣는 모든 트랜잭션이 직전 `balance_after`를 읽기 **전에** 같은 트랜잭션에서 `season` → `cash_account` 순으로 `SELECT … FOR UPDATE`를 해야 한다(SPRING_JPA §5.2 락 순서). identity 값은 커밋 순서가 아니라 할당 순서이므로 이 직렬화가 있어야 성립한다. PostgreSQL 기본 격리 수준 READ COMMITTED는 문장마다 새 스냅샷을 쓰므로, 잠금을 얻은 **뒤의** 일반 `SELECT`는 앞 트랜잭션이 커밋한 원장 행을 본다(PostgreSQL 17.11 두 세션 실험으로 확인: T1이 일반 SELECT로 시작한 뒤 `season` `FOR UPDATE`에서 T2의 커밋까지 기다렸고, 잠근 뒤의 일반 SELECT가 T2의 새 `balance_after`를 봤다). v1(MySQL REPEATABLE READ)은 트랜잭션의 첫 읽기 시점 스냅샷을 써서 잠근 뒤에도 그 행을 못 볼 수 있어 잠금 읽기로 읽어야 했다. 격리 수준을 REPEATABLE READ 이상으로 올리면 잠근 행이 그 사이 바뀐 경우 직렬화 실패(SQLSTATE 40001, 확인: `season` 잠금은 통과하고 T2가 바꾼 `cash_account` 행을 `FOR UPDATE`로 잠그는 문장에서 'could not serialize access due to concurrent update')가 나 재시도가 필요하다. 잠금 없는 일반 SELECT는 트랜잭션 시작 스냅샷의 옛 값을 계속 본다. "최신 `balance_after`" = 그 시즌에서 id가 가장 큰 행 |
 | FK | 시즌번호 | season_id | BIGINT | NN |  | `[내부]` → **cash_account.season_id** (R31, 원장은 계좌의 원장 — D6). `fk_cash_ledger_cash_account`, `idx_cash_ledger_season_id (season_id, id)` — 페이징·최신 `balance_after` 조회(v1 `idx_cash_ledger_member_id`) |
 |  | 원장 유형 | type | VARCHAR(12) | NN |  | `[노출]` `ck_cash_ledger_type`: `type IN ('DEPOSIT','BUY','SELL','FEE','TAX','ADJUSTMENT')`. `TAX` 행은 세금이 들어오는 EXT부터 생긴다(PLAN §5.1) |
-|  | 부호 있는 금액 | amount | NUMERIC(19,4) | NN |  | `[노출]` ₩. 입금 +, 출금 −. Σ amount = balance(대사 규칙 2). `ck_cash_ledger_amount_sign`: `(type IN ('DEPOSIT','SELL') AND amount > 0) OR (type IN ('BUY','FEE','TAX') AND amount < 0) OR (type = 'ADJUSTMENT' AND amount <> 0)`, `ck_cash_ledger_amount_won`: `amount = ROUND(amount, 0)` |
-|  | 거래 후 잔액 | balance_after | NUMERIC(19,4) | NN |  | `[노출]` ₩. `ck_cash_ledger_balance_after_nonneg`: `balance_after >= 0`, `ck_cash_ledger_balance_after_won`: `balance_after = ROUND(balance_after, 0)`. 직전 행 기준 누적(대사 규칙 3) |
+|  | 부호 있는 금액 | amount | NUMERIC(19,4) | NN |  | `[노출]` ₩. 입금 +, 출금 −. Σ amount = balance(대사 규칙 2). `ck_cash_ledger_amount_sign`: `(type IN ('DEPOSIT','SELL') AND amount > 0) OR (type IN ('BUY','FEE','TAX') AND amount < 0) OR (type = 'ADJUSTMENT' AND amount <> 0)`, `ck_cash_ledger_amount_won`: `amount = ROUND(amount, 0) AND amount <> 'NaN'::numeric` |
+|  | 거래 후 잔액 | balance_after | NUMERIC(19,4) | NN |  | `[노출]` ₩. `ck_cash_ledger_balance_after_nonneg`: `balance_after >= 0`, `ck_cash_ledger_balance_after_won`: `balance_after = ROUND(balance_after, 0) AND balance_after <> 'NaN'::numeric`. 직전 행 기준 누적(대사 규칙 3) |
 | FK | 참조 주문번호 | ref_order_id | BIGINT | NULL |  | `[내부]` → orders.id (R32). `fk_cash_ledger_order`, `idx_cash_ledger_ref_order`. `ck_cash_ledger_ref_order`: `(type IN ('BUY','SELL','FEE','TAX') AND ref_order_id IS NOT NULL) OR (type = 'DEPOSIT' AND ref_order_id IS NULL) OR type = 'ADJUSTMENT'`. **복합 FK** `(ref_order_id, season_id)` → `orders (id, season_id)`(D29) — 원장 행의 시즌이 참조 주문의 시즌과 같음을 DB가 막는다(v1 대사 규칙 5의 이동) |
 |  | 기록일시 | created_at | TIMESTAMPTZ | NN | now() | `[내부]` |
 
-CHECK 6개(v1 그대로). 수수료가 0원이면 `FEE` 행을 생략한다(D4). 정정은 반대 부호의 `ADJUSTMENT` 행으로 한다. 불변(SPRING_JPA §4.4).
+CHECK 6개(v1 6개, 원 단위 2개에 NaN 거부를 더함 — D32). 수수료가 0원이면 `FEE` 행을 생략한다(D4). 정정은 반대 부호의 `ADJUSTMENT` 행으로 한다. 불변(SPRING_JPA §4.4).
 
 ### 7.4 제약과 인덱스
 
@@ -1330,19 +1330,19 @@ CHECK 6개(v1 그대로). 수수료가 0원이면 `FEE` 행을 생략한다(D4).
 | fk_cash_account_season | FK | cash_account | (season_id) → season.id (R23) |
 | ck_cash_account_balance_nonneg | CK | cash_account | balance >= 0 |
 | ck_cash_account_reserved_range | CK | cash_account | reserved >= 0 AND reserved <= balance |
-| ck_cash_account_balance_won | CK | cash_account | balance = ROUND(balance, 0) |
-| ck_cash_account_reserved_won | CK | cash_account | reserved = ROUND(reserved, 0) |
+| ck_cash_account_balance_won | CK | cash_account | balance = ROUND(balance, 0) AND balance <> 'NaN'::numeric |
+| ck_cash_account_reserved_won | CK | cash_account | reserved = ROUND(reserved, 0) AND reserved <> 'NaN'::numeric |
 | pk_orders | PK | orders | (id) |
-| uq_orders_id_season | UQ | orders | (id, season_id) — `cash_ledger` 복합 FK의 대상 |
+| uq_orders_id_season | UQ | orders | (id, season_id) |
 | fk_orders_season | FK | orders | (season_id) → season.id (R24) |
 | fk_orders_asset | FK | orders | (asset_id) → asset.id (R25) |
-| fk_orders_formation_change | FK | orders | (formation_change_id, season_id, turn_no) → formation_change (id, season_id, turn_no) (R26, 복합) |
-| fk_orders_turn_feed | FK | orders | (turn_feed_id, season_id) → turn_feed (id, season_id) (R27, 복합) |
+| fk_orders_formation_change | FK | orders | (formation_change_id, season_id, turn_no) → formation_change (id, season_id, turn_no) (R26) |
+| fk_orders_turn_feed | FK | orders | (turn_feed_id, season_id) → turn_feed (id, season_id) (R27) |
 | ck_orders_side | CK | orders | side IN ('BUY','SELL') |
 | ck_orders_type | CK | orders | type IN ('MARKET','LIMIT') |
 | ck_orders_quantity_pos | CK | orders | quantity > 0 |
 | ck_orders_limit_price | CK | orders | (type = 'MARKET' AND limit_price IS NULL) OR (type = 'LIMIT' AND limit_price IS NOT NULL AND limit_price > 0) |
-| ck_orders_limit_price_won | CK | orders | limit_price = ROUND(limit_price, 0) |
+| ck_orders_limit_price_won | CK | orders | limit_price = ROUND(limit_price, 0) AND limit_price <> 'NaN'::numeric |
 | ck_orders_status | CK | orders | status IN ('PENDING','FILLED','CANCELED','REJECTED') |
 | ck_orders_turn_no | CK | orders | turn_no >= 0 |
 | ck_orders_source | CK | orders | source IN ('RANKING','FEED','ALERT','BENCH','DIRECT') |
@@ -1354,30 +1354,33 @@ CHECK 6개(v1 그대로). 수수료가 0원이면 `FEE` 행을 생략한다(D4).
 | pk_execution | PK | execution | (id) |
 | fk_execution_order | FK | execution | (order_id) → orders.id (R28) |
 | ck_execution_fill_price_pos | CK | execution | fill_price > 0 |
-| ck_execution_fill_price_won | CK | execution | fill_price = ROUND(fill_price, 0) |
+| ck_execution_fill_price_won | CK | execution | fill_price = ROUND(fill_price, 0) AND fill_price <> 'NaN'::numeric |
 | ck_execution_quantity_pos | CK | execution | quantity > 0 |
 | ck_execution_fee_nonneg | CK | execution | fee >= 0 |
 | ck_execution_tax_nonneg | CK | execution | tax >= 0 |
-| ck_execution_fee_won | CK | execution | fee = ROUND(fee, 0) |
-| ck_execution_tax_won | CK | execution | tax = ROUND(tax, 0) |
+| ck_execution_fee_won | CK | execution | fee = ROUND(fee, 0) AND fee <> 'NaN'::numeric |
+| ck_execution_tax_won | CK | execution | tax = ROUND(tax, 0) AND tax <> 'NaN'::numeric |
+| ck_execution_realized_pnl_not_nan | CK | execution | realized_pnl <> 'NaN'::numeric |
 | idx_execution_order | IDX | execution | (order_id) |
 | pk_holding | PK | holding | (id) |
 | uq_holding_season_asset | UQ | holding | (season_id, asset_id) |
 | fk_holding_season | FK | holding | (season_id) → season.id (R29) |
 | fk_holding_asset | FK | holding | (asset_id) → asset.id (R30) |
-| ck_holding_quantity_avg_price | CK | holding | (quantity = 0 AND avg_price = 0) OR (quantity > 0 AND avg_price > 0) |
+| ck_holding_quantity_avg_price | CK | holding | (quantity = 0 AND avg_price = 0) OR (quantity > 0 AND avg_price > 0 AND avg_price <> 'NaN'::numeric) |
 | idx_holding_asset | IDX | holding | (asset_id) |
 | pk_cash_ledger | PK | cash_ledger | (id) |
 | fk_cash_ledger_cash_account | FK | cash_ledger | (season_id) → cash_account.season_id (R31) |
-| fk_cash_ledger_order | FK | cash_ledger | (ref_order_id, season_id) → orders (id, season_id) (R32, 복합) |
+| fk_cash_ledger_order | FK | cash_ledger | (ref_order_id, season_id) → orders (id, season_id) (R32) |
 | ck_cash_ledger_type | CK | cash_ledger | type IN ('DEPOSIT','BUY','SELL','FEE','TAX','ADJUSTMENT') |
 | ck_cash_ledger_amount_sign | CK | cash_ledger | (type IN ('DEPOSIT','SELL') AND amount > 0) OR (type IN ('BUY','FEE','TAX') AND amount < 0) OR (type = 'ADJUSTMENT' AND amount <> 0) |
 | ck_cash_ledger_balance_after_nonneg | CK | cash_ledger | balance_after >= 0 |
-| ck_cash_ledger_amount_won | CK | cash_ledger | amount = ROUND(amount, 0) |
-| ck_cash_ledger_balance_after_won | CK | cash_ledger | balance_after = ROUND(balance_after, 0) |
+| ck_cash_ledger_amount_won | CK | cash_ledger | amount = ROUND(amount, 0) AND amount <> 'NaN'::numeric |
+| ck_cash_ledger_balance_after_won | CK | cash_ledger | balance_after = ROUND(balance_after, 0) AND balance_after <> 'NaN'::numeric |
 | ck_cash_ledger_ref_order | CK | cash_ledger | (type IN ('BUY','SELL','FEE','TAX') AND ref_order_id IS NOT NULL) OR (type = 'DEPOSIT' AND ref_order_id IS NULL) OR type = 'ADJUSTMENT' |
 | idx_cash_ledger_season_id | IDX | cash_ledger | (season_id, id) |
 | idx_cash_ledger_ref_order | IDX | cash_ledger | (ref_order_id) |
+
+정의 칸은 DDL에 그대로 들어가는 SQL 식이다(6.4와 같다). 단일 FK는 `(자식 컬럼) → 부모.컬럼`, 복합 FK는 `(자식 컬럼 목록) → 부모 (부모 컬럼 목록)`으로 쓰고 끝의 `(R#)`은 관계 번호 꼬리표다 — DDL 검증 쿼리(`db/03_schema_account_check.sql`)가 꼬리표를 떼고 `pg_constraint`의 컬럼 목록과 대조한다. `uq_orders_id_season`은 `cash_ledger` 복합 FK의 대상이고(D29), R26·R27·R32는 복합 FK다(MATCH SIMPLE, 7.3 `orders` 아래 둘째 불릿). 컬럼 목록 순서가 자식과 부모에서 같아야 한다.
 
 **개수:**
 
@@ -1385,20 +1388,20 @@ CHECK 6개(v1 그대로). 수수료가 0원이면 `FEE` 행을 생략한다(D4).
 |---|---|---|---|---|---|---|
 | cash_account | 1 | 0 | 0 | 1 | 4 | 0 |
 | orders | 1 | 1 | 0 | 4 | 9 | 4 |
-| execution | 1 | 0 | 0 | 1 | 7 | 1 |
+| execution | 1 | 0 | 0 | 1 | 8 | 1 |
 | holding | 1 | 1 | 0 | 2 | 1 | 1 |
 | cash_ledger | 1 | 0 | 0 | 2 | 6 | 2 |
-| **§7 소계** | **5** | **2** | **0** | **10** | **27** | **8** |
+| **§7 소계** | **5** | **2** | **0** | **10** | **28** | **8** |
 
 FK 10개 = 7.2의 R23–R32 = 7.1 관계선 10개다. `idx_` 8개는 FK 인덱스 6개(`orders.asset_id`, `orders.formation_change_id`, `orders.turn_feed_id`, `execution.order_id`, `holding.asset_id`, `cash_ledger.ref_order_id`)와 조회 인덱스 2개(`idx_orders_season_turn`, `idx_cash_ledger_season_id`)다. `idx_orders_season_turn`이 `orders.season_id`의 FK 인덱스를 겸하고, `uq_holding_season_asset`이 `holding.season_id`를, `idx_cash_ledger_season_id`가 `cash_ledger.season_id`를 겸한다. §6과 §7의 합계는 아래와 같다.
 
 | 구분 | PK | UNIQUE(제약) | UNIQUE 인덱스 | FK | CHECK | INDEX(`idx_`) |
 |---|---|---|---|---|---|---|
 | §6 소계 | 9 | 7 | 2 | 14 | 60 | 9 |
-| §7 소계 | 5 | 2 | 0 | 10 | 27 | 8 |
-| **합** | **14** | **9** | **2** | **24** | **87** | **17** |
+| §7 소계 | 5 | 2 | 0 | 10 | 28 | 8 |
+| **합** | **14** | **9** | **2** | **24** | **88** | **17** |
 
-5.4와 합치면 확정 22개의 제약은 PK 22, UNIQUE 17, UNIQUE 인덱스 2, FK 32, CHECK 132, INDEX 22이다. **UNIQUE 인덱스 열**은 5.4의 개수 표에 없던 열이다 — 표현식·부분 유일 인덱스는 `pg_constraint`에 없고 `pg_indexes`에만 있어 DDL 검증이 다른 카탈로그를 봐야 하기 때문이다(2절 "대소문자 무시 유일성").
+5.4와 합치면 확정 22개의 제약은 PK 22, UNIQUE 17, UNIQUE 인덱스 2, FK 32, CHECK 133, INDEX 22이다. **UNIQUE 인덱스 열**은 5.4의 개수 표에 없던 열이다 — 표현식·부분 유일 인덱스는 `pg_constraint`에 없고 `pg_indexes`에만 있어 DDL 검증이 다른 카탈로그를 봐야 하기 때문이다(2절 "대소문자 무시 유일성").
 
 ### 7.5 DDL로 막지 못해 대사가 검사할 규칙
 
@@ -1438,30 +1441,30 @@ FK 10개 = 7.2의 R23–R32 = 7.1 관계선 10개다. `idx_` 8개는 FK 인덱�
 |---|---|---|---|---|
 | 1 | cash_account | `balance >= 0` | ck_cash_account_balance_nonneg | 옮김 |
 | 2 | cash_account | `reserved >= 0 AND reserved <= balance` | ck_cash_account_reserved_range | 옮김 — 컬럼 유지(D2), 대사 규칙 9 |
-| 3 | cash_account | `balance = ROUND(balance, 0)` | ck_cash_account_balance_won | 옮김 |
-| 4 | cash_account | `reserved = ROUND(reserved, 0)` | ck_cash_account_reserved_won | 옮김 |
+| 3 | cash_account | `balance = ROUND(balance, 0)` | ck_cash_account_balance_won | 옮김 + NaN 거부(D32) |
+| 4 | cash_account | `reserved = ROUND(reserved, 0)` | ck_cash_account_reserved_won | 옮김 + NaN 거부(D32) |
 | 5 | orders | `side IN ('BUY','SELL')` | ck_orders_side | 옮김 |
 | 6 | orders | `type IN ('MARKET','LIMIT')` | ck_orders_type | 옮김 — v2는 `MARKET`만 쓴다 |
 | 7 | orders | `quantity > 0` | ck_orders_quantity_pos | 옮김 |
 | 8 | orders | `(type = 'MARKET' AND limit_price IS NULL) OR (type = 'LIMIT' AND limit_price IS NOT NULL AND limit_price > 0)` | ck_orders_limit_price | 옮김 — 항상 NULL |
-| 9 | orders | `limit_price = ROUND(limit_price, 0)` | ck_orders_limit_price_won | 옮김 |
+| 9 | orders | `limit_price = ROUND(limit_price, 0)` | ck_orders_limit_price_won | 옮김 + NaN 거부(D32) |
 | 10 | orders | `status IN ('PENDING','FILLED','CANCELED','REJECTED')` | ck_orders_status | 옮김 — v2는 `FILLED`만 쓴다(대사 규칙 7) |
 | 11 | execution | `fill_price > 0` | ck_execution_fill_price_pos | 옮김 |
-| 12 | execution | `fill_price = ROUND(fill_price, 0)` | ck_execution_fill_price_won | 옮김 |
+| 12 | execution | `fill_price = ROUND(fill_price, 0)` | ck_execution_fill_price_won | 옮김 + NaN 거부(D32) |
 | 13 | execution | `quantity > 0` | ck_execution_quantity_pos | 옮김 |
 | 14 | execution | `fee >= 0` | ck_execution_fee_nonneg | 옮김 |
 | 15 | execution | `tax >= 0` | ck_execution_tax_nonneg | 옮김 |
-| 16 | execution | `fee = ROUND(fee, 0)` | ck_execution_fee_won | 옮김 |
-| 17 | execution | `tax = ROUND(tax, 0)` | ck_execution_tax_won | 옮김 |
-| 18 | holding | `(quantity = 0 AND avg_price = 0) OR (quantity > 0 AND avg_price > 0)` | ck_holding_quantity_avg_price | 옮김 |
+| 16 | execution | `fee = ROUND(fee, 0)` | ck_execution_fee_won | 옮김 + NaN 거부(D32) |
+| 17 | execution | `tax = ROUND(tax, 0)` | ck_execution_tax_won | 옮김 + NaN 거부(D32) |
+| 18 | holding | `(quantity = 0 AND avg_price = 0) OR (quantity > 0 AND avg_price > 0)` | ck_holding_quantity_avg_price | 옮김 + NaN 거부(D32) |
 | 19 | cash_ledger | `type IN ('DEPOSIT','BUY','SELL','FEE','TAX','ADJUSTMENT')` | ck_cash_ledger_type | 옮김 |
 | 20 | cash_ledger | `(type IN ('DEPOSIT','SELL') AND amount > 0) OR (type IN ('BUY','FEE','TAX') AND amount < 0) OR (type = 'ADJUSTMENT' AND amount <> 0)` | ck_cash_ledger_amount_sign | 옮김 |
 | 21 | cash_ledger | `balance_after >= 0` | ck_cash_ledger_balance_after_nonneg | 옮김 |
-| 22 | cash_ledger | `amount = ROUND(amount, 0)` | ck_cash_ledger_amount_won | 옮김 |
-| 23 | cash_ledger | `balance_after = ROUND(balance_after, 0)` | ck_cash_ledger_balance_after_won | 옮김 |
+| 22 | cash_ledger | `amount = ROUND(amount, 0)` | ck_cash_ledger_amount_won | 옮김 + NaN 거부(D32) |
+| 23 | cash_ledger | `balance_after = ROUND(balance_after, 0)` | ck_cash_ledger_balance_after_won | 옮김 + NaN 거부(D32) |
 | 24 | cash_ledger | `(type IN ('BUY','SELL','FEE','TAX') AND ref_order_id IS NOT NULL) OR (type = 'DEPOSIT' AND ref_order_id IS NULL) OR type = 'ADJUSTMENT'` | ck_cash_ledger_ref_order | 옮김 |
 
-v1 조건식은 PostgreSQL에서도 같은 뜻이라 글자를 바꾸지 않았다(`ROUND(numeric, 0)`, `IN`, `AND`/`OR`). v1 CHECK 27개 중 `stock`·`stock_price`의 3개(`market IN ('KOSPI','KOSDAQ')`, `price > 0`, `price = ROUND(price, 0)`)는 대상 테이블이 없어져 위 표에 없다. **v2에서 새로 생긴 계좌 CHECK 3개:** `ck_orders_turn_no`(`turn_no >= 0`), `ck_orders_source`(`source IN ('RANKING','FEED','ALERT','BENCH','DIRECT')`), `ck_orders_source_feed`(`(source IN ('FEED','ALERT')) = (turn_feed_id IS NOT NULL)`). 24 + 3 = 7.4의 §7 CHECK 27개다. 6절의 CHECK 56개는 v1에 대응이 없다.
+v1 조건식은 PostgreSQL에서도 같은 뜻이지만, `NUMERIC`이 NaN을 받는 점이 MySQL `DECIMAL`과 달라 금액 CHECK에 NaN 거부를 더했다(D32). 나머지는 글자를 바꾸지 않았다(`ROUND(numeric, 0)`, `IN`, `AND`/`OR`). v1 CHECK 27개 중 `stock`·`stock_price`의 3개(`market IN ('KOSPI','KOSDAQ')`, `price > 0`, `price = ROUND(price, 0)`)는 대상 테이블이 없어져 위 표에 없다. **v2에서 새로 생긴 계좌 CHECK 3개:** `ck_orders_turn_no`(`turn_no >= 0`), `ck_orders_source`(`source IN ('RANKING','FEED','ALERT','BENCH','DIRECT')`), `ck_orders_source_feed`(`(source IN ('FEED','ALERT')) = (turn_feed_id IS NOT NULL)`). 24 + 3에 NaN 전용 1개(`ck_execution_realized_pnl_not_nan`)를 더해 7.4의 §7 CHECK 28개다. 6절의 CHECK 56개는 v1에 대응이 없다.
 
 **FK 대조 (v1 8개):**
 
@@ -1485,6 +1488,7 @@ v2에서 새로 생긴 FK는 R26·R27(`orders`의 복합 FK)과 6절의 14개다
 | member | `updated_at` 없음 | `updated_at` 추가 | SPRING_JPA §4.5 |
 | cash_account | 감사 컬럼 없음 | `created_at`·`updated_at` 추가 | 2절 "모든 테이블" |
 | orders | `type` 기본값 없음 | `type` 기본값 `'MARKET'`, `turn_no`·`source`·`formation_change_id`·`turn_feed_id` 추가 | 질문 13, PLAN §4.13·§5.1 |
+| orders, cash_ledger | `status` `VARCHAR(10)`, `type` `VARCHAR(12)` | 폭 그대로 — 2절 "가장 긴 값" 규칙의 예외(가장 긴 값은 `CANCELED`·`REJECTED` 8자, `ADJUSTMENT` 10자) | D2(v1 구조 유지). 폭에 여유가 있으면 뒤 공백이 잘리지 않고 CHECK에 걸린다(`db/03_schema_account_check.sql` 4절) |
 | execution | `executed_at` | 삭제 — `created_at`이 체결 시각 | 같은 순간을 두 번 저장하지 않는다 |
 | holding | `created_at`·`updated_at` 없음 | 둘 다 추가 | 2절, SPRING_JPA §4.5 |
 | 전체 | `DECIMAL`, `AUTO_INCREMENT`, `DATETIME(6)`, `INT` | `NUMERIC`, identity, `TIMESTAMPTZ`, `INTEGER` | 2절 "v1에서 바뀐 점" |
@@ -1495,7 +1499,7 @@ v2에서 새로 생긴 FK는 R26·R27(`orders`의 복합 FK)과 6절의 14개다
 
 | # | 결정 | 근거 | 탈락한 대안 |
 |---|---|---|---|
-| D1 | 모든 금액을 `NUMERIC(19,4)`로 한다. 현금 값(`amount`, `balance`, `balance_after`, `reserved`, `fee`, `tax`)·평가액(`turn`의 금액 7개)과 가격(`turn_price.price`, `limit_price`, `fill_price`)은 원 단위 정수 값만 저장하고 `CHECK (col = ROUND(col, 0))`로 DB가 강제, `avg_price`·`realized_pnl`은 소수 4자리까지 저장 | PLAN §5.2 회계 규칙 "반올림". 타입이 하나라 단순하고 평균단가의 소수를 표현한다. 원 단위 정수 CHECK는 `NUMERIC(15,0)`(탈락한 대안)의 장점 — 소수가 원장에 못 들어간다는 DB 보장 — 만 가져왔다. `reserved`는 `balance`에서 빼서 주문 가능 금액을 만들므로 같은 단위여야 해서 포함하고, 가격도 정수로 묶어야 체결 대금(가격 × 수량)이 정수가 되어 대사 규칙 4가 원 미만 차이를 내지 않는다(호가 단위 자체는 강제하지 않음). `avg_price`·`realized_pnl`은 계산 결과라 소수를 허용한다. **보장의 범위는 저장값이다:** `NUMERIC(19,4)`는 소수 다섯째 자리 이하를 경고 없이 4자리로 반올림하므로(2절 "숫자 대입") `100.00001`은 `100.0000`으로 저장되어 통과하고 `100.00005`는 `100.0001`이 되어 CHECK(23514 `ck_cash_ledger_amount_won`)가 막는다(PostgreSQL 17.11에서 확인: `100.00001` → 저장 `100.0000`·통과, `100.00005`·`100.5`·`-100.00005` → 23514, `100.00004` → `100.0000` 통과). 입력 원본의 소수 거부는 코드가 맡는다. **외화(소수 통화) 현금을 도입하면(단계 미정 — PLAN §5.3 질문 3) 이 CHECK들을 바꿔야 한다.** `DOUBLE PRECISION`·`REAL`·`FLOAT`은 이진 부동소수점이라 0.1 같은 값을 정확히 표현하지 못해 합계 대사가 어긋나므로 쓰지 않는다 | `BIGINT`(원) + `avg_price`만 `NUMERIC`(타입이 섞임), `NUMERIC(15,0)`(수수료 중간값·평균단가 소수를 저장할 수 없음, 장점만 CHECK로 채택) |
+| D1 | 모든 금액을 `NUMERIC(19,4)`로 한다. 현금 값(`amount`, `balance`, `balance_after`, `reserved`, `fee`, `tax`)·평가액(`turn`의 금액 7개)과 가격(`turn_price.price`, `limit_price`, `fill_price`)은 원 단위 정수 값만 저장하고 `CHECK (col = ROUND(col, 0))`로 DB가 강제, `avg_price`·`realized_pnl`은 소수 4자리까지 저장 | PLAN §5.2 회계 규칙 "반올림". 타입이 하나라 단순하고 평균단가의 소수를 표현한다. 원 단위 정수 CHECK는 `NUMERIC(15,0)`(탈락한 대안)의 장점 — 소수가 원장에 못 들어간다는 DB 보장 — 만 가져왔다(NaN은 D32). `reserved`는 `balance`에서 빼서 주문 가능 금액을 만들므로 같은 단위여야 해서 포함하고, 가격도 정수로 묶어야 체결 대금(가격 × 수량)이 정수가 되어 대사 규칙 4가 원 미만 차이를 내지 않는다(호가 단위 자체는 강제하지 않음). `avg_price`·`realized_pnl`은 계산 결과라 소수를 허용한다. **보장의 범위는 저장값이다:** `NUMERIC(19,4)`는 소수 다섯째 자리 이하를 경고 없이 4자리로 반올림하므로(2절 "숫자 대입") `100.00001`은 `100.0000`으로 저장되어 통과하고 `100.00005`는 `100.0001`이 되어 CHECK(23514 `ck_cash_ledger_amount_won`)가 막는다(PostgreSQL 17.11에서 확인: `100.00001` → 저장 `100.0000`·통과, `100.00005`·`100.5`·`-100.00005` → 23514, `100.00004` → `100.0000` 통과). 입력 원본의 소수 거부는 코드가 맡는다. **외화(소수 통화) 현금을 도입하면(단계 미정 — PLAN §5.3 질문 3) 이 CHECK들을 바꿔야 한다.** `DOUBLE PRECISION`·`REAL`·`FLOAT`은 이진 부동소수점이라 0.1 같은 값을 정확히 표현하지 못해 합계 대사가 어긋나므로 쓰지 않는다 | `BIGINT`(원) + `avg_price`만 `NUMERIC`(타입이 섞임), `NUMERIC(15,0)`(수수료 중간값·평균단가 소수를 저장할 수 없음, 장점만 CHECK로 채택) |
 | D2 | `cash_account.reserved`를 유지하고 `CHECK (reserved >= 0 AND reserved <= balance)`. v2는 지정가가 없어(PLAN §4.6) 항상 0이며 대사 규칙 9가 `reserved` = 0을 본다. `orders.type`·`limit_price`·상태 `PENDING`·`CANCELED`와 그 CHECK도 v1 구조를 그대로 둔다 — v2는 `MARKET`·`FILLED`만 쓴다 | P0-04 Gate 1 결정(2026-11-06). PLAN §5.1 시즌 계좌 비고("이전 ERD의 정의·CHECK를 유지")가 정한 승인 범위를 지키고, v1 CHECK 24개를 이름 그대로 옮겨(7.6) P0-02의 음성 사례를 재사용한다. 지정가가 들어오는 날(EXT 이후 검토) 스키마 변경이 없다. 대기 주문 합계와의 일치 검사는 그때 정한다 | 지정가 관련 컬럼·CHECK를 삭제하고 상태 목록을 줄이는 안(쓰이지 않는 구조는 없어지지만 PLAN §5.1 비고와 P0-02 음성 사례를 다시 써야 하고, 지정가가 필요해지면 되살려야 함), PENDING 주문 합계로 매번 계산(집계·다중 행 잠금), 별도 `cash_hold` 테이블(과설계) |
 | D3 | 주문 1 : 체결 0..N, `execution.order_id`는 UNIQUE 아님 | PLAN §5.1 `orders`/`execution`. v2의 주문은 접수와 체결이 한 번이라 1 : 1이 보통이나 1 : N 구조를 유지한다 — 분할 체결 확장 여지가 있고 비용이 없다. 체결 0건 주문(`PENDING`·`REJECTED`)도 같은 구조로 표현된다 | 1 : 1(분할 체결이 오면 제약 제거 필요), 테이블 통합(상태와 사실이 섞임) |
 | D4 | 원장 `type`은 `DEPOSIT`/`BUY`/`SELL`/`FEE`/`TAX`/`ADJUSTMENT`, 부호 있는 `amount` + 부호 `CHECK`, 계좌 개설 시 `DEPOSIT` 행(`ref_order_id` NULL을 `CHECK`로 강제, `ADJUSTMENT`는 주문 참조 선택). 수수료·세금은 별도 `FEE`·`TAX` 행(0원이면 행 생략). `FEE` 행은 수수료 > 0이면 생긴다(MVP 요율은 시장별 `season.fee_rate_kr`·`fee_rate_us`와 환전 비용률 `fx_spread_rate`, 초안 0.015%·0.25%·0.10%. 환전 비용은 별도 유형 없이 체결 수수료에 합쳐 한 행, PLAN §4.6) | PLAN §5.2 대사 "Σ amount = balance"를 만족하려면 부호 있는 금액과 개설 입금 행이 필요하다. 비용 합계를 원장만으로 확인할 수 있고(성적표의 "비용" 항목), MACRO_ETF §7.1과 같은 구조라 M1 통합이 쉽다. 초기 자금은 `DEPOSIT`이고 금액은 `season.initial_cash`와 같다(대사 규칙 1) | 비용을 BUY/SELL 금액에 포함(조인 필요, 구조 다름 — 합친 행은 대사 규칙 4의 유형별 진단이 잡는다), 부호 CHECK 없음(부호 실수를 DB가 못 잡음) |
@@ -1526,6 +1530,7 @@ v2에서 새로 생긴 FK는 R26·R27(`orders`의 복합 FK)과 6절의 14개다
 | D29 | 시즌 일관성은 복합 FK 3개로 DDL이 막는다: `orders (formation_change_id, season_id, turn_no)` → `formation_change`, `orders (turn_feed_id, season_id)` → `turn_feed`, `cash_ledger (ref_order_id, season_id)` → `orders`. 대상 UNIQUE 3개를 함께 둔다 | P0-04 Gate 1 결정(2026-11-06). 다른 시즌·턴을 가리키는 행을 DB가 SQLSTATE 23503으로 막는다. v1 대사 규칙 5가 DDL로 옮겨지고 "같은 턴 안의 변경에 묶음"(PLAN §5.1)이 DDL이 된다. 질문 6(대사 → DDL 강제)과 같은 방향이다. JPA는 `Long` id 컬럼 그대로라 영향이 작다(SPRING_JPA §4.3) | 단일 FK + 대사·검증 쿼리(잘못된 행이 들어간 뒤에야 잡히고, 원장은 추가 전용이라 `ADJUSTMENT`로만 고칠 수 있음) |
 | D30 | 시즌에 `fee_rate_kr`·`fee_rate_us`·`fx_spread_rate`·`initial_cash`·`base_date`·`engine_version`·`data_snapshot_date`·`seed`를 DB 기본값 없이 박는다 | 국내·미국 요율, 환전 비용률, 초기 자금이 바뀐 뒤에도 지난 시즌을 검산(대사 규칙 14)·재현한다(PLAN §4.2). DB 기본값이 있으면 코드의 누락이 조용히 기본값으로 메워진다 | DB 기본값, 엔진 버전에서 요율 유도(엔진 버전이 같아도 요율이 바뀔 수 있음) |
 | D31 | 전술 변경 비용은 저장하지 않고 `formation_change_id`로 묶인 주문의 수수료·세금 합을 조회한다 | PLAN §5.1 비고 그대로이고 값이 한 곳(`execution`)에만 있다. 변경 행은 불변이고 주문이 변경 뒤에 생기므로 나중에 비용을 채울 수 없다 | `formation_change`에 비용 컬럼(불변과 충돌), 변경 ↔ 주문 매핑 테이블(다대다가 아님 — 테이블이 늘어 확정 22개를 벗어남) |
+| D32 | 7절 금액 CHECK는 NaN을 거부한다 — 원 단위 CHECK에 `AND col <> 'NaN'::numeric`, `avg_price`는 쌍 CHECK에, CHECK가 없던 `realized_pnl`은 새 CHECK 하나(`ck_execution_realized_pnl_not_nan`) | NaN은 비교에서 자기와 같고 모든 수보다 커 범위·원 단위 CHECK를 통과하고, 원장 합·대사 등식에 퍼진다(P0-07 리뷰, 2026-11-08 자동 채택). 무한대는 정밀도 지정 NUMERIC이 22003으로 막는다 | 테이블마다 `ck_{t}_not_nan` 하나(제약 5개 추가), DOMAIN 타입(제약 이름이 사라지고 JPA·erd 규칙과 어긋남), 대사에 맡김(NaN끼리 등식이 참이라 못 잡음) |
 
 **문서 구성 결정:** 관계도는 확정 22개 + MVP 스케치 3개(컬럼 없음), EXT 이후 스케치, 영역 상세(컬럼 있음)의 셋으로 나눴다 — 한 그림이 25개 이하라 읽힌다(탈락: 42개를 한 `erDiagram`에 그리기는 배치가 읽기 어렵고 PR diff가 커짐, 전체를 `flowchart`로 그리기는 카디널리티 표기가 D10과 어긋남). v1 계좌 정의는 P0-03에서 MySQL 타입 그대로 부록에 옮겨 두었다가 P0-04에서 7절로 v2로 바꿔 쓰고 부록을 지웠다 — v1과의 대응은 7.6 대조표가 남긴다. 시즌 영역(6절 9개)과 시즌 계좌(7절 5개)를 둘로 나눈 것은 DDL ②·③의 분할과 1:1이라 각 DDL 기능이 한 절만 읽으면 되기 때문이다(탈락: 14개를 한 절에 두기는 한 그림에 14개 + 앵커 4개가 되어 읽기 어렵다).
 
@@ -1553,7 +1558,7 @@ v2에서 새로 생긴 FK는 R26·R27(`orders`의 복합 FK)과 6절의 14개다
 |---|---|
 | P0-05 DDL ① | 생성 순서 `asset_group` → `asset` → `asset_position` → `month_block` → `asset_month_return` → `fx_month` → `month_event` → `asset_month_attention`. 5.4 표의 이름 그대로, CHECK는 테이블 제약, FK `ON DELETE RESTRICT ON UPDATE RESTRICT` 명시, `idx_` 5개. 검증 SQL은 5.4 표를 `pg_constraint`(`conname`, `contype`, `pg_get_constraintdef`)·`pg_indexes`와 자동 대조하고, 음성 사례는 SQLSTATE(23514·23503·23505·23502·22003)와 제약 이름으로 확인하며, 기준일이 속한 달의 `window_end` → 23514 `ck_asset_position_window`를 포함한다. 검증 규칙 H1을 예시 쿼리로 하나 넣는다 |
 | P0-06 DDL ② | 생성 순서 `member` → `season` → `season_path` → `turn` → `turn_price` → `lineup` → `formation_change` → `turn_feed` → `reconciliation_log`. 6.4 표의 이름 그대로 만든다. 표현식 유일 인덱스(`uq_member_email`)와 부분 유일 인덱스(`uq_lineup_open`)는 `CREATE UNIQUE INDEX`로 만들고 검증 SQL은 `pg_indexes`에서 대조한다(`idx_lineup_season_asset` 포함). `formation_change`·`turn_feed`의 `(id, …)` UNIQUE는 같은 파일에서 만든다(P0-07의 복합 FK 대상, D29). 음성 사례: 시작 포메이션 합 99·골키퍼 0(0·40·30·30)·범위 −10, 위험 선언 −0.25, `IN_PROGRESS` + `abandoned_turn_no` 있음(23514 `ck_season_abandoned_status`), 열린 구간 둘(23505 `uq_lineup_open`), `turn`·`turn_price`·`season_path` 중복(23505), 요율 세 컬럼 −0.0001·1(23514 `ck_season_fee_rate_kr`·`ck_season_fee_rate_us`·`ck_season_fx_spread_rate`), `turn_feed` 종류·대상·사건 CHECK, 대사 기록 상태·분류 CHECK, `MATCH` + `diff_value = -10`(23514 `ck_reconciliation_log_match_diff`), 이메일 대소문자만 다른 두 회원(23505) |
-| P0-07 DDL ③ | 생성 순서 `cash_account` → `orders` → `execution` → `holding` → `cash_ledger`(P0-06이 먼저라 `orders`의 FK 대상이 이미 있다). P0-02의 `01_schema.sql` 계좌 부분과 `01_schema_check.sql`의 해당 음성 사례를 재사용한다(키 `member_id` → `season_id`, `stock_id` → `asset_id`, MySQL 오류 번호 → SQLSTATE 23514·23503·23505, `INDEX` 절 → `CREATE INDEX`, `executed_at` 삭제). 7.6 대조표 24행 각각의 음성 사례, 새 CHECK 3개와 복합 FK 3개(D29: 다른 시즌의 변경·같은 시즌 다른 턴의 변경·다른 시즌 주문을 참조하는 원장, 모두 23503)의 음성 사례, 원 단위 경계 4건(`100.00001` → 저장·통과, `100.00005` → 23514, `100.5` → 23514, `-100.00005` → 23514)을 넣는다 |
+| P0-07 DDL ③ | 생성 순서 `cash_account` → `orders` → `execution` → `holding` → `cash_ledger`(P0-06이 먼저라 `orders`의 FK 대상이 이미 있다). P0-02의 `01_schema.sql` 계좌 부분과 `01_schema_check.sql`의 해당 음성 사례를 재사용한다(키 `member_id` → `season_id`, `stock_id` → `asset_id`, MySQL 오류 번호 → SQLSTATE 23514·23503·23505, `INDEX` 절 → `CREATE INDEX`, `executed_at` 삭제). 7.6 대조표 24행 각각의 음성 사례, 새 CHECK 3개와 복합 FK 3개(D29: 다른 시즌의 변경·같은 시즌 다른 턴의 변경·다른 시즌 주문을 참조하는 원장, 모두 23503)의 음성 사례, 원 단위 경계 4건(`100.00001` → 저장·통과, `100.00005` → 23514, `100.5` → 23514, `-100.00005` → 23514)과 금액 NaN 사례(10컬럼, 23514)와 무한대 22003을 넣는다 |
 | P0-08 표본 적재 | CSV는 대리 키를 갖지 않는다: 스테이징 테이블에 `\copy` → 자연 키(`asset_group.code`, `asset (market, ticker)`, `month_block.month_start`) 조인으로 `INSERT … SELECT … ON CONFLICT (자연 키) DO NOTHING` — 값 정정은 하지 않는다(같은 스크립트를 다시 돌려도 행 수와 값이 같고, FK `RESTRICT` 때문에 지우고 다시 넣을 수 없다). `COPY` 컬럼 목록에 `id`를 넣지 않는다(`GENERATED ALWAYS`여도 `COPY`는 id 값을 받아들이고 시퀀스를 올리지 않아 이후 INSERT와 충돌할 수 있음, D12). `asset_position`은 기준일 가격·환율만 채우고 판정은 NULL로 둔다. **시가총액 순위는 비어 있다 — 상장주식수 수집 후 채움**(표본에서 주식 12개 전부 NULL, 상장주식수 입력이 아직 없다). 축 방향·강도·국면 확률은 NULL. 검증 규칙 H1·H3·H4·H7을 완료 기준 쿼리로 쓴다. CSV 열 계약과 변환 규칙은 MVP 전체 적재의 출발점이다(`db/sample/README.md`). 가격 파생 CSV는 추적하지 않으므로 키가 없는 CI(MVP)는 '가짜 데이터'로 표시한 합성 표본을 픽스처로 쓴다 |
 | P0-09 사건 태그 | `events/`의 태그 id가 `event_key`(불변)이고, 노출 컬럼과 복기 전용 컬럼(`title`·`source`·`hindsight`)을 섞지 않는다. 표본 100개 달의 `events_reviewed = TRUE`. `event_type`·`outcome` 목록과 강도 경계를 `events/README.md`에 적고 H5·H6을 검사한다. 유형별 표본 수 정의를 확정하고, 표본 수 3 미만 유형 목록을 쿼리로 보고한다(그 카드는 `strength`·`reaction_change`만 노출) |
 | P0-10 포지션 | **표본의 `market_cap_rank`는 비어 있다(상장주식수 수집 후 채움) — 타겟형의 시가총액 조건을 "충족 못 함"으로 읽을지, 순위 입력을 먼저 채울지 P0-10이 정한다.** 판정 8컬럼을 한 문장의 `UPDATE`로 채운다(전부-또는-없음 CHECK). 참여율·변동성·낙폭은 원화 기준, 변동성은 월 단위, 낙폭은 0 이하. 판정 창의 마지막 달은 기준일 달보다 앞이어야 한다(`ck_asset_position_window`). "시장이 오른/빠진 달"의 경계(초안 \|r시장\| ≥ 1%)와 최소 달 수·시가총액 "상위" 기준을 정하고 5.3 `asset_position` 코멘트를 고친다. 분모가 0에 가까워 계산할 수 없으면 판정 불능으로 남겨 H2가 시즌 시작을 막는다(0 대입·절단 금지). `months_used` = 창 안에서 실제로 읽은 수익률 행 수. 테스트: 기준일이 속한 달 이후의 수익률을 바꿔 다시 계산해도 판정 8컬럼이 같다. 검증 규칙 H2 |
