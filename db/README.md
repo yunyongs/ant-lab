@@ -10,6 +10,8 @@ Phase 0에서 손으로 쓰는 SQL이다([docs/PLAN.md](../docs/PLAN.md#111-phas
 | `01_schema_history_check.sql` | P0-05 | 위 DDL의 검증. erd 5.3·5.4와 카탈로그를 대조하고, 통과해야 하는 사례와 실패해야 하는 사례를 실행해 스스로 판정한다 |
 | `02_schema_season.sql` | P0-06 | 회원·시즌·피드·대사 테이블 9개 DDL (PK, UNIQUE, 표현식·부분 유일 인덱스 2개, FK, CHECK, `idx_` 인덱스, 테이블·컬럼 코멘트). 01의 테이블 4개를 FK로 참조하므로 01을 먼저 실행한다. 이 파일의 9개 테이블을 지우고 다시 만든다 |
 | `02_schema_season_check.sql` | P0-06 | 위 DDL의 검증. erd 6.3·6.4와 카탈로그를 대조하고(유일 인덱스는 `pg_indexes`), 통과해야 하는 사례와 실패해야 하는 사례를 실행해 스스로 판정한다 |
+| `03_schema_account.sql` | P0-07 | 시즌 계좌 테이블 5개 DDL (`cash_account`·`orders`·`execution`·`holding`·`cash_ledger` — PK, UNIQUE, 복합 FK 3개 포함 FK 10개, CHECK 28개, `idx_` 인덱스, 테이블·컬럼 코멘트). 01의 `asset`과 02의 `season`·`formation_change`·`turn_feed`를 FK로 참조하므로 01 → 02를 먼저 실행한다. 이 파일의 5개 테이블을 지우고 다시 만든다 |
+| `03_schema_account_check.sql` | P0-07 | 위 DDL의 검증. erd 7.3·7.4와 카탈로그를 대조하고(컬럼 코멘트는 논리명까지), 통과해야 하는 사례와 실패해야 하는 사례를 실행해 스스로 판정한다. 다른 CHECK·PK에 가려진 제약(`ck_orders_type`, `ck_cash_ledger_type`, `uq_orders_id_season`)은 가리는 제약을 사례 안에서 지워 증명하고, 복합 FK의 시즌·턴 일치와 "DDL이 통과시키는 것 — 대사의 몫"을 따로 확인한다 |
 | `10_load_sample.sql` | P0-08 | 표본 CSV 6개(`db/sample/`)를 역사 테이블 6개에 적재한다. 아무것도 지우지 않고, 같은 CSV로 다시 실행하면 새 행이 없다(멱등). 값이 CSV와 다르면 오류로 멈춘다. 01 스키마를 먼저 실행한다. 시세·환율에서 만든 CSV 3개(`asset_month_return.csv`, `asset_position.csv`, `fx_month.csv`)는 git이 무시하므로 없을 수 있다 — 하나라도 없으면 DB에 닿기 전에 첫 줄에서 "무시 CSV가 없다. 표본 만들기를 먼저" 메시지로 멈춘다(종료 코드 3) |
 | `10_load_sample_check.sql` | P0-08 | 적재 검증. 행 수·형식·H1·H3·H4·H7을 대조하고 손 대조(6절)를 확인한다. 6절의 기대값은 git이 무시하는 `db/sample/hand_check.csv`에서 읽으며, 파일이 없으면 6절이 FAIL이다(검증이 비어 있는데 통과하지 않게 한다). 아무것도 쓰지 않고 `ROLLBACK`하므로 `antlab`에서도 돌린다 |
 | `11_load_events.sql` | P0-09 | 사건 태그 파일 3개(`events/`)를 `month_event`에 적재하고 `month_block.events_reviewed`를 FALSE에서 TRUE로만 켠다. 반응 변화율·강도는 파일이 아니라 10 적재가 넣은 DB 값에서 계산한다. 아무것도 지우지 않고, 같은 파일로 다시 실행하면 새 행도 갱신도 없다(멱등). 파일과 DB의 값이 다르면(DB에만 있는 태그, 파일이 뒤로 간 편집 완료 표시 포함) 오류로 멈추고 전부 되돌린다. 01 스키마와 10 적재를 먼저 실행한다 |
@@ -22,10 +24,12 @@ Phase 0에서 손으로 쓰는 SQL이다([docs/PLAN.md](../docs/PLAN.md#111-phas
   2. `01_schema_history_check.sql`(선택)
   3. `02_schema_season.sql`
   4. `02_schema_season_check.sql`(선택)
-  5. `10_load_sample.sql` (표본 적재, `antlab`에만. 저장소 루트에서 실행. 시세·환율 파생 CSV 3개와 `hand_check.csv`는 추적하지 않으므로 `db/sample/README.md`의 "표본 만들기"로 먼저 만든다)
-  6. `10_load_sample_check.sql`(선택)
-  7. `11_load_events.sql` (사건 태그 적재, `antlab`에만. 저장소 루트에서 실행. 10 적재가 끝나 있어야 한다. 다른 파일은 시세 파생 CSV가 필요하지만 이 파일이 읽는 `events/`는 git이 추적한다)
-  8. `11_load_events_check.sql`(선택)
+  5. `03_schema_account.sql`
+  6. `03_schema_account_check.sql`(선택)
+  7. `10_load_sample.sql` (표본 적재, `antlab`에만. 저장소 루트에서 실행. 시세·환율 파생 CSV 3개와 `hand_check.csv`는 추적하지 않으므로 `db/sample/README.md`의 "표본 만들기"로 먼저 만든다)
+  8. `10_load_sample_check.sql`(선택)
+  9. `11_load_events.sql` (사건 태그 적재, `antlab`에만. 저장소 루트에서 실행. 10 적재가 끝나 있어야 한다. 다른 파일은 시세 파생 CSV가 필요하지만 이 파일이 읽는 `events/`는 git이 추적한다)
+  10. `11_load_events_check.sql`(선택)
 - 스키마 파일은 `BEGIN` ... `COMMIT`으로 감싸 있어 중간에 실패하면 전부 없던 일이 된다. `DROP TABLE`에 `CASCADE`를 쓰지 않으므로, 뒤 번호 파일의 테이블이 이미 있는 DB에서 앞 번호 파일만 다시 실행하면 `2BP01`(dependent_objects_still_exist) 오류로 멈춘다. 안전한 실패이며, 전체를 다시 만들 때는 아래 "DB 다시 만들기"를 쓴다.
 
 ## 실행 환경
@@ -55,11 +59,12 @@ psql -X -d postgres -c "ALTER DATABASE antlab SET timezone TO 'Asia/Seoul'"
 psql -X -d postgres -c "ALTER DATABASE antlab_test SET timezone TO 'Asia/Seoul'"
 ```
 
-**(b) 실습 DB 스키마 — `antlab`의 해당 파일 테이블(01은 8개, 02는 9개)과 데이터를 모두 지운다.** 표본 적재(P0-08) 이후 다시 실행하면 적재한 데이터가 사라진다. 검증만 할 때는 (c)만 실행한다. 02가 이미 있는 DB에서 01 줄을 다시 실행하면 `2BP01`로 멈춘다(02의 FK가 01 테이블을 가리킨다). 02 줄만 다시 실행하거나 (b′)를 쓴다.
+**(b) 실습 DB 스키마 — `antlab`의 해당 파일 테이블(01은 8개, 02는 9개, 03은 5개)과 데이터를 모두 지운다.** 표본 적재(P0-08) 이후 01·02 줄을 다시 실행하면 적재한 데이터가 사라진다. 검증만 할 때는 (c)만 실행한다. 02가 이미 있는 DB에서 01 줄을, 03이 이미 있는 DB에서 02 줄을 다시 실행하면 `2BP01`로 멈춘다(뒤 번호 파일의 FK가 앞 번호 테이블을 가리킨다). 마지막 번호의 줄만 다시 실행하거나 (b′)를 쓴다. 적재 뒤에 03만 더할 때는 03 줄만 실행한다(03은 01·02 테이블의 행을 건드리지 않아 역사 데이터는 그대로다).
 
 ```bash
 psql -X -v ON_ERROR_STOP=1 -d antlab -f db/01_schema_history.sql
 psql -X -v ON_ERROR_STOP=1 -d antlab -f db/02_schema_season.sql
+psql -X -v ON_ERROR_STOP=1 -d antlab -f db/03_schema_account.sql
 ```
 
 **(b′) 실습 DB 다시 만들기 — `antlab` 전체를 지우고 처음부터.** 뒤 번호 파일의 테이블이 있어 (b)가 `2BP01`로 멈출 때 쓴다. `antlab`의 모든 데이터가 사라진다.
@@ -70,9 +75,10 @@ createdb -E UTF8 -T template0 antlab
 psql -X -d postgres -c "ALTER DATABASE antlab SET timezone TO 'Asia/Seoul'"
 psql -X -v ON_ERROR_STOP=1 -d antlab -f db/01_schema_history.sql
 psql -X -v ON_ERROR_STOP=1 -d antlab -f db/02_schema_season.sql
+psql -X -v ON_ERROR_STOP=1 -d antlab -f db/03_schema_account.sql
 ```
 
-**(b″) 표본 적재 — `antlab`(작업 DB)에만.** 검증용 `antlab_test`에는 적재하지 않는다(`01_schema_history_check.sql`·`02_schema_season_check.sql` 0절이 빈 테이블을 요구해 적재된 DB에서는 둘 다 FAIL이다). 적재는 아무것도 지우지 않으며 두 번째 실행에는 새 행이 없다.
+**(b″) 표본 적재 — `antlab`(작업 DB)에만.** 검증용 `antlab_test`에는 적재하지 않는다(`01_schema_history_check.sql`·`02_schema_season_check.sql`·`03_schema_account_check.sql` 0절이 빈 테이블을 요구해 적재된 DB에서는 셋 다 FAIL이다). 적재는 아무것도 지우지 않으며 두 번째 실행에는 새 행이 없다.
 
 ```bash
 psql -X -v ON_ERROR_STOP=1 -d antlab -f db/10_load_sample.sql
@@ -85,18 +91,20 @@ psql -X -q -v ON_ERROR_STOP=1 -d antlab -f db/11_load_events_check.sql
 
 11 적재는 10 적재가 끝난 DB에서만 돈다(비어 있으면 "10 적재를 먼저" 메시지로 멈춘다). 11 검증은 `events/` 파일을 읽으므로 이것도 저장소 루트에서 실행한다.
 
-**(c) 제약 검증 — `antlab_test`에서만.** 스키마(01 → 02)가 만들어져 있는 `antlab_test`에서 검증 두 줄을 실행한다. 검증은 마지막에 `ROLLBACK`하므로 스키마를 다시 만들지 않고 몇 번이든 돌릴 수 있다. 처음 한 번은 아래 스키마 두 줄을 먼저 실행한다.
+**(c) 제약 검증 — `antlab_test`에서만.** 스키마(01 → 02 → 03)가 만들어져 있는 `antlab_test`에서 검증 세 줄을 실행한다. 검증은 마지막에 `ROLLBACK`하므로 스키마를 다시 만들지 않고 몇 번이든 돌릴 수 있다. 처음 한 번은 아래 스키마 세 줄을 먼저 실행한다.
 
 ```bash
 psql -X -q -v ON_ERROR_STOP=1 -d antlab_test -f db/01_schema_history_check.sql
 psql -X -q -v ON_ERROR_STOP=1 -d antlab_test -f db/02_schema_season_check.sql
+psql -X -q -v ON_ERROR_STOP=1 -d antlab_test -f db/03_schema_account_check.sql
 ```
 
-`antlab_test`에 스키마가 아직 없으면(처음 한 번) 검증 앞에 스키마 두 줄을 순서대로 실행한다. 02 파일만 고쳤다면 02 스키마 한 줄과 검증 두 줄이면 된다. 01 스키마 줄은 02가 있는 DB에서 `2BP01`로 멈추므로 01을 고쳤을 때는 (c′)를 쓴다.
+`antlab_test`에 스키마가 아직 없으면(처음 한 번) 검증 앞에 스키마 세 줄을 순서대로 실행한다. 03 파일만 고쳤다면 03 스키마 한 줄과 검증 세 줄이면 된다. 02 스키마 줄은 03이 있는 DB에서, 01 스키마 줄은 02가 있는 DB에서 `2BP01`로 멈추므로 01·02를 고쳤을 때는 (c′)를 쓴다.
 
 ```bash
 psql -X -v ON_ERROR_STOP=1 -d antlab_test -f db/01_schema_history.sql
 psql -X -v ON_ERROR_STOP=1 -d antlab_test -f db/02_schema_season.sql
+psql -X -v ON_ERROR_STOP=1 -d antlab_test -f db/03_schema_account.sql
 ```
 
 **(c′) 검증 DB 다시 만들기 — `antlab_test` 전체를 지우고 처음부터.**
@@ -107,6 +115,7 @@ createdb -E UTF8 -T template0 antlab_test
 psql -X -d postgres -c "ALTER DATABASE antlab_test SET timezone TO 'Asia/Seoul'"
 psql -X -v ON_ERROR_STOP=1 -d antlab_test -f db/01_schema_history.sql
 psql -X -v ON_ERROR_STOP=1 -d antlab_test -f db/02_schema_season.sql
+psql -X -v ON_ERROR_STOP=1 -d antlab_test -f db/03_schema_account.sql
 ```
 
 **(d) 임시 인스턴스로 검증 — 상시 DB 서버를 건드리지 않는다.** 저장소 밖에 데이터 디렉터리를 만들어 소켓으로만 접속하는 서버를 잠깐 띄운다(포트를 열지 않는다). 다 쓰면 멈추고 지운다. 실행할 때마다 새 경로를 만든다. 앞 줄에서 오류가 나면 멈추고 마지막 두 줄(정리)만 실행한다.
@@ -118,8 +127,10 @@ pg_ctl -D "${D:?}/data" -o "-k ${D:?} -c listen_addresses='' -c timezone=Asia/Se
 createdb -h "${D:?}" -U check -E UTF8 -T template0 antlab_test
 psql -X -v ON_ERROR_STOP=1 -h "${D:?}" -U check -d antlab_test -f db/01_schema_history.sql
 psql -X -v ON_ERROR_STOP=1 -h "${D:?}" -U check -d antlab_test -f db/02_schema_season.sql
+psql -X -v ON_ERROR_STOP=1 -h "${D:?}" -U check -d antlab_test -f db/03_schema_account.sql
 psql -X -q -v ON_ERROR_STOP=1 -h "${D:?}" -U check -d antlab_test -f db/01_schema_history_check.sql
 psql -X -q -v ON_ERROR_STOP=1 -h "${D:?}" -U check -d antlab_test -f db/02_schema_season_check.sql
+psql -X -q -v ON_ERROR_STOP=1 -h "${D:?}" -U check -d antlab_test -f db/03_schema_account_check.sql
 pg_ctl -D "${D:?}/data" -m fast stop
 rm -rf "${D:?}"
 ```
@@ -138,6 +149,12 @@ rm -rf "${D:?}"
 - `P0-06 스키마: 이름이 public이 아닌 곳을 가리킨다`로 멈추면 01 스키마와 같은 뜻이다. 이 파일이 이름으로 가리키는 13개 테이블(02의 9개 + 01의 4개) 중 `public`이 아닌 곳으로 해석되는 것이 있다. 아무것도 지우지 않고 종료 코드 3으로 끝난다.
 - `relation "month_block" does not exist`(`42P01`)로 멈추면 01 스키마를 먼저 실행하지 않은 것이다. 파일 전체가 한 트랜잭션이라 아무것도 남지 않는다. 01을 실행한 뒤 다시 한다.
 - `cannot drop table turn_feed because other objects depend on it`(`2BP01`)로 멈추면 뒤 번호 파일(03)의 테이블이 02의 테이블을 가리키고 있다는 뜻이다. 안전한 실패이며 아무것도 바뀌지 않는다. 전체를 다시 만들 때는 (b′)를 쓴다.
+
+**스키마 파일(`03_schema_account.sql`).**
+
+- 종료 코드가 0이고 `ERROR`·`WARNING`이 없으면 성공이다. 빈 DB에서 처음 실행하면 `NOTICE: table "…" does not exist, skipping` 5건이 나오고, 두 번째 실행부터는 아무것도 나오지 않는다. 03은 늘 다시 실행할 수 있다(03의 테이블을 가리키는 뒤 번호 파일이 아직 없다). 다시 실행하면 03의 5개 테이블만 지우고 다시 만들며 01·02 테이블의 행·제약·인덱스는 그대로다.
+- `P0-07 스키마: 이름이 public이 아닌 곳을 가리킨다`로 멈추면 01·02 스키마와 같은 뜻이다. 이 파일이 이름으로 가리키는 9개 테이블(03의 5개 + `season`·`asset`·`formation_change`·`turn_feed`) 중 `public`이 아닌 곳으로 해석되는 것이 있다. 아무것도 지우지 않고 종료 코드 3으로 끝난다.
+- `relation "season" does not exist`(`42P01`)로 멈추면 02 스키마(와 01)를 먼저 실행하지 않은 것이다. 파일 전체가 한 트랜잭션이라 아무것도 남지 않는다. 01 → 02를 실행한 뒤 다시 한다.
 
 **검증 파일(`01_schema_history_check.sql`).** 마지막 출력이 `p0_05_check` 열의 `PASS`이고 종료 코드가 0이면 통과다. `PASS`는 1–7절이 모두 통과하고 끝의 흔적 확인까지 끝났을 때만 나온다. 먼저 0절(전제) 결과 표가 나오고, 0절에 FAIL이 있으면 거기서 멈춘다(전제를 맞춘 뒤 다시 실행). 이어서 세 가지 표가 나온다.
 
@@ -169,16 +186,26 @@ FAIL이 하나라도 있으면 오류 메시지와 함께 종료 코드 3으로 
 - **7 판정:** 커버리지는 `ck_` 60 + `uq_` 제약 7 + `uq_` 인덱스 2 + `fk_` 14 = 83개 이름이 각각 자기 이름으로 보고되었는가(`83/83`).
 - **흔적(8절):** 17개 테이블의 행 0, `zz_` 객체 0, 이 파일 9개 테이블의 제약 90개·인덱스 27개가 그대로다. 01 테이블의 제약·인덱스는 세지 않는다. 01 검증은 02가 있어도 그대로 `PASS`다.
 
+**검증 파일(`03_schema_account_check.sql`).** 읽는 법은 01·02 검증과 같다. 마지막 출력이 `p0_07_check` 열의 `PASS`이고 종료 코드가 0이면 통과다. 01·02 검증과 다른 점:
+
+- **0 전제:** 01의 8개, 02의 9개, 03의 5개, **22개 테이블이 모두 비어 있어야 한다**. 22개 이름은 파일 맨 앞(`BEGIN` 앞)의 임시 표 `zz_table_list` 한 곳에만 있고, 0절의 자기 점검 행이 owner별 개수(01=8 02=9 03=5)를 확인한다. 표본을 적재한 DB(`antlab`)에서는 FAIL이므로 검증용 DB에서만 돌린다.
+- **1 구조:** 제약·인덱스 53개(PK 5·UNIQUE 2·FK 10·CHECK 28·`idx_` 8), 컬럼 41개. 컬럼 코멘트는 태그뿐 아니라 논리명 전문(`[노출] 잔액`)을 대조한다. 복합 FK 3개는 컬럼 목록과 순서를 `(a, b, c) → t (x, y, z)` 꼴로 대조하고 `MATCH SIMPLE`(`match=s`)까지 확인한다. FK 인덱스 짝은 10/10이다.
+- **3 음성:** `ck_orders_type`(`ck_orders_limit_price`에 가림)과 `ck_cash_ledger_type`(`ck_cash_ledger_amount_sign`·`ck_cash_ledger_ref_order`에 가림)은 DML로는 자기 이름이 보고되지 않는다. 먼저 가림 자체를 기록하고, 같은 사례 안에서 가리는 제약을 지운 뒤 자기 이름이 보고되는 것을 증명한다. `uq_orders_id_season`은 PK에 가려, 그 PK를 가리키는 `fk_execution_order`와 PK를 사례 안에서 지우고 증명한다(`pg_constraint.conindid`로 어느 FK가 어느 인덱스를 타는지 전제 단언을 남긴다). 사례는 모두 서브트랜잭션이 되돌린다.
+- **4 경계:** 금액 컬럼에 `'NaN'`을 넣으면 23514다(NaN은 자기와 같고 모든 수보다 크게 비교되어 `>= 0`·원 단위 CHECK만으로는 막히지 않는다). `'Infinity'`는 22003.
+- **5 복합 FK:** 5.1은 같은 시즌·같은 턴이면 통과, 다른 시즌의 변경·같은 시즌 다른 턴의 변경·다른 시즌의 피드·다른 시즌 주문을 가리키는 원장은 `23503`인 사례다. 5.2는 DDL이 통과시키는 것 — 수수료가 공식과 1원 다른 체결, 원장 합이 잔액과 다른 계좌처럼 대사 규칙(erd 7.5)이 잡는 행들을 성공 사례로 기록한다.
+- **7 판정:** 커버리지는 `ck_` 28 + `uq_` 제약 2 + `fk_` 10 = 40개 이름이 각각 자기 이름으로 보고되었는가(`40/40`).
+- **흔적(8절):** 22개 테이블의 행 0, `zz_` 객체 0, 이 파일 5개 테이블의 제약 45개·인덱스 15개가 그대로다. 01·02 검증은 03이 있어도 그대로 `PASS`다.
+
 **알아 둘 점.**
 
-- **흔적:** 검증 파일 전체가 한 트랜잭션이고 7절 뒤에 `ROLLBACK`한다. 끝(8절)에서 그 파일 테이블의 행 0, `public`의 `zz_` 객체 0, 제약·인덱스 개수 그대로를 다시 확인한다(01은 8개 테이블·제약 69개·인덱스 21개, 02는 17개 테이블의 행 0·제약 90개·인덱스 27개). **identity(번호표) 값 소비만 되돌아오지 않는다.** 검증을 돌리면 다음 INSERT의 `id`가 건너뛴 값부터 시작한다. 그래서 검증은 검증용 DB에서만 돌린다.
+- **흔적:** 검증 파일 전체가 한 트랜잭션이고 7절 뒤에 `ROLLBACK`한다. 끝(8절)에서 그 파일 테이블의 행 0, `public`의 `zz_` 객체 0, 제약·인덱스 개수 그대로를 다시 확인한다(01은 8개 테이블·제약 69개·인덱스 21개, 02는 17개 테이블의 행 0·제약 90개·인덱스 27개, 03은 22개 테이블의 행 0·제약 45개·인덱스 15개). **identity(번호표) 값 소비만 되돌아오지 않는다.** 검증을 돌리면 다음 INSERT의 `id`가 건너뛴 값부터 시작한다. 그래서 검증은 검증용 DB에서만 돌린다.
 - **공백 값:** `asset.ticker`와 `month_event.event_key`의 앞뒤 공백은 DB가 막지 않는다(`'ZZAAPL'`과 `'ZZAAPL '`은 서로 다른 값). 2절에 현재 동작으로 기록해 두었다. 적재(P0-08)가 `trim`하고 공백 포함 값이 없는지 확인한다.
-- **스키마 파일을 다시 실행하면** 그 파일 테이블의 데이터가 모두 사라진다(01은 8개, 02는 9개). 표본 적재 이후에는 (b)를 실행하지 않는다.
+- **스키마 파일을 다시 실행하면** 그 파일 테이블의 데이터가 모두 사라진다(01은 8개, 02는 9개, 03은 5개). 표본 적재 이후에는 (b)의 01·02 줄을 실행하지 않는다(03 줄만 더하는 것은 된다 — 03은 01·02의 행을 건드리지 않는다).
 
 **사건 적재(`11_load_events.sql`)와 검증(`11_load_events_check.sql`).** 형식·규칙의 정본은 [`events/README.md`](../events/README.md)다.
 
 - 적재: 종료 코드 0이고 마지막에 표 둘이 나오면 성공이다. 첫 표는 `month_event`의 파일 행 수와 새로 넣은 수, `events_reviewed`를 FALSE에서 TRUE로 바꾼 달 수이고, **다시 실행하면 변경 수가 0·0**이다. 둘째 표는 유형별 표본 수 n(태그가 있는 에피소드 수)과 `category_hidden`(n < 3, 시즌에서 범주를 말하지 않는 카드 대상)이다. Phase 0 표본은 100개 달뿐이라 대부분의 유형이 n < 3인 것이 정상이다.
-- 적재가 멈추는 경우(모두 종료 코드 3, DB는 그대로): `events/ 파일이 없다`는 저장소 루트가 아니라는 뜻이고, `파일이 비어 있다(머리글만)`은 CSV에 데이터 행이 없다는 뜻이다 — 둘 다 DB에 닿기 전이다. `입력 검사 실패`는 파일 형식·정렬·유형 규칙·편집 완료 표와의 어긋남이고 메시지 첫 20건이 어느 줄인지 알려 준다. `파일과 DB 가 어긋난다`는 이미 적재한 행을 파일에서 고쳤거나 지웠다는 뜻이다 — 값 정정은 하지 않는다. 고쳐야 하면 (b′)로 `antlab`을 다시 만들고 01 → 02 → 10 → 11 순서로 적재한다. `10 적재를 먼저`는 `month_block`·`asset_month_return`·`fx_month`가 비어 있다는 뜻이다. `column name mismatch in header line`은 CSV 머리글이 열 계약과 다르다는 뜻이다.
+- 적재가 멈추는 경우(모두 종료 코드 3, DB는 그대로): `events/ 파일이 없다`는 저장소 루트가 아니라는 뜻이고, `파일이 비어 있다(머리글만)`은 CSV에 데이터 행이 없다는 뜻이다 — 둘 다 DB에 닿기 전이다. `입력 검사 실패`는 파일 형식·정렬·유형 규칙·편집 완료 표와의 어긋남이고 메시지 첫 20건이 어느 줄인지 알려 준다. `파일과 DB 가 어긋난다`는 이미 적재한 행을 파일에서 고쳤거나 지웠다는 뜻이다 — 값 정정은 하지 않는다. 고쳐야 하면 (b′)로 `antlab`을 다시 만들고(01 → 02 → 03) 10 → 11 순서로 적재한다. `10 적재를 먼저`는 `month_block`·`asset_month_return`·`fx_month`가 비어 있다는 뜻이다. `column name mismatch in header line`은 CSV 머리글이 열 계약과 다르다는 뜻이다.
 - 검증: 마지막 출력이 `p0_09_check` 열의 `PASS`이고 종료 코드가 0이면 통과다. 읽는 법은 10 검증과 같다(0절 전제 표 → 유형별 표본 수 표 → 절별 집계 → FAIL 행 → 판정 → 마지막 줄). 절은 0 전제, 1 행 수, 2 대조·형식, 3 H5, 4 반응·강도, 5 편집 완료, 6 보고·음성, 7 판정이다.
   - **2절:** DB와 `events/tags.csv`가 열 단위로 같은지, 키 형식, 에피소드 규칙, 달당 태그 3개 이하, H6(유형·결과가 `events/types.csv` 목록 안, 범주·방향 규칙)을 본다.
   - **3절(H5):** 노출 코드(유형·결과)에 숫자 0건, 두 글자 토큰은 `US`/`KR`만, 금지 토큰(나라·기관·회사·인물·사건 이름, 검증 파일 안 목록) 0건이다. `events/types.csv`에도 같은 검사를 한다.
