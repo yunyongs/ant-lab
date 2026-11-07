@@ -10,6 +10,8 @@ Phase 0에서 손으로 쓰는 SQL이다([docs/PLAN.md](../docs/PLAN.md#111-phas
 | `01_schema_history_check.sql` | P0-05 | 위 DDL의 검증. erd 5.3·5.4와 카탈로그를 대조하고, 통과해야 하는 사례와 실패해야 하는 사례를 실행해 스스로 판정한다 |
 | `02_schema_season.sql` | P0-06 | 회원·시즌·피드·대사 테이블 9개 DDL (PK, UNIQUE, 표현식·부분 유일 인덱스 2개, FK, CHECK, `idx_` 인덱스, 테이블·컬럼 코멘트). 01의 테이블 4개를 FK로 참조하므로 01을 먼저 실행한다. 이 파일의 9개 테이블을 지우고 다시 만든다 |
 | `02_schema_season_check.sql` | P0-06 | 위 DDL의 검증. erd 6.3·6.4와 카탈로그를 대조하고(유일 인덱스는 `pg_indexes`), 통과해야 하는 사례와 실패해야 하는 사례를 실행해 스스로 판정한다 |
+| `10_load_sample.sql` | P0-08 | 표본 CSV 6개(`db/sample/`)를 역사 테이블 6개에 적재한다. 아무것도 지우지 않고, 같은 CSV로 다시 실행하면 새 행이 없다(멱등). 값이 CSV와 다르면 오류로 멈춘다. 01 스키마를 먼저 실행한다. 시세·환율에서 만든 CSV 3개(`asset_month_return.csv`, `asset_position.csv`, `fx_month.csv`)는 git이 무시하므로 없을 수 있다 — 하나라도 없으면 DB에 닿기 전에 첫 줄에서 "무시 CSV가 없다. 표본 만들기를 먼저" 메시지로 멈춘다(종료 코드 3) |
+| `10_load_sample_check.sql` | P0-08 | 적재 검증. 행 수·형식·H1·H3·H4·H7을 대조하고 손 대조(6절)를 확인한다. 6절의 기대값은 git이 무시하는 `db/sample/hand_check.csv`에서 읽으며, 파일이 없으면 6절이 FAIL이다(검증이 비어 있는데 통과하지 않게 한다). 아무것도 쓰지 않고 `ROLLBACK`하므로 `antlab`에서도 돌린다 |
 
 - 이름 규칙은 `{실행 순서 두 자리}_{종류}_{영역}.sql`이고, 검증은 같은 이름 뒤에 `_check`를 붙인다.
 - **새 기능이 파일을 더하는 규칙:** 기능은 자기 파일의 행을 위 표에 더하고, 아래 "전체 순서"와 "DB 다시 만들기"의 명령을 이어 적는다. 다른 기능의 파일은 고치지 않는다.
@@ -18,6 +20,8 @@ Phase 0에서 손으로 쓰는 SQL이다([docs/PLAN.md](../docs/PLAN.md#111-phas
   2. `01_schema_history_check.sql`(선택)
   3. `02_schema_season.sql`
   4. `02_schema_season_check.sql`(선택)
+  5. `10_load_sample.sql` (표본 적재, `antlab`에만. 저장소 루트에서 실행. 시세·환율 파생 CSV 3개와 `hand_check.csv`는 추적하지 않으므로 `db/sample/README.md`의 "표본 만들기"로 먼저 만든다)
+  6. `10_load_sample_check.sql`(선택)
 - 스키마 파일은 `BEGIN` ... `COMMIT`으로 감싸 있어 중간에 실패하면 전부 없던 일이 된다. `DROP TABLE`에 `CASCADE`를 쓰지 않으므로, 뒤 번호 파일의 테이블이 이미 있는 DB에서 앞 번호 파일만 다시 실행하면 `2BP01`(dependent_objects_still_exist) 오류로 멈춘다. 안전한 실패이며, 전체를 다시 만들 때는 아래 "DB 다시 만들기"를 쓴다.
 
 ## 실행 환경
@@ -63,6 +67,15 @@ psql -X -d postgres -c "ALTER DATABASE antlab SET timezone TO 'Asia/Seoul'"
 psql -X -v ON_ERROR_STOP=1 -d antlab -f db/01_schema_history.sql
 psql -X -v ON_ERROR_STOP=1 -d antlab -f db/02_schema_season.sql
 ```
+
+**(b″) 표본 적재 — `antlab`(작업 DB)에만.** 검증용 `antlab_test`에는 적재하지 않는다(`01_schema_history_check.sql`·`02_schema_season_check.sql` 0절이 빈 테이블을 요구해 적재된 DB에서는 둘 다 FAIL이다). 적재는 아무것도 지우지 않으며 두 번째 실행에는 새 행이 없다.
+
+```bash
+psql -X -v ON_ERROR_STOP=1 -d antlab -f db/10_load_sample.sql
+psql -X -q -v ON_ERROR_STOP=1 -d antlab -f db/10_load_sample_check.sql
+```
+
+두 명령 모두 저장소 루트에서 실행한다(`\copy` 경로가 실행한 디렉터리 기준이다). 시세·환율 파생 CSV가 없으면 적재가 첫 줄에서 멈추고, `hand_check.csv`가 없으면 검증 6절이 FAIL이다. 둘 다 `db/sample/README.md`의 "표본 만들기"를 먼저 하라는 신호다.
 
 **(c) 제약 검증 — `antlab_test`에서만.** 스키마(01 → 02)가 만들어져 있는 `antlab_test`에서 검증 두 줄을 실행한다. 검증은 마지막에 `ROLLBACK`하므로 스키마를 다시 만들지 않고 몇 번이든 돌릴 수 있다. 처음 한 번은 아래 스키마 두 줄을 먼저 실행한다.
 
