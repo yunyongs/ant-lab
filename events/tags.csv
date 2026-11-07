@@ -1,0 +1,39 @@
+event_key,month_start,category,event_type,phase,outcome,direction,reaction_ref,title,hindsight,source,checked_on
+ev0001.01,2007-08-01,FINANCIAL,CREDIT_CRUNCH,START,,,US:SPY,프랑스 BNP파리바 서브프라임 관련 펀드 3개 환매 중단,이후 세계 금융 위기의 시작점 가운데 하나로 꼽힘,https://en.wikipedia.org/wiki/Subprime_mortgage_crisis ; https://en.wikipedia.org/wiki/2008_financial_crisis,2026-11-07
+ev0002.01,2007-09-01,POLICY,MONETARY_EASING,START,RATE_CUT,,US:SPY,미국 연준 기준금리 목표 0.5%포인트 인하,,https://www.federalreserve.gov/newsevents/pressreleases/monetary20070918a.htm,2026-11-07
+ev0002.02,2008-01-01,POLICY,MONETARY_EASING,ONGOING,EMERGENCY_CUT,,US:SPY,미국 연준 기준금리 목표 0.75%포인트 긴급 인하,,https://www.federalreserve.gov/newsevents/pressreleases/monetary20080122b.htm,2026-11-07
+ev0002.03,2008-10-01,POLICY,MONETARY_EASING,ONGOING,RATE_CUT,,US:SPY,미국 연준 등 주요 중앙은행 정책금리 공동 인하 발표,,https://www.federalreserve.gov/newsevents/pressreleases/monetary20081008a.htm,2026-11-07
+ev0002.04,2008-12-01,POLICY,MONETARY_EASING,ONGOING,RATE_CUT,,US:SPY,미국 연준 기준금리 목표를 0~0.25%로 낮춤,,https://www.federalreserve.gov/newsevents/pressreleases/monetary20081216b.htm,2026-11-07
+ev0002.05,2010-11-01,POLICY,MONETARY_EASING,ONGOING,ASSET_PURCHASE,,US:SPY,미국 연준 추가 증권 매입 계획 발표,,https://www.federalreserve.gov/newsevents/pressreleases/monetary20101103a.htm,2026-11-07
+ev0003.01,2007-12-01,POLITICS,KR_PRESIDENTIAL_ELECTION,START,CHANGE,,KR:069500,제17대 대통령 선거와 정권 교체,,https://en.wikipedia.org/wiki/2007_South_Korean_presidential_election,2026-11-07
+ev0004.01,2008-03-01,FINANCIAL,BANK_FAILURE,START,RESCUED,,US:SPY,미국 투자은행 베어스턴스 연준 지원 속 JP모건 인수 합의,이후 같은 해 9월 대형 투자은행 파산으로 번진 위기의 초기 충격으로 불림,https://en.wikipedia.org/wiki/Bear_Stearns ; https://en.wikipedia.org/wiki/2008_financial_crisis,2026-11-07
+ev0005.01,2008-04-01,POLITICS,KR_LEGISLATIVE_ELECTION,START,MAJORITY_GAINED,,KR:069500,제18대 국회의원 선거 집권 여당 과반 확보,,https://en.wikipedia.org/wiki/2008_South_Korean_legislative_election,2026-11-07
+ev0006.01,2008-07-01,SUPPLY_SHOCK,OIL_SHOCK,START,,UP,US:XOM,국제 유가 사상 최고가 경신,이후 금융 위기와 함께 연말까지 급락,https://en.wikipedia.org/wiki/2000s_energy_crisis,2026-11-07
+ev0006.02,2008-12-01,SUPPLY_SHOCK,OIL_SHOCK,ONGOING,,DOWN,US:XOM,국제 유가 7월 고점 대비 크게 하락,,https://en.wikipedia.org/wiki/2000s_energy_crisis,2026-11-07
+ev0007.01,2008-09-01,FINANCIAL,BANK_FAILURE,START,FAILED,,US:SPY,미국 투자은행 리먼브라더스 파산 신청,이후 세계 금융 위기의 결정적 계기로 불림,https://en.wikipedia.org/wiki/Bankruptcy_of_Lehman_Brothers,2026-11-07
+ev0008.01,2008-10-01,POLICY,FISCAL_STIMULUS,START,,,US:SPY,미국 금융 안정화 법안(구제금융 법안) 서명,,https://en.wikipedia.org/wiki/Emergency_Economic_Stabilization_Act_of_2008,2026-11-07
+ev0009.01,2008-11-01,POLITICS,US_PRESIDENTIAL_ELECTION,START,CHANGE,,US:SPY,미국 대통령 선거와 집권당 교체,,https://en.wikipedia.org/wiki/2008_United_States_presidential_election,2026-11-07
+ev0010.01,2009-04-01,HEALTH,PANDEMIC,START,,,US:SPY,신종 인플루엔자 발생과 세계보건기구 국제 공중보건 비상사태 선포,,https://en.wikipedia.org/wiki/2009_swine_flu_pandemic,2026-11-07
+ev0010.02,2009-06-01,HEALTH,PANDEMIC,ONGOING,,,US:SPY,세계보건기구 신종 인플루엔자 대유행 선언,,https://en.wikipedia.org/wiki/2009_swine_flu_pandemic,2026-11-07
+ev0011.01,2010-03-01,GEOPOLITICS,MILITARY_PROVOCATION,START,,,KR:069500,서해 초계함 침몰,원인은 같은 해 5월 민군 합동조사단 발표에서 어뢰 공격으로 결론,https://en.wikipedia.org/wiki/Sinking_of_ROKS_Cheonan,2026-11-07
+ev0012.01,2010-05-01,FINANCIAL,SOVEREIGN_DEBT,START,RESCUED,,US:SPY,그리스 구제금융 합의(유럽연합·국제통화기금),이후 유럽 재정 위기로 확산,https://en.wikipedia.org/wiki/Greek_government-debt_crisis ; https://en.wikipedia.org/wiki/European_debt_crisis,2026-11-07
+ev0013.01,2010-11-01,POLITICS,US_MIDTERM,START,MAJORITY_LOST,,US:SPY,미국 중간선거 집권당 하원 과반 상실,,https://en.wikipedia.org/wiki/2010_United_States_House_of_Representatives_elections,2026-11-07
+ev0014.01,2010-11-01,GEOPOLITICS,MILITARY_PROVOCATION,START,,,KR:069500,서해 섬 포격 교전,,https://en.wikipedia.org/wiki/Bombardment_of_Yeonpyeong,2026-11-07
+ev0015.01,2011-02-01,GEOPOLITICS,ARMED_CONFLICT,START,,,US:SPY,북아프리카 리비아 시위가 무력 충돌로 확산,,https://en.wikipedia.org/wiki/Libyan_civil_war_(2011),2026-11-07
+ev0016.01,2011-03-01,SUPPLY_SHOCK,NATURAL_DISASTER,START,,,KR:069500,동일본 대지진과 쓰나미 그리고 원전 사고,,https://en.wikipedia.org/wiki/2011_T%C5%8Dhoku_earthquake_and_tsunami,2026-11-07
+ev0017.01,2011-08-01,FINANCIAL,CREDIT_RATING_DOWNGRADE,START,,,US:SPY,S&P 미국 국가 신용등급 AAA에서 AA+로 강등,미국 국가 신용등급의 첫 강등,https://en.wikipedia.org/wiki/United_States_federal_government_credit-rating_downgrades,2026-11-07
+ev0018.01,2012-04-01,POLITICS,KR_LEGISLATIVE_ELECTION,START,MAJORITY_KEPT,,KR:069500,제19대 국회의원 선거 집권 여당 과반 유지,,https://en.wikipedia.org/wiki/2012_South_Korean_legislative_election,2026-11-07
+ev0019.01,2023-03-01,FINANCIAL,BANK_FAILURE,START,FAILED,,US:SPY,미국 은행 연쇄 파산(실리콘밸리은행 등)과 스위스 대형 은행 긴급 인수,,https://en.wikipedia.org/wiki/2023_United_States_banking_crisis ; https://en.wikipedia.org/wiki/Silicon_Valley_Bank,2026-11-07
+ev0019.02,2023-05-01,FINANCIAL,BANK_FAILURE,ONGOING,FAILED,,US:SPY,미국 퍼스트리퍼블릭은행 폐쇄와 JP모건 매각,,https://en.wikipedia.org/wiki/2023_United_States_banking_crisis,2026-11-07
+ev0020.01,2023-08-01,FINANCIAL,CREDIT_RATING_DOWNGRADE,START,,,US:SPY,피치 미국 국가 신용등급 AAA에서 AA+로 강등,,https://en.wikipedia.org/wiki/United_States_federal_government_credit-rating_downgrades,2026-11-07
+ev0021.01,2023-10-01,GEOPOLITICS,ARMED_CONFLICT,START,,,US:SPY,하마스의 이스라엘 기습 공격으로 무력 충돌 시작,,https://en.wikipedia.org/wiki/October_7_attacks,2026-11-07
+ev0021.02,2025-06-01,GEOPOLITICS,ARMED_CONFLICT,ONGOING,CEASEFIRE,,US:SPY,이스라엘·이란 직접 교전과 휴전,,https://en.wikipedia.org/wiki/Twelve-Day_War,2026-11-07
+ev0022.01,2024-04-01,POLITICS,KR_LEGISLATIVE_ELECTION,START,MINORITY_KEPT,,KR:069500,제22대 국회의원 선거 집권 여당 소수 유지,,https://en.wikipedia.org/wiki/2024_South_Korean_legislative_election,2026-11-07
+ev0023.01,2024-09-01,POLICY,MONETARY_EASING,START,RATE_CUT,,US:SPY,미국 연준 기준금리 목표 0.5%포인트 인하,,https://www.federalreserve.gov/newsevents/pressreleases/monetary20240918a.htm,2026-11-07
+ev0024.01,2024-11-01,POLITICS,US_PRESIDENTIAL_ELECTION,START,CHANGE,,US:SPY,미국 대통령 선거와 집권당 교체,,https://en.wikipedia.org/wiki/2024_United_States_presidential_election,2026-11-07
+ev0025.01,2024-12-01,POLITICS,POLITICAL_CRISIS,START,,,KR:069500,비상계엄 선포와 해제 그리고 국회의 대통령 탄핵소추안 가결,,https://en.wikipedia.org/wiki/2024_South_Korean_martial_law_crisis,2026-11-07
+ev0025.02,2025-04-01,POLITICS,POLITICAL_CRISIS,END,,,KR:069500,헌법재판소의 대통령 탄핵 인용(파면 결정),,https://en.wikipedia.org/wiki/2024_South_Korean_martial_law_crisis,2026-11-07
+ev0026.01,2025-02-01,TRADE,TARIFF,START,IMPOSED,,US:SPY,미국 중국·캐나다·멕시코산 수입품 관세 부과 명령,,https://en.wikipedia.org/wiki/2025_United_States_tariffs,2026-11-07
+ev0026.02,2025-04-01,TRADE,TARIFF,ONGOING,PAUSED,,US:SPY,미국 상호관세 발표 뒤 중국을 제외한 국가별 상호관세 90일 유예,,https://en.wikipedia.org/wiki/Liberation_Day_tariffs ; https://en.wikipedia.org/wiki/2025_United_States_tariffs,2026-11-07
+ev0027.01,2025-05-01,FINANCIAL,CREDIT_RATING_DOWNGRADE,START,,,US:SPY,무디스 미국 국가 신용등급 Aaa에서 Aa1로 강등,,https://en.wikipedia.org/wiki/United_States_federal_government_credit-rating_downgrades,2026-11-07
+ev0028.01,2025-06-01,POLITICS,KR_PRESIDENTIAL_ELECTION,START,CHANGE,,KR:069500,제21대 대통령 선거와 정권 교체,,https://en.wikipedia.org/wiki/2025_South_Korean_presidential_election,2026-11-07
