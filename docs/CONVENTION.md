@@ -62,6 +62,8 @@
 | `MVP`        | Spring Boot 표현 상태 전송(REST, Representational State Transfer) API      | [PLAN.md §8](PLAN.md#8-사용자-스토리) 사용자 스토리 순서대로 `MVP-01` \~ `MVP-07`    |
 | `V2` \~ `V5` | PLAN.md §11의 V2(비용·케이스·대가), V3(앱), V4(AI), V5(배포)              | 단계를 시작할 때 PLAN.md §11에 표를 만든다                                                     |
 | `M1` \~ `M4` | 수집기·CI, Python 엔진, 점수 백테스트, 전망 모드(PLAN.md §11)                | 단계를 시작할 때 PLAN.md §11에 표를 만든다                  |
+| `AG`         | 에이전트 펀드 매니저(PLAN.md §4.16, §11 AG 행)        | [PLAN.md §11](PLAN.md#11-로드맵커리큘럼-순서-유지)의 AG 기능 표 초안 `AG-01` \~ `AG-08` — 단계를 시작할 때 확정한다 |
+| `R1` \~ `R3` | 거장 추적, 매니저 복제 봇, 실전 운용(PLAN.md §11)        | 단계를 시작할 때 PLAN.md §11에 표를 만든다                  |
 
 
 ### 규칙
