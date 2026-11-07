@@ -8,10 +8,16 @@ Phase 0에서 손으로 쓰는 SQL이다([docs/PLAN.md](../docs/PLAN.md#111-phas
 |------|-------------|------|
 | `01_schema_history.sql` | P0-05 | 역사 데이터·종목 풀 테이블 8개 DDL (PK, UNIQUE, FK, CHECK, `idx_` 인덱스, 테이블·컬럼 코멘트). 이 파일의 8개 테이블을 지우고 다시 만든다 |
 | `01_schema_history_check.sql` | P0-05 | 위 DDL의 검증. erd 5.3·5.4와 카탈로그를 대조하고, 통과해야 하는 사례와 실패해야 하는 사례를 실행해 스스로 판정한다 |
+| `02_schema_season.sql` | P0-06 | 회원·시즌·피드·대사 테이블 9개 DDL (PK, UNIQUE, 표현식·부분 유일 인덱스 2개, FK, CHECK, `idx_` 인덱스, 테이블·컬럼 코멘트). 01의 테이블 4개를 FK로 참조하므로 01을 먼저 실행한다. 이 파일의 9개 테이블을 지우고 다시 만든다 |
+| `02_schema_season_check.sql` | P0-06 | 위 DDL의 검증. erd 6.3·6.4와 카탈로그를 대조하고(유일 인덱스는 `pg_indexes`), 통과해야 하는 사례와 실패해야 하는 사례를 실행해 스스로 판정한다 |
 
 - 이름 규칙은 `{실행 순서 두 자리}_{종류}_{영역}.sql`이고, 검증은 같은 이름 뒤에 `_check`를 붙인다.
 - **새 기능이 파일을 더하는 규칙:** 기능은 자기 파일의 행을 위 표에 더하고, 아래 "전체 순서"와 "DB 다시 만들기"의 명령을 이어 적는다. 다른 기능의 파일은 고치지 않는다.
-- 전체 순서: `01_schema_history.sql` → `01_schema_history_check.sql`(선택). 뒤 번호 파일(`02_`, `03_`)은 앞 번호 파일의 테이블을 참조하므로 순서가 곧 의존이다.
+- 전체 순서: 아래 번호 순서대로 실행한다. 뒤 번호 파일(`02_`, `03_`)은 앞 번호 파일의 테이블을 참조하므로 순서가 곧 의존이다. 검증 파일(`_check`)은 선택이다. 기능은 자기 파일의 줄만 더한다.
+  1. `01_schema_history.sql`
+  2. `01_schema_history_check.sql`(선택)
+  3. `02_schema_season.sql`
+  4. `02_schema_season_check.sql`(선택)
 - 스키마 파일은 `BEGIN` ... `COMMIT`으로 감싸 있어 중간에 실패하면 전부 없던 일이 된다. `DROP TABLE`에 `CASCADE`를 쓰지 않으므로, 뒤 번호 파일의 테이블이 이미 있는 DB에서 앞 번호 파일만 다시 실행하면 `2BP01`(dependent_objects_still_exist) 오류로 멈춘다. 안전한 실패이며, 전체를 다시 만들 때는 아래 "DB 다시 만들기"를 쓴다.
 
 ## 실행 환경
@@ -41,10 +47,11 @@ psql -X -d postgres -c "ALTER DATABASE antlab SET timezone TO 'Asia/Seoul'"
 psql -X -d postgres -c "ALTER DATABASE antlab_test SET timezone TO 'Asia/Seoul'"
 ```
 
-**(b) 실습 DB 스키마 — `antlab`의 8개 테이블과 데이터를 모두 지운다.** 표본 적재(P0-08) 이후 다시 실행하면 적재한 데이터가 사라진다. 검증만 할 때는 (c)만 실행한다.
+**(b) 실습 DB 스키마 — `antlab`의 해당 파일 테이블(01은 8개, 02는 9개)과 데이터를 모두 지운다.** 표본 적재(P0-08) 이후 다시 실행하면 적재한 데이터가 사라진다. 검증만 할 때는 (c)만 실행한다. 02가 이미 있는 DB에서 01 줄을 다시 실행하면 `2BP01`로 멈춘다(02의 FK가 01 테이블을 가리킨다). 02 줄만 다시 실행하거나 (b′)를 쓴다.
 
 ```bash
 psql -X -v ON_ERROR_STOP=1 -d antlab -f db/01_schema_history.sql
+psql -X -v ON_ERROR_STOP=1 -d antlab -f db/02_schema_season.sql
 ```
 
 **(b′) 실습 DB 다시 만들기 — `antlab` 전체를 지우고 처음부터.** 뒤 번호 파일의 테이블이 있어 (b)가 `2BP01`로 멈출 때 쓴다. `antlab`의 모든 데이터가 사라진다.
@@ -54,13 +61,21 @@ dropdb antlab
 createdb -E UTF8 -T template0 antlab
 psql -X -d postgres -c "ALTER DATABASE antlab SET timezone TO 'Asia/Seoul'"
 psql -X -v ON_ERROR_STOP=1 -d antlab -f db/01_schema_history.sql
+psql -X -v ON_ERROR_STOP=1 -d antlab -f db/02_schema_season.sql
 ```
 
-**(c) 제약 검증 — `antlab_test`에서만.**
+**(c) 제약 검증 — `antlab_test`에서만.** 스키마(01 → 02)가 만들어져 있는 `antlab_test`에서 검증 두 줄을 실행한다. 검증은 마지막에 `ROLLBACK`하므로 스키마를 다시 만들지 않고 몇 번이든 돌릴 수 있다. 처음 한 번은 아래 스키마 두 줄을 먼저 실행한다.
+
+```bash
+psql -X -q -v ON_ERROR_STOP=1 -d antlab_test -f db/01_schema_history_check.sql
+psql -X -q -v ON_ERROR_STOP=1 -d antlab_test -f db/02_schema_season_check.sql
+```
+
+`antlab_test`에 스키마가 아직 없으면(처음 한 번) 검증 앞에 스키마 두 줄을 순서대로 실행한다. 02 파일만 고쳤다면 02 스키마 한 줄과 검증 두 줄이면 된다. 01 스키마 줄은 02가 있는 DB에서 `2BP01`로 멈추므로 01을 고쳤을 때는 (c′)를 쓴다.
 
 ```bash
 psql -X -v ON_ERROR_STOP=1 -d antlab_test -f db/01_schema_history.sql
-psql -X -q -v ON_ERROR_STOP=1 -d antlab_test -f db/01_schema_history_check.sql
+psql -X -v ON_ERROR_STOP=1 -d antlab_test -f db/02_schema_season.sql
 ```
 
 **(c′) 검증 DB 다시 만들기 — `antlab_test` 전체를 지우고 처음부터.**
@@ -70,6 +85,7 @@ dropdb antlab_test
 createdb -E UTF8 -T template0 antlab_test
 psql -X -d postgres -c "ALTER DATABASE antlab_test SET timezone TO 'Asia/Seoul'"
 psql -X -v ON_ERROR_STOP=1 -d antlab_test -f db/01_schema_history.sql
+psql -X -v ON_ERROR_STOP=1 -d antlab_test -f db/02_schema_season.sql
 ```
 
 **(d) 임시 인스턴스로 검증 — 상시 DB 서버를 건드리지 않는다.** 저장소 밖에 데이터 디렉터리를 만들어 소켓으로만 접속하는 서버를 잠깐 띄운다(포트를 열지 않는다). 다 쓰면 멈추고 지운다. 실행할 때마다 새 경로를 만든다. 앞 줄에서 오류가 나면 멈추고 마지막 두 줄(정리)만 실행한다.
@@ -80,7 +96,9 @@ initdb -D "${D:?}/data" -U check -A trust -E UTF8
 pg_ctl -D "${D:?}/data" -o "-k ${D:?} -c listen_addresses='' -c timezone=Asia/Seoul" -l "${D:?}/data/log" start
 createdb -h "${D:?}" -U check -E UTF8 -T template0 antlab_test
 psql -X -v ON_ERROR_STOP=1 -h "${D:?}" -U check -d antlab_test -f db/01_schema_history.sql
+psql -X -v ON_ERROR_STOP=1 -h "${D:?}" -U check -d antlab_test -f db/02_schema_season.sql
 psql -X -q -v ON_ERROR_STOP=1 -h "${D:?}" -U check -d antlab_test -f db/01_schema_history_check.sql
+psql -X -q -v ON_ERROR_STOP=1 -h "${D:?}" -U check -d antlab_test -f db/02_schema_season_check.sql
 pg_ctl -D "${D:?}/data" -m fast stop
 rm -rf "${D:?}"
 ```
@@ -93,6 +111,13 @@ rm -rf "${D:?}"
 - `P0-05 스키마: 이름이 public이 아닌 곳을 가리킨다`로 멈추면 접속 역할 이름의 스키마 같은 `search_path` 앞쪽 스키마가 있다는 뜻이다. 파일은 아무것도 지우거나 만들지 않고 종료 코드 3으로 끝난다. `search_path`(또는 그 스키마)를 정리한 뒤 다시 실행한다.
 - 빈 DB에서 처음 실행하면 `DROP TABLE IF EXISTS`가 `NOTICE: table "…" does not exist, skipping` 8건을 남긴다. 테이블이 없다는 알림일 뿐 오류가 아니다. 두 번째 실행부터는 아무것도 나오지 않는다.
 
+**스키마 파일(`02_schema_season.sql`).**
+
+- 종료 코드가 0이고 `ERROR`·`WARNING`이 없으면 성공이다. 빈 DB에서 처음 실행하면 `NOTICE: table "…" does not exist, skipping` 9건이 나오고, 두 번째 실행부터는 아무것도 나오지 않는다.
+- `P0-06 스키마: 이름이 public이 아닌 곳을 가리킨다`로 멈추면 01 스키마와 같은 뜻이다. 이 파일이 이름으로 가리키는 13개 테이블(02의 9개 + 01의 4개) 중 `public`이 아닌 곳으로 해석되는 것이 있다. 아무것도 지우지 않고 종료 코드 3으로 끝난다.
+- `relation "month_block" does not exist`(`42P01`)로 멈추면 01 스키마를 먼저 실행하지 않은 것이다. 파일 전체가 한 트랜잭션이라 아무것도 남지 않는다. 01을 실행한 뒤 다시 한다.
+- `cannot drop table turn_feed because other objects depend on it`(`2BP01`)로 멈추면 뒤 번호 파일(03)의 테이블이 02의 테이블을 가리키고 있다는 뜻이다. 안전한 실패이며 아무것도 바뀌지 않는다. 전체를 다시 만들 때는 (b′)를 쓴다.
+
 **검증 파일(`01_schema_history_check.sql`).** 마지막 출력이 `p0_05_check` 열의 `PASS`이고 종료 코드가 0이면 통과다. `PASS`는 1–7절이 모두 통과하고 끝의 흔적 확인까지 끝났을 때만 나온다. 먼저 0절(전제) 결과 표가 나오고, 0절에 FAIL이 있으면 거기서 멈춘다(전제를 맞춘 뒤 다시 실행). 이어서 세 가지 표가 나온다.
 
 1. **절별 집계** — `section`(절)마다 `total`(판정 수), `pass`, `fail`. 모든 `fail`이 0이어야 한다. 절은 0 전제, 1 구조, 2 양성, 3 음성, 4 경계, 5 H1, 6 DDL, 7 판정이다.
@@ -103,7 +128,7 @@ FAIL이 하나라도 있으면 오류 메시지와 함께 종료 코드 3으로 
 
 `-q`를 빼면 사례마다 `CALL`이 한 줄씩 출력되어 결과가 묻힌다.
 
-**각 절이 하는 일.**
+**각 절이 하는 일 (01 검증 파일 기준).**
 
 - **0 전제:** PostgreSQL 17, UTF8, `TimeZone = Asia/Seoul`, `session_replication_role = origin`(FK 검사를 끄지 않음), 8개 테이블이 있고 비어 있음. 8개 이름이 모두 `public`의 테이블로 해석되는지도 본다(`search_path` 앞쪽에 같은 이름의 테이블이 있으면 FAIL). 하나라도 FAIL이면 결과를 보여 주고 바로 멈춘다(픽스처를 넣지 않는다). 현재 DB 이름은 정보 행으로 나온다.
 - **1 구조:** erd 5.4와 카탈로그를 대조한다. 테이블별 개수(PK 8·UNIQUE 8·FK 8·CHECK 45·`idx_` 5), 제약·인덱스 이름·종류·테이블 1:1, 정의(CHECK는 erd 식을 PostgreSQL에 다시 파싱시켜 비교), 컬럼 81개의 순서·타입·NULL·기본값·identity·노출 태그, 부동소수 컬럼 없음, 모든 제약 검증됨, FK 트리거 켜져 있음.
@@ -114,8 +139,17 @@ FAIL이 하나라도 있으면 오류 메시지와 함께 종료 코드 3으로 
 - **6 DDL:** 음성 DDL(`42830`, `42P01`, `2BP01`, `42710`, `42P07`)과 PostgreSQL이 막지 않는 사례 하나(컬럼 CHECK의 다른 컬럼 참조).
 - **7 판정:** 커버리지(`ck_` 45 + `uq_` 8 + `fk_` 8 = 61개 이름이 각각 자기 이름으로 한 번 이상 보고되었는가, `61/61`)와 절별 집계, FAIL 행, 판정.
 
+**검증 파일(`02_schema_season_check.sql`).** 읽는 법은 01 검증과 같다. 마지막 출력이 `p0_06_check` 열의 `PASS`이고 종료 코드가 0이면 통과다. 01 검증과 다른 점:
+
+- **0 전제:** 01의 8개와 02의 9개, **17개 테이블이 모두 비어 있어야 한다**(픽스처가 01 테이블 4개에도 행을 넣는다). 표본을 적재한 DB(`antlab`)에서는 이 전제가 FAIL이므로 검증용 DB에서만 돌린다.
+- **1 구조:** 제약·인덱스 101개(PK 9·UNIQUE 7·**유일 인덱스 2**·FK 14·CHECK 60·`idx_` 9), 컬럼 105개. 유일 인덱스 `uq_member_email`(`lower(email)`)과 `uq_lineup_open`(`WHERE end_turn IS NULL`)은 제약이 아니라 인덱스라 `pg_constraint`가 아니라 `pg_indexes`에서 대조하고, 정의는 erd 식을 PostgreSQL에 다시 파싱시켜 비교한다. 이름 규칙 밖의 인덱스(예: `foo`)가 하나라도 있으면 FAIL이다. FK 인덱스 짝(14/14)은 부분·표현식 인덱스를 짝으로 치지 않는다.
+- **3 음성:** 기준 행에서 한 컬럼만 어기는 사례가 기본이다. `formation_change`·`turn_feed`의 복합 FK 대상 UNIQUE 2개는 PK에 가려 단독으로 걸리지 않으므로, 한 사례 안에서 PK를 지웠다가 되돌려 증명한다.
+- **5 인덱스:** 부분·표현식 유일 인덱스의 동작(대소문자만 다른 이메일 거부, 같은 종목의 열린 구간 둘 거부, 열린 구간을 닫고 새로 여는 것은 통과, 겹치는 닫힌 구간은 DDL이 막지 못함).
+- **7 판정:** 커버리지는 `ck_` 60 + `uq_` 제약 7 + `uq_` 인덱스 2 + `fk_` 14 = 83개 이름이 각각 자기 이름으로 보고되었는가(`83/83`).
+- **흔적(8절):** 17개 테이블의 행 0, `zz_` 객체 0, 이 파일 9개 테이블의 제약 90개·인덱스 27개가 그대로다. 01 테이블의 제약·인덱스는 세지 않는다. 01 검증은 02가 있어도 그대로 `PASS`다.
+
 **알아 둘 점.**
 
-- **흔적:** 검증 파일 전체가 한 트랜잭션이고 7절 뒤에 `ROLLBACK`한다. 끝(8절)에서 8개 테이블의 행 0, `public`의 `zz_` 객체 0, 제약 69개·인덱스 21개 그대로를 다시 확인한다. **identity(번호표) 값 소비만 되돌아오지 않는다.** 검증을 돌리면 다음 INSERT의 `id`가 건너뛴 값부터 시작한다. 그래서 검증은 검증용 DB에서만 돌린다.
+- **흔적:** 검증 파일 전체가 한 트랜잭션이고 7절 뒤에 `ROLLBACK`한다. 끝(8절)에서 그 파일 테이블의 행 0, `public`의 `zz_` 객체 0, 제약·인덱스 개수 그대로를 다시 확인한다(01은 8개 테이블·제약 69개·인덱스 21개, 02는 17개 테이블의 행 0·제약 90개·인덱스 27개). **identity(번호표) 값 소비만 되돌아오지 않는다.** 검증을 돌리면 다음 INSERT의 `id`가 건너뛴 값부터 시작한다. 그래서 검증은 검증용 DB에서만 돌린다.
 - **공백 값:** `asset.ticker`와 `month_event.event_key`의 앞뒤 공백은 DB가 막지 않는다(`'ZZAAPL'`과 `'ZZAAPL '`은 서로 다른 값). 2절에 현재 동작으로 기록해 두었다. 적재(P0-08)가 `trim`하고 공백 포함 값이 없는지 확인한다.
-- **스키마 파일을 다시 실행하면** 8개 테이블의 데이터가 모두 사라진다. 표본 적재 이후에는 (b)를 실행하지 않는다.
+- **스키마 파일을 다시 실행하면** 그 파일 테이블의 데이터가 모두 사라진다(01은 8개, 02는 9개). 표본 적재 이후에는 (b)를 실행하지 않는다.
