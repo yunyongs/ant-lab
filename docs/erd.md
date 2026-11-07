@@ -409,7 +409,7 @@ erDiagram
 | FK | 그룹번호 | asset_group_id | BIGINT | NN | | `[노출]` (그룹 이름으로) → asset_group.id (R1). `fk_asset_asset_group`, `idx_asset_asset_group` |
 | | 상장일 | listed_on | DATE | NN | | `[복기 전용]` 실제 날짜라 시즌 중에는 나가지 않는다. 쓰임: 풀 선정(MVP 개별 주식은 2007-01 이전 상장만 — PLAN §4.7, DDL로 강제하지 않는다)과 검증 규칙 H7의 상장월 경계 |
 | | 수익률 기준 | return_basis | VARCHAR(5) | NN | | `[노출]` `ck_asset_return_basis`: `return_basis IN ('PRICE','TOTAL')` — MVP 국내는 가격 수익률, 미국은 총수익률(PLAN §4.6). 성적표의 "국내 종목은 배당 제외" 공개 문구의 근거. `market`과의 짝(KR → `PRICE`, US → `TOTAL`)은 **의도적 중복**이며 국내 총수익률 도입(M1 배당 파이프라인) 때 풀리므로 CHECK가 아니라 검증 규칙 H7이 본다 |
-| | 대체 지수명 | proxy_index_name | VARCHAR(100) | NULL | | `[노출]` 상장 전 구간에 쓰는 추종 지수 이름(PLAN §4.7, ETF). `ck_asset_proxy_etf`: `proxy_index_name IS NULL OR asset_type = 'ETF'` — MVP 규칙이며 EXT 대체 수익률을 도입할 때 바꾼다 |
+| | 대체 지수명 | proxy_index_name | VARCHAR(100) | NULL | | `[노출]` 상장 전 구간에 쓰는 추종 지수 이름(PLAN §4.7, ETF). `ck_asset_proxy_etf`: `proxy_index_name IS NULL OR asset_type = 'ETF'` — Phase 0 규칙이다(Phase 0 표본은 2007-01부터라 개별 주식 대체가 없다). 확장 구간(PLAN §4.7)의 개별 주식 대체를 위해 MVP Flyway에서 바꾼다(§9 MVP) |
 | | 생성일시 | created_at | TIMESTAMPTZ | NN | now() | `[내부]` |
 
 - **기준일은 `asset`에 두지 않는다.** 풀은 연 1회 갱신되고(PLAN §7) 같은 종목이 여러 기준일의 풀에 들 수 있으므로, 기준일은 "종목 × 기준일" 행(`asset_position`)의 키이다. 기준일 시점의 풀 구성 = 그 기준일의 `asset_position` 행 집합(D14).
@@ -465,7 +465,7 @@ erDiagram
   남는 위험은 `NEUTRAL`인데 강도가 큰 행 같은 의미 불일치이며, 경계값이 MVP 결정이라 지금은 막을 수 없다.
 - 지표 14개 변환값은 **스케치**이다. MVP 데이터 준비 때 컬럼 vs JSONB vs 긴 테이블을 정한다(PLAN §5.3 질문 5).
 - 국면 라벨(PLAN §3 "월 블록 … 국면 라벨")은 확률의 최댓값에서 나오는 파생값이라 저장하지 않는다. M2에서 필요하면 다시 본다.
-- 재생 표본 범위(2007-01 – 기준일 전년 말, PLAN §4.2·§4.7)는 컬럼이 아니라 조회 조건이다. 준비 구간(2002–2006, PLAN §7)도 `month_block` 행이 되며(수익률 FK 때문) 재생 대상에서는 조건으로 뺀다.
+- 재생 표본 범위(PLAN §4.7: 확장 구간 1997-01부터 + 본 구간 2007-01부터 — Phase 0 표본은 2007-01부터)는 컬럼이 아니라 조회 조건이다. 준비 구간(PLAN §7)도 `month_block` 행이 되며(수익률 FK 때문) 재생 대상에서는 조건으로 뺀다.
 - 연속성: 표본이 2012-04와 2023-01 사이에서 끊긴다. "직전 달" = `month_start - INTERVAL '1 month'`인 행이 **있을 때만** 연속으로 본다(P0-11·P0-14가 따른다).
 
 #### 종목 달 수익률 (asset_month_return)
@@ -476,7 +476,7 @@ erDiagram
 | FK | 종목번호 | asset_id | BIGINT | NN | | `[내부]` → asset.id (R3). `fk_asset_month_return_asset`. `uq_asset_month_return_asset_month (asset_id, month_block_id)`의 앞 컬럼이라 FK 인덱스를 겸한다(종목별 달 순서 조회) |
 | FK | 월 블록번호 | month_block_id | BIGINT | NN | | `[내부]` → month_block.id (R4). `fk_asset_month_return_month_block`, `idx_asset_month_return_month_block (month_block_id)` — 턴 진행: 한 달의 풀 전체 |
 | | 현지 통화 월 수익률 | local_return | NUMERIC(12,8) | NN | | `[노출]` (턴 결과로) **현지 통화** 월 수익률(Q3). 기준은 `asset.return_basis`. `ck_asset_month_return_local_return`: `local_return >= -1` |
-| | 수익률 종류 | return_kind | VARCHAR(11) | NN | 'ACTUAL' | `[노출]` (이력 비율로) **턴별로 노출하지 않는다 — 종목 전체의 `ACTUAL` 비율만 나간다**(상장 전 달임이 곧 날짜 단서: ETF 상장일은 공개 정보라 "이번 달은 대체 지수"가 보이면 연도의 상한이 샌다). `ck_asset_month_return_return_kind`: `return_kind IN ('ACTUAL','PROXY_INDEX')`. `PROXY_INDEX` = 상장 전 달의 추종 지수 수익률에서 보수/12를 뺀 값(PLAN §4.6·§4.7). EXT에 합성 대체 수익률 값을 더한다. "이력 62%" 표시(PLAN §4.7)의 근거 |
+| | 수익률 종류 | return_kind | VARCHAR(11) | NN | 'ACTUAL' | `[노출]` (이력 비율로) **턴별로 노출하지 않는다 — 종목 전체의 `ACTUAL` 비율만 나간다**(상장 전 달임이 곧 날짜 단서: ETF 상장일은 공개 정보라 "이번 달은 대체 지수"가 보이면 연도의 상한이 샌다). `ck_asset_month_return_return_kind`: `return_kind IN ('ACTUAL','PROXY_INDEX')`. `PROXY_INDEX` = 상장 전 달의 추종 지수 수익률에서 보수/12를 뺀 값(PLAN §4.6·§4.7 — Phase 0 정의, MVP 확장 구간에서 넓히는 뜻은 §9 MVP). EXT에 합성 대체 수익률 값을 더한다. "이력 62%" 표시(PLAN §4.7)의 근거 |
 | | 생성일시 | created_at | TIMESTAMPTZ | NN | now() | `[내부]` |
 
 - 원화 수익률은 저장하지 않는다. (1 + `local_return`)(1 + `fx_month.fx_change`) − 1을 조회에서 결합한다(Q3·Q8). 결합은 `asset.currency`로 `fx_month`에 LEFT JOIN하며, KRW는 `fx_change = 0`, USD는 그 달 행이 없으면 오류로 본다(H4) — 일괄 `COALESCE(…, 0)`은 USD 누락을 0%로 숨기므로 쓰지 않는다.
@@ -1530,7 +1530,7 @@ v2에서 새로 생긴 FK는 R26·R27(`orders`의 복합 FK)과 6절의 14개다
 **문서 구성 결정:** 관계도는 확정 22개 + MVP 스케치 3개(컬럼 없음), EXT 이후 스케치, 영역 상세(컬럼 있음)의 셋으로 나눴다 — 한 그림이 25개 이하라 읽힌다(탈락: 42개를 한 `erDiagram`에 그리기는 배치가 읽기 어렵고 PR diff가 커짐, 전체를 `flowchart`로 그리기는 카디널리티 표기가 D10과 어긋남). v1 계좌 정의는 P0-03에서 MySQL 타입 그대로 부록에 옮겨 두었다가 P0-04에서 7절로 v2로 바꿔 쓰고 부록을 지웠다 — v1과의 대응은 7.6 대조표가 남긴다. 시즌 영역(6절 9개)과 시즌 계좌(7절 5개)를 둘로 나눈 것은 DDL ②·③의 분할과 1:1이라 각 DDL 기능이 한 절만 읽으면 되기 때문이다(탈락: 14개를 한 절에 두기는 한 그림에 14개 + 앵커 4개가 되어 읽기 어렵다).
 
 **MVP에서 다시 볼 것:**
-- 준비 구간(2002–2006) 달을 `month_block`에 넣을 때 재생 표본에서 빼는 방법(조회 조건 vs 플래그 컬럼).
+- 준비 구간(PLAN §7) 달을 `month_block`에 넣을 때 재생 표본에서 빼는 방법(조회 조건 vs 플래그 컬럼).
 - 지표 14개 변환값(PLAN §5.3 질문 5)과 국면 라벨 저장 여부(M2).
 - 역사 테이블 읽기 전용을 DB 역할 `GRANT`로 강제(D21).
 - 역사 행 정정 정책(제자리 갱신 vs 정정 버전, 데이터 스냅샷 날짜 PLAN §4.2). 시즌이 참조한 행은 FK `RESTRICT`로 지울 수 없다.
@@ -1568,4 +1568,4 @@ v2에서 새로 생긴 FK는 R26·R27(`orders`의 복합 FK)과 6절의 14개다
 | P0-18·MVP DTO | 에이전트 펀드 매니저(PLAN §4.16)의 TurnView는 사람 화면 DTO를 만드는 **같은 조립 코드의 출력**을 직렬화한다(컬럼을 따로 고르지 않는다) — 에이전트 전용 부분(메모리, 최근 자기 매매·사유, 직전 턴 거부 사유)은 그 뒤에 덧붙이며 자기 기록과 `[노출]` 값으로만 만든다. `[복기 전용]`·`[내부]` 컬럼은 에이전트에게도 시즌 중에 내지 않는다. 음성 사례: 턴별 `return_kind`, n < 3 사건 범주, 현재 턴 이후 행이 TurnView에 없을 것. 노출 컬럼 표시(`[노출]`)를 바꾸면 사람 화면과 에이전트 입력이 함께 바뀐다 |
 | P0-19 전술 변경 | `formation_change`(before = 현재, after = 새 값) + `season.current_*` 갱신 → 같은 턴 주문에 `formation_change_id`(대사 규칙 16 — 변경·주문 모두 `created_at = clock_timestamp()`를 명시한다), 피드에서 시작한 주문은 `source = 'FEED'` + `turn_feed_id`(검증 규칙 S6). 매도 체결의 `realized_pnl`(D9), 전량 매도 시 `holding` 0·`lineup` 닫기(`end_turn = turn_no`) |
 | P0-20 성적 집계 | 비중은 `turn`의 포지션별 평가액 ÷ `total_value`(D24). 포메이션 준수의 기준은 "턴 시작 시점 포메이션" = 그 턴 번호보다 작은 `turn_no`의 마지막 변경 after(없으면 시작 값, PLAN §6.2). 위험 준수는 `turn.drawdown` vs `season.risk_limit`, 변경 비용은 `formation_change_id` 묶음의 수수료 합, 독려 반응은 `orders.source IN ('RANKING','FEED','ALERT')` |
-| MVP | 엔티티: 불변 `season_path`·`turn`·`turn_price`·`formation_change`·`turn_feed`·`reconciliation_log`·`execution`·`cash_ledger`, 가변 `member`·`season`·`cash_account`·`holding`·`lineup`. DTO는 `[복기 전용]` 컬럼(`season_path.month_block_id`, `turn_feed.kind`·`month_event_id`)과 `[내부]` 컬럼을 시즌 중에 내지 않는다. 복합 FK는 `Long` id 컬럼 그대로 매핑한다. `orders`는 넣은 뒤 바뀌지 않으며 `@Immutable` 여부는 MVP에서 정한다(EXT 지정가가 오면 상태가 바뀐다). DTO 테스트로 공개 필드 조합(대상 NULL 여부 포함)으로 `EVENT`를 판별할 수 없는지 확인한다 |
+| MVP | 엔티티: 불변 `season_path`·`turn`·`turn_price`·`formation_change`·`turn_feed`·`reconciliation_log`·`execution`·`cash_ledger`, 가변 `member`·`season`·`cash_account`·`holding`·`lineup`. DTO는 `[복기 전용]` 컬럼(`season_path.month_block_id`, `turn_feed.kind`·`month_event_id`)과 `[내부]` 컬럼을 시즌 중에 내지 않는다. 복합 FK는 `Long` id 컬럼 그대로 매핑한다. `orders`는 넣은 뒤 바뀌지 않으며 `@Immutable` 여부는 MVP에서 정한다(EXT 지정가가 오면 상태가 바뀐다). DTO 테스트로 공개 필드 조합(대상 NULL 여부 포함)으로 `EVENT`를 판별할 수 없는지 확인한다. 확장 구간(PLAN §4.7)에서 실제 이력이 없는 달(상장 전, 또는 상장 뒤라도 출처에 시세가 없는 달)은 대체 수익률을 쓴다 — 개별 주식은 같은 시장의 대표 지수, ETF는 추종 지수가 먼저이고 없을 때 대표 지수다(PLAN §4.7). 그래서 MVP Flyway에서 함께 고친다: `ck_asset_proxy_etf`와 `proxy_index_name`의 뜻(개별 주식도 대체 지수명을 가지고, 추종 지수가 없는 ETF는 대표 지수 이름을 가짐), 검증 규칙 H7의 '개별 주식은 전부 `ACTUAL`'과 'ETF 상장 후는 `ACTUAL`'(확장 구간의 시세 없는 달은 예외), `PROXY_INDEX`의 뜻(상장 전 달뿐 아니라 확장 구간의 시세 없는 달도, 추종 지수 또는 대표 지수의 수익률 — 보수/12 차감은 지수로 채운 ETF 달만, PLAN §4.6), 재생 범위 조건(검증 규칙 S1)의 시작. `return_kind` 값 목록은 그대로다. 5.3·5.5의 정의는 Phase 0 표본(2007-01부터) 기준이라 그대로 둔다 |

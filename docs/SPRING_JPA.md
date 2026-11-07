@@ -132,7 +132,7 @@ TurnService.advance(seasonId, expectedTurnNo)
   2. account = findBySeasonIdForUpdate
   3. nextBlock = seasonPathRepo.findBySeasonIdAndTurnNo(seasonId, expectedTurnNo + 1)
   4. returns = assetMonthReturnRepo.findByMonthBlockId(nextBlock)   -- 풀의 모든 종목(사용자는 아무 종목이나 살 수 있다). 시즌 기준일 풀(`asset_position`)로 거르고 `fx_month`와 결합
-     (이력 없는 달은 대체 수익률 — EXT, MVP는 풀 제한으로 항상 있음)
+     (이력 없는 달도 행은 항상 있다 — MVP는 적재 때 넣은 PROXY_INDEX 행(ETF는 추종 지수가 먼저이고 없으면 대표 지수, 개별 주식은 확장 구간에서 대표 지수), EXT는 지수 + 고유 변동성, PLAN §4.7)
   5. 풀의 종목마다 누적 곱 갱신 → price' = MoneyMath.priceAt(시작가, 누적 곱) → INSERT turn_price (약 180행)
   6. 적립금(EXT) → cash_ledger. (ETF 보수는 원장에서 빼지 않는다 — 수정 종가에 이미 반영, PLAN §4.6)
   7. INSERT turn(턴 번호, 평가액, 현금, 누적 낙폭, 포지션별 평가액 — 현금은 골키퍼, 비중은 조회)
@@ -170,7 +170,7 @@ TurnService.advance(seasonId, expectedTurnNo)
 
 ## 7. 역사 데이터 적재
 
-- 월 블록·종목 월 수익률(2007–작년 말, 종목 180 × 달 230 ≈ 41,000행)은 JPA로 넣지 않는다. **MVP 전에 한 번** 전체를 적재한다(PLAN §11 MVP): 공개 CSV(수정 종가, 환율, 거시 지표)를 내려받아 월별로 집계하는 적재 스크립트 — Phase 0 표본 스크립트의 확장이며 `COPY`(psql `\copy`) 또는 `JdbcTemplate.batchUpdate`로 넣는다. 시스템 판정 포지션(`asset_position`)도 같은 스크립트가 계산한다. 국면 확률은 M2까지 비어 있다.
+- 월 블록·종목 월 수익률(확장 구간 1997-01부터와 본 구간, PLAN §4.7 — 종목 180 × 달 약 348 ≈ 63,000행, 준비 구간 별도)은 JPA로 넣지 않는다. **MVP 전에 한 번** 전체를 적재한다(PLAN §11 MVP): 공개 CSV(수정 종가, 환율, 거시 지표)를 내려받아 월별로 집계하는 적재 스크립트 — Phase 0 표본 스크립트의 확장이며 `COPY`(psql `\copy`) 또는 `JdbcTemplate.batchUpdate`로 넣는다. 시스템 판정 포지션(`asset_position`)도 같은 스크립트가 계산한다. 국면 확률은 M2까지 비어 있다.
 - M1 수집기(Spring 스케줄 잡)도 `JdbcTemplate` 배치로 쓴다. 엔티티는 읽기 전용(§4.4)이므로 쓰는 쪽과 읽는 쪽이 코드에서 갈린다.
 - 사건 태그(`events/`)와 케이스(`cases/`)는 파일 → 테이블 적재 CLI 하나로.
 
