@@ -32,6 +32,7 @@ credentials.json
 service-account*.json
 *-credentials.json
 kis-token*.json
+token_*.json
 .kis/
 # MySQL client option files (may hold passwords)
 *.cnf
@@ -170,8 +171,15 @@ pnpm-debug.log*
 # ---------------------------------------------------------------------
 data/raw/
 data/cache/
+**/data/raw/
+**/data/cache/
 data/downloads/
 data/snapshots/
+# P0-08: 시세·환율에서 만든 파생 표본은 보수적으로 추적하지 않는다 (로컬에서 tools/fetch + build_sample.sql로 생성)
+db/sample/asset_month_return.csv
+db/sample/asset_position.csv
+db/sample/hand_check.csv
+db/sample/fx_month.csv
 backtest-results/
 reports/output/
 *.parquet
