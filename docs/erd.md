@@ -977,7 +977,7 @@ R9–R22는 3.1의 같은 번호와 같다. 모두 비식별 `..`이다 — 자�
 | 이름 | 종류 | 테이블 | 정의 |
 |---|---|---|---|
 | pk_member | PK | member | (id) |
-| uq_member_email | UQI | member | UNIQUE INDEX (lower(email)) — 표현식 유일 인덱스, `pg_constraint`가 아니라 `pg_indexes`에 있다 |
+| uq_member_email | UQI | member | (lower(email)) |
 | pk_season | PK | season | (id) |
 | fk_season_member | FK | season | (member_id) → member.id (R9) |
 | ck_season_status | CK | season | status IN ('IN_PROGRESS','ABANDONING','FINISHED') |
@@ -1023,15 +1023,15 @@ R9–R22는 3.1의 같은 번호와 같다. 모두 비식별 `..`이다 — 자�
 | ck_turn_price_price_won | CK | turn_price | price = ROUND(price, 0) |
 | idx_turn_price_asset | IDX | turn_price | (asset_id) |
 | pk_lineup | PK | lineup | (id) |
-| uq_lineup_open | UQI | lineup | UNIQUE INDEX (season_id, asset_id) WHERE end_turn IS NULL — 부분 유일 인덱스, `pg_indexes`에 있다 |
+| uq_lineup_open | UQI | lineup | (season_id, asset_id) WHERE end_turn IS NULL |
 | fk_lineup_season | FK | lineup | (season_id) → season.id (R15) |
 | fk_lineup_asset | FK | lineup | (asset_id) → asset.id (R16) |
 | ck_lineup_declared_position | CK | lineup | declared_position IN ('GOALKEEPER','DEFENDER','MIDFIELDER','FORWARD_TARGET','FORWARD_BREAKOUT','FORWARD_DEFENSIVE') |
 | ck_lineup_turns | CK | lineup | start_turn >= 0 AND (end_turn IS NULL OR end_turn >= start_turn) |
-| idx_lineup_season_asset | IDX | lineup | (season_id, asset_id) — FK 인덱스를 겸하는 전체 인덱스 |
+| idx_lineup_season_asset | IDX | lineup | (season_id, asset_id) |
 | idx_lineup_asset | IDX | lineup | (asset_id) |
 | pk_formation_change | PK | formation_change | (id) |
-| uq_formation_change_id_season_turn | UQ | formation_change | (id, season_id, turn_no) — `orders` 복합 FK의 대상 |
+| uq_formation_change_id_season_turn | UQ | formation_change | (id, season_id, turn_no) |
 | fk_formation_change_season | FK | formation_change | (season_id) → season.id (R17) |
 | ck_formation_change_turn_no | CK | formation_change | turn_no >= 0 |
 | ck_formation_change_before_sum | CK | formation_change | before_goalkeeper + before_defender + before_midfielder + before_forward = 100 |
@@ -1044,7 +1044,7 @@ R9–R22는 3.1의 같은 번호와 같다. 모두 비식별 `..`이다 — 자�
 | idx_formation_change_season_turn | IDX | formation_change | (season_id, turn_no) |
 | pk_turn_feed | PK | turn_feed | (id) |
 | uq_turn_feed_season_turn_seq | UQ | turn_feed | (season_id, turn_no, seq) |
-| uq_turn_feed_id_season | UQ | turn_feed | (id, season_id) — `orders` 복합 FK의 대상 |
+| uq_turn_feed_id_season | UQ | turn_feed | (id, season_id) |
 | fk_turn_feed_season | FK | turn_feed | (season_id) → season.id (R18) |
 | fk_turn_feed_month_event | FK | turn_feed | (month_event_id) → month_event.id (R19) |
 | fk_turn_feed_asset | FK | turn_feed | (asset_id) → asset.id (R20) |
@@ -1075,6 +1075,8 @@ R9–R22는 3.1의 같은 번호와 같다. 모두 비식별 `..`이다 — 자�
 | ck_reconciliation_log_mismatch | CK | reconciliation_log | mismatch_count >= 0 AND (status = 'MATCH') = (mismatch_count = 0) |
 | ck_reconciliation_log_classification | CK | reconciliation_log | classification IN ('TIMING','ADJUSTMENT','INVESTIGATE') |
 | ck_reconciliation_log_status_classification | CK | reconciliation_log | (status = 'MATCH') = (classification IS NULL) |
+
+정의 칸은 DDL에 그대로 들어가는 SQL 식이다. `UQI` 두 행의 칸은 `CREATE UNIQUE INDEX {이름} ON {테이블}` 뒤에 오는 부분이다 — 표현식 유일 인덱스(`uq_member_email`)와 부분 유일 인덱스(`uq_lineup_open`)는 제약이 아니라 인덱스라 `pg_constraint`가 아니라 `pg_indexes`에 있다. `idx_lineup_season_asset`은 FK 인덱스를 겸하는 전체 인덱스이고, `uq_lineup_open`은 열린 행만 담는 부분 인덱스라 FK 인덱스를 대신하지 못한다. `uq_formation_change_id_season_turn`과 `uq_turn_feed_id_season`은 `orders` 복합 FK의 대상이다(D29). 카탈로그(`pg_get_constraintdef`·`pg_get_indexdef`)는 괄호·캐스트·`IN`·`BETWEEN`을 바꿔 적으므로(예: `lower((email)::text)`, `WHERE (end_turn IS NULL)`) DDL 검증 쿼리는 이 칸의 식을 PostgreSQL에 다시 파싱시켜 비교한다(`db/02_schema_season_check.sql`).
 
 **개수 (DDL 검증 쿼리의 `pg_catalog` 대조 숫자):**
 
