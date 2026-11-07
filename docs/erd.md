@@ -674,7 +674,9 @@ erDiagram
         DATE data_snapshot_date "데이터 스냅샷 날짜 | NN"
         DATE base_date "기준일 | NN"
         NUMERIC(19,4) initial_cash "초기 자금 | NN"
-        NUMERIC(12,8) fee_rate "수수료율 | NN"
+        NUMERIC(12,8) fee_rate_kr "국내 수수료율 | NN"
+        NUMERIC(12,8) fee_rate_us "미국 수수료율 | NN"
+        NUMERIC(12,8) fx_spread_rate "환전 비용률 | NN"
         NUMERIC(12,8) risk_limit "위험 선언 | NN"
         SMALLINT start_goalkeeper "시작 골키퍼 비중 | NN"
         SMALLINT start_defender "시작 수비수 비중 | NN"
@@ -846,7 +848,9 @@ R9–R22는 3.1의 같은 번호와 같다. 모두 비식별 `..`이다 — 자�
 |  | 데이터 스냅샷 날짜 | data_snapshot_date | DATE | NN |  | `[내부]` 역사 데이터를 고정한 날짜(PLAN §4.2) |
 |  | 기준일 | base_date | DATE | NN |  | `[내부]` 이 시즌이 쓰는 `asset_position` 스냅샷의 기준일(Q2, D14). **FK 대상이 없다** — `asset_position`의 UNIQUE는 `(asset_id, base_date)`라 `base_date` 단독을 참조할 수 없다. 그 기준일의 풀이 있고 판정이 채워졌는지는 검증 규칙 S2가 본다 |
 |  | 초기 자금 | initial_cash | NUMERIC(19,4) | NN |  | `[노출]` ₩. 초기 자금(기본 ₩30,000,000, PLAN §4.1-1). `ck_season_initial_cash_pos`: `initial_cash > 0`, `ck_season_initial_cash_won`: `initial_cash = ROUND(initial_cash, 0)`. DB 기본값을 두지 않는다 — 시즌을 만들 때 값을 박아 재현성을 지킨다(D30). 첫 `DEPOSIT`의 금액과 같다(대사 규칙 1) |
-|  | 수수료율 | fee_rate | NUMERIC(12,8) | NN |  | `[노출]` 수수료율(PLAN §4.6 초안 0.0005). `ck_season_fee_rate`: `fee_rate >= 0 AND fee_rate < 1`. 시즌에 박아 두어야 요율이 바뀐 뒤에도 지난 시즌을 검산(대사 규칙 14)·재현할 수 있다(D30) |
+|  | 국내 수수료율 | fee_rate_kr | NUMERIC(12,8) | NN |  | `[노출]` 국내(`asset.market = 'KR'`) 종목의 체결 수수료율, 매수·매도 같음(PLAN §4.6). 초안 0.00015000(0.015%, 국내 증권사 공개 요율 중앙값). `ck_season_fee_rate_kr`: `fee_rate_kr >= 0 AND fee_rate_kr < 1`. 시즌에 박아 두어야 요율이 바뀐 뒤에도 지난 시즌을 검산(대사 규칙 14)·재현할 수 있다(D30) |
+|  | 미국 수수료율 | fee_rate_us | NUMERIC(12,8) | NN |  | `[노출]` 미국(`asset.market = 'US'`) 종목의 위탁 수수료율, 매수·매도 같음(PLAN §4.6). 초안 0.00250000(0.25%). `ck_season_fee_rate_us`: `fee_rate_us >= 0 AND fee_rate_us < 1`. 미국 종목의 체결 요율은 이 값에 `fx_spread_rate`를 더한 값이다(대사 규칙 14). 시즌에 박는 이유는 `fee_rate_kr`과 같다(D30) |
+|  | 환전 비용률 | fx_spread_rate | NUMERIC(12,8) | NN |  | `[노출]` 미국 종목을 사고팔 때마다 붙는 환전 비용률(PLAN §4.6). 초안 0.00100000(0.10%, 잠정 — 공식 요율 확인 뒤 확정). `ck_season_fx_spread_rate`: `fx_spread_rate >= 0 AND fx_spread_rate < 1`. 국내 종목에는 붙지 않는다. 별도 원장 유형 없이 체결 수수료 한 값에 합쳐 `FEE` 한 행으로 남는다(D4). 시즌에 박는 이유는 `fee_rate_kr`과 같다(D30) |
 |  | 위험 선언 | risk_limit | NUMERIC(12,8) | NN |  | `[노출]` 감수할 최대 낙폭, **0 이하 소수**(−0.20 = −20%, `asset_position.max_drawdown`·`turn.drawdown`과 같은 부호). `ck_season_risk_limit`: `risk_limit IN (-0.10, -0.20, -0.30, -0.40)`(PLAN §4.1-1). 시즌 내내 고정(PLAN §4.10) |
 |  | 시작 골키퍼 비중 | start_goalkeeper | SMALLINT | NN |  | `[노출]` 시작 포메이션의 골키퍼(현금) 비중, 정수 %(PLAN §4.10, 질문 7). `ck_season_start_formation_sum`: 네 값의 합 = 100. `ck_season_start_formation_range`: 네 값 모두 `BETWEEN 0 AND 100`(합 100만으로는 −10·110을 못 막는다). `ck_season_start_goalkeeper_min`: `start_goalkeeper >= 1` — 현금은 골키퍼이고 0%이면 팀이 아니다 |
 |  | 시작 수비수 비중 | start_defender | SMALLINT | NN |  | `[노출]` 시작 포메이션의 수비수 비중(위 CHECK 3개가 함께 건다) |
@@ -862,7 +866,7 @@ R9–R22는 3.1의 같은 번호와 같다. 모두 비식별 `..`이다 — 자�
 
 - `season`의 상태·포메이션·위험 선언은 PLAN §4.1·§4.10의 값이다. `mode`(감독/전망, M4)와 `style_master_id`(V2)는 3.2의 컬럼 스케치이며 해당 단계가 `ALTER TABLE`로 더하므로 이 정의서에 넣지 않는다. 월 적립금·소음 수준은 V2다.
 - 시작·현재 포메이션 8개와 `current_turn_no`·`status`는 이력과 겹치는 **의도적 중복**이다(현재 포메이션 ↔ `formation_change`는 대사 규칙 15). 위험 선언은 시즌 내내 바뀌지 않는다.
-- CHECK 17개: 상태 1, 턴 4(`path_length`, `current_turn_no`, `finished_turn`, `abandoned_turn_no`), 포기 2(`abandoning`, `abandoned_status`), 금액 2, 요율 1, 위험 1, 포메이션 6. 포함 관계 CHECK(`range` ⊇ `goalkeeper_min`의 일부)는 2절 규칙대로 일부러 둔다.
+- CHECK 19개: 상태 1, 턴 4(`path_length`, `current_turn_no`, `finished_turn`, `abandoned_turn_no`), 포기 2(`abandoning`, `abandoned_status`), 금액 2, 요율 3(`fee_rate_kr`, `fee_rate_us`, `fx_spread_rate`), 위험 1, 포메이션 6. 포함 관계 CHECK(`range` ⊇ `goalkeeper_min`의 일부)는 2절 규칙대로 일부러 둔다.
 
 #### 시즌 경로 (season_path)
 
@@ -1004,7 +1008,7 @@ R9–R22는 3.1의 같은 번호와 같다. 모두 비식별 `..`이다 — 자�
 | 이름 | 종류 | 테이블 | 정의 |
 |---|---|---|---|
 | pk_member | PK | member | (id) |
-| uq_member_email | UQI | member | UNIQUE INDEX (lower(email)) — 표현식 유일 인덱스, `pg_constraint`가 아니라 `pg_indexes`에 있다 |
+| uq_member_email | UQI | member | (lower(email)) |
 | pk_season | PK | season | (id) |
 | fk_season_member | FK | season | (member_id) → member.id (R9) |
 | ck_season_status | CK | season | status IN ('IN_PROGRESS','ABANDONING','FINISHED') |
@@ -1016,7 +1020,9 @@ R9–R22는 3.1의 같은 번호와 같다. 모두 비식별 `..`이다 — 자�
 | ck_season_abandoned_status | CK | season | status <> 'IN_PROGRESS' OR abandoned_turn_no IS NULL |
 | ck_season_initial_cash_pos | CK | season | initial_cash > 0 |
 | ck_season_initial_cash_won | CK | season | initial_cash = ROUND(initial_cash, 0) |
-| ck_season_fee_rate | CK | season | fee_rate >= 0 AND fee_rate < 1 |
+| ck_season_fee_rate_kr | CK | season | fee_rate_kr >= 0 AND fee_rate_kr < 1 |
+| ck_season_fee_rate_us | CK | season | fee_rate_us >= 0 AND fee_rate_us < 1 |
+| ck_season_fx_spread_rate | CK | season | fx_spread_rate >= 0 AND fx_spread_rate < 1 |
 | ck_season_risk_limit | CK | season | risk_limit IN (-0.10, -0.20, -0.30, -0.40) |
 | ck_season_start_formation_sum | CK | season | start_goalkeeper + start_defender + start_midfielder + start_forward = 100 |
 | ck_season_start_formation_range | CK | season | start_goalkeeper BETWEEN 0 AND 100 AND start_defender BETWEEN 0 AND 100 AND start_midfielder BETWEEN 0 AND 100 AND start_forward BETWEEN 0 AND 100 |
@@ -1050,15 +1056,15 @@ R9–R22는 3.1의 같은 번호와 같다. 모두 비식별 `..`이다 — 자�
 | ck_turn_price_price_won | CK | turn_price | price = ROUND(price, 0) |
 | idx_turn_price_asset | IDX | turn_price | (asset_id) |
 | pk_lineup | PK | lineup | (id) |
-| uq_lineup_open | UQI | lineup | UNIQUE INDEX (season_id, asset_id) WHERE end_turn IS NULL — 부분 유일 인덱스, `pg_indexes`에 있다 |
+| uq_lineup_open | UQI | lineup | (season_id, asset_id) WHERE end_turn IS NULL |
 | fk_lineup_season | FK | lineup | (season_id) → season.id (R15) |
 | fk_lineup_asset | FK | lineup | (asset_id) → asset.id (R16) |
 | ck_lineup_declared_position | CK | lineup | declared_position IN ('GOALKEEPER','DEFENDER','MIDFIELDER','FORWARD_TARGET','FORWARD_BREAKOUT','FORWARD_DEFENSIVE') |
 | ck_lineup_turns | CK | lineup | start_turn >= 0 AND (end_turn IS NULL OR end_turn >= start_turn) |
-| idx_lineup_season_asset | IDX | lineup | (season_id, asset_id) — FK 인덱스를 겸하는 전체 인덱스 |
+| idx_lineup_season_asset | IDX | lineup | (season_id, asset_id) |
 | idx_lineup_asset | IDX | lineup | (asset_id) |
 | pk_formation_change | PK | formation_change | (id) |
-| uq_formation_change_id_season_turn | UQ | formation_change | (id, season_id, turn_no) — `orders` 복합 FK의 대상 |
+| uq_formation_change_id_season_turn | UQ | formation_change | (id, season_id, turn_no) |
 | fk_formation_change_season | FK | formation_change | (season_id) → season.id (R17) |
 | ck_formation_change_turn_no | CK | formation_change | turn_no >= 0 |
 | ck_formation_change_before_sum | CK | formation_change | before_goalkeeper + before_defender + before_midfielder + before_forward = 100 |
@@ -1071,7 +1077,7 @@ R9–R22는 3.1의 같은 번호와 같다. 모두 비식별 `..`이다 — 자�
 | idx_formation_change_season_turn | IDX | formation_change | (season_id, turn_no) |
 | pk_turn_feed | PK | turn_feed | (id) |
 | uq_turn_feed_season_turn_seq | UQ | turn_feed | (season_id, turn_no, seq) |
-| uq_turn_feed_id_season | UQ | turn_feed | (id, season_id) — `orders` 복합 FK의 대상 |
+| uq_turn_feed_id_season | UQ | turn_feed | (id, season_id) |
 | fk_turn_feed_season | FK | turn_feed | (season_id) → season.id (R18) |
 | fk_turn_feed_month_event | FK | turn_feed | (month_event_id) → month_event.id (R19) |
 | fk_turn_feed_asset | FK | turn_feed | (asset_id) → asset.id (R20) |
@@ -1103,12 +1109,14 @@ R9–R22는 3.1의 같은 번호와 같다. 모두 비식별 `..`이다 — 자�
 | ck_reconciliation_log_classification | CK | reconciliation_log | classification IN ('TIMING','ADJUSTMENT','INVESTIGATE') |
 | ck_reconciliation_log_status_classification | CK | reconciliation_log | (status = 'MATCH') = (classification IS NULL) |
 
+정의 칸은 DDL에 그대로 들어가는 SQL 식이다. `UQI` 두 행의 칸은 `CREATE UNIQUE INDEX {이름} ON {테이블}` 뒤에 오는 부분이다 — 표현식 유일 인덱스(`uq_member_email`)와 부분 유일 인덱스(`uq_lineup_open`)는 제약이 아니라 인덱스라 `pg_constraint`가 아니라 `pg_indexes`에 있다. `idx_lineup_season_asset`은 FK 인덱스를 겸하는 전체 인덱스이고, `uq_lineup_open`은 열린 행만 담는 부분 인덱스라 FK 인덱스를 대신하지 못한다. `uq_formation_change_id_season_turn`과 `uq_turn_feed_id_season`은 `orders` 복합 FK의 대상이다(D29). 카탈로그(`pg_get_constraintdef`·`pg_get_indexdef`)는 괄호·캐스트·`IN`·`BETWEEN`을 바꿔 적으므로(예: `lower((email)::text)`, `WHERE (end_turn IS NULL)`) DDL 검증 쿼리는 이 칸의 식을 PostgreSQL에 다시 파싱시켜 비교한다(`db/02_schema_season_check.sql`).
+
 **개수 (DDL 검증 쿼리의 `pg_catalog` 대조 숫자):**
 
 | 테이블 | PK | UNIQUE(제약) | UNIQUE 인덱스(`uq_`) | FK | CHECK | INDEX(`idx_`) |
 |---|---|---|---|---|---|---|
 | member | 1 | 0 | 1 | 0 | 0 | 0 |
-| season | 1 | 0 | 0 | 1 | 17 | 1 |
+| season | 1 | 0 | 0 | 1 | 19 | 1 |
 | season_path | 1 | 1 | 0 | 2 | 1 | 1 |
 | turn | 1 | 1 | 0 | 1 | 7 | 0 |
 | turn_price | 1 | 1 | 0 | 2 | 3 | 1 |
@@ -1116,7 +1124,7 @@ R9–R22는 3.1의 같은 번호와 같다. 모두 비식별 `..`이다 — 자�
 | formation_change | 1 | 1 | 0 | 1 | 8 | 1 |
 | turn_feed | 1 | 2 | 0 | 4 | 11 | 3 |
 | reconciliation_log | 1 | 1 | 0 | 1 | 9 | 0 |
-| **§6 소계** | **9** | **7** | **2** | **14** | **58** | **9** |
+| **§6 소계** | **9** | **7** | **2** | **14** | **60** | **9** |
 
 FK 14개 = 6.2의 R9–R22 = 6.1 관계선 14개다. FK 컬럼 중 UNIQUE의 앞 컬럼이라 인덱스를 이미 갖는 것(`season_path.season_id`, `turn.season_id`, `turn_price.season_id`, `turn_feed.season_id`, `reconciliation_log.season_id`)과 `idx_lineup_season_asset`·`idx_formation_change_season_turn`이 앞 컬럼으로 덮는 것(`lineup.season_id`, `formation_change.season_id`)에는 별도 `idx_`를 만들지 않는다. `idx_` 9개는 FK 인덱스 7개(`season.member_id`, `season_path.month_block_id`, `turn_price.asset_id`, `lineup.asset_id`, `turn_feed.asset_id`·`asset_group_id`·`month_event_id`)와 조회 인덱스 2개(`idx_lineup_season_asset`, `idx_formation_change_season_turn`)다.
 
@@ -1277,7 +1285,7 @@ v1 CHECK 4개 그대로다. `reserved`와 그 CHECK 2개는 지정가가 없는 
 | FK | 주문번호 | order_id | BIGINT | NN |  | `[내부]` → orders.id (R28). UNIQUE 아님(주문 1 : 체결 0..N, D3). `fk_execution_order`, `idx_execution_order` |
 |  | 체결가 | fill_price | NUMERIC(19,4) | NN |  | `[노출]` ₩. `ck_execution_fill_price_pos`: `fill_price > 0`, `ck_execution_fill_price_won`: `fill_price = ROUND(fill_price, 0)`. = `turn_price(orders.turn_no)`(대사 규칙 13). 체결 대금 = `fill_price × quantity`도 정수가 되어 원장 `amount`와 오차 없이 맞는다(대사 규칙 4) |
 |  | 체결 수량 | quantity | INTEGER | NN |  | `[노출]` `ck_execution_quantity_pos`: `quantity > 0` |
-|  | 수수료 | fee | NUMERIC(19,4) | NN | 0 | `[노출]` ₩. `ck_execution_fee_nonneg`: `fee >= 0`, `ck_execution_fee_won`: `fee = ROUND(fee, 0)`. = `round(fill_price × quantity × season.fee_rate, 0)`(대사 규칙 14, 반올림은 코드 한 곳 — PLAN §5.2) |
+|  | 수수료 | fee | NUMERIC(19,4) | NN | 0 | `[노출]` ₩. `ck_execution_fee_nonneg`: `fee >= 0`, `ck_execution_fee_won`: `fee = ROUND(fee, 0)`. = `round(fill_price × quantity × rate(asset.market), 0)`. rate(`KR`) = `season.fee_rate_kr`, rate(`US`) = `season.fee_rate_us + season.fx_spread_rate`(대사 규칙 14, 반올림은 코드 한 곳 — PLAN §5.2). 환전 비용도 이 값 안에 들어 있어 `FEE` 한 행으로 남는다(D4) |
 |  | 세금 | tax | NUMERIC(19,4) | NN | 0 | `[노출]` ₩. `ck_execution_tax_nonneg`: `tax >= 0`, `ck_execution_tax_won`: `tax = ROUND(tax, 0)`. V1은 항상 0(세금은 V2, PLAN §4.6). 매수 체결의 0은 대사 규칙 8이 검사한다 |
 |  | 실현 손익 | realized_pnl | NUMERIC(19,4) | NULL |  | `[노출]` ₩. 매도 체결만 값, 매수는 NULL. 소수 4자리까지 저장하며 원 단위 CHECK가 없다(D1·D9). `round_half_up((체결가 − 체결 직전 avg_price) × 매도 수량, 4)`, 수수료·세금은 빼지 않는다(D9) |
 |  | 체결일시 | created_at | TIMESTAMPTZ | NN | now() | `[내부]` 체결 시각. v1의 `executed_at`을 이 컬럼이 대신한다 — 같은 순간을 두 번 저장하지 않는다 |
@@ -1384,11 +1392,11 @@ FK 10개 = 7.2의 R23–R32 = 7.1 관계선 10개다. `idx_` 8개는 FK 인덱�
 
 | 구분 | PK | UNIQUE(제약) | UNIQUE 인덱스 | FK | CHECK | INDEX(`idx_`) |
 |---|---|---|---|---|---|---|
-| §6 소계 | 9 | 7 | 2 | 14 | 58 | 9 |
+| §6 소계 | 9 | 7 | 2 | 14 | 60 | 9 |
 | §7 소계 | 5 | 2 | 0 | 10 | 27 | 8 |
-| **합** | **14** | **9** | **2** | **24** | **85** | **17** |
+| **합** | **14** | **9** | **2** | **24** | **87** | **17** |
 
-5.4와 합치면 확정 22개의 제약은 PK 22, UNIQUE 17, UNIQUE 인덱스 2, FK 32, CHECK 130, INDEX 22이다. **UNIQUE 인덱스 열**은 5.4의 개수 표에 없던 열이다 — 표현식·부분 유일 인덱스는 `pg_constraint`에 없고 `pg_indexes`에만 있어 DDL 검증이 다른 카탈로그를 봐야 하기 때문이다(2절 "대소문자 무시 유일성").
+5.4와 합치면 확정 22개의 제약은 PK 22, UNIQUE 17, UNIQUE 인덱스 2, FK 32, CHECK 132, INDEX 22이다. **UNIQUE 인덱스 열**은 5.4의 개수 표에 없던 열이다 — 표현식·부분 유일 인덱스는 `pg_constraint`에 없고 `pg_indexes`에만 있어 DDL 검증이 다른 카탈로그를 봐야 하기 때문이다(2절 "대소문자 무시 유일성").
 
 ### 7.5 DDL로 막지 못해 대사가 검사할 규칙
 
@@ -1409,7 +1417,7 @@ FK 10개 = 7.2의 R23–R32 = 7.1 관계선 10개다. `idx_` 8개는 FK 인덱�
 | 11 | 평가액: 새 `turn` 행의 `holdings_value` = Σ `holding.quantity` × `turn_price(t)`, `cash_balance` = `cash_account.balance`, `drawdown` = `round(total_value ÷ max(initial_cash, 1..t턴의 total_value) − 1, 8)`(예: 초기 100, 총액 120 → 90이면 −0.25000000) | VALUATION | 새 | PLAN §5.2 항등식 ③, SPRING_JPA §6. **턴 전환 전용** — 수동 검사에서는 돌리지 않고 기록하지 않는다(현재 턴의 매매가 스냅샷 뒤에 있다) |
 | 12 | 턴 가격: `turn_price` = PLAN §5.2 공식(0턴·t턴), 그리고 턴마다 행 수 = 기준일 풀 크기. PostgreSQL 17.11 `ROUND(numeric, n)`은 0에서 먼 쪽으로 반올림해 양수·음수 모두 Java `RoundingMode.HALF_UP`과 같다(0.5·1.5·2.5·−0.5·−1.5·−2.5와 소수 4·8자리 경계 18개 값을 Java 21 `BigDecimal.setScale`과 대조해 전부 일치). `double precision`의 `round()`는 짝수 쪽(0.5 → 0, 2.5 → 2)이라 금액에 쓰지 않는다(2절) | TURN_PRICE | 새 | Phase 0(P0-17)은 전 행, MVP는 표본(SPRING_JPA §6) |
 | 13 | 체결가 = `turn_price(season, orders.turn_no, asset)` | FILL_PRICE | 새 | PLAN §5.2 "체결·평가는 그 값만" |
-| 14 | 수수료 = `round(fill_price × quantity × season.fee_rate, 0)` | FEE_RULE | 새 | PLAN §4.6 |
+| 14 | 수수료 = `round(fill_price × quantity × rate(asset.market), 0)`. rate(`KR`) = `season.fee_rate_kr`, rate(`US`) = `season.fee_rate_us + season.fx_spread_rate`. 종목의 시장은 `execution` → `orders` → `asset`으로 찾는다 | FEE_RULE | 새 | PLAN §4.6 |
 | 15 | 현재 포메이션 = 마지막 `formation_change`의 after(없으면 시작값), 각 변경의 before = 직전 변경의 after(첫 변경은 시작값) | FORMATION | 새 | 질문 7, SPRING_JPA §6 |
 | 16 | 변경 묶기: 같은 시즌·턴에서 `formation_change` 뒤에 들어온 주문은 모두 마지막 변경에 묶이고 앞선 주문은 묶이지 않는다(순서 = `created_at`) | FORMATION_BIND | 새 | PLAN §5.1 "자동으로 묶는다(초안)". **전제:** `formation_change`·`orders`는 `season` 락을 얻은 **뒤의** 시각으로 넣는다 — Phase 0 SQL은 `created_at`에 `clock_timestamp()`를 명시하고 MVP는 Auditing(`Clock`)이 넣는다(기본값 `now()`는 트랜잭션 시작 시각이라 한 트랜잭션의 행이 모두 같은 값을 갖는다). 같은 시각이면 순서를 정할 수 없으므로 불일치로 보고한다. id는 같은 테이블 안에서만 순서다. "같은 시즌·턴"은 복합 FK(DDL)가 보장하고 **빠짐없음**만 쿼리가 본다 |
 | 17 | 라인업 ↔ 보유: 열린 `lineup` 행이 있다 ⇔ `holding.quantity > 0`(시즌·종목별 양방향) | LINEUP_HOLDING | 새 | PLAN §4.10 |
@@ -1488,7 +1496,7 @@ v2에서 새로 생긴 FK는 R26·R27(`orders`의 복합 FK)과 6절의 14개다
 | D1 | 모든 금액을 `NUMERIC(19,4)`로 한다. 현금 값(`amount`, `balance`, `balance_after`, `reserved`, `fee`, `tax`)·평가액(`turn`의 금액 7개)과 가격(`turn_price.price`, `limit_price`, `fill_price`)은 원 단위 정수 값만 저장하고 `CHECK (col = ROUND(col, 0))`로 DB가 강제, `avg_price`·`realized_pnl`은 소수 4자리까지 저장 | PLAN §5.2 회계 규칙 "반올림". 타입이 하나라 단순하고 평균단가의 소수를 표현한다. 원 단위 정수 CHECK는 `NUMERIC(15,0)`(탈락한 대안)의 장점 — 소수가 원장에 못 들어간다는 DB 보장 — 만 가져왔다. `reserved`는 `balance`에서 빼서 주문 가능 금액을 만들므로 같은 단위여야 해서 포함하고, 가격도 정수로 묶어야 체결 대금(가격 × 수량)이 정수가 되어 대사 규칙 4가 원 미만 차이를 내지 않는다(호가 단위 자체는 강제하지 않음). `avg_price`·`realized_pnl`은 계산 결과라 소수를 허용한다. **보장의 범위는 저장값이다:** `NUMERIC(19,4)`는 소수 다섯째 자리 이하를 경고 없이 4자리로 반올림하므로(2절 "숫자 대입") `100.00001`은 `100.0000`으로 저장되어 통과하고 `100.00005`는 `100.0001`이 되어 CHECK(23514 `ck_cash_ledger_amount_won`)가 막는다(PostgreSQL 17.11에서 확인: `100.00001` → 저장 `100.0000`·통과, `100.00005`·`100.5`·`-100.00005` → 23514, `100.00004` → `100.0000` 통과). 입력 원본의 소수 거부는 코드가 맡는다. **V3 외화(소수 통화) 도입 시 이 CHECK들을 바꿔야 한다.** `DOUBLE PRECISION`·`REAL`·`FLOAT`은 이진 부동소수점이라 0.1 같은 값을 정확히 표현하지 못해 합계 대사가 어긋나므로 쓰지 않는다 | `BIGINT`(원) + `avg_price`만 `NUMERIC`(타입이 섞임), `NUMERIC(15,0)`(수수료 중간값·평균단가 소수를 저장할 수 없음, 장점만 CHECK로 채택) |
 | D2 | `cash_account.reserved`를 유지하고 `CHECK (reserved >= 0 AND reserved <= balance)`. v2는 지정가가 없어(PLAN §4.6) 항상 0이며 대사 규칙 9가 `reserved` = 0을 본다. `orders.type`·`limit_price`·상태 `PENDING`·`CANCELED`와 그 CHECK도 v1 구조를 그대로 둔다 — v2는 `MARKET`·`FILLED`만 쓴다 | P0-04 Gate 1 결정(2026-11-06). PLAN §5.1 시즌 계좌 비고("이전 ERD의 정의·CHECK를 유지")가 정한 승인 범위를 지키고, v1 CHECK 24개를 이름 그대로 옮겨(7.6) P0-02의 음성 사례를 재사용한다. 지정가가 들어오는 날(V2 이후 검토) 스키마 변경이 없다. 대기 주문 합계와의 일치 검사는 그때 정한다 | 지정가 관련 컬럼·CHECK를 삭제하고 상태 목록을 줄이는 안(쓰이지 않는 구조는 없어지지만 PLAN §5.1 비고와 P0-02 음성 사례를 다시 써야 하고, 지정가가 필요해지면 되살려야 함), PENDING 주문 합계로 매번 계산(집계·다중 행 잠금), 별도 `cash_hold` 테이블(과설계) |
 | D3 | 주문 1 : 체결 0..N, `execution.order_id`는 UNIQUE 아님 | PLAN §5.1 `orders`/`execution`. v2의 주문은 접수와 체결이 한 번이라 1 : 1이 보통이나 1 : N 구조를 유지한다 — 분할 체결 확장 여지가 있고 비용이 없다. 체결 0건 주문(`PENDING`·`REJECTED`)도 같은 구조로 표현된다 | 1 : 1(분할 체결이 오면 제약 제거 필요), 테이블 통합(상태와 사실이 섞임) |
-| D4 | 원장 `type`은 `DEPOSIT`/`BUY`/`SELL`/`FEE`/`TAX`/`ADJUSTMENT`, 부호 있는 `amount` + 부호 `CHECK`, 계좌 개설 시 `DEPOSIT` 행(`ref_order_id` NULL을 `CHECK`로 강제, `ADJUSTMENT`는 주문 참조 선택). 수수료·세금은 별도 `FEE`·`TAX` 행(0원이면 행 생략). `FEE` 행은 수수료 > 0이면 생긴다(V1 요율 0.05%, PLAN §4.6) | PLAN §5.2 대사 "Σ amount = balance"를 만족하려면 부호 있는 금액과 개설 입금 행이 필요하다. 비용 합계를 원장만으로 확인할 수 있고(성적표의 "비용" 항목), MACRO_ETF §7.1과 같은 구조라 M1 통합이 쉽다. 초기 자금은 `DEPOSIT`이고 금액은 `season.initial_cash`와 같다(대사 규칙 1) | 비용을 BUY/SELL 금액에 포함(조인 필요, 구조 다름 — 합친 행은 대사 규칙 4의 유형별 진단이 잡는다), 부호 CHECK 없음(부호 실수를 DB가 못 잡음) |
+| D4 | 원장 `type`은 `DEPOSIT`/`BUY`/`SELL`/`FEE`/`TAX`/`ADJUSTMENT`, 부호 있는 `amount` + 부호 `CHECK`, 계좌 개설 시 `DEPOSIT` 행(`ref_order_id` NULL을 `CHECK`로 강제, `ADJUSTMENT`는 주문 참조 선택). 수수료·세금은 별도 `FEE`·`TAX` 행(0원이면 행 생략). `FEE` 행은 수수료 > 0이면 생긴다(V1 요율은 시장별 `season.fee_rate_kr`·`fee_rate_us`와 환전 비용률 `fx_spread_rate`, 초안 0.015%·0.25%·0.10%. 환전 비용은 별도 유형 없이 체결 수수료에 합쳐 한 행, PLAN §4.6) | PLAN §5.2 대사 "Σ amount = balance"를 만족하려면 부호 있는 금액과 개설 입금 행이 필요하다. 비용 합계를 원장만으로 확인할 수 있고(성적표의 "비용" 항목), MACRO_ETF §7.1과 같은 구조라 M1 통합이 쉽다. 초기 자금은 `DEPOSIT`이고 금액은 `season.initial_cash`와 같다(대사 규칙 1) | 비용을 BUY/SELL 금액에 포함(조인 필요, 구조 다름 — 합친 행은 대사 규칙 4의 유형별 진단이 잡는다), 부호 CHECK 없음(부호 실수를 DB가 못 잡음) |
 | D5 | **v2에서 대체됨.** v1의 `stock_price`(종목 가격 이력 테이블)는 시즌 스냅샷 `turn_price`와 역사 `asset_month_return`으로 바뀌었다(D16, 6.3 `turn_price`) | 게임의 가격은 시즌마다 다른 경로에서 나오므로 전역 가격 이력이 의미가 없다. 시즌 가격은 `turn_price`가 정본이고 체결·평가는 그 값만 쓴다(PLAN §5.2) | v1의 탈락 대안(`stock.current_price` 컬럼, `stock_latest_price` 테이블)은 테이블 자체가 사라져 해당 없음 |
 | D6 | `cash_account` PK = `season_id`(식별 1:1), `holding`은 대리 키 `id` + UNIQUE `(season_id, asset_id)`, `cash_ledger.season_id`는 `cash_account.season_id` 참조 | PLAN §5.1 — 계좌가 회원이 아니라 시즌에 1:1이다. 1:1을 DB가 보장하고, JPA 복합 키를 피하며, 원장이 "계좌의 원장"임이 FK로 드러난다 | 모든 테이블 대리 키(`cash_account`에 PLAN에 없는 id), `holding` 복합 PK(JPA 학습 부담) |
 | D7 | 전량 매도해도 `holding` 행을 유지하고 `quantity = 0`, `avg_price = 0`. 이 쌍을 `CHECK ((quantity = 0 AND avg_price = 0) OR (quantity > 0 AND avg_price > 0))`로 강제한다 | PLAN §5.2 대사 "보유 수량 = 매수 − 매도". 체결은 있는데 보유 행이 없으면 곧 이상 신호이고, 매도 SQL이 UPDATE 하나로 끝난다. 포트폴리오 쿼리는 `quantity > 0`으로 거른다 | 행 삭제(매도 SQL 분기, 정상 부재와 누락 구분 어려움) |
@@ -1514,7 +1522,7 @@ v2에서 새로 생긴 FK는 R26·R27(`orders`의 복합 FK)과 6절의 14개다
 | D27 | `turn_feed`는 범주·유형을 복사하지 않고 `month_event_id` + `category_hidden`만 저장한다. `kind`·`month_event_id`는 `[복기 전용]`이다. 템플릿 변수는 JSONB, 렌더된 문장 `body`를 함께 저장한다 | PLAN §4.11·§4.13. 범주·유형을 복사하면 표본 수가 바뀔 때 보인 것과 어긋나고 공개 시점 규칙을 우회할 길이 생긴다. 판정 결과(`category_hidden`)를 저장하면 "보인 그대로"가 보존된다. 변수는 템플릿마다 달라 JSONB가 맞고 숫자는 `numeric`이라 정확하다 | 범주·유형 복사, 변수 고정 컬럼(템플릿이 늘 때마다 `ALTER`, 대부분 NULL), 문장만 저장(변수 값 저장이라는 Q10 답에 어긋나고 복기에서 무슨 숫자를 보여 줬는지 조회 불가) |
 | D28 | `reconciliation_log` 한 행 = (시도, 규칙). `check_code` = 대사 규칙의 코드, 일치해도 기록한다 | PLAN §5.1 "항등식별 기대·실제·차이·분류"와 같은 단위이고 규칙별 집계(`GROUP BY check_code`)가 쉽다. 코드가 7.5의 규칙과 1:1이라 P0-16 쿼리 절과 맞는다. 턴당 17행 × 60턴 ≈ 1,020행/시즌으로 작다 | 턴당 JSONB 한 행(분류·상태 CHECK 불가), 불일치 항목마다 한 행(일치 기록이 대상 수만큼 커짐) |
 | D29 | 시즌 일관성은 복합 FK 3개로 DDL이 막는다: `orders (formation_change_id, season_id, turn_no)` → `formation_change`, `orders (turn_feed_id, season_id)` → `turn_feed`, `cash_ledger (ref_order_id, season_id)` → `orders`. 대상 UNIQUE 3개를 함께 둔다 | P0-04 Gate 1 결정(2026-11-06). 다른 시즌·턴을 가리키는 행을 DB가 SQLSTATE 23503으로 막는다. v1 대사 규칙 5가 DDL로 옮겨지고 "같은 턴 안의 변경에 묶음"(PLAN §5.1)이 DDL이 된다. 질문 6(대사 → DDL 강제)과 같은 방향이다. JPA는 `Long` id 컬럼 그대로라 영향이 작다(SPRING_JPA §4.3) | 단일 FK + 대사·검증 쿼리(잘못된 행이 들어간 뒤에야 잡히고, 원장은 추가 전용이라 `ADJUSTMENT`로만 고칠 수 있음) |
-| D30 | 시즌에 `fee_rate`·`initial_cash`·`base_date`·`engine_version`·`data_snapshot_date`·`seed`를 DB 기본값 없이 박는다 | 요율·초기 자금이 바뀐 뒤에도 지난 시즌을 검산(대사 규칙 14)·재현한다(PLAN §4.2). DB 기본값이 있으면 코드의 누락이 조용히 기본값으로 메워진다 | DB 기본값, 엔진 버전에서 요율 유도(엔진 버전이 같아도 요율이 바뀔 수 있음) |
+| D30 | 시즌에 `fee_rate_kr`·`fee_rate_us`·`fx_spread_rate`·`initial_cash`·`base_date`·`engine_version`·`data_snapshot_date`·`seed`를 DB 기본값 없이 박는다 | 국내·미국 요율, 환전 비용률, 초기 자금이 바뀐 뒤에도 지난 시즌을 검산(대사 규칙 14)·재현한다(PLAN §4.2). DB 기본값이 있으면 코드의 누락이 조용히 기본값으로 메워진다 | DB 기본값, 엔진 버전에서 요율 유도(엔진 버전이 같아도 요율이 바뀔 수 있음) |
 | D31 | 전술 변경 비용은 저장하지 않고 `formation_change_id`로 묶인 주문의 수수료·세금 합을 조회한다 | PLAN §5.1 비고 그대로이고 값이 한 곳(`execution`)에만 있다. 변경 행은 불변이고 주문이 변경 뒤에 생기므로 나중에 비용을 채울 수 없다 | `formation_change`에 비용 컬럼(불변과 충돌), 변경 ↔ 주문 매핑 테이블(다대다가 아님 — 테이블이 늘어 확정 22개를 벗어남) |
 
 **문서 구성 결정:** 관계도는 확정 22개 + MVP 스케치 3개(컬럼 없음), V2 이후 스케치, 영역 상세(컬럼 있음)의 셋으로 나눴다 — 한 그림이 25개 이하라 읽힌다(탈락: 42개를 한 `erDiagram`에 그리기는 배치가 읽기 어렵고 PR diff가 커짐, 전체를 `flowchart`로 그리기는 카디널리티 표기가 D10과 어긋남). v1 계좌 정의는 P0-03에서 MySQL 타입 그대로 부록에 옮겨 두었다가 P0-04에서 7절로 v2로 바꿔 쓰고 부록을 지웠다 — v1과의 대응은 7.6 대조표가 남긴다. 시즌 영역(6절 9개)과 시즌 계좌(7절 5개)를 둘로 나눈 것은 DDL ②·③의 분할과 1:1이라 각 DDL 기능이 한 절만 읽으면 되기 때문이다(탈락: 14개를 한 절에 두기는 한 그림에 14개 + 앵커 4개가 되어 읽기 어렵다).
@@ -1542,7 +1550,7 @@ v2에서 새로 생긴 FK는 R26·R27(`orders`의 복합 FK)과 6절의 14개다
 | 소비 기능 | 약속 |
 |---|---|
 | P0-05 DDL ① | 생성 순서 `asset_group` → `asset` → `asset_position` → `month_block` → `asset_month_return` → `fx_month` → `month_event` → `asset_month_attention`. 5.4 표의 이름 그대로, CHECK는 테이블 제약, FK `ON DELETE RESTRICT ON UPDATE RESTRICT` 명시, `idx_` 5개. 검증 SQL은 5.4 표를 `pg_constraint`(`conname`, `contype`, `pg_get_constraintdef`)·`pg_indexes`와 자동 대조하고, 음성 사례는 SQLSTATE(23514·23503·23505·23502·22003)와 제약 이름으로 확인하며, 기준일이 속한 달의 `window_end` → 23514 `ck_asset_position_window`를 포함한다. 검증 규칙 H1을 예시 쿼리로 하나 넣는다 |
-| P0-06 DDL ② | 생성 순서 `member` → `season` → `season_path` → `turn` → `turn_price` → `lineup` → `formation_change` → `turn_feed` → `reconciliation_log`. 6.4 표의 이름 그대로 만든다. 표현식 유일 인덱스(`uq_member_email`)와 부분 유일 인덱스(`uq_lineup_open`)는 `CREATE UNIQUE INDEX`로 만들고 검증 SQL은 `pg_indexes`에서 대조한다(`idx_lineup_season_asset` 포함). `formation_change`·`turn_feed`의 `(id, …)` UNIQUE는 같은 파일에서 만든다(P0-07의 복합 FK 대상, D29). 음성 사례: 시작 포메이션 합 99·골키퍼 0(0·40·30·30)·범위 −10, 위험 선언 −0.25, `IN_PROGRESS` + `abandoned_turn_no` 있음(23514 `ck_season_abandoned_status`), 열린 구간 둘(23505 `uq_lineup_open`), `turn`·`turn_price`·`season_path` 중복(23505), `turn_feed` 종류·대상·사건 CHECK, 대사 기록 상태·분류 CHECK, `MATCH` + `diff_value = -10`(23514 `ck_reconciliation_log_match_diff`), 이메일 대소문자만 다른 두 회원(23505) |
+| P0-06 DDL ② | 생성 순서 `member` → `season` → `season_path` → `turn` → `turn_price` → `lineup` → `formation_change` → `turn_feed` → `reconciliation_log`. 6.4 표의 이름 그대로 만든다. 표현식 유일 인덱스(`uq_member_email`)와 부분 유일 인덱스(`uq_lineup_open`)는 `CREATE UNIQUE INDEX`로 만들고 검증 SQL은 `pg_indexes`에서 대조한다(`idx_lineup_season_asset` 포함). `formation_change`·`turn_feed`의 `(id, …)` UNIQUE는 같은 파일에서 만든다(P0-07의 복합 FK 대상, D29). 음성 사례: 시작 포메이션 합 99·골키퍼 0(0·40·30·30)·범위 −10, 위험 선언 −0.25, `IN_PROGRESS` + `abandoned_turn_no` 있음(23514 `ck_season_abandoned_status`), 열린 구간 둘(23505 `uq_lineup_open`), `turn`·`turn_price`·`season_path` 중복(23505), 요율 세 컬럼 −0.0001·1(23514 `ck_season_fee_rate_kr`·`ck_season_fee_rate_us`·`ck_season_fx_spread_rate`), `turn_feed` 종류·대상·사건 CHECK, 대사 기록 상태·분류 CHECK, `MATCH` + `diff_value = -10`(23514 `ck_reconciliation_log_match_diff`), 이메일 대소문자만 다른 두 회원(23505) |
 | P0-07 DDL ③ | 생성 순서 `cash_account` → `orders` → `execution` → `holding` → `cash_ledger`(P0-06이 먼저라 `orders`의 FK 대상이 이미 있다). P0-02의 `01_schema.sql` 계좌 부분과 `01_schema_check.sql`의 해당 음성 사례를 재사용한다(키 `member_id` → `season_id`, `stock_id` → `asset_id`, MySQL 오류 번호 → SQLSTATE 23514·23503·23505, `INDEX` 절 → `CREATE INDEX`, `executed_at` 삭제). 7.6 대조표 24행 각각의 음성 사례, 새 CHECK 3개와 복합 FK 3개(D29: 다른 시즌의 변경·같은 시즌 다른 턴의 변경·다른 시즌 주문을 참조하는 원장, 모두 23503)의 음성 사례, 원 단위 경계 4건(`100.00001` → 저장·통과, `100.00005` → 23514, `100.5` → 23514, `-100.00005` → 23514)을 넣는다 |
 | P0-08 표본 적재 | CSV는 대리 키를 갖지 않는다: 스테이징 테이블에 `\copy` → 자연 키(`asset_group.code`, `asset (market, ticker)`, `month_block.month_start`) 조인으로 `INSERT … SELECT … ON CONFLICT (자연 키) DO NOTHING` — 값 정정은 하지 않는다(같은 스크립트를 다시 돌려도 행 수와 값이 같고, FK `RESTRICT` 때문에 지우고 다시 넣을 수 없다). `COPY` 컬럼 목록에 `id`를 넣지 않는다(`GENERATED ALWAYS`여도 `COPY`는 id 값을 받아들이고 시퀀스를 올리지 않아 이후 INSERT와 충돌할 수 있음, D12). `asset_position`은 기준일 가격·환율·시가총액 순위만 채우고 판정은 NULL로 둔다. 축 방향·강도·국면 확률은 NULL. 검증 규칙 H1·H3·H4·H7을 완료 기준 쿼리로 쓴다 |
 | P0-09 사건 태그 | `events/`의 태그 id가 `event_key`(불변)이고, 노출 컬럼과 복기 전용 컬럼(`title`·`source`·`hindsight`)을 섞지 않는다. 표본 100개 달의 `events_reviewed = TRUE`. `event_type`·`outcome` 목록과 강도 경계를 `events/README.md`에 적고 H5·H6을 검사한다. 유형별 표본 수 정의를 확정하고, 표본 수 3 미만 유형 목록을 쿼리로 보고한다(그 카드는 `strength`·`reaction_change`만 노출) |
@@ -1550,8 +1558,8 @@ v2에서 새로 생긴 FK는 R26·R27(`orders`의 복합 FK)과 6절의 14개다
 | P0-11 관심 지수 | 직전 달이 있을 때만 연속으로 본다(5.3 `month_block`). `window_months`에 실제 달 수를 넣고, 창이 부족하면 `attention_z`·`attention_index`를 NULL로 둔다. 공식을 5.3 `asset_month_attention`에 적는다. 창 2는 수학적 하한일 뿐 안전하지 않다(실측 z = 35,354.63 → 22003, 같은 값 창 → division by zero): 최소 창(6 이상 권장), 표준편차 하한 미만 → NULL, ±3 절단 여부를 정해 5.3 `attention_z` 칸에 적는다. 순위 동률 규칙도 정한다(순위는 저장하지 않고 조회). 검증 규칙 H8의 사후 정보 배제 테스트 |
 | P0-12 달력 통계 | 달력 월은 `EXTRACT(MONTH FROM month_start)`로 구한다. 사건 조건부 통계는 `event_type`과 `phase = 'START'` 기준이다. 표본 수 규칙(n < 5 제외, 5 ≤ n < 10 "일화")은 조회 결과에서 적용한다. 관심 순위가 필요하면 시즌 기준일 풀로 걸러 `RANK() OVER (PARTITION BY month_block_id ORDER BY attention_index DESC)`로 조회한다 |
 | P0-13 템플릿 | 방향 코드는 `UP`/`DOWN`(`month_event.direction`과 같음)을 쓰고, 그룹 이름은 `asset_group.name`을 변수로 쓴다. 종류 코드 7개(`RISE`·`FALL`·`ECHO`·`SPREAD`·`FADE`·`EVENT`·`NUDGE`)가 `turn_feed.kind`와 글자 단위로 같다. 변수 이름 목록 = `template_vars`의 키, 템플릿 id는 바꾸지 않는다. 범주 비공개 카드 템플릿(반응 수치만)을 하나 이상 둔다 |
-| P0-14 시즌 시작 | 한 트랜잭션: `member` → `season`(모든 설정 컬럼, 포메이션 시작 = 현재, `current_turn_no = 0`) → `season_path`(검증 규칙 S1·S4) → `cash_account` + 첫 원장 `DEPOSIT` = `initial_cash`(대사 규칙 1) → `turn_price` 0턴 = `round(base_price × base_fx_rate, 0)`(풀 전체, 검증 규칙 S2 전제) |
-| P0-15 팀 구성 | 매수마다 `orders`(`turn_no = 0`, `source = 'DIRECT'`, `status = 'FILLED'`, `type = 'MARKET'`) → `execution`(체결가 = `turn_price(0)`, 수수료 규칙 14) → `holding` UPSERT(원가 D9) → `cash_ledger` `BUY` + `FEE`(> 0일 때) → `cash_account` → `lineup` 열기. 잠금 순서 `season` → `cash_account`(`FOR UPDATE`). 두 세션 실습은 PostgreSQL READ COMMITTED 기준으로 다시 설계한다 — v1 MySQL의 스냅샷 문제 대신 "잠금 없이 둘 다 잔액 충분 판단 → 잔액 음수 시도 → CHECK 23514" 대 "잠금으로 직렬화" |
+| P0-14 시즌 시작 | 한 트랜잭션: `member` → `season`(모든 설정 컬럼 — 국내·미국 수수료율과 환전 비용률 세 값을 명시하고 DB 기본값에 기대지 않는다, D30 — 포메이션 시작 = 현재, `current_turn_no = 0`) → `season_path`(검증 규칙 S1·S4) → `cash_account` + 첫 원장 `DEPOSIT` = `initial_cash`(대사 규칙 1) → `turn_price` 0턴 = `round(base_price × base_fx_rate, 0)`(풀 전체, 검증 규칙 S2 전제) |
+| P0-15 팀 구성 | 매수마다 `orders`(`turn_no = 0`, `source = 'DIRECT'`, `status = 'FILLED'`, `type = 'MARKET'`) → `execution`(체결가 = `turn_price(0)`, 수수료 규칙 14 — 종목 시장으로 요율 선택) → `holding` UPSERT(원가 D9) → `cash_ledger` `BUY` + `FEE`(> 0일 때) → `cash_account` → `lineup` 열기. 잠금 순서 `season` → `cash_account`(`FOR UPDATE`). 두 세션 실습은 PostgreSQL READ COMMITTED 기준으로 다시 설계한다 — v1 MySQL의 스냅샷 문제 대신 "잠금 없이 둘 다 잔액 충분 판단 → 잔액 음수 시도 → CHECK 23514" 대 "잠금으로 직렬화" |
 | P0-16 대사 쿼리 | 7.5 규칙 1–19의 번호와 `check_code` 그대로 절을 나눈다. 규칙 4는 총액 판정 + 유형별 진단. 결과를 `reconciliation_log`에 (시도, 규칙)마다 한 행, 일치해도 기록한다. 수동 검사의 `turn_no` = 현재 턴이고 규칙 11·19를 뺀 15개만 돈다 |
 | P0-17 턴 진행 | `turn_price` → `turn`(6.3 스냅샷 정의와 낙폭 정의) → 대사 → `current_turn_no` 갱신, 마지막 턴이면 `FINISHED`. 누적 곱은 저장하지 않고 정확한 `numeric`으로 곱한 뒤 한 번 반올림한다(120턴이면 소수 최대 1,920자리 — PostgreSQL 17.11에서 확인: 8자리 수익률 240개를 정확한 `numeric`으로 곱한 값이 Python `Fraction` 정확값과 같고 1 ms 미만이었다. `numeric`의 한도는 소수점 아래 16,383자리). 롤백 뒤 `reconciliation_log`를 따로 기록한다(`turn_no` = t+1). `attempt_no`는 로그 트랜잭션에서 `season`을 `FOR UPDATE`로 잠근 뒤 그 (시즌, 턴)의 `max(attempt_no) + 1`로 정하고(없으면 1) 23505(`uq_reconciliation_log_season_turn_attempt_code`)면 다시 읽어 재시도한다. 성공한 턴과 수동 검사도 같은 번호 공간을 쓴다. 시즌 중 종목 정보에 `listed_on`·턴별 `return_kind`를 내지 않고 이력 비율은 재생 표본 전체 기준으로 계산한다 |
 | P0-18 피드 생성 | 턴마다 `turn_feed`(`seq` 1..n, `template_id`·`template_vars`·`body`). 사건 카드는 그 턴 블록의 태그만 쓰고(검증 규칙 S5), n < 3 유형은 `category_hidden = TRUE`. 범주·유형을 피드 행에 복사하지 않는다. 사건 카드의 화면 모양(대상·동선)이 소음 항목과 구별되지 않는지 복기 전 확인 항목에 적는다 |
