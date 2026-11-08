@@ -768,12 +768,12 @@ default_formation: [10, 30, 30, 30]
 |---|---|---|
 | 언어 | Java 21 | |
 | 백엔드 | Spring Boot 3.x, Gradle | 시즌·턴·계좌·원장·점수 — 금액이 맞아야 하는 영역 |
-| 데이터베이스 | **PostgreSQL 17**(Phase 0부터) | 2026-11-05 결정(§13): 커리큘럼은 MySQL이었지만 소유자가 "MySQL 시작이 필수가 아니다"라고 해 처음부터 PostgreSQL을 쓴다. 이유 — M1의 일회성 이전(DDL·CHECK·콜레이션·테스트를 두 번 쓰는 일)이 없어지고, `NUMERIC`이 임의 정밀도라 누적 곱(§5.2)의 소수 자리 상한 문제가 없으며, `COPY`·JSONB·pgvector(AI 단계)·Testcontainers가 처음부터 같은 DB다. 로컬은 Homebrew `postgresql@17`. MySQL은 쓰지 않는다(이중 지원 없음) |
+| 데이터베이스 | **PostgreSQL 17**(Phase 0부터) | 2026-11-05 결정(§13): 커리큘럼은 MySQL이었지만 소유자가 "MySQL 시작이 필수가 아니다"라고 해 처음부터 PostgreSQL을 쓴다. 이유 — M1의 일회성 이전(DDL·CHECK·콜레이션·테스트를 두 번 쓰는 일)이 없어지고, `NUMERIC`이 임의 정밀도라 누적 곱(§5.2)의 소수 자리 상한 문제가 없으며, `COPY`·JSONB·pgvector(AI 단계)·Testcontainers가 처음부터 같은 DB다. 로컬 실습 서버는 Docker Compose의 `db` 서비스(`postgres:17`, 127.0.0.1만 — 2026-11-08 소유자 결정, [DEPLOY.md](DEPLOY.md))이고, Homebrew `postgresql@17`은 psql 클라이언트와 검증용 임시 인스턴스에만 쓴다. MySQL은 쓰지 않는다(이중 지원 없음) |
 | 매핑 | JPA(주), 리포트 쿼리에 MyBatis 선택 | |
 | 시뮬레이션 엔진 | Python, FastAPI, pandas | 월 블록 재조합, 예상 분포, 국면 라벨, 점수 검증 백테스트. 내부 전용 |
 | 프런트엔드 | **웹 페이지 + 모바일 앱(중심) + 데스크탑 앱** — 릴리스 v1의 세 화면(§1.2). 초안: 모바일은 React Native(Expo, iOS·Android)다. 웹 페이지와 데스크탑 앱은 같은 TypeScript React 웹 앱이다 — 브라우저에서 여는 것이 웹 페이지, Tauri로 포장한 것이 데스크탑 앱이다. 공용 패키지: API 클라이언트, 도메인 타입, 차트 | APP |
 | AI | RAG, LangChain, LangGraph | AI |
-| 운영 | Docker Compose, GitHub Actions, OCI | OPS |
+| 운영 | Docker Compose(서비스 `db`·`api`·`engine`·`proxy` + 선택 profile), GHCR arm64 이미지, GitHub Actions, OCI Always Free A1 VM + Caddy(HTTPS) | 구조·규칙은 [DEPLOY.md](DEPLOY.md). 로컬 compose는 Phase 0부터, 서버 배포는 OPS |
 | LLM 공급(에이전트 펀드 매니저) | OpenRouter(`OPENROUTER_API_KEY`), 소유자 구독 Claude Code·Codex CLI(소유자 기기 한정), Ollama(로컬 또는 원격 API, `OLLAMA_BASE_URL`·`OLLAMA_API_KEY` 이름 초안, 설정 전 꺼짐), 공통 `ModelPort` 어댑터 | AG(§4.16). Anthropic·OpenAI 계열은 OpenRouter에서 고르지 않는다 |
 | 실전 운용 | KIS OpenAPI(국내), 미국 증권사 API는 검토, 사람 승인 파이프라인(LangGraph interrupt, `MACRO_ETF.md` §8.4) | R3(릴리스 v2) |
 
@@ -796,14 +796,14 @@ default_formation: [10, 30, 30, 30]
 | Phase 0 | 새 도메인 ERD(§5.1), DDL, 역사 데이터 적재 스크립트(월 블록 100개·종목 20개 표본, 표본 달의 사건 태그, 종목별 시스템 판정 포지션), 손으로 만든 경로 1개로 시즌 1판을 SQL 트랜잭션으로 진행(포메이션 선언 → 팀 구성 → 턴 10개 → 성적 집계), 대사 쿼리, 참여율·월별 평균·관심 지수 같은 집계 쿼리, 소음 템플릿 표본(`feed/`). 기능 표는 §11.1 | SQL(PostgreSQL 17) — **현재** | v1 |
 | Phase 1 | 콘솔 앱: 시즌 시작, 팀 구성(포지션 지정), 턴 진행, 매매, 성적표. 단순 부트스트랩(Java, 달력 정렬 포함)으로 경로 생성 | JDBC | v1 |
 | MVP | **데이터 준비:** 전체 역사 데이터 일회성 적재(월 블록 1997-01–작년 말(확장 구간 + 본 구간, §4.7 — 시작 1997-01(2026-11 실측)), 확장 구간의 대표 지수 대체 대응표, 풀 180종목 월 수익률, 환율, 거시 지표 — 공개 CSV를 Phase 0 적재 스크립트의 확장으로; 사건 태그 1차 편집; 시스템 판정 포지션 계산; 관심 지수 계산; 소음·알림 템플릿 1차 편집). 국면 확률은 없음(M2). **기능:** 사용자 스토리 1–7의 REST API, 계층형 아키텍처, 검증·예외 처리, 턴 전환 트랜잭션과 동시성, 턴마다 대사, 소음 피드(사건 카드 포함)·랭킹 보드·독려 알림과 주문 출발점 기록, 포지션·포메이션·전술 변경·소음 반응·독려 반응 점수 | Spring Boot + JPA | v1 |
-| M1 | 데이터 수집기(가격·환율·거시 지표, 시점 기준 저장), 시스템 판정 포지션·관심 지수 갱신 잡, 스케줄, CI(Testcontainers PostgreSQL) | Spring, 스케줄링, CI | v1 |
+| M1 | 데이터 수집기(가격·환율·거시 지표, 시점 기준 저장), 시스템 판정 포지션·관심 지수 갱신 잡, 스케줄, CI(Testcontainers PostgreSQL; SQL 스키마 검증 CI는 Phase 0에서 먼저 — [DEPLOY.md](DEPLOY.md) §11) | Spring, 스케줄링, CI | v1 |
 | M2 | Python 엔진: 월 블록·국면 라벨·재조합(달력 정렬, 국면 조건부)·예상 분포. Java 엔진과 병행 대사 | Python | v1 |
 | M3 | 점수 체계 백테스트(봇 3종 + 뉴스 추종 봇 + 대가 봇 초안), 국면 조건부 전이 효과 검증, 달력 정렬로 계절성이 남는지 검증, 블록 길이 민감도, 생존 편향 측정, 사건 대응·스타일 준수 점수 필요성 판단, 소음·독려 반응과 매매 규율·회전율의 중복 판단(§4.13), 피드 생성기의 사후 정보 차단 테스트; 확장 구간의 효과(국면·블록 분포), 긴 블록 시나리오 검토(시즌 안에 확장 구간의 긴 연속 블록을 하나 보장하는 엔진 옵션 — 날짜 누출·리롤 문제가 있어 기록만) | Python | v1 |
 | EXT | 적립금·비용·대체 수익률·게임 머니, 통계 보드 API, 사건 태그 전체 편집, **케이스 훈련**(데이터 편집 `cases/`, API, 선별 점수), **대가 라이브러리·스타일**(데이터 편집 `masters/`, 기준일 재무, 체크리스트, 스타일 준수 표시), 소음 환경 확장(신호/소음 표시, 소음 수준, 거래량) | Spring, 데이터 편집 | v1 |
 | M4 | 인증(JWT), 시즌 다중 진행, 리그 기초(대가 봇 참가), 속성 프로필 집계, 명예의 전당 API, **전망 모드**(실제 시간 시즌, 논제, 판정) | Spring Security, 스케줄링 | v1 |
 | APP | **모바일 앱**(턴 진행·피드·랭킹·알림·매매·전술 변경·성적표·리그·프로필, 포메이션 보드)과 **데스크탑 앱**(복기·통계 보드·케이스 훈련·대가 라이브러리·명예의 전당·관심 지도), **웹 페이지**(데스크탑 앱과 같은 React 코드를 브라우저로 — 기능 같음, 푸시 없음) — 같은 API, 공용 TypeScript 패키지. 공개 데모(샘플 시즌 복기) | React, React Native | v1 |
 | AI | 복기 RAG, 질의, 시즌 코치(LangGraph), 피드 문장 다양화(외부 검색 없음) | RAG, LangChain, LangGraph | v1 |
-| OPS | Docker Compose, 배포, 백업 | Docker, CI/CD, 클라우드 | v1 |
+| OPS | 운영 compose 덮어쓰기·Caddy HTTPS·GHCR 이미지 배포(수동 워크플로)·`pg_dump` 백업과 복원 시험·VM 하드닝([DEPLOY.md](DEPLOY.md) §11 체크리스트 — 이전 단계는 각자 준비 일을 한다) | Docker, CI/CD, 클라우드 | v1 |
 | AG | **에이전트 펀드 매니저**(§4.16, §6.9): 누출 탐지 시험(AG-01, Phase 0 직후) → 에이전트 러너 시제품(AG-02, MVP 뒤) → 구독 경로 어댑터(AG-03) → 페르소나·같은 시드 다중 참가(AG-04) → 지식 축적(AG-05, M2 뒤) → 종합 매니저 점수·리더보드(AG-06, M3와 함께) → 전망 모드 참가·에이전트 명예 기록(AG-07, M4 뒤) → 메모리 RAG(AG-08, AI 단계). 기능 표는 아래 | Spring, Python, HTTP, RAG | v1 |
 | R1 | **거장 추적**(§4.14): 추적 대상 편집(`trackers/`), EDGAR·DART·X 수집기, 주요 변화 감지, 전망 모드 추적 보드, 복기 연결, 감독 모드 피드의 거장 동향 카드 | Spring 수집기, 스케줄링 | v1 |
 | R2 | **매니저 복제 봇**(§4.15): 규칙 추출, 복제 봇, 훈련장 검증(같은 경로 비교 + 전망 모드 기간), 동의·익명화, 속성 프로필 비교 | Python, LangGraph | v1 |
@@ -937,7 +937,9 @@ ant-lab/
 │   ├── erd.md       도메인 ERD와 엔티티 정의서(§5.1로 다시 그림)
 │   ├── MACRO_ETF.md 엔진 방법론(국면·지표·사후 정보 배제·백테스트)
 │   ├── SPRING_JPA.md Spring Boot + JPA 기술 설계(매핑·트랜잭션·락·대사·테스트)
+│   ├── DEPLOY.md    배포 구조·규칙(Docker Compose·이미지·비밀값·호스팅)
 │   └── CONVENTION.md Git 컨벤션
+├── compose.yaml     로컬 실행(Phase 0: db) — 운영 덮어쓰기 compose.prod.yaml과 deploy/는 OPS
 ├── db/              DDL, 역사 데이터 표본(사건 태그 표본 포함), 실습 SQL
 ├── cases/           케이스 훈련 데이터(전환기별 후보 기업의 당시 재무·서사, 출처) — EXT부터
 ├── events/          월 블록 사건 태그(범주·결과·강도·실제 이름·출처) — Phase 0 표본부터, EXT에서 전체
