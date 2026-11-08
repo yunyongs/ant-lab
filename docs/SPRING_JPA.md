@@ -166,7 +166,7 @@ TurnService.advance(seasonId, expectedTurnNo)
 
 - 결과는 `reconciliation_log`(시즌, 턴, 항등식, 기대, 실제, 차이, 분류)에 남긴다. 일치해도 한 행(기록이 있어야 "검사했다"를 증명한다).
 - 불일치 시: 턴 전환 트랜잭션은 **롤백**하고 시즌은 그 턴에 멈춘다(`currentTurnNo` 그대로, 다시 시도 가능). 로그는 **롤백이 끝난 뒤** 바깥의 얇은 서비스(`TurnFacade.advance`: 트랜잭션 없음 → 안쪽 `TurnService.advance` 호출 → 예외를 잡아 `ReconciliationLogService.record`를 새 트랜잭션으로)가 남긴다. 안쪽 트랜잭션이 `season`을 `FOR UPDATE`로 잡고 있는 동안 `REQUIRES_NEW`로 로그를 넣으면 `reconciliation_log.season_id`의 FK 검사가 그 락을 기다리다 시간 초과가 나므로, "롤백 뒤에 쓴다"가 규칙이다. 분류(시차·조정·조사)는 MVP에서 전부 "조사"로 두고 사람이 본다.
-- 이 검사는 Phase 0의 대사 쿼리를 JPQL/네이티브 쿼리로 옮긴 것이다. SQL 그대로 쓰기 위해 `@Query(nativeQuery = true)`를 허용한다.
+- 이 검사는 Phase 0의 대사 쿼리를 JPQL/네이티브 쿼리로 옮긴 것이다. SQL 그대로 쓰기 위해 `@Query(nativeQuery = true)`를 허용한다. Phase 0 정본은 `db/22_reconcile_season_def.sql`(erd D36)이고, MVP는 같은 DB 고정본에서 Java 결과가 `recon_rules`와 같은 골든 테스트를 둔다.
 
 ## 7. 역사 데이터 적재
 
