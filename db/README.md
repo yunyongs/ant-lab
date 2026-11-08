@@ -27,6 +27,9 @@ Phase 0에서 손으로 쓰는 SQL이다([docs/PLAN.md](../docs/PLAN.md#111-phas
 | `14_stats_calendar_check.sql` | P0-12 | 통계 검증. 다른 방법의 독립 계산 대조(윈도 함수 `LEAD`·정수 산술), 합성 손 계산(달력 평균·0 수익률·누적 곱·반올림 한 번), 표본 수 경계(n = 4·5·9·10), 누출(기준일 해 제외·정점 판정에 미래 값 없음·시즌 표를 읽지 않음·관측값 열 없음), 타입(부동소수·NaN 없음)을 단언한다. 규칙 20개마다 정의를 일부러 바꾼 변이 사례가 있고 커버리지 `20/20`을 확인한다. 아무것도 쓰지 않고 `ROLLBACK`한다 |
 | `20_season_start.sql` | P0-14 | 연습 시즌을 한 트랜잭션으로 연다 — 연습 회원 → 시즌(D30 8컬럼·요율 3·위험 선언·시작 = 현재 포메이션을 모두 명시) → 손 경로 10턴 → 현금 계좌 + 개설 입금 `DEPOSIT` → 0턴 가격(기준일 풀 전체, 원 단위, 미국 종목은 원화 환산). 제약을 하나라도 어기면 앞에서 성공한 INSERT까지 전부 되돌아간다. 연습 회원이 이미 있으면 새 행 없이 끝나고(멱등), 이미 있는 시즌이 파일과 다르면 오류로 멈춘다. 기준일 풀에 판정이 비어 있으면 "12 계산을 먼저" 메시지로 멈춘다(종료 코드 3). 01·02·03 스키마, 10 적재, 12 판정을 먼저 실행한다. **이 파일은 손 경로의 실제 달을 담고 있다** — MVP 시즌의 경로는 저장소에 들어가지 않는다 |
 | `20_season_start_check.sql` | P0-14 | 시즌 시작 검증. 설정(문서에서 다시 옮겨 적은 기대값)·D30 기본값 없음·포메이션/위험 CHECK·원자성(앞 문장까지 되돌아감)·경로(S1·S4·블록 수)·계좌(대사 규칙 1·2·3·9·15)·기준일 풀 전제(H1·H2)·0턴 가격(정수 산술 독립 계산, 풀 완전성, 미래 가격 없음)·합성 손 계산을 단언한다. 시즌을 연 뒤 언제나 참인 규칙 20개마다 음성 사례가 있고 커버리지 `20/20`을 확인한다. INSERT가 없고 `ROLLBACK`하므로 `antlab`에서도 돌린다. 출력은 건수와 판정만이다 |
+| `21_team_buy_def.sql` | P0-15 | 매수 정의(세션 임시 함수 6개): 순수 계산 5개(`buy_rate`·`buy_fee`·`buy_affordable`·`buy_avg_price`·`team_qty`)와 매수 한 건의 함수 `pg_temp.order_buy`. 호출자가 트랜잭션을 열고(함수는 `BEGIN`·`COMMIT`을 하지 않는다) 안에서 `season` → `cash_account` 순으로 잠근 뒤 `orders`·`execution`·`holding`·`cash_ledger`(`BUY` → `FEE`)·`cash_account`·`lineup`을 함께 만든다. 오류는 `P0001` + HINT 종류 코드. 단독 실행 대상이 아니라 21 두 파일과 두 세션 실습이 `\ir`로 읽고, 매매(P0-19)도 재사용한다 |
+| `21_team_buy.sql` | P0-15 | 연습 시즌의 0턴에 감독의 팀 8종목을 산다. 명단(종목 코드·비중 %·선언 포지션)은 파일 맨 앞 한 곳에 있고 수량은 실행할 때 0턴 가격에서 규칙으로 계산한다. 줄마다 한 트랜잭션(임시 프로시저 안의 `COMMIT`)이라 줄 k에서 실패하면 앞 줄은 남고 다시 실행하면 남은 줄만 산다(이어서 사기). 이미 같은 팀이면 새 행 없이 끝나고, 0턴 주문이 명단과 다르면 아무것도 사지 않고 멈춘다(종료 코드 3). 01·02·03 스키마, 10 적재, 12 판정, 20 시즌 시작을 먼저 실행한다. 출력은 건수와 상태만이다 |
+| `21_team_buy_check.sql` | P0-15 | 팀 구성 검증. 팀 크기·명단(문서에서 다시 옮겨 적음)·수량(독립 계산)·체결가·수수료(정수 산술)·원장(유형별 진단 포함)·보유 이동평균(체결 이력 재생)·라인업·포메이션 실제 비중·함수 오류 종류·순수 계산 합성 사례를 단언한다. "팀을 구성한 뒤 언제나 참"인 규칙 22개마다 음성 사례가 있고 커버리지 `22/22`를 확인한다. INSERT가 없고 `ROLLBACK`하므로 `antlab`에서도 돌린다. 출력은 건수와 판정만이다 |
 
 - 이름 규칙은 `{실행 순서 두 자리}_{종류}_{영역}.sql`이고, 검증은 같은 이름 뒤에 `_check`를 붙인다.
 - **새 기능이 파일을 더하는 규칙:** 기능은 자기 파일의 행을 위 표에 더하고, 아래 "전체 순서"와 "DB 다시 만들기"의 명령을 이어 적는다. 다른 기능의 파일은 고치지 않는다.
@@ -49,6 +52,8 @@ Phase 0에서 손으로 쓰는 SQL이다([docs/PLAN.md](../docs/PLAN.md#111-phas
   16. `14_stats_calendar_check.sql`(선택. 정의 파일을 글자 그대로 읽으므로 저장소 루트에서 실행)
   17. `20_season_start.sql` (연습 시즌 열기, `antlab`에만. 저장소 루트에서 실행. 10 적재와 12 판정이 끝나 있어야 한다. 11·13과는 무관하다. 12가 비어 있으면 "12 계산을 먼저"로 멈춘다)
   18. `20_season_start_check.sql`(선택. `antlab`에서 실행 가능)
+  19. `21_team_buy.sql` (팀 구성, `antlab`에만. 저장소 루트에서 실행. 20 시즌 시작이 끝나 있어야 한다. 같은 폴더의 `21_team_buy_def.sql`을 읽는다. 11·13과는 무관하다)
+  20. `21_team_buy_check.sql`(선택. 쓰기 없이 되돌리므로 `antlab`에서 실행 가능. 팀 구성 뒤에 돌린다)
 - 스키마 파일은 `BEGIN` ... `COMMIT`으로 감싸 있어 중간에 실패하면 전부 없던 일이 된다. `DROP TABLE`에 `CASCADE`를 쓰지 않으므로, 뒤 번호 파일의 테이블이 이미 있는 DB에서 앞 번호 파일만 다시 실행하면 `2BP01`(dependent_objects_still_exist) 오류로 멈춘다. 안전한 실패이며, 전체를 다시 만들 때는 아래 "DB 다시 만들기"를 쓴다.
 
 ## 실행 환경
@@ -137,7 +142,44 @@ psql -X -q -v ON_ERROR_STOP=1 -d antlab -f db/20_season_start_check.sql
 SELECT s.id FROM season s JOIN member m ON m.id = s.member_id WHERE lower(m.email) = lower('phase0@example.invalid');
 ```
 
-**설정을 바꾸고 싶을 때.** 시즌은 한 번 만들면 바뀌지 않는 기록이다(erd D30). 이미 있는 DB에서 설정·경로를 고치고 20을 다시 실행하면 "이미 있는 시즌이 이 파일과 어긋난다"로 멈춘다(아무것도 바뀌지 않음). 바꾸려면 (b′)로 `antlab`을 다시 만들고 10 → 11 → 12 → 13 → 20 순서로 다시 돌린다. 팀 구성 이후에 20을 다시 실행해도 통과한다 — 바뀌는 컬럼(`status`·`current_turn_no`·`current_*`·잔액·뒤 원장 행·1턴 이후 가격)은 비교하지 않는다. 경로 리터럴을 고쳤다면 `engine_version`도 올린다(같은 시드·같은 엔진 버전 = 같은 경로).
+**(b⁗) 팀 구성 — `antlab`(작업 DB)에만.** 20 시즌 시작 뒤에 실행한다. 줄마다 한 트랜잭션이라 중간에 실패하면 앞 줄은 남고, 다시 실행하면 남은 줄만 산다. 두 번째 실행에는 새 행이 없다.
+
+```bash
+psql -X -q -v ON_ERROR_STOP=1 -d antlab -f db/21_team_buy.sql
+psql -X -q -v ON_ERROR_STOP=1 -d antlab -f db/21_team_buy_check.sql
+```
+
+- 팀 명단은 `21_team_buy.sql` 맨 앞 `[팀 명단 한 곳]`에만 있다(한 줄에 한 종목: 시장, 종목 코드, 비중 %, 선언 포지션). 수량은 적지 않는다 — 실행할 때 `floor(줄 예산 ÷ (0턴 체결가 × (1 + 요율)))`로 계산한다(줄 예산 = 초기 자금 × 비중 ÷ 100, 내림). 수량이 가격을 역산하게 하므로 저장소 파일에 적지 않는다.
+- 선언 포지션은 감독이 정한다. 시스템 판정(`asset_position.system_position`)은 제안이고 복사하지 않는다. 선언이 판정과 다른 줄이 있어야 P0-20의 역할 수행이 되물을 거리가 생긴다.
+- **경로의 달을 기억해 고르지 않는다.** 팀은 역할·분산·비용으로 고른다. 손 경로의 실제 달은 `20_season_start.sql`에 있지만 팀을 고를 때 그 달의 시장을 보거나 떠올리지 않는다(PLAN §4.5, 강제할 수 없는 약속).
+- 비중은 선언 포지션의 4분류(골키퍼·수비·미드필더·공격)로 센다. 골키퍼 목표는 골키퍼 종목 줄 비중 합 + 현금 목표이고, 현금은 골키퍼다. 분류 합이 시즌의 시작 포메이션과 다르면 매수 전에 멈춘다.
+- 두 실행이 겹치면 줄마다 시즌 잠금을 잡은 뒤 다시 읽어, 같은 줄을 두 번 사지 않고 다른 명단과 기록이 섞이지 않는다. 자기 실행 목록의 줄을 상대가 먼저 샀거나 이 시즌의 0턴 주문이 명단과 달라졌으면 그 줄에서 멈춘다(종료 코드 3). 상대가 다 산 뒤에 목록을 만들었으면 멈추지 않는다. 멈춘 쪽은 같은 명령을 다시 실행한다 — 상대가 다 샀으면 `이미 같은 팀`, 일부만 샀으면 `이어서 삼`, 다른 명단이면 비교에서 멈춘다. 보고 1의 `*_inserted`는 이 시즌 전체의 변화라서 겹친 실행이 넣은 행도 센다.
+- `-v ON_ERROR_STOP=1` 없이 실행하면 맨 앞 가드가 안내만 출력하고 아무것도 하지 않고 끝난다(줄마다 `COMMIT`하므로 단언이 실패해도 매수가 이어지면 안 된다).
+- 멈추는 경우(모두 종료 코드 3): `연습 시즌이 0 개다`는 20을 먼저 실행하지 않은 것이다. `명단·전제가 맞지 않아 아무것도 사지 않고 멈춘다`는 명단 크기(6–8)·분류 합·풀 밖 종목·수량 0(1주가 줄 예산보다 비쌈 — 비중을 늘리거나 종목을 바꾼다)·이미 있는 0턴 주문과 명단의 차이다. 첫 20건의 줄과 종목 코드가 나온다(값은 나오지 않는다).
+- 줄 k에서 `INSUFFICIENT_CASH`처럼 매수 함수가 실패하면 1..k-1은 커밋된 채 남는다. 정상 동작이다(매수마다 한 트랜잭션). 원인을 고치고 같은 명령을 다시 실행하면 남은 줄만 사고 `이어서 삼`이 나온다. 0턴이 지난 뒤(`current_turn_no > 0`)에는 이어 살 수 없다(`TURN_MISMATCH`).
+- **실습 DB를 더럽히지 않는다.** 아래 (f)·(g) 실습은 복사 DB에서 한다. 실습이 만든 0턴 매수가 `antlab`에 남으면 21 재실행이 "명단 밖 종목의 0턴 주문"으로 멈춘다.
+
+**실제 비중 보기 — 소유자가 로컬에서만 본다.** 팀 직후 선언 4분류의 실제 비중(%)과 시작 포메이션 목표다. 가격에서 나온 값이므로 PR·문서·이슈에 붙이지 않는다. 투입액 = 대금 + 수수료로 센다(골키퍼 = 현금 + 골키퍼 줄의 투입액). 정수 주라 남는 돈이 현금으로 가서 비골키퍼 분류는 목표 이하, 골키퍼는 목표 이상이다.
+
+```sql
+WITH s AS (SELECT se.* FROM season se JOIN member m ON m.id = se.member_id WHERE lower(m.email) = lower('phase0@example.invalid')),
+t AS (
+    SELECT lu.declared_position AS dp, o.quantity * tp.price + e.fee AS invested
+    FROM s
+    JOIN orders o ON o.season_id = s.id AND o.turn_no = 0 AND o.side = 'BUY'
+    JOIN execution e ON e.order_id = o.id
+    JOIN turn_price tp ON tp.season_id = s.id AND tp.turn_no = 0 AND tp.asset_id = o.asset_id
+    JOIN lineup lu ON lu.season_id = s.id AND lu.asset_id = o.asset_id AND lu.start_turn = 0)
+SELECT x.cls, ROUND(100 * x.v / s.initial_cash, 2) AS actual_pct, x.target AS target_pct
+FROM s CROSS JOIN LATERAL (VALUES
+    ('골키퍼(현금 포함)', s.initial_cash - (SELECT COALESCE(sum(invested) FILTER (WHERE dp <> 'GOALKEEPER'), 0) FROM t), s.start_goalkeeper),
+    ('수비',     (SELECT COALESCE(sum(invested), 0) FROM t WHERE dp = 'DEFENDER'),         s.start_defender),
+    ('미드필더', (SELECT COALESCE(sum(invested), 0) FROM t WHERE dp = 'MIDFIELDER'),       s.start_midfielder),
+    ('공격',     (SELECT COALESCE(sum(invested), 0) FROM t WHERE dp LIKE 'FORWARD\_%'),    s.start_forward)
+) AS x(cls, v, target);
+```
+
+**설정을 바꾸고 싶을 때.** 시즌은 한 번 만들면 바뀌지 않는 기록이다(erd D30). 이미 있는 DB에서 설정·경로를 고치고 20을 다시 실행하면 "이미 있는 시즌이 이 파일과 어긋난다"로 멈춘다(아무것도 바뀌지 않음). 바꾸려면 (b′)로 `antlab`을 다시 만들고 10 → 11 → 12 → 13 → 20 순서로 다시 돌린다. 팀을 바꾸려면(이미 산 뒤) 마찬가지로 (b′)부터 10 → 12 → 20 → 21 순서로 다시 돌린다(매수 기록은 지우거나 고치지 않는 기록이다). 팀 구성 이후에 20을 다시 실행해도 통과한다 — 바뀌는 컬럼(`status`·`current_turn_no`·`current_*`·잔액·뒤 원장 행·1턴 이후 가격)은 비교하지 않는다. 경로 리터럴을 고쳤다면 `engine_version`도 올린다(같은 시드·같은 엔진 버전 = 같은 경로).
 
 **(c) 제약 검증 — `antlab_test`에서만.** 스키마(01 → 02 → 03)가 만들어져 있는 `antlab_test`에서 검증 세 줄을 실행한다. 검증은 마지막에 `ROLLBACK`하므로 스키마를 다시 만들지 않고 몇 번이든 돌릴 수 있다. 처음 한 번은 아래 스키마 세 줄을 먼저 실행한다.
 
@@ -195,6 +237,99 @@ psql -X -d antlab -c "SELECT id FROM member"                            # 1이 �
 ```
 
 포메이션 네 값을 한 줄에서 함께 쓰므로 시작·현재 합 CHECK 둘을 함께 어기고, PostgreSQL은 CHECK를 이름 순으로 평가해 `ck_season_current_formation_sum`을 먼저 보고한다. `-v ON_ERROR_STOP=1`을 빼고 돌리면 첫 오류 뒤 남은 문장이 `current transaction is aborted`(25P02)로 줄줄이 실패하고 마지막 `COMMIT`은 `ROLLBACK`이 되어 행은 남지 않지만 종료 코드가 0일 수 있다.
+
+**(f) 두 세션 동시 매수 실습 — 잠금이 없을 때와 있을 때.** PostgreSQL 기본 격리 수준은 READ COMMITTED다. 문장마다 새 스냅샷을 쓰고 일반 `SELECT`는 잠그지 않는다. 같은 잔액을 두 세션이 동시에 쓰려 하면 어떻게 되는지 터미널 두 개로 본다. **실습은 반드시 복사 DB에서 한다.**
+
+준비 (한 번, 터미널 하나에서):
+
+```bash
+psql -X -d postgres -Atc "SELECT count(*) FROM pg_stat_activity WHERE datname = 'antlab' AND pid <> pg_backend_pid()"   # 0이어야 복사된다 (VS Code SQL 확장 접속도 센다)
+createdb -T antlab antlab_lab
+# ... 실습 ...
+dropdb antlab_lab        # 끝나면 지운다 (실습 A′는 일부러 원장 합 ≠ 잔액을 만든다)
+```
+
+VS Code 통합 터미널을 둘로 나눈다(`Cmd` + `\`). 두 터미널 모두 저장소 루트에서 `psql -X -d antlab_lab`로 접속하고 각 세션에서 아래 준비를 한다(임시 함수는 세션마다 읽어야 한다). 금액은 화면에 내지 않는다 — 비용은 `\gset`으로 변수에 담고, 판정은 `t`/`f`와 SQLSTATE로만 본다. 비용은 "현재 주문 가능 금액의 60%"라 두 주문의 합이 잔액을 넘는다.
+
+```sql
+\set VERBOSITY terse
+\ir db/21_team_buy_def.sql
+SELECT s.id AS sid FROM season s JOIN member m ON m.id = s.member_id WHERE lower(m.email) = lower('phase0@example.invalid') \gset
+SELECT floor((balance - reserved) * 0.6) AS cost FROM cash_account WHERE season_id = :sid \gset
+SELECT a.id AS aid FROM asset a WHERE a.market = 'KR' AND a.ticker = '411060' \gset
+SELECT tp.price AS price, pg_temp.buy_rate('KR', s.fee_rate_kr, s.fee_rate_us, s.fx_spread_rate) AS rate
+FROM turn_price tp JOIN season s ON s.id = tp.season_id WHERE tp.season_id = :sid AND tp.turn_no = 0 AND tp.asset_id = :aid \gset
+SELECT pg_temp.team_qty(:cost, :price, :rate) AS q \gset
+```
+
+**시나리오 A — 잠금 없음 (손 SQL, 함수를 쓰지 않는다).** 터미널 1(T1)을 먼저, 1–2초 뒤 터미널 2(T2)를 실행한다.
+
+```sql
+-- T1
+BEGIN;
+SELECT (balance - reserved >= :cost) AS enough FROM cash_account WHERE season_id = :sid;      -- t
+SELECT balance AS bal FROM cash_account WHERE season_id = :sid \gset
+UPDATE cash_account SET balance = balance - :cost WHERE season_id = :sid;
+INSERT INTO cash_ledger (season_id, type, amount, balance_after, ref_order_id) VALUES (:sid, 'ADJUSTMENT', -(:cost), (:bal) - (:cost), NULL);
+-- (잠시 멈춘다: 10초쯤 기다린 뒤 T2를 실행하고 돌아와서)
+COMMIT;
+
+-- T2
+BEGIN;
+SELECT (balance - reserved >= :cost) AS enough FROM cash_account WHERE season_id = :sid;      -- t (T1이 아직 커밋 전이라 같은 잔액을 본다)
+UPDATE cash_account SET balance = balance - :cost WHERE season_id = :sid;                     -- 여기서 기다린다. T1이 커밋하면 최신 행으로 다시 계산해 ERROR 23514
+ROLLBACK;
+```
+
+**A′ (선택) — 절대값을 쓰면.** T2의 `UPDATE`를 `UPDATE cash_account SET balance = (:bal) - (:cost) ...`로 바꾸고 `COMMIT` 앞에 T1처럼 원장 행을 넣는다. T2는 다른 세션이라 `:bal`이 없으므로, T2의 첫 `SELECT` 뒤(T1이 커밋하기 전)에 `SELECT balance AS bal FROM cash_account WHERE season_id = :sid \gset`를 먼저 실행한다(`INSERT INTO cash_ledger (season_id, type, amount, balance_after, ref_order_id) VALUES (:sid, 'ADJUSTMENT', -(:cost), (:bal) - (:cost), NULL);`). 앞에서 읽은 값을 그대로 쓰는 모양은 JPA 변경 감지가 쓰는 모양이다. 오류 없이 커밋되고, 끝난 뒤 `Σ amount = balance`가 `f`다(잃어버린 갱신).
+
+**시나리오 B — 잠금 있음 (함수).** T1은 `BEGIN; SELECT pg_temp.order_buy(:sid, 0::smallint, :aid, :q, 'DEFENDER');` 뒤 멈추고 T2가 같은 문장을 부른다. T2는 첫 문장(`season ... FOR UPDATE`)에서 기다린다(프롬프트가 돌아오지 않는다). T1이 `COMMIT;`하면 T2가 커밋된 최신 잔액을 읽고 `INSUFFICIENT_CASH`(P0001)로 `INSERT` 전에 실패한다. T2는 `ROLLBACK;`한다.
+
+**시나리오 C (선택) — 교착.** T1: `BEGIN; SELECT 1 FROM cash_account WHERE season_id = :sid FOR UPDATE;` 잠시 뒤 `SELECT 1 FROM season WHERE id = :sid FOR UPDATE;`. T2: `BEGIN; SELECT 1 FROM season WHERE id = :sid FOR UPDATE;` 잠시 뒤 `SELECT 1 FROM cash_account WHERE season_id = :sid FOR UPDATE;`. 서로 상대가 가진 잠금을 기다리다 `deadlock_timeout`(기본 1초) 뒤 한쪽이 `40P01`로 끊긴다.
+
+끝난 뒤 보는 쿼리(각 시나리오가 끝나면 이 쿼리로 확인한다. 다음 시나리오 전에 두 세션을 끝내고(`\q`) `dropdb antlab_lab` → `createdb -T antlab antlab_lab` → 다시 접속해 준비 블록을 다시 실행한다):
+
+```sql
+SELECT (ca.balance >= 0) AS balance_nonneg,
+       (ca.balance = (SELECT sum(amount) FROM cash_ledger l WHERE l.season_id = ca.season_id)) AS sum_ledger_eq_balance
+FROM cash_account ca WHERE ca.season_id = :sid;
+```
+
+**실습 기록** (2026-11-08, PostgreSQL 17.11, 격리 프로젝트의 복사 DB. 값 없이 `t`/`f`·SQLSTATE·제약 이름만 적는다):
+
+| 시나리오 | T1 | T2 | 끝난 뒤 `balance ≥ 0` · `Σ 원장 = 잔액` | 교훈 |
+|---|---|---|---|---|
+| A 잠금 없음 | 충분(`t`) → 갱신 → 커밋 | 충분(`t`, 같은 잔액을 봄) → `UPDATE`가 T1 커밋까지 기다림 → 최신 행으로 다시 계산해 `23514` `ck_cash_account_balance_nonneg`, 전체 `ROLLBACK` | `t` · `t` | 일반 `SELECT`는 잠그지 않는다. CHECK가 돈을 지켰지만 마지막 문장에서야 막았다. 앱은 이미 "충분하다"고 판단했다 |
+| A′ 절대값 | 같음 | 기다린 뒤 오류 없이 커밋(`00000`, 원장 행도 넣음) | `t` · `f` | 잃어버린 갱신은 CHECK도 못 잡는다. 비관적 락 또는 `@Version`이 필요하다(SPRING_JPA §5.3) |
+| B 잠금 있음 | `order_buy` 성공 → 커밋 | `season ... FOR UPDATE`에서 기다림(`t`) → 커밋된 최신 잔액을 읽고 `P0001` `INSUFFICIENT_CASH`(`INSERT` 전, 새 행 0) | `t` · `t` (새 매수 주문 1건) | 잠금은 줄 세우기다. 오류가 검증 단계에서 깔끔하게 난다 |
+| C 교착 | 한쪽(이번에는 T1)이 `40P01` deadlock detected | 다른 쪽은 진행·커밋 | `t` · `t` | 잠금 순서를 바꾸면 교착이 생긴다. 고정 순서 `season` → `cash_account`가 규칙인 이유 |
+
+소유자가 직접 해 본 결과는 학습 노트의 연습 답에 적는다(저장소 밖).
+
+**시즌 계좌 쓰기의 잠금 순서 규칙.** 시즌 계좌 5개 테이블(`cash_account`·`orders`·`execution`·`holding`·`cash_ledger`)과 `lineup`에 쓰는 SQL은 모두 먼저 `season` 행을 `FOR UPDATE`로 잠그고, 그다음 `cash_account`를 잠근다. 턴 전환(P0-17)·전술 변경과 매매(P0-19)도 같은 순서다. 검증 파일의 음성 사례(끝에 `ROLLBACK`하는 한 트랜잭션 안의 `UPDATE`)와 (f)의 실습 A·A′·C(일부러 어기는 시연)는 동시에 매수를 돌리지 않는 실습·복사 DB에서만 이 규칙의 예외다. 격리 수준이 REPEATABLE READ 이상이면 같은 순서에서도 둘째 트랜잭션이 `40001`로 실패하고 재시도가 필요하다(`order_buy`는 READ COMMITTED가 아니면 `ISOLATION_LEVEL`로 멈춘다).
+
+**(g) 잔액 부족 실습 — 한 세션.** 매수 한 건은 함수 하나라 원자적이다. 위 준비(`\gset`까지)에 이어 복사 DB에서 한다.
+
+```sql
+-- 주문 가능 금액 ÷ 체결가 + 1주 (\gset 줄 끝에는 주석을 달지 않는다 — 인자로 읽힌다)
+SELECT floor((balance - reserved) / :price) + 1 AS q_big FROM cash_account WHERE season_id = :sid \gset
+SELECT (SELECT count(*) FROM orders) AS orders, (SELECT count(*) FROM execution) AS execution, (SELECT count(*) FROM holding) AS holding,
+       (SELECT count(*) FROM cash_ledger) AS ledger, (SELECT count(*) FROM lineup) AS lineup, (SELECT last_value FROM orders_id_seq) AS orders_identity;
+BEGIN;
+SELECT pg_temp.order_buy(:sid, 0::smallint, :aid, :q_big, 'DEFENDER');       -- ERROR: INSUFFICIENT_CASH (P0001)
+ROLLBACK;
+-- 위 행 수 쿼리를 다시 실행한다: 모두 그대로이고 identity 마지막 값도 그대로다 (잔액 검사가 INSERT 앞이라 번호표를 쓰지 않는다)
+
+-- SAVEPOINT 변형: 앞의 정상 매수는 남기고 실패한 매수만 되돌린다
+BEGIN;
+SELECT pg_temp.order_buy(:sid, 0::smallint, :aid, 1, 'DEFENDER');            -- 성공
+SAVEPOINT s1;
+SELECT pg_temp.order_buy(:sid, 0::smallint, :aid, :q_big, 'DEFENDER');       -- ERROR: INSUFFICIENT_CASH
+ROLLBACK TO SAVEPOINT s1;
+COMMIT;                                                                      -- 1주 매수만 남는다 (orders +1)
+```
+
+대금 + 수수료가 주문 가능 금액과 **정확히 같으면** 통과하고 잔액이 0이 된다. 1원 모자라면 `INSUFFICIENT_CASH`다. 이 경계는 실제 `INSERT`가 필요해 검증 파일에 없고 복사 DB에서 합성 상태로 확인한다(`ADJUSTMENT` 1행으로 잔액을 그 금액에 맞춘 뒤 `order_buy` 한 번). 순수 경계(`buy_affordable`)는 검증 10절이 본다.
 
 ## 결과 읽는 법
 
@@ -346,3 +481,11 @@ FAIL이 하나라도 있으면 오류 메시지와 함께 종료 코드 3으로 
 - `기준일 풀의 판정이 비어 있다 … 12 계산을 먼저`로 멈추면 `db/12_calc_position.sql`을 먼저 실행하지 않은 것이다(또는 판정 불능 종목이 남았다). 아무것도 넣지 않고 종료 코드 3으로 끝난다.
 - `이미 있는 시즌이 이 파일과 어긋난다`로 멈추면 DB의 시즌이 파일의 설정·경로·개설 입금·0턴 가격과 다르다. 값 정정은 하지 않는다. 설정을 바꾸는 방법은 (b‴)를 본다.
 - 검증은 마지막 줄 `p0_14_check`가 `PASS`이면 통과다. 0절 전제가 FAIL이면(12 판정이 비었거나 연습 시즌이 없으면) 결과 표를 보여 주고 바로 멈춘다. 이후 읽는 법은 11·13·14 검증과 같다(절별 집계 → FAIL 행 → 커버리지 `20/20` → 판정).
+
+**팀 구성(`21_team_buy.sql`)과 검증(`21_team_buy_check.sql`).** 종료 코드가 0이고 `ERROR`가 없으면 성공이다. 결과 표 두 개가 나온다 — 첫째는 상태(`새로 삼`·`이어서 삼`·`이미 같은 팀 (새 행 없음)`)와 줄 수·이번에 산 줄 수·테이블별로 늘어난 행 수(처음 실행: 주문·체결·보유·라인업 각 8, 원장 16 — 수수료가 0이면 `FEE` 행이 없어 줄어든다, 계좌 갱신 8. 다시 실행하면 모두 0), 둘째는 팀 주문 수·열린 라인업 수·`FEE` 원장 행 수·명단과의 차이 건수(0이어야 한다)다. 가격·수량·금액·비중은 출력하지 않는다.
+
+- 검증은 마지막 줄 `p0_15_check`가 `PASS`이면 통과다. 0절 전제가 FAIL이면(21을 먼저 실행하지 않았거나 20·12가 없으면) 결과 표를 보여 주고 바로 멈춘다. 이후 읽는 법은 20 검증과 같다(절별 집계 → FAIL 행 → 커버리지 `22/22` → 판정). 절은 00 전제, 01 팀, 02 수량, 03 체결, 04 원장, 05 보유, 06 라인업, 07 포메이션, 08 잔액, 09 함수, 10 단위, 11 정보, 12 판정이다.
+- 규칙은 "팀을 구성한 뒤 언제나 참"인 것만 둔다. 그래서 턴 진행(P0-17)·매매(P0-19) 뒤에도, 잔액이 0인 DB에서도 `PASS`다. 팀 직후에만 참인 것(보유 수량 = 팀 수량, 열린 라인업 수)은 11절 정보 행으로만 낸다.
+- 함수 오류 종류는 HINT로 가린다: `SEASON_NOT_ACTIVE` · `TURN_MISMATCH` · `ASSET_NOT_IN_POOL` · `INVALID_QUANTITY` · `INSUFFICIENT_CASH` · `POSITION_CONFLICT` · `LEDGER_MISMATCH`(Java 도메인 예외 이름과 짝)와 인자·환경 오류 `INVALID_ARGUMENT` · `ISOLATION_LEVEL`. 메시지에 금액·가격이 없다.
+- 팀 구성 뒤에도 01·02·03(적재가 없는 `antlab_test`)·10·11·12·13·14 검증과 20 시즌 시작(재실행 새 행 0)·20 검증은 그대로 `PASS`다. 21은 `holding`·`lineup`·`cash_*`·`orders`·`execution`을 쓰지만 판정(`asset_position`)은 읽기만 한다.
+- `\ir`은 psql 메타 명령이라 명령줄이 기준이다. VS Code에서는 통합 터미널(`Ctrl` + `` ` ``)에서 실행한다.
