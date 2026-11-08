@@ -25,8 +25,8 @@
 
 - **DB:** PostgreSQL 17, 스키마는 `public` 하나(D21). DB는 `ENCODING 'UTF8'`로 만든다(구체 명령은 DDL 기능의 `db/README.md`).
 - **키:** 모든 테이블은 대리 키 `id BIGINT GENERATED ALWAYS AS IDENTITY`를 쓰고 PK 이름은 `pk_{테이블}`이다. 자연 키(적재에 쓰는 코드)는 `UNIQUE`로만 둔다. 예외는 `cash_account`(7.3, PK = `season_id`, 식별 1:1)이다(D12, v1 D6).
-- **금액:** `NUMERIC(19,4)`(가격·현금·대금·평가액·원장·환율 수준). 원 단위 정수 CHECK(`col = ROUND(col, 0)`, v1 D1)는 **원화 금액**에만 건다(6절·7절의 테이블, 단 `holding.avg_price`·`execution.realized_pnl`은 소수 4자리를 저장하므로 제외). PostgreSQL `NUMERIC`은 `'NaN'`을 받고 NaN은 자기와 같고 어떤 수보다도 크게 비교되므로, 7절의 금액 CHECK는 `col <> 'NaN'::numeric`을 함께 둔다(D32). 5·6절에는 아직 없다(후속 이슈 #32). 5절의 8개 테이블에서 금액은 `asset_position.base_price`(현지 통화라 원 단위 CHECK 없음)와 `base_fx_rate` 둘이다.
-- **비율:** 수익률·환율 변화·변동성·최대 낙폭·참여율·z-score·강도처럼 **금액이 아닌 비율은 모두 `NUMERIC(12,8)`** 하나다(D20). 확률만 `NUMERIC(5,4)`, 포메이션 비중은 `SMALLINT`(6.3 `season`)이다. 엔진 메모리에서 비율을 `float64`로 다루는 것은 PLAN §5.2의 "금지의 범위"에 따르며, 저장값은 이 타입이다. 정수 4자리를 넘는 값은 22003으로 거부된다 — 분모가 0에 가까운 계산은 계산 기능이 처리 규칙을 정한다(임의 0 대입·무통보 절단 금지).
+- **금액:** `NUMERIC(19,4)`(가격·현금·대금·평가액·원장·환율 수준). 원 단위 정수 CHECK(`col = ROUND(col, 0)`, v1 D1)는 **원화 금액**에만 건다(6절·7절의 테이블, 단 `holding.avg_price`·`execution.realized_pnl`은 소수 4자리를 저장하므로 제외). PostgreSQL `NUMERIC`은 `'NaN'`을 받고 NaN은 자기와 같고 어떤 수보다도 크게 비교되므로, 5·6·7절의 `NUMERIC` 컬럼(금액·비율·대사 값)은 NaN을 거부한다 — 값 CHECK에 `col <> 'NaN'::numeric`을 함께 두고, 값 CHECK가 없는 컬럼은 테이블마다 NaN 전용 CHECK 하나를 둔다(D32). 상한이 있는 `BETWEEN`·`< 1`·`IN` 목록 CHECK는 NaN에서 거짓이라 그대로 둔다. 무한대는 정밀도 지정 `NUMERIC`이 22003으로 거부한다. 5절의 8개 테이블에서 금액은 `asset_position.base_price`(현지 통화라 원 단위 CHECK 없음)와 `base_fx_rate` 둘이다.
+- **비율:** 수익률·환율 변화·변동성·최대 낙폭·참여율·z-score·강도처럼 **금액이 아닌 비율은 모두 `NUMERIC(12,8)`** 하나다(D20). 확률만 `NUMERIC(5,4)`, 포메이션 비중은 `SMALLINT`(6.3 `season`)이다. 엔진 메모리에서 비율을 `float64`로 다루는 것은 PLAN §5.2의 "금지의 범위"에 따르며, 저장값은 이 타입이다. 정수 4자리를 넘는 값은 22003으로 거부된다 — 분모가 0에 가까운 계산은 계산 기능이 처리 규칙을 정한다(임의 0 대입·무통보 절단 금지). NaN 거부는 금액과 같다(D32).
 - **금지 타입:** `DOUBLE PRECISION`, `REAL`, `FLOAT`를 컬럼 타입으로 쓰지 않는다(금액은 PLAN §5.2, 비율은 저장값을 정확한 소수로 두기 위해).
 - **정수:** 작은 수(순위·개월 수·연속 수·강도 단계)는 `SMALLINT`, 수량은 `INTEGER`(7.3), 키는 `BIGINT`.
 - **문자열:** 모두 `VARCHAR(n)`. 고정 길이 `CHAR` 타입은 쓰지 않는다 — PostgreSQL의 `CHAR`는 뒤 공백을 채우고 비교에서 무시한다(PostgreSQL 17.11에서 확인). Hibernate `validate`가 `bpchar`를 `varchar`와 다른 타입으로 보고 시작을 거부한다는 부분만 **실행 확인 필요** — MVP. 비교는 DB 기본(결정적) 콜레이션이라 대소문자·뒤 공백을 구분하므로 별도 콜레이션을 지정하지 않는다.
@@ -422,15 +422,15 @@ erDiagram
 | PK | 기준일 종목번호 | id | BIGINT | NN | IDENTITY | `[내부]` `pk_asset_position` |
 | FK | 종목번호 | asset_id | BIGINT | NN | | `[내부]` → asset.id (R2). `fk_asset_position_asset`. `uq_asset_position_asset_base_date (asset_id, base_date)`의 앞 컬럼이라 FK 인덱스를 겸한다 |
 | | 기준일 | base_date | DATE | NN | | `[내부]` 매년 1월 첫 거래일(PLAN §7). `idx_asset_position_base_date (base_date)` — 기준일의 풀 전체 조회 |
-| | 기준일 가격 | base_price | NUMERIC(19,4) | NN | | `[노출]` (0턴 가격으로) 기준일 실제 종가, **현지 통화**(Q8). `ck_asset_position_base_price`: `base_price > 0`. 원 단위 CHECK는 없다(달러 가격은 센트 단위) |
-| | 기준일 환율 | base_fx_rate | NUMERIC(19,4) | NN | | `[내부]` 기준일 환율(현지 통화 1단위당 원). KRW 종목은 1. `ck_asset_position_base_fx_rate`: `base_fx_rate > 0`. 같은 기준일·통화의 행끼리 같아야 한다는 규칙은 DDL로 못 막는다 → 검증 규칙 H1 |
+| | 기준일 가격 | base_price | NUMERIC(19,4) | NN | | `[노출]` (0턴 가격으로) 기준일 실제 종가, **현지 통화**(Q8). `ck_asset_position_base_price`: `base_price > 0 AND base_price <> 'NaN'::numeric`. 원 단위 CHECK는 없다(달러 가격은 센트 단위) |
+| | 기준일 환율 | base_fx_rate | NUMERIC(19,4) | NN | | `[내부]` 기준일 환율(현지 통화 1단위당 원). KRW 종목은 1. `ck_asset_position_base_fx_rate`: `base_fx_rate > 0 AND base_fx_rate <> 'NaN'::numeric`. 같은 기준일·통화의 행끼리 같아야 한다는 규칙은 DDL로 못 막는다 → 검증 규칙 H1 |
 | | 시가총액 순위 | market_cap_rank | SMALLINT | NULL | | `[내부]` 기준일 시가총액의 **시장 내** 순위(Q12, 타겟형 판정 PLAN §4.10). ETF는 NULL. `ck_asset_position_market_cap_rank`: `market_cap_rank IS NULL OR market_cap_rank > 0`. "상위"의 경계는 P0-10(PLAN §14) |
 | | 판정 창 첫 달 | window_start | DATE | NULL | | `[내부]` 판정에 쓴 창의 첫 달(달의 1일) |
 | | 판정 창 마지막 달 | window_end | DATE | NULL | | `[내부]` 판정 창의 마지막 달(달의 1일). `ck_asset_position_window`: `window_start <= window_end AND window_end < date_trunc('month', base_date::timestamp)::date` — 마지막 달이 기준일이 속한 달보다 앞이어야 한다(기준일 달의 수익률은 기준일 이후 정보를 포함하므로 사후 정보 배제, PLAN §4.5). `::timestamp` 캐스트는 시간대에 따라 결과가 달라지는 `timestamptz` 오버로드 대신 IMMUTABLE 오버로드를 고르게 한다. 기준일 바로 전 달인지는 CHECK가 아니라 검증 규칙 H2가 본다. `ck_asset_position_window_month_start`: 두 값 모두 달의 1일 |
 | | 사용한 달 수 | months_used | SMALLINT | NULL | | `[내부]` 창 안에서 실제로 쓴 달 수(초안 36, PLAN §4.10·§14). `ck_asset_position_months_used`: `months_used > 0` |
-| | 상승장 참여율 | up_participation | NUMERIC(12,8) | NULL | | `[노출]` 시장이 오른 달의 종목 평균 수익률 ÷ 시장 평균 수익률. **원화 기준** — 미국 종목은 (1+r현지)(1+r환율) − 1로 계산한다(PLAN §4.10 "시장 지수, 원화") |
-| | 하락장 참여율 | down_participation | NUMERIC(12,8) | NULL | | `[노출]` 같은 방식. "시장이 빠진 달"의 기준은 P0-10 |
-| | 변동성 | volatility | NUMERIC(12,8) | NULL | | `[노출]` 월 수익률의 표본 표준편차(원화 기준, 연율화하지 않음 — 바꾸면 P0-10이 이 문장을 고친다). `ck_asset_position_volatility`: `volatility >= 0` |
+| | 상승장 참여율 | up_participation | NUMERIC(12,8) | NULL | | `[노출]` 시장이 오른 달의 종목 평균 수익률 ÷ 시장 평균 수익률. **원화 기준** — 미국 종목은 (1+r현지)(1+r환율) − 1로 계산한다(PLAN §4.10 "시장 지수, 원화"). `ck_asset_position_participation_not_nan`: `up_participation <> 'NaN'::numeric AND down_participation <> 'NaN'::numeric`(NULL 통과, D32) |
+| | 하락장 참여율 | down_participation | NUMERIC(12,8) | NULL | | `[노출]` 같은 방식. "시장이 빠진 달"의 기준은 P0-10 (NaN은 위 CHECK) |
+| | 변동성 | volatility | NUMERIC(12,8) | NULL | | `[노출]` 월 수익률의 표본 표준편차(원화 기준, 연율화하지 않음 — 바꾸면 P0-10이 이 문장을 고친다). `ck_asset_position_volatility`: `volatility >= 0 AND volatility <> 'NaN'::numeric` |
 | | 최대 낙폭 | max_drawdown | NUMERIC(12,8) | NULL | | `[노출]` 창 안 최대 낙폭, **0 이하 소수**(−0.35 = −35%). `ck_asset_position_max_drawdown`: `max_drawdown BETWEEN -1 AND 0` |
 | | 시스템 판정 포지션 | system_position | VARCHAR(17) | NULL | | `[노출]` `ck_asset_position_system_position`: `IN ('GOALKEEPER','DEFENDER','MIDFIELDER','FORWARD_TARGET','FORWARD_BREAKOUT','FORWARD_DEFENSIVE')`. **6.3 `lineup` 선언 포지션과 글자 단위로 같은 목록**(SPRING_JPA §4.1). 포메이션 4분류는 `FORWARD_*`를 공격으로 묶는다 |
 | | 생성일시 | created_at | TIMESTAMPTZ | NN | now() | `[내부]` |
@@ -449,7 +449,7 @@ erDiagram
 | | 성장 방향 | growth_dir | VARCHAR(7) | NULL | | `[노출]` `ck_month_block_growth_dir`: 같은 목록 |
 | | 환율 방향 | fx_dir | VARCHAR(7) | NULL | | `[노출]` `ck_month_block_fx_dir`: 같은 목록 |
 | | 심리 방향 | sentiment_dir | VARCHAR(7) | NULL | | `[노출]` `ck_month_block_sentiment_dir`: 같은 목록 |
-| | 금리 강도 | rate_strength | NUMERIC(12,8) | NULL | | `[노출]` 이동 z-score의 절댓값(PLAN §4.4 "변환값만"). `ck_month_block_rate_pair`: 방향과 강도는 함께 NULL이거나 함께 값이 있고 강도 ≥ 0 |
+| | 금리 강도 | rate_strength | NUMERIC(12,8) | NULL | | `[노출]` 이동 z-score의 절댓값(PLAN §4.4 "변환값만"). `ck_month_block_rate_pair`: 방향과 강도는 함께 NULL이거나 함께 값이 있고 강도 ≥ 0이고 NaN 아님(D32) |
 | | 성장 강도 | growth_strength | NUMERIC(12,8) | NULL | | `[노출]` `ck_month_block_growth_pair`: 같은 규칙 |
 | | 환율 강도 | fx_strength | NUMERIC(12,8) | NULL | | `[노출]` `ck_month_block_fx_pair`: 같은 규칙 |
 | | 심리 강도 | sentiment_strength | NUMERIC(12,8) | NULL | | `[노출]` `ck_month_block_sentiment_pair`: 같은 규칙 |
@@ -475,7 +475,7 @@ erDiagram
 | PK | 수익률번호 | id | BIGINT | NN | IDENTITY | `[내부]` `pk_asset_month_return` |
 | FK | 종목번호 | asset_id | BIGINT | NN | | `[내부]` → asset.id (R3). `fk_asset_month_return_asset`. `uq_asset_month_return_asset_month (asset_id, month_block_id)`의 앞 컬럼이라 FK 인덱스를 겸한다(종목별 달 순서 조회) |
 | FK | 월 블록번호 | month_block_id | BIGINT | NN | | `[내부]` → month_block.id (R4). `fk_asset_month_return_month_block`, `idx_asset_month_return_month_block (month_block_id)` — 턴 진행: 한 달의 풀 전체 |
-| | 현지 통화 월 수익률 | local_return | NUMERIC(12,8) | NN | | `[노출]` (턴 결과로) **현지 통화** 월 수익률(Q3). 기준은 `asset.return_basis`. `ck_asset_month_return_local_return`: `local_return >= -1` |
+| | 현지 통화 월 수익률 | local_return | NUMERIC(12,8) | NN | | `[노출]` (턴 결과로) **현지 통화** 월 수익률(Q3). 기준은 `asset.return_basis`. `ck_asset_month_return_local_return`: `local_return >= -1 AND local_return <> 'NaN'::numeric` |
 | | 수익률 종류 | return_kind | VARCHAR(11) | NN | 'ACTUAL' | `[노출]` (이력 비율로) **턴별로 노출하지 않는다 — 종목 전체의 `ACTUAL` 비율만 나간다**(상장 전 달임이 곧 날짜 단서: ETF 상장일은 공개 정보라 "이번 달은 대체 지수"가 보이면 연도의 상한이 샌다). `ck_asset_month_return_return_kind`: `return_kind IN ('ACTUAL','PROXY_INDEX')`. `PROXY_INDEX` = 상장 전 달의 추종 지수 수익률에서 보수/12를 뺀 값(PLAN §4.6·§4.7 — Phase 0 정의, MVP 확장 구간에서 넓히는 뜻은 §9 MVP). EXT에 합성 대체 수익률 값을 더한다. "이력 62%" 표시(PLAN §4.7)의 근거 |
 | | 생성일시 | created_at | TIMESTAMPTZ | NN | now() | `[내부]` |
 
@@ -488,7 +488,7 @@ erDiagram
 | PK | 환율번호 | id | BIGINT | NN | IDENTITY | `[내부]` `pk_fx_month` |
 | FK | 월 블록번호 | month_block_id | BIGINT | NN | | `[내부]` → month_block.id (R5). `fk_fx_month_month_block`. `uq_fx_month_month_block_currency (month_block_id, currency)`의 앞 컬럼이라 FK 인덱스를 겸한다 |
 | | 통화 | currency | VARCHAR(3) | NN | | `[내부]` `ck_fx_month_currency`: `currency IN ('USD')` — MVP는 달러뿐이며 통화가 늘면 목록만 바꾼다. `asset.currency`와 같은 코드 |
-| | 환율 변화율 | fx_change | NUMERIC(12,8) | NN | | `[노출]` (환율 축·통계 보드) 그 통화 1단위의 원화 가격 월말 대비 변화율(FRED `DEXKOUS` 월말 관측치, PLAN §7). `ck_fx_month_fx_change`: `fx_change > -1` |
+| | 환율 변화율 | fx_change | NUMERIC(12,8) | NN | | `[노출]` (환율 축·통계 보드) 그 통화 1단위의 원화 가격 월말 대비 변화율(FRED `DEXKOUS` 월말 관측치, PLAN §7). `ck_fx_month_fx_change`: `fx_change > -1 AND fx_change <> 'NaN'::numeric` |
 | | 생성일시 | created_at | TIMESTAMPTZ | NN | now() | `[내부]` |
 
 - 환율 **수준**은 저장하지 않는다(저장소에는 파생 변화율만 둔다). 예외는 기준일 환율 하나(`asset_position.base_fx_rate`)이다.
@@ -506,7 +506,7 @@ erDiagram
 | | 결과 | outcome | VARCHAR(20) | NULL | | `[노출]` (유형 표본 수 3 이상일 때만) 결과 코드(정권 교체 `CHANGE`/유지 `KEEP`, 과반 상실 `MAJORITY_LOST`/유지 `MAJORITY_KEPT`, 관세 `IMPOSED`/`RETALIATED`/`AGREED`, 분쟁 `ESCALATED`/`CEASEFIRE` …). `ck_month_event_outcome_format`: `outcome IS NULL OR outcome ~ '^[A-Z][A-Z_]*$'`. 유형별 허용 값은 `events/README.md` |
 | | 방향 | direction | VARCHAR(4) | NULL | | `[노출]` (유형 표본 수 3 이상일 때만) 대상의 방향(유가 +/−). `ck_month_event_direction`: `direction IN ('UP','DOWN')`(NULL 통과) |
 | | 강도 단계 | strength | SMALLINT | NN | | `[노출]` 1–3단계(그 달의 시장 반응 변화율 기준, 절댓값 5%·10% 경계 — events/README.md, P0-09). `ck_month_event_strength`: `strength BETWEEN 1 AND 3` |
-| | 반응 변화율 | reaction_change | NUMERIC(12,8) | NULL | | `[노출]` 카드에 보이는 변화율("이 달 유가 +28%" → 0.28, PLAN §4.11 "변화율은 보여 준다"). `ck_month_event_reaction_change`: `reaction_change IS NULL OR reaction_change >= -1` |
+| | 반응 변화율 | reaction_change | NUMERIC(12,8) | NULL | | `[노출]` 카드에 보이는 변화율("이 달 유가 +28%" → 0.28, PLAN §4.11 "변화율은 보여 준다"). `ck_month_event_reaction_change`: `reaction_change IS NULL OR (reaction_change >= -1 AND reaction_change <> 'NaN'::numeric)` |
 | | 실제 이름 | title | VARCHAR(100) | NN | | `[복기 전용]` 실제 이름("리먼 브러더스 파산") |
 | | 출처 | source | VARCHAR(500) | NN | | `[복기 전용]` URL 또는 서지 |
 | | 사후 평가 | hindsight | VARCHAR(300) | NULL | | `[복기 전용]` 나중에 붙은 이름·사후 평가("대침체", PLAN §4.11) |
@@ -531,6 +531,7 @@ erDiagram
 
 - `attention_z`·`streak`·`attention_index`는 **종목 자신의 수익률만으로 계산한다(풀 구성과 무관)**. 순위는 저장하지 않는다 — 풀은 기준일마다 바뀌므로 순위는 풀 상대값이다("변동성 상위 20%"와 같은 원칙). 시즌 기준일의 `asset_position` 풀로 걸러 `RANK() OVER (PARTITION BY month_block_id ORDER BY attention_index DESC)`로 조회하고 동률 규칙은 P0-11이 정한다.
 - 사후 정보 배제(PLAN §4.5): 모든 값은 그 달까지의 수익률로만 계산한다(P0-11 테스트, 검증 규칙 H8). 그룹 관심 지수는 저장하지 않고 소속 종목 평균으로 조회한다(PLAN §4.13, §5.1 "통계 보드 테이블 없음"과 같은 방침). 거래량 z-score는 EXT 컬럼이다.
+- `ck_asset_month_attention_not_nan`: `attention_z <> 'NaN'::numeric AND attention_index <> 'NaN'::numeric` — 두 값은 NaN이 아니다(NULL 통과, D32).
 
 ### 5.4 제약과 인덱스
 
@@ -556,13 +557,14 @@ erDiagram
 | pk_asset_position | PK | asset_position | (id) |
 | uq_asset_position_asset_base_date | UQ | asset_position | (asset_id, base_date) |
 | fk_asset_position_asset | FK | asset_position | (asset_id) → asset.id (R2) |
-| ck_asset_position_base_price | CK | asset_position | base_price > 0 |
-| ck_asset_position_base_fx_rate | CK | asset_position | base_fx_rate > 0 |
+| ck_asset_position_base_price | CK | asset_position | base_price > 0 AND base_price <> 'NaN'::numeric |
+| ck_asset_position_base_fx_rate | CK | asset_position | base_fx_rate > 0 AND base_fx_rate <> 'NaN'::numeric |
 | ck_asset_position_market_cap_rank | CK | asset_position | market_cap_rank IS NULL OR market_cap_rank > 0 |
 | ck_asset_position_window | CK | asset_position | window_start <= window_end AND window_end < date_trunc('month', base_date::timestamp)::date |
 | ck_asset_position_window_month_start | CK | asset_position | EXTRACT(DAY FROM window_start) = 1 AND EXTRACT(DAY FROM window_end) = 1 |
 | ck_asset_position_months_used | CK | asset_position | months_used > 0 |
-| ck_asset_position_volatility | CK | asset_position | volatility >= 0 |
+| ck_asset_position_participation_not_nan | CK | asset_position | up_participation <> 'NaN'::numeric AND down_participation <> 'NaN'::numeric |
+| ck_asset_position_volatility | CK | asset_position | volatility >= 0 AND volatility <> 'NaN'::numeric |
 | ck_asset_position_max_drawdown | CK | asset_position | max_drawdown BETWEEN -1 AND 0 |
 | ck_asset_position_system_position | CK | asset_position | system_position IN ('GOALKEEPER','DEFENDER','MIDFIELDER','FORWARD_TARGET','FORWARD_BREAKOUT','FORWARD_DEFENSIVE') |
 | ck_asset_position_judgment_all_or_none | CK | asset_position | num_nulls(window_start, window_end, months_used, up_participation, down_participation, volatility, max_drawdown, system_position) IN (0, 8) |
@@ -574,10 +576,10 @@ erDiagram
 | ck_month_block_growth_dir | CK | month_block | growth_dir IN ('UP','DOWN','NEUTRAL') |
 | ck_month_block_fx_dir | CK | month_block | fx_dir IN ('UP','DOWN','NEUTRAL') |
 | ck_month_block_sentiment_dir | CK | month_block | sentiment_dir IN ('UP','DOWN','NEUTRAL') |
-| ck_month_block_rate_pair | CK | month_block | (rate_dir IS NULL) = (rate_strength IS NULL) AND (rate_strength IS NULL OR rate_strength >= 0) |
-| ck_month_block_growth_pair | CK | month_block | (growth_dir IS NULL) = (growth_strength IS NULL) AND (growth_strength IS NULL OR growth_strength >= 0) |
-| ck_month_block_fx_pair | CK | month_block | (fx_dir IS NULL) = (fx_strength IS NULL) AND (fx_strength IS NULL OR fx_strength >= 0) |
-| ck_month_block_sentiment_pair | CK | month_block | (sentiment_dir IS NULL) = (sentiment_strength IS NULL) AND (sentiment_strength IS NULL OR sentiment_strength >= 0) |
+| ck_month_block_rate_pair | CK | month_block | (rate_dir IS NULL) = (rate_strength IS NULL) AND (rate_strength IS NULL OR (rate_strength >= 0 AND rate_strength <> 'NaN'::numeric)) |
+| ck_month_block_growth_pair | CK | month_block | (growth_dir IS NULL) = (growth_strength IS NULL) AND (growth_strength IS NULL OR (growth_strength >= 0 AND growth_strength <> 'NaN'::numeric)) |
+| ck_month_block_fx_pair | CK | month_block | (fx_dir IS NULL) = (fx_strength IS NULL) AND (fx_strength IS NULL OR (fx_strength >= 0 AND fx_strength <> 'NaN'::numeric)) |
+| ck_month_block_sentiment_pair | CK | month_block | (sentiment_dir IS NULL) = (sentiment_strength IS NULL) AND (sentiment_strength IS NULL OR (sentiment_strength >= 0 AND sentiment_strength <> 'NaN'::numeric)) |
 | ck_month_block_prob_range | CK | month_block | prob_p1 BETWEEN 0 AND 1 AND prob_p2 BETWEEN 0 AND 1 AND prob_p3 BETWEEN 0 AND 1 AND prob_p4 BETWEEN 0 AND 1 |
 | ck_month_block_prob_all_or_none | CK | month_block | num_nulls(prob_p1, prob_p2, prob_p3, prob_p4) IN (0, 4) |
 | ck_month_block_prob_sum | CK | month_block | prob_p1 IS NULL OR ABS(prob_p1 + prob_p2 + prob_p3 + prob_p4 - 1) <= 0.0002 |
@@ -585,14 +587,14 @@ erDiagram
 | uq_asset_month_return_asset_month | UQ | asset_month_return | (asset_id, month_block_id) |
 | fk_asset_month_return_asset | FK | asset_month_return | (asset_id) → asset.id (R3) |
 | fk_asset_month_return_month_block | FK | asset_month_return | (month_block_id) → month_block.id (R4) |
-| ck_asset_month_return_local_return | CK | asset_month_return | local_return >= -1 |
+| ck_asset_month_return_local_return | CK | asset_month_return | local_return >= -1 AND local_return <> 'NaN'::numeric |
 | ck_asset_month_return_return_kind | CK | asset_month_return | return_kind IN ('ACTUAL','PROXY_INDEX') |
 | idx_asset_month_return_month_block | IDX | asset_month_return | (month_block_id) |
 | pk_fx_month | PK | fx_month | (id) |
 | uq_fx_month_month_block_currency | UQ | fx_month | (month_block_id, currency) |
 | fk_fx_month_month_block | FK | fx_month | (month_block_id) → month_block.id (R5) |
 | ck_fx_month_currency | CK | fx_month | currency IN ('USD') |
-| ck_fx_month_fx_change | CK | fx_month | fx_change > -1 |
+| ck_fx_month_fx_change | CK | fx_month | fx_change > -1 AND fx_change <> 'NaN'::numeric |
 | pk_month_event | PK | month_event | (id) |
 | uq_month_event_event_key | UQ | month_event | (event_key) |
 | fk_month_event_month_block | FK | month_event | (month_block_id) → month_block.id (R6) |
@@ -602,7 +604,7 @@ erDiagram
 | ck_month_event_outcome_format | CK | month_event | outcome IS NULL OR outcome ~ '^[A-Z][A-Z_]*$' |
 | ck_month_event_direction | CK | month_event | direction IN ('UP','DOWN') |
 | ck_month_event_strength | CK | month_event | strength BETWEEN 1 AND 3 |
-| ck_month_event_reaction_change | CK | month_event | reaction_change IS NULL OR reaction_change >= -1 |
+| ck_month_event_reaction_change | CK | month_event | reaction_change IS NULL OR (reaction_change >= -1 AND reaction_change <> 'NaN'::numeric) |
 | idx_month_event_month_block | IDX | month_event | (month_block_id) |
 | pk_asset_month_attention | PK | asset_month_attention | (id) |
 | uq_asset_month_attention_asset_month | UQ | asset_month_attention | (asset_id, month_block_id) |
@@ -611,6 +613,7 @@ erDiagram
 | ck_asset_month_attention_window_months | CK | asset_month_attention | window_months BETWEEN 0 AND 12 |
 | ck_asset_month_attention_z_window | CK | asset_month_attention | attention_z IS NULL OR window_months >= 2 |
 | ck_asset_month_attention_index_needs_z | CK | asset_month_attention | attention_z IS NOT NULL OR attention_index IS NULL |
+| ck_asset_month_attention_not_nan | CK | asset_month_attention | attention_z <> 'NaN'::numeric AND attention_index <> 'NaN'::numeric |
 | idx_asset_month_attention_month_block | IDX | asset_month_attention | (month_block_id) |
 
 정의 칸은 DDL에 그대로 들어가는 SQL 식이다. `num_nulls(…) IN (0, n)`은 n개 컬럼이 모두 NULL이거나 모두 NOT NULL이라는 뜻이고(카탈로그 표기는 `= ANY (ARRAY[0, n])`), `ck_month_block_prob_range`는 NULL이면 통과한다(3값 논리, 2절 CHECK). 카탈로그(`pg_get_constraintdef`)는 괄호·캐스트·`IN`·`BETWEEN`을 바꿔 적으므로 DDL 검증 쿼리는 이 칸의 식을 PostgreSQL에 다시 파싱시켜 비교한다(`db/01_schema_history_check.sql`).
@@ -621,13 +624,13 @@ erDiagram
 |---|---|---|---|---|---|
 | asset_group | 1 | 1 | 0 | 2 | 0 |
 | asset | 1 | 1 | 1 | 7 | 1 |
-| asset_position | 1 | 1 | 1 | 10 | 1 |
+| asset_position | 1 | 1 | 1 | 11 | 1 |
 | month_block | 1 | 1 | 0 | 12 | 0 |
 | asset_month_return | 1 | 1 | 2 | 2 | 1 |
 | fx_month | 1 | 1 | 1 | 2 | 0 |
 | month_event | 1 | 1 | 1 | 7 | 1 |
-| asset_month_attention | 1 | 1 | 2 | 3 | 1 |
-| **합** | **8** | **8** | **8** | **45** | **5** |
+| asset_month_attention | 1 | 1 | 2 | 4 | 1 |
+| **합** | **8** | **8** | **8** | **47** | **5** |
 
 FK 8개 = 5.2의 관계 R1–R8 = 5.1 관계선 8개이다. FK 컬럼 중 UNIQUE의 앞 컬럼이라 인덱스를 이미 갖는 것(`asset_position.asset_id`, `asset_month_return.asset_id`, `fx_month.month_block_id`, `asset_month_attention.asset_id`)에는 `idx_`를 만들지 않는다. `idx_` 5개는 FK 인덱스 4개(`asset.asset_group_id`, `asset_month_return.month_block_id`, `month_event.month_block_id`, `asset_month_attention.month_block_id`)와 조회 인덱스 1개(`asset_position.base_date`)이다.
 
@@ -849,7 +852,7 @@ R9–R22는 3.1의 같은 번호와 같다. 모두 비식별 `..`이다 — 자�
 |  | 엔진 버전 | engine_version | VARCHAR(20) | NN |  | `[내부]` 재현성(PLAN §4.2). Phase 0 값 예: `p0-sql` |
 |  | 데이터 스냅샷 날짜 | data_snapshot_date | DATE | NN |  | `[내부]` 역사 데이터를 고정한 날짜(PLAN §4.2) |
 |  | 기준일 | base_date | DATE | NN |  | `[내부]` 이 시즌이 쓰는 `asset_position` 스냅샷의 기준일(Q2, D14). **FK 대상이 없다** — `asset_position`의 UNIQUE는 `(asset_id, base_date)`라 `base_date` 단독을 참조할 수 없다. 그 기준일의 풀이 있고 판정이 채워졌는지는 검증 규칙 S2가 본다 |
-|  | 초기 자금 | initial_cash | NUMERIC(19,4) | NN |  | `[노출]` ₩. 초기 자금(기본 ₩30,000,000, PLAN §4.1-1). `ck_season_initial_cash_pos`: `initial_cash > 0`, `ck_season_initial_cash_won`: `initial_cash = ROUND(initial_cash, 0)`. DB 기본값을 두지 않는다 — 시즌을 만들 때 값을 박아 재현성을 지킨다(D30). 첫 `DEPOSIT`의 금액과 같다(대사 규칙 1) |
+|  | 초기 자금 | initial_cash | NUMERIC(19,4) | NN |  | `[노출]` ₩. 초기 자금(기본 ₩30,000,000, PLAN §4.1-1). `ck_season_initial_cash_pos`: `initial_cash > 0`, `ck_season_initial_cash_won`: `initial_cash = ROUND(initial_cash, 0) AND initial_cash <> 'NaN'::numeric`. DB 기본값을 두지 않는다 — 시즌을 만들 때 값을 박아 재현성을 지킨다(D30). 첫 `DEPOSIT`의 금액과 같다(대사 규칙 1) |
 |  | 국내 수수료율 | fee_rate_kr | NUMERIC(12,8) | NN |  | `[노출]` 국내(`asset.market = 'KR'`) 종목의 체결 수수료율, 매수·매도 같음(PLAN §4.6). 초안 0.00015000(0.015%, 국내 증권사 공개 요율 중앙값). `ck_season_fee_rate_kr`: `fee_rate_kr >= 0 AND fee_rate_kr < 1`. 시즌에 박아 두어야 요율이 바뀐 뒤에도 지난 시즌을 검산(대사 규칙 14)·재현할 수 있다(D30) |
 |  | 미국 수수료율 | fee_rate_us | NUMERIC(12,8) | NN |  | `[노출]` 미국(`asset.market = 'US'`) 종목의 위탁 수수료율, 매수·매도 같음(PLAN §4.6). 초안 0.00250000(0.25%). `ck_season_fee_rate_us`: `fee_rate_us >= 0 AND fee_rate_us < 1`. 미국 종목의 체결 요율은 이 값에 `fx_spread_rate`를 더한 값이다(대사 규칙 14). 시즌에 박는 이유는 `fee_rate_kr`과 같다(D30) |
 |  | 환전 비용률 | fx_spread_rate | NUMERIC(12,8) | NN |  | `[노출]` 미국 종목을 사고팔 때마다 붙는 환전 비용률(PLAN §4.6). 초안 0.00100000(0.10%, 잠정 — 공식 요율 확인 뒤 확정). `ck_season_fx_spread_rate`: `fx_spread_rate >= 0 AND fx_spread_rate < 1`. 국내 종목에는 붙지 않는다. 별도 원장 유형 없이 체결 수수료 한 값에 합쳐 `FEE` 한 행으로 남는다(D4). 시즌에 박는 이유는 `fee_rate_kr`과 같다(D30) |
@@ -895,11 +898,11 @@ R9–R22는 3.1의 같은 번호와 같다. 모두 비식별 `..`이다 — 자�
 |  | 골키퍼 평가액 | goalkeeper_value | NUMERIC(19,4) | NN |  | `[노출]` ₩. 선언 포지션(`lineup`) 기준 포지션별 평가액, **현금은 골키퍼**에 들어간다(PLAN §4.10). `ck_turn_position_sum`: 네 값의 합 = `total_value`. `ck_turn_goalkeeper_cash`: `goalkeeper_value >= cash_balance`. 비중 = 값 ÷ `total_value`는 조회가 계산한다(D24) |
 |  | 수비수 평가액 | defender_value | NUMERIC(19,4) | NN |  | `[노출]` ₩. `DEFENDER` 평가액 |
 |  | 미드필더 평가액 | midfielder_value | NUMERIC(19,4) | NN |  | `[노출]` ₩. `MIDFIELDER` 평가액 |
-|  | 공격수 평가액 | forward_value | NUMERIC(19,4) | NN |  | `[노출]` ₩. `FORWARD_TARGET`·`FORWARD_BREAKOUT`·`FORWARD_DEFENSIVE` 3종을 공격으로 묶은 평가액. 금액 7개(`cash_balance`~`forward_value`)에 `ck_turn_amounts_nonneg`(모두 `>= 0`)와 `ck_turn_amounts_won`(모두 원 단위)이 건다 |
+|  | 공격수 평가액 | forward_value | NUMERIC(19,4) | NN |  | `[노출]` ₩. `FORWARD_TARGET`·`FORWARD_BREAKOUT`·`FORWARD_DEFENSIVE` 3종을 공격으로 묶은 평가액. 금액 7개(`cash_balance`~`forward_value`)에 `ck_turn_amounts_nonneg`(모두 `>= 0`)와 `ck_turn_amounts_won`(모두 원 단위이고 NaN 아님, D32)이 건다 |
 |  | 누적 낙폭 | drawdown | NUMERIC(12,8) | NN |  | `[노출]` 0 이하. `total_value ÷ max(initial_cash, 1..t턴의 total_value) − 1` — 시작 고점에 초기 자금을 넣어 팀 구성 수수료도 손실로 보인다(PLAN §4.6 "비용은 반드시 결과에"). `ck_turn_drawdown`: `drawdown BETWEEN -1 AND 0`. 8자리 반올림은 대입 반올림이다(2절 "숫자 대입") |
 |  | 생성일시 | created_at | TIMESTAMPTZ | NN | now() | `[내부]` |
 
-- 공통 CHECK 2개: `ck_turn_amounts_nonneg`(금액 7개 모두 `>= 0`), `ck_turn_amounts_won`(7개 모두 원 단위). CHECK는 모두 7개다.
+- 공통 CHECK 2개: `ck_turn_amounts_nonneg`(금액 7개 모두 `>= 0`), `ck_turn_amounts_won`(7개 모두 원 단위이고 NaN 아님 — NaN끼리는 `total_value = holdings_value + cash_balance`도 참이 된다, D32). CHECK는 모두 7개다.
 - **스냅샷 시점:** 턴 t를 적용하는 트랜잭션에서 `turn_price(t)` INSERT 뒤, 그 순간의 보유·현금·열린 `lineup`으로 만든다(SPRING_JPA §5.3 5 → 7단계). 불변이다. 기준 포트폴리오 4개의 턴별 값은 이 테이블에 두지 않는다(MVP에서 다시 볼 것, 8절).
 
 #### 턴 가격 (turn_price)
@@ -910,7 +913,7 @@ R9–R22는 3.1의 같은 번호와 같다. 모두 비식별 `..`이다 — 자�
 | FK | 시즌번호 | season_id | BIGINT | NN |  | `[내부]` → season.id (R13). `fk_turn_price_season`. `uq_turn_price_season_turn_asset (season_id, turn_no, asset_id)`의 앞 컬럼이라 FK 인덱스를 겸한다 |
 |  | 턴 번호 | turn_no | SMALLINT | NN |  | `[노출]` `ck_turn_price_turn_no`: `turn_no >= 0`(0턴 = 기준일 가격) |
 | FK | 종목번호 | asset_id | BIGINT | NN |  | `[내부]` → asset.id (R14). `fk_turn_price_asset`, `idx_turn_price_asset` |
-|  | 가격 | price | NUMERIC(19,4) | NN |  | `[노출]` ₩, **원화 환산 포함**. `ck_turn_price_price_pos`: `price > 0`, `ck_turn_price_price_won`: `price = ROUND(price, 0)`. 0턴 = `round(base_price × base_fx_rate, 0)`, t턴 = `round(0턴 가격 × Π(1+r현지)(1+r환율), 0)` — PLAN §5.2 문자 그대로(D16). 체결·평가의 **유일한** 가격이다(대사 규칙 13) |
+|  | 가격 | price | NUMERIC(19,4) | NN |  | `[노출]` ₩, **원화 환산 포함**. `ck_turn_price_price_pos`: `price > 0`, `ck_turn_price_price_won`: `price = ROUND(price, 0) AND price <> 'NaN'::numeric`. 0턴 = `round(base_price × base_fx_rate, 0)`, t턴 = `round(0턴 가격 × Π(1+r현지)(1+r환율), 0)` — PLAN §5.2 문자 그대로(D16). 체결·평가의 **유일한** 가격이다(대사 규칙 13) |
 |  | 생성일시 | created_at | TIMESTAMPTZ | NN | now() | `[내부]` |
 
 - **행 집합:** 턴마다 **시즌 기준일 풀 전체**(`asset_position.base_date = season.base_date`의 종목) — SPRING_JPA §12-6의 초안. 완전성은 대사 규칙 12와 검증 규칙 S3가 본다.
@@ -992,7 +995,7 @@ R9–R22는 3.1의 같은 번호와 같다. 모두 비식별 `..`이다 — 자�
 |  | 시도 번호 | attempt_no | SMALLINT | NN |  | `[내부]` 같은 턴의 몇 번째 시도인지(롤백 뒤 재시도, 할당 규칙은 9절 P0-17). `ck_reconciliation_log_attempt_no`: `attempt_no >= 1` |
 |  | 검사 코드 | check_code | VARCHAR(20) | NN |  | `[내부]` 대사 규칙 코드(7.5의 `check_code` 열과 1:1). `ck_reconciliation_log_check_code`: 17개 코드의 목록 CHECK(6.4 표) |
 |  | 결과 | status | VARCHAR(8) | NN |  | `[내부]` `ck_reconciliation_log_status`: `status IN ('MATCH','MISMATCH')` |
-|  | 기대값 | expected_value | NUMERIC(19,4) | NULL |  | `[내부]` 스칼라로 표현되는 항등식(현금 합, 평가액 …)의 기대값. 연속성처럼 스칼라가 아닌 규칙은 NULL. 수량 합도 담을 수 있어 원 단위 CHECK는 걸지 않는다. `ck_reconciliation_log_values`: `num_nulls(expected_value, actual_value, diff_value) IN (0, 3) AND (diff_value IS NULL OR diff_value = actual_value - expected_value)` |
+|  | 기대값 | expected_value | NUMERIC(19,4) | NULL |  | `[내부]` 스칼라로 표현되는 항등식(현금 합, 평가액 …)의 기대값. 연속성처럼 스칼라가 아닌 규칙은 NULL. 수량 합도 담을 수 있어 원 단위 CHECK는 걸지 않는다. `ck_reconciliation_log_values`: `num_nulls(expected_value, actual_value, diff_value) IN (0, 3) AND (diff_value IS NULL OR diff_value = actual_value - expected_value) AND expected_value <> 'NaN'::numeric AND actual_value <> 'NaN'::numeric`. 차이의 NaN은 등식이 막는다(유한 − 유한은 NaN이 아니다) |
 |  | 실제값 | actual_value | NUMERIC(19,4) | NULL |  | `[내부]` 실제 값(기대값과 같은 규칙 — 수량 합도 담아 원 단위 CHECK 없음) |
 |  | 차이 | diff_value | NUMERIC(19,4) | NULL |  | `[내부]` 실제 − 기대(기대값과 같은 규칙 — 수량 합도 담아 원 단위 CHECK 없음). `ck_reconciliation_log_match_diff`: `status <> 'MATCH' OR diff_value IS NULL OR diff_value = 0` — 차이가 있는 일치를 막는다(역방향은 강제하지 않는다 — 항목별 상쇄) |
 |  | 불일치 수 | mismatch_count | INTEGER | NN |  | `[내부]` 불일치 항목 수. `ck_reconciliation_log_mismatch`: `mismatch_count >= 0 AND (status = 'MATCH') = (mismatch_count = 0)` |
@@ -1021,7 +1024,7 @@ R9–R22는 3.1의 같은 번호와 같다. 모두 비식별 `..`이다 — 자�
 | ck_season_abandoning | CK | season | status <> 'ABANDONING' OR abandoned_turn_no IS NOT NULL |
 | ck_season_abandoned_status | CK | season | status <> 'IN_PROGRESS' OR abandoned_turn_no IS NULL |
 | ck_season_initial_cash_pos | CK | season | initial_cash > 0 |
-| ck_season_initial_cash_won | CK | season | initial_cash = ROUND(initial_cash, 0) |
+| ck_season_initial_cash_won | CK | season | initial_cash = ROUND(initial_cash, 0) AND initial_cash <> 'NaN'::numeric |
 | ck_season_fee_rate_kr | CK | season | fee_rate_kr >= 0 AND fee_rate_kr < 1 |
 | ck_season_fee_rate_us | CK | season | fee_rate_us >= 0 AND fee_rate_us < 1 |
 | ck_season_fx_spread_rate | CK | season | fx_spread_rate >= 0 AND fx_spread_rate < 1 |
@@ -1048,14 +1051,14 @@ R9–R22는 3.1의 같은 번호와 같다. 모두 비식별 `..`이다 — 자�
 | ck_turn_goalkeeper_cash | CK | turn | goalkeeper_value >= cash_balance |
 | ck_turn_drawdown | CK | turn | drawdown BETWEEN -1 AND 0 |
 | ck_turn_amounts_nonneg | CK | turn | cash_balance >= 0 AND holdings_value >= 0 AND total_value >= 0 AND goalkeeper_value >= 0 AND defender_value >= 0 AND midfielder_value >= 0 AND forward_value >= 0 |
-| ck_turn_amounts_won | CK | turn | cash_balance = ROUND(cash_balance, 0) AND holdings_value = ROUND(holdings_value, 0) AND total_value = ROUND(total_value, 0) AND goalkeeper_value = ROUND(goalkeeper_value, 0) AND defender_value = ROUND(defender_value, 0) AND midfielder_value = ROUND(midfielder_value, 0) AND forward_value = ROUND(forward_value, 0) |
+| ck_turn_amounts_won | CK | turn | cash_balance = ROUND(cash_balance, 0) AND holdings_value = ROUND(holdings_value, 0) AND total_value = ROUND(total_value, 0) AND goalkeeper_value = ROUND(goalkeeper_value, 0) AND defender_value = ROUND(defender_value, 0) AND midfielder_value = ROUND(midfielder_value, 0) AND forward_value = ROUND(forward_value, 0) AND cash_balance <> 'NaN'::numeric AND holdings_value <> 'NaN'::numeric AND total_value <> 'NaN'::numeric AND goalkeeper_value <> 'NaN'::numeric AND defender_value <> 'NaN'::numeric AND midfielder_value <> 'NaN'::numeric AND forward_value <> 'NaN'::numeric |
 | pk_turn_price | PK | turn_price | (id) |
 | uq_turn_price_season_turn_asset | UQ | turn_price | (season_id, turn_no, asset_id) |
 | fk_turn_price_season | FK | turn_price | (season_id) → season.id (R13) |
 | fk_turn_price_asset | FK | turn_price | (asset_id) → asset.id (R14) |
 | ck_turn_price_turn_no | CK | turn_price | turn_no >= 0 |
 | ck_turn_price_price_pos | CK | turn_price | price > 0 |
-| ck_turn_price_price_won | CK | turn_price | price = ROUND(price, 0) |
+| ck_turn_price_price_won | CK | turn_price | price = ROUND(price, 0) AND price <> 'NaN'::numeric |
 | idx_turn_price_asset | IDX | turn_price | (asset_id) |
 | pk_lineup | PK | lineup | (id) |
 | uq_lineup_open | UQI | lineup | (season_id, asset_id) WHERE end_turn IS NULL |
@@ -1105,7 +1108,7 @@ R9–R22는 3.1의 같은 번호와 같다. 모두 비식별 `..`이다 — 자�
 | ck_reconciliation_log_attempt_no | CK | reconciliation_log | attempt_no >= 1 |
 | ck_reconciliation_log_check_code | CK | reconciliation_log | check_code IN ('ACCOUNT_OPENING','CASH_SUM','LEDGER_CHAIN','ORDER_LEDGER','HOLDING_QTY','ORDER_FILL','EXEC_VALUES','RESERVED_ZERO','VALUATION','TURN_PRICE','FILL_PRICE','FEE_RULE','FORMATION','FORMATION_BIND','LINEUP_HOLDING','LINEUP_OVERLAP','POSITION_VALUE') |
 | ck_reconciliation_log_status | CK | reconciliation_log | status IN ('MATCH','MISMATCH') |
-| ck_reconciliation_log_values | CK | reconciliation_log | num_nulls(expected_value, actual_value, diff_value) IN (0, 3) AND (diff_value IS NULL OR diff_value = actual_value - expected_value) |
+| ck_reconciliation_log_values | CK | reconciliation_log | num_nulls(expected_value, actual_value, diff_value) IN (0, 3) AND (diff_value IS NULL OR diff_value = actual_value - expected_value) AND expected_value <> 'NaN'::numeric AND actual_value <> 'NaN'::numeric |
 | ck_reconciliation_log_match_diff | CK | reconciliation_log | status <> 'MATCH' OR diff_value IS NULL OR diff_value = 0 |
 | ck_reconciliation_log_mismatch | CK | reconciliation_log | mismatch_count >= 0 AND (status = 'MATCH') = (mismatch_count = 0) |
 | ck_reconciliation_log_classification | CK | reconciliation_log | classification IN ('TIMING','ADJUSTMENT','INVESTIGATE') |
@@ -1401,7 +1404,7 @@ FK 10개 = 7.2의 R23–R32 = 7.1 관계선 10개다. `idx_` 8개는 FK 인덱�
 | §7 소계 | 5 | 2 | 0 | 10 | 28 | 8 |
 | **합** | **14** | **9** | **2** | **24** | **88** | **17** |
 
-5.4와 합치면 확정 22개의 제약은 PK 22, UNIQUE 17, UNIQUE 인덱스 2, FK 32, CHECK 133, INDEX 22이다. **UNIQUE 인덱스 열**은 5.4의 개수 표에 없던 열이다 — 표현식·부분 유일 인덱스는 `pg_constraint`에 없고 `pg_indexes`에만 있어 DDL 검증이 다른 카탈로그를 봐야 하기 때문이다(2절 "대소문자 무시 유일성").
+5.4와 합치면 확정 22개의 제약은 PK 22, UNIQUE 17, UNIQUE 인덱스 2, FK 32, CHECK 135, INDEX 22이다. **UNIQUE 인덱스 열**은 5.4의 개수 표에 없던 열이다 — 표현식·부분 유일 인덱스는 `pg_constraint`에 없고 `pg_indexes`에만 있어 DDL 검증이 다른 카탈로그를 봐야 하기 때문이다(2절 "대소문자 무시 유일성").
 
 ### 7.5 DDL로 막지 못해 대사가 검사할 규칙
 
@@ -1530,7 +1533,7 @@ v2에서 새로 생긴 FK는 R26·R27(`orders`의 복합 FK)과 6절의 14개다
 | D29 | 시즌 일관성은 복합 FK 3개로 DDL이 막는다: `orders (formation_change_id, season_id, turn_no)` → `formation_change`, `orders (turn_feed_id, season_id)` → `turn_feed`, `cash_ledger (ref_order_id, season_id)` → `orders`. 대상 UNIQUE 3개를 함께 둔다 | P0-04 Gate 1 결정(2026-11-06). 다른 시즌·턴을 가리키는 행을 DB가 SQLSTATE 23503으로 막는다. v1 대사 규칙 5가 DDL로 옮겨지고 "같은 턴 안의 변경에 묶음"(PLAN §5.1)이 DDL이 된다. 질문 6(대사 → DDL 강제)과 같은 방향이다. JPA는 `Long` id 컬럼 그대로라 영향이 작다(SPRING_JPA §4.3) | 단일 FK + 대사·검증 쿼리(잘못된 행이 들어간 뒤에야 잡히고, 원장은 추가 전용이라 `ADJUSTMENT`로만 고칠 수 있음) |
 | D30 | 시즌에 `fee_rate_kr`·`fee_rate_us`·`fx_spread_rate`·`initial_cash`·`base_date`·`engine_version`·`data_snapshot_date`·`seed`를 DB 기본값 없이 박는다 | 국내·미국 요율, 환전 비용률, 초기 자금이 바뀐 뒤에도 지난 시즌을 검산(대사 규칙 14)·재현한다(PLAN §4.2). DB 기본값이 있으면 코드의 누락이 조용히 기본값으로 메워진다 | DB 기본값, 엔진 버전에서 요율 유도(엔진 버전이 같아도 요율이 바뀔 수 있음) |
 | D31 | 전술 변경 비용은 저장하지 않고 `formation_change_id`로 묶인 주문의 수수료·세금 합을 조회한다 | PLAN §5.1 비고 그대로이고 값이 한 곳(`execution`)에만 있다. 변경 행은 불변이고 주문이 변경 뒤에 생기므로 나중에 비용을 채울 수 없다 | `formation_change`에 비용 컬럼(불변과 충돌), 변경 ↔ 주문 매핑 테이블(다대다가 아님 — 테이블이 늘어 확정 22개를 벗어남) |
-| D32 | 7절 금액 CHECK는 NaN을 거부한다 — 원 단위 CHECK에 `AND col <> 'NaN'::numeric`, `avg_price`는 쌍 CHECK에, CHECK가 없던 `realized_pnl`은 새 CHECK 하나(`ck_execution_realized_pnl_not_nan`) | NaN은 비교에서 자기와 같고 모든 수보다 커 범위·원 단위 CHECK를 통과하고, 원장 합·대사 등식에 퍼진다(P0-07 리뷰, 2026-11-08 자동 채택). 무한대는 정밀도 지정 NUMERIC이 22003으로 막는다 | 테이블마다 `ck_{t}_not_nan` 하나(제약 5개 추가), DOMAIN 타입(제약 이름이 사라지고 JPA·erd 규칙과 어긋남), 대사에 맡김(NaN끼리 등식이 참이라 못 잡음) |
+| D32 | 5·6·7절의 `NUMERIC` 컬럼은 NaN을 거부한다. 그 컬럼의 값 조건(비교·등식)이 있는 CHECK가 NaN을 통과시키면 그 CHECK에 `AND col <> 'NaN'::numeric`을 붙이고(`OR`로 갈린 CHECK는 값 조건이 있는 가지 안에 — `IS NULL OR` 가지의 `*_strength`·`reaction_change`, `quantity > 0` 가지의 `avg_price`. `volatility`처럼 가지가 없으면 `AND`로 붙이고 NULL은 3값 논리로 통과한다), NULL 여부만 보는 CHECK뿐인 컬럼은 테이블마다 새 CHECK 하나로 묶는다(`ck_execution_realized_pnl_not_nan`, `ck_asset_position_participation_not_nan`, `ck_asset_month_attention_not_nan`). 대사 기록은 등식 CHECK(`ck_reconciliation_log_values`)에 기대값·실제값을 붙인다(차이는 등식이 막는다). NaN에서 이미 거짓인 `BETWEEN`·`< 1`·`IN` 목록 CHECK(`max_drawdown`, `prob_*`, `drawdown`, 요율 3개, `risk_limit`)는 그대로 둔다 | NaN은 비교에서 자기와 같고 모든 수보다 커 하한·원 단위·등식 CHECK를 통과하고, 원장 합·평가액 등식·대사 등식에 퍼진다(NaN끼리 등식이 참이라 헛 일치 — `turn`의 금액 7개가 모두 NaN인 행은 `total_value = holdings_value + cash_balance`까지 통과했다). 7절은 P0-07 리뷰(2026-11-08 자동 채택), 5·6절은 이슈 #32(같은 꼴). 01의 입력 경로가 적재 정규식(P0-08)만은 아니다 — P0-10·P0-11은 계산 SQL로 쓰고, 부동소수 중간값의 NaN은 `numeric`으로 캐스트하면 NaN으로 남는다. 무한대는 정밀도 지정 NUMERIC이 22003으로 막는다 | 테이블마다 `ck_{t}_not_nan` 하나(NUMERIC이 있는 15개 테이블에 제약 15개 추가 — 5절 6·6절 4·7절 5), DOMAIN 타입(제약 이름이 사라지고 JPA·erd 규칙과 어긋남), 대사에 맡김(NaN끼리 등식이 참이라 못 잡음), NULL 여부 CHECK(`judgment_all_or_none`, `z_window`, `index_needs_z`)에 NaN 절 결합(새 제약은 0이지만 NULL 규칙과 값 규칙이 한 이름에 섞인다), 입력 코드에만 맡김(쓰기 경로마다 반복해야 하고 손 SQL을 못 막는다) |
 
 **문서 구성 결정:** 관계도는 확정 22개 + MVP 스케치 3개(컬럼 없음), EXT 이후 스케치, 영역 상세(컬럼 있음)의 셋으로 나눴다 — 한 그림이 25개 이하라 읽힌다(탈락: 42개를 한 `erDiagram`에 그리기는 배치가 읽기 어렵고 PR diff가 커짐, 전체를 `flowchart`로 그리기는 카디널리티 표기가 D10과 어긋남). v1 계좌 정의는 P0-03에서 MySQL 타입 그대로 부록에 옮겨 두었다가 P0-04에서 7절로 v2로 바꿔 쓰고 부록을 지웠다 — v1과의 대응은 7.6 대조표가 남긴다. 시즌 영역(6절 9개)과 시즌 계좌(7절 5개)를 둘로 나눈 것은 DDL ②·③의 분할과 1:1이라 각 DDL 기능이 한 절만 읽으면 되기 때문이다(탈락: 14개를 한 절에 두기는 한 그림에 14개 + 앵커 4개가 되어 읽기 어렵다).
 
@@ -1556,8 +1559,8 @@ v2에서 새로 생긴 FK는 R26·R27(`orders`의 복합 FK)과 6절의 14개다
 
 | 소비 기능 | 약속 |
 |---|---|
-| P0-05 DDL ① | 생성 순서 `asset_group` → `asset` → `asset_position` → `month_block` → `asset_month_return` → `fx_month` → `month_event` → `asset_month_attention`. 5.4 표의 이름 그대로, CHECK는 테이블 제약, FK `ON DELETE RESTRICT ON UPDATE RESTRICT` 명시, `idx_` 5개. 검증 SQL은 5.4 표를 `pg_constraint`(`conname`, `contype`, `pg_get_constraintdef`)·`pg_indexes`와 자동 대조하고, 음성 사례는 SQLSTATE(23514·23503·23505·23502·22003)와 제약 이름으로 확인하며, 기준일이 속한 달의 `window_end` → 23514 `ck_asset_position_window`를 포함한다. 검증 규칙 H1을 예시 쿼리로 하나 넣는다 |
-| P0-06 DDL ② | 생성 순서 `member` → `season` → `season_path` → `turn` → `turn_price` → `lineup` → `formation_change` → `turn_feed` → `reconciliation_log`. 6.4 표의 이름 그대로 만든다. 표현식 유일 인덱스(`uq_member_email`)와 부분 유일 인덱스(`uq_lineup_open`)는 `CREATE UNIQUE INDEX`로 만들고 검증 SQL은 `pg_indexes`에서 대조한다(`idx_lineup_season_asset` 포함). `formation_change`·`turn_feed`의 `(id, …)` UNIQUE는 같은 파일에서 만든다(P0-07의 복합 FK 대상, D29). 음성 사례: 시작 포메이션 합 99·골키퍼 0(0·40·30·30)·범위 −10, 위험 선언 −0.25, `IN_PROGRESS` + `abandoned_turn_no` 있음(23514 `ck_season_abandoned_status`), 열린 구간 둘(23505 `uq_lineup_open`), `turn`·`turn_price`·`season_path` 중복(23505), 요율 세 컬럼 −0.0001·1(23514 `ck_season_fee_rate_kr`·`ck_season_fee_rate_us`·`ck_season_fx_spread_rate`), `turn_feed` 종류·대상·사건 CHECK, 대사 기록 상태·분류 CHECK, `MATCH` + `diff_value = -10`(23514 `ck_reconciliation_log_match_diff`), 이메일 대소문자만 다른 두 회원(23505) |
+| P0-05 DDL ① | 생성 순서 `asset_group` → `asset` → `asset_position` → `month_block` → `asset_month_return` → `fx_month` → `month_event` → `asset_month_attention`. 5.4 표의 이름 그대로, CHECK는 테이블 제약, FK `ON DELETE RESTRICT ON UPDATE RESTRICT` 명시, `idx_` 5개. 검증 SQL은 5.4 표를 `pg_constraint`(`conname`, `contype`, `pg_get_constraintdef`)·`pg_indexes`와 자동 대조하고, 음성 사례는 SQLSTATE(23514·23503·23505·23502·22003)와 제약 이름으로 확인하며, 기준일이 속한 달의 `window_end` → 23514 `ck_asset_position_window`를 포함한다. 검증 규칙 H1을 예시 쿼리로 하나 넣는다. `NUMERIC` NaN 사례(19컬럼, 거부가 이미 되던 `BETWEEN` 컬럼 포함, 23514)와 무한대 22003(#32) |
+| P0-06 DDL ② | 생성 순서 `member` → `season` → `season_path` → `turn` → `turn_price` → `lineup` → `formation_change` → `turn_feed` → `reconciliation_log`. 6.4 표의 이름 그대로 만든다. 표현식 유일 인덱스(`uq_member_email`)와 부분 유일 인덱스(`uq_lineup_open`)는 `CREATE UNIQUE INDEX`로 만들고 검증 SQL은 `pg_indexes`에서 대조한다(`idx_lineup_season_asset` 포함). `formation_change`·`turn_feed`의 `(id, …)` UNIQUE는 같은 파일에서 만든다(P0-07의 복합 FK 대상, D29). 음성 사례: 시작 포메이션 합 99·골키퍼 0(0·40·30·30)·범위 −10, 위험 선언 −0.25, `IN_PROGRESS` + `abandoned_turn_no` 있음(23514 `ck_season_abandoned_status`), 열린 구간 둘(23505 `uq_lineup_open`), `turn`·`turn_price`·`season_path` 중복(23505), 요율 세 컬럼 −0.0001·1(23514 `ck_season_fee_rate_kr`·`ck_season_fee_rate_us`·`ck_season_fx_spread_rate`), `turn_feed` 종류·대상·사건 CHECK, 대사 기록 상태·분류 CHECK, `MATCH` + `diff_value = -10`(23514 `ck_reconciliation_log_match_diff`), 이메일 대소문자만 다른 두 회원(23505). `NUMERIC` NaN 사례(17컬럼 — 턴 금액 7개 각각과 전부 NaN, 대사 값의 부분 NaN 포함, 23514)와 무한대 22003(#32) |
 | P0-07 DDL ③ | 생성 순서 `cash_account` → `orders` → `execution` → `holding` → `cash_ledger`(P0-06이 먼저라 `orders`의 FK 대상이 이미 있다). P0-02의 `01_schema.sql` 계좌 부분과 `01_schema_check.sql`의 해당 음성 사례를 재사용한다(키 `member_id` → `season_id`, `stock_id` → `asset_id`, MySQL 오류 번호 → SQLSTATE 23514·23503·23505, `INDEX` 절 → `CREATE INDEX`, `executed_at` 삭제). 7.6 대조표 24행 각각의 음성 사례, 새 CHECK 3개와 복합 FK 3개(D29: 다른 시즌의 변경·같은 시즌 다른 턴의 변경·다른 시즌 주문을 참조하는 원장, 모두 23503)의 음성 사례, 원 단위 경계 4건(`100.00001` → 저장·통과, `100.00005` → 23514, `100.5` → 23514, `-100.00005` → 23514)과 금액 NaN 사례(10컬럼, 23514)와 무한대 22003을 넣는다 |
 | P0-08 표본 적재 | CSV는 대리 키를 갖지 않는다: 스테이징 테이블에 `\copy` → 자연 키(`asset_group.code`, `asset (market, ticker)`, `month_block.month_start`) 조인으로 `INSERT … SELECT … ON CONFLICT (자연 키) DO NOTHING` — 값 정정은 하지 않는다(같은 스크립트를 다시 돌려도 행 수와 값이 같고, FK `RESTRICT` 때문에 지우고 다시 넣을 수 없다). `COPY` 컬럼 목록에 `id`를 넣지 않는다(`GENERATED ALWAYS`여도 `COPY`는 id 값을 받아들이고 시퀀스를 올리지 않아 이후 INSERT와 충돌할 수 있음, D12). `asset_position`은 기준일 가격·환율만 채우고 판정은 NULL로 둔다. **시가총액 순위는 비어 있다 — 상장주식수 수집 후 채움**(표본에서 주식 12개 전부 NULL, 상장주식수 입력이 아직 없다). 축 방향·강도·국면 확률은 NULL. 검증 규칙 H1·H3·H4·H7을 완료 기준 쿼리로 쓴다. CSV 열 계약과 변환 규칙은 MVP 전체 적재의 출발점이다(`db/sample/README.md`). 가격 파생 CSV는 추적하지 않으므로 키가 없는 CI(MVP)는 '가짜 데이터'로 표시한 합성 표본을 픽스처로 쓴다 |
 | P0-09 사건 태그 | `events/`의 태그 id가 `event_key`(불변)이고, 노출 컬럼과 복기 전용 컬럼(`title`·`source`·`hindsight`)을 섞지 않는다. 표본 100개 달의 `events_reviewed = TRUE`. `event_type`·`outcome` 목록과 강도 경계를 `events/README.md`에 적고 H5·H6을 검사한다. 유형별 표본 수 정의를 확정하고, 표본 수 3 미만 유형 목록을 쿼리로 보고한다(그 카드는 `strength`·`reaction_change`만 노출) |

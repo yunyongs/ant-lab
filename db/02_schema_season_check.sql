@@ -82,7 +82,7 @@ INSERT INTO zz_expect_constraint (name, kind, tbl, def) VALUES
     ('ck_season_abandoning', 'CK', 'season', $$status <> 'ABANDONING' OR abandoned_turn_no IS NOT NULL$$),
     ('ck_season_abandoned_status', 'CK', 'season', $$status <> 'IN_PROGRESS' OR abandoned_turn_no IS NULL$$),
     ('ck_season_initial_cash_pos', 'CK', 'season', $$initial_cash > 0$$),
-    ('ck_season_initial_cash_won', 'CK', 'season', $$initial_cash = ROUND(initial_cash, 0)$$),
+    ('ck_season_initial_cash_won', 'CK', 'season', $$initial_cash = ROUND(initial_cash, 0) AND initial_cash <> 'NaN'::numeric$$),
     ('ck_season_fee_rate_kr', 'CK', 'season', $$fee_rate_kr >= 0 AND fee_rate_kr < 1$$),
     ('ck_season_fee_rate_us', 'CK', 'season', $$fee_rate_us >= 0 AND fee_rate_us < 1$$),
     ('ck_season_fx_spread_rate', 'CK', 'season', $$fx_spread_rate >= 0 AND fx_spread_rate < 1$$),
@@ -109,14 +109,14 @@ INSERT INTO zz_expect_constraint (name, kind, tbl, def) VALUES
     ('ck_turn_goalkeeper_cash', 'CK', 'turn', $$goalkeeper_value >= cash_balance$$),
     ('ck_turn_drawdown', 'CK', 'turn', $$drawdown BETWEEN -1 AND 0$$),
     ('ck_turn_amounts_nonneg', 'CK', 'turn', $$cash_balance >= 0 AND holdings_value >= 0 AND total_value >= 0 AND goalkeeper_value >= 0 AND defender_value >= 0 AND midfielder_value >= 0 AND forward_value >= 0$$),
-    ('ck_turn_amounts_won', 'CK', 'turn', $$cash_balance = ROUND(cash_balance, 0) AND holdings_value = ROUND(holdings_value, 0) AND total_value = ROUND(total_value, 0) AND goalkeeper_value = ROUND(goalkeeper_value, 0) AND defender_value = ROUND(defender_value, 0) AND midfielder_value = ROUND(midfielder_value, 0) AND forward_value = ROUND(forward_value, 0)$$),
+    ('ck_turn_amounts_won', 'CK', 'turn', $$cash_balance = ROUND(cash_balance, 0) AND holdings_value = ROUND(holdings_value, 0) AND total_value = ROUND(total_value, 0) AND goalkeeper_value = ROUND(goalkeeper_value, 0) AND defender_value = ROUND(defender_value, 0) AND midfielder_value = ROUND(midfielder_value, 0) AND forward_value = ROUND(forward_value, 0) AND cash_balance <> 'NaN'::numeric AND holdings_value <> 'NaN'::numeric AND total_value <> 'NaN'::numeric AND goalkeeper_value <> 'NaN'::numeric AND defender_value <> 'NaN'::numeric AND midfielder_value <> 'NaN'::numeric AND forward_value <> 'NaN'::numeric$$),
     ('pk_turn_price', 'PK', 'turn_price', $$(id)$$),
     ('uq_turn_price_season_turn_asset', 'UQ', 'turn_price', $$(season_id, turn_no, asset_id)$$),
     ('fk_turn_price_season', 'FK', 'turn_price', $$(season_id) → season.id (R13)$$),
     ('fk_turn_price_asset', 'FK', 'turn_price', $$(asset_id) → asset.id (R14)$$),
     ('ck_turn_price_turn_no', 'CK', 'turn_price', $$turn_no >= 0$$),
     ('ck_turn_price_price_pos', 'CK', 'turn_price', $$price > 0$$),
-    ('ck_turn_price_price_won', 'CK', 'turn_price', $$price = ROUND(price, 0)$$),
+    ('ck_turn_price_price_won', 'CK', 'turn_price', $$price = ROUND(price, 0) AND price <> 'NaN'::numeric$$),
     ('idx_turn_price_asset', 'IDX', 'turn_price', $$(asset_id)$$),
     ('pk_lineup', 'PK', 'lineup', $$(id)$$),
     ('uq_lineup_open', 'UQI', 'lineup', $$(season_id, asset_id) WHERE end_turn IS NULL$$),
@@ -166,7 +166,7 @@ INSERT INTO zz_expect_constraint (name, kind, tbl, def) VALUES
     ('ck_reconciliation_log_attempt_no', 'CK', 'reconciliation_log', $$attempt_no >= 1$$),
     ('ck_reconciliation_log_check_code', 'CK', 'reconciliation_log', $$check_code IN ('ACCOUNT_OPENING','CASH_SUM','LEDGER_CHAIN','ORDER_LEDGER','HOLDING_QTY','ORDER_FILL','EXEC_VALUES','RESERVED_ZERO','VALUATION','TURN_PRICE','FILL_PRICE','FEE_RULE','FORMATION','FORMATION_BIND','LINEUP_HOLDING','LINEUP_OVERLAP','POSITION_VALUE')$$),
     ('ck_reconciliation_log_status', 'CK', 'reconciliation_log', $$status IN ('MATCH','MISMATCH')$$),
-    ('ck_reconciliation_log_values', 'CK', 'reconciliation_log', $$num_nulls(expected_value, actual_value, diff_value) IN (0, 3) AND (diff_value IS NULL OR diff_value = actual_value - expected_value)$$),
+    ('ck_reconciliation_log_values', 'CK', 'reconciliation_log', $$num_nulls(expected_value, actual_value, diff_value) IN (0, 3) AND (diff_value IS NULL OR diff_value = actual_value - expected_value) AND expected_value <> 'NaN'::numeric AND actual_value <> 'NaN'::numeric$$),
     ('ck_reconciliation_log_match_diff', 'CK', 'reconciliation_log', $$status <> 'MATCH' OR diff_value IS NULL OR diff_value = 0$$),
     ('ck_reconciliation_log_mismatch', 'CK', 'reconciliation_log', $$mismatch_count >= 0 AND (status = 'MATCH') = (mismatch_count = 0)$$),
     ('ck_reconciliation_log_classification', 'CK', 'reconciliation_log', $$classification IN ('TIMING','ADJUSTMENT','INVESTIGATE')$$),
@@ -1191,6 +1191,49 @@ CALL pg_temp.check_err('4 경계', 'expected_value = 10^15 (NUMERIC(19,4) 정수
 -- 4.8 JSONB: 숫자는 numeric으로 저장되어 자리가 보존된다 (1.10이 1.1이 되지 않는다, erd D27). 키 순서·공백은 정규화된다.
 CALL pg_temp.check_ok('4 경계', 'template_vars = {"r": 1.10} 대입', $q$UPDATE turn_feed SET template_vars = '{"r": 1.10}' WHERE template_id = 'zz_b'$q$);
 CALL pg_temp.check_eq('4 경계', 'template_vars->>''r'' → 1.10 (숫자 자리 보존)', '1.10', pg_temp.val($v$SELECT template_vars->>'r' FROM turn_feed WHERE template_id = 'zz_b'$v$));
+
+-- 4.9 NUMERIC NaN: NaN은 자기와 같고 모든 수보다 크게 비교되어 `>= 0`·`= ROUND`·등식만으로는 막히지 않는다 (erd D32).
+--     값 CHECK의 <> 'NaN'::numeric이 실제로 걸리는지 컬럼마다 한 건씩 본다. 무한대는 정밀도 지정 NUMERIC이 22003으로 막는다.
+--     상한이 있는 BETWEEN·< 1·IN 목록 CHECK(요율 3개, risk_limit, drawdown)는 NaN에서 이미 거짓이라 고치지 않았다(변경 없음 확인).
+--     시즌 B(seed 400)의 턴·가격 행과 3.9의 기준 대사 행을 UPDATE로 시험하며 실패하면 되돌아간다. 먼저 그 전제를 단언한다.
+CALL pg_temp.check_eq('4 경계', 'NaN 사례 전제: 시즌 B의 턴 1행·가격 1행이 있고 금액이 모두 유한하다', '1/1',
+    pg_temp.val($v$SELECT (SELECT count(*) FROM turn WHERE season_id = (SELECT id FROM season WHERE seed = 400)
+        AND 'NaN'::numeric NOT IN (cash_balance, holdings_value, total_value, goalkeeper_value, defender_value, midfielder_value, forward_value, drawdown))::text
+        || '/' || (SELECT count(*) FROM turn_price WHERE season_id = (SELECT id FROM season WHERE seed = 400) AND price <> 'NaN'::numeric)::text$v$));
+CALL pg_temp.check_eq('4 경계', 'NaN 사례 전제: 3.9 기준 대사 행(MISMATCH, 기대 100 · 실제 90 · 차이 -10)이 1행이다', '1',
+    pg_temp.val($v$SELECT count(*)::text FROM reconciliation_log WHERE season_id = (SELECT id FROM season WHERE seed = 100) AND detail IS NOT NULL
+        AND status = 'MISMATCH' AND expected_value = 100 AND actual_value = 90 AND diff_value = -10$v$));
+CALL pg_temp.check_err('4 경계', 'season.initial_cash = NaN (_pos는 NaN > 0이 참이라 통과 → 이름 순으로 _won)', $q$UPDATE season SET initial_cash = 'NaN' WHERE seed = 400$q$, '23514', 'ck_season_initial_cash_won');
+CALL pg_temp.check_err('4 경계', 'season.fee_rate_kr = NaN (< 1이 이미 거짓 — 변경 없음 확인)', $q$UPDATE season SET fee_rate_kr = 'NaN' WHERE seed = 400$q$, '23514', 'ck_season_fee_rate_kr');
+CALL pg_temp.check_err('4 경계', 'season.fee_rate_us = NaN (변경 없음 확인)', $q$UPDATE season SET fee_rate_us = 'NaN' WHERE seed = 400$q$, '23514', 'ck_season_fee_rate_us');
+CALL pg_temp.check_err('4 경계', 'season.fx_spread_rate = NaN (변경 없음 확인)', $q$UPDATE season SET fx_spread_rate = 'NaN' WHERE seed = 400$q$, '23514', 'ck_season_fx_spread_rate');
+CALL pg_temp.check_err('4 경계', 'season.risk_limit = NaN (IN 목록이 이미 거짓 — 변경 없음 확인)', $q$UPDATE season SET risk_limit = 'NaN' WHERE seed = 400$q$, '23514', 'ck_season_risk_limit');
+--     턴 금액 7개: 한 컬럼만 NaN이면 amounts_nonneg(NaN >= 0 참)는 통과하고 이름 순으로 amounts_won이 먼저 보고한다. 컬럼마다 사례가 있어야 절 하나의 삭제를 잡는다.
+DO $$
+DECLARE c text;
+BEGIN
+    FOREACH c IN ARRAY ARRAY['cash_balance', 'holdings_value', 'total_value', 'goalkeeper_value', 'defender_value', 'midfielder_value', 'forward_value'] LOOP
+        CALL pg_temp.check_err('4 경계', format('turn.%s = NaN (나머지는 유한)', c),
+            format($f$UPDATE turn SET %1$s = 'NaN' WHERE season_id = (SELECT id FROM season WHERE seed = 400)$f$, c), '23514', 'ck_turn_amounts_won');
+    END LOOP;
+END $$;
+CALL pg_temp.check_err('4 경계', 'turn 금액 7개 모두 NaN (고치기 전에는 total_value = holdings_value + cash_balance까지 모든 CHECK를 통과했다)',
+    $q$UPDATE turn SET cash_balance = 'NaN', holdings_value = 'NaN', total_value = 'NaN', goalkeeper_value = 'NaN', defender_value = 'NaN', midfielder_value = 'NaN', forward_value = 'NaN'
+       WHERE season_id = (SELECT id FROM season WHERE seed = 400)$q$, '23514', 'ck_turn_amounts_won');
+CALL pg_temp.check_err('4 경계', 'turn.drawdown = NaN (BETWEEN이 이미 거짓 — 변경 없음 확인)', $q$UPDATE turn SET drawdown = 'NaN' WHERE season_id = (SELECT id FROM season WHERE seed = 400)$q$, '23514', 'ck_turn_drawdown');
+CALL pg_temp.check_err('4 경계', 'turn_price.price = NaN (_pos는 통과 → 이름 순으로 _won)', $q$UPDATE turn_price SET price = 'NaN' WHERE season_id = (SELECT id FROM season WHERE seed = 400)$q$, '23514', 'ck_turn_price_price_won');
+--     대사 기록: 차이에는 절을 두지 않는다. 기대·실제가 유한하면 diff = 유한 − 유한이 NaN 차이를 거짓으로 만든다.
+CALL pg_temp.check_err('4 경계', 'reconciliation_log 기대·실제·차이 모두 NaN (NaN = NaN − NaN이 참이라 고치기 전에는 저장됐다)',
+    $q$UPDATE reconciliation_log SET expected_value = 'NaN', actual_value = 'NaN', diff_value = 'NaN' WHERE season_id = (SELECT id FROM season WHERE seed = 100) AND detail IS NOT NULL$q$, '23514', 'ck_reconciliation_log_values');
+CALL pg_temp.check_err('4 경계', 'reconciliation_log 기대 NaN · 차이 NaN · 실제 90 (90 − NaN = NaN이라 등식이 참)',
+    $q$UPDATE reconciliation_log SET expected_value = 'NaN', diff_value = 'NaN' WHERE season_id = (SELECT id FROM season WHERE seed = 100) AND detail IS NOT NULL$q$, '23514', 'ck_reconciliation_log_values');
+CALL pg_temp.check_err('4 경계', 'reconciliation_log 실제 NaN · 차이 NaN · 기대 100 (NaN − 100 = NaN이라 등식이 참)',
+    $q$UPDATE reconciliation_log SET actual_value = 'NaN', diff_value = 'NaN' WHERE season_id = (SELECT id FROM season WHERE seed = 100) AND detail IS NOT NULL$q$, '23514', 'ck_reconciliation_log_values');
+CALL pg_temp.check_err('4 경계', 'reconciliation_log MISMATCH, 기대 100 · 실제 90 유한, 차이만 NaN (NaN = 90 − 100이 거짓 — 등식이 막는다)',
+    $q$UPDATE reconciliation_log SET diff_value = 'NaN' WHERE season_id = (SELECT id FROM season WHERE seed = 100) AND detail IS NOT NULL$q$, '23514', 'ck_reconciliation_log_values');
+CALL pg_temp.check_err('4 경계', 'reconciliation_log MATCH인데 차이 NaN (유한 − 유한 ≠ NaN, 이름 순으로 match_diff — 변경 없음 확인)',
+    $q$UPDATE reconciliation_log SET status = 'MATCH', mismatch_count = 0, classification = NULL, diff_value = 'NaN' WHERE season_id = (SELECT id FROM season WHERE seed = 100) AND detail IS NOT NULL$q$, '23514', 'ck_reconciliation_log_match_diff');
+CALL pg_temp.check_err('4 경계', 'turn_price.price = Infinity (정밀도 지정 NUMERIC이 거부 → 22003)', $q$UPDATE turn_price SET price = 'Infinity' WHERE season_id = (SELECT id FROM season WHERE seed = 400)$q$, '22003');
 
 -- 5 부분·표현식 유일 인덱스 동작 (erd 6.3 member·lineup, D26) --------------------------
 -- uq_member_email은 lower(email)의 표현식 유일 인덱스이고, uq_lineup_open은 end_turn이 NULL인 행만 담는 부분 유일 인덱스다.
