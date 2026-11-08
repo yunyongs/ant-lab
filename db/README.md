@@ -16,6 +16,9 @@ Phase 0에서 손으로 쓰는 SQL이다([docs/PLAN.md](../docs/PLAN.md#111-phas
 | `10_load_sample_check.sql` | P0-08 | 적재 검증. 행 수·형식·H1·H3·H4·H7을 대조하고 손 대조(6절)를 확인한다. 6절의 기대값은 git이 무시하는 `db/sample/hand_check.csv`에서 읽으며, 파일이 없으면 6절이 FAIL이다(검증이 비어 있는데 통과하지 않게 한다). 아무것도 쓰지 않고 `ROLLBACK`하므로 `antlab`에서도 돌린다 |
 | `11_load_events.sql` | P0-09 | 사건 태그 파일 3개(`events/`)를 `month_event`에 적재하고 `month_block.events_reviewed`를 FALSE에서 TRUE로만 켠다. 반응 변화율·강도는 파일이 아니라 10 적재가 넣은 DB 값에서 계산한다. 아무것도 지우지 않고, 같은 파일로 다시 실행하면 새 행도 갱신도 없다(멱등). 파일과 DB의 값이 다르면(DB에만 있는 태그, 파일이 뒤로 간 편집 완료 표시 포함) 오류로 멈추고 전부 되돌린다. 01 스키마와 10 적재를 먼저 실행한다 |
 | `11_load_events_check.sql` | P0-09 | 사건 적재 검증. 행 수·DB↔파일 대조·형식·에피소드 규칙(H6)·노출 코드의 숫자·두 글자 토큰·금지 토큰(H5)·반응값과 강도·편집 완료 3값을 단언하고, 유형별 표본 수 n과 n < 3 목록을 보고한다. 규칙 21개마다 음성 사례가 있고 커버리지 `21/21`을 확인한다. 아무것도 쓰지 않고 `ROLLBACK`하므로 `antlab`에서도 돌린다. `events/` 파일을 읽으므로 저장소 루트에서 실행한다 |
+| `13_calc_attention_def.sql` | P0-11 | 관심 지수 계산식의 유일한 정의(세션 임시 뷰 `attn_calc`). 단독 실행 대상이 아니라 13 두 파일이 `\ir`로 읽는다 — 쓰기와 검증이 같은 정의를 읽으므로 사후 정보 배제(H8) 시험이 복사본이 아니라 실제 계산식을 시험한다 |
+| `13_calc_attention.sql` | P0-11 | `asset_month_return`에서 `asset_month_attention`을 계산해 채운다(종목 × 달, 수익률 행과 1:1). 없는 행만 INSERT하고 아무것도 지우거나 고치지 않으며, 다시 실행하면 새 행이 없다(멱등). 이미 있는 값이 계산값과 다르거나 DB에만 있는 행이 있으면 오류로 멈추고 전부 되돌린다. 건수만 보고하고 값은 출력하지 않는다. 01 스키마와 10 적재를 먼저 실행한다 |
+| `13_calc_attention_check.sql` | P0-11 | 계산 검증. 윈도 함수로 한 독립 계산 대조, 규칙(NULL·범위·지수 식·구간 시작·NaN), 합성 손 계산 12사례, 사후 정보 배제(기준 달 뒤 수익률을 바꾸거나 지워도 그 달까지의 행이 불변), 순위·그룹 정본 쿼리를 단언한다. 규칙 18개마다 음성 사례가 있고 커버리지 `18/18`을 확인한다. 아무것도 쓰지 않고 `ROLLBACK`하므로 `antlab`에서도 돌린다. 약 1분 반 걸린다 |
 
 - 이름 규칙은 `{실행 순서 두 자리}_{종류}_{영역}.sql`이고, 검증은 같은 이름 뒤에 `_check`를 붙인다.
 - **새 기능이 파일을 더하는 규칙:** 기능은 자기 파일의 행을 위 표에 더하고, 아래 "전체 순서"와 "DB 다시 만들기"의 명령을 이어 적는다. 다른 기능의 파일은 고치지 않는다.
@@ -30,6 +33,8 @@ Phase 0에서 손으로 쓰는 SQL이다([docs/PLAN.md](../docs/PLAN.md#111-phas
   8. `10_load_sample_check.sql`(선택)
   9. `11_load_events.sql` (사건 태그 적재, `antlab`에만. 저장소 루트에서 실행. 10 적재가 끝나 있어야 한다. 다른 파일은 시세 파생 CSV가 필요하지만 이 파일이 읽는 `events/`는 git이 추적한다)
   10. `11_load_events_check.sql`(선택)
+  11. `13_calc_attention.sql` (관심 지수 계산, `antlab`에만. 저장소 루트에서 실행. 10 적재가 끝나 있어야 한다. 같은 폴더의 `13_calc_attention_def.sql`을 읽는다. 11과는 무관하다)
+  12. `13_calc_attention_check.sql`(선택)
 - 스키마 파일은 `BEGIN` ... `COMMIT`으로 감싸 있어 중간에 실패하면 전부 없던 일이 된다. `DROP TABLE`에 `CASCADE`를 쓰지 않으므로, 뒤 번호 파일의 테이블이 이미 있는 DB에서 앞 번호 파일만 다시 실행하면 `2BP01`(dependent_objects_still_exist) 오류로 멈춘다. 안전한 실패이며, 전체를 다시 만들 때는 아래 "DB 다시 만들기"를 쓴다.
 
 ## 실행 환경
@@ -85,9 +90,11 @@ psql -X -v ON_ERROR_STOP=1 -d antlab -f db/10_load_sample.sql
 psql -X -q -v ON_ERROR_STOP=1 -d antlab -f db/10_load_sample_check.sql
 psql -X -v ON_ERROR_STOP=1 -d antlab -f db/11_load_events.sql
 psql -X -q -v ON_ERROR_STOP=1 -d antlab -f db/11_load_events_check.sql
+psql -X -v ON_ERROR_STOP=1 -d antlab -f db/13_calc_attention.sql
+psql -X -q -v ON_ERROR_STOP=1 -d antlab -f db/13_calc_attention_check.sql
 ```
 
-네 명령 모두 저장소 루트에서 실행한다(`\copy` 경로가 실행한 디렉터리 기준이다). 시세·환율 파생 CSV가 없으면 적재가 첫 줄에서 멈추고, `hand_check.csv`가 없으면 검증 6절이 FAIL이다. 둘 다 `db/sample/README.md`의 "표본 만들기"를 먼저 하라는 신호다.
+여섯 명령 모두 저장소 루트에서 실행한다(`\copy` 경로가 실행한 디렉터리 기준이다). 시세·환율 파생 CSV가 없으면 적재가 첫 줄에서 멈추고, `hand_check.csv`가 없으면 검증 6절이 FAIL이다. 둘 다 `db/sample/README.md`의 "표본 만들기"를 먼저 하라는 신호다.
 
 11 적재는 10 적재가 끝난 DB에서만 돈다(비어 있으면 "10 적재를 먼저" 메시지로 멈춘다). 11 검증은 `events/` 파일을 읽으므로 이것도 저장소 루트에서 실행한다.
 
@@ -215,3 +222,37 @@ FAIL이 하나라도 있으면 오류 메시지와 함께 종료 코드 3으로 
   - **8절 흔적:** `month_event`·`month_block`의 행 수·identity·편집 완료 달 수가 실행 전과 같고 `zz_` 객체가 0이다. `events/` 파일이 없으면(저장소 루트가 아니면) 0절이 FAIL이다.
 - 10 검증은 11 적재 뒤에도 그대로 `PASS`다(`events_reviewed`와 `event_summary`는 10 검증이 비교하지 않는다).
 - 파일을 고친 뒤 적재와 검증 전체를 임시 인스턴스에서 확인하려면 (d)의 흐름에 10·11 줄을 이어 쓴다. 10 적재는 시세·환율 파생 CSV가 필요하므로 그 CSV가 있는 저장소 루트에서만 돈다.
+
+**관심 지수 계산(`13_calc_attention.sql`)과 검증(`13_calc_attention_check.sql`).** 공식의 정본은 [`docs/erd.md`](../docs/erd.md) 5.3(확정 공식 비고)·D33이고 계산식 정의는 `13_calc_attention_def.sql` 한 곳이다.
+
+- 계산: 종료 코드 0이고 마지막에 표 둘이 나오면 성공이다. 첫 표는 `target_rows`(대상 행, 수익률 행 수와 같다)·`inserted_now`(이번에 넣은 행)·`already_same`(이미 같은 값으로 있던 행)이고, **다시 실행하면 `inserted_now`가 0**이다. 둘째 표는 건수만 낸다(값은 내지 않는다): `null_window_short`(창이 12개월 미만이라 z가 NULL인 행), `null_sd_floor`(표준편차 하한 미만이라 NULL인 행), `clipped_plus3`·`clipped_minus3`(±3으로 자른 행), `segment_starts`(표본이 끊긴 뒤 첫 달 행).
+- 계산이 멈추는 경우(모두 종료 코드 3, 테이블 행은 그대로 — 빠진 행과 어긋난 행이 함께 있으면 INSERT가 먼저 돌아 identity 번호는 넘어갈 수 있다): `10 적재를 먼저`는 `asset_month_return`이 비어 있다는 뜻이다. `계산값과 DB 가 어긋난다`는 이미 저장된 행이 지금 수익률로 계산한 값과 다르다는 뜻이고(수익률이나 공식이 바뀜), `DB 에만 있는 행`도 같은 계열이다 — 값 정정은 하지 않는다. 고쳐야 하면 (b′)로 `antlab`을 다시 만들고(01 → 02 → 03) 10 → 11 → 13 순서로 다시 돌린다. `NaN`·`월의 첫날이 아닌 행` 메시지는 입력이 계산 가능한 모양이 아니라는 뜻이다.
+- 검증: 마지막 출력이 `p0_11_check` 열의 `PASS`이고 종료 코드가 0이면 통과다. 읽는 법은 11 검증과 같다(0절 전제 표 → 절별 집계 → FAIL 행 → 판정 → 마지막 줄). 절은 0 전제, 1 행 수, 2 독립 계산, 3 규칙, 4 손 계산, 5 H8, 6 순위·그룹, 8 판정이고 음성 사례("규칙을 일부러 어기면 잡히는가")는 규칙이 속한 절에 `음성 [규칙]` 행으로 나온다.
+  - **2절:** 윈도 함수(`LAG`, 누적 `SUM`, 프레임 `12 PRECEDING AND 1 PRECEDING`)와 합·제곱합 식으로 따로 계산한 창·z·streak·지수가 저장값과 전 행 같은지 본다. 계산 쓰기 쪽(자기 조인·상관 서브쿼리·`stddev_samp`)과 다른 방법이라 서로를 검증한다.
+  - **4절:** 합성 수익률(시세 아님) 12사례를 한 구간에 덮어쓰고 손으로 계산한 기대값과 비교한다(정상 z, +3·−3 절단, 0 수익률, 표준편차 0·하한 바로 아래·정확히 하한·바로 위, 0 다음 달 재시작, 보너스 단계와 상한). 서브트랜잭션에서 되돌린다.
+  - **5절(H8):** 기준 달 M 7개 × 변이 3종(M 뒤 수익률을 모두 바꿈 / 바로 다음 달만 바꿈 / M 뒤 행을 지움)에서 같은 계산식을 다시 돌려도 M까지의 행이 변이 전 같은 계산식의 결과(그리고 저장값)와 같아야 한다. 시험이 헛돌지 않게 M 뒤 행이 달라지는지(`H8_MOVED`)와, 일부러 다음 달을 보는 뷰를 시험이 잡는지(`H8_TEETH`)도 단언한다. H8은 그 달 **뒤**를 보는지만 시험한다. 창에 그 달 자신을 넣는 실수는 미래를 본 것이 아니므로 H8이 아니라 2절 독립 계산·4절 손 계산이 잡는다. 변이는 `asset_month_return`만 바꾸므로 계산식이 다른 표(예: `fx_month`, `month_event`)를 읽게 바뀌면 H8 변이도 그 표로 넓힌다.
+  - **6절:** 순위·그룹의 정본 쿼리 텍스트가 이 절(`zz_canon`)에 있다. 시즌 기준일 `:base_date`의 풀로 걸러 읽는 모양은 아래와 같고(저장하지 않는다), 독립 정의와 합성 동률으로 검증한다. 목록 순서가 필요한 소비자(P0-18 랭킹·피드)는 `display_order`로 정렬한다 — `ORDER BY` 없는 결과의 행 순서는 보장되지 않는다. `:'base_date'`는 `psql -v base_date=2026-01-02`처럼 넘긴다.
+
+    ```sql
+    -- 순위: NULL 제외, 동률은 같은 순위, 표시 순서의 마지막 키는 market, ticker
+    SELECT t.*, t.attention_rank <= CEIL(0.10 * t.n_ranked) AS is_top
+    FROM (SELECT a.month_block_id, a.asset_id, a.attention_index,
+                 RANK() OVER (PARTITION BY a.month_block_id ORDER BY a.attention_index DESC) AS attention_rank,
+                 COUNT(*) OVER (PARTITION BY a.month_block_id) AS n_ranked,
+                 ROW_NUMBER() OVER (PARTITION BY a.month_block_id
+                                    ORDER BY a.attention_index DESC, s.market COLLATE "C", s.ticker COLLATE "C") AS display_order
+          FROM asset_month_attention a
+          JOIN asset_position p ON p.asset_id = a.asset_id AND p.base_date = :'base_date'
+          JOIN asset s ON s.id = a.asset_id
+          WHERE a.attention_index IS NOT NULL) t
+    ORDER BY t.month_block_id, t.display_order;
+    -- 그룹 관심 지수: 지수 있는 소속 종목의 평균, n_members(평균에 들어간 수)·n_pool(풀 종목 수) 함께
+    SELECT m.id AS month_block_id, a.asset_group_id, ROUND(AVG(t.attention_index), 8) AS group_attention,
+           COUNT(t.attention_index) AS n_members, COUNT(*) AS n_pool
+    FROM asset_position p JOIN asset a ON a.id = p.asset_id CROSS JOIN month_block m
+    LEFT JOIN asset_month_attention t ON t.asset_id = a.id AND t.month_block_id = m.id
+    WHERE p.base_date = :'base_date' GROUP BY m.id, a.asset_group_id;
+    ```
+  - **9절 흔적:** `asset_month_attention`·`asset_month_return`의 행 수·identity가 실행 전과 같고 `zz_` 객체가 0이다.
+- `\ir`은 psql 메타 명령이라 명령줄이 기준이다. VS Code에서는 통합 터미널(`Ctrl` + `` ` ``)에서 실행한다.
+- 13 뒤에도 10·11 검증은 그대로 `PASS`다(둘은 `asset_month_attention`을 보지 않는다). 01–03 검증은 적재가 없는 `antlab_test`에서 돌고 13은 그 DB에서 돌지 않는다.
