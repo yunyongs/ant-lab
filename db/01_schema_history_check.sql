@@ -20,7 +20,7 @@
 --       ① 맨 앞 CREATE TEMP SEQUENCE zz_verdict + setval(…, 1)   ② 결과 표 zz_check_result
 --       ③ 기대 목록 표 3개(zz_expect_*)의 모양   ④ 프로시저 check_err·check_ok·check_eq + 함수 val()
 --       ⑤ 0절 뒤 멈춤과 7.5 판정(→ 표식 2 또는 1, RAISE)   ⑥ 8절 흔적 확인(→ 표식 0)과 마지막 CASE
---       파일마다 바뀌는 것: 기대 목록 내용, 사례, 테이블 이름 목록, 기대 개수(69·21), 메시지의 P0-05.
+--       파일마다 바뀌는 것: 기대 목록 내용, 사례, 테이블 이름 목록, 기대 개수(71·21), 메시지의 P0-05.
 -- 새 문법 안내: 사례 SQL은 $q$ ... $q$(달러 인용)로 감싼 문자열이다. 프로시저가 EXECUTE로 실행하고
 --       예외를 잡아 SQLSTATE와 제약 이름을 결과 표에 적는다.
 -- 명령줄(psql)이 기준이다. VS Code에서는 통합 터미널에서 실행한다. SQL 확장의 실행 기능은 오류 처리 방식이 달라 판정을 믿지 않는다.
@@ -45,18 +45,18 @@ CREATE TEMP TABLE zz_check_result (
 
 -- 기대 목록: erd 5.3·5.4를 그대로 옮겼다 (정의는 $$ ... $$ 안에 erd 글자 그대로)
 CREATE TEMP TABLE zz_expect_count (tbl text, tbl_comment text, pk int, uq int, fk int, ck int, idx int);       -- 8행
-CREATE TEMP TABLE zz_expect_constraint (name text, kind text, tbl text, def text);                              -- 74행
+CREATE TEMP TABLE zz_expect_constraint (name text, kind text, tbl text, def text);                              -- 76행
 CREATE TEMP TABLE zz_expect_column (tbl text, pos int, col text, typ text, nn boolean, dflt text, ident boolean, tag text); -- 81행
 
 INSERT INTO zz_expect_count VALUES
     ('asset_group',           '종목 그룹',       1, 1, 0, 2,  0),
     ('asset',                 '종목',           1, 1, 1, 7,  1),
-    ('asset_position',        '종목 기준일',     1, 1, 1, 10, 1),
+    ('asset_position',        '종목 기준일',     1, 1, 1, 11, 1),
     ('month_block',           '월 블록',        1, 1, 0, 12, 0),
     ('asset_month_return',    '종목 달 수익률',  1, 1, 2, 2,  1),
     ('fx_month',              '달 환율 변화',    1, 1, 1, 2,  0),
     ('month_event',           '달 사건 태그',    1, 1, 1, 7,  1),
-    ('asset_month_attention', '종목 달 관심 지수', 1, 1, 2, 3,  1);
+    ('asset_month_attention', '종목 달 관심 지수', 1, 1, 2, 4,  1);
 
 INSERT INTO zz_expect_constraint (name, kind, tbl, def) VALUES
     ('pk_asset_group', 'PK', 'asset_group', $$(id)$$),
@@ -77,13 +77,14 @@ INSERT INTO zz_expect_constraint (name, kind, tbl, def) VALUES
     ('pk_asset_position', 'PK', 'asset_position', $$(id)$$),
     ('uq_asset_position_asset_base_date', 'UQ', 'asset_position', $$(asset_id, base_date)$$),
     ('fk_asset_position_asset', 'FK', 'asset_position', $$(asset_id) → asset.id (R2)$$),
-    ('ck_asset_position_base_price', 'CK', 'asset_position', $$base_price > 0$$),
-    ('ck_asset_position_base_fx_rate', 'CK', 'asset_position', $$base_fx_rate > 0$$),
+    ('ck_asset_position_base_price', 'CK', 'asset_position', $$base_price > 0 AND base_price <> 'NaN'::numeric$$),
+    ('ck_asset_position_base_fx_rate', 'CK', 'asset_position', $$base_fx_rate > 0 AND base_fx_rate <> 'NaN'::numeric$$),
     ('ck_asset_position_market_cap_rank', 'CK', 'asset_position', $$market_cap_rank IS NULL OR market_cap_rank > 0$$),
     ('ck_asset_position_window', 'CK', 'asset_position', $$window_start <= window_end AND window_end < date_trunc('month', base_date::timestamp)::date$$),
     ('ck_asset_position_window_month_start', 'CK', 'asset_position', $$EXTRACT(DAY FROM window_start) = 1 AND EXTRACT(DAY FROM window_end) = 1$$),
     ('ck_asset_position_months_used', 'CK', 'asset_position', $$months_used > 0$$),
-    ('ck_asset_position_volatility', 'CK', 'asset_position', $$volatility >= 0$$),
+    ('ck_asset_position_participation_not_nan', 'CK', 'asset_position', $$up_participation <> 'NaN'::numeric AND down_participation <> 'NaN'::numeric$$),
+    ('ck_asset_position_volatility', 'CK', 'asset_position', $$volatility >= 0 AND volatility <> 'NaN'::numeric$$),
     ('ck_asset_position_max_drawdown', 'CK', 'asset_position', $$max_drawdown BETWEEN -1 AND 0$$),
     ('ck_asset_position_system_position', 'CK', 'asset_position', $$system_position IN ('GOALKEEPER','DEFENDER','MIDFIELDER','FORWARD_TARGET','FORWARD_BREAKOUT','FORWARD_DEFENSIVE')$$),
     ('ck_asset_position_judgment_all_or_none', 'CK', 'asset_position', $$num_nulls(window_start, window_end, months_used, up_participation, down_participation, volatility, max_drawdown, system_position) IN (0, 8)$$),
@@ -95,10 +96,10 @@ INSERT INTO zz_expect_constraint (name, kind, tbl, def) VALUES
     ('ck_month_block_growth_dir', 'CK', 'month_block', $$growth_dir IN ('UP','DOWN','NEUTRAL')$$),
     ('ck_month_block_fx_dir', 'CK', 'month_block', $$fx_dir IN ('UP','DOWN','NEUTRAL')$$),
     ('ck_month_block_sentiment_dir', 'CK', 'month_block', $$sentiment_dir IN ('UP','DOWN','NEUTRAL')$$),
-    ('ck_month_block_rate_pair', 'CK', 'month_block', $$(rate_dir IS NULL) = (rate_strength IS NULL) AND (rate_strength IS NULL OR rate_strength >= 0)$$),
-    ('ck_month_block_growth_pair', 'CK', 'month_block', $$(growth_dir IS NULL) = (growth_strength IS NULL) AND (growth_strength IS NULL OR growth_strength >= 0)$$),
-    ('ck_month_block_fx_pair', 'CK', 'month_block', $$(fx_dir IS NULL) = (fx_strength IS NULL) AND (fx_strength IS NULL OR fx_strength >= 0)$$),
-    ('ck_month_block_sentiment_pair', 'CK', 'month_block', $$(sentiment_dir IS NULL) = (sentiment_strength IS NULL) AND (sentiment_strength IS NULL OR sentiment_strength >= 0)$$),
+    ('ck_month_block_rate_pair', 'CK', 'month_block', $$(rate_dir IS NULL) = (rate_strength IS NULL) AND (rate_strength IS NULL OR (rate_strength >= 0 AND rate_strength <> 'NaN'::numeric))$$),
+    ('ck_month_block_growth_pair', 'CK', 'month_block', $$(growth_dir IS NULL) = (growth_strength IS NULL) AND (growth_strength IS NULL OR (growth_strength >= 0 AND growth_strength <> 'NaN'::numeric))$$),
+    ('ck_month_block_fx_pair', 'CK', 'month_block', $$(fx_dir IS NULL) = (fx_strength IS NULL) AND (fx_strength IS NULL OR (fx_strength >= 0 AND fx_strength <> 'NaN'::numeric))$$),
+    ('ck_month_block_sentiment_pair', 'CK', 'month_block', $$(sentiment_dir IS NULL) = (sentiment_strength IS NULL) AND (sentiment_strength IS NULL OR (sentiment_strength >= 0 AND sentiment_strength <> 'NaN'::numeric))$$),
     ('ck_month_block_prob_range', 'CK', 'month_block', $$prob_p1 BETWEEN 0 AND 1 AND prob_p2 BETWEEN 0 AND 1 AND prob_p3 BETWEEN 0 AND 1 AND prob_p4 BETWEEN 0 AND 1$$),
     ('ck_month_block_prob_all_or_none', 'CK', 'month_block', $$num_nulls(prob_p1, prob_p2, prob_p3, prob_p4) IN (0, 4)$$),
     ('ck_month_block_prob_sum', 'CK', 'month_block', $$prob_p1 IS NULL OR ABS(prob_p1 + prob_p2 + prob_p3 + prob_p4 - 1) <= 0.0002$$),
@@ -106,14 +107,14 @@ INSERT INTO zz_expect_constraint (name, kind, tbl, def) VALUES
     ('uq_asset_month_return_asset_month', 'UQ', 'asset_month_return', $$(asset_id, month_block_id)$$),
     ('fk_asset_month_return_asset', 'FK', 'asset_month_return', $$(asset_id) → asset.id (R3)$$),
     ('fk_asset_month_return_month_block', 'FK', 'asset_month_return', $$(month_block_id) → month_block.id (R4)$$),
-    ('ck_asset_month_return_local_return', 'CK', 'asset_month_return', $$local_return >= -1$$),
+    ('ck_asset_month_return_local_return', 'CK', 'asset_month_return', $$local_return >= -1 AND local_return <> 'NaN'::numeric$$),
     ('ck_asset_month_return_return_kind', 'CK', 'asset_month_return', $$return_kind IN ('ACTUAL','PROXY_INDEX')$$),
     ('idx_asset_month_return_month_block', 'IDX', 'asset_month_return', $$(month_block_id)$$),
     ('pk_fx_month', 'PK', 'fx_month', $$(id)$$),
     ('uq_fx_month_month_block_currency', 'UQ', 'fx_month', $$(month_block_id, currency)$$),
     ('fk_fx_month_month_block', 'FK', 'fx_month', $$(month_block_id) → month_block.id (R5)$$),
     ('ck_fx_month_currency', 'CK', 'fx_month', $$currency IN ('USD')$$),
-    ('ck_fx_month_fx_change', 'CK', 'fx_month', $$fx_change > -1$$),
+    ('ck_fx_month_fx_change', 'CK', 'fx_month', $$fx_change > -1 AND fx_change <> 'NaN'::numeric$$),
     ('pk_month_event', 'PK', 'month_event', $$(id)$$),
     ('uq_month_event_event_key', 'UQ', 'month_event', $$(event_key)$$),
     ('fk_month_event_month_block', 'FK', 'month_event', $$(month_block_id) → month_block.id (R6)$$),
@@ -123,7 +124,7 @@ INSERT INTO zz_expect_constraint (name, kind, tbl, def) VALUES
     ('ck_month_event_outcome_format', 'CK', 'month_event', $$outcome IS NULL OR outcome ~ '^[A-Z][A-Z_]*$'$$),
     ('ck_month_event_direction', 'CK', 'month_event', $$direction IN ('UP','DOWN')$$),
     ('ck_month_event_strength', 'CK', 'month_event', $$strength BETWEEN 1 AND 3$$),
-    ('ck_month_event_reaction_change', 'CK', 'month_event', $$reaction_change IS NULL OR reaction_change >= -1$$),
+    ('ck_month_event_reaction_change', 'CK', 'month_event', $$reaction_change IS NULL OR (reaction_change >= -1 AND reaction_change <> 'NaN'::numeric)$$),
     ('idx_month_event_month_block', 'IDX', 'month_event', $$(month_block_id)$$),
     ('pk_asset_month_attention', 'PK', 'asset_month_attention', $$(id)$$),
     ('uq_asset_month_attention_asset_month', 'UQ', 'asset_month_attention', $$(asset_id, month_block_id)$$),
@@ -132,6 +133,7 @@ INSERT INTO zz_expect_constraint (name, kind, tbl, def) VALUES
     ('ck_asset_month_attention_window_months', 'CK', 'asset_month_attention', $$window_months BETWEEN 0 AND 12$$),
     ('ck_asset_month_attention_z_window', 'CK', 'asset_month_attention', $$attention_z IS NULL OR window_months >= 2$$),
     ('ck_asset_month_attention_index_needs_z', 'CK', 'asset_month_attention', $$attention_z IS NOT NULL OR attention_index IS NULL$$),
+    ('ck_asset_month_attention_not_nan', 'CK', 'asset_month_attention', $$attention_z <> 'NaN'::numeric AND attention_index <> 'NaN'::numeric$$),
     ('idx_asset_month_attention_month_block', 'IDX', 'asset_month_attention', $$(month_block_id)$$);
 INSERT INTO zz_expect_column (tbl, pos, col, typ, nn, dflt, ident, tag) VALUES
     ('asset_group', 1, 'id', 'bigint', true, NULL, true, '[내부]'),
@@ -367,7 +369,7 @@ SELECT '1 구조', '테이블 코멘트: ' || e.tbl, e.tbl_comment, obj_descript
 FROM zz_expect_count e
 ORDER BY e.tbl;
 
--- 1.4 제약·인덱스 74개의 이름·종류·테이블이 1:1 (빠진 것도 남는 것도 한 행씩 FAIL)
+-- 1.4 제약·인덱스 76개의 이름·종류·테이블이 1:1 (빠진 것도 남는 것도 한 행씩 FAIL)
 INSERT INTO zz_check_result (section, item, expected, actual, ok)
 WITH act AS (
     SELECT c.conname::text AS name,
@@ -387,7 +389,7 @@ SELECT '1 구조', '이름·종류·테이블: ' || COALESCE(e.name, a.name),
 FROM zz_expect_constraint e FULL JOIN act a ON a.name = e.name
 ORDER BY COALESCE(e.name, a.name);
 
--- 1.5 CHECK 45개의 정의 — 왕복 정규화
+-- 1.5 CHECK 47개의 정의 — 왕복 정규화
 --     erd 5.4의 식을 빈 임시 사본(LIKE: 컬럼 이름·타입·NOT NULL만 복사)에 CHECK로 붙여 PostgreSQL이 다시 파싱하게 하고,
 --     실제 제약과 pg_get_constraintdef 출력끼리 비교한다. 괄호·캐스트·IN·BETWEEN 표기 차이에 흔들리지 않는다.
 --     erd 식에 오타가 있으면 ALTER가 실패해 FAIL로 드러난다.
@@ -936,6 +938,7 @@ CALL pg_temp.check_err('3 음성', 'RESTRICT: 환율 행이 있는 달(1991-02)�
 
 -- 4 저장 정밀도 경계 ------------------------------------------------------------
 -- erd 5절 테이블에는 원 단위 CHECK가 없다(2절 금액). 대신 "CHECK는 반올림된 저장값을 본다"(D1)를 확인한다.
+-- NaN은 자기와 같고 모든 수보다 크게 비교되어 하한·등식 CHECK만으로는 막히지 않는다(erd D32, 4.7).
 -- NUMERIC(p,s)는 소수 자리가 넘치면 경고 없이 0에서 먼 쪽으로 반올림하고, 정수 자리가 넘치면 22003으로 거부한다.
 -- 수익률 사례는 종목 ZZBND × 1993-01 ~ 11, 환율 사례는 1993-01 ~ 02, 기준일 사례는 ZZBND × 2031 이후 기준일을 쓴다.
 
@@ -1003,6 +1006,70 @@ CALL pg_temp.check_eq('4 경계', 'asset_type ''STOCK '' → 저장값의 길이
 CALL pg_temp.check_err('4 경계', 'asset_type = ''ETF  '' (폭 5 안의 뒤 공백 2개 → CHECK 위반)', $q$INSERT INTO asset (market, ticker, name, asset_type, currency, asset_group_id, listed_on, return_basis)
     VALUES ('KR', 'ZZTRIM2', 'x', 'ETF  ', 'KRW', (SELECT id FROM asset_group WHERE code = 'ZZ_GROUP'), '2000-01-03', 'PRICE')$q$, '23514', 'ck_asset_asset_type');
 
+-- 4.7 NUMERIC NaN: NaN은 자기와 같고 모든 수보다 크게 비교되어 `>= 0`·`> 0`만으로는 막히지 않는다 (erd D32).
+--     값 CHECK의 <> 'NaN'::numeric과 NaN 전용 CHECK 2개가 실제로 걸리는지 컬럼마다 한 건씩 본다. 무한대는 정밀도 지정 NUMERIC이 22003으로 막는다.
+--     BETWEEN으로 상한이 있는 max_drawdown·확률은 NaN에서 이미 거짓이라 고치지 않았다(변경 없음 확인).
+--     사례는 3절의 빈 기준 행(ZZBND × 2030-01-02, 월 1995-01·1990-03, ZZSPY × 1990-01)을 쓰며 실패하면 되돌아간다. 먼저 그 전제를 단언한다.
+CALL pg_temp.check_eq('4 경계', 'NaN 사례 전제: 부모(종목 ZZBND·ZZSPY / 월 1990-01·1990-03)가 있다', '2/2',
+    pg_temp.val($v$SELECT (SELECT count(*) FROM asset WHERE ticker IN ('ZZBND', 'ZZSPY'))::text
+        || '/' || (SELECT count(*) FROM month_block WHERE month_start IN ('1990-01-01', '1990-03-01'))::text$v$));
+CALL pg_temp.check_eq('4 경계', 'NaN 사례 전제: 사례 키(ZZBND × 2030-01-02, 월 1995-01, ZZSPY × 1990-01 수익률·관심, 1990-03 환율, ZZ_NEW)가 비어 있다', '0',
+    pg_temp.val($v$SELECT ((SELECT count(*) FROM asset_position WHERE base_date = '2030-01-02')
+        + (SELECT count(*) FROM month_block WHERE month_start = '1995-01-01')
+        + (SELECT count(*) FROM asset_month_return WHERE month_block_id = (SELECT id FROM month_block WHERE month_start = '1990-01-01') AND asset_id = (SELECT id FROM asset WHERE ticker = 'ZZSPY'))
+        + (SELECT count(*) FROM asset_month_attention WHERE month_block_id = (SELECT id FROM month_block WHERE month_start = '1990-01-01') AND asset_id = (SELECT id FROM asset WHERE ticker = 'ZZSPY'))
+        + (SELECT count(*) FROM fx_month WHERE month_block_id = (SELECT id FROM month_block WHERE month_start = '1990-03-01'))
+        + (SELECT count(*) FROM month_event WHERE event_key = 'ZZ_NEW'))::text$v$));
+CALL pg_temp.check_err('4 경계', 'asset_position.base_price = NaN',
+    $q$INSERT INTO asset_position (asset_id, base_date, base_price, base_fx_rate) VALUES ((SELECT id FROM asset WHERE ticker = 'ZZBND'), '2030-01-02', 'NaN', 1)$q$, '23514', 'ck_asset_position_base_price');
+CALL pg_temp.check_err('4 경계', 'asset_position.base_fx_rate = NaN',
+    $q$INSERT INTO asset_position (asset_id, base_date, base_price, base_fx_rate) VALUES ((SELECT id FROM asset WHERE ticker = 'ZZBND'), '2030-01-02', 100, 'NaN')$q$, '23514', 'ck_asset_position_base_fx_rate');
+CALL pg_temp.check_err('4 경계', 'asset_position.up_participation = NaN (값 CHECK가 없어 전용 CHECK)',
+    $q$INSERT INTO asset_position (asset_id, base_date, base_price, base_fx_rate, window_start, window_end, months_used, up_participation, down_participation, volatility, max_drawdown, system_position)
+       VALUES ((SELECT id FROM asset WHERE ticker = 'ZZBND'), '2030-01-02', 100, 1, '2027-01-01', '2029-12-01', 36, 'NaN', 1, 0.1, -0.1, 'MIDFIELDER')$q$, '23514', 'ck_asset_position_participation_not_nan');
+CALL pg_temp.check_err('4 경계', 'asset_position.down_participation = NaN',
+    $q$INSERT INTO asset_position (asset_id, base_date, base_price, base_fx_rate, window_start, window_end, months_used, up_participation, down_participation, volatility, max_drawdown, system_position)
+       VALUES ((SELECT id FROM asset WHERE ticker = 'ZZBND'), '2030-01-02', 100, 1, '2027-01-01', '2029-12-01', 36, 1, 'NaN', 0.1, -0.1, 'MIDFIELDER')$q$, '23514', 'ck_asset_position_participation_not_nan');
+CALL pg_temp.check_err('4 경계', 'asset_position.volatility = NaN',
+    $q$INSERT INTO asset_position (asset_id, base_date, base_price, base_fx_rate, window_start, window_end, months_used, up_participation, down_participation, volatility, max_drawdown, system_position)
+       VALUES ((SELECT id FROM asset WHERE ticker = 'ZZBND'), '2030-01-02', 100, 1, '2027-01-01', '2029-12-01', 36, 1, 1, 'NaN', -0.1, 'MIDFIELDER')$q$, '23514', 'ck_asset_position_volatility');
+CALL pg_temp.check_err('4 경계', 'asset_position.max_drawdown = NaN (BETWEEN이 이미 거짓 — 변경 없음 확인)',
+    $q$INSERT INTO asset_position (asset_id, base_date, base_price, base_fx_rate, window_start, window_end, months_used, up_participation, down_participation, volatility, max_drawdown, system_position)
+       VALUES ((SELECT id FROM asset WHERE ticker = 'ZZBND'), '2030-01-02', 100, 1, '2027-01-01', '2029-12-01', 36, 1, 1, 0.1, 'NaN', 'MIDFIELDER')$q$, '23514', 'ck_asset_position_max_drawdown');
+DO $$
+DECLARE a text;
+BEGIN
+    FOREACH a IN ARRAY ARRAY['rate', 'growth', 'fx', 'sentiment'] LOOP
+        CALL pg_temp.check_err('4 경계', format('month_block.%s_strength = NaN (방향 UP)', a),
+            format($f$INSERT INTO month_block (month_start, %1$s_dir, %1$s_strength) VALUES ('1995-01-01', 'UP', 'NaN')$f$, a), '23514', format('ck_month_block_%s_pair', a));
+    END LOOP;
+END $$;
+--     확률 4개: 한 컬럼만 NaN(나머지 0.25). prob_sum도 어기지만 이름 순으로 prob_range가 먼저 보고된다.
+DO $$
+DECLARE i int;
+BEGIN
+    FOR i IN 1..4 LOOP
+        CALL pg_temp.check_err('4 경계', format('month_block.prob_p%s = NaN (BETWEEN이 이미 거짓 — 변경 없음 확인)', i),
+            format($f$INSERT INTO month_block (month_start, prob_p1, prob_p2, prob_p3, prob_p4) VALUES ('1995-01-01', %s, %s, %s, %s)$f$,
+                CASE i WHEN 1 THEN '''NaN''' ELSE '0.25' END, CASE i WHEN 2 THEN '''NaN''' ELSE '0.25' END,
+                CASE i WHEN 3 THEN '''NaN''' ELSE '0.25' END, CASE i WHEN 4 THEN '''NaN''' ELSE '0.25' END),
+            '23514', 'ck_month_block_prob_range');
+    END LOOP;
+END $$;
+CALL pg_temp.check_err('4 경계', 'asset_month_return.local_return = NaN',
+    $q$INSERT INTO asset_month_return (asset_id, month_block_id, local_return) VALUES ((SELECT id FROM asset WHERE ticker = 'ZZSPY'), (SELECT id FROM month_block WHERE month_start = '1990-01-01'), 'NaN')$q$, '23514', 'ck_asset_month_return_local_return');
+CALL pg_temp.check_err('4 경계', 'fx_month.fx_change = NaN',
+    $q$INSERT INTO fx_month (month_block_id, currency, fx_change) VALUES ((SELECT id FROM month_block WHERE month_start = '1990-03-01'), 'USD', 'NaN')$q$, '23514', 'ck_fx_month_fx_change');
+CALL pg_temp.check_err('4 경계', 'month_event.reaction_change = NaN',
+    $q$INSERT INTO month_event (event_key, month_block_id, category, event_type, phase, strength, reaction_change, title, source) VALUES ('ZZ_NEW', (SELECT id FROM month_block WHERE month_start = '1990-03-01'), 'TRADE', 'TARIFF', 'START', 2, 'NaN', 't', 's')$q$, '23514', 'ck_month_event_reaction_change');
+--     창 12개월로 시험한다: 창 1이면 z_window도 어기지만 이름 순으로 not_nan이 먼저 보고된다.
+CALL pg_temp.check_err('4 경계', 'asset_month_attention.attention_z = NaN (값 CHECK가 없어 전용 CHECK)',
+    $q$INSERT INTO asset_month_attention (asset_id, month_block_id, window_months, attention_z, streak) VALUES ((SELECT id FROM asset WHERE ticker = 'ZZSPY'), (SELECT id FROM month_block WHERE month_start = '1990-01-01'), 12, 'NaN', 0)$q$, '23514', 'ck_asset_month_attention_not_nan');
+CALL pg_temp.check_err('4 경계', 'asset_month_attention.attention_index = NaN',
+    $q$INSERT INTO asset_month_attention (asset_id, month_block_id, window_months, attention_z, attention_index, streak) VALUES ((SELECT id FROM asset WHERE ticker = 'ZZSPY'), (SELECT id FROM month_block WHERE month_start = '1990-01-01'), 12, 1, 'NaN', 0)$q$, '23514', 'ck_asset_month_attention_not_nan');
+CALL pg_temp.check_err('4 경계', 'asset_month_return.local_return = Infinity (정밀도 지정 NUMERIC이 거부 → 22003)',
+    $q$INSERT INTO asset_month_return (asset_id, month_block_id, local_return) VALUES ((SELECT id FROM asset WHERE ticker = 'ZZSPY'), (SELECT id FROM month_block WHERE month_start = '1990-01-01'), 'Infinity')$q$, '22003');
+
 -- 5 검증 규칙 H1 예시 (erd 5.5, 9절) ----------------------------------------------
 -- H1: 같은 base_date의 USD 종목 행은 base_fx_rate가 하나이고, KRW 종목은 1이다. CHECK는 다른 행을 못 보므로 쿼리로 센다.
 -- 아래 쿼리가 위반을 한 행씩 돌려준다. P0-08 적재가 같은 쿼리를 완료 기준으로 쓴다 (0행이어야 정상).
@@ -1066,7 +1133,7 @@ CALL pg_temp.check_err('6 DDL', 'D6: 기존 idx_ 이름과 같은 이름의 UNIQ
     $q$ALTER TABLE fx_month ADD CONSTRAINT idx_asset_asset_group UNIQUE (id)$q$, '42P07');
 
 -- 7 판정 ---------------------------------------------------------------------
--- 7.1 커버리지: 8개 테이블의 ck_ 45 + uq_ 8 + fk_ 8 = 61개 이름이 각각 1건 이상 자기 이름으로 보고되어야 한다.
+-- 7.1 커버리지: 8개 테이블의 ck_ 47 + uq_ 8 + fk_ 8 = 63개 이름이 각각 1건 이상 자기 이름으로 보고되어야 한다.
 --     (보고된 이름 = 3·4절 성공한 음성 사례 결과의 실제값 둘째 칸, SQLSTATE 23514·23505·23503인 것)
 --     가려진 CHECK(다른 CHECK에 가려 단독으로 못 걸리는 것)가 있으면 여기서 빠진 이름으로 드러난다.
 INSERT INTO zz_check_result (section, item, expected, actual, ok)
@@ -1079,10 +1146,10 @@ WITH covered AS (
     FROM pg_constraint c
     WHERE c.contype IN ('u', 'f', 'c') AND c.conrelid IN (SELECT to_regclass('public.' || tbl) FROM zz_expect_count)
 )
-SELECT '7 판정', '커버리지: 자기 이름으로 보고된 ck_·uq_·fk_ 이름 수', '61/61',
+SELECT '7 판정', '커버리지: 자기 이름으로 보고된 ck_·uq_·fk_ 이름 수', '63/63',
        (SELECT count(*) FROM need WHERE name IN (SELECT name FROM covered))::text || '/' || (SELECT count(*) FROM need)::text
        || COALESCE(' 빠짐: ' || (SELECT string_agg(name, ', ' ORDER BY name) FROM need WHERE name NOT IN (SELECT name FROM covered)), ''),
-       (SELECT count(*) FROM need WHERE name IN (SELECT name FROM covered)) = 61 AND (SELECT count(*) FROM need) = 61;
+       (SELECT count(*) FROM need WHERE name IN (SELECT name FROM covered)) = 63 AND (SELECT count(*) FROM need) = 63;
 
 -- 7.2 절별 집계 (total / pass / fail)
 SELECT section, count(*) AS total, count(*) FILTER (WHERE ok) AS pass, count(*) FILTER (WHERE NOT ok) AS fail
@@ -1120,7 +1187,7 @@ END $$;
 ROLLBACK;
 
 -- 8 흔적 확인 (ROLLBACK 뒤) ------------------------------------------------------
--- 8개 테이블의 행 0, public의 zz_ 객체 0, 제약 69개(PK 8 + UQ 8 + FK 8 + CK 45)와 인덱스 21개(PK 8 + UQ 8 + idx_ 5)가 그대로다.
+-- 8개 테이블의 행 0, public의 zz_ 객체 0, 제약 71개(PK 8 + UQ 8 + FK 8 + CK 47)와 인덱스 21개(PK 8 + UQ 8 + idx_ 5)가 그대로다.
 -- identity 값 소비만 되돌아오지 않는다 (db/README.md).
 DO $$
 DECLARE
@@ -1140,9 +1207,9 @@ BEGIN
     SELECT count(*) INTO v_idx FROM pg_indexes
     WHERE schemaname = 'public' AND tablename IN ('asset_group', 'asset', 'asset_position', 'month_block',
           'asset_month_return', 'fx_month', 'month_event', 'asset_month_attention');
-    IF (v_rows, v_zz, v_con, v_idx) <> (0, 0, 69, 21) THEN
+    IF (v_rows, v_zz, v_con, v_idx) <> (0, 0, 71, 21) THEN
         PERFORM setval('zz_verdict', 1);
-        RAISE EXCEPTION 'P0-05 흔적 확인 실패: 행 % (기대 0), zz_ 객체 % (기대 0), 제약 % (기대 69), 인덱스 % (기대 21)', v_rows, v_zz, v_con, v_idx;
+        RAISE EXCEPTION 'P0-05 흔적 확인 실패: 행 % (기대 0), zz_ 객체 % (기대 0), 제약 % (기대 71), 인덱스 % (기대 21)', v_rows, v_zz, v_con, v_idx;
     END IF;
     -- 단언을 모두 통과했고 1–7절도 통과(2)였을 때만 최종 통과(0)로 바꾼다.
     IF (SELECT last_value FROM zz_verdict) = 2 THEN
