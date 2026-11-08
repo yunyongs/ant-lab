@@ -22,6 +22,7 @@
 - Spring Boot + JPA 기술 설계: [docs/SPRING_JPA.md](docs/SPRING_JPA.md)
 - 도메인 ERD와 엔티티 정의서: [docs/erd.md](docs/erd.md) (PLAN §5.1 기준)
 - 엔진 방법론(국면·지표·사후 정보 배제·백테스트): [docs/MACRO_ETF.md](docs/MACRO_ETF.md)
+- 배포 구조·규칙(Docker Compose, 이미지, 비밀값, 호스팅): [docs/DEPLOY.md](docs/DEPLOY.md)
 - Git 컨벤션(이슈, 브랜치, 커밋, 풀 리퀘스트(PR, Pull Request)): [docs/CONVENTION.md](docs/CONVENTION.md)
 - 이 프로젝트와 함께 성장하는 학습 저장소: [slx-ai-campus](https://github.com/yunyongs/slx-ai-campus)
 
@@ -42,4 +43,4 @@
 
 ## 기술 스택
 
-Java 21 · Spring Boot 3 · PostgreSQL 17 · JPA (리포트 쿼리에 MyBatis 선택) · Python (FastAPI, pandas, 시뮬레이션 엔진) · 모바일 앱 중심 + 데스크탑 앱 + 웹 페이지 (React Native, React — 이후) · RAG / LangChain / LangGraph (이후) · Docker, GitHub Actions, 오라클 클라우드 인프라(OCI, Oracle Cloud Infrastructure) (이후)
+Java 21 · Spring Boot 3 · PostgreSQL 17 · JPA (리포트 쿼리에 MyBatis 선택) · Python (FastAPI, pandas, 시뮬레이션 엔진) · 모바일 앱 중심 + 데스크탑 앱 + 웹 페이지 (React Native, React — 이후) · RAG / LangChain / LangGraph (이후) · Docker Compose(로컬 DB는 지금, 서버 배포는 OPS) · GitHub Actions · GHCR · 오라클 클라우드 인프라(OCI, Oracle Cloud Infrastructure) Ampere VM + Caddy (이후)

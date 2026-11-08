@@ -534,6 +534,8 @@ ETF별, 계좌별, 전체 포트폴리오에 대해 계산한다.
 
 ### 6.4 배포와 CI
 
+> 배포의 정본은 [DEPLOY.md](DEPLOY.md)(2026-11-08)다. 이 절은 참고로 남긴다.
+
 - **로컬:** Docker Compose로 PostgreSQL, Spring, Python, React(개발 서버), 선택적으로 n8n을 실행한다.
 - **지속적 통합(CI, Continuous Integration), GitHub Actions, 첫 단계부터:** 모든 풀 리퀘스트(PR, Pull Request)에서 Java(Gradle)와 Python(pytest)을 빌드·테스트하고, lint를 돌리고, Docker 이미지를 빌드한다. `main`에 병합되면 멀티 아키텍처 이미지를 GitHub Container Registry에 푸시한다.
 - **호스팅:** 오라클 클라우드 인프라(OCI, Oracle Cloud Infrastructure) Always Free Ampere(ARM) 가상 머신(VM, Virtual Machine) 한 대에서 Caddy 뒤에 Docker Compose를 띄워 보안 HTTP(HTTPS, Hypertext Transfer Protocol Secure)를 제공한다. Slack은 대화형 버튼 클릭을 공개 HTTPS 웹 주소(URL, Uniform Resource Locator)로만 보내므로 HTTPS가 필수다. 배포는 소유자가 직접 실행하는 수동 워크플로다. 유료 및 구글 클라우드 플랫폼(GCP, Google Cloud Platform) 옵션은 부록 A에 있다.

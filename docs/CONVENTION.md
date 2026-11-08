@@ -281,7 +281,7 @@ git switch -c feat/24-M1-02-fred-collector
 | `quant`     | Python 퀀트: 국면 채점, 목표 비중, 백테스트, 리스크 지표           | `regime.py`, `backtest.py`                 |
 | `ai`        | Python 인공지능(AI, Artificial Intelligence): 검색 증강 생성(RAG, Retrieval-Augmented Generation), LangGraph, 리포트, 자연어 질의          | `pipeline.py`                              |
 | `web`       | React 앱과 차트                                     | `RegimeMap.tsx`                            |
-| `infra`     | Docker, 배포, 오라클 클라우드 인프라(OCI, Oracle Cloud Infrastructure), 백업, n8n                        | `docker-compose.yml`, `Caddyfile`          |
+| `infra`     | Docker, 배포, 오라클 클라우드 인프라(OCI, Oracle Cloud Infrastructure), 백업, n8n                        | `compose.yaml`, `compose.prod.yaml`, `deploy/Caddyfile`, `.dockerignore` |
 | `config`    | 빌드 파일, `.gitignore`, `.github/` (템플릿, CI 워크플로)  | `build.gradle`, `ci.yml`                   |
 | `docs`      | `README.md`, `docs/`                            | PLAN, MACRO\_ETF, CONVENTION               |
 

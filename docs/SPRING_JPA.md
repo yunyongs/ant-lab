@@ -37,7 +37,7 @@ src/main/java/antlab/
 | 마이그레이션 | **Flyway**. `db/`의 DDL을 `src/main/resources/db/migration/V1__schema.sql`부터 번호 순으로 둔다 | 스키마 변경을 코드처럼 버전 관리하고, 앱 시작 때 자동 적용. 테스트 DB도 같은 파일로 만들어 "DDL ↔ 엔티티" 불일치를 시작 시점에 잡는다 |
 | `spring.jpa.hibernate.ddl-auto` | **`validate`** 고정. `update`·`create`는 어떤 프로필에서도 쓰지 않는다 | Hibernate(JPA 구현체)가 테이블을 만들면 CHECK·인덱스 이름 규칙(`ck_`, `idx_`)이 사라진다. `validate`는 엔티티와 테이블이 다르면 **시작을 거부**해 경계면 버그를 가장 일찍 드러낸다 |
 | 시드 데이터 | Flyway `R__seed_*.sql`(반복 가능) — 종목 풀, 월 블록 표본 | 역사 데이터는 JPA로 넣지 않는다(§7) |
-| 데이터베이스 | **PostgreSQL 17, Phase 0부터**(PLAN §10·§13, 2026-11-05). Flyway 파일은 처음부터 PostgreSQL 문법(`GENERATED … AS IDENTITY`, `NUMERIC`, `TIMESTAMPTZ`/`TIMESTAMP` 선택은 `erd.md` v2). 다른 DB를 동시에 지원하는 `{vendor}` 분기는 두지 않는다 | 이전(M1)이 없어져 DDL·CHECK·테스트를 한 번만 쓴다. 로컬 실습 DB는 Homebrew `postgresql@17`, 검증은 임시 소켓 인스턴스(`initdb` + `pg_ctl`, 저장소 밖 datadir) |
+| 데이터베이스 | **PostgreSQL 17, Phase 0부터**(PLAN §10·§13, 2026-11-05). Flyway 파일은 처음부터 PostgreSQL 문법(`GENERATED … AS IDENTITY`, `NUMERIC`, `TIMESTAMPTZ`/`TIMESTAMP` 선택은 `erd.md` v2). 다른 DB를 동시에 지원하는 `{vendor}` 분기는 두지 않는다 | 이전(M1)이 없어져 DDL·CHECK·테스트를 한 번만 쓴다. 로컬 실습 DB는 Docker Compose `db` 서비스(`db/README.md`, 배포 구조는 [DEPLOY.md](DEPLOY.md)), 검증은 임시 소켓 인스턴스(`initdb` + `pg_ctl`, 저장소 밖 datadir) |
 
 Flyway는 Spring 챕터의 범위를 조금 넘는 도구다. 처음에는 `V1__schema.sql` 한 파일만 두고, "앱을 띄우면 테이블이 검증된다"는 것만 경험한 뒤 기능마다 `V2__…`를 더한다.
 
@@ -192,7 +192,7 @@ TurnService.advance(seasonId, expectedTurnNo)
 | 엔진 대조 | Java 부트스트랩 vs Phase 0 손 계산 | 같은 시드 → 같은 경로, 같은 수익률 → 같은 가격(원 단위) |
 | API | `MockMvc` | 검증 오류 400, 턴 불일치 409, 잔액 부족 422(초안), 비공개 컬럼이 응답에 없음 |
 
-- **H2를 쓰지 않는다.** CHECK·`NUMERIC` 반올림·`FOR UPDATE`·문자열 비교의 동작이 PostgreSQL과 달라 통과해도 믿을 수 없다. 로컬은 상시 PostgreSQL 서버의 `antlab_test`(`db/README.md`의 데이터베이스 생성 블록). CI(M1)는 **Testcontainers PostgreSQL 17**로 같은 Flyway 파일을 적용한다.
+- **H2를 쓰지 않는다.** CHECK·`NUMERIC` 반올림·`FOR UPDATE`·문자열 비교의 동작이 PostgreSQL과 달라 통과해도 믿을 수 없다. 로컬은 compose `db` 서비스의 `antlab_test`(`db/README.md`의 데이터베이스 생성 블록). CI(M1)는 **Testcontainers PostgreSQL 17**로 같은 Flyway 파일을 적용한다.
 - 테스트 DB는 테스트 시작 때 Flyway `clean` → `migrate`. 실습 DB `antlab`에는 테스트가 접속하지 않는다(프로필 `test`의 URL이 `antlab_test`로 고정).
 
 ## 10. 설정(초안)
@@ -216,6 +216,20 @@ antlab:
 ```
 
 프로필: `local`(실습 DB, SQL 로그 켬), `test`(`antlab_test`, Flyway clean 허용), `prod`(OPS). 비밀값(DB 비밀번호)은 환경 변수로만.
+
+### 10.1 컨테이너에서 실행 (MVP 체크리스트 초안)
+
+Spring 프로젝트를 만들 때(MVP) 아래를 지킨다. 같은 이미지가 로컬·CI·운영에서 돌고, 운영 값은 환경 변수와 `/run/secrets`가 정한다. 구조 전체는 [DEPLOY.md](DEPLOY.md).
+
+1. `application.yml`은 `${ANTLAB_…:기본값}` 자리표시자와 로컬 기본값만 두고, 운영 값은 환경 변수·configtree(`spring.config.import=optional:configtree:/run/secrets/`, 세부 **확인 필요**)로 준다. `application-prod.yml`에는 비밀값을 쓰지 않는다.
+2. 프로필은 위의 `local`·`test`·`prod` 셋이고, 컨테이너에서는 `SPRING_PROFILES_ACTIVE=prod`다. `prod`는 SQL 로그를 끄고 `open-in-view: false`를 유지한다.
+3. Actuator는 `health`만 노출하고 probes(liveness·readiness)를 `management.endpoint.health.probes.enabled=true`로 **명시해** 켠다(3.x는 Kubernetes 밖에서 자동으로 켜지지 않는다 — [DEPLOY.md](DEPLOY.md) §8). `info`에 git SHA를 넣는다.
+4. 그레이스풀 셧다운: 3.5 이상은 기본 켜짐(3.4 이하면 `server.shutdown=graceful` 명시)이고 `spring.lifecycle.timeout-per-shutdown-phase=20s`로 둔다.
+5. 프록시 뒤: `server.forward-headers-strategy=framework`(Caddy의 `X-Forwarded-*`로 HTTPS·원래 IP 인식 — 속성 이름 **확인 필요**).
+6. Flyway는 시작 때 적용하고 `ddl-auto: validate`를 유지한다.
+7. 로그는 stdout만, 키·토큰은 마스킹한다.
+8. Dockerfile(멀티 스테이지)·`.dockerignore`를 api 첫 PR에서 만들고, `compose.yaml`에 `api`(`build: .`)를 더한다. CI는 이미지 **빌드만** 하고 푸시하지 않는다.
+9. Spring Boot 판(3.x / 4.x)은 MVP 시작 때 커리큘럼 판과 지원 기간을 보고 정한다(**확인 필요**, PLAN §10은 3.x).
 
 ## 11. Phase 1(JDBC) → MVP(JPA) 대응표
 
