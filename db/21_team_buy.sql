@@ -44,14 +44,14 @@
 -- 지난 실행이 남긴 임시 객체를 지운다 (같은 세션에서 다시 읽어도 되도록. 없을 때의 알림은 숨긴다)
 SET client_min_messages TO warning;
 DROP PROCEDURE IF EXISTS pg_temp.team_build();
-DROP VIEW IF EXISTS tb_diff;
-DROP VIEW IF EXISTS tb_plan;
-DROP VIEW IF EXISTS tb_season;
-DROP TABLE IF EXISTS tb_gate;
-DROP TABLE IF EXISTS tb_todo;
-DROP TABLE IF EXISTS tb_before;
-DROP TABLE IF EXISTS tb_cash;
-DROP TABLE IF EXISTS tb_team;
+DROP VIEW IF EXISTS pg_temp.tb_diff;
+DROP VIEW IF EXISTS pg_temp.tb_plan;
+DROP VIEW IF EXISTS pg_temp.tb_season;
+DROP TABLE IF EXISTS pg_temp.tb_gate;
+DROP TABLE IF EXISTS pg_temp.tb_todo;
+DROP TABLE IF EXISTS pg_temp.tb_before;
+DROP TABLE IF EXISTS pg_temp.tb_cash;
+DROP TABLE IF EXISTS pg_temp.tb_team;
 RESET client_min_messages;
 
 -- [팀 명단 한 곳] 한 줄에 한 종목: (줄, 시장, 종목 코드, 비중 %, 선언 포지션).
@@ -308,11 +308,11 @@ SELECT (SELECT count(*) FROM orders o JOIN tb_season s ON s.id = o.season_id WHE
        (SELECT count(*) FROM tb_diff)                                                                                               AS diff_from_roster;
 
 DROP PROCEDURE pg_temp.team_build();
-DROP VIEW tb_diff;
-DROP VIEW tb_plan;
-DROP VIEW tb_season;
-DROP TABLE tb_gate;
-DROP TABLE tb_todo;
-DROP TABLE tb_before;
-DROP TABLE tb_cash;
-DROP TABLE tb_team;
+DROP VIEW pg_temp.tb_diff;
+DROP VIEW pg_temp.tb_plan;
+DROP VIEW pg_temp.tb_season;
+DROP TABLE pg_temp.tb_gate;
+DROP TABLE pg_temp.tb_todo;
+DROP TABLE pg_temp.tb_before;
+DROP TABLE pg_temp.tb_cash;
+DROP TABLE pg_temp.tb_team;

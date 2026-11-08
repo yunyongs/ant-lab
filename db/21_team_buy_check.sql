@@ -63,7 +63,7 @@ BEGIN
     RETURN v;
 END $$;
 SET client_min_messages TO warning;
-DROP TABLE IF EXISTS zz_before;
+DROP TABLE IF EXISTS pg_temp.zz_before;
 RESET client_min_messages;
 CREATE TEMP TABLE zz_before AS SELECT pg_temp.zz_snap() AS snap;
 
