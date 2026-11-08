@@ -18,6 +18,7 @@
 -- 코멘트: 코멘트의 노출 태그는 상한이다. `[노출]` 컬럼의 노출 조건(괄호)은 erd 6.3이 정본이다.
 -- 타입: 금액 NUMERIC(19,4), 비율 NUMERIC(12,8), 구분값 VARCHAR(n) + CHECK, 포메이션 비중 SMALLINT(정수 %),
 --       JSON은 JSONB. 고정 길이 CHAR, ENUM, 부동소수 타입을 쓰지 않는다.
+--       NUMERIC은 'NaN'을 받는다(NaN = NaN이 참이고 어떤 수보다도 크다). 그래서 값 CHECK마다 <> 'NaN'::numeric을 함께 둔다 (erd D32). 무한대는 정밀도 지정 NUMERIC이 22003으로 거부한다.
 -- 기본값: season의 seed, engine_version, data_snapshot_date, base_date, initial_cash, fee_rate_kr, fee_rate_us, fx_spread_rate에는 DB 기본값이 없다 (erd D30 — 재현성).
 -- 인덱스: 유일 인덱스 2개(uq_member_email — 표현식, uq_lineup_open — 부분)는 제약이 아니라 인덱스라 CREATE UNIQUE INDEX로 만든다.
 -- 안전: DROP 전에 13개 이름(이 파일의 9개 + FK가 가리키는 01의 4개)과 current_schema()가 public을 가리키는지 확인하고,
@@ -117,7 +118,7 @@ CREATE TABLE season (
     CONSTRAINT ck_season_abandoning CHECK (status <> 'ABANDONING' OR abandoned_turn_no IS NOT NULL),
     CONSTRAINT ck_season_abandoned_status CHECK (status <> 'IN_PROGRESS' OR abandoned_turn_no IS NULL),
     CONSTRAINT ck_season_initial_cash_pos CHECK (initial_cash > 0),
-    CONSTRAINT ck_season_initial_cash_won CHECK (initial_cash = ROUND(initial_cash, 0)),
+    CONSTRAINT ck_season_initial_cash_won CHECK (initial_cash = ROUND(initial_cash, 0) AND initial_cash <> 'NaN'::numeric),
     CONSTRAINT ck_season_fee_rate_kr CHECK (fee_rate_kr >= 0 AND fee_rate_kr < 1),
     CONSTRAINT ck_season_fee_rate_us CHECK (fee_rate_us >= 0 AND fee_rate_us < 1),
     CONSTRAINT ck_season_fx_spread_rate CHECK (fx_spread_rate >= 0 AND fx_spread_rate < 1),
@@ -205,7 +206,7 @@ CREATE TABLE turn (
     CONSTRAINT ck_turn_goalkeeper_cash CHECK (goalkeeper_value >= cash_balance),
     CONSTRAINT ck_turn_drawdown CHECK (drawdown BETWEEN -1 AND 0),
     CONSTRAINT ck_turn_amounts_nonneg CHECK (cash_balance >= 0 AND holdings_value >= 0 AND total_value >= 0 AND goalkeeper_value >= 0 AND defender_value >= 0 AND midfielder_value >= 0 AND forward_value >= 0),
-    CONSTRAINT ck_turn_amounts_won CHECK (cash_balance = ROUND(cash_balance, 0) AND holdings_value = ROUND(holdings_value, 0) AND total_value = ROUND(total_value, 0) AND goalkeeper_value = ROUND(goalkeeper_value, 0) AND defender_value = ROUND(defender_value, 0) AND midfielder_value = ROUND(midfielder_value, 0) AND forward_value = ROUND(forward_value, 0))
+    CONSTRAINT ck_turn_amounts_won CHECK (cash_balance = ROUND(cash_balance, 0) AND holdings_value = ROUND(holdings_value, 0) AND total_value = ROUND(total_value, 0) AND goalkeeper_value = ROUND(goalkeeper_value, 0) AND defender_value = ROUND(defender_value, 0) AND midfielder_value = ROUND(midfielder_value, 0) AND forward_value = ROUND(forward_value, 0) AND cash_balance <> 'NaN'::numeric AND holdings_value <> 'NaN'::numeric AND total_value <> 'NaN'::numeric AND goalkeeper_value <> 'NaN'::numeric AND defender_value <> 'NaN'::numeric AND midfielder_value <> 'NaN'::numeric AND forward_value <> 'NaN'::numeric)
 );
 COMMENT ON TABLE turn IS '턴 스냅샷';
 COMMENT ON COLUMN turn.id IS '[내부] 턴 스냅샷번호';
@@ -237,7 +238,7 @@ CREATE TABLE turn_price (
         ON DELETE RESTRICT ON UPDATE RESTRICT,
     CONSTRAINT ck_turn_price_turn_no CHECK (turn_no >= 0),
     CONSTRAINT ck_turn_price_price_pos CHECK (price > 0),
-    CONSTRAINT ck_turn_price_price_won CHECK (price = ROUND(price, 0))
+    CONSTRAINT ck_turn_price_price_won CHECK (price = ROUND(price, 0) AND price <> 'NaN'::numeric)
 );
 CREATE INDEX idx_turn_price_asset ON turn_price (asset_id);
 COMMENT ON TABLE turn_price IS '턴 가격';
@@ -408,7 +409,7 @@ CREATE TABLE reconciliation_log (
     CONSTRAINT ck_reconciliation_log_attempt_no CHECK (attempt_no >= 1),
     CONSTRAINT ck_reconciliation_log_check_code CHECK (check_code IN ('ACCOUNT_OPENING','CASH_SUM','LEDGER_CHAIN','ORDER_LEDGER','HOLDING_QTY','ORDER_FILL','EXEC_VALUES','RESERVED_ZERO','VALUATION','TURN_PRICE','FILL_PRICE','FEE_RULE','FORMATION','FORMATION_BIND','LINEUP_HOLDING','LINEUP_OVERLAP','POSITION_VALUE')),
     CONSTRAINT ck_reconciliation_log_status CHECK (status IN ('MATCH','MISMATCH')),
-    CONSTRAINT ck_reconciliation_log_values CHECK (num_nulls(expected_value, actual_value, diff_value) IN (0, 3) AND (diff_value IS NULL OR diff_value = actual_value - expected_value)),
+    CONSTRAINT ck_reconciliation_log_values CHECK (num_nulls(expected_value, actual_value, diff_value) IN (0, 3) AND (diff_value IS NULL OR diff_value = actual_value - expected_value) AND expected_value <> 'NaN'::numeric AND actual_value <> 'NaN'::numeric),
     CONSTRAINT ck_reconciliation_log_match_diff CHECK (status <> 'MATCH' OR diff_value IS NULL OR diff_value = 0),
     CONSTRAINT ck_reconciliation_log_mismatch CHECK (mismatch_count >= 0 AND (status = 'MATCH') = (mismatch_count = 0)),
     CONSTRAINT ck_reconciliation_log_classification CHECK (classification IN ('TIMING','ADJUSTMENT','INVESTIGATE')),

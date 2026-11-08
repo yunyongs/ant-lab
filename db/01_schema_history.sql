@@ -16,6 +16,7 @@
 -- 코멘트: 코멘트의 노출 태그는 상한이다. `[노출]` 컬럼의 노출 조건(괄호)은 erd 5.3이 정본이다.
 -- 타입: 금액 NUMERIC(19,4), 비율 NUMERIC(12,8), 확률 NUMERIC(5,4), 구분값 VARCHAR(n) + CHECK.
 --       고정 길이 CHAR, ENUM, 부동소수 타입을 쓰지 않는다.
+--       NUMERIC은 'NaN'을 받는다(NaN = NaN이 참이고 어떤 수보다도 크다). 그래서 값 CHECK마다 <> 'NaN'::numeric을 함께 두고, 값 CHECK가 없는 컬럼은 NaN 전용 CHECK로 막는다 (erd D32). 무한대는 정밀도 지정 NUMERIC이 22003으로 거부한다.
 -- 안전: DROP 전에 8개 이름과 current_schema()가 public을 가리키는지 확인하고, 아니면 아무것도 지우지 않고 멈춘다
 --       (search_path 앞쪽 스키마의 같은 이름 테이블을 지우지 않기 위해서다).
 -- 구조: [재실행 블록]은 이 파일의 테이블만 생성의 역순으로 지운다. [스키마]는 erd 9절 생성 순서대로 만든다.
@@ -133,13 +134,14 @@ CREATE TABLE asset_position (
     CONSTRAINT uq_asset_position_asset_base_date UNIQUE (asset_id, base_date),
     CONSTRAINT fk_asset_position_asset FOREIGN KEY (asset_id) REFERENCES asset (id)
         ON DELETE RESTRICT ON UPDATE RESTRICT,
-    CONSTRAINT ck_asset_position_base_price CHECK (base_price > 0),
-    CONSTRAINT ck_asset_position_base_fx_rate CHECK (base_fx_rate > 0),
+    CONSTRAINT ck_asset_position_base_price CHECK (base_price > 0 AND base_price <> 'NaN'::numeric),
+    CONSTRAINT ck_asset_position_base_fx_rate CHECK (base_fx_rate > 0 AND base_fx_rate <> 'NaN'::numeric),
     CONSTRAINT ck_asset_position_market_cap_rank CHECK (market_cap_rank IS NULL OR market_cap_rank > 0),
     CONSTRAINT ck_asset_position_window CHECK (window_start <= window_end AND window_end < date_trunc('month', base_date::timestamp)::date),
     CONSTRAINT ck_asset_position_window_month_start CHECK (EXTRACT(DAY FROM window_start) = 1 AND EXTRACT(DAY FROM window_end) = 1),
     CONSTRAINT ck_asset_position_months_used CHECK (months_used > 0),
-    CONSTRAINT ck_asset_position_volatility CHECK (volatility >= 0),
+    CONSTRAINT ck_asset_position_participation_not_nan CHECK (up_participation <> 'NaN'::numeric AND down_participation <> 'NaN'::numeric),
+    CONSTRAINT ck_asset_position_volatility CHECK (volatility >= 0 AND volatility <> 'NaN'::numeric),
     CONSTRAINT ck_asset_position_max_drawdown CHECK (max_drawdown BETWEEN -1 AND 0),
     CONSTRAINT ck_asset_position_system_position CHECK (system_position IN ('GOALKEEPER','DEFENDER','MIDFIELDER','FORWARD_TARGET','FORWARD_BREAKOUT','FORWARD_DEFENSIVE')),
     CONSTRAINT ck_asset_position_judgment_all_or_none CHECK (num_nulls(window_start, window_end, months_used, up_participation, down_participation, volatility, max_drawdown, system_position) IN (0, 8))
@@ -188,10 +190,10 @@ CREATE TABLE month_block (
     CONSTRAINT ck_month_block_growth_dir CHECK (growth_dir IN ('UP','DOWN','NEUTRAL')),
     CONSTRAINT ck_month_block_fx_dir CHECK (fx_dir IN ('UP','DOWN','NEUTRAL')),
     CONSTRAINT ck_month_block_sentiment_dir CHECK (sentiment_dir IN ('UP','DOWN','NEUTRAL')),
-    CONSTRAINT ck_month_block_rate_pair CHECK ((rate_dir IS NULL) = (rate_strength IS NULL) AND (rate_strength IS NULL OR rate_strength >= 0)),
-    CONSTRAINT ck_month_block_growth_pair CHECK ((growth_dir IS NULL) = (growth_strength IS NULL) AND (growth_strength IS NULL OR growth_strength >= 0)),
-    CONSTRAINT ck_month_block_fx_pair CHECK ((fx_dir IS NULL) = (fx_strength IS NULL) AND (fx_strength IS NULL OR fx_strength >= 0)),
-    CONSTRAINT ck_month_block_sentiment_pair CHECK ((sentiment_dir IS NULL) = (sentiment_strength IS NULL) AND (sentiment_strength IS NULL OR sentiment_strength >= 0)),
+    CONSTRAINT ck_month_block_rate_pair CHECK ((rate_dir IS NULL) = (rate_strength IS NULL) AND (rate_strength IS NULL OR (rate_strength >= 0 AND rate_strength <> 'NaN'::numeric))),
+    CONSTRAINT ck_month_block_growth_pair CHECK ((growth_dir IS NULL) = (growth_strength IS NULL) AND (growth_strength IS NULL OR (growth_strength >= 0 AND growth_strength <> 'NaN'::numeric))),
+    CONSTRAINT ck_month_block_fx_pair CHECK ((fx_dir IS NULL) = (fx_strength IS NULL) AND (fx_strength IS NULL OR (fx_strength >= 0 AND fx_strength <> 'NaN'::numeric))),
+    CONSTRAINT ck_month_block_sentiment_pair CHECK ((sentiment_dir IS NULL) = (sentiment_strength IS NULL) AND (sentiment_strength IS NULL OR (sentiment_strength >= 0 AND sentiment_strength <> 'NaN'::numeric))),
     CONSTRAINT ck_month_block_prob_range CHECK (prob_p1 BETWEEN 0 AND 1 AND prob_p2 BETWEEN 0 AND 1 AND prob_p3 BETWEEN 0 AND 1 AND prob_p4 BETWEEN 0 AND 1),
     CONSTRAINT ck_month_block_prob_all_or_none CHECK (num_nulls(prob_p1, prob_p2, prob_p3, prob_p4) IN (0, 4)),
     CONSTRAINT ck_month_block_prob_sum CHECK (prob_p1 IS NULL OR ABS(prob_p1 + prob_p2 + prob_p3 + prob_p4 - 1) <= 0.0002)
@@ -229,7 +231,7 @@ CREATE TABLE asset_month_return (
         ON DELETE RESTRICT ON UPDATE RESTRICT,
     CONSTRAINT fk_asset_month_return_month_block FOREIGN KEY (month_block_id) REFERENCES month_block (id)
         ON DELETE RESTRICT ON UPDATE RESTRICT,
-    CONSTRAINT ck_asset_month_return_local_return CHECK (local_return >= -1),
+    CONSTRAINT ck_asset_month_return_local_return CHECK (local_return >= -1 AND local_return <> 'NaN'::numeric),
     CONSTRAINT ck_asset_month_return_return_kind CHECK (return_kind IN ('ACTUAL','PROXY_INDEX'))
 );
 CREATE INDEX idx_asset_month_return_month_block ON asset_month_return (month_block_id);
@@ -253,7 +255,7 @@ CREATE TABLE fx_month (
     CONSTRAINT fk_fx_month_month_block FOREIGN KEY (month_block_id) REFERENCES month_block (id)
         ON DELETE RESTRICT ON UPDATE RESTRICT,
     CONSTRAINT ck_fx_month_currency CHECK (currency IN ('USD')),
-    CONSTRAINT ck_fx_month_fx_change CHECK (fx_change > -1)
+    CONSTRAINT ck_fx_month_fx_change CHECK (fx_change > -1 AND fx_change <> 'NaN'::numeric)
 );
 COMMENT ON TABLE fx_month IS '달 환율 변화';
 COMMENT ON COLUMN fx_month.id IS '[내부] 환율번호';
@@ -288,7 +290,7 @@ CREATE TABLE month_event (
     CONSTRAINT ck_month_event_outcome_format CHECK (outcome IS NULL OR outcome ~ '^[A-Z][A-Z_]*$'),
     CONSTRAINT ck_month_event_direction CHECK (direction IN ('UP','DOWN')),
     CONSTRAINT ck_month_event_strength CHECK (strength BETWEEN 1 AND 3),
-    CONSTRAINT ck_month_event_reaction_change CHECK (reaction_change IS NULL OR reaction_change >= -1)
+    CONSTRAINT ck_month_event_reaction_change CHECK (reaction_change IS NULL OR (reaction_change >= -1 AND reaction_change <> 'NaN'::numeric))
 );
 CREATE INDEX idx_month_event_month_block ON month_event (month_block_id);
 COMMENT ON TABLE month_event IS '달 사건 태그';
@@ -325,7 +327,8 @@ CREATE TABLE asset_month_attention (
         ON DELETE RESTRICT ON UPDATE RESTRICT,
     CONSTRAINT ck_asset_month_attention_window_months CHECK (window_months BETWEEN 0 AND 12),
     CONSTRAINT ck_asset_month_attention_z_window CHECK (attention_z IS NULL OR window_months >= 2),
-    CONSTRAINT ck_asset_month_attention_index_needs_z CHECK (attention_z IS NOT NULL OR attention_index IS NULL)
+    CONSTRAINT ck_asset_month_attention_index_needs_z CHECK (attention_z IS NOT NULL OR attention_index IS NULL),
+    CONSTRAINT ck_asset_month_attention_not_nan CHECK (attention_z <> 'NaN'::numeric AND attention_index <> 'NaN'::numeric)
 );
 CREATE INDEX idx_asset_month_attention_month_block ON asset_month_attention (month_block_id);
 COMMENT ON TABLE asset_month_attention IS '종목 달 관심 지수';
