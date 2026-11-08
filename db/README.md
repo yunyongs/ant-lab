@@ -35,6 +35,14 @@ Phase 0에서 손으로 쓰는 SQL이다([docs/PLAN.md](../docs/PLAN.md#111-phas
 ## 실행 환경
 
 - PostgreSQL 17 (17.11에서 확인). DB 인코딩은 `UTF8`.
+- 기본 서버는 저장소 루트의 `compose.yaml`(Docker Compose)이다. Docker Desktop이 켜져 있어야 한다. 호스트에서는 이 컴퓨터(127.0.0.1)의 5432 포트로만 받고(같은 compose 네트워크의 컨테이너는 직접 접속한다) 비밀번호는 쓰지 않는다(로컬 실습 전용). 데이터는 Docker 볼륨 `db-data`(실제 이름 `antlab_db-data`)에 남는다. 서비스 이름은 `db`, 프로젝트 이름은 `antlab`이다.
+  - 켜기: `docker compose up -d` (처음엔 이미지를 받는다. 준비되면 `docker compose ps`가 `healthy`로 보인다)
+  - 끄기: `docker compose stop` (데이터는 남는다). 다시 켜기는 `docker compose start`.
+  - `docker compose down -v`는 볼륨까지 지워 `antlab`·`antlab_test`의 모든 데이터가 사라진다. 다 지우고 새로 시작할 때만 쓴다.
+  - 접속 환경 변수(터미널마다 한 번): `export PGHOST=localhost PGPORT=5432 PGUSER=$USER`. 아래 명령의 `-h`·`-U` 없이 이 값으로 접속한다.
+  - `psql`·`createdb` 같은 클라이언트는 따로 필요하다(Homebrew `postgresql@17` 또는 `libpq`). 서버는 Homebrew 서비스로 띄우지 않는다. 같은 5432를 쓰므로 Homebrew 서버와 Compose 서버를 동시에 켜지 않는다.
+  - 포트를 바꿔야 하면(5432가 이미 쓰이는 경우 등) `ANTLAB_DB_PORT=55432 docker compose up -d` 뒤 `PGPORT`도 같은 값으로 맞춘다. 이 변수는 그 명령에만 적용되므로 계속 다른 포트를 쓰려면 루트 `.env`(git이 무시한다)에 `ANTLAB_DB_PORT=55432`를 둔다. 셸 변수가 `.env`보다 우선한다. 시험 프로젝트를 다시 `up`할 때도 같은 `ANTLAB_DB_PORT`를 붙이고, 잠깐 멈출 때는 `stop`/`start`를 쓴다. 시험은 `ANTLAB_DB_PORT=55432 docker compose -p antlab-qa up -d`로 따로 띄우고 끝나면 `docker compose -p antlab-qa down -v`로 그 프로젝트만 지운다.
+  - 예전 초안(컨테이너 `antlab-postgres`, 볼륨 `ant-lab_antlab-pg17`)에서 옮기는 순서는 PR #41 본문을 따른다(한 번만 하는 일).
 - DB `timezone`은 `Asia/Seoul`이어야 한다. 시각 컬럼은 `TIMESTAMPTZ`라 순간 자체는 시간대와 무관하지만, 표시와 `::date` 변환이 이 설정을 따른다. 검증 SQL의 0절이 확인하고 다르면 FAIL이다. 아래 (a) 블록이 DB에 설정을 심는다(새로 연 접속부터 적용).
 - `psql` 명령은 `-X`(`~/.psqlrc`를 읽지 않음)와 `-v ON_ERROR_STOP=1`(오류에서 멈추고 종료 코드를 0이 아닌 값으로)을 붙인다. `psql -1`(--single-transaction)은 쓰지 않는다. 파일 안에 `BEGIN`이 있어 겹치면 경고가 난다.
 - 접속 옵션(`-h`, `-U` 등)은 환경에 맞게 덧붙인다. 아래 명령은 기본 접속을 가정한다.
@@ -118,7 +126,7 @@ psql -X -v ON_ERROR_STOP=1 -d antlab_test -f db/02_schema_season.sql
 psql -X -v ON_ERROR_STOP=1 -d antlab_test -f db/03_schema_account.sql
 ```
 
-**(d) 임시 인스턴스로 검증 — 상시 DB 서버를 건드리지 않는다.** 저장소 밖에 데이터 디렉터리를 만들어 소켓으로만 접속하는 서버를 잠깐 띄운다(포트를 열지 않는다). 다 쓰면 멈추고 지운다. 실행할 때마다 새 경로를 만든다. 앞 줄에서 오류가 나면 멈추고 마지막 두 줄(정리)만 실행한다.
+**(d) 임시 인스턴스로 검증 — 상시 DB 서버를 건드리지 않는다.** 저장소 밖에 데이터 디렉터리를 만들어 소켓으로만 접속하는 서버를 잠깐 띄운다(포트를 열지 않는다). 다 쓰면 멈추고 지운다. `initdb`·`pg_ctl`은 Homebrew `postgresql@17`의 서버 도구를 쓴다(Compose 서버와 무관하며 상시 서버는 켜지 않는다). 실행할 때마다 새 경로를 만든다. 앞 줄에서 오류가 나면 멈추고 마지막 두 줄(정리)만 실행한다.
 
 ```bash
 D=$(mktemp -d /tmp/antlab-pg.XXXXXX)
