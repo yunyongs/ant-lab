@@ -208,6 +208,7 @@ dumps/
 # ---------------------------------------------------------------------
 docker-compose.override.yml
 compose.override.yml
+compose.override.yaml
 .docker-data/
 postgres-data/
 pgdata/
