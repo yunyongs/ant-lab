@@ -156,6 +156,7 @@ TurnService.advance(seasonId, expectedTurnNo)
  10. season.currentTurnNo += 1; 마지막 턴이면 status = FINISHED 후 성적표 계산(별도 트랜잭션으로 분리해도 됨 — 초안: 같은 트랜잭션)
 ```
 
+- Phase 0 정본은 `db/23_turn_advance_def.sql`(erd D37)이다. 1–5단계의 전제 오류(`SEASON_NOT_FOUND`·`SEASON_NOT_ACTIVE`·`TURN_MISMATCH`·`NO_PATH`·`NO_RETURN`)는 쓰기 전에 거절하고 기록하지 않는다. 9단계 대사 불일치만 롤백한 뒤 17행을 기록한다(§6). 낙폭은 `MoneyMath.drawdown`으로 한 번만 반올림하고(HALF_UP), 골키퍼 평가액은 총액에서 다른 세 포지션을 뺀 값이다.
 - `turn(season_id, turn_no) UNIQUE`가 "같은 턴 두 번"을 DB 수준에서 막는다. 락과 턴 번호 검사가 먼저 걸러 주지만, UNIQUE는 마지막 안전망이다.
 - `season`과 `cash_account`에 `@Version`도 둔다. 비관적 락이 있는데 왜 또? 락을 거는 경로(주문·턴)가 아닌 **다른 경로**(시즌 포기, 관리자 상태 변경)가 같은 행을 고칠 때 "읽은 뒤 누가 바꿨다"를 잡기 위해서다. 둘은 서로 다른 일을 한다: 비관적 락은 돈 계산의 직렬화, 낙관적 락은 상태 변경의 충돌 감지.
 - 시즌 포기(PLAN §4.1-7)는 "남은 턴을 매매 없이 자동 진행"이므로 `advance`를 반복 호출하는 것과 같다. 60턴을 한 트랜잭션에서 돌리면 길어지므로 **턴마다 별도 트랜잭션**으로 돌리고 중간 실패 시 재개할 수 있게 한다(`season.status = ABANDONING`).
@@ -175,7 +176,7 @@ TurnService.advance(seasonId, expectedTurnNo)
 | 현금 잔액 = Σ 원장 금액 | `SELECT COALESCE(SUM(amount),0) FROM cash_ledger WHERE season_id = ?` ↔ `cash_account.balance` |
 | 보유 수량 = Σ 매수 − Σ 매도 | `execution`을 `asset_id`로 묶어 합산 ↔ `holding.quantity` |
 | 평가액 = Σ 보유 × `turn_price` | `turn.holdings_value` ↔ `holding` ⋈ `turn_price` 합, `turn.cash_balance` ↔ `cash_account.balance`(총액 `total_value` = 둘의 합은 CHECK) |
-| `turn_price` = round(시작가 × Π(1+r)) (r = 원화 결합 수익률 (1+r현지)(1+r환율) − 1, 시작가 = 0턴 원화 가격) | 저장값 ↔ `asset_month_return`과 `season_path`로 재계산(표본 종목 몇 개만, 전수는 M2 병행 대사) |
+| `turn_price` = round(시작가 × Π(1+r)) (r = 원화 결합 수익률 (1+r현지)(1+r환율) − 1, 시작가 = 0턴 원화 가격) | 저장값 ↔ `asset_month_return`과 `season_path`로 재계산(표본 종목 몇 개만, 전수는 M2 병행 대사 — 단 Phase 0 API의 골든(P0-33)은 SQL 규칙 12와 같은 **풀 전체**로 비교한다. 로그 행이 같아야 하기 때문이다) |
 | 현재 포메이션 = 마지막 `formation_change.after` (없으면 시작 포메이션) | 중복 컬럼과 이력의 일치 |
 
 - 결과는 `reconciliation_log`(시즌, 턴, 항등식, 기대, 실제, 차이, 분류)에 남긴다. 일치해도 한 행(기록이 있어야 "검사했다"를 증명한다).

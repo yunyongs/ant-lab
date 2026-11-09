@@ -35,6 +35,10 @@ Phase 0에서 손으로 쓰는 SQL이다([docs/PLAN.md](../docs/PLAN.md#111-phas
 | `22_reconcile_season_def.sql` | P0-16 | 대사 정의(세션 임시 객체): 코드 표 `recon_code`(17행), 규칙 함수 15개 `recon_r01_…`–`recon_r18_…`(erd 7.5의 규칙 번호 그대로, 규칙 5·10·11·19는 머리 주석만), 판정·차이·분류를 한 곳에서 붙이는 `recon_rules(시즌, 검사 턴)`, 기대 가격 `recon_expected_price`·`recon_price`, 결과를 새 시도 번호로 남기는 `recon_log`. 단독 실행 대상이 아니라 22 두 파일과 실습 (h), 다음 기능(P0-17 턴 진행)이 `\ir`로 읽는다. 규칙 함수는 모두 `STABLE`이라 15개가 한 스냅샷을 본다 |
 | `22_reconcile_season.sql` | P0-16 | 연습 시즌의 수동 검사 15개를 돌려 `reconciliation_log`에 **일치해도** 15행을 남긴다(새 시도 번호 하나). 한 트랜잭션(`season FOR UPDATE` 아래)이고 커밋한 뒤 보고한다. **다시 실행하면 시도가 늘어 행이 쌓이는 것이 정상이다**(멱등이 아님 — 로그는 "그 시점에 검사했다"는 증거). 불일치가 있으면 행을 커밋한 채 종료 코드 3으로 끝난다. 쓰는 곳은 `reconciliation_log`뿐이다 |
 | `22_reconcile_season_check.sql` | P0-16 | 수동 대사 검증. 정상 데이터에서 15개 일치, 코드 목록 = 카탈로그, 로그 제약 사본(CHECK 9개), 음성 사례 20개(바꿔 보고 **기대한 규칙 집합만** 불일치로 걸리는지 — 규칙 2만 {2, 3}), 합성 단위 사례(`recon_price` 경계·반올림 한 번, `detail` 100개 제한), 커버리지 `15/15`를 단언한다. `INSERT`를 하지 않고 `ROLLBACK`해서 `antlab`에서 실행할 수 있다 |
+| `23_turn_advance_def.sql` | P0-17 | 턴 진행 정의(세션 임시 객체): 가격 생성기 `ta_prices`(재귀 CTE — 저장된 0턴 가격에서 턴마다 `(1 + 현지 수익률)(1 + 환율 변화)`를 곱하고 **마지막에 한 번** 반올림), 낙폭 `ta_drawdown`(정수 산술로 한 번 반올림), 턴 스냅샷 `ta_snapshot`(골키퍼는 총액에서 다른 셋을 뺀 잔여), 규칙 11·19 `recon_r11_valuation`·`recon_r19_position_value`, 17행 묶음 `recon_rules_turn`, 쓰기 없는 전제 확인 `ta_precheck`, 트랜잭션 문 없는 `ta_apply`, 커밋·롤백을 하는 프로시저 `turn_advance`를 정의한다. 단독 실행 대상은 아니다. 23 세 파일이 22 정의 뒤에 `\ir`로 읽는다(트랜잭션 밖에서) |
+| `23_turn_advance.sql` | P0-17 | 연습 시즌을 **한 턴** 앞으로 보낸다. 다음 턴 `turn_price`(풀 전체)와 `turn` 스냅샷을 만든 뒤 대사 17개를 돌린다. 모두 일치하면 `reconciliation_log` 17행을 남기고 현재 턴을 올려 커밋한다(마지막 턴이면 `FINISHED`). 하나라도 불일치하면 **실제로 `ROLLBACK`** 한 뒤 새 트랜잭션에서 로그 17행만 남기고 종료 코드 3으로 끝난다. 10턴은 셸 반복으로 돌린다. 끝난 시즌에서는 "이미 끝났다"고 알리고 종료 코드 0으로 끝낸다. `-v ON_ERROR_STOP=1`이 필요하다 |
+| `23_turn_advance_check.sql` | P0-17 | 턴 진행을 검증한다. 진행 상태 계약(`turn`·`turn_price`·로그 17개 묶음), 가격 네 구현 대조(재귀 CTE · 창 함수 배열 · 절차형 반복 곱 · 저장값, "매달 반올림"과 다른 칸 수), 전 턴 스냅샷 재구성(체결 이력에서), 사후 정보 배제, 규칙 11·12·19 음성 사례(규칙 12는 `turn_price` 모든 행), 거부 사례(쓰기 전), 낙폭 합성 단위 사례를 단언한다. 0턴부터 `FINISHED`까지 어느 시점에서도 `PASS`한다. `INSERT`를 하지 않고 `ROLLBACK`하므로 `antlab`에서 돌릴 수 있다 |
+| `23_turn_advance_drill.sql` | P0-17 | 롤백 드릴이다. 커밋된 상태를 일부러 깨뜨려(보유 종목의 라인업 구간 닫기) 턴 전환이 실제 `ROLLBACK`으로 되돌려지고 `reconciliation_log`에만 17행(불일치 규칙 17·19)이 남는지 확인한다. 고치고 다시 실행하면 성공하고 시도 번호가 2인지도 확인한다. **버리는 DB 전용** — `-v drill=1`이 필요하고(다른 값은 멈춘다) DB 이름이 `antlab`·`antlab_test`면 멈춘다 |
 
 Java `MoneyMathSqlParityTest`(P0-26)는 `21_team_buy_def.sql`의 순수 함수 5개를 `MoneyMath`와 같은 합성 입력으로 대조한다. 함수 원문은 같은 PostgreSQL 연결의 `pg_temp`에 설치하고, `order_buy`나 소유자 DB는 사용하지 않는다. 시험 컨테이너는 `postgres:17` 이미지를 사용한다.
 
@@ -63,6 +67,10 @@ Java `MoneyMathSqlParityTest`(P0-26)는 `21_team_buy_def.sql`의 순수 함수 5
   20. `21_team_buy_check.sql`(선택. 쓰기 없이 되돌리므로 `antlab`에서 실행 가능. 팀 구성 뒤에 돌린다)
   21. `22_reconcile_season.sql` (수동 대사, `antlab`에. 저장소 루트에서 실행. 20 시즌 시작이 끝나 있어야 하고 21 팀 구성 뒤에 돌리는 것이 의미 있다. 같은 폴더의 `22_reconcile_season_def.sql`을 읽는다. **실행할 때마다 `reconciliation_log`에 새 시도 15행이 쌓인다** — 11·13과는 무관하다)
   22. `22_reconcile_season_check.sql`(선택. 쓰기 없이 되돌리므로 `antlab`에서 실행 가능. 팀 구성 뒤에 돌리며 턴 진행·매매 뒤에도 `PASS`다 — 전제가 진행으로 깨진 극단 상태에서는 0절 FAIL로 멈춘다. 실행 중에는 다른 세션을 쓰지 않는다)
+  23. `23_turn_advance.sql` (턴 진행, `antlab`에. 저장소 루트에서 실행. 21 팀 구성이 끝나 있어야 한다. 같은 폴더의 `22_reconcile_season_def.sql`·`23_turn_advance_def.sql`을 읽는다. **한 번 실행할 때마다 한 턴 진행한다** — 10턴은 `for i in $(seq 1 10); do psql -X -q -v ON_ERROR_STOP=1 -d antlab -f db/23_turn_advance.sql || break; done`. 끝난 시즌에서는 아무것도 하지 않고 종료 코드 0으로 끝내므로 전체 순서를 다시 돌려도 이 줄에서 멈추지 않는다)
+  24. `23_turn_advance_check.sql`(선택. `INSERT` 없이 되돌리므로 `antlab`에서 실행 가능. 0턴 · 턴 전환 직후 · `FINISHED` 뒤 어느 시점에서도 `PASS`다. 턴 중간 매매 뒤(P0-19)에는 규칙 11·19의 전제가 깨져 0절에서 멈춘다 — 턴 전환 직후나 끝난 뒤에 돌린다. 현금 ≥ 1·미드필더 평가액 ≥ 1·가격 있는 보유 종목·열린 라인업이 없는 정상 상태(예: P0-19 뒤 미드필더 전량 매도·전액 현금)도 지금은 0절에서 멈춘다 — P0-19가 사례별 적용 가능성으로 바꾼다. 실행 중에는 다른 세션을 쓰지 않는다)
+  25. `23_turn_advance_drill.sql`(선택, **버리는 DB 전용** — 아래 실습 (i). 전체 순서에 넣지 않는다)
+- 끝난 시즌 뒤 회귀 순서: 23을 `path_length`번 돌려 `FINISHED`가 된 뒤 20 · 21을 다시 실행해도 새 행이 없고(종료 코드 0), 20 · 21 · 22 · 23 검증이 모두 `PASS`한다. 22 수동 검사는 끝난 시즌에서도 돌며 15개가 `turn_no` = `path_length`로 일치한다. 끝난 시즌에서 `order_buy`는 `SEASON_NOT_ACTIVE`로 쓰기 전에 거부된다(23 검증 07절).
 - 스키마 파일은 `BEGIN` ... `COMMIT`으로 감싸 있어 중간에 실패하면 전부 없던 일이 된다. `DROP TABLE`에 `CASCADE`를 쓰지 않으므로, 뒤 번호 파일의 테이블이 이미 있는 DB에서 앞 번호 파일만 다시 실행하면 `2BP01`(dependent_objects_still_exist) 오류로 멈춘다. 안전한 실패이며, 전체를 다시 만들 때는 아래 "DB 다시 만들기"를 쓴다.
 
 ## 실행 환경
@@ -202,6 +210,33 @@ psql -X -q -v ON_ERROR_STOP=1 -d antlab -f db/22_reconcile_season_check.sql
 - 수동 검사는 규칙 11(평가액)·19(포지션별 평가액)를 돌리지 않는다(턴 전환 전용). 그래서 15개다. 수동 검사 행과 턴 전환 행은 스키마에 구분 컬럼이 없고 코드 집합(15개 대 17개)으로 구분한다.
 - `-v ON_ERROR_STOP=1` 없이 실행하면 맨 앞 가드가 안내만 출력하고 아무것도 하지 않고 끝낸다(불일치를 종료 코드로 알리려면 오류에서 멈춰야 한다). 이때 종료 코드는 0이고 `reconciliation_log`는 늘지 않는다 — 종료 코드가 아니라 결과 표(`attempt_no`)가 나왔는지로 확인한다.
 - 22 검증 중 음성 사례 하나(N16)가 서브트랜잭션 안에서 `orders`의 외래 키를 잠깐 지웠다 되돌린다. 그동안 `orders`를 쓰는 다른 세션이 기다리므로 **검증 중에는 다른 세션을 쓰지 않는다**(끝나면 제약과 잠금이 함께 되돌아간다).
+
+**(b⁶) 턴 진행 — `antlab`(작업 DB)에.** 21 팀 구성 뒤에 실행한다. 한 번 실행할 때마다 연습 시즌이 한 턴 진행된다. 다음 턴 `turn_price`(풀 전체)를 만든 뒤 `turn` 스냅샷을 만들고 대사 17개를 돌린다. 모두 일치하면 `reconciliation_log` 17행을 남기고 `current_turn_no`를 올려 커밋한다. 마지막 턴이면 시즌 상태가 `FINISHED`가 된다.
+
+```bash
+psql -X -q -v ON_ERROR_STOP=1 -d antlab -f db/23_turn_advance.sql                       # 한 턴
+for i in $(seq 1 10); do psql -X -q -v ON_ERROR_STOP=1 -d antlab -f db/23_turn_advance.sql || break; done   # 10턴 (끝나면 다음 실행은 "이미 끝났다"고 알리고 종료 코드 0)
+psql -X -q -v ON_ERROR_STOP=1 -d antlab -f db/23_turn_advance_check.sql
+```
+
+- **한 번 실행할 때마다 한 턴 진행한다.** 멱등이 아니므로 실행할 때마다 한 턴씩 나아간다. 아무것도 하지 않는 경우는 끝난 시즌뿐이다.
+- **값을 보는 방법.** 보고 표에는 턴 번호·새 `turn_price` 행 수·`turn` 행 수·시도 번호·17개 중 일치 수·끝났는지만 표시한다. 가격·평가액·낙폭은 출력하지 않는다. 자기 DB에서 로컬로 볼 때만 아래처럼 조회한다(PR·이슈에 붙이지 않는다).
+
+```sql
+-- 턴별 총액·낙폭·포지션별 평가액 (소유자의 로컬 조회 — 시세에서 나온 금액이다)
+SELECT t.turn_no, t.cash_balance, t.holdings_value, t.total_value, t.goalkeeper_value, t.defender_value, t.midfielder_value, t.forward_value, t.drawdown
+FROM turn t JOIN season s ON s.id = t.season_id JOIN member m ON m.id = s.member_id
+WHERE lower(m.email) = lower('phase0@example.invalid') ORDER BY t.turn_no;
+-- 턴 전환 로그: 턴마다 시도 번호와 일치 수 (불일치 시도가 있었다면 번호가 2 이상인 턴이 보인다)
+SELECT l.turn_no, l.attempt_no, count(*) AS rules, count(*) FILTER (WHERE l.status = 'MATCH') AS matched
+FROM reconciliation_log l JOIN season s ON s.id = l.season_id JOIN member m ON m.id = s.member_id
+WHERE lower(m.email) = lower('phase0@example.invalid') GROUP BY l.turn_no, l.attempt_no HAVING count(*) = 17 ORDER BY l.turn_no, l.attempt_no;
+```
+
+- **종료 코드 3인 경우.** ① 대사 불일치: `P0-17 턴 진행: 대사 불일치 규칙 n 개 (…)`와 `HINT: RECONCILIATION_FAILED` — 턴은 실제로 되돌려졌고(`current_turn_no`·`turn`·`turn_price`가 그대로) `reconciliation_log`에 그 턴(`turn_no` = 현재 턴 + 1)의 17행이 `INVESTIGATE`로 남았다. 어느 규칙인지는 `check_code`로 본다(아래 "결과 읽는 법"). 원인을 고친 뒤 다시 실행하면 성공하고 그 턴의 시도 번호는 2다. ② 전제 오류(쓰기 전, 로그 없음): 힌트 `SEASON_NOT_FOUND`·`SEASON_NOT_ACTIVE`·`TURN_MISMATCH`(두 실행이 겹쳐 둘째가 졌다)·`NO_PATH`·`NO_RETURN`·`ISOLATION_LEVEL`·`INVALID_ARGUMENT`.
+- `-v ON_ERROR_STOP=1` 없이 실행하면 맨 앞 가드가 안내만 출력하고 아무것도 하지 않고 끝낸다(종료 코드 0, 행 없음).
+- 정의 파일은 트랜잭션 밖에서 읽어야 한다. `pg_temp.turn_advance`는 안에서 `COMMIT`·`ROLLBACK`을 하는 프로시저라 **최상위 `CALL`로만** 부른다. 바깥 `BEGIN` 안에서 부르면 `2D000 invalid transaction termination`이다(`EXCEPTION` 블록·`DO` 안도 같다).
+- 이 파일은 소음 피드(P0-18)·기준 포트폴리오(P0-20)·적립금(EXT)·턴 사이 매매(P0-19)를 하지 않는다. 23 검증은 "마지막 스냅샷 뒤 매매 없음"을 전제하므로 P0-19 이후에는 턴 전환 직후나 끝난 뒤에 돌린다.
 
 **(c) 제약 검증 — `antlab_test`에서만.** 스키마(01 → 02 → 03)가 만들어져 있는 `antlab_test`에서 검증 세 줄을 실행한다. 검증은 마지막에 `ROLLBACK`하므로 스키마를 다시 만들지 않고 몇 번이든 돌릴 수 있다. 처음 한 번은 아래 스키마 세 줄을 먼저 실행한다.
 
@@ -395,6 +430,59 @@ psql -X -d antlab_lab -c "SELECT attempt_no, check_code, status, mismatch_count,
 
 불일치 행은 커밋되어 `INVESTIGATE`로 남는다. `detail` 컬럼에는 어느 행인지(주문·체결·원장·종목 번호)와 종류 코드만 들어 있다(금액 없음). 22를 다시 돌리면 시도 번호가 늘어난 새 행이 쌓인다.
 
+**(i) 롤백 드릴 — 버리는 DB, 한 세션.** 커밋된 상태를 일부러 깨뜨린 뒤 턴을 넘긴다. 그러면 실제 `ROLLBACK`이 일어나고 `reconciliation_log`에만 17행이 남는다. `antlab`을 복사한 DB에서 한다(복사 중에는 `antlab`에 다른 접속이 없어야 한다 — VS Code SQL 확장 접속도 센다). 가드가 있어 `antlab`·`antlab_test`에서는 멈춘다.
+
+```bash
+psql -X -d postgres -Atc "SELECT count(*) FROM pg_stat_activity WHERE datname = 'antlab' AND pid <> pg_backend_pid()"   # 0이어야 복사된다
+createdb -T antlab antlab_drill
+psql -X -q -v ON_ERROR_STOP=1 -v drill=1 -d antlab_drill -f db/23_turn_advance_drill.sql     # 중간의 ERROR(RECONCILIATION_FAILED)는 정상이다. 마지막 줄 p0_17_drill = PASS
+# 라인업을 닫은 채 실행 파일을 돌려 종료 코드를 보려면 (복사 DB에서만):
+psql -X -d antlab_drill -c "UPDATE lineup SET end_turn = start_turn WHERE id = (SELECT min(id) FROM lineup WHERE end_turn IS NULL)"
+psql -X -q -v ON_ERROR_STOP=1 -d antlab_drill -f db/23_turn_advance.sql ; echo "종료 코드 $?"   # 3
+psql -X -d antlab_drill -c "SELECT turn_no, attempt_no, check_code, status FROM reconciliation_log WHERE status = 'MISMATCH' ORDER BY id"
+dropdb antlab_drill        # 끝나면 지운다 (로그는 추가 전용이라 DB째 버리는 것이 정리다)
+```
+
+드릴은 같은 세션에서 `CALL pg_temp.turn_advance(...)`를 직접 부르고 `:LAST_ERROR_SQLSTATE`로 오류 종류를 확인한다. 여기서 롤백은 이미 커밋된 깨짐을 되돌리지 않는다는 점을 확인할 수 있다(드릴의 깨진 라인업은 롤백 뒤에도 깨진 채다). 또한 불일치 결과를 담은 **지역 변수**만 롤백을 건너 로그가 된다(임시 표는 롤백과 함께 사라진다).
+
+**(j) "매달 반올림"과 마지막에 한 번 반올림 비교 — `antlab`, 읽기만.** 같은 입력에서 두 계산 결과를 비교한다. 하나는 정확한 곱을 마지막에 한 번 반올림하고, 다른 하나는 매달 반올림한다. 두 값이 다른 (턴, 종목) 칸 수만 센다.
+
+```sql
+WITH RECURSIVE s AS (
+    SELECT se.id FROM season se JOIN member m ON m.id = se.member_id WHERE lower(m.email) = lower('phase0@example.invalid')
+), a(k, asset_id, cur, exact, monthly) AS (
+    SELECT 0, tp.asset_id, x.currency, tp.price::numeric, tp.price::numeric
+    FROM s JOIN turn_price tp ON tp.season_id = s.id AND tp.turn_no = 0 JOIN asset x ON x.id = tp.asset_id
+  UNION ALL
+    SELECT a.k + 1, a.asset_id, a.cur, a.exact * q.f, ROUND(a.monthly * q.f, 0)
+    FROM a
+    JOIN s ON true
+    JOIN season_path sp ON sp.season_id = s.id AND sp.turn_no = a.k + 1
+    JOIN asset_month_return r ON r.asset_id = a.asset_id AND r.month_block_id = sp.month_block_id
+    LEFT JOIN fx_month f ON f.month_block_id = sp.month_block_id AND f.currency = a.cur
+    CROSS JOIN LATERAL (SELECT (1 + r.local_return) * CASE WHEN a.cur = 'KRW' THEN 1 ELSE 1 + f.fx_change END AS f) q
+    WHERE a.k < (SELECT current_turn_no FROM season WHERE id = s.id)
+)
+SELECT count(*) FILTER (WHERE ROUND(a.exact, 0) <> a.monthly) AS different_cells, count(*) AS cells
+FROM a JOIN s ON true JOIN turn_price tp ON tp.season_id = s.id AND tp.turn_no = a.k AND tp.asset_id = a.asset_id
+WHERE a.k >= 1 AND tp.price = ROUND(a.exact, 0);
+```
+
+`cells`는 1턴 이후 (턴, 종목) 칸 수다. `different_cells`가 0보다 크면 "매달 반올림"이 정답이 아니라는 뜻이다(1턴은 곱이 한 번이라 같다). 저장된 `turn_price`는 마지막에 한 번 반올림한 값이다(`WHERE`의 `tp.price = ROUND(a.exact, 0)`가 그 확인이다). 재귀 CTE(`WITH RECURSIVE`)가 턴을 하나씩 쌓는 구조도 확인한다.
+
+**(k) 두 세션 동시 턴 — 복사 DB.** 같은 턴을 두 실행이 동시에 넘기려 하면 하나만 성공하고 다른 하나는 아무것도 쓰지 않고 `TURN_MISMATCH`로 끝나는 것을 본다. 한 터미널에서 시즌 행을 잠가 둔 채 다른 터미널에서 두 실행을 겹친다.
+
+```bash
+# 터미널 1: 시즌을 잠가 두 실행이 모두 "현재 턴"을 읽고 줄을 서게 한다 (5초 뒤 풀린다)
+psql -X -d antlab_lab -c "BEGIN" -c "SELECT 1 FROM season FOR UPDATE" -c "SELECT pg_sleep(5)" -c "COMMIT"
+# 터미널 2 (터미널 1을 시작한 직후): 같은 파일을 겹쳐 실행
+( psql -X -q -v ON_ERROR_STOP=1 -d antlab_lab -f db/23_turn_advance.sql ; echo "A 종료 코드 $?" ) &
+( psql -X -q -v ON_ERROR_STOP=1 -d antlab_lab -f db/23_turn_advance.sql ; echo "B 종료 코드 $?" ) & wait
+psql -X -d antlab_lab -c "SELECT (SELECT current_turn_no FROM season) AS cur, (SELECT count(*) FROM turn) AS turn_rows"   # 한 턴만 올랐다
+```
+
+하나는 보고 표와 종료 코드 0으로 끝나고, 다른 하나는 `HINT: TURN_MISMATCH`와 종료 코드 3으로 끝난다. 둘째는 첫째가 커밋한 뒤에야 잠금을 얻는다. 그때 기대한 턴이 달라진 것을 확인하고 쓰기 전에 멈춘다. 중복 행이 없고 로그도 늘지 않는다(대사를 하지 않았다).
+
 ## 결과 읽는 법
 
 **스키마 파일(`01_schema_history.sql`).**
@@ -555,6 +643,12 @@ FAIL이 하나라도 있으면 오류 메시지와 함께 종료 코드 3으로 
 - `\ir`은 psql 메타 명령이라 명령줄이 기준이다. VS Code에서는 통합 터미널(`Ctrl` + `` ` ``)에서 실행한다.
 
 **수동 대사(`22_reconcile_season.sql`)와 검증(`22_reconcile_season_check.sql`).** 실행 파일은 종료 코드가 0이고 `ERROR`가 없으면 15개 규칙이 모두 일치한 것이다. 결과 표 두 개가 나온다 — 첫째는 `attempt_no`(이번 시도 번호)·`rows_inserted`(15)·`match_count`·`mismatch_rules`·`mismatch_items`, 둘째는 불일치 규칙의 `check_code`·`mismatch_count`·`classification`(일치면 0행)이다. 기대·실제·차이 값은 출력하지 않는다. 불일치가 있으면 둘째 표가 채워지고 `P0-16 대사: 불일치 규칙 n 개 (…)`로 끝난다(종료 코드 3, 행은 커밋됨). 분류는 항상 `INVESTIGATE`다(분류 자동화는 MVP 이후). `연습 시즌이 0 개다`는 20을 먼저 실행하지 않은 것이고 이때는 행을 만들지 않는다.
+
+**턴 진행(`23_turn_advance.sql`)·검증·드릴.** 실행 파일이 종료 코드 0으로 끝나고 `ERROR`가 없으면 한 턴이 성공한 것이다. 보고 표는 한 줄이며, `turn_no`(넘어간 턴), `new_price_rows`(새 `turn_price` 행 수, 풀 크기와 같아야 한다), `turn_rows`(지금까지 `turn` 행 수 = 현재 턴), `attempt_no`(그 턴의 이번 시도 번호), `match_of_17`(17이어야 한다), `finished`(마지막 턴이면 `t`)를 보여 준다. 끝난 시즌에서는 `P0-17 턴 진행: 이미 끝난 시즌이다 (FINISHED) — 아무것도 하지 않았다`만 나오고 종료 코드 0이다. `P0-17 턴 진행: 대사 불일치 규칙 n 개 (코드 목록)`은 되돌린 뒤 17행이 남았다는 뜻이다 — `reconciliation_log`에서 `status = 'MISMATCH'`인 행의 `check_code`·`mismatch_count`·`detail`(어느 행인지 번호와 종류만, 금액 없음)을 본다. 규칙 11(`VALUATION`)은 스냅샷의 평가액·현금·낙폭이 다른 식의 재계산과 다를 때, 12(`TURN_PRICE`)는 저장된 가격이 PLAN §5.2 공식과 다를 때, 19(`POSITION_VALUE`)는 포지션별 평가액이 라인업으로 직접 묶은 합과 다를 때(라인업이 빠진 보유가 있으면 17 `LINEUP_HOLDING`과 함께 걸린다)다. 힌트 `NO_RETURN`은 다음 달 수익률·환율·0턴 가격이 빠진 풀 종목이 있다는 뜻이고(쓰기 전에 멈춘다) `NO_PATH`는 다음 턴의 경로 블록이 없다는 뜻이다.
+
+**검증 파일(`23_turn_advance_check.sql`).** 마지막 출력의 `p0_17_check` 열이 `PASS`이고 종료 코드가 0이면 통과다. 0절(전제) 표가 먼저 나오며 FAIL이면 거기서 멈춘다. 이어서 절별 집계(00 전제 · 01 진행 상태 · 02 가격 · 03 스냅샷 · 04 사후 정보 · 05 양성 · 06 음성 · 07 거부 · 08 단위 · 09 정보·판정), FAIL 행 목록(0행이어야 정상), 정보 행("매달 반올림"과 다른 칸 수, 17개 시도 수 등 — 건수만), 판정 행이 나온다. 규칙 커버리지는 `3/3`이다(12, 현재 턴 ≥ 1이면 11·19 포함 — 0턴에서는 `1/1`). 0절이 "범위"에서 FAIL이면 현재 턴에 주문이 있는 상태(턴 중간 매매 뒤)라는 신호다 — 헛 PASS가 아니라 멈춤이며 턴을 넘긴 뒤 다시 돌린다.
+
+**드릴(`23_turn_advance_drill.sql`).** 마지막 출력이 `p0_17_drill` 열의 `PASS`이면 통과다(21개 단언). 중간에 나오는 `ERROR: … RECONCILIATION_FAILED`는 드릴이 일부러 낸 불일치의 오류라 정상이다.
 
 - **로그 보기(값은 보지 않는다).** `SELECT attempt_no, turn_no, check_code, status, mismatch_count FROM reconciliation_log ORDER BY id DESC LIMIT 15;` 값 컬럼(`expected_value`·`actual_value`·`diff_value`)은 소유자가 자기 DB에서만 보고 PR·이슈에 붙이지 않는다. 스칼라 규칙 5개(`CASH_SUM`·`ORDER_LEDGER`·`HOLDING_QTY`·`RESERVED_ZERO`·`FEE_RULE`)만 세 값이 채워진다.
 - **`detail` 읽기.** `{"items": [{"kind": …, "order_id"|"execution_id"|"ledger_id"|"asset_id"|"lineup_id"|"other_lineup_id"|"formation_change_id": …, "turn_no"?: …, "kinds"?: […]}], "total": n, "truncated": bool}`. 항목은 최대 100개이고 `total`이 전체 불일치 수다. 규칙 4·7·8은 한 행에 종류가 여럿일 수 있어 `kinds` 배열이 있다. 종류 코드는 정의 파일의 규칙 절 머리 주석에 있다.
