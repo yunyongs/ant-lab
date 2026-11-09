@@ -1,5 +1,6 @@
 package antlab.api.config;
 
+import io.swagger.v3.core.jackson.ModelResolver;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.info.Info;
 import io.swagger.v3.oas.models.media.Schema;
@@ -13,6 +14,8 @@ import org.springframework.context.annotation.Configuration;
 public class OpenApiConfig {
 
     static {
+        // enum 은 이름 붙은 컴포넌트로 낸다(웹 타입 이름이 된다 — 계약 docs/api/openapi.yaml 과 같게).
+        ModelResolver.enumsAsRef = true;
         SpringDocUtils.getConfig().replaceWithSchema(
                 BigDecimal.class, new Schema<String>().type("string").format("decimal"));
     }
