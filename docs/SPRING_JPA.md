@@ -191,14 +191,24 @@ TurnService.advance(seasonId, expectedTurnNo)
 | 수준 | 도구 | 대상 |
 |---|---|---|
 | 매핑 | `@DataJpaTest` + **실제 PostgreSQL**(Phase 0 API는 Testcontainers 컨테이너, 아래) | 엔티티 ↔ DDL 일치(`validate`가 시작 시점에 검사), enum ↔ CHECK 목록 글자 단위 대조, 불변 엔티티 UPDATE 무시 |
-| 서비스 | `@SpringBootTest` + 실제 PostgreSQL, 테스트마다 `@Transactional` 롤백 | 주문 체결 전부/전무, 턴 전환, 대사 항등식(골든: P0-25 하네스가 같은 컨테이너에서 `db/20`–`26`으로 만든 연습 시즌을 API로 재생해 행 단위로 비교 — PLAN §13 2026-11-09) |
+| 서비스 | `@SpringBootTest` + 실제 PostgreSQL, 테스트마다 `@Transactional` 롤백 | 주문 체결 전부/전무, 턴 전환, 대사 항등식(골든에서는 P0-25 하네스가 띄우는 일회용 컨테이너에서 `db/20`–`26`으로 만든 연습 시즌을 API로 재생해 행 단위로 비교 — PLAN §13 2026-11-09) |
 | 동시성 | 스레드 2개로 같은 시즌에 동시 주문·턴 전환 | 둘 중 하나만 성공하거나 순서대로 처리되고, 끝나면 항등식 성립 |
 | 엔진 대조 | Java 부트스트랩 vs Phase 0 손 계산 | 같은 시드 → 같은 경로, 같은 수익률 → 같은 가격(원 단위) |
 | 계약 | `@SpringBootTest` | springdoc이 낸 `/v3/api-docs`와 저장소 `docs/api/openapi.yaml`을 경로·필드·타입·필수·응답 코드로 대조 — 코드와 yaml이 갈라지면 실패(도구와 정규화는 첫 엔드포인트 기능 P0-27 계획에서 정함) |
 | API | `MockMvc` | 검증 오류 400, 턴 불일치 409, 잔액 부족 422(초안), 비공개 컬럼이 응답에 없음 |
 
-- **H2를 쓰지 않는다.** CHECK·`NUMERIC` 반올림·`FOR UPDATE`·문자열 비교의 동작이 PostgreSQL과 달라서, 시험이 통과해도 믿을 수 없다. **Phase 0 API(2026-11-09 결정, PLAN §13)는 로컬 시험부터 Testcontainers PostgreSQL 17**을 쓴다. 이는 처음에 적은 compose `db` 서비스의 `antlab_test` 안(`db/README.md`의 데이터베이스 생성 블록)을 바꾼 것이다. 이렇게 하면 시험이 소유자의 컨테이너를 건드리지 않고(DEPLOY §3.2 격리 규칙을 저절로 지킨다), 시험 실행마다 빈 DB에서 시작하며, M1 CI와 같은 방식으로 실행된다. 시험은 로컬에서 실행하고 CI(M1)가 같은 시험을 합성 표본으로 돌린다. 이 DB는 Flyway 파일을 적용한 빈 DB이며, SQL 골든 시험(P0-25)은 같은 컨테이너에서 `db/` 스크립트를 `psql`로 돌려 Java 결과와 행 단위로 비교한다.
-- 테스트 DB는 `./gradlew test`를 실행할 때마다 새 Testcontainers PostgreSQL 17로 시작하고 Flyway `migrate`만 실행한다. 같은 구성의 시험 클래스는 Spring 시험 문맥과 해당 컨테이너를 공유한다. 따라서 데이터를 쓰는 시험은 자신이 쓴 행을 정리하고 identity 값(번호표)을 가정하지 않는다. 빈 테이블을 전제로 하는 시험(`FlywayMigrationTest`·`FlywaySchemaCheckTest`)은 표지 속성으로 별도 문맥(컨테이너)에서 실행한다. 공유 시험 문맥에서는 `clean`을 호출하지 않으며, 실습 DB `antlab`과 API 로컬 DB `antlab_api`에는 접속하지 않는다(프로필 `test`의 URL은 Testcontainers가 준다).
+- **H2를 쓰지 않는다.** CHECK·`NUMERIC` 반올림·`FOR UPDATE`·문자열 비교의 동작이 PostgreSQL과 달라서, 시험이 통과해도 믿을 수 없다. **Phase 0 API(2026-11-09 결정, PLAN §13)는 로컬 시험부터 Testcontainers PostgreSQL 17**을 쓴다. 이는 처음에 적은 compose `db` 서비스의 `antlab_test` 안(`db/README.md`의 데이터베이스 생성 블록)을 바꾼 것이다. 이렇게 하면 시험이 소유자의 컨테이너를 건드리지 않는다(DEPLOY §3.2 격리 규칙을 저절로 지킨다). 시험 실행마다 빈 DB에서 시작하고, M1 CI와 같은 방식으로 실행한다. 시험은 로컬에서 실행하고 CI(M1)가 같은 시험을 합성 표본으로 돌린다. 이 DB에는 Flyway 파일을 적용한다. SQL 골든 시험(P0-25)은 하네스가 띄우는 일회용 컨테이너에서 `db/` 스크립트를 `psql`로 실행해 Java 결과와 행 단위로 비교한다.
+
+- 테스트 DB는 `./gradlew test`를 실행할 때마다 새 Testcontainers PostgreSQL 17로 시작하고 Flyway `migrate`만 실행한다. 같은 구성의 시험 클래스는 Spring 시험 문맥과 해당 컨테이너를 공유한다. 따라서 데이터를 쓰는 시험은 자신이 쓴 행을 정리하고 identity 값(번호표)을 가정하지 않는다. 빈 테이블을 전제로 하는 시험(`FlywayMigrationTest`·`FlywaySchemaCheckTest`)은 표지 속성을 사용해 별도 문맥(컨테이너)에서 실행한다. 공유 시험 문맥에서는 `clean`을 호출하지 않는다. 실습 DB `antlab`과 API 로컬 DB `antlab_api`에도 접속하지 않는다(프로필 `test`의 URL은 Testcontainers가 준다).
+
+**SQL 골든 하네스(P0-25, 시험 전용 `src/test/java/antlab/support`).**
+
+- **역할별 DB.** 하네스가 띄우는 일회용 컨테이너(또는 같은 컨테이너의 별도 DB)에서, Flyway를 적용한 API 시험 DB와 별개로 빈 DB를 새로 만든다. 그 DB에서 `db/01`–`03`부터 실행해 SQL 기준 DB와 재생 DB를 만든다. SQL 기준 DB에는 Flyway를 실행하지 않고, API DB에는 01–03 실습 DDL을 실행하지 않는다. `clean → migrate`는 Flyway 시험 DB에만 해당한다. SQL 기준 DB의 재생은 새 DB를 만들어 격리한다. 하네스는 자기가 만든 DB만 지운다.
+- **psql과 Java 사이의 커밋 경계.** 스크립트는 컨테이너 안의 `psql`로 실행한다. `\copy`·`\ir`·`\gset`·`\if`·세션 임시 함수·프로시저 안의 COMMIT/ROLLBACK을 원본 그대로 사용하기 위해서다. 행 조회는 JDBC로 한다. 두 연결은 서로 다른 세션이므로, 시험 메서드의 미커밋 `@Transactional` 상태에 준비 데이터를 두지 않는다. `_def`가 만드는 임시 함수는 정의 로딩과 질의를 같은 psql 세션에서 실행한다. 결과는 `COPY … TO STDOUT`의 CSV(NULL 표지 `\N`)로 받아 NULL과 빈 문자열을 구분한다.
+- **판정.** 검증 SQL은 종료 코드 0이고 출력 끝 두 줄이 등록한 판정 열 이름과 정확히 `PASS`일 때만 통과다(앞쪽 PASS·다른 검사 이름·판정 뒤 추가 결과는 실패).
+- **정규화 비교(`RowSetDiff`).** 대리 키·시즌·회원 식별자는 비교하지 않고 자연 키(시장·종목 코드, 턴 번호, 재생 행동 키)로 대응한다. 제외하는 열은 이름과 이유를 명세에 적는다. NUMERIC은 `BigDecimal.compareTo`로 정확히 비교하며 자릿수 차이만 허용한다(오차 허용·반올림 없음). NULL은 빈 값·0과 구분한다. 중복 키는 집합으로 합치지 않고 보고한다. 진행 턴의 `turn_price`는 풀 전체를 비교하고, 대사 로그의 시도 번호는 지우지 않는다.
+- **입력과 보고.** 입력 파일은 경로와 SHA-256으로 고정한다. 추적하지 않는 시세 파생 CSV 네 개만 `ANTLAB_GOLDEN_SAMPLE_DIR`(없으면 작업본의 `db/sample`)에서 읽는다. 파일이 없으면(환경 변수를 지정하지 않은 경우) 이유를 밝히고 실제 표본 골든만 건너뛴다. 환경 변수를 지정했는데 파일이 없으면 실패한다. 실패 메시지와 시험 보고서에는 스크립트 이름·종료 코드·판정 분류·행 키·다른 열 이름·건수만 싣는다. 가격·금액·원문 출력은 싣지 않는다.
+- **범위.** P0-25의 재생 완료는 "같은 입력으로 SQL을 두 번 실행하면 같다"와 재생 입력 추출까지다. Java API를 통한 재생과 업무별 동등성은 P0-32·33·36·38의 완료 기준이다. 실행법은 `db/README.md`의 「SQL 골든 하네스」를 본다.
 
 ## 10. 설정
 
