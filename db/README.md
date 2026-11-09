@@ -30,6 +30,9 @@ Phase 0에서 손으로 쓰는 SQL이다([docs/PLAN.md](../docs/PLAN.md#111-phas
 | `21_team_buy_def.sql` | P0-15 | 매수 정의(세션 임시 함수 6개): 순수 계산 5개(`buy_rate`·`buy_fee`·`buy_affordable`·`buy_avg_price`·`team_qty`)와 매수 한 건의 함수 `pg_temp.order_buy`. 호출자가 트랜잭션을 열고(함수는 `BEGIN`·`COMMIT`을 하지 않는다) 안에서 `season` → `cash_account` 순으로 잠근 뒤 `orders`·`execution`·`holding`·`cash_ledger`(`BUY` → `FEE`)·`cash_account`·`lineup`을 함께 만든다. 오류는 `P0001` + HINT 종류 코드. 단독 실행 대상이 아니라 21 두 파일과 두 세션 실습이 `\ir`로 읽고, 매매(P0-19)도 재사용한다 |
 | `21_team_buy.sql` | P0-15 | 연습 시즌의 0턴에 감독의 팀 8종목을 산다. 명단(종목 코드·비중 %·선언 포지션)은 파일 맨 앞 한 곳에 있고 수량은 실행할 때 0턴 가격에서 규칙으로 계산한다. 줄마다 한 트랜잭션(임시 프로시저 안의 `COMMIT`)이라 줄 k에서 실패하면 앞 줄은 남고 다시 실행하면 남은 줄만 산다(이어서 사기). 이미 같은 팀이면 새 행 없이 끝나고, 0턴 주문이 명단과 다르면 아무것도 사지 않고 멈춘다(종료 코드 3). 01·02·03 스키마, 10 적재, 12 판정, 20 시즌 시작을 먼저 실행한다. 출력은 건수와 상태만이다 |
 | `21_team_buy_check.sql` | P0-15 | 팀 구성 검증. 팀 크기·명단(문서에서 다시 옮겨 적음)·수량(독립 계산)·체결가·수수료(정수 산술)·원장(유형별 진단 포함)·보유 이동평균(체결 이력 재생)·라인업·포메이션 실제 비중·함수 오류 종류·순수 계산 합성 사례를 단언한다. "팀을 구성한 뒤 언제나 참"인 규칙 22개마다 음성 사례가 있고 커버리지 `22/22`를 확인한다. INSERT가 없고 `ROLLBACK`하므로 `antlab`에서도 돌린다. 출력은 건수와 판정만이다 |
+| `22_reconcile_season_def.sql` | P0-16 | 대사 정의(세션 임시 객체): 코드 표 `recon_code`(17행), 규칙 함수 15개 `recon_r01_…`–`recon_r18_…`(erd 7.5의 규칙 번호 그대로, 규칙 5·10·11·19는 머리 주석만), 판정·차이·분류를 한 곳에서 붙이는 `recon_rules(시즌, 검사 턴)`, 기대 가격 `recon_expected_price`·`recon_price`, 결과를 새 시도 번호로 남기는 `recon_log`. 단독 실행 대상이 아니라 22 두 파일과 실습 (h), 다음 기능(P0-17 턴 진행)이 `\ir`로 읽는다. 규칙 함수는 모두 `STABLE`이라 15개가 한 스냅샷을 본다 |
+| `22_reconcile_season.sql` | P0-16 | 연습 시즌의 수동 검사 15개를 돌려 `reconciliation_log`에 **일치해도** 15행을 남긴다(새 시도 번호 하나). 한 트랜잭션(`season FOR UPDATE` 아래)이고 커밋한 뒤 보고한다. **다시 실행하면 시도가 늘어 행이 쌓이는 것이 정상이다**(멱등이 아님 — 로그는 "그 시점에 검사했다"는 증거). 불일치가 있으면 행을 커밋한 채 종료 코드 3으로 끝난다. 쓰는 곳은 `reconciliation_log`뿐이다 |
+| `22_reconcile_season_check.sql` | P0-16 | 수동 대사 검증. 정상 데이터에서 15개 일치, 코드 목록 = 카탈로그, 로그 제약 사본(CHECK 9개), 음성 사례 20개(바꿔 보고 **기대한 규칙 집합만** 불일치로 걸리는지 — 규칙 2만 {2, 3}), 합성 단위 사례(`recon_price` 경계·반올림 한 번, `detail` 100개 제한), 커버리지 `15/15`를 단언한다. `INSERT`를 하지 않고 `ROLLBACK`해서 `antlab`에서 실행할 수 있다 |
 
 - 이름 규칙은 `{실행 순서 두 자리}_{종류}_{영역}.sql`이고, 검증은 같은 이름 뒤에 `_check`를 붙인다.
 - **새 기능이 파일을 더하는 규칙:** 기능은 자기 파일의 행을 위 표에 더하고, 아래 "전체 순서"와 "DB 다시 만들기"의 명령을 이어 적는다. 다른 기능의 파일은 고치지 않는다.
@@ -54,6 +57,8 @@ Phase 0에서 손으로 쓰는 SQL이다([docs/PLAN.md](../docs/PLAN.md#111-phas
   18. `20_season_start_check.sql`(선택. `antlab`에서 실행 가능)
   19. `21_team_buy.sql` (팀 구성, `antlab`에만. 저장소 루트에서 실행. 20 시즌 시작이 끝나 있어야 한다. 같은 폴더의 `21_team_buy_def.sql`을 읽는다. 11·13과는 무관하다)
   20. `21_team_buy_check.sql`(선택. 쓰기 없이 되돌리므로 `antlab`에서 실행 가능. 팀 구성 뒤에 돌린다)
+  21. `22_reconcile_season.sql` (수동 대사, `antlab`에. 저장소 루트에서 실행. 20 시즌 시작이 끝나 있어야 하고 21 팀 구성 뒤에 돌리는 것이 의미 있다. 같은 폴더의 `22_reconcile_season_def.sql`을 읽는다. **실행할 때마다 `reconciliation_log`에 새 시도 15행이 쌓인다** — 11·13과는 무관하다)
+  22. `22_reconcile_season_check.sql`(선택. 쓰기 없이 되돌리므로 `antlab`에서 실행 가능. 팀 구성 뒤에 돌리며 턴 진행·매매 뒤에도 `PASS`다 — 전제가 진행으로 깨진 극단 상태에서는 0절 FAIL로 멈춘다. 실행 중에는 다른 세션을 쓰지 않는다)
 - 스키마 파일은 `BEGIN` ... `COMMIT`으로 감싸 있어 중간에 실패하면 전부 없던 일이 된다. `DROP TABLE`에 `CASCADE`를 쓰지 않으므로, 뒤 번호 파일의 테이블이 이미 있는 DB에서 앞 번호 파일만 다시 실행하면 `2BP01`(dependent_objects_still_exist) 오류로 멈춘다. 안전한 실패이며, 전체를 다시 만들 때는 아래 "DB 다시 만들기"를 쓴다.
 
 ## 실행 환경
@@ -180,6 +185,19 @@ FROM s CROSS JOIN LATERAL (VALUES
 ```
 
 **설정을 바꾸고 싶을 때.** 시즌은 한 번 만들면 바뀌지 않는 기록이다(erd D30). 이미 있는 DB에서 설정·경로를 고치고 20을 다시 실행하면 "이미 있는 시즌이 이 파일과 어긋난다"로 멈춘다(아무것도 바뀌지 않음). 바꾸려면 (b′)로 `antlab`을 다시 만들고 10 → 11 → 12 → 13 → 20 순서로 다시 돌린다. 팀을 바꾸려면(이미 산 뒤) 마찬가지로 (b′)부터 10 → 12 → 20 → 21 순서로 다시 돌린다(매수 기록은 지우거나 고치지 않는 기록이다). 팀 구성 이후에 20을 다시 실행해도 통과한다 — 바뀌는 컬럼(`status`·`current_turn_no`·`current_*`·잔액·뒤 원장 행·1턴 이후 가격)은 비교하지 않는다. 경로 리터럴을 고쳤다면 `engine_version`도 올린다(같은 시드·같은 엔진 버전 = 같은 경로).
+
+**(b⁵) 수동 대사 — `antlab`(작업 DB)에.** 20 시즌 시작 뒤에 실행한다(팀 구성 21 뒤에 돌리는 것이 의미 있다). 연습 시즌을 이메일로 찾아 `season`을 잠그고 수동 검사 15개를 한 문장의 스냅샷으로 계산해 새 시도 번호 하나로 `reconciliation_log`에 15행을 남긴다. 일치해도 남긴다(PLAN §5.2).
+
+```bash
+psql -X -q -v ON_ERROR_STOP=1 -d antlab -f db/22_reconcile_season.sql
+psql -X -q -v ON_ERROR_STOP=1 -d antlab -f db/22_reconcile_season_check.sql
+```
+
+- **다시 실행하면 행이 늘어난다 — 정상이다.** 20·21과 달리 "이미 같으면 새 행 없음"이 아니다. 실행마다 새 시도 번호와 15행이 쌓이고 앞 시도의 행은 그대로다(로그는 추가 전용). 같은 결과여도 시각이 다른 두 검사이기 때문이다.
+- 불일치가 있으면 행을 먼저 커밋한 뒤 종료 코드 3으로 끝난다(메시지에는 코드 이름과 건수뿐). 시즌 상태는 바꾸지 않는다 — 수동 검사에는 되돌릴 턴 전환이 없고, 다음 턴 전환(P0-17)의 대사가 같은 규칙으로 잡아 롤백한다.
+- 수동 검사는 규칙 11(평가액)·19(포지션별 평가액)를 돌리지 않는다(턴 전환 전용). 그래서 15개다. 수동 검사 행과 턴 전환 행은 스키마에 구분 컬럼이 없고 코드 집합(15개 대 17개)으로 구분한다.
+- `-v ON_ERROR_STOP=1` 없이 실행하면 맨 앞 가드가 안내만 출력하고 아무것도 하지 않고 끝낸다(불일치를 종료 코드로 알리려면 오류에서 멈춰야 한다). 이때 종료 코드는 0이고 `reconciliation_log`는 늘지 않는다 — 종료 코드가 아니라 결과 표(`attempt_no`)가 나왔는지로 확인한다.
+- 22 검증 중 음성 사례 하나(N16)가 서브트랜잭션 안에서 `orders`의 외래 키를 잠깐 지웠다 되돌린다. 그동안 `orders`를 쓰는 다른 세션이 기다리므로 **검증 중에는 다른 세션을 쓰지 않는다**(끝나면 제약과 잠금이 함께 되돌아간다).
 
 **(c) 제약 검증 — `antlab_test`에서만.** 스키마(01 → 02 → 03)가 만들어져 있는 `antlab_test`에서 검증 세 줄을 실행한다. 검증은 마지막에 `ROLLBACK`하므로 스키마를 다시 만들지 않고 몇 번이든 돌릴 수 있다. 처음 한 번은 아래 스키마 세 줄을 먼저 실행한다.
 
@@ -330,6 +348,48 @@ COMMIT;                                                                      -- 
 ```
 
 대금 + 수수료가 주문 가능 금액과 **정확히 같으면** 통과하고 잔액이 0이 된다. 1원 모자라면 `INSUFFICIENT_CASH`다. 이 경계는 실제 `INSERT`가 필요해 검증 파일에 없고 복사 DB에서 합성 상태로 확인한다(`ADJUSTMENT` 1행으로 잔액을 그 금액에 맞춘 뒤 `order_buy` 한 번). 순수 경계(`buy_affordable`)는 검증 10절이 본다.
+
+**(h) 대사 깨뜨려 보기 — 복사 DB, 한 세션.** 수동 검사가 일부러 깨뜨린 데이터에서 어느 규칙이 걸리는지 본다. 먼저 **로그를 쓰지 않는** 방법(`BEGIN` → `UPDATE` → 조회 → `ROLLBACK`)으로 하고, 그다음 로그를 남기는 방법으로 한다. **실습은 반드시 복사 DB에서 한다.**
+
+```bash
+psql -X -d postgres -Atc "SELECT count(*) FROM pg_stat_activity WHERE datname = 'antlab' AND pid <> pg_backend_pid()"   # 0이어야 복사된다
+createdb -T antlab antlab_lab
+psql -X -d antlab_lab
+# ... 실습 ...
+dropdb antlab_lab        # 끝나면 지운다
+```
+
+```sql
+\ir db/22_reconcile_season_def.sql
+SELECT se.id AS sid, se.current_turn_no AS cur FROM season se JOIN member m ON m.id = se.member_id WHERE lower(m.email) = lower('phase0@example.invalid') \gset
+-- 정상: 15행이 모두 MATCH, 불일치 수 0
+SELECT rule_no, check_code, status, mismatch_count FROM pg_temp.recon_rules(:sid, :cur::smallint);
+
+BEGIN;
+UPDATE cash_account SET balance = balance + 1 WHERE season_id = :sid;
+SELECT rule_no, check_code, status, mismatch_count FROM pg_temp.recon_rules(:sid, :cur::smallint) WHERE status = 'MISMATCH';   -- 규칙 2·3
+ROLLBACK;
+```
+
+`recon_rules`는 조회만 하므로 로그가 쌓이지 않는다. 값이 아니라 `status`·`mismatch_count`만 고르는 것이 습관이다(스칼라 규칙의 기대·실제·차이 컬럼은 시세에서 나온 금액이라 PR·이슈에 붙이지 않는다). `\gset` 줄 끝에는 주석을 달지 않는다.
+
+| 바꾸기 (`BEGIN` … `ROLLBACK` 안에서) | 걸리는 규칙 | 배울 점 |
+|---|---|---|
+| `UPDATE cash_account SET balance = balance + 1 WHERE season_id = :sid` | **2와 3** | 원장이 1행 이상이고 계좌가 있으면 규칙 3(사슬이 이어지고 최신 = 잔액)이 참일 때 규칙 2가 저절로 참이다(3 ⇒ 2). 그래서 그런 시즌에서는 2만 깨뜨릴 수 없다(원장이 비면 3은 대상이 없어 일치하고 2는 잔액이 0이 아닐 때만 걸린다 — 원장 부재는 규칙 1 `NO_LEDGER`가 잡는다) |
+| `UPDATE cash_account SET reserved = 1 WHERE season_id = :sid` | 9 | 지정가가 없어 예약금은 늘 0 |
+| `UPDATE holding SET quantity = quantity + 1 WHERE id = (SELECT min(id) FROM holding WHERE season_id = :sid AND quantity > 0)` | 6 | 보유 = 체결의 합 |
+| `UPDATE execution SET realized_pnl = 0 WHERE order_id = (SELECT min(id) FROM orders WHERE season_id = :sid)` | 8 | 매수 체결의 실현 손익은 NULL |
+| `UPDATE season SET current_defender = current_defender + 1, current_midfielder = current_midfielder - 1 WHERE id = :sid` | 15 | 현재 포메이션 중복 컬럼과 변경 이력의 일치 |
+| `UPDATE lineup SET end_turn = start_turn WHERE id = (SELECT min(id) FROM lineup WHERE season_id = :sid AND end_turn IS NULL)` | 17 | 열린 구간 ⇔ 보유 수량 > 0 |
+
+로그를 남기며 깨뜨려 보려면(복사 DB에서만) 위 `UPDATE` 하나를 `COMMIT`한 뒤 `psql`을 나와서 22를 돌린다.
+
+```bash
+psql -X -q -v ON_ERROR_STOP=1 -d antlab_lab -f db/22_reconcile_season.sql ; echo "종료 코드 $?"   # 불일치 규칙과 건수가 나오고 종료 코드 3
+psql -X -d antlab_lab -c "SELECT attempt_no, check_code, status, mismatch_count, classification FROM reconciliation_log WHERE status = 'MISMATCH' ORDER BY id"
+```
+
+불일치 행은 커밋되어 `INVESTIGATE`로 남는다. `detail` 컬럼에는 어느 행인지(주문·체결·원장·종목 번호)와 종류 코드만 들어 있다(금액 없음). 22를 다시 돌리면 시도 번호가 늘어난 새 행이 쌓인다.
 
 ## 결과 읽는 법
 
@@ -489,3 +549,11 @@ FAIL이 하나라도 있으면 오류 메시지와 함께 종료 코드 3으로 
 - 함수 오류 종류는 HINT로 가린다: `SEASON_NOT_ACTIVE` · `TURN_MISMATCH` · `ASSET_NOT_IN_POOL` · `INVALID_QUANTITY` · `INSUFFICIENT_CASH` · `POSITION_CONFLICT` · `LEDGER_MISMATCH`(Java 도메인 예외 이름과 짝)와 인자·환경 오류 `INVALID_ARGUMENT` · `ISOLATION_LEVEL`. 메시지에 금액·가격이 없다.
 - 팀 구성 뒤에도 01·02·03(적재가 없는 `antlab_test`)·10·11·12·13·14 검증과 20 시즌 시작(재실행 새 행 0)·20 검증은 그대로 `PASS`다. 21은 `holding`·`lineup`·`cash_*`·`orders`·`execution`을 쓰지만 판정(`asset_position`)은 읽기만 한다.
 - `\ir`은 psql 메타 명령이라 명령줄이 기준이다. VS Code에서는 통합 터미널(`Ctrl` + `` ` ``)에서 실행한다.
+
+**수동 대사(`22_reconcile_season.sql`)와 검증(`22_reconcile_season_check.sql`).** 실행 파일은 종료 코드가 0이고 `ERROR`가 없으면 15개 규칙이 모두 일치한 것이다. 결과 표 두 개가 나온다 — 첫째는 `attempt_no`(이번 시도 번호)·`rows_inserted`(15)·`match_count`·`mismatch_rules`·`mismatch_items`, 둘째는 불일치 규칙의 `check_code`·`mismatch_count`·`classification`(일치면 0행)이다. 기대·실제·차이 값은 출력하지 않는다. 불일치가 있으면 둘째 표가 채워지고 `P0-16 대사: 불일치 규칙 n 개 (…)`로 끝난다(종료 코드 3, 행은 커밋됨). 분류는 항상 `INVESTIGATE`다(분류 자동화는 MVP 이후). `연습 시즌이 0 개다`는 20을 먼저 실행하지 않은 것이고 이때는 행을 만들지 않는다.
+
+- **로그 보기(값은 보지 않는다).** `SELECT attempt_no, turn_no, check_code, status, mismatch_count FROM reconciliation_log ORDER BY id DESC LIMIT 15;` 값 컬럼(`expected_value`·`actual_value`·`diff_value`)은 소유자가 자기 DB에서만 보고 PR·이슈에 붙이지 않는다. 스칼라 규칙 5개(`CASH_SUM`·`ORDER_LEDGER`·`HOLDING_QTY`·`RESERVED_ZERO`·`FEE_RULE`)만 세 값이 채워진다.
+- **`detail` 읽기.** `{"items": [{"kind": …, "order_id"|"execution_id"|"ledger_id"|"asset_id"|"lineup_id"|"other_lineup_id"|"formation_change_id": …, "turn_no"?: …, "kinds"?: […]}], "total": n, "truncated": bool}`. 항목은 최대 100개이고 `total`이 전체 불일치 수다. 규칙 4·7·8은 한 행에 종류가 여럿일 수 있어 `kinds` 배열이 있다. 종류 코드는 정의 파일의 규칙 절 머리 주석에 있다.
+- **"대사 불일치 0건"** = 마지막 22 실행의 `MISMATCH`가 0행이다.
+- 검증 파일은 마지막 출력이 `p0_16_check` 열의 `PASS`이고 종료 코드가 0이면 통과다. 절은 00 전제 → 01 양성 → 02 구조 → 03 음성 → 04 단위 → 05 정보 → 06 판정이고 07 흔적 확인이 끝에 있다. 00절이 FAIL이면 거기서 멈춘다(`연습 시즌이 정확히 1개`는 20, `0턴 매수 주문이 있다`는 21을 먼저 실행하라는 신호). 03 음성은 사례마다 `불일치 규칙 {…}`의 기대와 실제를 나란히 보인다 — 사례 하나가 기대한 규칙 집합과 **정확히 같을 때만** PASS다(다른 규칙이 함께 걸리면 단독성이 깨진 것). 06절이 커버리지 `15/15`를 보인다.
+- 연습 DB에는 매도·전술 변경 데이터가 없어 규칙 8(매도)·15(사슬)·16(묶기)의 양성은 "빈 집합이 일치"다. INSERT가 필요한 사례(원장 행 추가·매도·묶기·겹친 구간·1턴 이후 가격)는 이 파일이 아니라 격리 DB의 합성 시즌과 매매 기능(P0-19)의 검증이 맡는다.
