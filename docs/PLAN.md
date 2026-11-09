@@ -774,7 +774,7 @@ default_formation: [10, 30, 30, 30]
 | 백엔드 | Spring Boot 4.1.x(Java 21 — 소유자 2026-11-09, 커리큘럼 판), Gradle | 시즌·턴·계좌·원장·점수 — 금액이 맞아야 하는 영역 |
 | 데이터베이스 | **PostgreSQL 17**(Phase 0부터) | 2026-11-05 결정(§13): 커리큘럼은 MySQL이었지만 소유자가 "MySQL 시작이 필수가 아니다"라고 해 처음부터 PostgreSQL을 쓴다. 이유 — M1의 일회성 이전(DDL·CHECK·콜레이션·테스트를 두 번 쓰는 일)이 없어지고, `NUMERIC`이 임의 정밀도라 누적 곱(§5.2)의 소수 자리 상한 문제가 없으며, `COPY`·JSONB·pgvector(AI 단계)·Testcontainers가 처음부터 같은 DB다. 로컬 실습 서버는 Docker Compose의 `db` 서비스(`postgres:17`, 127.0.0.1만 — 2026-11-08 소유자 결정, [DEPLOY.md](DEPLOY.md))이고, Homebrew `postgresql@17`은 psql 클라이언트와 검증용 임시 인스턴스에만 쓴다. MySQL은 쓰지 않는다(이중 지원 없음) |
 | 매핑 | JPA(주), 리포트 쿼리에 MyBatis 선택 | |
-| API 문서 | springdoc-openapi(Swagger UI — 경로는 P0-22에서 확인, `local`·`test` 프로필에서만 켬; 명세 `/v3/api-docs`) + 저장소 계약 `docs/api/openapi.yaml`(첫 엔드포인트 기능 P0-27의 계획에서 만든다 — 공통 오류 스키마는 P0-22 것을 옮긴다) | 소유자 2026-11-09(§13). 기능마다 계획 단계에서 yaml의 해당 경로·스키마를 먼저 쓰고, 시험이 springdoc이 낸 명세와 yaml을 대조한다. 웹(TypeScript)의 타입은 이 yaml에서 생성한다. 엔진(FastAPI)과 Spring 사이의 타입은 M2에서 만드는 별도 계약 파일 `docs/api/engine.yaml`에서 생성한다(소비자별로 계약 파일을 가른다) |
+| API 문서 | springdoc-openapi(Swagger UI `/swagger-ui.html`은 `local` 프로필에서만 켬, 명세 `/v3/api-docs`는 `local`과 시험에서만 켬 — P0-22 확인) + 저장소 계약 `docs/api/openapi.yaml`(첫 엔드포인트 기능 P0-27의 계획에서 만든다 — 공통 오류 스키마는 P0-22 것을 옮긴다) | 소유자 2026-11-09(§13). 기능마다 계획 단계에서 yaml의 해당 경로·스키마를 먼저 쓰고, 시험이 springdoc이 낸 명세와 yaml을 대조한다. 웹(TypeScript)의 타입은 이 yaml에서 생성한다. 엔진(FastAPI)과 Spring 사이의 타입은 M2에서 만드는 별도 계약 파일 `docs/api/engine.yaml`에서 생성한다(소비자별로 계약 파일을 가른다) |
 | 시뮬레이션 엔진 | Python, FastAPI, pandas | 월 블록 재조합, 예상 분포, 국면 라벨, 점수 검증 백테스트. 내부 전용 |
 | 프런트엔드 | **웹 페이지 + 모바일 앱(중심) + 데스크탑 앱** — 릴리스 v1의 세 화면(§1.2). 초안: 모바일은 React Native(Expo, iOS·Android)다. 웹 페이지와 데스크탑 앱은 같은 TypeScript React 웹 앱이다 — 브라우저에서 여는 것이 웹 페이지, Tauri로 포장한 것이 데스크탑 앱이다. 공용 패키지: API 클라이언트, 도메인 타입, 차트. 웹의 한 판 화면은 WEB 단계(모바일 폭 우선 반응형)가 먼저 만든다 | WEB, APP |
 | AI | RAG, LangChain, LangGraph | AI |
@@ -856,7 +856,7 @@ default_formation: [10, 30, 30, 30]
 - [ ] P0-19 턴 사이 매매와 전술 변경 1회
 - [ ] P0-20 성적 집계 쿼리
 - [ ] P0-21 `db/README`·전체 실행 순서·실습 SQL
-- [ ] P0-22 Spring Boot 프로젝트 골격 — Gradle·프로필·Actuator·오류 응답·Testcontainers 시험 기반
+- [x] P0-22 Spring Boot 프로젝트 골격 — Gradle·프로필·Actuator·오류 응답·Testcontainers 시험 기반
 - [ ] P0-23 Flyway 기준선 — 01–03 [스키마]를 V1–V3로, 동일성 시험, API DB와 표본 적재 절차
 - [ ] P0-24 api 컨테이너 — Dockerfile·`.dockerignore`·compose `api`
 - [ ] P0-25 SQL 골든 하네스 — 시험 컨테이너 안에서 `db/` 스크립트 실행, 재생, 행 비교

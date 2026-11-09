@@ -133,7 +133,7 @@ docker compose -p antlab-qa down -v                        # 이 프로젝트의
 
 ## 8. 헬스체크·종료·로그
 
-- 헬스체크: `db` `pg_isready`(지금), `api` `/actuator/health/liveness`·`/readiness` — 이 health 그룹이 자동으로 켜지는 조건은 판마다 다르다. Spring Boot 4.1.2 문서는 "자동으로 켜진다"(끌 때 `management.endpoint.health.probes.enabled=false`), 3.5.16 문서는 "Kubernetes 환경에서만 자동, 다른 환경은 이 속성으로 켠다"이다(2026-11-08 확인). Docker Compose는 Kubernetes가 아니므로 **판과 관계없이 `management.endpoint.health.probes.enabled=true`를 명시**하고, P0-22에서 고른 판(4.1.x)으로 두 URL이 200을 주는지 확인한다. 기본으로 HTTP에 노출되는 엔드포인트는 `health`뿐이다, `engine` `/healthz`. `depends_on: condition: service_healthy`로 시작 순서를 잡는다. 헬스체크 명령에 쓸 `curl`/`wget`이 실행 이미지에 있는지는 이미지 고를 때 **확인 필요**(없으면 Java 한 줄 헬스 클라이언트나 `wget` 추가).
+- 헬스체크: `db` `pg_isready`(지금), `api` `/actuator/health/liveness`·`/readiness` — 이 health 그룹이 자동으로 켜지는 조건은 판마다 다르다. Spring Boot 4.1.2 문서는 "자동으로 켜진다"(끌 때 `management.endpoint.health.probes.enabled=false`), 3.5.16 문서는 "Kubernetes 환경에서만 자동, 다른 환경은 이 속성으로 켠다"이다(2026-11-08 확인). Docker Compose는 Kubernetes가 아니므로 **판과 관계없이 `management.endpoint.health.probes.enabled=true`를 명시**하고, P0-22에서 4.1.2로 두 URL이 200(`{"status":"UP"}`)을 주고 `env`·`info`·`beans`는 404임을 확인했다(`ActuatorProbesTest`). readiness 그룹에는 `db`를 넣었으므로 DB가 죽으면 readiness는 Hikari 연결 대기(기본 30초) 뒤 응답한다 — 헬스체크 `timeout`과의 관계는 P0-24에서 정한다. 기본으로 HTTP에 노출되는 엔드포인트는 `health`뿐이다, `engine` `/healthz`. `depends_on: condition: service_healthy`로 시작 순서를 잡는다. 헬스체크 명령에 쓸 `curl`/`wget`이 실행 이미지에 있는지는 이미지 고를 때 **확인 필요**(없으면 Java 한 줄 헬스 클라이언트나 `wget` 추가).
 - 그레이스풀 셧다운: Spring Boot 4.1.2·3.5.16 문서 모두 "내장 웹 서버에서 기본 켜짐"이다(2026-11-08 확인). 3.5 이상이면 정할 것은 대기 시간 `spring.lifecycle.timeout-per-shutdown-phase`(예 20s)뿐이고, 3.4 이하를 고르면 그 판 문서로 다시 확인한다. compose `stop_grace_period: 30s` > 20s.
 - 로그: 모든 서비스는 **stdout/stderr에만**(파일 로그 금지). 운영 compose에 `logging: driver json-file, options max-size 10m, max-file 3`(json-file은 `max-size` 기본이 무제한이라 회전하지 않고, `max-file`은 `max-size`가 있어야 효과가 있다 — Docker 문서, 2026-11-08 확인). 키·토큰은 로그에서 `****`(tools/fetch 규칙 유지). 구조화 로그(JSON)는 MVP에서 Spring의 `logging.structured.format.console`(지원 판 **확인 필요**)을 검토한다. 수집·대시보드(Loki 등)는 과함 — OPS 뒤 필요할 때.
 
@@ -145,7 +145,7 @@ docker compose -p antlab-qa down -v                        # 이 프로젝트의
 |---|---|---|
 | 로컬 `.env`(루트, git 무시 — 이미 `.gitignore`) | KIS 키, `OPENROUTER_API_KEY`, `OLLAMA_*`, 로컬 DB 포트 등 | `.env.example`에 **이름만**(P0-08 규칙). Compose는 루트 `.env`를 변수 치환에 읽는다 |
 | 운영 VM `/opt/antlab/.env`(권한 600, 저장소 밖) | 운영 값 | 소유자가 SSH로 직접 둔다 |
-| 운영 compose `secrets:`(파일 → `/run/secrets/<이름>`) | DB 비밀번호, JWT 키, 엔진 토큰 | postgres 이미지는 `POSTGRES_PASSWORD_FILE` 지원(Docker Hub 공식 이미지 문서 — `_FILE`은 `POSTGRES_PASSWORD`·`USER`·`DB`·`INITDB_ARGS`만). Spring은 `spring.config.import=optional:configtree:/run/secrets/`로 파일을 속성으로 읽는다(P0-22에서 문서 **확인 필요**). `POSTGRES_HOST_AUTH_METHOD`는 `_FILE`이 없어 값으로 직접 쓴다(§3 "trust는 로컬·CI 전용"). |
+| 운영 compose `secrets:`(파일 → `/run/secrets/<이름>`) | DB 비밀번호, JWT 키, 엔진 토큰 | postgres 이미지는 `POSTGRES_PASSWORD_FILE` 지원(Docker Hub 공식 이미지 문서 — `_FILE`은 `POSTGRES_PASSWORD`·`USER`·`DB`·`INITDB_ARGS`만). Spring은 `spring.config.import=optional:configtree:/run/secrets/`로 파일을 속성으로 읽는다(이름과 세부는 P0-24에서 compose `secrets:`와 함께 **확인 필요**). `POSTGRES_HOST_AUTH_METHOD`는 `_FILE`이 없어 값으로 직접 쓴다(§3 "trust는 로컬·CI 전용"). |
 | GitHub Actions secrets | 배포용 SSH 키·호스트(OPS), 필요하면 OpenRouter 시험 키 | GHCR 푸시는 `GITHUB_TOKEN`(비밀값 추가 불필요). 공개 저장소의 포크 PR에는 secrets가 전달되지 않는다(GitHub 문서 **확인 필요**) → CI 시험은 비밀값 없이 돌아야 한다 |
 
 - **이미지에 비밀값을 굽지 않는다**(§4.1 `.dockerignore`).
@@ -157,7 +157,7 @@ docker compose -p antlab-qa down -v                        # 이 프로젝트의
 - 우리 변수 이름 접두사는 `ANTLAB_`(예: `ANTLAB_DB_PORT`, `ANTLAB_ENGINE_URL`, `ANTLAB_ENGINE_TOKEN`). 표준이 있는 것은 표준 이름 그대로 쓴다(`POSTGRES_*`, `SPRING_*`, `PG*`, `KIS_*`, `OPENROUTER_API_KEY`, `OLLAMA_BASE_URL`).
 - 프로필은 SPRING_JPA §10의 `local`·`test`·`prod` 셋 그대로, 컨테이너에서는 `SPRING_PROFILES_ACTIVE=prod`.
 - Python 엔진(M2) 기준: 설정은 `os.environ`이 먼저이고 `.env` 파일은 로컬 편의 대체만, `/healthz`, 비루트, 외부 네트워크 없음, DB는 읽기 전용 역할. `tools/fetch`는 `.env`를 명시 경로로만 읽고 `os.environ`을 바꾸지 않는다(`common.py`).
-- Phase 0 API(Phase 1 JDBC 콘솔 앱은 건너뛰었다)의 접속 정보도 코드에 쓰지 않는다: `ANTLAB_DB_URL`(기본 `jdbc:postgresql://localhost:5432/antlab_api`), 사용자·비밀번호는 `PGUSER`/`PGPASSWORD` 또는 `ANTLAB_DB_USER`/`ANTLAB_DB_PASSWORD`(이름은 P0-22 계획에서 확정). 로컬 compose `db`에 그대로 붙는다.
+- Phase 0 API(Phase 1 JDBC 콘솔 앱은 건너뛰었다)의 접속 정보도 코드에 쓰지 않는다: `ANTLAB_DB_URL`(기본 `jdbc:postgresql://localhost:5432/antlab_api`), 사용자·비밀번호는 `ANTLAB_DB_USER`(기본 OS 사용자 `${USER}` — compose `POSTGRES_USER`와 같은 규칙)·`ANTLAB_DB_PASSWORD`(기본 빈 값)로 확정했다. `PGUSER`/`PGPASSWORD`는 libpq 변수라 JDBC 드라이버가 읽지 않으므로 Spring에는 쓰지 않는다. `prod`에서 `ANTLAB_DB_URL`을 필수(기본값 없음)로 바꾸는 일은 P0-24에서 한다. 로컬 compose `db`에 그대로 붙는다.
 
 ### 9.3 모델 공급 경로 (서버 컨테이너에서)
 
@@ -212,7 +212,7 @@ docker compose -p antlab-qa down -v                        # 이 프로젝트의
 | Phase 0 | compose 이름 규칙(§3.1), 격리 시험 규칙(§3.2), 포트 원칙(§5), 비밀값·설정 규칙(§9), 문서의 Homebrew → Docker Compose, (선택) SQL 검증 CI(아래) |
 | Phase 1 | 건너뜀(2026-11-09) — 접속 정보 환경 변수(§9.2)는 Phase 0 API(P0-22)가 이어받는다 |
 | Phase 0 API | Spring 컨테이너 설정 체크리스트(SPRING_JPA §10.1, P0-22), api Dockerfile·`.dockerignore`, compose `api`(P0-24), Flyway 기준선(P0-23), 시험은 Testcontainers |
-| MVP | DB 역할 3개 초안(§7), 구조화 로그(configtree는 P0-22에서 이름만 확인하고 실제 사용은 OPS — §9.1) |
+| MVP | DB 역할 3개 초안(§7), 구조화 로그(configtree는 P0-24에서 이름만 확인하고 실제 사용은 OPS — §9.1) |
 | M1 | CI Gradle + Testcontainers PG17(SPRING_JPA §9) — Phase 0 API 시험을 합성 표본 픽스처로 CI에서, api 이미지 **빌드만**(푸시 없음, SPRING_JPA §10.1-8), 수집기 외부 호출은 `egress`만 |
 | M2 | engine Dockerfile·`/healthz`·읽기 전용 역할·`backend` 전용 네트워크, 서비스 토큰 |
 | WEB · APP | proxy 이미지(웹 정적 + Caddy)는 APP·OPS, 로컬은 Vite 개발 서버를 호스트에서(컨테이너 아님 — WEB부터, `/api` 프록시) |
