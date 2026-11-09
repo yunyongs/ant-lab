@@ -34,6 +34,11 @@ spring:
 server:
   shutdown: graceful
 
+antlab:
+  pool:
+    # 기준일 풀(PLAN §7 매년 1월 첫 거래일). 표본 = 2026-01-02(db/20_season_start.sql 설정 표와 같음)
+    base-date: ${ANTLAB_POOL_BASE_DATE:2026-01-02}
+
 # springdoc 은 설정이 없으면 켜진다(matchIfMissing). 공통에서 끄고 local 에서만 켠다.
 springdoc:
   api-docs:
