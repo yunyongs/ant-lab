@@ -11,5 +11,9 @@ public enum ErrorCode {
     METHOD_NOT_ALLOWED,
     NOT_ACCEPTABLE,
     UNSUPPORTED_MEDIA_TYPE,
-    INTERNAL_ERROR
+    INTERNAL_ERROR,
+    /** 기준일 풀 행이 없다 — 풀 조회(P0-27)와 시즌 시작(P0-30)이 함께 쓴다. */
+    POOL_NOT_LOADED,
+    /** 기준일 풀에 판정이 비어 있는 종목이 있다. */
+    POOL_NOT_JUDGED
 }
