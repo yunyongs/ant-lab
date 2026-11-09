@@ -37,6 +37,10 @@ psql -X -q -v ON_ERROR_STOP=1 -d antlab_api -f db/13_calc_attention_check.sql
 ./gradlew bootRun        # 다시 시작해도 Flyway는 V1–V3를 다시 적용하지 않는다(이력 3행 그대로)
 ```
 
+적재한 뒤 앱을 띄워 `GET /api/v1/pool`이 200이고 20종목을 돌려주는지 확인한다(`local` 프로필 기본 포트 8080).
+`10`을 적재하기 전이면 409 `POOL_NOT_LOADED`, `12`를 계산하기 전이면 409 `POOL_NOT_JUDGED`다. 기준일은
+`antlab.pool.base-date` 설정(환경 변수 `ANTLAB_POOL_BASE_DATE`, 기본 2026-01-02)으로 정한다.
+
 `antlab_api`에서는 (b)·(b′)(01–03 전체 파일. 테이블을 지운다)와 20번대 SQL(시즌·팀·대사·턴 —
 API에서는 Java가 쓴다)을 실행하지 않는다. 적재한 뒤에는 01–03 `_check`도 실행하지 않는다(0절이 빈 테이블을
 요구하기 때문이다). `createdb`가 "already exists"로 끝나면 그 DB가 비어 있는지 먼저 확인한다. 비어 있지 않으면
