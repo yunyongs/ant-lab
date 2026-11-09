@@ -1,0 +1,152 @@
+package antlab.api;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import antlab.support.ExposureCatalog;
+import antlab.support.ExposureRules;
+import antlab.support.IntegrationTest;
+import java.lang.reflect.RecordComponent;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.core.ResolvableType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.jdbc.Sql;
+import org.springframework.test.web.servlet.assertj.MockMvcTester;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.method.HandlerMethod;
+import org.springframework.web.servlet.mvc.method.RequestMappingInfo;
+import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
+
+/**
+ * 노출 상한 계약. /api/v1/** 의 모든 응답 record 가 {@code [노출]} 열(또는 식별자 허용 목록)에서만 오고,
+ * 실제 응답에 금지 값이 없는지 확인한다. 새 응답 DTO 는 별도 작업 없이 이 시험에 들어온다.
+ */
+@IntegrationTest
+@Transactional
+@Sql("/fixtures/history_pool.sql")
+class ExposureContractTest {
+
+    /** 응답 본문에 나오면 안 되는 키: 날짜·창·환율·순위·통화·그룹 코드·가격 원값. */
+    static final Set<String> FORBIDDEN_KEYS = Set.of("currency", "code", "listedOn", "baseDate", "windowStart",
+            "windowEnd", "monthsUsed", "marketCapRank", "baseFxRate", "basePrice", "createdAt");
+
+    @Autowired
+    @Qualifier("requestMappingHandlerMapping")
+    RequestMappingHandlerMapping handlerMapping;
+
+    @Autowired
+    JdbcTemplate jdbc;
+
+    @Autowired
+    MockMvcTester mvc;
+
+    record Endpoint(String path, Class<?> responseType) {
+    }
+
+    private List<Endpoint> apiEndpoints() {
+        List<Endpoint> out = new ArrayList<>();
+        for (Map.Entry<RequestMappingInfo, HandlerMethod> e : handlerMapping.getHandlerMethods().entrySet()) {
+            Set<String> patterns = e.getKey().getPathPatternsCondition().getPatternValues();
+            ResolvableType type = ResolvableType.forMethodReturnType(e.getValue().getMethod());
+            if (ResponseEntity.class.isAssignableFrom(type.toClass())) {
+                type = type.getGeneric(0);
+            }
+            for (String p : patterns) {
+                if (p.startsWith("/api/v1/")) {
+                    out.add(new Endpoint(p, type.toClass()));
+                }
+            }
+        }
+        return out;
+    }
+
+    @Test
+    void 카탈로그는_모든_표의_모든_열에_태그가_있다() {
+        ExposureCatalog catalog = ExposureCatalog.load(jdbc);
+        List<String> untagged = catalog.tags().entrySet().stream()
+                .filter(e -> e.getValue() == null).map(Map.Entry::getKey).toList();
+        assertThat(untagged).as("태그 없는 열").isEmpty();
+        long tables = catalog.tags().keySet().stream().map(k -> k.substring(0, k.indexOf('.'))).distinct().count();
+        assertThat(tables).as("표 수").isEqualTo(22);
+    }
+
+    @Test
+    void 응답_record의_모든_구성_요소가_노출_상한을_지킨다() {
+        ExposureCatalog catalog = ExposureCatalog.load(jdbc);
+        List<Endpoint> endpoints = apiEndpoints();
+        assertThat(endpoints).as("검사한 /api/v1 운영").isNotEmpty();
+        for (Endpoint ep : endpoints) {
+            assertThat(ep.responseType().isRecord()).as(ep.path() + " 응답은 record").isTrue();
+            assertThat(ExposureRules.check(ep.responseType(), catalog)).as(ep.path()).isEmpty();
+        }
+    }
+
+    @Test
+    void 실제_응답의_키는_record_구성_요소와_같고_금지_값이_없다() throws Exception {
+        for (Endpoint ep : apiEndpoints()) {
+            if (!ep.path().equals("/api/v1/pool")) {
+                continue; // 경로 변수가 없는 조회만 고정본으로 호출한다. 이후 기능이 호출 사례를 더한다.
+            }
+            String body = mvc.get().uri(ep.path()).exchange().getResponse().getContentAsString();
+            JsonNode json = JsonMapper.shared().readTree(body);
+            List<String> problems = new ArrayList<>();
+            keysMatch(ep.responseType(), json, "$", problems);
+            assertThat(problems).as(ep.path() + " 키 대조").isEmpty();
+            assertThat(allKeys(json)).as("금지 키").doesNotContainAnyElementsOf(FORBIDDEN_KEYS);
+            // 고정본의 날짜·환율 값이 본문에 문자열로 나오지 않는다.
+            assertThat(body).doesNotContain("1999-01-04", "2002-10-14", "2003-05-01", "1996-05-09", "2026-01-02",
+                    "2020-01-01", "2025-12-01", "1350");
+            assertThat(body).doesNotContainPattern("\\d{4}-\\d{2}-\\d{2}");
+        }
+    }
+
+    private static void keysMatch(Class<?> record, JsonNode node, String path, List<String> out) {
+        if (node.isArray()) {
+            node.forEach(item -> keysMatch(record, item, path + "[]", out));
+            return;
+        }
+        Set<String> expected = new HashSet<>();
+        for (RecordComponent rc : record.getRecordComponents()) {
+            expected.add(rc.getName());
+        }
+        Set<String> actual = new HashSet<>(node.propertyNames());
+        if (!expected.equals(actual)) {
+            out.add(path + " — record " + expected + " / 응답 " + actual);
+        }
+        for (RecordComponent rc : record.getRecordComponents()) {
+            Class<?> nested = nestedRecordOf(rc);
+            JsonNode child = node.get(rc.getName());
+            if (nested != null && child != null && !child.isNull()) {
+                keysMatch(nested, child, path + "." + rc.getName(), out);
+            }
+        }
+    }
+
+    private static Class<?> nestedRecordOf(RecordComponent rc) {
+        ResolvableType t = ResolvableType.forType(rc.getGenericType());
+        Class<?> c = t.isArray() || t.hasGenerics() ? t.getGeneric(0).toClass() : t.toClass();
+        return c.isRecord() && c.getName().startsWith("antlab.") ? c : null;
+    }
+
+    private static Set<String> allKeys(JsonNode node) {
+        Set<String> keys = new HashSet<>();
+        if (node.isObject()) {
+            node.properties().forEach(e -> {
+                keys.add(e.getKey());
+                keys.addAll(allKeys(e.getValue()));
+            });
+        } else if (node.isArray()) {
+            node.forEach(n -> keys.addAll(allKeys(n)));
+        }
+        return keys;
+    }
+}
