@@ -4,6 +4,54 @@ Phase 0에서 손으로 쓰는 SQL이다([docs/PLAN.md](../docs/PLAN.md#111-phas
 
 저장소 루트의 Spring 프로젝트(`src/`, P0-22~)는 이 폴더를 빌드에 넣지 않는다. API의 스키마 파일은 P0-23부터 `src/main/resources/db/migration`에 있다.
 
+## API DB와 실습 DB
+
+`antlab`은 SQL 실습용이며 Spring API는 별도 `antlab_api`를 사용한다. API DB에서는
+`01_schema_history.sql`–`03_schema_account.sql` 전체를 다시 실행하지 않는다. 앱을
+처음 시작하면 Flyway가 `V1__schema_history.sql`–`V3__schema_account.sql`을 적용한다.
+이후 표본 파일이 준비되면 앱을 종료한 상태에서 저장소 루트의 `10 → 11 → 12 → 13`
+적재와 각 `_check`를 실행한 다음 앱을 다시 시작한다. 표본 CSV가 없는 환경에서는 적재를
+PASS로 기록하지 않는다.
+
+처음 한 번은 저장소 루트의 VS Code 통합 터미널에서 실행한다(접속 환경 변수는 아래 「실행 환경」).
+
+```bash
+createdb -E UTF8 -T template0 antlab_api
+psql -X -d postgres -c "ALTER DATABASE antlab_api SET timezone TO 'Asia/Seoul'"
+./gradlew bootRun        # Flyway가 V1–V3 적용. /actuator/health/readiness 가 UP이면 Ctrl+C로 종료
+psql -X -d antlab_api -c "SELECT version, script, success FROM flyway_schema_history ORDER BY installed_rank"
+                         # 1·2·3 세 줄, success = t
+```
+
+표본 적재(앱을 끈 상태. `db/sample/README.md`의 무시 CSV 네 개가 있어야 한다):
+
+```bash
+psql -X -v ON_ERROR_STOP=1 -d antlab_api -f db/10_load_sample.sql
+psql -X -q -v ON_ERROR_STOP=1 -d antlab_api -f db/10_load_sample_check.sql
+psql -X -v ON_ERROR_STOP=1 -d antlab_api -f db/11_load_events.sql
+psql -X -q -v ON_ERROR_STOP=1 -d antlab_api -f db/11_load_events_check.sql
+psql -X -v ON_ERROR_STOP=1 -d antlab_api -f db/12_calc_position.sql
+psql -X -q -v ON_ERROR_STOP=1 -d antlab_api -f db/12_calc_position_check.sql
+psql -X -v ON_ERROR_STOP=1 -d antlab_api -f db/13_calc_attention.sql
+psql -X -q -v ON_ERROR_STOP=1 -d antlab_api -f db/13_calc_attention_check.sql
+./gradlew bootRun        # 다시 시작해도 Flyway는 V1–V3를 다시 적용하지 않는다(이력 3행 그대로)
+```
+
+`antlab_api`에서는 (b)·(b′)(01–03 전체 파일. 테이블을 지운다)와 20번대 SQL(시즌·팀·대사·턴 —
+API에서는 Java가 쓴다)을 실행하지 않는다. 적재한 뒤에는 01–03 `_check`도 실행하지 않는다(0절이 빈 테이블을
+요구하기 때문이다). `createdb`가 "already exists"로 끝나면 그 DB가 비어 있는지 먼저 확인한다. 비어 있지 않으면
+Flyway가 자동 baseline 없이 시작을 멈춘다. DB를 지우거나 새 이름을 쓸지는 소유자가 정한다.
+
+**소유자 조치(머지 뒤):** 이 저장소의 작업은 소유자 DB(`antlab-db-1`)에 접속하지 않았다. 로컬 API를 쓰기 전에
+소유자가 위 블록을 직접 실행한다. `antlab_api`가 이미 있고 테이블이 들어 있으면(이전 `createdb` 안내 때문에
+있을 수 있다) 먼저 내용을 확인한다. 그다음 `dropdb antlab_api`로 지우고 다시 만들거나, 보존해야 하면 새 이름과
+`ANTLAB_DB_URL`을 쓴다. 기존 실습 DB `antlab`을 API DB로 바꾸는 일은 범위 밖이다(스키마 대조와 수동 baseline이 필요).
+
+시험은 소유자의 `antlab`·`antlab_api`에 접속하지 않는다. 시험 실행마다 새 PostgreSQL 17
+Testcontainers DB를 시작하고 Flyway를 적용한다. 시험 DB에서 `clean`으로 공유 데이터를 지우지
+않는다. API DB의 기존 스키마를 자동 `baseline`하지 않으며, 문제가 있으면 새 DB와
+접속 변수를 확인한다.
+
 ## 파일
 
 | 파일 | 만드는 기능 | 내용 |
@@ -117,7 +165,7 @@ psql -X -v ON_ERROR_STOP=1 -d antlab -f db/02_schema_season.sql
 psql -X -v ON_ERROR_STOP=1 -d antlab -f db/03_schema_account.sql
 ```
 
-**(b″) 표본 적재 — `antlab`(작업 DB)에만.** 검증용 `antlab_test`에는 적재하지 않는다(`01_schema_history_check.sql`·`02_schema_season_check.sql`·`03_schema_account_check.sql` 0절이 빈 테이블을 요구해 적재된 DB에서는 셋 다 FAIL이다). 적재는 아무것도 지우지 않으며 두 번째 실행에는 새 행이 없다.
+**(b″) 표본은 `antlab`(작업 DB)에 적재한다. API DB `antlab_api`는 위 「API DB와 실습 DB」 절의 순서를 따른다.** 검증용 `antlab_test`에는 적재하지 않는다(`01_schema_history_check.sql`·`02_schema_season_check.sql`·`03_schema_account_check.sql` 0절이 빈 테이블을 요구하므로 적재된 DB에서는 셋 다 FAIL이다). 적재 과정에서 기존 데이터는 지워지지 않으며 두 번째 실행에서는 새 행이 생기지 않는다.
 
 ```bash
 psql -X -v ON_ERROR_STOP=1 -d antlab -f db/10_load_sample.sql

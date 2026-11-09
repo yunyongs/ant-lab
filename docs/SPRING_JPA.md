@@ -196,8 +196,8 @@ TurnService.advance(seasonId, expectedTurnNo)
 | 계약 | `@SpringBootTest` | springdoc이 낸 `/v3/api-docs`와 저장소 `docs/api/openapi.yaml`을 경로·필드·타입·필수·응답 코드로 대조 — 코드와 yaml이 갈라지면 실패(도구와 정규화는 첫 엔드포인트 기능 P0-27 계획에서 정함) |
 | API | `MockMvc` | 검증 오류 400, 턴 불일치 409, 잔액 부족 422(초안), 비공개 컬럼이 응답에 없음 |
 
-- **H2를 쓰지 않는다.** CHECK·`NUMERIC` 반올림·`FOR UPDATE`·문자열 비교의 동작이 PostgreSQL과 달라 통과해도 믿을 수 없다. **Phase 0 API(2026-11-09 결정, PLAN §13)는 로컬 시험부터 Testcontainers PostgreSQL 17**을 쓴다 — 처음에 적은 compose `db` 서비스의 `antlab_test` 안(`db/README.md`의 데이터베이스 생성 블록)을 바꾼 것이다. 이유: 시험이 소유자의 컨테이너를 건드리지 않고(DEPLOY §3.2 격리 규칙을 저절로 지킨다), 매 시험이 빈 DB에서 시작하며, M1 CI와 같은 방식이다. 시험은 로컬에서 실행하고 CI(M1)가 같은 시험을 합성 표본으로 돌린다. 이 DB는 Flyway 파일을 적용한 빈 DB이고, SQL 골든 시험(P0-25)은 같은 컨테이너에서 `db/` 스크립트를 `psql`로 돌려 Java 결과와 행 단위로 비교한다.
-- 테스트 DB는 테스트 시작 때 Flyway `clean` → `migrate`. 실습 DB `antlab`과 API 로컬 DB `antlab_api`에는 테스트가 접속하지 않는다(프로필 `test`의 URL은 Testcontainers가 준다).
+- **H2를 쓰지 않는다.** CHECK·`NUMERIC` 반올림·`FOR UPDATE`·문자열 비교의 동작이 PostgreSQL과 달라서, 시험이 통과해도 믿을 수 없다. **Phase 0 API(2026-11-09 결정, PLAN §13)는 로컬 시험부터 Testcontainers PostgreSQL 17**을 쓴다. 이는 처음에 적은 compose `db` 서비스의 `antlab_test` 안(`db/README.md`의 데이터베이스 생성 블록)을 바꾼 것이다. 이렇게 하면 시험이 소유자의 컨테이너를 건드리지 않고(DEPLOY §3.2 격리 규칙을 저절로 지킨다), 시험 실행마다 빈 DB에서 시작하며, M1 CI와 같은 방식으로 실행된다. 시험은 로컬에서 실행하고 CI(M1)가 같은 시험을 합성 표본으로 돌린다. 이 DB는 Flyway 파일을 적용한 빈 DB이며, SQL 골든 시험(P0-25)은 같은 컨테이너에서 `db/` 스크립트를 `psql`로 돌려 Java 결과와 행 단위로 비교한다.
+- 테스트 DB는 `./gradlew test`를 실행할 때마다 새 Testcontainers PostgreSQL 17로 시작하고 Flyway `migrate`만 실행한다. 같은 구성의 시험 클래스는 Spring 시험 문맥과 해당 컨테이너를 공유한다. 따라서 데이터를 쓰는 시험은 자신이 쓴 행을 정리하고 identity 값(번호표)을 가정하지 않는다. 빈 테이블을 전제로 하는 시험(`FlywayMigrationTest`·`FlywaySchemaCheckTest`)은 표지 속성으로 별도 문맥(컨테이너)에서 실행한다. 공유 시험 문맥에서는 `clean`을 호출하지 않으며, 실습 DB `antlab`과 API 로컬 DB `antlab_api`에는 접속하지 않는다(프로필 `test`의 URL은 Testcontainers가 준다).
 
 ## 10. 설정
 
@@ -230,10 +230,18 @@ springdoc:                                         # 공통은 끔, local 에서
   api-docs.enabled: false
   swagger-ui.enabled: false
 # 엔티티가 생기면: hibernate.default_batch_fetch_size: 100(지연 로딩을 IN 쿼리로 묶는다)
-# P0-23 이후: spring.flyway.locations: classpath:db/migration, antlab.engine.*(projection-paths: 2000, block-mean-length: 6)
+spring.flyway:
+  enabled: true
+  locations: classpath:db/migration
+  default-schema: public
+  schemas: public
+  baseline-on-migrate: false
+  clean-disabled: true
+  validate-on-migrate: true
+# P0-23 이후: antlab.engine.*(projection-paths: 2000, block-mean-length: 6)
 ```
 
-프로필은 `application.yml` 안의 `---` 문서 셋이다: 공통(프로필 없이 떠도 안전한 값 — SQL 로그·명세 꺼짐), `local`(SQL 로그, 명세·Swagger UI 켬; `bootRun`·`bootTestRun`이 기본으로 준다), `prod`(OPS; springdoc 끔, `server.forward-headers-strategy: framework`). 시험 프로필 `test`만 `src/test/resources/application-test.yml`에 있어 jar에 들어가지 않고(Testcontainers, 명세만 켬; Flyway clean 허용은 P0-23이 여기에 더한다), `local` 값을 `application-local.yml` 파일로 두지 않는 까닭은 `.gitignore`가 그 파일을 무시하기 때문이다(소유자 개인 덮어쓰기는 `config/application-local.yml`). `prod`는 고정 회원 구현이 켜져 있으면 시작을 거부한다(M4 JWT 전까지, PLAN §13 2026-11-09). 비밀값(DB 비밀번호)은 환경 변수로만.
+프로필은 `application.yml` 안의 `---` 문서 셋이다. 공통 프로필에는 프로필 없이 떠도 안전한 값(SQL 로그·명세 꺼짐)을 둔다. `local`은 SQL 로그와 명세·Swagger UI를 켜며 `bootRun`·`bootTestRun`이 기본으로 준다. `prod`는 OPS 설정이며 springdoc을 끄고 `server.forward-headers-strategy: framework`을 사용한다. 시험 프로필 `test`만 `src/test/resources/application-test.yml`에 있으므로 jar에 들어가지 않는다(Testcontainers, 명세만 켬; Flyway clean은 새 컨테이너 원칙상 쓰지 않는다). `local` 값을 `application-local.yml` 파일로 두지 않는 까닭은 `.gitignore`가 그 파일을 무시하기 때문이다(소유자 개인 덮어쓰기는 `config/application-local.yml`). `prod`는 고정 회원 구현이 켜져 있으면 시작을 거부한다(M4 JWT 전까지, PLAN §13 2026-11-09). 비밀값(DB 비밀번호)은 환경 변수로만 둔다.
 
 ### 10.1 컨테이너에서 실행 (Phase 0 API 체크리스트 초안)
 
