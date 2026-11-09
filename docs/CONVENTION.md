@@ -57,10 +57,11 @@
 
 | 단계 코드        | 단계                        | 기능 표가 있는 곳                                                                    |
 | ------------ | ------------------------- | ----------------------------------------------------------------------------- |
-| `P0`         | Phase 0 — SQL(PostgreSQL) 스키마와 트랜잭션 | [PLAN.md §11.1](PLAN.md#111-phase-0-체크리스트-sql-postgresql-17) 체크리스트 순서대로 `P0-01` \~ `P0-21` (`P0-01`·`P0-02`는 PLAN v1 도메인) |
-| `P1`         | Phase 1 — 자바 데이터베이스 연결(JDBC, Java Database Connectivity) 콘솔 앱       | 단계를 시작할 때 PLAN.md §11에 표를 만든다                                                     |
-| `MVP`        | Spring Boot 표현 상태 전송(REST, Representational State Transfer) API      | [PLAN.md §8](PLAN.md#8-사용자-스토리) 사용자 스토리 순서대로 `MVP-01` \~ `MVP-07`    |
-| `EXT` · `APP` · `AI` · `OPS` | PLAN.md §11의 게임 확장(적립금·세금·케이스 훈련·대가 라이브러리·통계 보드·소음 확장), 앱(웹 페이지·모바일·데스크탑), AI 보조(복기 RAG·질의·시즌 코치 — 결정하지 않는다), 배포·운영 | 단계를 시작할 때 PLAN.md §11에 표를 만든다 |
+| `P0`         | Phase 0 — SQL(PostgreSQL) 스키마와 트랜잭션 + 시즌 한 판 REST API | [PLAN.md §11.1](PLAN.md#111-phase-0-체크리스트-sql-postgresql-17) 체크리스트 순서대로 `P0-01` \~ `P0-40` (`P0-01`·`P0-02`는 PLAN v1 도메인, `P0-22`~는 2026-11-09에 더한 API 기능) |
+| `P1`         | Phase 1 — 자바 데이터베이스 연결(JDBC, Java Database Connectivity) 콘솔 앱 — **건너뜀**(2026-11-09, `P0-22`~ API에 흡수. 번호 `P1-`은 쓰지 않는다) | —                                                     |
+| `WEB`        | 한 판 웹 — TypeScript React(Vite), 모바일 폭 우선 반응형. `P0-22`~ API 범위의 화면 | 단계를 시작할 때 PLAN.md §11에 표를 만든다 (`WEB-01` ~) |
+| `MVP`        | Spring Boot 표현 상태 전송(REST, Representational State Transfer) API의 남은 기능(Phase 0 API 이후) | [PLAN.md §8](PLAN.md#8-사용자-스토리) 사용자 스토리 순서대로 `MVP-01` \~ `MVP-07` (Phase 0 API가 끝낸 기본 흐름을 뺀 나머지는 MVP를 시작할 때 다시 자른다) |
+| `EXT` · `APP` · `AI` · `OPS` | PLAN.md §11의 게임 확장(적립금·세금·케이스 훈련·대가 라이브러리·통계 보드·소음 확장), 앱(모바일·데스크탑과 웹의 나머지 화면), AI 보조(복기 RAG·질의·시즌 코치 — 결정하지 않는다), 배포·운영 | 단계를 시작할 때 PLAN.md §11에 표를 만든다 |
 | `M1` \~ `M4` | 수집기·CI, Python 엔진, 점수 백테스트, 전망 모드(PLAN.md §11)                | 단계를 시작할 때 PLAN.md §11에 표를 만든다                  |
 | `AG`         | 에이전트 펀드 매니저(PLAN.md §4.16, §11 AG 행)        | [PLAN.md §11](PLAN.md#11-로드맵커리큘럼-순서-유지)의 AG 기능 표 초안 `AG-01` \~ `AG-08` — 단계를 시작할 때 확정한다 |
 | `R1` \~ `R3` | 거장 추적, 매니저 복제 봇, 실전 운용(PLAN.md §11)        | 단계를 시작할 때 PLAN.md §11에 표를 만든다                  |
@@ -448,7 +449,7 @@ GitHub는 본인 PR을 approve할 수 없다. 그래서 approve 대신 아래 �
 - [ ] **Settings → General → Pull Requests:** **Allow merge commits**만 체크(squash·rebase 해제), 드롭다운 **Pull request title and description**, **Automatically delete head branches** 체크
 - [ ] **Settings → Rules → Rulesets → New branch ruleset:** 대상 `main`, Enforcement **Active**, **Require a pull request before merging**(Required approvals **0** — 1인이라 approve 불가), 허용 머지 방식 **Merge**만, **Block force pushes**, **Restrict deletions**. **Require linear history는 켜지 않는다** (Merge commit과 충돌)
 - [ ] (M1부터) CI가 생기면 Ruleset에 **Require status checks to pass**를 켠다
-- [ ] (선택) **Milestones** — 단계별(`P0`, `P1`, `MVP`, `M1` … `M7`)로 만들어 이슈를 묶는다. 진행률이 포트폴리오에서 한눈에 보인다
+- [ ] (선택) **Milestones** — 단계별(`P0`, `WEB`, `MVP`, `M1` … `M7`)로 만들어 이슈를 묶는다. 진행률이 포트폴리오에서 한눈에 보인다
 
 ```bash
 # 종류 라벨 6개

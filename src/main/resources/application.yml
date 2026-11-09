@@ -1,0 +1,75 @@
+# 공통 문서: 프로필 없이 떠도 운영에 가까운 안전한 값이다(SQL 로그 꺼짐, 명세·Swagger UI 꺼짐 — local 에서만 켠다).
+# 비밀값은 파일에 쓰지 않는다. 자리표시자 ${이름:기본값} 으로 환경 변수에서 읽는다.
+spring:
+  application:
+    name: antlab
+  datasource:
+    url: ${ANTLAB_DB_URL:jdbc:postgresql://localhost:5432/antlab_api}
+    username: ${ANTLAB_DB_USER:${USER:antlab}}
+    password: ${ANTLAB_DB_PASSWORD:}
+    hikari:
+      # 세션 시간대를 JVM 기본값과 떼어 놓는다(db/README 규칙: DB 시간대 Asia/Seoul).
+      connection-init-sql: SET TIME ZONE 'Asia/Seoul'
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate.jdbc.time_zone: Asia/Seoul
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
+  jackson:
+    deserialization:
+      # 정수 필드(수량·턴 번호·포메이션 비중)에 소수가 오면 잘라 받지 않고 400 으로 거부한다.
+      accept-float-as-int: false
+
+server:
+  shutdown: graceful
+
+# springdoc 은 설정이 없으면 켜진다(matchIfMissing). 공통에서 끄고 local 에서만 켠다.
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      group:
+        # liveness 는 기본(DB 가 죽어도 재시작하지 않음), readiness 는 DB 가 없으면 트래픽을 받지 않음
+        readiness:
+          include: readinessState,db
+
+---
+spring:
+  config:
+    activate:
+      on-profile: local
+logging:
+  level:
+    org.hibernate.SQL: debug
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
+
+---
+spring:
+  config:
+    activate:
+      on-profile: prod
+server:
+  forward-headers-strategy: framework
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false

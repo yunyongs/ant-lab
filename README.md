@@ -33,14 +33,30 @@
 | Plan v2 | 제품 방향 전환(포트폴리오 매니저 훈련 게임), 기술 설계 | 승인 (2026-11-05) |
 | Plan v3 | 에이전트 펀드 매니저(사람·에이전트 공존, 모의 직접 매매, 지식 축적, 종합 리더보드) | 승인 (2026-11-07) |
 | Plan v3.1 | 릴리스 v1(모의)·v2(실제 투자), 단계 코드 EXT·APP·AI·OPS, 확장 구간(1997-01–)과 새 기술 전환기 케이스(닷컴 ↔ 생성형 AI) | 소유자 결정 반영 (2026-11-07) |
-| Phase 0 — SQL(PostgreSQL 17) | 새 도메인 ERD·DDL, 역사 데이터 표본 적재, SQL 트랜잭션으로 시즌 1판, 대사·집계 쿼리 | 진행 중 — 기능 표 P0-03–P0-21([PLAN §11.1](docs/PLAN.md#111-phase-0-체크리스트-sql-postgresql-17)), PLAN v1 DDL(P0-02)은 대체됨 |
-| Phase 1 — JDBC | 콘솔 앱(시즌·팀·턴·매매·성적표), 단순 부트스트랩 | 시작 전 |
-| MVP — Spring Boot + JPA | 전체 역사 데이터 적재, 사용자 스토리 1–7의 REST API, 턴 전환 트랜잭션, 대사, 피드·랭킹·알림, 점수 | 시작 전 |
+| 로드맵 재배치 | Phase 0에 시즌 한 판 API(P0-22–P0-40), Phase 1 건너뜀, WEB 단계, Spring Boot 4.1 | 소유자 결정 반영 (2026-11-09) |
+| Phase 0 — SQL(PostgreSQL 17) → API | 새 도메인 ERD·DDL, 역사 데이터 표본 적재, SQL 트랜잭션으로 시즌 1판, 대사·집계 쿼리. 이어서 **시즌 한 판 REST API**(Spring Boot·JPA·Flyway, 표본 데이터 위 — SQL이 골든) | 진행 중 — 기능 표 P0-03–P0-40([PLAN §11.1](docs/PLAN.md#111-phase-0-체크리스트-sql-postgresql-17)), PLAN v1 DDL(P0-02)은 대체됨 |
+| Phase 1 — JDBC | 콘솔 앱(시즌·팀·턴·매매·성적표), 단순 부트스트랩 | **건너뜀** (2026-11-09, Phase 0 API에 흡수) |
+| WEB — 한 판 웹(React) | 시즌 시작·팀 구성·턴 진행·매매·전술 변경·성적표 화면, 모바일 폭 우선 반응형 | 시작 전 |
+| MVP — Spring Boot + JPA | 전체 역사 데이터 적재, 예상 분포, 피드·랭킹·알림, 점수·레이팅 | 시작 전 |
 | M1–M3 | 수집기·CI, Python 엔진, 점수 백테스트 | 계획됨 |
-| EXT · M4 · APP · AI · OPS | 비용·케이스 훈련·대가 라이브러리, 전망 모드·리그·전당 API, 웹 페이지·모바일·데스크탑 앱, AI 복기, 배포 | 계획됨 ([로드맵](docs/PLAN.md#11-로드맵커리큘럼-순서-유지)) |
+| EXT · M4 · APP · AI · OPS | 비용·케이스 훈련·대가 라이브러리, 전망 모드·리그·전당 API, 모바일·데스크탑 앱과 웹의 나머지 화면, AI 복기, 배포 | 계획됨 ([로드맵](docs/PLAN.md#11-로드맵커리큘럼-순서-유지)) |
 | AG | 에이전트 펀드 매니저(OpenRouter·구독 모델·Ollama, 페르소나, 누출 탐지 시험, 리더보드) | 계획됨 (PLAN v3, 2026-11-07) |
 | R1 · R2 · R3 | 거장 추적(13F·X), 우수 매니저의 복제 봇, 에이전트의 실전 운용(소유자 자금, 사람 승인부터) | 계획됨 (PLAN v2.1, 2026-11-06) |
 
 ## 기술 스택
 
-Java 21 · Spring Boot 3 · PostgreSQL 17 · JPA (리포트 쿼리에 MyBatis 선택) · Python (FastAPI, pandas, 시뮬레이션 엔진) · 모바일 앱 중심 + 데스크탑 앱 + 웹 페이지 (React Native, React — 이후) · RAG / LangChain / LangGraph (이후) · Docker Compose(로컬 DB는 지금, 서버 배포는 OPS) · GitHub Actions · GHCR · 오라클 클라우드 인프라(OCI, Oracle Cloud Infrastructure) Ampere VM + Caddy (이후)
+Java 21 · Spring Boot 4.1 · PostgreSQL 17 · JPA (리포트 쿼리에 MyBatis 선택) · springdoc-openapi(저장소 계약 `docs/api/openapi.yaml`) · Python (FastAPI, pandas, 시뮬레이션 엔진) · 모바일 앱 중심 + 데스크탑 앱 + 웹 페이지 (React Native, React — 웹은 WEB 단계, 앱은 이후) · RAG / LangChain / LangGraph (이후) · Docker Compose(로컬 DB는 지금, 서버 배포는 OPS) · GitHub Actions · GHCR · 오라클 클라우드 인프라(OCI, Oracle Cloud Infrastructure) Ampere VM + Caddy (이후)
+
+## API 개발 실행 (P0-22~)
+
+저장소 루트가 Spring Boot 프로젝트다(`src/`, `build.gradle`, `gradlew`). `db/`의 SQL 파일은 빌드에 들어가지 않는다.
+
+준비물: JDK 21(`java -version`), Docker Desktop(시험과 `bootTestRun`이 일회용 PostgreSQL 17 컨테이너를 쓴다).
+
+- `./gradlew test` — 전체 시험. Docker Desktop이 꺼져 있으면 "Docker 환경을 찾을 수 없음"으로 실패한다. 소유자 DB(`antlab-db-1`)에는 접속하지 않는다.
+- `./gradlew bootTestRun` — 일회용 PostgreSQL 17로 앱을 띄운다. 소유자 DB가 필요 없어 가장 안전하다. 8080이 쓰이고 있으면 `./gradlew bootTestRun --args='--server.port=18080'`.
+- `./gradlew bootRun` — 로컬 compose `db`의 `antlab_api` DB로 띄운다. 먼저 `createdb antlab_api`를 한 번 실행한다(빈 DB). 접속 정보는 환경 변수 `ANTLAB_DB_URL`·`ANTLAB_DB_USER`·`ANTLAB_DB_PASSWORD`이고, 없으면 `jdbc:postgresql://localhost:5432/antlab_api`·OS 사용자·비밀번호 없음이다. 전체 API DB 절차는 P0-23에서 정한다.
+- 확인 URL: `/actuator/health/readiness`. `local` 프로필(`bootRun`·`bootTestRun`의 기본)에서만 명세 `/v3/api-docs`와 `/swagger-ui.html`이 열린다 — 프로필이 없거나 `prod`면 꺼져 있다.
+- 개인 덮어쓰기 설정은 프로젝트 루트의 `config/application-local.yml`에 둔다(git이 무시하고 jar에 들어가지 않는다). `src/main/resources/`에 두면 jar에 들어가므로 두지 않는다.
+
+VS Code(macOS): 확장 "Extension Pack for Java", "Gradle for Java", "Spring Boot Extension Pack". 통합 터미널(`` Ctrl+` ``)에서 `./gradlew …`를 실행하고, 왼쪽 비커 아이콘(시험 탐색기)으로 시험을 하나씩 돌리며, Gradle 패널(코끼리 아이콘)의 `Tasks › application › bootTestRun`으로 앱을 띄운다. 가져오기가 꼬이면 `Cmd+Shift+P` → "Java: Clean Java Language Server Workspace". `.vscode/`는 git이 무시하므로 실행 설정 파일은 저장소에 없다.
