@@ -27,6 +27,13 @@ class SettingsAssertionTest {
         assertThat(env.getProperty("spring.jpa.hibernate.ddl-auto")).isEqualTo("validate");
         assertThat(env.getProperty("spring.jpa.open-in-view")).isEqualTo("false");
         assertThat(env.getProperty("spring.jpa.properties.hibernate.jdbc.time_zone")).isEqualTo("Asia/Seoul");
+        assertThat(env.getProperty("spring.flyway.enabled")).isEqualTo("true");
+        assertThat(env.getProperty("spring.flyway.locations")).isEqualTo("classpath:db/migration");
+        assertThat(env.getProperty("spring.flyway.default-schema")).isEqualTo("public");
+        assertThat(env.getProperty("spring.flyway.schemas")).isEqualTo("public");
+        assertThat(env.getProperty("spring.flyway.validate-on-migrate")).isEqualTo("true");
+        assertThat(env.getProperty("spring.flyway.baseline-on-migrate")).isEqualTo("false");
+        assertThat(env.getProperty("spring.flyway.clean-disabled")).isEqualTo("true");
     }
 
     @Test
