@@ -1,11 +1,11 @@
 -- =====================================================================
 -- my Fund Manager Phase 0 — 턴 진행 (P0-17): 연습 시즌을 한 턴 앞으로 보낸다
 -- 근거: docs/erd.md 6.3(turn·turn_price)·7.5(대사 규칙 1–19)·D36·D37·9절 P0-17, docs/PLAN.md §4.1-4·§5.2, docs/SPRING_JPA.md §5.3(턴 전환)·§6(롤백 뒤 기록)
--- 대상: db/01·02·03 스키마, 10 적재, 12 판정, 20 시즌 시작, 21 팀 구성을 실행한 DB (PostgreSQL 17). antlab 에서 실행한다. 11·13·14 는 필요 없다.
+-- 대상: db/01·02·03 스키마, 10 적재, 11 사건 적재(month_event·events_reviewed — 피드 입력), 12 판정, 13 관심 지수(피드 입력), 20 시즌 시작, 21 팀 구성을 실행한 DB (PostgreSQL 17). antlab 에서 실행한다. 14 는 필요 없다.
 -- 실행: 저장소 루트에서  psql -X -v ON_ERROR_STOP=1 -d <DB이름> -f db/23_turn_advance.sql
 --       한 번 실행 = 한 턴이다. 10턴은 셸 반복으로 돌린다 (db/README.md):
 --         for i in $(seq 1 10); do psql -X -q -v ON_ERROR_STOP=1 -d antlab -f db/23_turn_advance.sql || break; done
---       같은 폴더의 22_reconcile_season_def.sql 과 23_turn_advance_def.sql 을 \ir 로 읽는다. -v ON_ERROR_STOP=1 이 없으면 맨 앞 가드가 아무것도 하지 않고 끝낸다
+--       같은 폴더의 22_reconcile_season_def.sql·24_turn_feed_def.sql·23_turn_advance_def.sql 을 \ir 로 읽는다. 24 정의가 feed/*.csv 를 상대 경로로 읽으므로 반드시 저장소 루트에서 실행한다. -v ON_ERROR_STOP=1 이 없으면 맨 앞 가드가 아무것도 하지 않고 끝낸다
 --       (대사 불일치를 종료 코드 3 으로 알리는 방법이 오류 한 번뿐이다).
 -- 하는 일: 연습 시즌(20 과 같은 이메일, 정확히 1개)의 현재 턴을 읽어 pg_temp.turn_advance 를 부른다 —
 --       다음 턴의 turn_price(풀 전체)와 turn 스냅샷을 만들고 대사 17개를 돌려, 전부 일치면 기록하고 현재 턴을 올려 커밋한다.
@@ -35,6 +35,7 @@
 
 -- 정의는 트랜잭션 밖에서 읽는다 (턴 전환 프로시저의 COMMIT·ROLLBACK 이 정의를 지우지 않게). 22 정의를 먼저 읽는다.
 \ir 22_reconcile_season_def.sql
+\ir 24_turn_feed_def.sql
 \ir 23_turn_advance_def.sql
 
 -- [전제 단언] 아무것도 쓰지 않는다. 어긋나면 멈춘다 (종료 코드 3). 정리용 DROP 은 이 파일에 없다 (임시 표를 만들지 않는다 — 있다면 pg_temp. 로 한정한다).

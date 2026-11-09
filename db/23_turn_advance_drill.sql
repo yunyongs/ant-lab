@@ -51,6 +51,7 @@ SELECT (current_database() IN ('antlab', 'antlab_test')) AS dr_is_keep \gset
 \endif
 
 \ir 22_reconcile_season_def.sql
+\ir 24_turn_feed_def.sql
 \ir 23_turn_advance_def.sql
 
 SET client_min_messages TO warning;
@@ -97,6 +98,7 @@ CREATE TEMP TABLE dr_before AS
 SELECT :dr_cur::smallint AS cur, :dr_ver::bigint AS ver,
        (SELECT count(*) FROM turn_price WHERE season_id = :dr_sid) AS price_rows,
        (SELECT count(*) FROM turn WHERE season_id = :dr_sid) AS turn_rows,
+       (SELECT count(*) FROM turn_feed WHERE season_id = :dr_sid) AS feed_rows,
        (SELECT count(*) FROM reconciliation_log WHERE season_id = :dr_sid) AS log_rows,
        (SELECT count(*) FROM reconciliation_log WHERE season_id = :dr_sid AND turn_no = :dr_cur + 1) AS log_next_rows;
 CREATE TEMP TABLE dr_res (seq integer GENERATED ALWAYS AS IDENTITY, item text NOT NULL, expected text, actual text, ok boolean NOT NULL);
@@ -129,6 +131,8 @@ FROM (VALUES
     ('다음 턴의 turn_price 행이 0 이다', '0', (SELECT count(*)::text FROM turn_price WHERE season_id = :dr_sid AND turn_no = :dr_cur + 1)),
     ('turn_price·turn 행 수가 전과 같다', (SELECT price_rows || '/' || turn_rows FROM dr_before),
         (SELECT (SELECT count(*) FROM turn_price WHERE season_id = :dr_sid) || '/' || (SELECT count(*) FROM turn WHERE season_id = :dr_sid))),
+    ('피드: 실패한 턴의 turn_feed 행이 0 이고 전체 행 수가 전과 같다 (피드도 함께 롤백됐다)', '0/' || (SELECT feed_rows::text FROM dr_before),
+        (SELECT (SELECT count(*) FROM turn_feed WHERE season_id = :dr_sid AND turn_no = :dr_cur + 1) || '/' || (SELECT count(*) FROM turn_feed WHERE season_id = :dr_sid))),
     ('로그가 17행 늘었다 (reconciliation_log 만 남았다)', (SELECT (log_rows + 17)::text FROM dr_before), (SELECT count(*)::text FROM reconciliation_log WHERE season_id = :dr_sid)),
     ('로그: (다음 턴, 시도 1) 묶음의 코드 집합이 17개 전체다', 'true',
         ((SELECT array_agg(l.check_code::text ORDER BY l.check_code) FROM reconciliation_log l WHERE l.season_id = :dr_sid AND l.turn_no = :dr_cur + 1 AND l.attempt_no = 1)
@@ -159,6 +163,9 @@ FROM (VALUES
     ('성공: season 버전이 하나 올랐다', (SELECT (ver + 1)::text FROM dr_before), (SELECT version::text FROM season WHERE id = :dr_sid)),
     ('성공: 다음 턴의 turn 1행·turn_price 가 풀 크기만큼 생겼다', '1/' || (SELECT count(*) FROM asset_position ap JOIN season s ON s.base_date = ap.base_date WHERE s.id = :dr_sid),
         (SELECT (SELECT count(*) FROM turn WHERE season_id = :dr_sid AND turn_no = :dr_cur + 1) || '/' || (SELECT count(*) FROM turn_price WHERE season_id = :dr_sid AND turn_no = :dr_cur + 1))),
+    ('성공: 복구 뒤 그 턴 피드가 한 묶음이다 (5–15행·seq 1부터 연속·저장 = 재생성)', 'true',
+        (SELECT (count(*) BETWEEN 5 AND 15 AND min(f.seq) = 1 AND max(f.seq) = count(*) AND pg_temp.tf_regen_matches(:dr_sid::bigint, (:dr_cur + 1)::smallint))::text
+         FROM turn_feed f WHERE f.season_id = :dr_sid AND f.turn_no = :dr_cur + 1)),
     ('성공: 그 턴의 시도 번호가 2 이고 17개가 전부 MATCH 다', '2/17',
         (SELECT max(l.attempt_no) || '/' || count(*) FILTER (WHERE l.status = 'MATCH') FROM reconciliation_log l
          WHERE l.season_id = :dr_sid AND l.turn_no = :dr_cur + 1 AND l.attempt_no = (SELECT max(attempt_no) FROM reconciliation_log WHERE season_id = :dr_sid AND turn_no = :dr_cur + 1))),
