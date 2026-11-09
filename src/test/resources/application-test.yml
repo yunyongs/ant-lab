@@ -1,0 +1,8 @@
+# 시험 전용 값(jar 에 들어가지 않는다). DB 접속 정보는 Testcontainers(@ServiceConnection)가 준다.
+logging:
+  level:
+    org.hibernate.SQL: info
+# 명세(/v3/api-docs) 단언용. Swagger UI 는 끈 채로 둔다.
+springdoc:
+  api-docs:
+    enabled: true

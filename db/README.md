@@ -2,6 +2,8 @@
 
 Phase 0에서 손으로 쓰는 SQL이다([docs/PLAN.md](../docs/PLAN.md#111-phase-0-체크리스트-sql-postgresql-17)의 체크리스트). 테이블 정의의 근거는 [docs/erd.md](../docs/erd.md)이고, DB는 PostgreSQL 17이다.
 
+저장소 루트의 Spring 프로젝트(`src/`, P0-22~)는 이 폴더를 빌드에 넣지 않는다. API의 스키마 파일은 P0-23부터 `src/main/resources/db/migration`에 있다.
+
 ## 파일
 
 | 파일 | 만드는 기능 | 내용 |

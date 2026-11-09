@@ -46,3 +46,17 @@
 ## 기술 스택
 
 Java 21 · Spring Boot 4.1 · PostgreSQL 17 · JPA (리포트 쿼리에 MyBatis 선택) · springdoc-openapi(저장소 계약 `docs/api/openapi.yaml`) · Python (FastAPI, pandas, 시뮬레이션 엔진) · 모바일 앱 중심 + 데스크탑 앱 + 웹 페이지 (React Native, React — 웹은 WEB 단계, 앱은 이후) · RAG / LangChain / LangGraph (이후) · Docker Compose(로컬 DB는 지금, 서버 배포는 OPS) · GitHub Actions · GHCR · 오라클 클라우드 인프라(OCI, Oracle Cloud Infrastructure) Ampere VM + Caddy (이후)
+
+## API 개발 실행 (P0-22~)
+
+저장소 루트가 Spring Boot 프로젝트다(`src/`, `build.gradle`, `gradlew`). `db/`의 SQL 파일은 빌드에 들어가지 않는다.
+
+준비물: JDK 21(`java -version`), Docker Desktop(시험과 `bootTestRun`이 일회용 PostgreSQL 17 컨테이너를 쓴다).
+
+- `./gradlew test` — 전체 시험. Docker Desktop이 꺼져 있으면 "Docker 환경을 찾을 수 없음"으로 실패한다. 소유자 DB(`antlab-db-1`)에는 접속하지 않는다.
+- `./gradlew bootTestRun` — 일회용 PostgreSQL 17로 앱을 띄운다. 소유자 DB가 필요 없어 가장 안전하다. 8080이 쓰이고 있으면 `./gradlew bootTestRun --args='--server.port=18080'`.
+- `./gradlew bootRun` — 로컬 compose `db`의 `antlab_api` DB로 띄운다. 먼저 `createdb antlab_api`를 한 번 실행한다(빈 DB). 접속 정보는 환경 변수 `ANTLAB_DB_URL`·`ANTLAB_DB_USER`·`ANTLAB_DB_PASSWORD`이고, 없으면 `jdbc:postgresql://localhost:5432/antlab_api`·OS 사용자·비밀번호 없음이다. 전체 API DB 절차는 P0-23에서 정한다.
+- 확인 URL: `/actuator/health/readiness`. `local` 프로필(`bootRun`·`bootTestRun`의 기본)에서만 명세 `/v3/api-docs`와 `/swagger-ui.html`이 열린다 — 프로필이 없거나 `prod`면 꺼져 있다.
+- 개인 덮어쓰기 설정은 프로젝트 루트의 `config/application-local.yml`에 둔다(git이 무시하고 jar에 들어가지 않는다). `src/main/resources/`에 두면 jar에 들어가므로 두지 않는다.
+
+VS Code(macOS): 확장 "Extension Pack for Java", "Gradle for Java", "Spring Boot Extension Pack". 통합 터미널(`` Ctrl+` ``)에서 `./gradlew …`를 실행하고, 왼쪽 비커 아이콘(시험 탐색기)으로 시험을 하나씩 돌리며, Gradle 패널(코끼리 아이콘)의 `Tasks › application › bootTestRun`으로 앱을 띄운다. 가져오기가 꼬이면 `Cmd+Shift+P` → "Java: Clean Java Language Server Workspace". `.vscode/`는 git이 무시하므로 실행 설정 파일은 저장소에 없다.
