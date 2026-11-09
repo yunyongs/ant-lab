@@ -153,6 +153,7 @@ TurnService.advance(seasonId, expectedTurnNo)
 
 - 전술 변경: `season` 락 → `season.current_formation_*` 갱신 + `formation_change` INSERT. 같은 턴에 두 번 바꾸면 마지막 것만 남지 않고 둘 다 기록된다(복기용). 턴 전환과 같은 락 순서. 변경 뒤의 매도·매수는 보통 주문이고, 주문 트랜잭션 안에서 `orders.formation_change_id`를 채운다(어느 변경에 묶는지의 규칙은 PLAN §5.1).
 - 세금(EXT)이 들어오면 원장 행(`TAX`)을 매도 주문 트랜잭션과 턴 전환 트랜잭션에서 추가한다. 세율·과세 시점·이연 표시는 PLAN §4.6이 정한다. 이 문서는 "어느 트랜잭션에서 원장에 쓰는가"만 정한다.
+- SQL 정본(P0-19): `db/25_trade_formation_def.sql`의 `trade_buy`·`trade_sell`·`formation_change`·`lineup_change`가 위 순서를 그대로 구현한다(Java 이전 시 골든 대조 — P0-36·37). 진입점은 0턴을 거부하고, 주문·변경의 `created_at`은 잠금 뒤 `clock_timestamp()`(테스트 `Clock`은 잠금 뒤에도 흐르는 시계), 앞선 이벤트와 시각이 같거나 거꾸로면 쓰기 전에 멈춘다. 전량 매도는 보유 행을 0·0으로 남기고 열린 구간을 `end_turn = t`로 닫으며, 과거 스냅샷 k에 기여하는 구간은 `start_turn < k ≤ end_turn`이다.
 - 포지션 지정·변경: `lineup` 행의 구간을 닫고 새 행을 연다. 주문과 같은 트랜잭션(신규 매수 시) 또는 단독 트랜잭션(보유 중 변경). 단독 변경도 전술 변경처럼 `season` 락 → 상태(`IN_PROGRESS`)·`expectedTurnNo` 검사 → 구간 닫기·열기 순서를 따른다(턴 전환과 겹칠 때 옛 턴 번호로 구간을 닫지 않도록).
 
 ## 6. 대사(턴마다)
