@@ -34,7 +34,7 @@
 | Plan v3 | 에이전트 펀드 매니저(사람·에이전트 공존, 모의 직접 매매, 지식 축적, 종합 리더보드) | 승인 (2026-11-07) |
 | Plan v3.1 | 릴리스 v1(모의)·v2(실제 투자), 단계 코드 EXT·APP·AI·OPS, 확장 구간(1997-01–)과 새 기술 전환기 케이스(닷컴 ↔ 생성형 AI) | 소유자 결정 반영 (2026-11-07) |
 | 로드맵 재배치 | Phase 0에 시즌 한 판 API(P0-22–P0-40), Phase 1 건너뜀, WEB 단계, Spring Boot 4.1 | 소유자 결정 반영 (2026-11-09) |
-| Phase 0 — SQL(PostgreSQL 17) → API | 새 도메인 ERD·DDL과 역사 데이터 표본을 준비하고, SQL 트랜잭션으로 시즌 1판을 실행해 대사·집계 쿼리를 확인한다. 이어서 **시즌 한 판 REST API**(Spring Boot·JPA·Flyway, 표본 데이터를 기반으로 하며 SQL을 골든으로 삼는다) | 진행 중 — **SQL 구간 완료**(P0-03–P0-21, 최종 판정 `p0_21_check`), API는 P0-30(시즌 시작 API)까지, 기능 표 P0-03–P0-40([PLAN §11.1](docs/PLAN.md#111-phase-0-체크리스트-sql-postgresql-17)), PLAN v1 DDL(P0-02)은 대체됨 |
+| Phase 0 — SQL(PostgreSQL 17) → API | 새 도메인 ERD·DDL과 역사 데이터 표본을 준비하고, SQL 트랜잭션으로 시즌 1판을 실행해 대사·집계 쿼리를 확인한다. 이어서 **시즌 한 판 REST API**(Spring Boot·JPA·Flyway로 구현하며, 표본 데이터를 기반으로 SQL을 골든으로 삼는다) | 진행 중 — **SQL 구간 완료**(P0-03–P0-21, 최종 판정 `p0_21_check`), API는 P0-32(대사 서비스)까지, 기능 표 P0-03–P0-40([PLAN §11.1](docs/PLAN.md#111-phase-0-체크리스트-sql-postgresql-17)), PLAN v1 DDL(P0-02)은 대체됨 |
 | Phase 1 — JDBC | 콘솔 앱(시즌·팀·턴·매매·성적표), 단순 부트스트랩 | **건너뜀** (2026-11-09, Phase 0 API에 흡수) |
 | MON — 모니터링(Grafana) | Actuator·Micrometer → Prometheus → Grafana 대시보드(API 응답 시간·오류율, JVM·DB, 게임 지표)를 구축한다 | 시작 전 (2026-11-10 추가) |
 | SEC — 인증(JWT) | Spring Security + JWT — 가입·로그인, 토큰 발급·검증·갱신을 구현하고 고정 회원을 실제 회원으로 교체한다(M4에서 앞당겼다) | 시작 전 (2026-11-10 추가) |
@@ -59,6 +59,7 @@ Java 21 · Spring Boot 4.1 · PostgreSQL 17 · JPA (리포트 쿼리에 MyBatis 
 - P0-26 금액 계산 시험은 다음 두 명령으로 나눠 실행한다: `./gradlew test --tests 'antlab.common.money.MoneyMathTest'`(DB 없음)와 `./gradlew test --tests 'antlab.common.money.MoneyMathSqlParityTest'`(일회용 PostgreSQL 17)이다.
 - P0-29 경로 생성기 시험만: `./gradlew test --tests 'antlab.engine.*'` — 순수 단위 시험(시드 1,000개 성질 검사·고정 벡터)과 일회용 PostgreSQL 17 통합 시험을 실행한다. 생성 경로는 `month_start`(달)를 기준으로 재현하며, 고정 벡터를 바꿀 때는 `engine_version`을 함께 올린다.
 - P0-30 시즌 시작 시험만: `./gradlew test --tests 'antlab.api.season.*' --tests 'antlab.member.*' --tests 'antlab.season.*' -PexcludeSqlGolden` — 합성 고정 데이터(실제 표본 아님)로 시작·조회·상한·동시성·롤백·노출을 확인한다. 실제 표본 골든은 `-PonlySqlGolden --tests '*SeasonStartGoldenTest*'`(표본 CSV 필요).
+- P0-32 대사 시험만: `./gradlew test --tests 'antlab.scoring.*' --tests 'antlab.api.dev.*' -PexcludeSqlGolden` — 22 SQL 사본이 같은지, Java 결과가 `recon_rules`와 같은지(합성 상태·깨뜨린 사례·1턴 이후 가격), 기록기, 개발 엔드포인트(`local` 프로필), 동시성을 확인한다. 실제 표본 골든은 `-PonlySqlGolden --tests '*ReconciliationGoldenTest*'`(표본 CSV 필요).
 - P0-31 매수 주문 시험만: `./gradlew test --tests 'antlab.api.order.*' -PexcludeSqlGolden` — 합성 고정 데이터(실제 표본 아님)로 정상·음성·1턴 이후 매수·무결성 가드·동시성·잠금 순서·노출을 확인한다. 실제 표본 골든(SQL 팀 구성 ↔ API 주문 재생, 대사 규칙 15개)은 `-PonlySqlGolden --tests '*BuyOrderGoldenTest*'`(표본 CSV 필요).
 - `./gradlew bootTestRun` — 일회용 PostgreSQL 17로 앱을 띄운다. 소유자 DB가 필요 없어 가장 안전하다. 8080이 쓰이고 있으면 `./gradlew bootTestRun --args='--server.port=18080'`.
 - `./gradlew bootRun` — 로컬 compose `db`의 `antlab_api` DB로 띄운다. 처음 한 번은 빈 `antlab_api`를 만들고(인코딩·시간대 포함) 앱을 띄워 Flyway V1–V3를 적용한 뒤 표본을 적재한다. 명령은 [db/README.md「API DB와 실습 DB」](db/README.md#api-db와-실습-db)에 있다. 접속 정보는 환경 변수 `ANTLAB_DB_URL`·`ANTLAB_DB_USER`·`ANTLAB_DB_PASSWORD`이고, 없으면 `jdbc:postgresql://localhost:5432/antlab_api`·OS 사용자·비밀번호 없음이다.
