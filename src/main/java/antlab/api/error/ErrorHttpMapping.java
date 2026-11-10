@@ -35,6 +35,7 @@ public final class ErrorHttpMapping {
             case POSITION_CONFLICT -> HttpStatus.UNPROCESSABLE_ENTITY;
             case POSITION_REQUIRED -> HttpStatus.UNPROCESSABLE_ENTITY;
             case MEMBER_UNAVAILABLE -> HttpStatus.SERVICE_UNAVAILABLE;
+            case RECONCILIATION_FAILED -> HttpStatus.CONFLICT;
         };
     }
 

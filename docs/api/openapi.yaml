@@ -242,6 +242,56 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+  /api/v1/seasons/{seasonId}/turns:
+    post:
+      tags: [turn]
+      operationId: advanceTurn
+      summary: 턴 전환(다음 달)
+      description: 다음 달 블록을 적용한다. 한 트랜잭션에서 풀 전체의 다음 턴 가격과 턴 스냅샷을 만들고 대사 17개가 모두 일치하면 기록하고 현재 턴을 올린다. 마지막 턴이면 시즌이 끝난다. 대사가 하나라도 어긋나면 아무것도 바꾸지 않고 409다.
+      parameters:
+        - name: seasonId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdvanceTurnRequest'
+      responses:
+        '201':
+          description: 턴 결과
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TurnResultDto'
+        '400':
+          description: 입력이 틀렸다 — INVALID_ARGUMENT
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: 시즌이 없다 — NOT_FOUND
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: 지금은 넘길 수 없다 — SEASON_NOT_ACTIVE, TURN_MISMATCH, RECONCILIATION_FAILED
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '503':
+          description: 현재 회원을 알 수 없다 — MEMBER_UNAVAILABLE(운영, 인증 전)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
 components:
   schemas:
     PoolDto:
@@ -504,6 +554,68 @@ components:
           type: [integer, 'null']
           format: int64
           description: 그 턴의 마지막 전술 변경 식별자. 변경이 없으면 null
+    AdvanceTurnRequest:
+      type: object
+      description: 전환 전의 현재 턴이 멱등성 열쇠다
+      required: [expectedTurnNo]
+      properties:
+        expectedTurnNo:
+          type: integer
+          format: int32
+          minimum: 0
+          description: 전환 전의 현재 턴. 시즌의 현재 턴과 다르면 409
+    TurnResultDto:
+      type: object
+      description: 방금 저장한 턴 행의 값. 대사 시도 번호·상태·시드·경로·연월은 싣지 않는다
+      required: [seasonId, turnNo, status, pathLength, cashBalance, holdingsValue, totalValue, goalkeeperValue,
+                 defenderValue, midfielderValue, forwardValue, drawdown]
+      properties:
+        seasonId:
+          type: integer
+          format: int64
+          description: 시즌 식별자
+        turnNo:
+          type: integer
+          format: int32
+          description: 방금 적용된 턴(= 새 현재 턴)
+        status:
+          $ref: '#/components/schemas/SeasonStatus'
+        pathLength:
+          type: integer
+          format: int32
+          description: 경로 길이(턴 수)
+        cashBalance:
+          type: string
+          format: decimal
+          description: 현금 잔액, 원 단위 정수
+        holdingsValue:
+          type: string
+          format: decimal
+          description: 보유 평가액, 원 단위 정수
+        totalValue:
+          type: string
+          format: decimal
+          description: 총 평가액, 원 단위 정수
+        goalkeeperValue:
+          type: string
+          format: decimal
+          description: 골키퍼 평가액(현금 포함), 원 단위 정수
+        defenderValue:
+          type: string
+          format: decimal
+          description: 수비수 평가액, 원 단위 정수
+        midfielderValue:
+          type: string
+          format: decimal
+          description: 미드필더 평가액, 원 단위 정수
+        forwardValue:
+          type: string
+          format: decimal
+          description: 공격수 평가액, 원 단위 정수
+        drawdown:
+          type: string
+          format: decimal
+          description: 누적 낙폭(0 이하), 소수 8자리
     OrderSide:
       type: string
       enum: [BUY, SELL]
@@ -564,4 +676,4 @@ components:
              UNSUPPORTED_MEDIA_TYPE, INTERNAL_ERROR, POOL_NOT_LOADED, POOL_NOT_JUDGED, PATH_TOO_LONG,
              SEASON_LIMIT, TURN_NOT_REACHED, SEASON_NOT_ACTIVE, TURN_MISMATCH, LEDGER_MISMATCH,
              LINEUP_MISMATCH, ASSET_NOT_IN_POOL, INSUFFICIENT_CASH, POSITION_CONFLICT, POSITION_REQUIRED,
-             MEMBER_UNAVAILABLE]
+             MEMBER_UNAVAILABLE, RECONCILIATION_FAILED]
