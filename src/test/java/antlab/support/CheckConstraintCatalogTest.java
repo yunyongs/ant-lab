@@ -36,4 +36,19 @@ class CheckConstraintCatalogTest {
         assertThat(CheckConstraintCatalog.isValueList("asset", "ck_asset_market", columns,
                 "CHECK (((market)::text = 'KR'::text))")).isTrue();
     }
+
+    @Test
+    void 다른_열이나_조건이_섞인_제약은_값_목록이_아니다() {
+        Set<String> columns = Set.of("type", "limit_price", "kind", "category_hidden", "repeat_count", "side");
+        assertThat(CheckConstraintCatalog.isValueList("orders", "ck_orders_limit_price", columns,
+                "CHECK ((((type)::text = 'MARKET'::text) AND (limit_price IS NULL)) OR (((type)::text = 'LIMIT'::text) AND (limit_price > (0)::numeric)))"))
+                .isFalse();
+        assertThat(CheckConstraintCatalog.isValueList("turn_feed", "ck_turn_feed_category_hidden", columns,
+                "CHECK (((NOT category_hidden) OR ((kind)::text = 'EVENT'::text)))")).isFalse();
+        assertThat(CheckConstraintCatalog.isValueList("turn_feed", "ck_turn_feed_repeat_count", columns,
+                "CHECK (((repeat_count >= 0) AND (((kind)::text <> 'ECHO'::text) OR (repeat_count >= 1))))")).isFalse();
+        assertThat(CheckConstraintCatalog.isValueList("orders", "ck_orders_side", columns,
+                "CHECK (((side)::text = ANY ((ARRAY['BUY'::character varying, 'SELL'::character varying])::text[])))"))
+                .isTrue();
+    }
 }

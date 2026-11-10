@@ -6,3 +6,10 @@ logging:
 springdoc:
   api-docs:
     enabled: true
+# 실행된 SQL 을 스레드별로 기록한다(SqlRecorder) — UPDATE 가 나갔는지, 잠금 SQL 이 무엇인지 단언하는 데 쓴다.
+spring:
+  jpa:
+    properties:
+      hibernate:
+        session_factory:
+          statement_inspector: antlab.support.SqlRecorder
