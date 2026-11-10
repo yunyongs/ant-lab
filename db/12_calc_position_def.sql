@@ -3,7 +3,7 @@
 -- 근거: docs/erd.md 5.3(asset_position·month_block·asset_month_return)·D14·D15·D35, docs/PLAN.md §4.10(포지션 표·판정 순서)·§4.5(사후 정보 배제)·§5.2(반올림 한 번)·§6.1(시장 지수)
 -- 단독 실행 대상이 아니다. db/12_calc_position.sql(쓰기)과 db/12_calc_position_check.sql(검증)이 \ir 로 읽는다.
 --       쓰기와 검증이 같은 정의를 쓰므로 검증이 복사본이 아니라 실제 정의를 시험한다. 시즌 실측 포지션(P0-20)도 이 파일을 \ir 로 재사용한다.
--- 만드는 것: 세션 임시 뷰 9개와 세션 함수 2개. 트랜잭션 문 없음, 테이블 쓰기 없음. 읽는 표는 asset·asset_position·month_block·asset_month_return·fx_month 5개뿐이다
+-- 만드는 것: 세션 임시 뷰 9개와 세션 함수 5개. 트랜잭션 문 없음, 테이블 쓰기 없음. 읽는 표는 asset·asset_position·month_block·asset_month_return·fx_month 5개뿐이다
 --       (시즌·계좌 표를 읽지 않는다). 시가총액 순위(market_cap_rank)는 읽지 않는다 (erd D15).
 -- 뷰 (의존 순서):
 --   pos_k       상수 한 줄 (창 36개월, 창 끝 지연 1개월, 최소 달 수 24·5·5, 밴드 0.01, 상위 비율 0.20, 시장 대용 069500·SPY 50/50)
@@ -18,6 +18,9 @@
 -- 함수:
 --   pg_temp.pos_fail(text)       오류를 일으킨다 (입력이 빠졌을 때 0·NULL 로 덮지 않고 멈추려고). VOLATILE 이라 계획 단계에서 미리 평가되지 않는다
 --   pg_temp.pos_classify(…)      판정 규칙 한 곳. 문턱 숫자는 이 함수 본문에만 있다
+--   pg_temp.pos_block_mkt(월 블록)·pos_max_drawdown(배열)·pos_metrics(배열 둘, 최소 달 수 3개)   배열 입력 함수 3개 (P0-20). 파일 맨 끝에 있다.
+--       기준일 창이 아니라 임의 순서의 시리즈(시즌 경로)에 같은 정의를 쓰려고 뷰와 같은 식을 배열로 옮긴 것이다. 뷰·pos_classify·pos_k 는 그대로이고,
+--       뷰와 같은 값을 내는지는 db/26_season_report_check.sql 09절이 모든 기준일 행에서 확인한다.
 -- 정의 (docs/erd.md D35):
 --   M2 판정 창: window_end = 기준일이 속한 달 − 1개월, window_start = window_end − 35개월 (둘 다 1일, 달력 경계). 데이터가 없는 달(끊김)은 세지 않는다.
 --   M3 months_used = 창 안에서 종목 수익률과 시장 수익률이 둘 다 있는 달 수.
@@ -42,6 +45,9 @@ DO $$
 DECLARE
     v text;
 BEGIN
+    FOREACH v IN ARRAY ARRAY['pos_block_mkt(bigint)', 'pos_max_drawdown(numeric[])', 'pos_metrics(numeric[], numeric[], integer, integer, integer)'] LOOP
+        IF to_regprocedure('pg_temp.' || v) IS NOT NULL THEN EXECUTE 'DROP FUNCTION pg_temp.' || v; END IF;
+    END LOOP;
     FOREACH v IN ARRAY ARRAY['pos_judge', 'pos_rank', 'pos_metric', 'pos_dd', 'pos_series', 'pos_mkt', 'pos_window', 'pos_ret', 'pos_k'] LOOP
         IF to_regclass('pg_temp.' || v) IS NOT NULL THEN EXECUTE 'DROP VIEW pg_temp.' || v; END IF;
     END LOOP;
@@ -227,3 +233,82 @@ SELECT m.base_date, m.asset_position_id, m.asset_id,
        END AS system_position
 FROM pos_metric m
 LEFT JOIN pos_rank r ON r.asset_position_id = m.asset_position_id;
+
+-- ---------------------------------------------------------------------
+-- 배열 입력 함수 3개 (P0-20 시즌 성적표용). 문자열 본문이라 위 뷰와 의존이 기록되지 않는다 — 이 파일을 다시 읽어 뷰를 지우고 만들어도 막히지 않는다.
+-- ---------------------------------------------------------------------
+
+-- M5 시장 수익률: 월 블록 하나. 대용 종목 행이나 환율이 없으면 0 으로 덮지 않고 멈춘다 (메시지에 달·번호를 넣지 않는다).
+CREATE FUNCTION pg_temp.pos_block_mkt(p_month_block_id bigint) RETURNS numeric
+LANGUAGE sql STABLE AS $$
+    SELECT CASE WHEN kr.r_krw IS NULL OR us.r_krw IS NULL
+                     THEN pg_temp.pos_fail('시즌 경로 블록의 시장 대용 수익률이 없다')
+                ELSE k.w_kr * kr.r_krw + k.w_us * us.r_krw
+           END
+    FROM pos_k k
+    LEFT JOIN pos_ret kr ON kr.market = k.kr_market AND kr.ticker = k.kr_ticker AND kr.month_block_id = p_month_block_id
+    LEFT JOIN pos_ret us ON us.market = k.us_market AND us.ticker = k.us_ticker AND us.month_block_id = p_month_block_id
+$$;
+
+-- M10 최대 낙폭: 배열 순서대로 W0 = 1 에서 시작하는 부 지수. 최고점은 W0 를 포함한 누적 최댓값이고, 분자를 소수 40자리로 올려 한 번 나눈 뒤 ROUND(…, 8) 한 번.
+--     pos_dd 와 같은 식이다 (정확한 numeric 곱, t = 0 의 낙폭 0 포함). 빈 배열·NULL 이면 NULL.
+CREATE FUNCTION pg_temp.pos_max_drawdown(p_r numeric[]) RETURNS numeric
+LANGUAGE plpgsql STABLE AS $$
+DECLARE
+    v_pad numeric := (SELECT pad40 FROM pos_k);
+    v_w   numeric := 1;
+    v_pk  numeric := 1;
+    v_min numeric := 0;
+    v_x   numeric;
+    v_dd  numeric;
+BEGIN
+    IF p_r IS NULL OR array_length(p_r, 1) IS NULL THEN
+        RETURN NULL;
+    END IF;
+    FOREACH v_x IN ARRAY p_r LOOP
+        v_w := v_w * (1 + v_x);
+        IF v_w > v_pk THEN v_pk := v_w; END IF;
+        v_dd := (v_w + v_pad) / v_pk - 1;
+        IF v_dd < v_min THEN v_min := v_dd; END IF;
+    END LOOP;
+    RETURN ROUND(v_min, 8);
+END $$;
+
+-- M3·M6·M7·M9·M11 을 배열 입력으로: p_r = 종목 월 수익률, p_m = 같은 달들의 시장 수익률 (같은 길이, 같은 순서). 두 값이 모두 있는 달만 센다.
+--     열은 pos_metric 과 같은 뜻이다: *_raw 는 반올림 전, up·down·vol·mdd 는 판정 가능(reason NULL)일 때만 8자리 값.
+CREATE FUNCTION pg_temp.pos_metrics(p_r numeric[], p_m numeric[], p_min_months integer, p_min_up integer, p_min_down integer)
+RETURNS TABLE (months_used integer, n_up integer, n_down integer, up_raw numeric, down_raw numeric, vol_raw numeric,
+               up numeric, down numeric, vol numeric, mdd numeric, reason text)
+LANGUAGE sql STABLE AS $$
+    WITH agg AS (
+        SELECT (count(*) FILTER (WHERE u.r IS NOT NULL AND u.m IS NOT NULL))::integer     AS months_used,
+               (count(*) FILTER (WHERE u.m >= k.band))::integer                           AS n_up,
+               (count(*) FILTER (WHERE u.m <= -k.band))::integer                          AS n_down,
+               sum(u.r) FILTER (WHERE u.m >= k.band)                                      AS sum_r_up,
+               sum(u.m) FILTER (WHERE u.m >= k.band)                                      AS sum_m_up,
+               sum(u.r) FILTER (WHERE u.m <= -k.band)                                     AS sum_r_down,
+               sum(u.m) FILTER (WHERE u.m <= -k.band)                                     AS sum_m_down,
+               stddev_samp(u.r) FILTER (WHERE u.r IS NOT NULL AND u.m IS NOT NULL)        AS vol_raw
+        FROM pos_k k
+        LEFT JOIN LATERAL (SELECT x.r, x.m FROM unnest(p_r, p_m) AS x(r, m) WHERE x.r IS NOT NULL AND x.m IS NOT NULL) u ON true
+        GROUP BY k.band
+    ),
+    calc AS (
+        SELECT a.*,
+               CASE WHEN a.sum_m_up   <> 0 THEN (a.sum_r_up   + k.pad40) / a.sum_m_up   END AS up_raw,
+               CASE WHEN a.sum_m_down <> 0 THEN (a.sum_r_down + k.pad40) / a.sum_m_down END AS down_raw,
+               CASE WHEN a.months_used < p_min_months THEN 'MONTHS'
+                    WHEN a.n_up   < p_min_up          THEN 'N_UP'
+                    WHEN a.n_down < p_min_down        THEN 'N_DOWN'
+                    WHEN COALESCE(a.sum_m_up, 0) = 0 OR COALESCE(a.sum_m_down, 0) = 0 THEN 'ZERO_DEN'
+               END AS reason
+        FROM agg a CROSS JOIN pos_k k
+    )
+    SELECT c.months_used, c.n_up, c.n_down, c.up_raw, c.down_raw, c.vol_raw,
+           CASE WHEN c.reason IS NULL THEN ROUND(c.up_raw, 8)   END,
+           CASE WHEN c.reason IS NULL THEN ROUND(c.down_raw, 8) END,
+           CASE WHEN c.reason IS NULL THEN ROUND(c.vol_raw, 8)  END,
+           CASE WHEN c.reason IS NULL THEN pg_temp.pos_max_drawdown(ARRAY(SELECT x.r FROM unnest(p_r, p_m) WITH ORDINALITY AS x(r, m, i) WHERE x.r IS NOT NULL AND x.m IS NOT NULL ORDER BY x.i)) END,
+           c.reason
+    FROM calc c
+$$;
