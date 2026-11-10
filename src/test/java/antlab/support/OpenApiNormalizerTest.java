@@ -1,6 +1,7 @@
 package antlab.support;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -137,5 +138,81 @@ class OpenApiNormalizerTest {
         String more = swap(BASE, "  /actuator/health:",
                 "  /api/v1/extra:\n    get:\n      operationId: extra\n      responses:\n        '200': {description: ok}\n  /actuator/health:");
         assertThat(diff(BASE, more)).singleElement().asString().contains("/operations/GET /api/v1/extra");
+    }
+
+    // ---- #98 보강: 응답 헤더·미디어 형식·범위 밖 컴포넌트·파라미터 style/explode ----
+
+    private static final String WITH_HEADER = swap(BASE, "description: ok\n          content:",
+            "description: ok\n          headers:\n            Location:\n              schema: {type: string, format: uri}\n          content:");
+
+    @Test
+    void 응답_헤더가_빠지면_한_건이다() {
+        assertThat(diff(WITH_HEADER, BASE)).singleElement().asString()
+                .contains("/responses/200/headers/location");
+    }
+
+    @Test
+    void 응답_헤더_스키마가_다르면_한_건이다() {
+        String other = swap(WITH_HEADER, "format: uri", "format: uuid");
+        assertThat(diff(WITH_HEADER, other)).singleElement().asString()
+                .contains("/headers/location/schema/format");
+    }
+
+    @Test
+    void 응답_헤더_이름의_대소문자와_Content_Type은_무시한다() {
+        String lower = swap(WITH_HEADER, "Location:", "location:");
+        String ctype = swap(WITH_HEADER, "          content:",
+                "            Content-Type:\n              schema: {type: string}\n          content:");
+        assertThat(diff(WITH_HEADER, lower)).isEmpty();
+        assertThat(diff(WITH_HEADER, ctype)).isEmpty();
+    }
+
+    @Test
+    void 미디어_형식의_세미콜론_뒤_매개변수는_무시한다() {
+        String charset = swap(BASE, "application/json:", "application/json;charset=UTF-8:");
+        assertThat(diff(BASE, charset)).isEmpty();
+        assertThat(diff(BASE, swap(BASE, "application/json:", "application/problem+json:")))
+                .isNotEmpty();
+    }
+
+    @Test
+    void 범위_밖_경로만_쓰는_컴포넌트는_고아가_아니다() {
+        String outside = swap(BASE, "'200': {description: ok}\ncomponents:",
+                "'200':\n          description: ok\n          content:\n            application/json:\n"
+                        + "              schema:\n                $ref: '#/components/schemas/Health'\ncomponents:");
+        String withHealth = outside + "    Health:\n      type: object\n      properties:\n        s:\n"
+                + "          $ref: '#/components/schemas/Status'\n    Status:\n      type: string\n";
+        assertThat(diff(withHealth, withHealth)).isEmpty();
+    }
+
+    @Test
+    void 어디서도_안_쓰는_컴포넌트는_범위_밖_경로가_있어도_고아다() {
+        String withOrphan = BASE + "    Orphan:\n      type: string\n";
+        assertThat(diff(withOrphan, withOrphan)).singleElement().asString().contains("/orphans");
+    }
+
+    private static final String WITH_PARAM = swap(BASE, "operationId: getThings\n",
+            "operationId: getThings\n      parameters:\n"
+                    + "        - {name: q, in: query, required: false, schema: {type: integer}}\n");
+
+    @Test
+    void 파라미터_style_explode는_양쪽이_지정하지_않으면_비교하지_않는다() {
+        assertThat(diff(WITH_PARAM, WITH_PARAM)).isEmpty();
+    }
+
+    @Test
+    void 파라미터_style을_한쪽만_지정하면_한_건이다() {
+        String styled = swap(WITH_PARAM, "required: false,", "required: false, style: form, explode: true,");
+        assertThat(diff(styled, WITH_PARAM)).hasSize(2).allSatisfy(l -> assertThat(l).contains("/parameters/q in query/"));
+    }
+
+    @Test
+    void 정규화_뒤_미디어_형식이_겹치면_거절한다() {
+        String clash = swap(BASE, "            application/json:\n",
+                "            application/json;charset=UTF-8:\n"
+                        + "              schema: {type: string}\n"
+                        + "            application/json:\n");
+        assertThatThrownBy(() -> diff(clash, BASE)).isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("application/json");
     }
 }
