@@ -20,7 +20,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.data.jpa.repository.Query;
 
 /**
- * 복사 동일성: {@code ReconciliationLogRepository} 의 규칙 쿼리 15개는 {@code db/22_reconcile_season_def.sql} 의 규칙 함수 본문에
+ * 복사 동일성: {@code ReconciliationLogRepository} 의 규칙 쿼리 17개는 {@code db/22_reconcile_season_def.sql} 의 규칙 함수 본문(규칙 11·19 는 {@code db/23_turn_advance_def.sql}, 나머지 15개는 22)에
  * 아래 기계적 치환만 한 텍스트와 (공백 정규화 뒤) 글자 단위로 같다. 22 를 고치고 Java 를 안 고치면 이 시험이 깨진다.
  *
  * <ul>
@@ -34,6 +34,8 @@ import org.springframework.data.jpa.repository.Query;
 class ReconciliationSqlCopyTest {
 
     private static final Path DEFINITION = Path.of("db/22_reconcile_season_def.sql");
+    /** 규칙 11·19 의 원문 — 턴 전환 대사 전용(P0-33). 도우미 함수(recon_detail)는 22 에 있다. */
+    private static final Path TURN_DEFINITION = Path.of("db/23_turn_advance_def.sql");
 
     /** 쿼리 메서드 → 22 의 규칙 함수. */
     static final Map<String, String> RULE_FUNCTIONS = new LinkedHashMap<>();
@@ -56,8 +58,20 @@ class ReconciliationSqlCopyTest {
         RULE_FUNCTIONS.put("findRule18LineupOverlap", "recon_r18_lineup_overlap");
     }
 
+    /** 쿼리 메서드 → 23 의 규칙 함수(턴 전환 대사 전용 두 개). */
+    static final Map<String, String> TURN_RULE_FUNCTIONS = new LinkedHashMap<>();
+
+    static {
+        TURN_RULE_FUNCTIONS.put("findRule11Valuation", "recon_r11_valuation");
+        TURN_RULE_FUNCTIONS.put("findRule19PositionValue", "recon_r19_position_value");
+    }
+
     private static String definition() throws IOException {
         return Files.readString(DEFINITION, StandardCharsets.UTF_8);
+    }
+
+    private static String turnDefinition() throws IOException {
+        return Files.readString(TURN_DEFINITION, StandardCharsets.UTF_8);
     }
 
     static String normalize(String text) {
@@ -69,7 +83,7 @@ class ReconciliationSqlCopyTest {
         Matcher m = Pattern.compile("CREATE OR REPLACE FUNCTION pg_temp\\." + Pattern.quote(name)
                 + "\\(.*?AS \\$\\$\\n(.*?)\\n\\$\\$;", Pattern.DOTALL).matcher(ddl);
         if (!m.find()) {
-            throw new IllegalStateException("22 에 함수가 없다: " + name);
+            throw new IllegalStateException("정의 파일에 함수가 없다: " + name);
         }
         return m.group(1);
     }
@@ -102,7 +116,12 @@ class ReconciliationSqlCopyTest {
 
     /** 22 원문에 S1–S5 를 적용한 규칙 쿼리 텍스트(공백 정규화). */
     static String expectedQuery(String ddl, String function) {
-        String body = functionBody(ddl, function);
+        return expectedQuery(ddl, ddl, function);
+    }
+
+    /** 함수 본문은 {@code bodyDdl} 에서, 도우미 함수(recon_detail 등)는 {@code ddl}(22)에서 가져온다. */
+    static String expectedQuery(String bodyDdl, String ddl, String function) {
+        String body = functionBody(bodyDdl, function);
         body = body.replace("pg_temp.recon_detail(a.items)", detailInline(ddl));
         body = body.replace("pg_temp.recon_expected_price(p_season_id, p_turn) x", expectedPriceInline(ddl));
         body = bind(body);
@@ -118,15 +137,19 @@ class ReconciliationSqlCopyTest {
         Map<String, String> out = new LinkedHashMap<>();
         for (Method m : ReconciliationLogRepository.class.getDeclaredMethods()) {
             Query q = m.getAnnotation(Query.class);
-            if (q != null && RULE_FUNCTIONS.containsKey(m.getName())) {
+            if (q != null && (RULE_FUNCTIONS.containsKey(m.getName()) || TURN_RULE_FUNCTIONS.containsKey(m.getName()))) {
                 out.put(m.getName(), q.value());
             }
         }
         return out;
     }
 
-    /** 틀린 메서드 이름 목록(없으면 빈 목록). */
+    /** 틀린 메서드 이름 목록(없으면 빈 목록). 22 사본 15개와 23 사본 2개를 모두 본다. */
     static List<String> differences(String ddl) {
+        return differences(ddl, readOrFail(TURN_DEFINITION));
+    }
+
+    static List<String> differences(String ddl, String turnDdl) {
         Map<String, String> actual = queries();
         List<String> bad = new ArrayList<>();
         for (Map.Entry<String, String> e : RULE_FUNCTIONS.entrySet()) {
@@ -135,14 +158,30 @@ class ReconciliationSqlCopyTest {
                 bad.add(e.getKey());
             }
         }
+        for (Map.Entry<String, String> e : TURN_RULE_FUNCTIONS.entrySet()) {
+            String query = actual.get(e.getKey());
+            if (query == null || !normalize(query).equals(expectedQuery(turnDdl, ddl, e.getValue()))) {
+                bad.add(e.getKey());
+            }
+        }
         return bad;
     }
 
+    private static String readOrFail(Path path) {
+        try {
+            return Files.readString(path, StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            throw new IllegalStateException("정의 파일을 읽을 수 없다: " + path, e);
+        }
+    }
+
     @Test
-    void 규칙_쿼리_15개가_22의_본문_치환_사본과_글자_단위로_같다() throws IOException {
-        assertThat(queries()).hasSize(15);
-        assertThat(Arrays.stream(ReconciliationLogRepository.class.getDeclaredMethods()).filter(m -> m.getReturnType() == RuleRow.class).map(Method::getName).collect(Collectors.toSet())).as("RuleRow 를 돌려주는 메서드 = 대조 표").isEqualTo(RULE_FUNCTIONS.keySet());
-        assertThat(differences(definition())).isEmpty();
+    void 규칙_쿼리_17개가_22와_23의_본문_치환_사본과_글자_단위로_같다() throws IOException {
+        assertThat(queries()).hasSize(17);
+        java.util.Set<String> all = new java.util.HashSet<>(RULE_FUNCTIONS.keySet());
+        all.addAll(TURN_RULE_FUNCTIONS.keySet());
+        assertThat(Arrays.stream(ReconciliationLogRepository.class.getDeclaredMethods()).filter(m -> m.getReturnType() == RuleRow.class).map(Method::getName).collect(Collectors.toSet())).as("RuleRow 를 돌려주는 메서드 = 대조 표").isEqualTo(all);
+        assertThat(differences(definition(), turnDefinition())).isEmpty();
     }
 
     @Test
@@ -181,10 +220,29 @@ class ReconciliationSqlCopyTest {
         String ddl = definition();
         String changed = ddl.replace("jsonb_array_length(p_items) > 100", "jsonb_array_length(p_items) > 101");
         assertThat(changed).isNotEqualTo(ddl);
-        assertThat(differences(changed)).hasSize(15);
+        assertThat(differences(changed)).hasSize(17);
         String price = ddl.replace("SELECT ROUND(r.acc, 0) FROM r ORDER BY r.i DESC LIMIT 1",
                 "SELECT ROUND(r.acc, 1) FROM r ORDER BY r.i DESC LIMIT 1");
         assertThat(price).isNotEqualTo(ddl);
         assertThat(differences(price)).containsExactly("findRule12TurnPrice");
+    }
+
+    @Test
+    void 규칙_11과_19의_23_본문을_한_글자_바꾸면_그_규칙만_다르다고_나온다() throws IOException {
+        String turn = turnDefinition();
+        String r11 = turn.replace("WHERE t.holdings_value <> (SELECT", "WHERE t.holdings_value <= (SELECT");
+        assertThat(r11).isNotEqualTo(turn);
+        assertThat(differences(definition(), r11)).containsExactly("findRule11Valuation");
+        String r19 = turn.replace("FROM t WHERE t.defender_value <> COALESCE", "FROM t WHERE t.defender_value <= COALESCE");
+        assertThat(r19).isNotEqualTo(turn);
+        assertThat(differences(definition(), r19)).containsExactly("findRule19PositionValue");
+    }
+
+    @Test
+    void 규칙_11의_23_함수를_지운_사본은_추출기가_실패한다() throws IOException {
+        String removed = turnDefinition().replace("CREATE OR REPLACE FUNCTION pg_temp.recon_r11_valuation(",
+                "CREATE OR REPLACE FUNCTION pg_temp.recon_r11_renamed(");
+        assertThatThrownBy(() -> differences(definition(), removed)).isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("recon_r11_valuation");
     }
 }

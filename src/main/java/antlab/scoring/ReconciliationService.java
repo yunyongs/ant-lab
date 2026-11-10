@@ -3,6 +3,7 @@ package antlab.scoring;
 import antlab.season.SeasonRepository;
 import jakarta.persistence.EntityManager;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -38,6 +39,33 @@ public class ReconciliationService {
      */
     @Transactional(propagation = Propagation.MANDATORY)
     public List<RuleResult> evaluateManual(long seasonId, int turnNo) {
+        prepare(seasonId, turnNo);
+        // 호출자가 이미 잠갔으면 바로 지나간다(멱등 재획득). 첫 규칙 쿼리 전에 잡아야 15문장이 한 상태를 본다.
+        seasons.findByIdForUpdate(seasonId).orElseThrow(() -> new IllegalArgumentException("시즌이 없다"));
+        return List.copyOf(manualRules(seasonId, turnNo));
+    }
+
+    /**
+     * 턴 전환 대사 17개(수동 15개 + 규칙 11·19)를 규칙 번호 순으로 평가한다. 읽기만 한다.
+     *
+     * <p><b>전제:</b> 호출자가 같은 트랜잭션에서 시즌을 이미 잠그고 존재를 확인했다. 이 메서드는 시즌 존재를 따로 확인하지 않으므로
+     * 없는 시즌으로 부르면 계좌 없음 류의 불일치가 나온다.
+     *
+     * @param turnNo 넘어가려던 턴(= 현재 턴 + 1) — 방금 넣은 {@code turn}·{@code turn_price} 행을 본다
+     * @throws IllegalArgumentException 검사 턴이 음수
+     * @throws IllegalStateException 격리 수준이 READ COMMITTED 가 아님
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public List<RuleResult> evaluateTurn(long seasonId, int turnNo) {
+        prepare(seasonId, turnNo);
+        List<RuleResult> results = manualRules(seasonId, turnNo);
+        results.add(RuleResult.of(11, repository.findRule11Valuation(seasonId, turnNo)));
+        results.add(RuleResult.of(19, repository.findRule19PositionValue(seasonId, turnNo)));
+        results.sort(Comparator.comparingInt(RuleResult::ruleNo));
+        return List.copyOf(results);
+    }
+
+    private void prepare(long seasonId, int turnNo) {
         if (turnNo < 0) {
             throw new IllegalArgumentException("검사 턴이 음수다");
         }
@@ -47,9 +75,10 @@ public class ReconciliationService {
         if (!"read committed".equals(isolation)) {
             throw new IllegalStateException("대사는 READ COMMITTED 에서만 돌린다");
         }
-        // 호출자가 이미 잠갔으면 바로 지나간다(멱등 재획득). 첫 규칙 쿼리 전에 잡아야 15문장이 한 상태를 본다.
-        seasons.findByIdForUpdate(seasonId).orElseThrow(() -> new IllegalArgumentException("시즌이 없다"));
-        List<RuleResult> results = new ArrayList<>(15);
+    }
+
+    private List<RuleResult> manualRules(long seasonId, int turnNo) {
+        List<RuleResult> results = new ArrayList<>(17);
         results.add(RuleResult.of(1, repository.findRule01AccountOpening(seasonId, turnNo)));
         results.add(RuleResult.of(2, repository.findRule02CashSum(seasonId, turnNo)));
         results.add(RuleResult.of(3, repository.findRule03LedgerChain(seasonId, turnNo)));
@@ -65,6 +94,6 @@ public class ReconciliationService {
         results.add(RuleResult.of(16, repository.findRule16FormationBind(seasonId, turnNo)));
         results.add(RuleResult.of(17, repository.findRule17LineupHolding(seasonId, turnNo)));
         results.add(RuleResult.of(18, repository.findRule18LineupOverlap(seasonId, turnNo)));
-        return List.copyOf(results);
+        return results;
     }
 }

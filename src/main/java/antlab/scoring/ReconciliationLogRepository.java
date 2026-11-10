@@ -488,4 +488,90 @@ public interface ReconciliationLogRepository extends AppendOnlyRepository<Reconc
             ) AS r(expected_value, actual_value, mismatch_count, detail)
             """)
     RuleRow findRule18LineupOverlap(@Param("seasonId") long seasonId, @Param("turnNo") int turnNo);
+
+    /** 규칙 11 Valuation — db/23 recon_r11_valuation 의 사본(턴 전환 대사 전용). */
+    @Query(nativeQuery = true, value = """
+            SELECT r.expected_value AS "expectedValue", r.actual_value AS "actualValue",
+                   r.mismatch_count AS "mismatchCount", CAST(r.detail AS text) AS "detail"
+            FROM (
+                    WITH t AS (
+                        SELECT x.turn_no, x.cash_balance, x.holdings_value, x.drawdown,
+                               GREATEST((SELECT s.initial_cash FROM season s WHERE s.id = CAST(:seasonId AS bigint)), x.runmax) AS peak, x.total_value
+                        FROM (SELECT tt.turn_no, tt.cash_balance, tt.holdings_value, tt.total_value, tt.drawdown,
+                                     max(tt.total_value) OVER (ORDER BY tt.turn_no) AS runmax
+                              FROM turn tt
+                              WHERE tt.season_id = CAST(:seasonId AS bigint) AND tt.turn_no <= CAST(:turnNo AS smallint)) x
+                        WHERE x.turn_no = CAST(:turnNo AS smallint)
+                    ), hv AS (
+                        SELECT hd.asset_id, hd.quantity, tp.price
+                        FROM holding hd
+                        LEFT JOIN turn_price tp ON tp.season_id = hd.season_id AND tp.turn_no = CAST(:turnNo AS smallint) AND tp.asset_id = hd.asset_id
+                        WHERE hd.season_id = CAST(:seasonId AS bigint) AND hd.quantity > 0
+                    ), bad AS (
+                        SELECT 0::bigint AS k1, 0::bigint AS k2, jsonb_build_object('kind', 'NO_TURN', 'turn_no', CAST(:turnNo AS smallint)) AS item
+                        WHERE NOT EXISTS (SELECT 1 FROM t)
+                        UNION ALL
+                        SELECT 1, hv.asset_id, jsonb_build_object('kind', 'NO_PRICE', 'asset_id', hv.asset_id)
+                        FROM hv
+                        WHERE hv.price IS NULL AND EXISTS (SELECT 1 FROM t)
+                        UNION ALL
+                        SELECT 2, 0, jsonb_build_object('kind', 'HOLDINGS', 'turn_no', CAST(:turnNo AS smallint))
+                        FROM t
+                        WHERE t.holdings_value <> (SELECT COALESCE(sum(hv.quantity * hv.price), 0) FROM hv)
+                        UNION ALL
+                        SELECT 3, 0, jsonb_build_object('kind', 'CASH', 'turn_no', CAST(:turnNo AS smallint))
+                        FROM t
+                        WHERE t.cash_balance IS DISTINCT FROM (SELECT a.balance FROM cash_account a WHERE a.season_id = CAST(:seasonId AS bigint))
+                        UNION ALL
+                        SELECT 4, 0, jsonb_build_object('kind', 'DRAWDOWN', 'turn_no', CAST(:turnNo AS smallint))
+                        FROM t
+                        WHERE t.drawdown <> ROUND((t.total_value - t.peak) / t.peak, 8)
+                    )
+                    SELECT NULL::numeric(19,4), NULL::numeric(19,4), COALESCE(jsonb_array_length(a.items), 0), (CASE WHEN a.items IS NULL OR jsonb_array_length(a.items) = 0 THEN NULL ELSE jsonb_build_object('items', jsonb_path_query_array(a.items, '$[0 to 99]'), 'total', jsonb_array_length(a.items), 'truncated', jsonb_array_length(a.items) > 100) END)
+                    FROM (SELECT jsonb_agg(bad.item ORDER BY bad.k1, bad.k2) AS items FROM bad) a
+            ) AS r(expected_value, actual_value, mismatch_count, detail)
+            """)
+    RuleRow findRule11Valuation(@Param("seasonId") long seasonId, @Param("turnNo") int turnNo);
+
+    /** 규칙 19 PositionValue — db/23 recon_r19_position_value 의 사본(턴 전환 대사 전용). */
+    @Query(nativeQuery = true, value = """
+            SELECT r.expected_value AS "expectedValue", r.actual_value AS "actualValue",
+                   r.mismatch_count AS "mismatchCount", CAST(r.detail AS text) AS "detail"
+            FROM (
+                    WITH t AS (
+                        SELECT tt.cash_balance, tt.goalkeeper_value, tt.defender_value, tt.midfielder_value, tt.forward_value
+                        FROM turn tt
+                        WHERE tt.season_id = CAST(:seasonId AS bigint) AND tt.turn_no = CAST(:turnNo AS smallint)
+                    ), lines AS (
+                        SELECT CASE WHEN lu.declared_position = 'GOALKEEPER' THEN 'G'
+                                    WHEN lu.declared_position = 'DEFENDER' THEN 'D'
+                                    WHEN lu.declared_position = 'MIDFIELDER' THEN 'M'
+                                    ELSE 'F' END AS pos,
+                               sum(hd.quantity * tp.price) AS v
+                        FROM lineup lu
+                        JOIN holding hd ON hd.season_id = lu.season_id AND hd.asset_id = lu.asset_id
+                        JOIN turn_price tp ON tp.season_id = lu.season_id AND tp.turn_no = CAST(:turnNo AS smallint) AND tp.asset_id = lu.asset_id
+                        WHERE lu.season_id = CAST(:seasonId AS bigint) AND lu.end_turn IS NULL AND lu.start_turn < CAST(:turnNo AS smallint)
+                        GROUP BY 1
+                    ), bad AS (
+                        SELECT 0::bigint AS k1, jsonb_build_object('kind', 'NO_TURN', 'turn_no', CAST(:turnNo AS smallint)) AS item
+                        WHERE NOT EXISTS (SELECT 1 FROM t)
+                        UNION ALL
+                        SELECT 1, jsonb_build_object('kind', 'GOALKEEPER', 'turn_no', CAST(:turnNo AS smallint))
+                        FROM t WHERE t.goalkeeper_value <> t.cash_balance + COALESCE((SELECT l.v FROM lines l WHERE l.pos = 'G'), 0)
+                        UNION ALL
+                        SELECT 2, jsonb_build_object('kind', 'DEFENDER', 'turn_no', CAST(:turnNo AS smallint))
+                        FROM t WHERE t.defender_value <> COALESCE((SELECT l.v FROM lines l WHERE l.pos = 'D'), 0)
+                        UNION ALL
+                        SELECT 3, jsonb_build_object('kind', 'MIDFIELDER', 'turn_no', CAST(:turnNo AS smallint))
+                        FROM t WHERE t.midfielder_value <> COALESCE((SELECT l.v FROM lines l WHERE l.pos = 'M'), 0)
+                        UNION ALL
+                        SELECT 4, jsonb_build_object('kind', 'FORWARD', 'turn_no', CAST(:turnNo AS smallint))
+                        FROM t WHERE t.forward_value <> COALESCE((SELECT l.v FROM lines l WHERE l.pos = 'F'), 0)
+                    )
+                    SELECT NULL::numeric(19,4), NULL::numeric(19,4), COALESCE(jsonb_array_length(a.items), 0), (CASE WHEN a.items IS NULL OR jsonb_array_length(a.items) = 0 THEN NULL ELSE jsonb_build_object('items', jsonb_path_query_array(a.items, '$[0 to 99]'), 'total', jsonb_array_length(a.items), 'truncated', jsonb_array_length(a.items) > 100) END)
+                    FROM (SELECT jsonb_agg(bad.item ORDER BY bad.k1) AS items FROM bad) a
+            ) AS r(expected_value, actual_value, mismatch_count, detail)
+            """)
+    RuleRow findRule19PositionValue(@Param("seasonId") long seasonId, @Param("turnNo") int turnNo);
 }
