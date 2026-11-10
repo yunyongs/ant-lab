@@ -1,6 +1,7 @@
 package antlab.season;
 
 import jakarta.persistence.LockModeType;
+import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
@@ -21,4 +22,16 @@ public interface SeasonRepository extends Repository<Season, Long> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select s from Season s where s.id = :id")
     Optional<Season> findByIdForUpdate(@Param("id") Long id);
+
+    long countByMemberIdAndStatusNot(Long memberId, SeasonStatus status);
+
+    Optional<Season> findByIdAndMemberId(Long id, Long memberId);
+
+    /** 회원의 시즌 전부와 잔액을 질의 한 번으로, 시즌 번호 내림차순. */
+    @Query("""
+            select new antlab.season.SeasonWithBalance(s, a.balance)
+            from Season s join CashAccount a on a.seasonId = s.id
+            where s.memberId = :memberId order by s.id desc
+            """)
+    List<SeasonWithBalance> findWithBalanceByMemberId(@Param("memberId") Long memberId);
 }

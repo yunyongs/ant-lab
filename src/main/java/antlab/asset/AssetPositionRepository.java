@@ -27,4 +27,8 @@ public interface AssetPositionRepository extends Repository<AssetPosition, Long>
             where p.baseDate = :baseDate
             """)
     List<PoolAssetDto> findPoolByBaseDate(@Param("baseDate") LocalDate baseDate);
+
+    /** 기준일 풀의 판정 행 전부(시즌 시작이 기준가·환율로 0턴 가격을 만든다). 순서는 종목 번호 오름차순. */
+    @Query("select p from AssetPosition p where p.baseDate = :baseDate order by p.assetId")
+    List<AssetPosition> findByBaseDate(@Param("baseDate") LocalDate baseDate);
 }
