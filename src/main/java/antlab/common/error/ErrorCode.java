@@ -15,5 +15,7 @@ public enum ErrorCode {
     /** 기준일 풀 행이 없다 — 풀 조회(P0-27)와 시즌 시작(P0-30)이 함께 쓴다. */
     POOL_NOT_LOADED,
     /** 기준일 풀에 판정이 비어 있는 종목이 있다. */
-    POOL_NOT_JUDGED
+    POOL_NOT_JUDGED,
+    /** 요청한 길이의 경로를 만들 수 없다 — 60턴 초과이거나 재생 구간의 달이 모자란다(P0-29). */
+    PATH_TOO_LONG
 }

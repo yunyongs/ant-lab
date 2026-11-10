@@ -23,6 +23,7 @@ public final class ErrorHttpMapping {
             case INTERNAL_ERROR -> HttpStatus.INTERNAL_SERVER_ERROR;
             case POOL_NOT_LOADED -> HttpStatus.CONFLICT;
             case POOL_NOT_JUDGED -> HttpStatus.CONFLICT;
+            case PATH_TOO_LONG -> HttpStatus.UNPROCESSABLE_ENTITY;
         };
     }
 
