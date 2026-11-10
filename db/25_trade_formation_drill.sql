@@ -14,6 +14,7 @@
 --   changeonly 주문 없이 전술 변경 1회와 포지션 변경 1회만 한다 (23 검증의 범위 가드 시험용: 다음 턴 전환 전에는 23 검증이 0절에서 멈추고 전환 뒤 PASS).
 --   atomic     중간 실패를 일부러 일으켜(임시 트리거) 업무 행 전체가 복원되는지 본다: 매수 중간(원장 FEE 행), 매도 중간, 전술 변경 중간(시즌 갱신), 포지션 변경 중간. 트랜잭션 안에서 만들고 ROLLBACK 한다.
 --   alert      합성 NUDGE 피드(이 DB 에서만)로 ALERT 주문 성공, FEED 로 NUDGE 참조 거절, ALERT 로 일반 피드 거절.
+--   pastfeed   지난 턴 피드(소유자 결정 2026-11-10, 이슈 #94)에서 시작한 주문 성공(FEED, 합성 NUDGE + ALERT): 주문 턴 = 현재 턴, 참조 피드는 원래 턴 그대로. 미래 피드 거절도 확인한다.
 --   race       두 세션 경합의 한 세션 (아래 -v op, mode). 사례 대본은 db/README.md.
 --      -v mode=hold  트랜잭션을 열어 op 를 실행하고 -v hold_s 초 붙든 뒤 COMMIT (잠금 보유자)
 --      -v mode=run   자동 커밋으로 op 를 실행하고 결과 한 줄을 낸다 (잠금을 기다린다) / op=turn 은 CALL pg_temp.turn_advance
@@ -54,13 +55,13 @@ SELECT (current_database() IN ('antlab', 'antlab_test')) AS dr_is_keep \gset
 \endif
 \if :{?drill_case}
 \else
-  \echo 'P0-19 드릴: -v drill_case=<allcash|replace|extremes|rebuy|changeonly|atomic|alert|race> 가 없다'
+  \echo 'P0-19 드릴: -v drill_case=<allcash|replace|extremes|rebuy|changeonly|atomic|alert|pastfeed|race> 가 없다'
   \quit
 \endif
-SELECT (:'drill_case' IN ('allcash', 'replace', 'extremes', 'rebuy', 'changeonly', 'atomic', 'alert', 'race')) AS dr_case_ok \gset
+SELECT (:'drill_case' IN ('allcash', 'replace', 'extremes', 'rebuy', 'changeonly', 'atomic', 'alert', 'pastfeed', 'race')) AS dr_case_ok \gset
 \if :dr_case_ok
 \else
-  \echo 'P0-19 드릴: 알 수 없는 사례다 (allcash|replace|extremes|rebuy|changeonly|atomic|alert|race)'
+  \echo 'P0-19 드릴: 알 수 없는 사례다 (allcash|replace|extremes|rebuy|changeonly|atomic|alert|pastfeed|race)'
   \quit
 \endif
 
@@ -133,7 +134,7 @@ BEGIN
 END $$;
 
 SELECT (:'drill_case' = 'allcash') AS is_allcash, (:'drill_case' = 'replace') AS is_replace, (:'drill_case' = 'extremes') AS is_extremes, (:'drill_case' = 'rebuy') AS is_rebuy,
-       (:'drill_case' = 'changeonly') AS is_changeonly, (:'drill_case' = 'atomic') AS is_atomic, (:'drill_case' = 'alert') AS is_alert, (:'drill_case' = 'race') AS is_race \gset
+       (:'drill_case' = 'changeonly') AS is_changeonly, (:'drill_case' = 'atomic') AS is_atomic, (:'drill_case' = 'alert') AS is_alert, (:'drill_case' = 'pastfeed') AS is_pastfeed, (:'drill_case' = 'race') AS is_race \gset
 
 -- ---------------------------------------------------------------------
 -- allcash: 전부 매도
@@ -464,6 +465,45 @@ BEGIN
     PERFORM pg_temp.dr_assert((SELECT count(*) = 15 AND count(*) FILTER (WHERE status = 'MATCH') = 15 FROM pg_temp.recon_rules(s.id, s.cur)), '22 수동 검사 15개가 일치하지 않는다');
 END $$;
 SELECT 'PASS' AS p0_19_drill_alert;
+\endif
+
+-- ---------------------------------------------------------------------
+-- pastfeed: 지난 턴 피드에서 시작한 현재 턴 주문 (소유자 결정 2026-11-10, 이슈 #94)
+-- ---------------------------------------------------------------------
+\if :is_pastfeed
+DO $$
+DECLARE
+    s record; v_a bigint; v_pos text; v_past bigint; v_nudge bigint; v_o bigint; v_hint text;
+BEGIN
+    SELECT se.id, se.current_turn_no AS cur INTO s FROM season se JOIN member m ON m.id = se.member_id WHERE lower(m.email) = lower('phase0@example.invalid');
+    SELECT f.id INTO v_past FROM turn_feed f WHERE f.season_id = s.id AND f.turn_no < s.cur AND f.kind <> 'NUDGE' ORDER BY f.turn_no DESC, f.seq LIMIT 1;
+    PERFORM pg_temp.dr_assert(v_past IS NOT NULL, '지난 턴에 일반 피드가 없다 (현재 턴 ≥ 2 이어야 한다)');
+    SELECT h.asset_id, lu.declared_position INTO v_a, v_pos FROM holding h JOIN lineup lu ON lu.season_id = h.season_id AND lu.asset_id = h.asset_id AND lu.end_turn IS NULL
+    WHERE h.season_id = s.id AND h.quantity > 0 ORDER BY h.asset_id LIMIT 1;
+    PERFORM pg_temp.dr_assert(v_a IS NOT NULL, '보유 종목이 없다 (25 시나리오 뒤에 실행한다)');
+    -- 지난 턴 FEED 피드로 시작한 매수는 성공: 주문 턴은 현재 턴, 참조 피드는 원래 턴 그대로
+    v_o := pg_temp.trade_buy(s.id, s.cur, v_a, 1, v_pos, 'FEED', v_past);
+    PERFORM pg_temp.dr_assert((SELECT o.turn_no = s.cur AND o.turn_feed_id = v_past AND o.source = 'FEED' AND f.turn_no < o.turn_no
+                               FROM orders o JOIN turn_feed f ON f.id = o.turn_feed_id AND f.season_id = o.season_id WHERE o.id = v_o), '지난 턴 피드 주문의 턴·피드 참조가 기대와 다르다');
+    -- 지난 턴 NUDGE 피드(이 DB 에서만 만드는 합성 알림) + ALERT 도 성공: 피드는 원래 턴 그대로
+    INSERT INTO turn_feed (season_id, turn_no, seq, kind, direction, strength, template_id, body)
+    SELECT s.id, s.cur - 1, COALESCE(max(f.seq), 0) + 1, 'NUDGE', 'UP', 1, 'DRILL_SYNTHETIC', '합성 알림 (드릴)'
+    FROM turn_feed f WHERE f.season_id = s.id AND f.turn_no = s.cur - 1;
+    SELECT f.id INTO v_nudge FROM turn_feed f WHERE f.season_id = s.id AND f.turn_no = s.cur - 1 AND f.kind = 'NUDGE' ORDER BY f.id DESC LIMIT 1;
+    v_o := pg_temp.trade_buy(s.id, s.cur, v_a, 1, v_pos, 'ALERT', v_nudge);
+    PERFORM pg_temp.dr_assert((SELECT o.turn_no = s.cur AND o.turn_feed_id = v_nudge AND o.source = 'ALERT' AND f.turn_no = s.cur - 1
+                               FROM orders o JOIN turn_feed f ON f.id = o.turn_feed_id AND f.season_id = o.season_id WHERE o.id = v_o), '지난 턴 NUDGE + ALERT 주문의 턴·피드 참조가 기대와 다르다');
+    -- 미래 피드(turn_no > 현재 턴)는 계속 거절 (피드 턴을 현재 턴 + 1 로 바꾼 서브트랜잭션)
+    BEGIN
+        UPDATE turn_feed SET turn_no = s.cur + 1 WHERE id = v_past;
+        PERFORM pg_temp.trade_buy(s.id, s.cur, v_a, 1, v_pos, 'FEED', v_past);
+        v_hint := 'NO_ERROR';
+    EXCEPTION WHEN OTHERS THEN GET STACKED DIAGNOSTICS v_hint = PG_EXCEPTION_HINT; END;
+    PERFORM pg_temp.dr_assert(v_hint = 'INVALID_FEED_REFERENCE', '미래 피드가 거절되지 않았다');
+    PERFORM pg_temp.dr_assert((SELECT turn_no < s.cur FROM turn_feed WHERE id = v_past), '서브트랜잭션이 피드 턴을 되돌리지 않았다');
+    PERFORM pg_temp.dr_assert((SELECT count(*) = 15 AND count(*) FILTER (WHERE status = 'MATCH') = 15 FROM pg_temp.recon_rules(s.id, s.cur)), '22 수동 검사 15개가 일치하지 않는다');
+END $$;
+SELECT 'PASS' AS p0_19_drill_pastfeed;
 \endif
 
 -- ---------------------------------------------------------------------

@@ -219,6 +219,32 @@ BEGIN
     VALUES ('09 거부', '거부 [' || p_hint || '] ' || p_label, 'P0001 ' || p_hint || ', 행 수·identity 그대로', v_act, v_ok);
 END $$;
 
+-- 양성 사례(지난 턴 피드): 출발점 검사 tr_source 가 오류 없이 돌아오고, 그 피드의 턴이 현재 턴보다 앞서며 종류가 출발점과 맞아야 한다.
+-- 이 파일은 identity 를 소비하는 쓰기를 하지 않으므로(14절이 마지막 값을 비교한다) trade_buy 성공 경로는 드릴 pastfeed 가 맡는다. tr_source 는 쓰지 않는다.
+CREATE PROCEDURE pg_temp.pos_past_feed(p_label text, p_season bigint, p_turn smallint, p_source text, p_feed bigint)
+LANGUAGE plpgsql AS $$
+DECLARE
+    v_before text := pg_temp.zz_snap();
+    v_act    text := '검사 통과';
+    v_ok     boolean;
+BEGIN
+    IF p_feed IS NULL THEN
+        INSERT INTO zz_check_result VALUES (DEFAULT, '10 양성', '적용 불가 (정보): 지난 턴에 ' || p_source || ' 용 피드가 없어 ' || p_label || ' 는 건너뜀', '(정보)', '적용 불가', true);
+        RETURN;
+    END IF;
+    BEGIN
+        PERFORM pg_temp.tr_source(p_season, p_turn, p_source, p_feed);
+    EXCEPTION WHEN OTHERS THEN
+        GET STACKED DIAGNOSTICS v_act = PG_EXCEPTION_HINT;
+        v_act := '실패 ' || SQLSTATE || ' ' || COALESCE(v_act, '-');
+    END;
+    v_ok := COALESCE(v_act = '검사 통과'
+            AND (SELECT f.turn_no < p_turn AND f.season_id = p_season AND ((p_source = 'ALERT') = (f.kind = 'NUDGE')) FROM turn_feed f WHERE f.id = p_feed)
+            AND v_before = pg_temp.zz_snap(), false);  -- 피드 행이 없으면 NULL 이 되므로 실패로 본다
+    INSERT INTO zz_check_result (section, item, expected, actual, ok)
+    VALUES ('10 양성', '양성 ' || p_label, '검사 통과, 피드 턴 < 현재 턴, 종류 일치, 행 수·identity 그대로', CASE WHEN v_ok THEN '검사 통과, 피드 턴 < 현재 턴, 종류 일치, 행 수·identity 그대로' ELSE v_act || ' (조건 불일치)' END, v_ok);
+END $$;
+
 -- 00 전제 -------------------------------------------------------------------
 INSERT INTO zz_check_result (section, item, expected, actual, ok)
 SELECT '00 전제', x.item, x.expected, x.actual, x.expected IS NOT DISTINCT FROM x.actual
@@ -508,6 +534,7 @@ DECLARE
     v_nosea  bigint;
     v_fcur   bigint;
     v_fpast  bigint;
+    v_npast  bigint;
     v_other  text;
     v_big    text := '1000000000000';
     v_live   text;
@@ -531,6 +558,7 @@ BEGIN
     SELECT max(id) + 1 INTO v_nosea FROM season;
     SELECT f.id INTO v_fcur FROM turn_feed f WHERE f.season_id = v_s AND f.turn_no = v_t AND f.kind <> 'NUDGE' ORDER BY f.seq LIMIT 1;
     SELECT f.id INTO v_fpast FROM turn_feed f WHERE f.season_id = v_s AND f.turn_no < v_t AND f.kind <> 'NUDGE' ORDER BY f.turn_no DESC, f.seq LIMIT 1;
+    SELECT f.id INTO v_npast FROM turn_feed f WHERE f.season_id = v_s AND f.turn_no < v_t AND f.kind = 'NUDGE' ORDER BY f.turn_no DESC, f.seq LIMIT 1;
     v_up := 'MIDFIELDER';
     v_bigcash := format('UPDATE cash_account SET balance = %s WHERE season_id = %s; UPDATE cash_ledger SET balance_after = %s WHERE id = (SELECT max(id) FROM cash_ledger WHERE season_id = %s)', v_big, v_s, v_big, v_s);
     SELECT COALESCE(max(id), 0) + 1 INTO v_nofeed FROM turn_feed;
@@ -588,13 +616,9 @@ BEGIN
     ELSE
         INSERT INTO zz_check_result VALUES (DEFAULT, '09 거부', '현재 턴에 NUDGE 가 아닌 피드가 없어 피드 종류·미노출 거부 사례는 적용 불가 (정보)', '(정보)', '적용 불가', true);
     END IF;
-    IF v_fpast IS NOT NULL THEN
-        -- 정책 확정이 아니다: 소유자 결정 대기(계획 Q1) 동안 지난 턴 피드는 거절한다. 정책이 바뀌면 이 사례와 tr_source 한 곳을 함께 바꾼다.
-        CALL pg_temp.neg_fn('지난 턴 피드 (소유자 결정 대기 — 임시 거절)', v_live || '; ' || v_bigcash,
-            format('SELECT pg_temp.trade_buy(%s, %s::smallint, %s, 1, %L, %L, %s)', v_s, v_t, v_u, v_up, 'FEED', v_fpast), 'INVALID_FEED_REFERENCE');
-    ELSE
-        INSERT INTO zz_check_result VALUES (DEFAULT, '09 거부', '지난 턴에 NUDGE 가 아닌 피드가 없어 지난 턴 피드 거부 사례는 적용 불가 (정보)', '(정보)', '적용 불가', true);
-    END IF;
+    -- 소유자 결정(2026-11-10, 이슈 #94): 이미 노출된 지난 턴 피드로 현재 턴 주문을 시작할 수 있다 (양성 사례, 쓰기 없는 tr_source 호출).
+    CALL pg_temp.pos_past_feed('지난 턴 FEED 피드는 현재 턴 출발점으로 받는다 (주문 턴 = 현재 턴, 피드는 원래 턴)', v_s, v_t, 'FEED', v_fpast);
+    CALL pg_temp.pos_past_feed('지난 턴 NUDGE 피드는 ALERT 출발점으로 받는다 (주문 턴 = 현재 턴, 피드는 원래 턴)', v_s, v_t, 'ALERT', v_npast);
     -- R1: 1턴 이후에는 21 의 order_buy 를 쓰지 않는다 (전술 변경 연결이 없어 규칙 16 이 어긋난다). 모든 검사 뒤에 거부한다.
     CALL pg_temp.neg_fn('1턴 이후 order_buy (변경 연결이 없는 경로)', v_live || '; ' || v_bigcash,
         format('SELECT pg_temp.order_buy(%s, %s::smallint, %s, 1, %L)', v_s, v_t, v_u, v_up), 'USE_TRADE_BUY');
@@ -652,7 +676,7 @@ SELECT '11 정보', '출발점별 주문 수: DIRECT · RANKING · FEED · ALERT
        || count(*) FILTER (WHERE source = 'ALERT')::text || ' · ' || count(*) FILTER (WHERE source = 'BENCH')::text, true
 FROM zz_o;
 INSERT INTO zz_check_result (section, item, expected, actual, ok)
-SELECT '11 정보', '지난 턴 피드를 참조한 주문 수 (소유자 결정 대기 — 현재 정책은 0 이어야 한다, 정책이 바뀌면 이 행도 바꾼다) (정보)', '(정보)',
+SELECT '11 정보', '지난 턴 피드를 참조한 주문 수 (2026-11-10 허용 — 수만 보인다) (정보)', '(정보)',
        count(*)::text, true
 FROM zz_o o JOIN turn_feed f ON f.id = o.turn_feed_id WHERE f.turn_no < o.turn_no;
 INSERT INTO zz_check_result (section, item, expected, actual, ok)

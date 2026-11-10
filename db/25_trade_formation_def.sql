@@ -27,8 +27,8 @@
 --                         LINEUP_MISMATCH(보유와 열린 구간 불일치) · EVENT_TIME_CONFLICT(변경·주문 시각의 순서를 확정할 수 없음)
 --   Java 예외·HTTP 매핑은 P0-36·P0-37 이 정한다.
 -- 출발점(source): DIRECT·RANKING·BENCH 는 피드 NULL, FEED 는 피드 필수(kind <> NUDGE), ALERT 는 피드 필수(kind = NUDGE). 피드는 같은 시즌이고 이미 노출된(turn_no ≤ 현재 턴) 것이다.
---   ★ 소유자 결정 대기 (P0-19 계획 Q1): 지난 턴에 노출된 피드에서 시작한 현재 턴 주문을 허용할지는 정해지지 않았다. 정책이 정해지기 전까지 이 파일은
---     피드의 턴이 현재 턴과 같은 것만 받고 지난 턴 피드는 INVALID_FEED_REFERENCE 로 거절한다 (tr_source 한 곳). 정책 확정이 아니다.
+--   소유자 결정 (2026-11-10, 이슈 #94): 이미 노출된 지난 턴 피드에서 시작한 현재 턴 주문을 허용한다. 주문 턴은 현재 턴이고 참조 피드(turn_feed_id)는 원래 턴 그대로다.
+--     미래 피드(turn_no > 현재 턴)·다른 시즌 피드·종류 불일치는 계속 INVALID_FEED_REFERENCE 로 거절한다 (tr_source 한 곳).
 --   복합 FK(turn_feed_id, season_id)는 같은 시즌만 보장한다. 노출 시점·종류 일치는 DDL 이 못 막으므로 이 함수가 한다.
 -- 전술 변경과 주문 묶기(규칙 16): 변경·주문의 created_at 은 season 잠금을 얻은 뒤의 clock_timestamp() 다. 주문은 같은 시즌·같은 턴에서 자기보다 앞선 마지막 변경에 묶인다
 --   (DIRECT 를 포함한 모든 출발점). 사후 UPDATE 로 채우지 않는다. 앞선 이벤트와 시각이 같거나 거꾸로면 순서를 확정할 수 없으므로 쓰기 전에 EVENT_TIME_CONFLICT 로 멈춘다 (id 로 추정하거나 시각을 보정하지 않는다).
@@ -127,11 +127,7 @@ BEGIN
     IF v_feed_turn > p_turn THEN
         RAISE EXCEPTION 'P0-19 매매: 아직 노출되지 않은 피드다' USING HINT = 'INVALID_FEED_REFERENCE';
     END IF;
-    -- ★ 소유자 결정 대기(계획 Q1): 지난 턴에 노출된 피드로 현재 턴 주문을 시작할 수 있는지는 정해지지 않았다.
-    --   정책이 정해질 때까지 현재 턴 피드만 받는다. 이 한 곳만 바꾸면 정책이 바뀐다 (확정 아님).
-    IF v_feed_turn < p_turn THEN
-        RAISE EXCEPTION 'P0-19 매매: 지난 턴 피드에서 시작한 주문은 아직 받지 않는다 (소유자 결정 대기)' USING HINT = 'INVALID_FEED_REFERENCE';
-    END IF;
+    -- 소유자 결정(2026-11-10, 이슈 #94): v_feed_turn < p_turn (이미 노출된 지난 턴 피드)도 받는다. 주문 턴은 p_turn, 참조 피드는 원래 턴 그대로다.
 END $$;
 
 -- 주문·변경 시각. 잠금을 얻은 뒤 clock_timestamp() 를 읽고, 같은 시즌·턴의 앞선 주문·변경보다 늦어야 한다.
