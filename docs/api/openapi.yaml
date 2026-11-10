@@ -292,6 +292,95 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+  /api/v1/seasons/{seasonId}/turns/{turnNo}:
+    get:
+      tags: [turn]
+      operationId: getTurn
+      summary: 턴 결과 조회
+      description: 한 턴의 결과(평가액·변화·현금·누적 낙폭·위험 선언 대비·포지션별 평가액과 비중·포메이션 차이)를 준다. 턴 전환 응답과 같은 형이다. status·pathLength 는 시즌의 지금 값이고, 비중 4개의 합은 1과 최대 2e-8 다를 수 있다. 진행 중이든 끝난 시즌이든 같다.
+      parameters:
+        - name: seasonId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+        - name: turnNo
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int32
+            minimum: 1
+      responses:
+        '200':
+          description: 턴 결과
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TurnResultDto'
+        '400':
+          description: turnNo 가 1 미만이거나 시즌·턴 번호가 숫자가 아니다 — INVALID_ARGUMENT
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: 시즌이 없다 — NOT_FOUND
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: 아직 진행하지 않은 턴이다 — TURN_NOT_REACHED(현재 턴보다 큰 번호 전부. 경로 길이를 넘는 번호는 끝난 시즌에서도 이 코드이므로 클라이언트는 pathLength 로 범위를 먼저 거른다)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '503':
+          description: 현재 회원을 알 수 없다 — MEMBER_UNAVAILABLE(운영, 인증 전)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /api/v1/seasons/{seasonId}/holdings:
+    get:
+      tags: [holding]
+      operationId: getHoldings
+      summary: 현재 팀(보유) 조회
+      description: 현재 턴의 보유 × 그 턴 가격, 현금 포함 총액, 포지션별 평가액과 비중, 현재 포메이션 대비 차이를 준다. 이번 턴의 매매가 바로 반영되는 실시간 값이다. 비중 4개의 합은 1과 최대 2e-8 다를 수 있다.
+      parameters:
+        - name: seasonId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: 현재 팀
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HoldingsDto'
+        '400':
+          description: 시즌 번호가 숫자가 아니다 — INVALID_ARGUMENT
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: 시즌이 없다 — NOT_FOUND
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '503':
+          description: 현재 회원을 알 수 없다 — MEMBER_UNAVAILABLE(운영, 인증 전)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
 components:
   schemas:
     PoolDto:
@@ -566,9 +655,12 @@ components:
           description: 전환 전의 현재 턴. 시즌의 현재 턴과 다르면 409
     TurnResultDto:
       type: object
-      description: 방금 저장한 턴 행의 값. 대사 시도 번호·상태·시드·경로·연월은 싣지 않는다
+      description: 저장한 턴 행의 값과 거기서 계산한 비율. 턴 전환 응답과 턴 조회가 같은 형이다. 비중 4개의 합은 1과 최대 2e-8 다를 수 있고, status·pathLength 는 시즌의 지금 값이다. targetFormation 은 그 턴 시작 시점의 목표다. 대사 시도 번호·상태·시드·경로·월 블록·연월·수익률 종류는 싣지 않는다
       required: [seasonId, turnNo, status, pathLength, cashBalance, holdingsValue, totalValue, goalkeeperValue,
-                 defenderValue, midfielderValue, forwardValue, drawdown]
+                 defenderValue, midfielderValue, forwardValue, drawdown, previousTotalValue, valueChange, periodReturn,
+                 riskLimit, riskHeadroom, riskBreached, goalkeeperWeight, defenderWeight, midfielderWeight,
+                 forwardWeight, targetFormation, goalkeeperGap, defenderGap, midfielderGap, forwardGap,
+                 formationDeviation]
       properties:
         seasonId:
           type: integer
@@ -577,7 +669,7 @@ components:
         turnNo:
           type: integer
           format: int32
-          description: 방금 적용된 턴(= 새 현재 턴)
+          description: 이 결과의 턴(전환 응답에서는 방금 적용된 턴 = 새 현재 턴)
         status:
           $ref: '#/components/schemas/SeasonStatus'
         pathLength:
@@ -616,6 +708,184 @@ components:
           type: string
           format: decimal
           description: 누적 낙폭(0 이하), 소수 8자리
+        previousTotalValue:
+          type: string
+          format: decimal
+          description: 직전 턴의 총 평가액(1턴이면 초기 자금), 원 단위 정수
+        valueChange:
+          type: string
+          format: decimal
+          description: 총 평가액 − 직전 총 평가액(음수 가능), 원 단위 정수
+        periodReturn:
+          type: string
+          format: decimal
+          description: 기간 수익률 = 변화 ÷ 직전 총 평가액, 소수 8자리
+        riskLimit:
+          type: string
+          format: decimal
+          description: 위험 선언(0 이하), 소수 8자리
+        riskHeadroom:
+          type: string
+          format: decimal
+          description: 위험 선언까지의 여유 = 낙폭 − 선언, 소수 8자리. 0 이상이면 선언 안, 음수면 넘었다
+        riskBreached:
+          type: boolean
+          description: 낙폭이 위험 선언을 넘었는가(낙폭 < 선언)
+        goalkeeperWeight:
+          type: string
+          format: decimal
+          description: 골키퍼 비중 = 평가액 ÷ 총 평가액, 소수 8자리
+        defenderWeight:
+          type: string
+          format: decimal
+          description: 수비수 비중, 소수 8자리
+        midfielderWeight:
+          type: string
+          format: decimal
+          description: 미드필더 비중, 소수 8자리
+        forwardWeight:
+          type: string
+          format: decimal
+          description: 공격수 비중, 소수 8자리
+        targetFormation:
+          $ref: '#/components/schemas/FormationDto'
+        goalkeeperGap:
+          type: string
+          format: decimal
+          description: 골키퍼 비중 − 목표(양수 = 목표보다 많음), 소수 8자리
+        defenderGap:
+          type: string
+          format: decimal
+          description: 수비수 비중 − 목표, 소수 8자리
+        midfielderGap:
+          type: string
+          format: decimal
+          description: 미드필더 비중 − 목표, 소수 8자리
+        forwardGap:
+          type: string
+          format: decimal
+          description: 공격수 비중 − 목표, 소수 8자리
+        formationDeviation:
+          type: string
+          format: decimal
+          description: 포메이션 이탈 = 포지션별 |비중 − 목표|의 합, 소수 8자리
+    HoldingsDto:
+      type: object
+      description: 현재 턴의 보유 × 그 턴 가격(이번 턴의 매매가 바로 반영되는 실시간 값). 매매가 없는 턴이면 총액·보유 평가액·포지션별 평가액이 그 턴의 턴 결과와 같다. currentFormation 은 지금 적용 중인 포메이션이다. 비중 4개의 합은 1과 최대 2e-8 다를 수 있다. 시드·경로·월 블록·연월·수익률 종류는 싣지 않는다
+      required: [seasonId, turnNo, cashBalance, holdingsValue, totalValue, goalkeeperValue, defenderValue,
+                 midfielderValue, forwardValue, goalkeeperWeight, defenderWeight, midfielderWeight, forwardWeight,
+                 currentFormation, goalkeeperGap, defenderGap, midfielderGap, forwardGap, formationDeviation, holdings]
+      properties:
+        seasonId:
+          type: integer
+          format: int64
+          description: 시즌 식별자
+        turnNo:
+          type: integer
+          format: int32
+          description: 시즌의 현재 턴(가격 기준 턴)
+        cashBalance:
+          type: string
+          format: decimal
+          description: 현금 잔액(지금), 원 단위 정수
+        holdingsValue:
+          type: string
+          format: decimal
+          description: 보유 평가액 = Σ 수량 × 현재 턴 가격, 원 단위 정수
+        totalValue:
+          type: string
+          format: decimal
+          description: 총 평가액 = 현금 + 보유 평가액, 원 단위 정수
+        goalkeeperValue:
+          type: string
+          format: decimal
+          description: 골키퍼 평가액(현금 포함, 총액 − 나머지 셋), 원 단위 정수
+        defenderValue:
+          type: string
+          format: decimal
+          description: 수비수 평가액, 원 단위 정수
+        midfielderValue:
+          type: string
+          format: decimal
+          description: 미드필더 평가액, 원 단위 정수
+        forwardValue:
+          type: string
+          format: decimal
+          description: 공격수 평가액, 원 단위 정수
+        goalkeeperWeight:
+          type: string
+          format: decimal
+          description: 골키퍼 비중 = 평가액 ÷ 총 평가액, 소수 8자리
+        defenderWeight:
+          type: string
+          format: decimal
+          description: 수비수 비중, 소수 8자리
+        midfielderWeight:
+          type: string
+          format: decimal
+          description: 미드필더 비중, 소수 8자리
+        forwardWeight:
+          type: string
+          format: decimal
+          description: 공격수 비중, 소수 8자리
+        currentFormation:
+          $ref: '#/components/schemas/FormationDto'
+        goalkeeperGap:
+          type: string
+          format: decimal
+          description: 골키퍼 비중 − 현재 포메이션(양수 = 목표보다 많음), 소수 8자리
+        defenderGap:
+          type: string
+          format: decimal
+          description: 수비수 비중 − 현재 포메이션, 소수 8자리
+        midfielderGap:
+          type: string
+          format: decimal
+          description: 미드필더 비중 − 현재 포메이션, 소수 8자리
+        forwardGap:
+          type: string
+          format: decimal
+          description: 공격수 비중 − 현재 포메이션, 소수 8자리
+        formationDeviation:
+          type: string
+          format: decimal
+          description: 포메이션 이탈 = 포지션별 |비중 − 현재 포메이션|의 합, 소수 8자리
+        holdings:
+          type: array
+          description: 수량 1 이상인 보유(종목 번호 오름차순)
+          items:
+            $ref: '#/components/schemas/HoldingDto'
+    HoldingDto:
+      type: object
+      description: 보유 한 종목. 종목 이름은 싣지 않는다 — 풀 응답의 assetId 로 잇는다
+      required: [assetId, quantity, avgPrice, declaredPosition, price, value, weight]
+      properties:
+        assetId:
+          type: integer
+          format: int64
+          description: 종목 식별자(풀 응답의 assetId 와 같다)
+        quantity:
+          type: integer
+          format: int32
+          description: 보유 수량(1 이상)
+        avgPrice:
+          type: string
+          format: decimal
+          description: 평균단가(수수료 제외), 소수 4자리
+        declaredPosition:
+          $ref: '#/components/schemas/Position'
+        price:
+          type: string
+          format: decimal
+          description: 현재 턴 가격, 원 단위 정수
+        value:
+          type: string
+          format: decimal
+          description: 평가액 = 수량 × 현재 턴 가격, 원 단위 정수
+        weight:
+          type: string
+          format: decimal
+          description: 종목 비중 = 평가액 ÷ 총 평가액(현금 포함), 소수 8자리
     OrderSide:
       type: string
       enum: [BUY, SELL]

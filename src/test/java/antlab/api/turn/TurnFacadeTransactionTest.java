@@ -75,7 +75,18 @@ class TurnFacadeTransactionTest {
         }
         Class<?> controller = Class.forName("antlab.api.turn.TurnController");
         List<Class<?>> params = new ArrayList<>(List.of(controller.getDeclaredConstructors()[0].getParameterTypes()));
-        assertThat(params).containsExactly(TurnFacade.class);
+        // 전환(쓰기)은 퍼사드로만 간다 — 트랜잭션 서비스(TurnService)를 직접 받지 않는다. 읽기 전용 턴 조회 서비스는 함께 받는다(P0-35).
+        assertThat(params).containsExactlyInAnyOrder(TurnFacade.class, antlab.season.TurnQueryService.class);
+        assertThat(params).doesNotContain(antlab.season.TurnService.class);
+        // 컨트롤러가 받는 조회 서비스는 쓰기를 못 한다 — 공개 메서드마다 읽기 전용 트랜잭션이 걸려 있다.
+        for (Method m : antlab.season.TurnQueryService.class.getDeclaredMethods()) {
+            if (!java.lang.reflect.Modifier.isPublic(m.getModifiers())) {
+                continue;
+            }
+            Transactional tx = m.getAnnotation(Transactional.class);
+            assertThat(tx).as(m.getName() + " @Transactional").isNotNull();
+            assertThat(tx.readOnly()).as(m.getName() + " readOnly").isTrue();
+        }
     }
 
     @Test
