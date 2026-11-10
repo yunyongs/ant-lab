@@ -114,6 +114,22 @@ public final class MoneyMath {
         return total.subtract(peak).divide(peak, 8, RoundingMode.HALF_UP);
     }
 
+    /**
+     * 정수 ÷ 정수 → 소수 8자리, 0에서 먼 쪽 HALF_UP, 중간 반올림 없음(SQL {@code sr_div8} 의 짝, PLAN §5.2 "반올림은 한 번").
+     * 입력은 원 단위 정수끼리다(scale 은 무관 — 4자리로 저장된 정수 값도 받는다). 소수부가 있거나 0으로 나누면 예외다.
+     */
+    public static BigDecimal ratio(BigDecimal numerator, BigDecimal denominator) {
+        require(numerator, "분자");
+        require(denominator, "분모");
+        if (!isInteger(numerator) || !isInteger(denominator)) {
+            throw invalid("비율의 분자와 분모는 정수여야 한다");
+        }
+        if (denominator.signum() == 0) {
+            throw invalid("비율의 분모는 0일 수 없다");
+        }
+        return numerator.divide(denominator, 8, RoundingMode.HALF_UP);
+    }
+
     /** 저장 가격과 보유 수량으로 평가액을 계산한다. */
     public static BigDecimal valuation(BigDecimal price, int quantity) {
         positiveInteger(price, "가격");
