@@ -162,7 +162,7 @@ Java `MoneyMathSqlParityTest`(P0-26)는 `21_team_buy_def.sql`의 순수 함수 5
 | S16 | `14_stats_calendar_check.sql` | S15, 루트 | 몇 번이든 | `p0_12_check` | — |
 | S17 | `20_season_start.sql` | S05·S07·S11 | 새 행 0 | 종료 0 | P0-30 |
 | S18 | `20_season_start_check.sql` | S17 | 몇 번이든 | `p0_14_check` | — |
-| S19 | `21_team_buy.sql` | S17 | 새 행 0(`이미 같은 팀`) | 종료 0 | P0-31(21 정의는 P0-26이 대조) |
+| S19 | `21_team_buy.sql` | S17 | 새 행 0(`이미 같은 팀`) | 종료 0 | P0-31 완료(21 정의는 P0-26에서 대조) |
 | S20 | `21_team_buy_check.sql` | S19 | 몇 번이든 | `p0_15_check` | — |
 | S21 | `22_reconcile_season.sql` | S19 | **15행이 쌓인다(정상)** | 종료 0, `match_count` 15 · `mismatch_rules` 0 | P0-32(22 정의) |
 | S22 | `22_reconcile_season_check.sql` | S19 | 몇 번이든 | `p0_16_check` | — |
@@ -850,9 +850,9 @@ ANTLAB_GOLDEN_SAMPLE_DIR=<db/sample 경로> ./gradlew test -PonlySqlGolden
 |---|---|---|
 | `01`–`03` 스키마 | `SqlGoldenHarnessTest`(`README_REGRESSION`·`TURN_GOLDEN`), `SqlGoldenIsolationTest`, `SchemaParityTest`(Flyway DDL과 대조) | P0-23 이후 스키마 일치 |
 | `10`–`13` 적재·계산 | `SqlGoldenHarnessTest`(입력 CSV와 함께) | P0-27–29(적재·판정) |
-| `20_season_start.sql` | `TURN_GOLDEN`·끝난 뒤 멱등, `SeasonStartGoldenTest`(`seasonStartGolden` — 같은 설정·경로·시드로 API가 만든 시즌 5개 표와 행 단위 비교) | P0-30 시즌 시작(완료), P0-31 팀 구성 |
-| `21_team_buy_def.sql` | `MoneyMathSqlParityTest`(순수 함수 5개를 `MoneyMath`와 같은 합성 입력으로 대조) | P0-26(이미 읽음), P0-31 팀 구성 |
-| `22_reconcile_season_def.sql` | `README_REGRESSION`(수동 대사 15행 `MATCH`) | P0-32 대사 |
+| `20_season_start.sql` | `TURN_GOLDEN`·끝난 뒤 멱등, `SeasonStartGoldenTest`(`seasonStartGolden` — 같은 설정·경로·시드로 API가 만든 시즌 5개 표와 행 단위 비교) | P0-30 시즌 시작(완료) |
+| `21_team_buy_def.sql`·`21_team_buy.sql`·`21_team_buy_check.sql` | `MoneyMathSqlParityTest`(순수 함수 5개를 `MoneyMath`와 같은 합성 입력으로 대조), `BuyOrderGoldenTest`(`teamBuyGolden` — SQL 0턴 주문을 같은 순서·수량·선언 포지션으로 API에 보내고 6개 표를 행 단위로 비교하며, API DB에서 `p0_15_check`를 통과) | P0-26(이미 읽음), P0-31 팀 구성(완료) |
+| `22_reconcile_season_def.sql` | `README_REGRESSION`(수동 대사 15행 `MATCH`), `BuyOrderGoldenTest`(API가 만든 0턴 팀에 대해 `recon_rules(시즌, 0)`의 15행이 `MATCH`인지 확인) | P0-31(읽음), P0-32 대사 |
 | `23_turn_advance*.sql`·`24_turn_feed_def.sql` | `TURN_GOLDEN`(10턴 기준 시즌)·재생 | P0-33 턴 전환·피드 |
 | `25_trade_formation_def.sql` | `README_REGRESSION`(5턴 매매 포함 전체 순서) | P0-36·37 매도·전술 변경 재생 |
 | `26_season_report_def.sql` | `README_REGRESSION`(성적표 검증 PASS) | P0-38 성적표 |
