@@ -16,6 +16,7 @@ class SourceRulesTest {
     private static final Pattern FLOATING = Pattern.compile("\\b(double|float|Double|Float)\\b");
     private static final Pattern SECRET_KEY = Pattern.compile("^\\s*([\\w.-]*(password|secret|token|key))\\s*:\\s*(.*)$",
             Pattern.CASE_INSENSITIVE);
+    private static final Pattern ROUNDING = Pattern.compile("\\b(setScale|RoundingMode)\\b");
 
     static boolean hasFloatingPoint(String source) {
         return FLOATING.matcher(source).find();
@@ -74,6 +75,25 @@ class SourceRulesTest {
         for (Path file : files) {
             assertThat(hasLiteralSecret(Files.readString(file))).as(file.toString()).isFalse();
         }
+    }
+
+    @Test
+    void 반올림_구현은_MoneyMath에만_있다() throws IOException {
+        List<Path> files = listFiles(Path.of("src/main"), ".java");
+        Path allowed = Path.of("src/main/java/antlab/common/money/MoneyMath.java");
+        for (Path file : files) {
+            if (!file.equals(allowed)) {
+                assertThat(ROUNDING.matcher(Files.readString(file)).find()).as(file.toString()).isFalse();
+            }
+        }
+    }
+
+    @Test
+    void 반올림_검사기는_허용_경로와_금지_토큰을_구분한다() {
+        assertThat(ROUNDING.matcher("value.setScale(0, RoundingMode.HALF_UP)").find()).isTrue();
+        assertThat(ROUNDING.matcher("value.add(other)").find()).isFalse();
+        assertThat(ROUNDING.matcher("java.math.RoundingMode.HALF_UP").find()).isTrue();
+        assertThat(ROUNDING.matcher("import static java.math.RoundingMode.*;").find()).isTrue();
     }
 
     private static List<Path> listFiles(Path root, String suffix) throws IOException {
