@@ -22,6 +22,22 @@ public enum ErrorCode {
     SEASON_LIMIT,
     /** 아직 진행하지 않은 턴이다(P0-30 가격 조회, P0-35). */
     TURN_NOT_REACHED,
+    /** 진행 중이 아닌 시즌에는 주문할 수 없다(P0-31). */
+    SEASON_NOT_ACTIVE,
+    /** 주문이 본 턴과 시즌의 현재 턴이 다르다(P0-31). */
+    TURN_MISMATCH,
+    /** 최신 원장의 거래 후 잔액과 계좌 잔액이 다르다 — 원장 사슬이 깨졌다(P0-31). */
+    LEDGER_MISMATCH,
+    /** 보유 수량과 열린 라인업 구간이 서로 맞지 않는다(P0-31). */
+    LINEUP_MISMATCH,
+    /** 현재 턴 가격 목록(풀)에 없는 종목이다(P0-31). */
+    ASSET_NOT_IN_POOL,
+    /** 대금과 수수료를 낼 현금이 모자란다(P0-31). */
+    INSUFFICIENT_CASH,
+    /** 열린 구간의 선언 포지션과 요청의 선언이 다르다(P0-31). */
+    POSITION_CONFLICT,
+    /** 새로 여는 보유인데 선언 포지션이 없다(P0-31). */
+    POSITION_REQUIRED,
     /** 현재 회원을 알 수 없다 — 운영에서 고정 회원이 꺼져 있고 인증(SEC)이 아직 없을 때. */
     MEMBER_UNAVAILABLE
 }
