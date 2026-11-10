@@ -51,10 +51,11 @@ tasks.named('test') {
             includeTags 'sql-golden'
         }
     }
-    // 시험이 실행 중에 읽는 SQL·사건 파일과 표본 위치가 바뀌면 다시 돌린다 (UP-TO-DATE 로 건너뛰지 않게)
+    // 시험이 실행 중에 읽는 SQL·사건 파일·계약 문서와 표본 위치가 바뀌면 다시 돌린다 (UP-TO-DATE 로 건너뛰지 않게)
     inputs.dir('db').withPropertyName('sqlScripts').withPathSensitivity(PathSensitivity.RELATIVE)
     inputs.dir('events').withPropertyName('eventFiles').withPathSensitivity(PathSensitivity.RELATIVE)
     inputs.dir('feed').withPropertyName('feedFiles').withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.file('docs/api/openapi.yaml').withPropertyName('openApiContract').withPathSensitivity(PathSensitivity.RELATIVE)
     def sampleDir = System.getenv('ANTLAB_GOLDEN_SAMPLE_DIR')
     inputs.property('goldenSampleDir', sampleDir ?: '')
     if (sampleDir) {
