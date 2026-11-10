@@ -1,5 +1,5 @@
 # 로컬 실습용 PostgreSQL 17 (Phase 0 SQL 실습 — db/README.md "실행 환경")
-# 시작: docker compose up -d        멈춤: docker compose stop
+# 시작: docker compose up -d        멈춤: docker compose stop     (db 만 켠다. api 는 profile api — 아래)
 # 접속: 이 저장소 루트에서 `export PGHOST=localhost PGPORT=5432 PGUSER=$USER` 뒤 psql -d antlab
 # 호스트에 게시하는 포트는 127.0.0.1에만 연다(다른 기기에서는 접속 불가). 바인딩을 바꾸지 않는다.
 # 같은 compose 네트워크의 다른 컨테이너는 게시와 무관하게 db:5432로 비밀번호 없이 접속한다 — 서비스를 더할 때 주의.
@@ -11,6 +11,11 @@
 # QA·시험은 소유자 DB를 건드리지 않도록 프로젝트 이름과 포트를 바꿔 띄운다:
 #   ANTLAB_DB_PORT=55432 docker compose -p antlab-qa up -d     (끝나면 docker compose -p antlab-qa down -v)
 #   이때 psql은 PGPORT=55432로 접속한다.
+# api 서비스(P0-24): 이미지는 루트 Dockerfile 에서 빌드한다(docs/DEPLOY.md §4.1). 기동·기존 볼륨 절차: db/README.md "API 컨테이너".
+#   api 는 profile api 라서 `docker compose up -d` 는 지금처럼 db 만 켠다(api 빌드·8080 점유 없음). api 는 --profile api 로 켠다.
+#   ANTLAB_DB_PORT=55432 ANTLAB_API_PORT=18080 docker compose --profile api -p antlab-qa up -d --build --wait
+#   (끝나면 docker compose --profile api -p antlab-qa down -v --rmi local — 정리에도 --profile api 를 붙인다). 컨테이너 안 JDBC 주소는 db:5432 로 고정이고 ANTLAB_DB_PORT 는 호스트 접속용이다.
+# 빈 볼륨으로 처음 시작할 때만 POSTGRES_DB(antlab_api)가 만들어진다. 이미 있는 볼륨에는 적용되지 않는다 — 절차는 db/README.md.
 # 데이터는 이름 붙은 볼륨 db-data(실제 이름 antlab_db-data)에 남는다.
 # 주의: docker compose down -v는 이 프로젝트의 볼륨을 지워 모든 데이터가 사라진다 — 꼭 필요할 때만 쓴다.
 name: antlab
@@ -20,7 +25,8 @@ services:
     image: postgres:17
     environment:
       POSTGRES_USER: ${USER:-antlab}
-      POSTGRES_DB: postgres
+      # 빈 볼륨 첫 시작 때 API 용 빈 DB 를 만든다(Flyway 가 스키마를 만든다). 실습 DB antlab 은 API 가 건드리지 않는다.
+      POSTGRES_DB: antlab_api
       POSTGRES_HOST_AUTH_METHOD: trust
       TZ: Asia/Seoul
       PGTZ: Asia/Seoul
@@ -33,7 +39,54 @@ services:
       interval: 5s
       timeout: 3s
       retries: 20
+    networks:
+      - backend
     restart: unless-stopped
+
+  api:
+    profiles: [api]
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      # 컨테이너 안에서는 서비스 이름 db 와 컨테이너 포트 5432 로 붙는다(호스트 게시 포트와 무관).
+      ANTLAB_DB_URL: jdbc:postgresql://db:5432/antlab_api
+      ANTLAB_DB_USER: ${ANTLAB_DB_USER:-${USER:-antlab}}
+      # 로컬 trust 에서는 비밀번호가 필요 없다. 운영 비밀번호는 secrets(/run/secrets) 로 준다 — env_file 로 .env 전체를 넘기지 않는다.
+    ports:
+      - "127.0.0.1:${ANTLAB_API_PORT:-8080}:8080"
+    networks:
+      - backend
+      - edge
+      - egress
+    healthcheck:
+      # readiness: 앱이 요청을 받을 수 있고 DB 가 붙어 있는가. 표본 적재 완료를 뜻하지 않는다.
+      test:
+        - CMD
+        - curl
+        - --fail
+        - --silent
+        - --show-error
+        - --connect-timeout
+        - "2"
+        - --max-time
+        - "35"
+        - http://127.0.0.1:8080/actuator/health/readiness
+      interval: 10s
+      timeout: 40s
+      retries: 3
+      start_period: 60s
+    # Spring 의 종료 대기(20s)보다 길게
+    stop_grace_period: 30s
+    restart: unless-stopped
+
+networks:
+  # 로컬은 일반 bridge. internal: true 는 운영 덮어쓰기(compose.prod.yaml)에서만 건다(docs/DEPLOY.md §5).
+  backend:
+  edge:
+  egress:
 
 volumes:
   db-data:

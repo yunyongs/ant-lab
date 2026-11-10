@@ -52,4 +52,17 @@ class ProfileDocumentTest {
         assertThat(prod.getProperty("springdoc.swagger-ui.enabled")).isEqualTo(false);
         assertThat(prod.getProperty("server.forward-headers-strategy")).isEqualTo("framework");
     }
+
+    @Test
+    void prod_문서는_DB_주소에_기본값이_없고_비밀_디렉터리를_읽는다() throws IOException {
+        PropertySource<?> prod = byProfile(documents(), "prod");
+        assertThat(prod.getProperty("spring.datasource.url")).isEqualTo("${ANTLAB_DB_URL}");
+        assertThat(prod.getProperty("spring.config.import")).isEqualTo("optional:configtree:/run/secrets/");
+    }
+
+    @Test
+    void 공통_문서의_DB_주소_기본값은_localhost_antlab_api다() throws IOException {
+        assertThat(documents().get(0).getProperty("spring.datasource.url"))
+                .isEqualTo("${ANTLAB_DB_URL:jdbc:postgresql://localhost:5432/antlab_api}");
+    }
 }

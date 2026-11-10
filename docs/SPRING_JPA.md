@@ -52,8 +52,8 @@ Flyway는 Spring 챕터의 범위를 조금 넘는 도구다. 처음에는 `V1__
 | 금액(현금, 대금, 평가액, 원장) | `BigDecimal` | `NUMERIC(19,4)` | `@Column(precision = 19, scale = 4)` | `double`/`float` 금지. 원 단위 정수 값은 DDL의 CHECK(`col = ROUND(col, 0)`, `erd.md` D1)가 지킨다 |
 | 수익률(월 수익률, 환율 변화) | `BigDecimal` | `NUMERIC(12,8)` | `@Column(precision = 12, scale = 8)` | 저장은 정확한 소수. 엔진 계산(경로 생성·예상 분포)은 메모리에서 `double`로 하고, 가격으로 바꾸는 곳은 `MoneyMath` 한 군데 |
 | 수량(주) | `int` | `INTEGER` | | 정수 주. `erd.md`의 정의를 따른다(₩30,000,000으로 1,000원짜리를 사도 30,000주) |
-| 비중·확률(포메이션 비중, 국면 확률) | `int`(비중, 0–100) / `BigDecimal(5,4)`(확률) | `SMALLINT` / `NUMERIC(5,4)` | | 포메이션은 정수 퍼센트, 합 100 CHECK |
-| 구분값(주문 방향·상태, 원장 유형, 포지션, 사건 범주) | `enum` | `VARCHAR(n)` + CHECK, 폭과 값 목록은 `erd.md`(예: `side VARCHAR(4)` `BUY`/`SELL`, 원장 `type` `DEPOSIT`/`BUY`/`SELL`/`FEE`/`TAX`/`ADJUSTMENT`). PostgreSQL의 기본 비교는 대소문자·악센트·뒤 공백을 구분하므로 별도 콜레이션이 필요 없다 | `@Enumerated(EnumType.STRING)` | `ORDINAL`(숫자) 금지 — enum 순서를 바꾸면 데이터가 뒤틀린다. DDL의 CHECK 목록과 enum 상수는 **글자 단위로 같아야** 하며 테스트가 대조한다(§9). `@Column(length = n)`을 ERD와 같게 — `validate`가 길이도 검사한다 |
+| 비중·확률(포메이션 비중, 국면 확률) | `Integer` + `@JdbcTypeCode(SqlTypes.SMALLINT)`(비중, 0–100) / `BigDecimal(5,4)`(확률) | `SMALLINT` / `NUMERIC(5,4)` | | 포메이션은 정수 퍼센트이고 합은 100 CHECK로 검증한다. 모든 `SMALLINT` 열에 같은 규칙을 적용한다 — `@JdbcTypeCode` 없이 `Integer`/`int`를 쓰면 `validate`가 `int2`와 `integer`의 불일치로 시작을 거부한다(P0-27 실측) |
+| 구분값(주문 방향·상태, 원장 유형, 포지션, 사건 범주) | `enum` | `VARCHAR(n)` + CHECK, 길이와 값 목록은 `erd.md`에 따른다(예: `side VARCHAR(4)` `BUY`/`SELL`, 원장 `type` `DEPOSIT`/`BUY`/`SELL`/`FEE`/`TAX`/`ADJUSTMENT`). PostgreSQL의 기본 비교는 대소문자·악센트·뒤 공백을 구분하므로 별도 콜레이션이 필요 없다 | `@Enumerated(EnumType.STRING)` | `ORDINAL`(숫자) 금지 — enum 순서를 바꾸면 데이터가 뒤틀린다. DDL의 CHECK 목록과 enum 상수는 **글자 단위로 같아야** 하며 테스트가 대조한다(§9). `@Column(length = n)`은 ERD와 같게 설정한다 — Hibernate 7.4의 `validate`는 형 계열만 보고 길이·정밀도·NULL 허용은 보지 않으므로(P0-27 실측) 이 빈칸은 `ColumnContractTest`가 `information_schema`와 대조해 메운다 |
 | 날짜 | `LocalDate` | `DATE` | | 달(`month_start`)·기준일·상장일 |
 | 시각 | `Instant` | `TIMESTAMPTZ` (P0-03 결정 1, 2026-11-05) | | 저장값은 시간대와 무관한 순간. 표시·"오늘" 조회는 `Asia/Seoul`로 변환(DTO 또는 `AT TIME ZONE`). DB `timezone = 'Asia/Seoul'` |
 | 비율(수익률, 환율 변화, 참여율, 변동성, 낙폭, z-score, 강도) | `BigDecimal` | `NUMERIC(12,8)` | `@Column(precision = 12, scale = 8)` | 금액이 아닌 비율은 전부 이 하나(P0-03 기본값 2). 확률만 `NUMERIC(5,4)` |
@@ -203,12 +203,12 @@ TurnService.advance(seasonId, expectedTurnNo)
 
 | 수준 | 도구 | 대상 |
 |---|---|---|
-| 매핑 | `@DataJpaTest` + **실제 PostgreSQL**(Phase 0 API는 Testcontainers 컨테이너, 아래) | 엔티티 ↔ DDL 일치(`validate`가 시작 시점에 검사), enum ↔ CHECK 목록 글자 단위 대조, 불변 엔티티 UPDATE 무시 |
+| 매핑 | `@JpaMappingTest`(= `@DataJpaTest` + 실제 PostgreSQL, Phase 0 API는 Testcontainers 컨테이너, 아래) | 엔티티 ↔ DDL 일치(`validate`는 형 계열만 → `ColumnContractTest`가 길이·정밀도·NULL까지), enum ↔ CHECK 목록 글자 단위 대조(`EnumCheckContractTest`), 불변 엔티티 변경 무시(`ImmutableEntityTest`), 저장소 모양(`ReadOnlyRepositoryShapeTest`). 모든 `@Entity`를 훑으므로 엔티티를 추가하면 자동으로 포함된다 |
 | 서비스 | `@SpringBootTest` + 실제 PostgreSQL, 테스트마다 `@Transactional` 롤백 | 주문 체결 전부/전무, 턴 전환, 대사 항등식(골든에서는 P0-25 하네스가 띄우는 일회용 컨테이너에서 `db/20`–`26`으로 만든 연습 시즌을 API로 재생해 행 단위로 비교 — PLAN §13 2026-11-09) |
 | 동시성 | 스레드 2개로 같은 시즌에 동시 주문·턴 전환 | 둘 중 하나만 성공하거나 순서대로 처리되고, 끝나면 항등식 성립 |
 | 엔진 대조 | Java 부트스트랩 vs Phase 0 손 계산 | 같은 시드 → 같은 경로, 같은 수익률 → 같은 가격(원 단위) |
 | 금액 계산 | `MoneyMathTest` + `MoneyMathSqlParityTest` | 순수 Java 시험과 PostgreSQL 17 임시 연결의 P0-15 순수 함수 대조를 분리해 실행 |
-| 계약 | `@SpringBootTest` | springdoc이 낸 `/v3/api-docs`와 저장소 `docs/api/openapi.yaml`을 경로·필드·타입·필수·응답 코드로 대조 — 코드와 yaml이 갈라지면 실패(도구와 정규화는 첫 엔드포인트 기능 P0-27 계획에서 정함) |
+| 계약 | `@SpringBootTest` | springdoc이 낸 `/v3/api-docs`와 저장소 `docs/api/openapi.yaml`을 경로·필드·타입·필수·응답 코드로 대조한다 — 코드와 yaml이 갈라지면 실패(`OpenApiContractTest`). 도구는 자체 정규화 비교기(`OpenApiNormalizer`·`OpenApiDiff`, 새 라이브러리 없음)이며 비교기 자체는 `OpenApiNormalizerTest`가 검증한다. `/api/v1/**` 운영의 operationId·parameters·requestBody·responses(상태 코드와 미디어 형식), 스키마의 type·format·enum·required·properties·items·제약, 닿는 컴포넌트 이름(`$ref`는 이름으로)을 비교한다. 설명·예시·태그·info·속성 순서는 무시한다. 응답 코드는 운영 고유의 성공·도메인 오류만 적는다 — springdoc이 `@RestControllerAdvice`의 일반 오류(400·404·405…)를 운영마다 붙이지 않음을 확인했다. 노출 상한은 `ExposureContractTest`가 맡는다(§4.6) |
 | API | `MockMvc` | 검증 오류 400, 턴 불일치 409, 잔액 부족 422(초안), 비공개 컬럼이 응답에 없음 |
 
 - **H2를 쓰지 않는다.** CHECK·`NUMERIC` 반올림·`FOR UPDATE`·문자열 비교의 동작이 PostgreSQL과 달라서, 시험이 통과해도 믿을 수 없다. **Phase 0 API(2026-11-09 결정, PLAN §13)는 로컬 시험부터 Testcontainers PostgreSQL 17**을 쓴다. 이는 처음에 적은 compose `db` 서비스의 `antlab_test` 안(`db/README.md`의 데이터베이스 생성 블록)을 바꾼 것이다. 이렇게 하면 시험이 소유자의 컨테이너를 건드리지 않는다(DEPLOY §3.2 격리 규칙을 저절로 지킨다). 시험 실행마다 빈 DB에서 시작하고, M1 CI와 같은 방식으로 실행한다. 시험은 로컬에서 실행하고 CI(M1)가 같은 시험을 합성 표본으로 돌린다. 이 DB에는 Flyway 파일을 적용한다. SQL 골든 시험(P0-25)은 하네스가 띄우는 일회용 컨테이너에서 `db/` 스크립트를 `psql`로 실행해 Java 결과와 행 단위로 비교한다.
@@ -266,20 +266,20 @@ spring.flyway:
 # P0-23 이후: antlab.engine.*(projection-paths: 2000, block-mean-length: 6)
 ```
 
-프로필은 `application.yml` 안의 `---` 문서 셋이다. 공통 프로필에는 프로필 없이 떠도 안전한 값(SQL 로그·명세 꺼짐)을 둔다. `local`은 SQL 로그와 명세·Swagger UI를 켜며 `bootRun`·`bootTestRun`이 기본으로 준다. `prod`는 OPS 설정이며 springdoc을 끄고 `server.forward-headers-strategy: framework`을 사용한다. 시험 프로필 `test`만 `src/test/resources/application-test.yml`에 있으므로 jar에 들어가지 않는다(Testcontainers, 명세만 켬; Flyway clean은 새 컨테이너 원칙상 쓰지 않는다). `local` 값을 `application-local.yml` 파일로 두지 않는 까닭은 `.gitignore`가 그 파일을 무시하기 때문이다(소유자 개인 덮어쓰기는 `config/application-local.yml`). `prod`는 고정 회원 구현이 켜져 있으면 시작을 거부한다(M4 JWT 전까지, PLAN §13 2026-11-09). 비밀값(DB 비밀번호)은 환경 변수로만 둔다.
+프로필은 `application.yml` 안의 `---` 문서 셋으로 구성된다. 공통 프로필에는 프로필을 지정하지 않아도 안전한 값(SQL 로그·명세 꺼짐)을 둔다. `local`은 SQL 로그와 명세·Swagger UI를 켜며 `bootRun`·`bootTestRun`에서 기본으로 사용한다. `prod`는 OPS 설정이며 springdoc을 끄고 `server.forward-headers-strategy: framework`을 사용한다. 시험 프로필 `test`만 `src/test/resources/application-test.yml`에 있으므로 jar에 포함되지 않는다(Testcontainers, 명세만 켬; Flyway clean은 새 컨테이너 원칙상 쓰지 않는다). `local` 값을 `application-local.yml` 파일로 두지 않는 까닭은 `.gitignore`가 그 파일을 무시하기 때문이다(소유자 개인 덮어쓰기는 `config/application-local.yml`). `prod`는 고정 회원 구현이 켜져 있으면 시작을 거부한다(M4 JWT 전까지, PLAN §13 2026-11-09). 비밀값(DB 비밀번호)은 환경 변수나 `/run/secrets` 파일로만 둔다. `prod`의 `spring.datasource.url`은 `${ANTLAB_DB_URL}`로 **기본값이 없다**(빠뜨리면 localhost로 가지 않고 기동에 실패 — P0-24, `ProdProfileConfigTest`). `prod`는 `spring.config.import: optional:configtree:/run/secrets/`도 가진다: 파일 `/run/secrets/spring.datasource.password`의 내용이 속성 `spring.datasource.password`가 되고(디렉터리가 없어도 기동), 같은 속성을 환경 변수 `SPRING_DATASOURCE_PASSWORD`로도 주면 환경 변수가 이긴다 — 운영에서는 한 가지로만 준다. 운영 secrets의 실제 사용은 OPS다.
 
 ### 10.1 컨테이너에서 실행 (Phase 0 API 체크리스트 초안)
 
 Spring 프로젝트를 만들 때(Phase 0 API, P0-22·P0-24) 아래를 지킨다. 같은 이미지가 로컬·CI·운영에서 돌고, 운영 값은 환경 변수와 `/run/secrets`가 정한다. 구조 전체는 [DEPLOY.md](DEPLOY.md).
 
-1. `application.yml`은 `${ANTLAB_…:기본값}` 자리표시자와 로컬 기본값만 두고, 운영 값은 환경 변수·configtree(`spring.config.import=optional:configtree:/run/secrets/`, 세부 **확인 필요**)로 준다. `application-prod.yml`에는 비밀값을 쓰지 않는다.
+1. `application.yml`은 `${ANTLAB_…:기본값}` 자리표시자와 로컬 기본값만 두고, 운영 값은 환경 변수·configtree(`prod`의 `spring.config.import=optional:configtree:/run/secrets/`, 파일 이름이 속성 이름 — 위 §10, P0-24에서 임시 파일로 매핑·우선순위를 확인)로 준다. `application-prod.yml`에는 비밀값을 쓰지 않는다.
 2. 프로필은 위의 `local`·`test`·`prod` 셋이고, 컨테이너에서는 `SPRING_PROFILES_ACTIVE=prod`다. `prod`는 SQL 로그를 끄고 `open-in-view: false`를 유지한다.
-3. Actuator는 `health`만 노출하고 probes(liveness·readiness)를 `management.endpoint.health.probes.enabled=true`로 **명시해** 켠다(3.x는 Kubernetes 밖에서 자동으로 켜지지 않는다 — [DEPLOY.md](DEPLOY.md) §8. 4.1.2 문서는 자동 켜짐이지만 명시해서 고정한다 — 명시 때문에 자동 켜짐 여부는 독립적으로 확인하지 못했고, `ActuatorProbesTest`가 liveness·readiness 200을 확인한다). `info`에 git SHA를 넣는다.
+3. Actuator는 `health`만 노출하고 probes(liveness·readiness)를 `management.endpoint.health.probes.enabled=true`로 **명시해** 켠다(3.x는 Kubernetes 밖에서 자동으로 켜지지 않는다 — [DEPLOY.md](DEPLOY.md) §8. 4.1.2 문서는 자동으로 켜진다고 설명하지만, 이 설정을 명시해 동작을 고정한다 — 명시했기 때문에 자동 켜짐 여부를 독립적으로 확인하지는 못했고, `ActuatorProbesTest`가 liveness·readiness 200을 확인한다). `info`는 HTTP로 열지 않고, git SHA는 OPS의 이미지 태그(SHA)·metadata로 추적한다([DEPLOY.md](DEPLOY.md) §8).
 4. 그레이스풀 셧다운: 4.1.2는 기본 `graceful`이고(설정 메타데이터 확인, `server.shutdown: graceful`도 명시) `spring.lifecycle.timeout-per-shutdown-phase=20s`로 둔다(`SettingsAssertionTest`).
 5. 프록시 뒤: `server.forward-headers-strategy=framework`(Caddy의 `X-Forwarded-*`로 HTTPS·원래 IP 인식 — 속성 이름은 4.1.2 설정 메타데이터로 확인했고 `prod` 문서에 있다).
 6. Flyway는 시작 때 적용하고 `ddl-auto: validate`를 유지한다.
 7. 로그는 stdout만, 키·토큰은 마스킹한다.
-8. Dockerfile(멀티 스테이지)·`.dockerignore`를 api 첫 PR에서 만들고, `compose.yaml`에 `api`(`build: .`)를 더한다. CI는 이미지 **빌드만** 하고 푸시하지 않는다.
+8. Dockerfile(멀티 스테이지)·`.dockerignore`와 `compose.yaml`의 `api`(`build: .`)는 P0-24에서 만들었다(루트 `Dockerfile` — 펼친 bootJar를 의존성·loader·앱 레이어로 나눠 복사하고, 비루트 UID 10001로 실행하며, exec `ENTRYPOINT`로 `JarLauncher`를 사용한다). CI는 이미지 **빌드만** 하고 푸시하지 않는다(M1).
 9. Spring Boot 판은 **4.1.x(Java 21)로 정했다**(소유자 Gate 0, 2026-11-09 — 커리큘럼 프로젝트가 4.1.2, PLAN §10). 이 문서의 3.x 전제는 위 3·4번에서 4.1.2 기준으로 바꿨다. 스타터 이름(`spring-boot-starter-webmvc` 등)과 직렬화 라이브러리(Jackson 3, 패키지 `tools.jackson`, `JsonMapperBuilderCustomizer`는 `org.springframework.boot.jackson.autoconfigure`)는 P0-22에서 실행으로 확인했다.
 10. API 계약: 기능마다 `docs/api/openapi.yaml`을 계획 단계에서 먼저 쓰고(§2), springdoc 명세와 yaml을 대조하는 시험(§9)을 통과시킨다. springdoc은 3.2.0(Boot 4.1.x와 호환)이고 Swagger UI 경로는 `/swagger-ui.html`이다. 공통 문서에서 끄고 `local`에서만 켜며(시험은 명세만), `BigDecimal`은 `SpringDocUtils.getConfig().replaceWithSchema(...)`로 명세에서도 `type: string`으로 맞췄다(`JsonMoneyFormatTest`).
 
