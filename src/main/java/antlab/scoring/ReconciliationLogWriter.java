@@ -13,7 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
  * 수동 검사·턴 전환·SQL 이 한 번호 공간을 쓴다. 트랜잭션은 합류(REQUIRED)한다 — 바깥 트랜잭션이 없으면(롤백 뒤 기록) 새로 연다.
  *
  * <p>23505(유일 위반) 재시도는 옮기지 않는다: PostgreSQL 에서 유일 위반은 트랜잭션을 망가뜨려 같은 트랜잭션에서 다시 읽을 수 없고,
- * 모든 기록 경로가 같은 {@code season} 잠금 아래라 겹치지 않는다. 그래도 나면 예외가 그대로 올라간다.
+ * 모든 기록 경로가 같은 {@code season} 잠금 아래라 겹치지 않는다. 그래도 나면 예외가 그대로 올라간다. 롤백 뒤 기록 경로는 바깥 트랜잭션이 없어 `TurnFacade` 가 새 트랜잭션으로 최대 3번 다시 부른다.
  */
 @Service
 public class ReconciliationLogWriter {

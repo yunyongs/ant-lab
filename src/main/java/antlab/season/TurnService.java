@@ -25,7 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
  * <b>현재 턴 갱신은 대사·기록 뒤다</b>: 대사가 시작에 flush 를 하므로 앞에서 부르면 {@code current_turn_no = t+1} 이 대사 전에 DB 에 나가
  * 규칙 18(현재 턴 상한)의 판단이 SQL 과 갈린다. 가격 INSERT 와 턴 갱신이 같은 트랜잭션·시즌 락 아래라 "현재 턴인데 가격 행이 없다"는 상태는 생기지 않는다.
  * 계좌는 읽기만 한다(커밋 때 계좌 UPDATE 0건). 잠금은 season → cash_account 두 개뿐이다.
- * 대사 불일치를 롤백 <em>뒤</em> 새 트랜잭션에 기록하는 일은 P0-34 의 몫이다 — 여기서는 17행을 실은 예외를 던지고 끝난다.
+ * 대사 불일치를 롤백 <em>뒤</em> 새 트랜잭션에 기록하는 일은 {@code TurnFacade} 가 한다 — 여기서는 17행을 실은 예외를 던지고 끝난다.
  */
 @Service
 public class TurnService {
