@@ -859,7 +859,7 @@ default_formation: [10, 30, 30, 30]
 - [x] P0-22 Spring Boot 프로젝트 골격 — Gradle·프로필·Actuator·오류 응답·Testcontainers 시험 기반
 - [x] P0-23 Flyway 기준선 — 01–03 [스키마]를 V1–V3로, 동일성 시험, API DB와 표본 적재 절차
 - [x] P0-24 api 컨테이너 — Dockerfile·`.dockerignore`·compose `api`
-- [ ] P0-25 SQL 골든 하네스 — 시험 컨테이너 안에서 `db/` 스크립트 실행, 재생, 행 비교
+- [x] P0-25 SQL 골든 하네스 — 시험 컨테이너 안에서 `db/` 스크립트 실행, 재생, 행 비교
 - [x] P0-26 `MoneyMath` — 반올림이 일어나는 유일한 클래스
 - [ ] P0-27 역사·종목 풀 읽기 전용 매핑 + 종목 풀 조회 API
 - [ ] P0-28 시즌·계좌 매핑 — 14개 엔티티, 불변/가변, 잠금 메서드
