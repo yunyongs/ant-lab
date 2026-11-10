@@ -25,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
  * <b>현재 턴 갱신은 대사·기록 뒤다</b>: 대사가 시작에 flush 를 하므로 앞에서 부르면 {@code current_turn_no = t+1} 이 대사 전에 DB 에 나가
  * 규칙 18(현재 턴 상한)의 판단이 SQL 과 갈린다. 가격 INSERT 와 턴 갱신이 같은 트랜잭션·시즌 락 아래라 "현재 턴인데 가격 행이 없다"는 상태는 생기지 않는다.
  * 계좌는 읽기만 한다(커밋 때 계좌 UPDATE 0건). 잠금은 season → cash_account 두 개뿐이다.
+ * 응답은 {@link TurnResultAssembler} 가 만든다(턴 조회와 같은 조립 코드).
  * 대사 불일치를 롤백 <em>뒤</em> 새 트랜잭션에 기록하는 일은 {@code TurnFacade} 가 한다 — 여기서는 17행을 실은 예외를 던지고 끝난다.
  */
 @Service
@@ -105,9 +106,17 @@ public class TurnService {
         // 10. 전부 일치 — 같은 트랜잭션에 합류해 17행 기록
         logWriter.record(seasonId, next, results);
 
-        // 11. 현재 턴 +1, 마지막 턴이면 FINISHED (대사·기록 뒤)
+        // 11. 응답 입력 — 직전 총액은 한 번 읽는다(1문장). 현재 턴 갱신 전에 읽어 시즌 UPDATE 가 앞당겨 나가지 않게 한다.
+        BigDecimal previousTotal = next == 1 ? season.getInitialCash()
+                : turns.findTotalValueBySeasonIdAndTurnNo(seasonId, expectedTurnNo)
+                        .orElseThrow(() -> new IllegalStateException("직전 턴의 스냅샷이 없다"));
+
+        // 12. 현재 턴 +1, 마지막 턴이면 FINISHED (대사·기록 뒤)
         season.advanceTurn();
-        return TurnResultDto.of(season, turn);
+
+        // 13. 응답 — 조회와 같은 조립기. 목표 포메이션은 시즌의 현재 값이다: 전환 시점에는 모든 변경의 turn_no ≤ next-1 < next 라
+        //     마지막 변경의 after = 현재 포메이션이다(대사 규칙 15 가 같은 트랜잭션에서 확인).
+        return TurnResultAssembler.assemble(season, turn, previousTotal, season.getCurrentFormation());
     }
 
     private static DomainException seasonNotFound() {
