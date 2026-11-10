@@ -65,4 +65,12 @@ class ProfileDocumentTest {
         assertThat(documents().get(0).getProperty("spring.datasource.url"))
                 .isEqualTo("${ANTLAB_DB_URL:jdbc:postgresql://localhost:5432/antlab_api}");
     }
+
+    @Test
+    void 고정_회원은_공통에서_켜고_prod에서_끈다() throws IOException {
+        assertThat(documents().get(0).getProperty("antlab.single-member.enabled")).isEqualTo(true);
+        assertThat(byProfile(documents(), "prod").getProperty("antlab.single-member.enabled")).isEqualTo(false);
+        assertThat(documents().get(0).getProperty("antlab.single-member.email"))
+                .asString().contains("@example.invalid");
+    }
 }

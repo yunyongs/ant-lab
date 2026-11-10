@@ -38,6 +38,19 @@ antlab:
   pool:
     # 기준일 풀(PLAN §7 매년 1월 첫 거래일). 표본 = 2026-01-02(db/20_season_start.sql 설정 표와 같음)
     base-date: ${ANTLAB_POOL_BASE_DATE:2026-01-02}
+  # 새 시즌에 적는 설정(요청에서 받지 않는다). 요율은 PLAN §4.6, 환전 비용 0.40% 는 소유자 결정(2026-11-08).
+  # 기준일은 antlab.pool.base-date 를 그대로 쓴다. 표본 스냅샷 날짜 = db/sample/README 상태 줄(db/20 설정 표와 같음).
+  season:
+    initial-cash: 30000000
+    fee-rate-kr: 0.00015
+    fee-rate-us: 0.0025
+    fx-spread-rate: 0.0040
+    data-snapshot-date: 2026-11-07
+  # 인증(SEC) 전 임시 고정 회원. 이메일은 RFC 2606 예약 도메인(실제 주소 금지). prod 문서는 꺼 둔다.
+  single-member:
+    enabled: true
+    email: ${ANTLAB_SINGLE_MEMBER_EMAIL:player@example.invalid}
+    name: 감독
 
 # springdoc 은 설정이 없으면 켜진다(matchIfMissing). 공통에서 끄고 local 에서만 켠다.
 springdoc:
@@ -87,6 +100,10 @@ spring:
     url: ${ANTLAB_DB_URL}
 server:
   forward-headers-strategy: framework
+antlab:
+  single-member:
+    # 운영은 고정 회원을 쓰지 않는다. 켜면 기동 실패. 꺼진 동안 시즌 API 는 503(인증 SEC 전).
+    enabled: false
 springdoc:
   api-docs:
     enabled: false
