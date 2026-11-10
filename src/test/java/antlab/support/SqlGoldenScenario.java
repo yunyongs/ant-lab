@@ -46,36 +46,66 @@ public final class SqlGoldenScenario {
         return new ScriptStep("db/" + file + "_check.sql", Kind.CHECK, column, STEP_TIMEOUT);
     }
 
-    /** README 전체 순서. 선택인 검증도 여기서는 필수다. 22 수동 대사를 끼운다(로그가 쌓인다). */
+    /**
+     * db/README 「전체 순서」 표 S01–S37 과 같은 순서다(단계 번호는 주석). 선택인 검증도 여기서는 필수다.
+     * 22 수동 대사가 세 번 끼어 로그가 쌓인다(S21·S29·S34). 순서를 바꾸면 README 표도 같은 PR 에서 바꾼다.
+     */
     public static ScenarioPlan readmeRegression() {
         List<ScriptStep> steps = new ArrayList<>();
-        steps.add(run("01_schema_history"));
-        steps.add(check("01_schema_history", "p0_05_check"));
-        steps.add(run("02_schema_season"));
-        steps.add(check("02_schema_season", "p0_06_check"));
-        steps.add(run("03_schema_account"));
-        steps.add(check("03_schema_account", "p0_07_check"));
+        steps.add(run("01_schema_history"));                                   // S01
+        steps.add(check("01_schema_history", "p0_05_check"));                  // S02
+        steps.add(run("02_schema_season"));                                    // S03
+        steps.add(check("02_schema_season", "p0_06_check"));                   // S04
+        steps.add(run("03_schema_account"));                                   // S05
+        steps.add(check("03_schema_account", "p0_07_check"));                  // S06
         // 01–03 검증은 표본 적재 전에 끝낸다 (빈 테이블 전제)
-        steps.add(run("10_load_sample"));
-        steps.add(check("10_load_sample", "p0_08_check"));
-        steps.add(run("11_load_events"));
-        steps.add(check("11_load_events", "p0_09_check"));
-        steps.add(run("12_calc_position"));
-        steps.add(check("12_calc_position", "p0_10_check"));
-        steps.add(run("13_calc_attention"));
-        steps.add(check("13_calc_attention", "p0_11_check"));
-        steps.add(run("14_stats_calendar"));
-        steps.add(check("14_stats_calendar", "p0_12_check"));
-        steps.add(run("20_season_start"));
+        steps.add(run("10_load_sample"));                                      // S07
+        steps.add(check("10_load_sample", "p0_08_check"));                     // S08
+        steps.add(run("11_load_events"));                                      // S09
+        steps.add(check("11_load_events", "p0_09_check"));                     // S10
+        steps.add(run("12_calc_position"));                                    // S11
+        steps.add(check("12_calc_position", "p0_10_check"));                   // S12
+        steps.add(run("13_calc_attention"));                                   // S13
+        steps.add(check("13_calc_attention", "p0_11_check"));                  // S14
+        steps.add(run("14_stats_calendar"));                                   // S15
+        steps.add(check("14_stats_calendar", "p0_12_check"));                  // S16
+        steps.add(run("20_season_start"));                                     // S17
+        steps.add(check("20_season_start", "p0_14_check"));                    // S18
+        steps.add(run("21_team_buy"));                                         // S19
+        steps.add(check("21_team_buy", "p0_15_check"));                        // S20
+        steps.add(run("22_reconcile_season"));                                 // S21
+        steps.add(check("22_reconcile_season", "p0_16_check"));                // S22
+        for (int i = 0; i < 5; i++) {
+            steps.add(run("23_turn_advance"));                                 // S23 × 5
+        }
+        steps.add(check("23_turn_advance", "p0_17_check"));                    // S24
+        steps.add(run("24_turn_feed"));                                        // S25
+        steps.add(check("24_turn_feed", "p0_18_check"));                       // S26
+        steps.add(run("25_trade_formation"));                                  // S27 (현재 턴 = 5)
+        steps.add(check("25_trade_formation", "p0_19_check"));                 // S28
+        // S29 턴 중간 점검 (23 검증은 범위 밖이라 넣지 않는다)
         steps.add(check("20_season_start", "p0_14_check"));
+        steps.add(check("21_team_buy", "p0_15_check"));
+        steps.add(check("22_reconcile_season", "p0_16_check"));
+        steps.add(check("24_turn_feed", "p0_18_check"));
+        steps.add(run("22_reconcile_season"));
+        steps.add(check("26_season_report", "p0_20_check"));                   // S30 (잠정)
+        for (int i = 0; i < PATH_LENGTH - 5; i++) {
+            steps.add(run("23_turn_advance"));                                 // S31 × 5 (FINISHED)
+        }
+        steps.add(check("23_turn_advance", "p0_17_check"));                    // S32
+        steps.add(check("24_turn_feed", "p0_18_check"));
+        steps.add(check("25_trade_formation", "p0_19_check"));
+        steps.add(run("20_season_start"));                                     // S33 끝난 뒤 재실행(새 행 없음, "이미 끝났다" 종료 0)
         steps.add(run("21_team_buy"));
+        steps.add(run("23_turn_advance"));
+        steps.add(check("20_season_start", "p0_14_check"));                    // S34
         steps.add(check("21_team_buy", "p0_15_check"));
         steps.add(run("22_reconcile_season"));
         steps.add(check("22_reconcile_season", "p0_16_check"));
-        for (int i = 0; i < PATH_LENGTH; i++) {
-            steps.add(run("23_turn_advance"));
-        }
-        steps.add(check("23_turn_advance", "p0_17_check"));
+        steps.add(run("26_season_report"));                                    // S35
+        steps.add(check("26_season_report", "p0_20_check"));                   // S36
+        steps.add(check("90_full_run", "p0_21_check"));                        // S37 최종 판정
         return new ScenarioPlan("README_REGRESSION", List.copyOf(steps));
     }
 
