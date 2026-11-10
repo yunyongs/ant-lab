@@ -23,12 +23,15 @@
 |---|---|---|---|---|---|---|---|
 | `db` | 로컬 `postgres:17`, 운영은 `postgres:17.x`로 고정. AI 단계에 pgvector 이미지(`pgvector/pgvector:pg17` 후보 — arm64 태그 **확인 필요**) | Phase 0(지금) | `backend` | 로컬 `127.0.0.1:${ANTLAB_DB_PORT:-5432}`, 운영 없음(`backend`가 internal이라 게시되지 않는다 — §5) | `db-data` | `pg_isready` | 항상 |
 | `api` | `ghcr.io/yunyongs/antlab-api` (Spring Boot 4.1.x, Java 21) | Phase 0 (P0-24) | `backend`, `edge`, `egress` | 로컬 `127.0.0.1:${ANTLAB_API_PORT:-8080}`, 운영 없음 | 없음(무상태) | `GET /actuator/health/readiness` | 로컬: profile `api`(`--profile api`를 명시해야 켜짐) · 운영: 항상 |
+| `prometheus` | `prom/prometheus`(이미지 판은 MON에서 정한다, arm64 **확인 필요**) | MON | `backend` | 로컬 `127.0.0.1:${ANTLAB_PROMETHEUS_PORT:-9090}`(개발만), 운영 없음 | `prometheus-data` | `GET /-/ready` | profile `monitoring` |
+| `grafana` | `grafana/grafana`(이미지 판은 MON에서 정한다, arm64 **확인 필요**) | MON | `backend` | 로컬 `127.0.0.1:${ANTLAB_GRAFANA_PORT:-3000}`, 운영 없음(OPS에서 Caddy 경로 뒤에 두고 인증을 적용한다) | `grafana-data`(대시보드·데이터 원천은 저장소 provisioning 파일) | `GET /api/health` | profile `monitoring` |
 | `engine` | `ghcr.io/yunyongs/antlab-engine` (FastAPI, `python:3.13-slim` 기반) | M2 | `backend`만 | 로컬 `127.0.0.1:8000`(개발만), 운영 없음 | 없음 | `GET /healthz` | 항상(M2부터) |
 | `proxy` | `ghcr.io/yunyongs/antlab-proxy` (`caddy:2` + React 정적 빌드 `/srv`) | APP(로컬은 선택), OPS | `edge` | 운영 `80`, `443`(유일한 외부 포트) | `caddy-data`, `caddy-config` | Caddy 관리 API 또는 `GET /`(방법 **확인 필요**) | 항상(운영) |
 | `agent-runner` | AG-02에서 정함(언어 미정) | AG-02 | `egress`(api 호출 + OpenRouter) | 없음 | 없음(기록은 api가 DB에) | 프로세스 생존 | profile `agents` |
 | `n8n` | `n8nio/n8n`(arm64 **확인 필요**) | 선택(EXT 이후) | `edge`(+`egress`) | 없음(Caddy 경로 뒤, 인증 필수) | `n8n-data` | `GET /healthz`(**확인 필요**) | profile `n8n` |
 | `ollama` | `ollama/ollama` | 선택, **로컬 전용** | `backend` | 없음 | `ollama-models` | — | profile `ollama`(VM에 올리지 않음 — §10.2) |
 
+- 모니터링(MON, 2026-11-10): `api`는 Actuator `prometheus` 끝점을 `backend` 네트워크 안에서만 제공하고(외부 포트로 열지 않는다), `prometheus`가 이를 수집한다. `grafana`의 관리자 비밀번호는 비밀값으로 다룬다(§9). 로그 수집(Loki)과 경보는 OPS에서 정한다.
 - 웹(React)은 **별도 컨테이너를 두지 않는다.** CI에서 `vite build` → 결과를 Caddy 이미지 `/srv`에 굽고 Caddy가 `file_server`로 준다. 데스크탑(Tauri)·모바일(Expo)은 서버 배포 대상이 아니다(같은 REST API를 `https://{도메인}/api`로 부른다, PLAN §10). 대안 — 웹을 `nginx` 컨테이너로 따로: 컨테이너와 메모리가 늘고 TLS와 정적 파일을 Caddy 하나로 하는 이점이 없어 택하지 않았다.
 - Phase 0–M1의 Java 적재·수집기 잡은 `api` 프로세스 안의 `@Scheduled`로 둔다(MACRO_ETF §6.2·부록 A.3 "Airflow 과함" 유지). 별도 워커 컨테이너는 만들지 않는다.
 - `tools/fetch`(P0-08)는 **소유자 기기 전용 CLI**로 남는다 — 컨테이너로 만들지 않는다(KIS 실전 키를 서버에 두지 않음, M1 수집기는 Java, PLAN §11).
