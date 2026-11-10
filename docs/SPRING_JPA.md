@@ -52,8 +52,8 @@ Flyway는 Spring 챕터의 범위를 조금 넘는 도구다. 처음에는 `V1__
 | 금액(현금, 대금, 평가액, 원장) | `BigDecimal` | `NUMERIC(19,4)` | `@Column(precision = 19, scale = 4)` | `double`/`float` 금지. 원 단위 정수 값은 DDL의 CHECK(`col = ROUND(col, 0)`, `erd.md` D1)가 지킨다 |
 | 수익률(월 수익률, 환율 변화) | `BigDecimal` | `NUMERIC(12,8)` | `@Column(precision = 12, scale = 8)` | 저장은 정확한 소수. 엔진 계산(경로 생성·예상 분포)은 메모리에서 `double`로 하고, 가격으로 바꾸는 곳은 `MoneyMath` 한 군데 |
 | 수량(주) | `int` | `INTEGER` | | 정수 주. `erd.md`의 정의를 따른다(₩30,000,000으로 1,000원짜리를 사도 30,000주) |
-| 비중·확률(포메이션 비중, 국면 확률) | `int`(비중, 0–100) / `BigDecimal(5,4)`(확률) | `SMALLINT` / `NUMERIC(5,4)` | | 포메이션은 정수 퍼센트, 합 100 CHECK |
-| 구분값(주문 방향·상태, 원장 유형, 포지션, 사건 범주) | `enum` | `VARCHAR(n)` + CHECK, 폭과 값 목록은 `erd.md`(예: `side VARCHAR(4)` `BUY`/`SELL`, 원장 `type` `DEPOSIT`/`BUY`/`SELL`/`FEE`/`TAX`/`ADJUSTMENT`). PostgreSQL의 기본 비교는 대소문자·악센트·뒤 공백을 구분하므로 별도 콜레이션이 필요 없다 | `@Enumerated(EnumType.STRING)` | `ORDINAL`(숫자) 금지 — enum 순서를 바꾸면 데이터가 뒤틀린다. DDL의 CHECK 목록과 enum 상수는 **글자 단위로 같아야** 하며 테스트가 대조한다(§9). `@Column(length = n)`을 ERD와 같게 — `validate`가 길이도 검사한다 |
+| 비중·확률(포메이션 비중, 국면 확률) | `Integer` + `@JdbcTypeCode(SqlTypes.SMALLINT)`(비중, 0–100) / `BigDecimal(5,4)`(확률) | `SMALLINT` / `NUMERIC(5,4)` | | 포메이션은 정수 퍼센트이고 합은 100 CHECK로 검증한다. 모든 `SMALLINT` 열에 같은 규칙을 적용한다 — `@JdbcTypeCode` 없이 `Integer`/`int`를 쓰면 `validate`가 `int2`와 `integer`의 불일치로 시작을 거부한다(P0-27 실측) |
+| 구분값(주문 방향·상태, 원장 유형, 포지션, 사건 범주) | `enum` | `VARCHAR(n)` + CHECK, 길이와 값 목록은 `erd.md`에 따른다(예: `side VARCHAR(4)` `BUY`/`SELL`, 원장 `type` `DEPOSIT`/`BUY`/`SELL`/`FEE`/`TAX`/`ADJUSTMENT`). PostgreSQL의 기본 비교는 대소문자·악센트·뒤 공백을 구분하므로 별도 콜레이션이 필요 없다 | `@Enumerated(EnumType.STRING)` | `ORDINAL`(숫자) 금지 — enum 순서를 바꾸면 데이터가 뒤틀린다. DDL의 CHECK 목록과 enum 상수는 **글자 단위로 같아야** 하며 테스트가 대조한다(§9). `@Column(length = n)`은 ERD와 같게 설정한다 — Hibernate 7.4의 `validate`는 형 계열만 보고 길이·정밀도·NULL 허용은 보지 않으므로(P0-27 실측) 이 빈칸은 `ColumnContractTest`가 `information_schema`와 대조해 메운다 |
 | 날짜 | `LocalDate` | `DATE` | | 달(`month_start`)·기준일·상장일 |
 | 시각 | `Instant` | `TIMESTAMPTZ` (P0-03 결정 1, 2026-11-05) | | 저장값은 시간대와 무관한 순간. 표시·"오늘" 조회는 `Asia/Seoul`로 변환(DTO 또는 `AT TIME ZONE`). DB `timezone = 'Asia/Seoul'` |
 | 비율(수익률, 환율 변화, 참여율, 변동성, 낙폭, z-score, 강도) | `BigDecimal` | `NUMERIC(12,8)` | `@Column(precision = 12, scale = 8)` | 금액이 아닌 비율은 전부 이 하나(P0-03 기본값 2). 확률만 `NUMERIC(5,4)` |
@@ -203,12 +203,12 @@ TurnService.advance(seasonId, expectedTurnNo)
 
 | 수준 | 도구 | 대상 |
 |---|---|---|
-| 매핑 | `@DataJpaTest` + **실제 PostgreSQL**(Phase 0 API는 Testcontainers 컨테이너, 아래) | 엔티티 ↔ DDL 일치(`validate`가 시작 시점에 검사), enum ↔ CHECK 목록 글자 단위 대조, 불변 엔티티 UPDATE 무시 |
+| 매핑 | `@JpaMappingTest`(= `@DataJpaTest` + 실제 PostgreSQL, Phase 0 API는 Testcontainers 컨테이너, 아래) | 엔티티 ↔ DDL 일치(`validate`는 형 계열만 → `ColumnContractTest`가 길이·정밀도·NULL까지), enum ↔ CHECK 목록 글자 단위 대조(`EnumCheckContractTest`), 불변 엔티티 변경 무시(`ImmutableEntityTest`), 저장소 모양(`ReadOnlyRepositoryShapeTest`). 모든 `@Entity`를 훑으므로 엔티티를 추가하면 자동으로 포함된다 |
 | 서비스 | `@SpringBootTest` + 실제 PostgreSQL, 테스트마다 `@Transactional` 롤백 | 주문 체결 전부/전무, 턴 전환, 대사 항등식(골든: P0-25 하네스가 같은 컨테이너에서 `db/20`–`26`으로 만든 연습 시즌을 API로 재생해 행 단위로 비교 — PLAN §13 2026-11-09) |
 | 동시성 | 스레드 2개로 같은 시즌에 동시 주문·턴 전환 | 둘 중 하나만 성공하거나 순서대로 처리되고, 끝나면 항등식 성립 |
 | 엔진 대조 | Java 부트스트랩 vs Phase 0 손 계산 | 같은 시드 → 같은 경로, 같은 수익률 → 같은 가격(원 단위) |
 | 금액 계산 | `MoneyMathTest` + `MoneyMathSqlParityTest` | 순수 Java 시험과 PostgreSQL 17 임시 연결의 P0-15 순수 함수 대조를 분리해 실행 |
-| 계약 | `@SpringBootTest` | springdoc이 낸 `/v3/api-docs`와 저장소 `docs/api/openapi.yaml`을 경로·필드·타입·필수·응답 코드로 대조 — 코드와 yaml이 갈라지면 실패(도구와 정규화는 첫 엔드포인트 기능 P0-27 계획에서 정함) |
+| 계약 | `@SpringBootTest` | springdoc이 낸 `/v3/api-docs`와 저장소 `docs/api/openapi.yaml`을 경로·필드·타입·필수·응답 코드로 대조한다 — 코드와 yaml이 갈라지면 실패(`OpenApiContractTest`). 도구는 자체 정규화 비교기(`OpenApiNormalizer`·`OpenApiDiff`, 새 라이브러리 없음)이며 비교기 자체는 `OpenApiNormalizerTest`가 검증한다. `/api/v1/**` 운영의 operationId·parameters·requestBody·responses(상태 코드와 미디어 형식), 스키마의 type·format·enum·required·properties·items·제약, 닿는 컴포넌트 이름(`$ref`는 이름으로)을 비교한다. 설명·예시·태그·info·속성 순서는 무시한다. 응답 코드는 운영 고유의 성공·도메인 오류만 적는다 — springdoc이 `@RestControllerAdvice`의 일반 오류(400·404·405…)를 운영마다 붙이지 않음을 확인했다. 노출 상한은 `ExposureContractTest`가 맡는다(§4.6) |
 | API | `MockMvc` | 검증 오류 400, 턴 불일치 409, 잔액 부족 422(초안), 비공개 컬럼이 응답에 없음 |
 
 - **H2를 쓰지 않는다.** CHECK·`NUMERIC` 반올림·`FOR UPDATE`·문자열 비교의 동작이 PostgreSQL과 달라서, 시험이 통과해도 믿을 수 없다. **Phase 0 API(2026-11-09 결정, PLAN §13)는 로컬 시험부터 Testcontainers PostgreSQL 17**을 쓴다. 이는 처음에 적은 compose `db` 서비스의 `antlab_test` 안(`db/README.md`의 데이터베이스 생성 블록)을 바꾼 것이다. 이렇게 하면 시험이 소유자의 컨테이너를 건드리지 않고(DEPLOY §3.2 격리 규칙을 저절로 지킨다), 시험 실행마다 빈 DB에서 시작하며, M1 CI와 같은 방식으로 실행된다. 시험은 로컬에서 실행하고 CI(M1)가 같은 시험을 합성 표본으로 돌린다. 이 DB는 Flyway 파일을 적용한 빈 DB이며, SQL 골든 시험(P0-25)은 같은 컨테이너에서 `db/` 스크립트를 `psql`로 돌려 Java 결과와 행 단위로 비교한다.
