@@ -3,7 +3,7 @@
 -- 근거: docs/erd.md 6.3·7.5(대사 규칙 2·3·4·6–9·13–18)·6.5 S6·S7·D4·D7·D9·D23·D26·D29–D31·9절 P0-19, docs/SPRING_JPA.md §5.2·§5.4, docs/PLAN.md §4.1-5·§4.6·§4.10·§4.13
 -- 대상: db/01·02·03 스키마, 10 적재, 11 사건, 12 판정, 13 관심 지수, 20 시즌 시작, 21 팀 구성을 실행하고 db/23_turn_advance.sql 을 5번 실행한 DB (PostgreSQL 17). 14 는 필요 없다.
 -- 실행: 저장소 루트에서  psql -X -v ON_ERROR_STOP=1 -d <DB이름> -f db/25_trade_formation.sql
---       21·22·25 정의를 \ir 로 읽는다. -v ON_ERROR_STOP=1 이 없으면 맨 앞 가드가 아무것도 하지 않고 끝낸다 (단언이 실패했는데 문장이 이어지면 안 된다).
+--       21·22·25 정의를 \ir 로 읽는다. -v ON_ERROR_STOP=1 이 없으면 맨 앞 가드가 아무것도 하지 않고 종료 코드 3으로 끝낸다 (단언이 실패했는데 문장이 이어지면 안 된다).
 -- 하는 일 (현재 턴 = 5, 전부 한 트랜잭션 — 어디서든 실패하면 아무것도 남지 않는다):
 --       ① 변경 전 DIRECT 부분 매도 (formation_change_id NULL)  ② 전술 변경 1회 (수비 −10 · 공격 +10)  ③ 변경 뒤 FEED 매수 — 현재 턴 피드가 가리키는, 보유하지 않은 종목 (변경에 묶임)
 --       ④ 변경 뒤 DIRECT 전량 매도 (미드필더 한 종목)  ⑤ 변경 뒤 RANKING 추가 매수 1주 (공격 한 종목, 이동평균)  ⑥ 부분 매도했던 수비 종목의 선언 포지션을 미드필더로 변경 (구간 닫기 + 열기)
@@ -20,11 +20,13 @@
   \if :ON_ERROR_STOP
   \else
     \echo 'P0-19 매매: ON_ERROR_STOP 이 꺼져 있다. psql -X -v ON_ERROR_STOP=1 -d <DB> -f db/25_trade_formation.sql 로 다시 실행한다'
-    \quit
+    \set ON_ERROR_STOP on
+    DO $$ BEGIN RAISE EXCEPTION 'P0-19 매매: 실행하지 않았다 (위 안내 참고)' USING HINT = 'ON_ERROR_STOP'; END $$;
   \endif
 \else
   \echo 'P0-19 매매: -v ON_ERROR_STOP=1 없이 실행할 수 없다 (단언이 실패하면 멈춰야 한다)'
-  \quit
+  \set ON_ERROR_STOP on
+  DO $$ BEGIN RAISE EXCEPTION 'P0-19 매매: 실행하지 않았다 (위 안내 참고)' USING HINT = 'ON_ERROR_STOP'; END $$;
 \endif
 
 -- 정의는 트랜잭션 밖에서 읽는다 (21 → 22 → 25 순서가 곧 의존)

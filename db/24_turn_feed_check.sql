@@ -305,8 +305,11 @@ BEGIN
     INSERT INTO tf_check VALUES ('생성기 단독 ④ 후보가 하나도 없으면 FEED_NO_CANDIDATE', v_hint IS NOT DISTINCT FROM 'FEED_NO_CANDIDATE');
 END $$;
 SELECT item, CASE WHEN ok THEN 'PASS' ELSE 'FAIL' END AS result FROM tf_check ORDER BY item;
-SELECT CASE WHEN count(*) > 0 AND bool_and(ok) THEN 'PASS' ELSE 'FAIL' END AS p0_18_check,
+-- 집계 행. 판정 열(p0_18_check)은 다른 검증 파일처럼 맨 끝 두 줄에 한 열로 낸다 (README 「전체 순서」와 골든 하네스의 판정 계약)
+SELECT CASE WHEN count(*) > 0 AND bool_and(ok) THEN 'PASS' ELSE 'FAIL' END AS verdict,
        count(*) AS total, count(*) FILTER (WHERE ok) AS pass, count(*) FILTER (WHERE NOT ok) AS fail
 FROM tf_check;
+SELECT (count(*) > 0 AND bool_and(ok)) AS tf_ok FROM tf_check \gset
 DO $$ BEGIN IF EXISTS (SELECT 1 FROM tf_check WHERE NOT ok) THEN RAISE EXCEPTION 'P0-18 검증 실패'; END IF; END $$;
 ROLLBACK;
+SELECT CASE WHEN :'tf_ok'::boolean THEN 'PASS' ELSE 'FAIL' END AS p0_18_check;

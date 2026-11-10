@@ -31,38 +31,45 @@
   \if :ON_ERROR_STOP
   \else
     \echo 'P0-19 드릴: ON_ERROR_STOP 이 꺼져 있다. psql -X -q -v ON_ERROR_STOP=1 -v drill=1 -v drill_case=<사례> -d <버리는 DB> -f db/25_trade_formation_drill.sql 로 다시 실행한다'
-    \quit
+    \set ON_ERROR_STOP on
+    DO $$ BEGIN RAISE EXCEPTION 'P0-19 드릴: 실행하지 않았다 (위 안내 참고)' USING HINT = 'ON_ERROR_STOP'; END $$;
   \endif
 \else
   \echo 'P0-19 드릴: -v ON_ERROR_STOP=1 없이 실행할 수 없다'
-  \quit
+  \set ON_ERROR_STOP on
+  DO $$ BEGIN RAISE EXCEPTION 'P0-19 드릴: 실행하지 않았다 (위 안내 참고)' USING HINT = 'ON_ERROR_STOP'; END $$;
 \endif
 \if :{?drill}
 \else
   \echo 'P0-19 드릴: -v drill=1 이 없다. 이 파일은 커밋된 매매를 만들고 극단 상태를 남긴다 — 버리는 DB 에서만 -v drill=1 로 실행한다'
-  \quit
+  \set ON_ERROR_STOP on
+  DO $$ BEGIN RAISE EXCEPTION 'P0-19 드릴: 실행하지 않았다 (위 안내 참고)' USING HINT = 'ON_ERROR_STOP'; END $$;
 \endif
 SELECT (:'drill' = '1') AS dr_flag_ok \gset
 \if :dr_flag_ok
 \else
   \echo 'P0-19 드릴: -v drill=1 이어야 한다 (다른 값은 받지 않는다)'
-  \quit
+  \set ON_ERROR_STOP on
+  DO $$ BEGIN RAISE EXCEPTION 'P0-19 드릴: 실행하지 않았다 (위 안내 참고)' USING HINT = 'ON_ERROR_STOP'; END $$;
 \endif
 SELECT (current_database() IN ('antlab', 'antlab_test')) AS dr_is_keep \gset
 \if :dr_is_keep
   \echo 'P0-19 드릴: 이 DB 는 소유자의 상시 DB 이름(antlab·antlab_test)이다. 사본(CREATE DATABASE antlab_drill TEMPLATE antlab)에서 실행한다'
-  \quit
+  \set ON_ERROR_STOP on
+  DO $$ BEGIN RAISE EXCEPTION 'P0-19 드릴: 실행하지 않았다 (위 안내 참고)' USING HINT = 'ON_ERROR_STOP'; END $$;
 \endif
 \if :{?drill_case}
 \else
   \echo 'P0-19 드릴: -v drill_case=<allcash|replace|extremes|rebuy|changeonly|atomic|alert|pastfeed|race> 가 없다'
-  \quit
+  \set ON_ERROR_STOP on
+  DO $$ BEGIN RAISE EXCEPTION 'P0-19 드릴: 실행하지 않았다 (위 안내 참고)' USING HINT = 'ON_ERROR_STOP'; END $$;
 \endif
 SELECT (:'drill_case' IN ('allcash', 'replace', 'extremes', 'rebuy', 'changeonly', 'atomic', 'alert', 'pastfeed', 'race')) AS dr_case_ok \gset
 \if :dr_case_ok
 \else
   \echo 'P0-19 드릴: 알 수 없는 사례다 (allcash|replace|extremes|rebuy|changeonly|atomic|alert|pastfeed|race)'
-  \quit
+  \set ON_ERROR_STOP on
+  DO $$ BEGIN RAISE EXCEPTION 'P0-19 드릴: 실행하지 않았다 (위 안내 참고)' USING HINT = 'ON_ERROR_STOP'; END $$;
 \endif
 
 \ir 21_team_buy_def.sql
@@ -101,7 +108,8 @@ WHERE lower(m.email) = lower('phase0@example.invalid')
 \if :dr_ready
 \else
   \echo 'P0-19 드릴: 연습 시즌이 진행 중이고 현재 턴이 1 이상이어야 한다'
-  \quit
+  \set ON_ERROR_STOP on
+  DO $$ BEGIN RAISE EXCEPTION 'P0-19 드릴: 실행하지 않았다 (위 안내 참고)' USING HINT = 'ON_ERROR_STOP'; END $$;
 \endif
 
 -- 경합 보조 함수: op 를 하나 실행해 'OK' 또는 HINT 를 돌려준다 (잠금을 기다린 뒤 실행된다). 대상 종목은 저장 상태에서 규칙으로 고른다 — 보유 종목 중 번호가 가장 작은 것.

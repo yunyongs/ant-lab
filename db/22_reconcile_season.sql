@@ -5,7 +5,7 @@
 -- 대상: db/01·02·03 스키마, 10 적재, 12 판정, 20 시즌 시작을 실행한 DB (PostgreSQL 17). antlab 에서 실행한다. 21 팀 구성 뒤에 돌리는 것이 의미 있지만
 --       20 만 실행한 DB 에서도 돈다 (팀이 없으면 비교할 체결이 없어 15개가 모두 일치한다). 11·13 은 필요 없다.
 -- 실행: 저장소 루트에서  psql -X -v ON_ERROR_STOP=1 -d <DB이름> -f db/22_reconcile_season.sql
---       같은 폴더의 22_reconcile_season_def.sql 을 \ir 로 읽는다. -v ON_ERROR_STOP=1 이 없으면 맨 앞 가드가 아무것도 하지 않고 끝낸다
+--       같은 폴더의 22_reconcile_season_def.sql 을 \ir 로 읽는다. -v ON_ERROR_STOP=1 이 없으면 맨 앞 가드가 아무것도 하지 않고 종료 코드 3으로 끝낸다
 --       (불일치를 종료 코드 3 으로 알리는 방법이 오류 한 번뿐이다).
 -- 하는 일: 연습 시즌(20 과 같은 이메일, 정확히 1개)을 찾아 season 을 잠그고(FOR UPDATE) 현재 턴으로 recon_rules 15행을 계산해
 --       새 시도 번호 하나로 reconciliation_log 에 15행을 남긴다. 일치해도 남긴다 (PLAN §5.2). 한 트랜잭션이고 커밋한 뒤 보고한다.
@@ -27,11 +27,13 @@
   \if :ON_ERROR_STOP
   \else
     \echo 'P0-16 대사: ON_ERROR_STOP 이 꺼져 있다. psql -X -v ON_ERROR_STOP=1 -d <DB> -f db/22_reconcile_season.sql 로 다시 실행한다'
-    \quit
+    \set ON_ERROR_STOP on
+    DO $$ BEGIN RAISE EXCEPTION 'P0-16 대사: 실행하지 않았다 (위 안내 참고)' USING HINT = 'ON_ERROR_STOP'; END $$;
   \endif
 \else
   \echo 'P0-16 대사: -v ON_ERROR_STOP=1 없이 실행할 수 없다 (불일치를 종료 코드 3 으로 알리려면 오류에서 멈춰야 한다)'
-  \quit
+  \set ON_ERROR_STOP on
+  DO $$ BEGIN RAISE EXCEPTION 'P0-16 대사: 실행하지 않았다 (위 안내 참고)' USING HINT = 'ON_ERROR_STOP'; END $$;
 \endif
 
 \ir 22_reconcile_season_def.sql

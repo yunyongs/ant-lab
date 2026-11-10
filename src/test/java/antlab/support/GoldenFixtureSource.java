@@ -29,6 +29,8 @@ public final class GoldenFixtureSource {
 
     private static final List<String> TRACKED_SAMPLE_CSV = List.of("asset_group.csv", "asset.csv", "month_block.csv");
     private static final List<String> EVENT_CSV = List.of("types.csv", "tags.csv", "reviewed.csv");
+    /** 24 피드 정의가 상대 경로(feed/)로 \copy 하는 추적 파일 (턴 전환 23 이 읽는다) */
+    private static final List<String> FEED_CSV = List.of("templates.csv", "variables.csv");
 
     /**
      * 준비 상태. 누락 파일 이름만 담는다.
@@ -125,6 +127,9 @@ public final class GoldenFixtureSource {
         }
         for (String name : EVENT_CSV) {
             sources.put("events/" + name, repositoryRoot.resolve("events/" + name));
+        }
+        for (String name : FEED_CSV) {
+            sources.put("feed/" + name, repositoryRoot.resolve("feed/" + name));
         }
         List<StagedFile> files = new ArrayList<>();
         StringBuilder manifest = new StringBuilder();

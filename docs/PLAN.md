@@ -859,7 +859,7 @@ default_formation: [10, 30, 30, 30]
 - [x] P0-18 소음 피드 생성(`turn_feed`)
 - [x] P0-19 턴 사이 매매와 전술 변경 1회 — 지난 턴 피드에서 시작한 주문 허용(소유자 2026-11-10, 이슈 #94 — 주문 턴은 현재 턴, 참조 피드는 원래 턴)
 - [x] P0-20 성적 집계 쿼리 — 결과·기준선·과정·비용·대사 상태(`db/26_*`, erd D38)
-- [ ] P0-21 `db/README`·전체 실행 순서·실습 SQL
+- [x] P0-21 `db/README`·전체 실행 순서·실습 SQL(`db/90_full_run_check.sql`, 골든 하네스 `README_REGRESSION` 확장)
 - [x] P0-22 Spring Boot 프로젝트 골격 — Gradle·프로필·Actuator·오류 응답·Testcontainers 시험 기반
 - [x] P0-23 Flyway 기준선 — 01–03 [스키마]를 V1–V3로, 동일성 시험, API DB와 표본 적재 절차
 - [x] P0-24 api 컨테이너 — Dockerfile·`.dockerignore`·compose `api`
@@ -1005,6 +1005,7 @@ Spring Boot 프로젝트는 Phase 0 API(P0-22)에서 저장소 루트에 추가�
 | 2026-11-07 | Plan | Plan v3: 에이전트 펀드 매니저(사람·에이전트 공존, 모의 안 직접 매매, 페르소나 × 모델, OpenRouter·구독 CLI·Ollama, 지식 축적, 종합 매니저 점수 리더보드, 탐지 시험은 보고 전용). 결정과 계산을 가르는 원칙(§4.16), 로드맵 AG 트랙 |
 | 2026-11-07 | Plan | Plan v3.1: 릴리스 v1(모의 투자 — 웹 페이지·데스크탑 앱·모바일 앱)과 v2(실제 투자), 단계 코드를 EXT·APP·AI·OPS로 바꾸고 첫 규칙 집합을 MVP로, 감독 모드 재생 표본에 확장 구간(1997-01–2006)과 대표 지수 대체 수익률, 케이스 훈련의 닷컴 ↔ 생성형 AI 짝(새 기술 전환기) |
 | 2026-11-09 | Phase 0 | 로드맵 재배치: Phase 0에 시즌 한 판 REST API(P0-22–P0-40), Phase 1 건너뜀, API 다음 웹(WEB). Spring Boot 4.1.x(수업 판). Flyway·Testcontainers·Actuator·`ProblemDetail`·`@Lock`·`@Version`·`@Immutable`을 이 API에서 처음 쓴다 |
+| 2026-11-10 | Phase 0 | SQL 구간 마감: 전체 실행 순서 한 표, 최종 판정 SQL(`p0_21_check`), 실행 파일 가드 종료 코드 3, 순서 = 의존·멱등 분류·대사 묶음 세기 실습 |
 
 ## 17. 향후 아이디어(기록만, 로드맵 약속 아님)
 
