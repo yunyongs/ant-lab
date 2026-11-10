@@ -132,4 +132,28 @@ public final class SqlGoldenScenario {
         return new ScenarioPlan("AFTER_FINISH_IDEMPOTENCE", List.of(
                 run("20_season_start"), run("21_team_buy"), run("23_turn_advance")));
     }
+
+    /**
+     * 시즌 시작 골든(P0-30)의 SQL 쪽 기준: 스키마 → 표본 적재 → 판정 계산 → 시즌 시작 → 시즌 시작 검증.
+     * 11(사건)·13(관심 지수)은 db/20 이 필요로 하지 않아 넣지 않는다(db/20 머리 주석).
+     */
+    public static ScenarioPlan seasonStartGolden() {
+        return new ScenarioPlan("SEASON_START_GOLDEN", List.of(
+                run("01_schema_history"), run("02_schema_season"), run("03_schema_account"),
+                run("10_load_sample"), run("12_calc_position"),
+                run("20_season_start"), check("20_season_start", "p0_14_check")));
+    }
+
+    /**
+     * API DB(Flyway 로 V1–V3 이 이미 돈 DB)의 표본 적재 순서 — 스키마 단계는 건너뛰고 10 → 12 만 돌린다
+     * (db/README 「API DB 표본 적재」와 같은 순서).
+     */
+    public static ScenarioPlan apiDbLoad() {
+        return new ScenarioPlan("API_DB_LOAD", List.of(run("10_load_sample"), run("12_calc_position")));
+    }
+
+    /** 시즌 시작 검증 파일 하나만 — API 가 시즌을 만든 DB 에서 SQL 검증 20개를 그대로 돌린다. */
+    public static ScriptStep seasonStartCheck() {
+        return check("20_season_start", "p0_14_check");
+    }
 }

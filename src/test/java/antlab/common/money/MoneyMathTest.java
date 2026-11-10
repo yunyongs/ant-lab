@@ -154,4 +154,22 @@ class MoneyMathTest {
     private static BigDecimal bd(String value) {
         return new BigDecimal(value);
     }
+
+    @Test
+    void 응답용_scale_바꾸기는_값을_바꾸지_않고_자릿수만_맞춘다() {
+        assertThat(MoneyMath.exactWon(bd("30000000.0000")).toPlainString()).isEqualTo("30000000");
+        assertThat(MoneyMath.exactWon(bd("3E+7")).toPlainString()).isEqualTo("30000000");
+        assertThat(MoneyMath.exactRate(bd("-0.2")).toPlainString()).isEqualTo("-0.20000000");
+        assertThat(MoneyMath.exactRate(bd("0.00015")).toPlainString()).isEqualTo("0.00015000");
+        assertThat(MoneyMath.exactRate(bd("0E-8")).toPlainString()).isEqualTo("0.00000000");
+    }
+
+    @Test
+    void 응답용_scale_바꾸기는_값이_바뀌면_반올림하지_않고_거부한다() {
+        assertThatThrownBy(() -> MoneyMath.exactWon(bd("100.5"))).isInstanceOf(IllegalArgumentException.class)
+                .hasMessageNotContaining("100.5");
+        assertThatThrownBy(() -> MoneyMath.exactRate(bd("0.123456789"))).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> MoneyMath.exactWon(null)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> MoneyMath.exactRate(null)).isInstanceOf(IllegalArgumentException.class);
+    }
 }

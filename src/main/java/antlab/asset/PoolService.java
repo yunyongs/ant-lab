@@ -1,7 +1,5 @@
 package antlab.asset;
 
-import antlab.common.error.DomainException;
-import antlab.common.error.ErrorCode;
 import java.util.Comparator;
 import java.util.List;
 import org.springframework.stereotype.Service;
@@ -26,14 +24,7 @@ public class PoolService {
     @Transactional(readOnly = true)
     public PoolDto pool() {
         List<PoolAssetDto> rows = positions.findPoolByBaseDate(properties.baseDate());
-        if (rows.isEmpty()) {
-            throw new DomainException(ErrorCode.POOL_NOT_LOADED,
-                    "기준일 풀이 비어 있다. API DB 표본 적재 절차를 먼저 실행한다");
-        }
-        if (rows.stream().anyMatch(PoolAssetDto::unjudged)) {
-            throw new DomainException(ErrorCode.POOL_NOT_JUDGED,
-                    "기준일 풀에 판정이 비어 있는 종목이 있다. 포지션 계산을 먼저 실행한다");
-        }
+        PoolReadiness.require(rows, PoolAssetDto::unjudged);
         return new PoolDto(rows.stream().sorted(BY_MARKET_TICKER).toList());
     }
 }

@@ -34,7 +34,7 @@
 | Plan v3 | 에이전트 펀드 매니저(사람·에이전트 공존, 모의 직접 매매, 지식 축적, 종합 리더보드) | 승인 (2026-11-07) |
 | Plan v3.1 | 릴리스 v1(모의)·v2(실제 투자), 단계 코드 EXT·APP·AI·OPS, 확장 구간(1997-01–)과 새 기술 전환기 케이스(닷컴 ↔ 생성형 AI) | 소유자 결정 반영 (2026-11-07) |
 | 로드맵 재배치 | Phase 0에 시즌 한 판 API(P0-22–P0-40), Phase 1 건너뜀, WEB 단계, Spring Boot 4.1 | 소유자 결정 반영 (2026-11-09) |
-| Phase 0 — SQL(PostgreSQL 17) → API | 새 도메인 ERD·DDL과 역사 데이터 표본을 준비하고, SQL 트랜잭션으로 시즌 1판을 실행해 대사·집계 쿼리를 확인한다. 이어서 **시즌 한 판 REST API**(Spring Boot·JPA·Flyway, 표본 데이터를 기반으로 하고 SQL을 골든으로 삼는다) | 진행 중 — **SQL 구간 완료**(P0-03–P0-21, 최종 판정 `p0_21_check`), API는 P0-29(단순 부트스트랩 경로 생성기)까지, 기능 표 P0-03–P0-40([PLAN §11.1](docs/PLAN.md#111-phase-0-체크리스트-sql-postgresql-17)), PLAN v1 DDL(P0-02)은 대체됨 |
+| Phase 0 — SQL(PostgreSQL 17) → API | 새 도메인 ERD·DDL과 역사 데이터 표본을 준비하고, SQL 트랜잭션으로 시즌 1판을 실행해 대사·집계 쿼리를 확인한다. 이어서 **시즌 한 판 REST API**(Spring Boot·JPA·Flyway, 표본 데이터를 기반으로 하며 SQL을 골든으로 삼는다) | 진행 중 — **SQL 구간 완료**(P0-03–P0-21, 최종 판정 `p0_21_check`), API는 P0-30(시즌 시작 API)까지, 기능 표 P0-03–P0-40([PLAN §11.1](docs/PLAN.md#111-phase-0-체크리스트-sql-postgresql-17)), PLAN v1 DDL(P0-02)은 대체됨 |
 | Phase 1 — JDBC | 콘솔 앱(시즌·팀·턴·매매·성적표), 단순 부트스트랩 | **건너뜀** (2026-11-09, Phase 0 API에 흡수) |
 | MON — 모니터링(Grafana) | Actuator·Micrometer → Prometheus → Grafana 대시보드(API 응답 시간·오류율, JVM·DB, 게임 지표)를 구축한다 | 시작 전 (2026-11-10 추가) |
 | SEC — 인증(JWT) | Spring Security + JWT — 가입·로그인, 토큰 발급·검증·갱신을 구현하고 고정 회원을 실제 회원으로 교체한다(M4에서 앞당겼다) | 시작 전 (2026-11-10 추가) |
@@ -58,6 +58,7 @@ Java 21 · Spring Boot 4.1 · PostgreSQL 17 · JPA (리포트 쿼리에 MyBatis 
 - `./gradlew test` — 전체 시험. Docker Desktop이 꺼져 있으면 "Docker 환경을 찾을 수 없음"으로 실패한다. 소유자 DB(`antlab-db-1`)에는 접속하지 않는다. 표본 CSV가 `db/sample`에 있으면 SQL 골든(약 2–3분)도 함께 실행한다. 표본 CSV가 없으면 그 부분만 이유를 밝힌 뒤 건너뛴다. 제외하려면 `-PexcludeSqlGolden` — [db/README.md「SQL 골든 하네스」](db/README.md#sql-골든-하네스-p0-25).
 - P0-26 금액 계산 시험은 다음 두 명령으로 나눠 실행한다: `./gradlew test --tests 'antlab.common.money.MoneyMathTest'`(DB 없음)와 `./gradlew test --tests 'antlab.common.money.MoneyMathSqlParityTest'`(일회용 PostgreSQL 17)이다.
 - P0-29 경로 생성기 시험만: `./gradlew test --tests 'antlab.engine.*'` — 순수 단위 시험(시드 1,000개 성질 검사·고정 벡터)과 일회용 PostgreSQL 17 통합 시험을 실행한다. 생성 경로는 `month_start`(달)를 기준으로 재현하며, 고정 벡터를 바꿀 때는 `engine_version`을 함께 올린다.
+- P0-30 시즌 시작 시험만: `./gradlew test --tests 'antlab.api.season.*' --tests 'antlab.member.*' --tests 'antlab.season.*' -PexcludeSqlGolden` — 합성 고정 데이터(실제 표본 아님)로 시작·조회·상한·동시성·롤백·노출을 확인한다. 실제 표본 골든은 `-PonlySqlGolden --tests '*SeasonStartGoldenTest*'`(표본 CSV 필요).
 - `./gradlew bootTestRun` — 일회용 PostgreSQL 17로 앱을 띄운다. 소유자 DB가 필요 없어 가장 안전하다. 8080이 쓰이고 있으면 `./gradlew bootTestRun --args='--server.port=18080'`.
 - `./gradlew bootRun` — 로컬 compose `db`의 `antlab_api` DB로 띄운다. 처음 한 번은 빈 `antlab_api`를 만들고(인코딩·시간대 포함) 앱을 띄워 Flyway V1–V3를 적용한 뒤 표본을 적재한다. 명령은 [db/README.md「API DB와 실습 DB」](db/README.md#api-db와-실습-db)에 있다. 접속 정보는 환경 변수 `ANTLAB_DB_URL`·`ANTLAB_DB_USER`·`ANTLAB_DB_PASSWORD`이고, 없으면 `jdbc:postgresql://localhost:5432/antlab_api`·OS 사용자·비밀번호 없음이다.
 - 매핑·잠금 시험만: `./gradlew test --tests 'antlab.mapping.*' --tests 'antlab.persistence.*'` — 엔티티 22개의 열·enum·불변 대조, 가변 엔티티와 두 스레드 잠금(`FOR NO KEY UPDATE`)·낙관적 락 시험이 돈다. 일회용 컨테이너만 쓴다.
@@ -69,7 +70,7 @@ Java 21 · Spring Boot 4.1 · PostgreSQL 17 · JPA (리포트 쿼리에 MyBatis 
   5. 컨테이너와 `bootRun`/`bootTestRun`을 동시에 켜면 8080이 겹친다. 컨테이너 포트는 `ANTLAB_API_PORT=18080 docker compose --profile api up -d`로 바꾼다(다시 `up`할 때도 같은 값을 붙인다). 잠깐 멈출 때는 `docker compose stop`, 다시 켤 때는 `docker compose start`.
   6. 표본을 적재할 때는 `docker compose stop api`로 앱을 멈추고 [db/README.md](db/README.md#api-db와-실습-db)대로 실행한 뒤 `docker compose start api`.
   7. QA·시험은 소유자 프로젝트를 건드리지 않게 `ANTLAB_DB_PORT=55432 ANTLAB_API_PORT=18080 docker compose --profile api -p antlab-qa up -d --build --wait` 로 띄우고, 끝나면 `docker compose --profile api -p antlab-qa down -v --rmi local`(정리에도 `--profile api`를 붙인다).
-- 확인 URL: `/actuator/health/readiness`, `/api/v1/pool`(표본 적재와 포지션 계산 뒤 20종목 — 적재 전이면 409 `POOL_NOT_LOADED`, 판정 전이면 409 `POOL_NOT_JUDGED`). `local` 프로필(`bootRun`·`bootTestRun`의 기본)에서만 명세 `/v3/api-docs`와 `/swagger-ui.html`이 열린다 — 프로필이 없거나 `prod`면 꺼져 있다.
+- 확인 URL: `/actuator/health/readiness`, `POST·GET /api/v1/seasons`·`GET /api/v1/seasons/{seasonId}`·`GET /api/v1/seasons/{seasonId}/prices?turnNo=`(P0-30 — 고정 회원 하나만 사용하므로 `local`·`bootRun`에서만 쓴다. 컨테이너 `prod`는 SEC 전까지 503 `MEMBER_UNAVAILABLE`을 반환한다), `/api/v1/pool`(표본 적재와 포지션 계산 뒤 20종목 — 적재 전이면 409 `POOL_NOT_LOADED`, 판정 전이면 409 `POOL_NOT_JUDGED`). 명세 `/v3/api-docs`와 `/swagger-ui.html`은 `local` 프로필(`bootRun`·`bootTestRun`의 기본)에서만 열리며, 프로필을 지정하지 않거나 `prod`이면 꺼져 있다.
 - 개인 덮어쓰기 설정은 프로젝트 루트의 `config/application-local.yml`에 둔다(git이 무시하고 jar에 들어가지 않는다). `src/main/resources/`에 두면 jar에 들어가므로 두지 않는다.
 
 VS Code(macOS): 확장 "Extension Pack for Java", "Gradle for Java", "Spring Boot Extension Pack". 통합 터미널(`` Ctrl+` ``)에서 `./gradlew …`를 실행하고, 왼쪽 비커 아이콘(시험 탐색기)으로 시험을 하나씩 돌리며, Gradle 패널(코끼리 아이콘)의 `Tasks › application › bootTestRun`으로 앱을 띄운다. 가져오기가 꼬이면 `Cmd+Shift+P` → "Java: Clean Java Language Server Workspace". `.vscode/`는 git이 무시하므로 실행 설정 파일은 저장소에 없다.
