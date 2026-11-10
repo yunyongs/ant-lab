@@ -120,7 +120,7 @@ Hibernate의 `@Immutable`은 "이 엔티티는 바뀌지 않는다"는 선언이
 - 조회 전용 메서드는 `@Transactional(readOnly = true)` — Hibernate가 변경 감지를 끄고 JDBC 연결이 읽기 전용 트랜잭션(`SET TRANSACTION READ ONLY`)으로 처리한다.
 - `spring.jpa.open-in-view=false`. 켜 두면 컨트롤러·JSON 직렬화 중에도 DB 세션이 열려 지연 로딩이 몰래 일어난다. 끄면 서비스 밖에서 지연 로딩이 실패하므로, 필요한 것을 서비스에서 DTO로 다 채워 내보내는 습관이 생긴다.
 - 도메인 예외는 모두 `RuntimeException`의 자식(`InsufficientCashException`, `TurnMismatchException` …). Spring은 **unchecked 예외에서만 자동 롤백**하므로 checked 예외를 쓰면 돈이 반만 움직인 채 커밋될 수 있다.
-- 하나의 HTTP 요청 = 하나의 서비스 트랜잭션. 서비스가 다른 서비스를 부르면 같은 트랜잭션에 참여한다(기본 전파 `REQUIRED`). `REQUIRES_NEW`는 대사 로그 기록 한 곳에만(§6).
+- 하나의 HTTP 요청은 하나의 서비스 트랜잭션으로 처리한다. 서비스가 다른 서비스를 부르면 같은 트랜잭션에 참여한다(기본 전파 `REQUIRED`). `REQUIRES_NEW`는 쓰지 않는다 — 대사 불일치 기록은 안쪽 트랜잭션이 롤백된 **뒤** 새 트랜잭션에서 한다(§6).
 
 ### 5.2 주문 체결(턴 사이 매매)
 
@@ -162,7 +162,7 @@ TurnService.advance(seasonId, expectedTurnNo)
  10. season.currentTurnNo += 1; 마지막 턴이면 status = FINISHED 후 성적표 계산(별도 트랜잭션으로 분리해도 됨 — 초안: 같은 트랜잭션)
 ```
 
-Phase 0 API 구현(P0-33)에서 이 흐름은 `TurnService`가 맡고, 가격은 `TurnPriceCalculator`, 스냅샷은 `TurnSnapshotCalculator`가 계산한다. 1단계에서는 상태 검사를 턴 검사보다 먼저 한다(마지막 턴을 넘긴 뒤의 둘째 요청은 `SEASON_NOT_ACTIVE`, 중간 턴은 `TURN_MISMATCH`). 23 SQL과 다른 점은 두 가지다. ① `ABANDONING` 시즌은 포기 기능(MVP)이 들어올 때까지 거절한다. ② 현금 계좌 행이 없으면 데이터 손상으로 보고 500으로 멈춘다(23은 스냅샷 0행 → 대사 `NO_ACCOUNT`). 대사 불일치가 발생하면 예외 하나로 전부 롤백하고, 롤백 뒤 새 트랜잭션에 17행을 기록하는 일은 P0-34(`TurnFacade`)가 맡는다.
+Phase 0 API 구현(P0-33)에서는 이 흐름을 `TurnService`가 맡는다. 가격은 `TurnPriceCalculator`, 스냅샷은 `TurnSnapshotCalculator`가 계산한다. 1단계에서는 턴보다 상태를 먼저 검사한다(마지막 턴을 넘긴 뒤의 둘째 요청은 `SEASON_NOT_ACTIVE`, 중간 턴은 `TURN_MISMATCH`). 23 SQL과 다른 점은 두 가지다. ① `ABANDONING` 시즌은 포기 기능(MVP)이 들어올 때까지 거절한다. ② 현금 계좌 행이 없으면 데이터 손상으로 보고 500으로 멈춘다(23은 스냅샷 0행 → 대사 `NO_ACCOUNT`). 대사 불일치가 발생하면 예외 하나로 전부 롤백한다. 롤백 뒤 새 트랜잭션에 17행을 기록하는 일은 `TurnFacade`(P0-34)가 맡는다 — 실패 묶음이 끼어든 성공 묶음보다 뒤 번호를 받을 수 있다. 따라서 턴의 성공 여부는 마지막 시도 번호가 아니라 `turn` 행(= 17행 `MATCH` 묶음)의 존재로 판단한다.
 
 - Phase 0 정본은 `db/23_turn_advance_def.sql`(erd D37)이다. 1–5단계의 전제 오류(`SEASON_NOT_FOUND`·`SEASON_NOT_ACTIVE`·`TURN_MISMATCH`·`NO_PATH`·`NO_RETURN`)는 쓰기 전에 거절하고 기록하지 않는다. 9단계 대사 불일치만 롤백한 뒤 17행을 기록한다(§6). 낙폭은 `MoneyMath.drawdown`으로 한 번만 반올림하고(HALF_UP), 골키퍼 평가액은 총액에서 다른 세 포지션을 뺀 값이다.
 - `turn(season_id, turn_no) UNIQUE`가 "같은 턴 두 번"을 DB 수준에서 막는다. 락과 턴 번호 검사가 먼저 걸러 주지만, UNIQUE는 마지막 안전망이다.
@@ -189,7 +189,7 @@ Phase 0 API 구현(P0-33)에서 이 흐름은 `TurnService`가 맡고, 가격은
 | 현재 포메이션 = 마지막 `formation_change.after` (없으면 시작 포메이션) | 중복 컬럼과 이력의 일치 |
 
 - 결과는 `reconciliation_log`(시즌, 턴, 항등식, 기대, 실제, 차이, 분류)에 남긴다. 일치해도 한 행(기록이 있어야 "검사했다"를 증명한다).
-- 불일치 시: 턴 전환 트랜잭션은 **롤백**하고 시즌은 그 턴에 멈춘다(`currentTurnNo` 그대로, 다시 시도 가능). 로그는 **롤백이 끝난 뒤** 바깥의 얇은 서비스(`TurnFacade.advance`: 트랜잭션 없음 → 안쪽 `TurnService.advance` 호출 → 예외를 잡아 `ReconciliationLogService.record`를 새 트랜잭션으로)가 남긴다. 안쪽 트랜잭션이 `season`을 행 잠금(`FOR NO KEY UPDATE`)으로 잡고 있는 동안 `REQUIRES_NEW`로 로그를 넣으면, 로그 쪽 `attempt_no` 배정이 같은 `season` 행을 다시 잠그려다 자기 자신을 기다리는 교착(시간 초과)이 나므로, "롤백 뒤에 쓴다"가 규칙이다. (`FOR NO KEY UPDATE`는 자식 INSERT의 FK 검사 `FOR KEY SHARE`와 충돌하지 않으므로 FK 검사 자체가 기다리는 것은 아니다 — 이유는 `attempt_no` 배정이다. P0-34가 시험으로 확인한다.) 분류(시차·조정·조사)는 MVP에서 전부 "조사"로 두고 사람이 본다.
+- 불일치 시 턴 전환 트랜잭션을 **롤백**하고 시즌은 그 턴에 멈춘다(`currentTurnNo` 그대로, 다시 시도 가능). 로그는 **롤백이 끝난 뒤** 바깥의 얇은 서비스가 남긴다(`TurnFacade.advance`: 트랜잭션 없음 → 안쪽 `TurnService.advance` 호출 → 예외를 잡아 `ReconciliationLogWriter.record`를 새 트랜잭션으로). 안쪽 트랜잭션이 `season`을 행 잠금(`FOR NO KEY UPDATE`)으로 잡고 있을 때 `REQUIRES_NEW`로 로그를 기록하면, 로그 쪽 `attempt_no` 배정이 같은 `season` 행을 다시 잠그려다 자기 자신을 기다리는 교착(시간 초과)이 난다. 따라서 "롤백 뒤에 쓴다"가 규칙이다. (`FOR NO KEY UPDATE`는 자식 INSERT의 FK 검사 `FOR KEY SHARE`와 충돌하지 않으므로 FK 검사 자체가 기다리는 것은 아니다 — 이유는 `attempt_no` 배정이다. `TurnFacadeTransactionTest`가 확인한다(`REQUIRES_NEW`면 자기 잠금 대기).) 분류(시차·조정·조사)는 MVP에서 전부 "조사"로 두고 사람이 확인한다.
 - 이 검사는 Phase 0의 대사 쿼리를 JPQL/네이티브 쿼리로 옮긴 것이다. SQL 그대로 쓰기 위해 `@Query(nativeQuery = true)`를 허용한다. Phase 0 정본은 `db/22_reconcile_season_def.sql`(erd D36)이고, MVP는 같은 DB 고정본에서 Java 결과가 `recon_rules`와 같은 골든 테스트를 둔다.
 - **P0-32의 Java 구조.** `ReconciliationLogRepository`에 수동 검사 규칙 15개가 `find…` 네이티브 쿼리 15개로 들어 있다(추가 전용 저장소의 조회 접두사 규칙을 지킨다). 기록·평가·수동 검사는 서비스 셋으로 나눈다.
   - `ReconciliationService.evaluateManual(시즌, 턴)` → `RuleResult` 15개(규칙 번호 순). 순수 값(record)이라 롤백을 건너 운반할 수 있고(SQL의 jsonb 지역 변수와 같은 역할), 판정·차이·분류는 `RuleResult.of` 한 곳에서 붙인다(반올림 없음). `MANDATORY`(호출자 트랜잭션 안에서만)이고 시작에서 시즌 잠금을 다시 잡는다(같은 트랜잭션이면 즉시 — 턴은 호출자가 잠근 뒤 읽어 넘긴다), 시작에 `flush`, 격리 수준이 READ COMMITTED가 아니면 쓰기 전에 거절한다.
@@ -197,7 +197,7 @@ Phase 0 API 구현(P0-33)에서 이 흐름은 `TurnService`가 맡고, 가격은
   - `ManualReconciliationService.run(시즌)`은 한 트랜잭션이다: 시즌 잠금(첫 시즌 조회, 소유 확인 포함) → 현재 턴 읽기 → 평가 → 기록. 잠금이 있어 읽기 전용으로 둘 수 없다(PostgreSQL은 읽기 전용 트랜잭션의 `FOR NO KEY UPDATE`를 25006으로 거절한다).
 - **복사 규칙(계산식을 다시 만들지 않는다).** 쿼리 15개는 22 규칙 함수 본문에 기계적 치환만 한 사본이다: 매개변수 → `CAST(:seasonId AS bigint)`·`CAST(:turnNo AS smallint)`, `recon_detail`·`recon_expected_price`·`recon_price`를 본문 그대로 인라인(재귀 CTE 포함) (규칙 12의 인라인 부분 질의에는 열 별칭 목록 `x(turn_no, asset_id, price)`를 붙이고, `recon_price`에 넘기는 인자는 괄호로 감싼다), 바깥 껍데기로 열 별칭과 jsonb → text. `ReconciliationSqlCopyTest`가 같은 치환을 22 원문에 적용해 `@Query` 값과 공백 정규화 뒤 글자 단위로 비교하므로, 22를 고치고 Java를 안 고치면 깨진다.
 - **읽기 일관성.** 쿼리가 15문장이라 READ COMMITTED에서는 문장마다 스냅샷이 다르다(SQL은 STABLE 함수 15개를 한 문장으로 불러 한 스냅샷을 얻는다, erd D36). Java는 "시즌에 딸린 행을 쓰는 모든 경로가 먼저 `season` 행을 잠근다"는 불변식으로 같은 결과를 얻는다 — 지금 있는 쓰기 경로(주문·기록기)와 SQL 쓰기 스크립트(`db/21`·`23`·`25`)가 그렇고, 앞으로의 턴 전환(P0-33)·매도(P0-36)·전술·라인업 변경(P0-37)도 `season` 잠금이 첫 단계여야 한다. 규칙 하나는 한 문장이라 그 자체로 한 스냅샷이다 — 잠금이 지키는 것은 검사 턴과 데이터의 짝, 그리고 한 시도의 15행이 같은 상태를 본다는 점이다. 역사 테이블(수익률·환율·풀)은 API가 쓰지 않고 적재 스크립트만 쓰므로 Phase 0에서는 적재와 API 실행을 동시에 하지 않는다.
-- **23505 재시도는 옮기지 않았다(22 `recon_log`와 다름).** PostgreSQL에서 유일 위반은 트랜잭션을 망가뜨려 같은 트랜잭션에서 다시 읽을 수 없고(세이브포인트가 필요하다), 모든 기록 경로가 같은 `season` 잠금 아래라 시도 번호가 겹치지 않는다. 동시 수동 검사 2개가 시도 1·2로 직렬화됨을 시험이 확인한다.
+- **23505 재시도는 옮기지 않았다(22 `recon_log`와 다름).** PostgreSQL에서 고유 제약 위반은 트랜잭션을 망가뜨려 같은 트랜잭션에서 다시 읽을 수 없고(세이브포인트가 필요하다), 모든 기록 경로가 같은 `season` 잠금 아래라 시도 번호가 겹치지 않는다. 동시 수동 검사 2개가 시도 1·2로 직렬화됨을 시험이 확인한다. 단 롤백 뒤 기록(`TurnFacade`, P0-34)은 바깥 트랜잭션이 없어 호출마다 새 트랜잭션이므로 해당 고유 제약의 23505만 재시도해 최대 3번 기록한다(22와 같은 상한). 기록이 다른 이유로 실패하면 500이고 상태는 롤백된 그대로다. 기록 INSERT가 CHECK에 걸려 500이 되면 PostgreSQL 오류 문장(`Failing row contains …`)이 값과 함께 서버 로그에 남을 수 있다(개발 엔드포인트와 같은 한계 — 후속 이슈).
 - **개발 엔드포인트.** `POST /api/v1/dev/seasons/{seasonId}/reconciliation`은 `local` 프로필에서만 빈이 만들어지고(`@Profile("local & !prod")`, Swagger에서도 `@Hidden`, `openapi.yaml`에는 넣지 않는다) 다른 프로필에는 경로 자체가 없다. 호출마다 새 시도 번호로 15행을 기록하고, 불일치여도 200 + `result: MISMATCH`로 커밋한다(되돌릴 턴 전환이 없다). 응답은 규칙 번호·코드·상태·건수·시도 번호만 담고 기대·실제·차이·`detail` 값은 내지 않는다(22의 보고 규칙과 같음). 코드·상태·건수는 `[내부]` 열이지만 local 개발 도구라 허용한다(`ExposureContractTest`는 `test` 프로필의 핸들러만 본다). 응답에는 값이 없지만, 기록 INSERT가 CHECK에 걸리면 PostgreSQL 오류 문장(`Failing row contains …`)이 값과 함께 서버 로그에 남을 수 있다.
 
 ## 7. 역사 데이터 적재
