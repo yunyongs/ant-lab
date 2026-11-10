@@ -40,8 +40,6 @@ import tools.jackson.databind.json.JsonMapper;
         executionPhase = ExecutionPhase.AFTER_TEST_METHOD)
 class ManualReconciliationApiTest {
 
-    private static final Set<String> VALUE_KEYS = Set.of("expectedValue", "actualValue", "diffValue", "detail");
-
     @Autowired
     MockMvcTester mvc;
     @Autowired
@@ -58,7 +56,8 @@ class ManualReconciliationApiTest {
     }
 
     private MockHttpServletResponse reconcile(long seasonId) {
-        return mvc.post().uri("/api/v1/dev/seasons/" + seasonId + "/reconciliation").exchange().getResponse();
+        return mvc.post().uri("/api/v1/dev/seasons/" + seasonId + "/reconciliation")
+                .header(DevReconciliationController.DEV_HEADER, DevReconciliationController.DEV_HEADER_VALUE).exchange().getResponse();
     }
 
     private static Set<String> componentNames(Class<? extends Record> type) {
@@ -70,7 +69,7 @@ class ManualReconciliationApiTest {
     }
 
     @Test
-    void 일치하면_200과_코드_상태_건수만_담고_열다섯_행을_기록한다() throws Exception {
+    void 일치하면_200과_코드_상태_건수와_값을_담고_열다섯_행을_기록한다() throws Exception {
         long season = seasonWithOrders();
         MockHttpServletResponse r = reconcile(season);
 
@@ -86,18 +85,33 @@ class ManualReconciliationApiTest {
         assertThat(rules.size()).isEqualTo(15);
         rules.forEach(rule -> {
             assertThat(keys(rule)).isEqualTo(componentNames(RuleSummaryDto.class));
-            assertThat(keys(rule)).doesNotContainAnyElementsOf(VALUE_KEYS);
             assertThat(rule.get("status").asString()).isEqualTo("MATCH");
         });
-        // 값 열 이름은 본문 어디에도 없다
-        for (String key : VALUE_KEYS) {
-            assertThat(r.getContentAsString()).doesNotContain("\"" + key + "\"");
-        }
+        // 값 열이 응답에 있고 reconciliation_log 행과 같다(스칼라 규칙은 BigDecimal 그대로)
+        JsonNode cash = rules.valueStream().filter(x -> x.get("checkCode").asString().equals("CASH_SUM")).findFirst().orElseThrow();
+        assertThat(cash.get("expectedValue").isString()).isTrue();
+        java.util.Map<String, Object> row = jdbc.queryForMap("SELECT expected_value, actual_value, diff_value FROM reconciliation_log WHERE season_id = ? AND attempt_no = 1 AND check_code = 'CASH_SUM'", season);
+        assertThat(new java.math.BigDecimal(cash.get("expectedValue").asString())).isEqualByComparingTo((java.math.BigDecimal) row.get("expected_value"));
+        assertThat(new java.math.BigDecimal(cash.get("actualValue").asString())).isEqualByComparingTo((java.math.BigDecimal) row.get("actual_value"));
+        assertThat(new java.math.BigDecimal(cash.get("diffValue").asString())).isEqualByComparingTo((java.math.BigDecimal) row.get("diff_value"));
         assertThat(jdbc.queryForObject("SELECT count(*) FROM reconciliation_log WHERE season_id = ? AND attempt_no = 1 AND turn_no = 0 AND status = 'MATCH'",
                 Long.class, season)).isEqualTo(15);
         // 호출마다 새 시도 번호
         JsonNode second = JsonMapper.shared().readTree(reconcile(season).getContentAsString());
         assertThat(second.get("attemptNo").asInt()).isEqualTo(2);
+    }
+
+    @Test
+    void 고정_헤더가_없으면_403_FORBIDDEN이고_기록이_없다() throws Exception {
+        long season = seasonWithOrders();
+        MockHttpServletResponse none = mvc.post().uri("/api/v1/dev/seasons/" + season + "/reconciliation").exchange().getResponse();
+        assertThat(none.getStatus()).isEqualTo(403);
+        assertThat(JsonMapper.shared().readTree(none.getContentAsString()).get("code").asString()).isEqualTo("FORBIDDEN");
+        MockHttpServletResponse wrong = mvc.post().uri("/api/v1/dev/seasons/" + season + "/reconciliation")
+                .header(DevReconciliationController.DEV_HEADER, "false").exchange().getResponse();
+        assertThat(wrong.getStatus()).isEqualTo(403);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM reconciliation_log WHERE season_id = ?", Long.class, season)).isZero();
+        assertThat(reconcile(season).getStatus()).isEqualTo(200);
     }
 
     @Test
@@ -114,6 +128,10 @@ class ManualReconciliationApiTest {
         List<String> mismatched = body.get("rules").valueStream().filter(x -> x.get("status").asString().equals("MISMATCH"))
                 .map(x -> x.get("checkCode").asString()).toList();
         assertThat(mismatched).containsExactly("RESERVED_ZERO");
+        JsonNode reserved = body.get("rules").valueStream().filter(x -> x.get("checkCode").asString().equals("RESERVED_ZERO")).findFirst().orElseThrow();
+        assertThat(new java.math.BigDecimal(reserved.get("actualValue").asString())).isEqualByComparingTo("1");
+        assertThat(new java.math.BigDecimal(reserved.get("diffValue").asString())).isEqualByComparingTo("1");
+        assertThat(reserved.get("detail").isString()).isTrue();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM reconciliation_log WHERE season_id = ?", Long.class, season)).isEqualTo(15);
         assertThat(jdbc.queryForObject("SELECT classification FROM reconciliation_log WHERE season_id = ? AND check_code = 'RESERVED_ZERO'",
                 String.class, season)).isEqualTo("INVESTIGATE");

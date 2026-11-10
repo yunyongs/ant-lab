@@ -77,7 +77,8 @@ class ManualReconciliationConcurrencyTest {
     }
 
     private int attemptOf(long season) throws Exception {
-        var r = mvc.post().uri("/api/v1/dev/seasons/" + season + "/reconciliation").exchange().getResponse();
+        var r = mvc.post().uri("/api/v1/dev/seasons/" + season + "/reconciliation")
+                .header(DevReconciliationController.DEV_HEADER, DevReconciliationController.DEV_HEADER_VALUE).exchange().getResponse();
         assertThat(r.getStatus()).isEqualTo(200);
         return JsonMapper.shared().readTree(r.getContentAsString()).get("attemptNo").asInt();
     }
@@ -130,7 +131,8 @@ class ManualReconciliationConcurrencyTest {
                 lock.executeQuery();
             }
             Future<String> response = pool.submit(() -> {
-                var r = mvc.post().uri("/api/v1/dev/seasons/" + season + "/reconciliation").exchange().getResponse();
+                var r = mvc.post().uri("/api/v1/dev/seasons/" + season + "/reconciliation")
+                .header(DevReconciliationController.DEV_HEADER, DevReconciliationController.DEV_HEADER_VALUE).exchange().getResponse();
                 assertThat(r.getStatus()).isEqualTo(200);
                 return r.getContentAsString();
             });

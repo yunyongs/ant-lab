@@ -78,6 +78,9 @@ spring:
   config:
     activate:
       on-profile: local
+# 개발 엔드포인트는 이 컴퓨터에서만 부른다(고정 헤더 관문과 함께 이중 제한).
+server:
+  address: 127.0.0.1
 logging:
   level:
     org.hibernate.SQL: debug
