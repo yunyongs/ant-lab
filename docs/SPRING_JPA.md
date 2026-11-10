@@ -256,20 +256,20 @@ spring.flyway:
 # P0-23 이후: antlab.engine.*(projection-paths: 2000, block-mean-length: 6)
 ```
 
-프로필은 `application.yml` 안의 `---` 문서 셋이다. 공통 프로필에는 프로필 없이 떠도 안전한 값(SQL 로그·명세 꺼짐)을 둔다. `local`은 SQL 로그와 명세·Swagger UI를 켜며 `bootRun`·`bootTestRun`이 기본으로 준다. `prod`는 OPS 설정이며 springdoc을 끄고 `server.forward-headers-strategy: framework`을 사용한다. 시험 프로필 `test`만 `src/test/resources/application-test.yml`에 있으므로 jar에 들어가지 않는다(Testcontainers, 명세만 켬; Flyway clean은 새 컨테이너 원칙상 쓰지 않는다). `local` 값을 `application-local.yml` 파일로 두지 않는 까닭은 `.gitignore`가 그 파일을 무시하기 때문이다(소유자 개인 덮어쓰기는 `config/application-local.yml`). `prod`는 고정 회원 구현이 켜져 있으면 시작을 거부한다(M4 JWT 전까지, PLAN §13 2026-11-09). 비밀값(DB 비밀번호)은 환경 변수로만 둔다.
+프로필은 `application.yml` 안의 `---` 문서 셋으로 구성된다. 공통 프로필에는 프로필을 지정하지 않아도 안전한 값(SQL 로그·명세 꺼짐)을 둔다. `local`은 SQL 로그와 명세·Swagger UI를 켜며 `bootRun`·`bootTestRun`에서 기본으로 사용한다. `prod`는 OPS 설정이며 springdoc을 끄고 `server.forward-headers-strategy: framework`을 사용한다. 시험 프로필 `test`만 `src/test/resources/application-test.yml`에 있으므로 jar에 포함되지 않는다(Testcontainers, 명세만 켬; Flyway clean은 새 컨테이너 원칙상 쓰지 않는다). `local` 값을 `application-local.yml` 파일로 두지 않는 까닭은 `.gitignore`가 그 파일을 무시하기 때문이다(소유자 개인 덮어쓰기는 `config/application-local.yml`). `prod`는 고정 회원 구현이 켜져 있으면 시작을 거부한다(M4 JWT 전까지, PLAN §13 2026-11-09). 비밀값(DB 비밀번호)은 환경 변수나 `/run/secrets` 파일로만 둔다. `prod`의 `spring.datasource.url`은 `${ANTLAB_DB_URL}`로 **기본값이 없다**(빠뜨리면 localhost로 가지 않고 기동에 실패 — P0-24, `ProdProfileConfigTest`). `prod`는 `spring.config.import: optional:configtree:/run/secrets/`도 가진다: 파일 `/run/secrets/spring.datasource.password`의 내용이 속성 `spring.datasource.password`가 되고(디렉터리가 없어도 기동), 같은 속성을 환경 변수 `SPRING_DATASOURCE_PASSWORD`로도 주면 환경 변수가 이긴다 — 운영에서는 한 가지로만 준다. 운영 secrets의 실제 사용은 OPS다.
 
 ### 10.1 컨테이너에서 실행 (Phase 0 API 체크리스트 초안)
 
 Spring 프로젝트를 만들 때(Phase 0 API, P0-22·P0-24) 아래를 지킨다. 같은 이미지가 로컬·CI·운영에서 돌고, 운영 값은 환경 변수와 `/run/secrets`가 정한다. 구조 전체는 [DEPLOY.md](DEPLOY.md).
 
-1. `application.yml`은 `${ANTLAB_…:기본값}` 자리표시자와 로컬 기본값만 두고, 운영 값은 환경 변수·configtree(`spring.config.import=optional:configtree:/run/secrets/`, 세부 **확인 필요**)로 준다. `application-prod.yml`에는 비밀값을 쓰지 않는다.
+1. `application.yml`은 `${ANTLAB_…:기본값}` 자리표시자와 로컬 기본값만 두고, 운영 값은 환경 변수·configtree(`prod`의 `spring.config.import=optional:configtree:/run/secrets/`, 파일 이름이 속성 이름 — 위 §10, P0-24에서 임시 파일로 매핑·우선순위를 확인)로 준다. `application-prod.yml`에는 비밀값을 쓰지 않는다.
 2. 프로필은 위의 `local`·`test`·`prod` 셋이고, 컨테이너에서는 `SPRING_PROFILES_ACTIVE=prod`다. `prod`는 SQL 로그를 끄고 `open-in-view: false`를 유지한다.
-3. Actuator는 `health`만 노출하고 probes(liveness·readiness)를 `management.endpoint.health.probes.enabled=true`로 **명시해** 켠다(3.x는 Kubernetes 밖에서 자동으로 켜지지 않는다 — [DEPLOY.md](DEPLOY.md) §8. 4.1.2 문서는 자동 켜짐이지만 명시해서 고정한다 — 명시 때문에 자동 켜짐 여부는 독립적으로 확인하지 못했고, `ActuatorProbesTest`가 liveness·readiness 200을 확인한다). `info`에 git SHA를 넣는다.
+3. Actuator는 `health`만 노출하고 probes(liveness·readiness)를 `management.endpoint.health.probes.enabled=true`로 **명시해** 켠다(3.x는 Kubernetes 밖에서 자동으로 켜지지 않는다 — [DEPLOY.md](DEPLOY.md) §8. 4.1.2 문서는 자동으로 켜진다고 설명하지만, 이 설정을 명시해 동작을 고정한다 — 명시했기 때문에 자동 켜짐 여부를 독립적으로 확인하지는 못했고, `ActuatorProbesTest`가 liveness·readiness 200을 확인한다). `info`는 HTTP로 열지 않고, git SHA는 OPS의 이미지 태그(SHA)·metadata로 추적한다([DEPLOY.md](DEPLOY.md) §8).
 4. 그레이스풀 셧다운: 4.1.2는 기본 `graceful`이고(설정 메타데이터 확인, `server.shutdown: graceful`도 명시) `spring.lifecycle.timeout-per-shutdown-phase=20s`로 둔다(`SettingsAssertionTest`).
 5. 프록시 뒤: `server.forward-headers-strategy=framework`(Caddy의 `X-Forwarded-*`로 HTTPS·원래 IP 인식 — 속성 이름은 4.1.2 설정 메타데이터로 확인했고 `prod` 문서에 있다).
 6. Flyway는 시작 때 적용하고 `ddl-auto: validate`를 유지한다.
 7. 로그는 stdout만, 키·토큰은 마스킹한다.
-8. Dockerfile(멀티 스테이지)·`.dockerignore`를 api 첫 PR에서 만들고, `compose.yaml`에 `api`(`build: .`)를 더한다. CI는 이미지 **빌드만** 하고 푸시하지 않는다.
+8. Dockerfile(멀티 스테이지)·`.dockerignore`와 `compose.yaml`의 `api`(`build: .`)는 P0-24에서 만들었다(루트 `Dockerfile` — 펼친 bootJar를 의존성·loader·앱 레이어로 나눠 복사하고, 비루트 UID 10001로 실행하며, exec `ENTRYPOINT`로 `JarLauncher`를 사용한다). CI는 이미지 **빌드만** 하고 푸시하지 않는다(M1).
 9. Spring Boot 판은 **4.1.x(Java 21)로 정했다**(소유자 Gate 0, 2026-11-09 — 커리큘럼 프로젝트가 4.1.2, PLAN §10). 이 문서의 3.x 전제는 위 3·4번에서 4.1.2 기준으로 바꿨다. 스타터 이름(`spring-boot-starter-webmvc` 등)과 직렬화 라이브러리(Jackson 3, 패키지 `tools.jackson`, `JsonMapperBuilderCustomizer`는 `org.springframework.boot.jackson.autoconfigure`)는 P0-22에서 실행으로 확인했다.
 10. API 계약: 기능마다 `docs/api/openapi.yaml`을 계획 단계에서 먼저 쓰고(§2), springdoc 명세와 yaml을 대조하는 시험(§9)을 통과시킨다. springdoc은 3.2.0(Boot 4.1.x와 호환)이고 Swagger UI 경로는 `/swagger-ui.html`이다. 공통 문서에서 끄고 `local`에서만 켜며(시험은 명세만), `BigDecimal`은 `SpringDocUtils.getConfig().replaceWithSchema(...)`로 명세에서도 `type: string`으로 맞췄다(`JsonMoneyFormatTest`).
 

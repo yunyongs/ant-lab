@@ -4,7 +4,7 @@
 
 > 이 문서는 문서와 공개 웹 문서만 읽고 썼다. Docker·DB·CI를 **실행해 확인하지 않은 부분**(CI 절차, 메모리 예산 등)은 손으로 추적·계산한 것이고, 확인하지 못한 사실은 "확인 필요"로 적었다. 한도·가격은 바뀌므로 확인 날짜를 함께 적는다(MACRO_ETF 부록 A 머리말과 같은 원칙).
 
-**무엇을 지금 하고 무엇을 미루는가:** 지금(Phase 0)은 로컬 `compose.yaml`(서비스 `db` 하나)과 **이름·포트·비밀값·설정 규칙**만 정한다. 이미지(Dockerfile)는 각 서비스가 생기는 단계(api는 Phase 0의 P0-24, engine은 M2, proxy는 APP)에서 만들고, 운영 배포 구성(`compose.prod.yaml`·Caddy·백업·배포 워크플로)은 OPS까지 만들지 않는다. 단계별 준비 일은 §11.
+**무엇을 지금 하고 무엇을 미루는가:** 지금(Phase 0)은 로컬 `compose.yaml`(서비스 `db`·`api`)과 **이름·포트·비밀값·설정 규칙**만 정한다. 이미지(Dockerfile)는 각 서비스가 생기는 단계(api는 Phase 0의 P0-24, engine은 M2, proxy는 APP)에서 만들고, 운영 배포 구성(`compose.prod.yaml`·Caddy·백업·배포 워크플로)은 OPS까지 만들지 않는다. 단계별 준비 일은 §11에 정리한다.
 
 ## 1. 원칙
 
@@ -17,12 +17,12 @@
 
 ## 2. 서비스 표 (OPS 완성형, 단일 VM)
 
-서비스 이름은 compose 서비스 키와 글자 단위로 같아야 한다. 지금 만들어지는 것은 `db`뿐이다.
+서비스 이름은 compose 서비스 키와 정확히 일치해야 한다. 지금 만들어지는 서비스는 `db`와 `api`(P0-24)다.
 
 | 서비스 | 이미지(초안) | 만드는 단계 | 네트워크 | 호스트 포트 | 볼륨 | 헬스체크 | 기본 상태 |
 |---|---|---|---|---|---|---|---|
 | `db` | 로컬 `postgres:17`, 운영은 `postgres:17.x`로 고정. AI 단계에 pgvector 이미지(`pgvector/pgvector:pg17` 후보 — arm64 태그 **확인 필요**) | Phase 0(지금) | `backend` | 로컬 `127.0.0.1:${ANTLAB_DB_PORT:-5432}`, 운영 없음(`backend`가 internal이라 게시되지 않는다 — §5) | `db-data` | `pg_isready` | 항상 |
-| `api` | `ghcr.io/yunyongs/antlab-api` (Spring Boot 4.1.x, Java 21) | Phase 0 (P0-24) | `backend`, `edge`, `egress` | 로컬 `127.0.0.1:8080`, 운영 없음 | 없음(무상태) | `GET /actuator/health/readiness` | 항상 |
+| `api` | `ghcr.io/yunyongs/antlab-api` (Spring Boot 4.1.x, Java 21) | Phase 0 (P0-24) | `backend`, `edge`, `egress` | 로컬 `127.0.0.1:${ANTLAB_API_PORT:-8080}`, 운영 없음 | 없음(무상태) | `GET /actuator/health/readiness` | 로컬: profile `api`(`--profile api`를 명시해야 켜짐) · 운영: 항상 |
 | `engine` | `ghcr.io/yunyongs/antlab-engine` (FastAPI, `python:3.13-slim` 기반) | M2 | `backend`만 | 로컬 `127.0.0.1:8000`(개발만), 운영 없음 | 없음 | `GET /healthz` | 항상(M2부터) |
 | `proxy` | `ghcr.io/yunyongs/antlab-proxy` (`caddy:2` + React 정적 빌드 `/srv`) | APP(로컬은 선택), OPS | `edge` | 운영 `80`, `443`(유일한 외부 포트) | `caddy-data`, `caddy-config` | Caddy 관리 API 또는 `GET /`(방법 **확인 필요**) | 항상(운영) |
 | `agent-runner` | AG-02에서 정함(언어 미정) | AG-02 | `egress`(api 호출 + OpenRouter) | 없음 | 없음(기록은 api가 DB에) | 프로세스 생존 | profile `agents` |
@@ -37,7 +37,7 @@
 
 | 파일 | 추적 | 내용 | 실행 |
 |---|---|---|---|
-| `compose.yaml`(루트) | 예 | **로컬 기준 + 공통 정의.** 지금은 `db`만. 서비스가 생길 때마다 더한다(`api` P0-24, `engine` M2). 선택 서비스는 `profiles:` | `docker compose up -d` |
+| `compose.yaml`(루트) | 예 | **로컬 기준 + 공통 정의.** 지금은 `db`·`api`(`api`는 profile `api`)만 있다. 서비스가 생길 때마다 추가한다(`engine` M2). 선택 서비스는 `profiles:`로 관리한다. 운영은 `/opt/antlab/.env`의 `COMPOSE_PROFILES=api` 또는 `compose.prod.yaml`의 `profiles: !reset []`로 항상 켠다(`!reset`의 profiles 적용은 OPS에서 **확인 필요**) | `docker compose up -d` |
 | `compose.prod.yaml`(루트) | 예(OPS) | 운영 덮어쓰기: `image:`를 GHCR SHA 태그로, `build:` 제거, `db` 인증을 비밀번호(secrets)로 하고 `POSTGRES_HOST_AUTH_METHOD: scram-sha-256`을 **명시**(키를 빼면 공통 파일의 trust가 남는다 — 아래), `proxy` 추가, `restart: always`, `logging` 회전, `mem_limit`, 필요하면 `ports: !reset []` | `docker compose -f compose.yaml -f compose.prod.yaml up -d` |
 | `compose.override.yaml` | **아니오**(`.gitignore`에 이미 있음) | 개인 로컬 조정(포트 바꾸기 등) — Compose가 자동 병합 | 자동 |
 | `deploy/Caddyfile`, `deploy/backup/*.sh` | 예(OPS) | 프록시·백업 | — |
@@ -54,20 +54,22 @@
 | 항목 | 값 | 이유 |
 |---|---|---|
 | 프로젝트 이름 | 최상위 `name: antlab` | 메인 체크아웃·워크트리 어디서 실행해도 같은 프로젝트·볼륨(디렉터리 이름에 기대지 않음) |
-| 서비스 이름 | `db` | 목표 구조의 이름. 앞으로 `api`의 JDBC URL이 `jdbc:postgresql://db:5432/antlab` |
+| 서비스 이름 | `db` | 목표 구조에서 사용하는 이름이다. `api`의 JDBC URL은 `jdbc:postgresql://db:5432/antlab_api`다(실습 DB `antlab`과 다른 DB이며 `/antlab`이 아니다) |
 | `container_name` | **쓰지 않음**(Compose 기본 `antlab-db-1`) | 고정 이름은 `-p`로 프로젝트를 바꿔도 같은 이름이라 격리 시험이 이름 충돌로 실패한다 |
 | 볼륨 | `db-data`(실제 이름 `antlab_db-data`) | 판 번호를 볼륨 이름에 넣지 않는다. 메이저 업그레이드는 덤프·복원으로(§6) |
 | 포트 | `127.0.0.1:${ANTLAB_DB_PORT:-5432}:5432` | 127.0.0.1에만. 변수로 바꿔 격리 시험 |
 | 이미지 | `postgres:17` | 운영은 마이너까지 고정, 올릴 때는 백업 뒤 |
+| 초기 DB | `POSTGRES_DB=antlab_api` | 빈 볼륨을 처음 시작할 때 API용 빈 DB를 만든다(Flyway가 스키마를 관리한다). 기존 볼륨에는 적용되지 않으므로 `antlab_api`가 없으면 한 번 수동으로 만든다 — `db/README.md`「API 컨테이너」 |
+| API 포트 | `127.0.0.1:${ANTLAB_API_PORT:-8080}:8080` | 격리 시험이 소유자의 8080과 충돌하지 않도록 변수로 바꾼다 |
 
 ### 3.2 격리 시험 규칙 (작업자·QA·CI)
 
 소유자가 쓰는 `antlab` 프로젝트(컨테이너·볼륨·5432 포트)를 건드리지 않는다.
 
 ```bash
-ANTLAB_DB_PORT=55432 docker compose -p antlab-qa up -d     # 격리 프로젝트(볼륨 antlab-qa_db-data)
+ANTLAB_DB_PORT=55432 ANTLAB_API_PORT=18080 docker compose --profile api -p antlab-qa up -d --build --wait     # 격리 프로젝트(볼륨 antlab-qa_db-data). api 시험 포함
 # ... db/README의 순서로 시험 (PGPORT=55432) ...
-docker compose -p antlab-qa down -v                        # 이 프로젝트의 볼륨만 지움
+docker compose --profile api -p antlab-qa down -v --rmi local            # 이 프로젝트의 볼륨·빌드 이미지만 지움
 ```
 
 - `down -v`는 **그 프로젝트의 볼륨을 지운다.** `-p antlab-qa` 없이 `-v`를 쓰면 소유자 데이터가 지워진다.
@@ -80,16 +82,17 @@ docker compose -p antlab-qa down -v                        # 이 프로젝트의
 
 | 이미지 | 선택 | 대안 | 이유 |
 |---|---|---|---|
-| `api` | **Dockerfile 멀티 스테이지**: `eclipse-temurin:21-jdk`(Gradle 빌드) → `eclipse-temurin:21-jre`(실행), 레이어 분리된 jar, 비루트 사용자, `ENTRYPOINT`는 exec 형식(PID 1이 SIGTERM을 받게) | Spring Boot `bootBuildImage`(Paketo buildpacks). 공식 문서: `imagePlatform`(`linux/arm64` 등) 지원, 기본 빌더 `paketobuildpacks/builder-noble-java-tiny:latest` | 세 이미지(api·engine·proxy)를 같은 도구(Dockerfile + buildx)로 만들고, 무엇이 들어가는지 소유자가 읽을 수 있다. buildpacks는 JVM 메모리 계산기가 붙는 장점이 있지만 블랙박스이고 arm64·amd64 교차 빌드 문제 보고가 있다(spring-boot #40697). MVP에서 최종 확정 |
+| `api` | **Dockerfile 멀티 스테이지**(P0-24 확정): `eclipse-temurin:21.0.13_9-jdk-noble`(Gradle 빌드) → `eclipse-temurin:21.0.13_9-jre-noble`(실행), 둘 다 digest까지 고정(2026-11-10 linux/arm64 확인). 펼친 bootJar를 의존성·loader·앱 레이어로 나눠 복사하고, 비루트 UID/GID 10001로 실행한다. `ENTRYPOINT`는 exec 형식 `java org.springframework.boot.loader.launch.JarLauncher`로 지정해 PID 1이 SIGTERM을 받게 한다 | Spring Boot `bootBuildImage`(Paketo buildpacks). 공식 문서: `imagePlatform`(`linux/arm64` 등) 지원, 기본 빌더 `paketobuildpacks/builder-noble-java-tiny:latest` | 세 이미지(api·engine·proxy)를 같은 도구(Dockerfile + buildx)로 만들고, 무엇이 들어가는지 소유자가 읽을 수 있다. buildpacks는 JVM 메모리 계산기가 붙는 장점이 있지만 블랙박스이고 arm64·amd64 교차 빌드 문제 보고가 있다(spring-boot #40697). 이 선택을 P0-24에서 확정했다 |
 | `engine` | `python:3.13-slim`(tools/fetch 검증 버전 3.13과 같음), `requirements.txt` `==` 고정, 비루트, `uvicorn` exec 형식 | `python:3.13`(전체) 또는 distroless | slim이면 pandas·numpy의 manylinux aarch64 휠로 컴파일 없이 설치된다(휠 가용성은 M2에서 **확인 필요**) |
 | `proxy` | 멀티 스테이지: `node:{LTS}-slim`에서 `vite build` → `caddy:2`에 `/srv`·`Caddyfile` 복사 | 정적 파일을 볼륨에 두고 Caddy 공식 이미지 그대로 | 이미지 하나 = 배포 단위 하나(롤백이 태그 교체 한 번) |
 
 - JVM 메모리: 컨테이너 한도(`mem_limit`)를 주고 `-XX:MaxRAMPercentage=75` 같은 비율로 쓴다(JDK가 컨테이너 한도를 인식 — 값은 OPS에서 측정 후 확정).
 - 태그: `:{git 짧은 SHA}` + `:main`(최신). 운영 compose는 **SHA 태그**를 쓴다(앱 되돌리기 = 이전 SHA로 `up -d --wait`. DB 스키마는 함께 돌아가지 않는다 — §7 "되돌리기").
-- 첫 Dockerfile과 함께 루트 `.dockerignore`를 만든다: `.env`, `.env.*`, `data/`, `db/sample/*.csv` 중 무시 파일, `.git/`, `**/.venv/`, `node_modules/` 등. 빌드 컨텍스트에 `.env`가 들어가면 `COPY . .` 한 줄로 이미지에 키가 실린다.
+- 루트 `.dockerignore`(P0-24에서 만듦, Dockerfile은 `COPY . .` 없이 필요한 입력만 복사): `.env`, `.env.*`, `data/`, `db/sample/*.csv` 중 무시할 파일, `.git/`, `**/.venv/`, `node_modules/` 등. 빌드 컨텍스트에 `.env`가 들어가면 `COPY . .` 한 줄만으로도 키가 이미지에 들어간다.
 
 ### 4.2 아키텍처 — arm64 단일부터
 
+- P0-24에서 `eclipse-temurin:21.0.13_9-{jdk,jre}-noble`을 `docker buildx imagetools inspect`로 확인해 digest를 Dockerfile에 고정했다(`linux/arm64/v8` 포함). 빌드한 이미지는 `docker image inspect`로 `linux/arm64`임을 확인했다(2026-11-10).
 - 소유자 개발 기기는 **arm64**(Apple Silicon — `uname -m` = `arm64`, 2026-11-08)이고 목표 VM(OCI Ampere A1)도 arm64다. 이 기기가 받은 `postgres:17` 이미지는 `docker image inspect` 결과 `linux/arm64`다(2026-11-08) — 에뮬레이션이 아닌 arm64판이다.
 - CI에서 GitHub 호스팅 `ubuntu-24.04-arm` 러너(공개 저장소 무료, 2025-08 GA)로 **네이티브** 빌드해 QEMU 에뮬레이션을 피한다. 저장소는 공개(`gh repo view`: PUBLIC, 2026-11-08).
 - amd64는 다른 클라우드로 옮기거나 amd64 기기에서 이미지를 받을 일이 생기면 `docker buildx --platform linux/amd64,linux/arm64`(또는 러너 2개 + manifest 병합)로 더한다.
@@ -133,8 +136,8 @@ docker compose -p antlab-qa down -v                        # 이 프로젝트의
 
 ## 8. 헬스체크·종료·로그
 
-- 헬스체크: `db` `pg_isready`(지금), `api` `/actuator/health/liveness`·`/readiness` — 이 health 그룹이 자동으로 켜지는 조건은 판마다 다르다. Spring Boot 4.1.2 문서는 "자동으로 켜진다"(끌 때 `management.endpoint.health.probes.enabled=false`), 3.5.16 문서는 "Kubernetes 환경에서만 자동, 다른 환경은 이 속성으로 켠다"이다(2026-11-08 확인). Docker Compose는 Kubernetes가 아니므로 **판과 관계없이 `management.endpoint.health.probes.enabled=true`를 명시**하고, P0-22에서 4.1.2로 두 URL이 200(`{"status":"UP"}`)을 주고 `env`·`info`·`beans`는 404임을 확인했다(`ActuatorProbesTest`). readiness 그룹에는 `db`를 넣었으므로 DB가 죽으면 readiness는 Hikari 연결 대기(기본 30초) 뒤 응답한다 — 헬스체크 `timeout`과의 관계는 P0-24에서 정한다. 기본으로 HTTP에 노출되는 엔드포인트는 `health`뿐이다, `engine` `/healthz`. `depends_on: condition: service_healthy`로 시작 순서를 잡는다. 헬스체크 명령에 쓸 `curl`/`wget`이 실행 이미지에 있는지는 이미지 고를 때 **확인 필요**(없으면 Java 한 줄 헬스 클라이언트나 `wget` 추가).
-- 그레이스풀 셧다운: Spring Boot 4.1.2·3.5.16 문서 모두 "내장 웹 서버에서 기본 켜짐"이다(2026-11-08 확인). 3.5 이상이면 정할 것은 대기 시간 `spring.lifecycle.timeout-per-shutdown-phase`(예 20s)뿐이고, 3.4 이하를 고르면 그 판 문서로 다시 확인한다. compose `stop_grace_period: 30s` > 20s.
+- 헬스체크: `db` `pg_isready`(지금), `api` `/actuator/health/liveness`·`/readiness` — 이 health 그룹이 자동으로 켜지는 조건은 판마다 다르다. Spring Boot 4.1.2 문서는 "자동으로 켜진다"(끌 때 `management.endpoint.health.probes.enabled=false`), 3.5.16 문서는 "Kubernetes 환경에서만 자동, 다른 환경은 이 속성으로 켠다"이다(2026-11-08 확인). Docker Compose는 Kubernetes가 아니므로 **판과 관계없이 `management.endpoint.health.probes.enabled=true`를 명시**하고, P0-22에서 4.1.2로 두 URL이 200(`{"status":"UP"}`)을 반환하며 `env`·`info`·`beans`는 404임을 확인했다(`ActuatorProbesTest`). readiness 그룹에는 `db`를 넣었으므로 DB가 죽으면 readiness는 503이다(readiness 요청은 Hikari 연결을 기다리므로 기본 30초까지 걸릴 수 있다). 컨테이너 헬스체크(P0-24)는 `curl --fail --connect-timeout 2 --max-time 35`로 `/actuator/health/readiness`를 호출하며 `interval 10s · timeout 40s(curl 상한보다 길게) · retries 3 · start_period 60s`로 설정한다. 2026-11-10 실측(Docker Desktop 29.5.2, arm64): DB 중단 뒤 약 2분(프로브 한 번이 30초대 걸려 3번 실패) 만에 `unhealthy`가 됐고, 그동안 liveness는 200이었다. DB를 다시 켜면 컨테이너 재생성 없이 5초 안에 `healthy`로 복귀했다. `depends_on: service_healthy`는 시작 순서만 보장하며, unhealthy가 됐다고 Compose가 `api`를 다시 시작하지는 않는다(재시작 정책은 프로세스 종료에만 반응). 실행 이미지(`eclipse-temurin:*-jre-noble`)에는 `curl` 8.5.0이 이미 들어 있어 따로 설치하지 않는다(실행해 확인). 비루트 UID 10001로도 시작·프로브가 권한 오류 없이 동작한다. 기본으로 HTTP에 노출되는 엔드포인트는 `health`뿐이다(컨테이너에서도 `env`·`info`·`beans`·`/v3/api-docs`·Swagger는 404임을 확인했다). `info`의 git SHA는 HTTP로 열지 않고 OPS의 이미지 태그(SHA)·metadata로 추적한다. `engine`은 `/healthz`. `depends_on: condition: service_healthy`로 시작 순서를 잡는다.
+- 그레이스풀 셧다운(P0-24 실측: `docker compose stop api`가 SIGTERM을 Java(PID 1)에 전달 → 로그 "Commencing graceful shutdown … complete", 종료 코드 143, 강제 종료 없음. 처리 중 요청이 있는 상태의 종료는 시험하지 않음): Spring Boot 4.1.2·3.5.16 문서 모두 "내장 웹 서버에서 기본 켜짐"이다(2026-11-08 확인). 3.5 이상이면 정할 값은 대기 시간 `spring.lifecycle.timeout-per-shutdown-phase`(예 20s)뿐이고, 3.4 이하를 고르면 해당 판의 문서로 다시 확인한다. compose `stop_grace_period: 30s` > 20s.
 - 로그: 모든 서비스는 **stdout/stderr에만**(파일 로그 금지). 운영 compose에 `logging: driver json-file, options max-size 10m, max-file 3`(json-file은 `max-size` 기본이 무제한이라 회전하지 않고, `max-file`은 `max-size`가 있어야 효과가 있다 — Docker 문서, 2026-11-08 확인). 키·토큰은 로그에서 `****`(tools/fetch 규칙 유지). 구조화 로그(JSON)는 MVP에서 Spring의 `logging.structured.format.console`(지원 판 **확인 필요**)을 검토한다. 수집·대시보드(Loki 등)는 과함 — OPS 뒤 필요할 때.
 
 ## 9. 비밀값·설정·모델 공급 경로
@@ -145,7 +148,7 @@ docker compose -p antlab-qa down -v                        # 이 프로젝트의
 |---|---|---|
 | 로컬 `.env`(루트, git 무시 — 이미 `.gitignore`) | KIS 키, `OPENROUTER_API_KEY`, `OLLAMA_*`, 로컬 DB 포트 등 | `.env.example`에 **이름만**(P0-08 규칙). Compose는 루트 `.env`를 변수 치환에 읽는다 |
 | 운영 VM `/opt/antlab/.env`(권한 600, 저장소 밖) | 운영 값 | 소유자가 SSH로 직접 둔다 |
-| 운영 compose `secrets:`(파일 → `/run/secrets/<이름>`) | DB 비밀번호, JWT 키, 엔진 토큰 | postgres 이미지는 `POSTGRES_PASSWORD_FILE` 지원(Docker Hub 공식 이미지 문서 — `_FILE`은 `POSTGRES_PASSWORD`·`USER`·`DB`·`INITDB_ARGS`만). Spring은 `spring.config.import=optional:configtree:/run/secrets/`로 파일을 속성으로 읽는다(이름과 세부는 P0-24에서 compose `secrets:`와 함께 **확인 필요**). `POSTGRES_HOST_AUTH_METHOD`는 `_FILE`이 없어 값으로 직접 쓴다(§3 "trust는 로컬·CI 전용"). |
+| 운영 compose `secrets:`(파일 → `/run/secrets/<이름>`) | DB 비밀번호, JWT 키, 엔진 토큰 | postgres 이미지는 `POSTGRES_PASSWORD_FILE` 지원(Docker Hub 공식 이미지 문서 — `_FILE`은 `POSTGRES_PASSWORD`·`USER`·`DB`·`INITDB_ARGS`만). Spring은 `spring.config.import=optional:configtree:/run/secrets/`로 파일 내용을 속성으로 읽는다(파일 이름이 속성 이름이다: `/run/secrets/spring.datasource.password` → `spring.datasource.password`. P0-24에서 임시 파일로 매핑과 환경 변수 우선순위를 확인했고, compose `secrets:`로 실제 마운트하는 일은 OPS다). `POSTGRES_HOST_AUTH_METHOD`는 `_FILE`이 없어 값으로 직접 쓴다(§3 "trust는 로컬·CI 전용"). |
 | GitHub Actions secrets | 배포용 SSH 키·호스트(OPS), 필요하면 OpenRouter 시험 키 | GHCR 푸시는 `GITHUB_TOKEN`(비밀값 추가 불필요). 공개 저장소의 포크 PR에는 secrets가 전달되지 않는다(GitHub 문서 **확인 필요**) → CI 시험은 비밀값 없이 돌아야 한다 |
 
 - **이미지에 비밀값을 굽지 않는다**(§4.1 `.dockerignore`).
@@ -157,7 +160,7 @@ docker compose -p antlab-qa down -v                        # 이 프로젝트의
 - 우리 변수 이름 접두사는 `ANTLAB_`(예: `ANTLAB_DB_PORT`, `ANTLAB_ENGINE_URL`, `ANTLAB_ENGINE_TOKEN`). 표준이 있는 것은 표준 이름 그대로 쓴다(`POSTGRES_*`, `SPRING_*`, `PG*`, `KIS_*`, `OPENROUTER_API_KEY`, `OLLAMA_BASE_URL`).
 - 프로필은 SPRING_JPA §10의 `local`·`test`·`prod` 셋 그대로, 컨테이너에서는 `SPRING_PROFILES_ACTIVE=prod`.
 - Python 엔진(M2) 기준: 설정은 `os.environ`이 먼저이고 `.env` 파일은 로컬 편의 대체만, `/healthz`, 비루트, 외부 네트워크 없음, DB는 읽기 전용 역할. `tools/fetch`는 `.env`를 명시 경로로만 읽고 `os.environ`을 바꾸지 않는다(`common.py`).
-- Phase 0 API(Phase 1 JDBC 콘솔 앱은 건너뛰었다)의 접속 정보도 코드에 쓰지 않는다: `ANTLAB_DB_URL`(기본 `jdbc:postgresql://localhost:5432/antlab_api`), 사용자·비밀번호는 `ANTLAB_DB_USER`(기본 OS 사용자 `${USER}` — compose `POSTGRES_USER`와 같은 규칙)·`ANTLAB_DB_PASSWORD`(기본 빈 값)로 확정했다. `PGUSER`/`PGPASSWORD`는 libpq 변수라 JDBC 드라이버가 읽지 않으므로 Spring에는 쓰지 않는다. `prod`에서 `ANTLAB_DB_URL`을 필수(기본값 없음)로 바꾸는 일은 P0-24에서 한다. 로컬 compose `db`에 그대로 붙는다.
+- Phase 0 API(Phase 1 JDBC 콘솔 앱은 건너뛰었다)의 접속 정보 역시 코드에 쓰지 않는다: `ANTLAB_DB_URL`(기본 `jdbc:postgresql://localhost:5432/antlab_api`), 사용자·비밀번호는 `ANTLAB_DB_USER`(기본 OS 사용자 `${USER}` — compose `POSTGRES_USER`와 같은 규칙)·`ANTLAB_DB_PASSWORD`(기본 빈 값)로 확정했다. `PGUSER`/`PGPASSWORD`는 libpq 변수라 JDBC 드라이버가 읽지 않으므로 Spring에는 쓰지 않는다. `prod`에서는 `ANTLAB_DB_URL`이 필수(기본값 없음)다(P0-24 — 빠뜨리면 기동에 실패해 localhost로 가지 않는다). 컨테이너의 `api`에는 compose가 `ANTLAB_DB_URL=jdbc:postgresql://db:5432/antlab_api`(서비스 이름과 컨테이너 포트)를 직접 준다. 호스트 `.env`의 URL이 그대로 넘어가지 않게 `env_file`로 `.env` 전체를 넘기지 않고 필요한 변수만 `environment`에 적는다. 설정 우선순위는 환경 변수 → configtree 파일이다 — 같은 속성(`spring.datasource.password`)을 `SPRING_DATASOURCE_PASSWORD`와 `/run/secrets` 파일로 함께 주지 않는다. 로컬 compose `db`에 그대로 연결한다.
 
 ### 9.3 모델 공급 경로 (서버 컨테이너에서)
 
@@ -212,7 +215,7 @@ docker compose -p antlab-qa down -v                        # 이 프로젝트의
 | Phase 0 | compose 이름 규칙(§3.1), 격리 시험 규칙(§3.2), 포트 원칙(§5), 비밀값·설정 규칙(§9), 문서의 Homebrew → Docker Compose, (선택) SQL 검증 CI(아래) |
 | Phase 1 | 건너뜀(2026-11-09) — 접속 정보 환경 변수(§9.2)는 Phase 0 API(P0-22)가 이어받는다 |
 | Phase 0 API | Spring 컨테이너 설정 체크리스트(SPRING_JPA §10.1, P0-22), api Dockerfile·`.dockerignore`, compose `api`(P0-24), Flyway V1–V3 기준선(P0-23; API DB에서 자동 baseline 금지), 시험은 새 Testcontainers로 실행 |
-| MVP | DB 역할 3개 초안(§7), 구조화 로그(configtree는 P0-24에서 이름만 확인하고 실제 사용은 OPS — §9.1) |
+| MVP | DB 역할 3개(초안, §7), 구조화 로그(configtree는 P0-24에서 이름·우선순위를 시험으로 확인했고 실제 사용은 OPS — §9.1) |
 | M1 | CI Gradle + Testcontainers PG17(SPRING_JPA §9) — Phase 0 API 시험을 합성 표본 픽스처로 CI에서, api 이미지 **빌드만**(푸시 없음, SPRING_JPA §10.1-8), 수집기 외부 호출은 `egress`만 |
 | M2 | engine Dockerfile·`/healthz`·읽기 전용 역할·`backend` 전용 네트워크, 서비스 토큰 |
 | WEB · APP | proxy 이미지(웹 정적 + Caddy)는 APP·OPS, 로컬은 Vite 개발 서버를 호스트에서(컨테이너 아님 — WEB부터, `/api` 프록시) |
@@ -242,7 +245,7 @@ docker compose -p antlab-qa down -v                        # 이 프로젝트의
 | D-1 | compose 이름 규칙 | §3.1 표 | 초안 유지(격리 시험 실패, 워크트리마다 다른 프로젝트) | §3.1 |
 | D-2 | compose 파일 구조 | 공통 + `compose.prod.yaml` 덮어쓰기 + profiles | 환경별 완전한 파일 / profiles만 | §3 |
 | D-3 | 포트 원칙 | 호스트 포트는 127.0.0.1에만, 외부는 proxy 80·443 | 운영에서 `!reset`으로만 지우기 | §5 |
-| D-4 | api 이미지 | Dockerfile 멀티 스테이지 | `bootBuildImage` (P0-24에서 최종) | §4.1 |
+| D-4 | api 이미지 | Dockerfile 멀티 스테이지로 확정(P0-24) | `bootBuildImage` | §4.1 |
 | D-5 | 아키텍처 | arm64 단일, 네이티브 arm 러너 | 처음부터 amd64+arm64 | §4.2 |
 | D-6 | 웹 서빙 | Caddy가 정적 파일까지 | nginx 컨테이너 | §2 |
 | D-7 | Flyway | 앱 시작 때 + 배포 전 덤프 | 별도 `migrate` 서비스 | §7 |

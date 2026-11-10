@@ -46,6 +46,11 @@ tasks.named('test') {
     systemProperty 'user.timezone', 'UTC'
 }
 
+tasks.named('bootJar') {
+    // Dockerfile 이 이름으로 집는다. plain JAR·와일드카드 선택 실수를 막는다.
+    archiveFileName = 'app.jar'
+}
+
 tasks.named('bootRun') {
     // 프로필을 빠뜨린 컨테이너가 개발 설정으로 뜨지 않게, local 은 bootRun 에서만 기본으로 준다.
     systemProperty 'spring.profiles.active', System.getenv('SPRING_PROFILES_ACTIVE') ?: 'local'

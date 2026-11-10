@@ -47,6 +47,26 @@ Flyway가 자동 baseline 없이 시작을 멈춘다. DB를 지우거나 새 이
 있을 수 있다) 먼저 내용을 확인한다. 그다음 `dropdb antlab_api`로 지우고 다시 만들거나, 보존해야 하면 새 이름과
 `ANTLAB_DB_URL`을 쓴다. 기존 실습 DB `antlab`을 API DB로 바꾸는 일은 범위 밖이다(스키마 대조와 수동 baseline이 필요).
 
+### API 컨테이너 (P0-24)
+
+루트 `compose.yaml`의 `api` 서비스는 같은 `db`의 `antlab_api`에 연결된다(컨테이너 안 주소는 `jdbc:postgresql://db:5432/antlab_api`, 호스트 게시 포트 `ANTLAB_DB_PORT`와 무관). `antlab_api`를 만드는 방법은 두 가지다.
+
+- **새 볼륨(빈 데이터 디렉터리로 처음 시작)**: `db` 서비스의 `POSTGRES_DB=antlab_api`가 빈 DB를 만든다. `docker compose --profile api up -d --build --wait`를 한 번 실행하면 Flyway V1–V3까지 적용된다. 시간대 설정(`ALTER DATABASE … SET timezone`)은 필요 없다 — 앱이 세션마다 `Asia/Seoul`을 지정하고(`connection-init-sql`), 컨테이너 DB의 `TZ`도 `Asia/Seoul`이다. psql로 표본 SQL을 실행할 때만 위의 `ALTER DATABASE` 한 줄을 실행한다.
+- **기존 볼륨(이미 `antlab`이 들어 있는 `antlab_db-data` 등)**: `POSTGRES_*` 변수는 처음 시작할 때만 적용되므로 `antlab_api`가 자동으로 생기지 않는다. 자동 생성 서비스나 `CREATE DATABASE` 권한은 부여하지 않았다. 먼저 `db`만 올려 확인한다.
+
+```bash
+docker compose up -d --wait db
+docker compose exec -T db psql -U "$USER" -d postgres -Atc "SELECT datname FROM pg_database WHERE datname = 'antlab_api'"
+# 아무것도 안 나오면(없으면) 한 번만 만든다. 이미 있으면 실행하지 않는다(지우거나 다시 만들지 않는다)
+docker compose exec -T db createdb -U "$USER" -E UTF8 -T template0 antlab_api
+docker compose exec -T db psql -U "$USER" -d postgres -c "ALTER DATABASE antlab_api SET timezone TO 'Asia/Seoul'"
+docker compose --profile api up -d --build --wait --wait-timeout 240
+```
+
+`$USER`가 기존 DB 역할 이름과 다르면 그 역할 이름을 쓰고 `ANTLAB_DB_USER`에도 같은 값을 준다(OS 사용자 이름을 바꿔도 DB 역할은 바뀌지 않는다). 이 변수는 기존 볼륨의 역할 이름이 다를 때만 지정한다 — 새 볼륨의 역할은 항상 `${USER:-antlab}`로 만들어지므로 다른 이름을 주면 역할이 없어 api가 접속에 실패한다. api 컨테이너가 `Restarting`이면 먼저 `antlab_api` DB가 있는지(위 확인 명령) 확인한다. 소유자 프로젝트의 `db` 컨테이너는 `compose.yaml`이 바뀌면 다음 `up`에서 같은 볼륨으로 다시 만들어진다(데이터는 그대로).
+
+컨테이너 `api`는 `prod` 프로필이라 Swagger가 꺼져 있고 Actuator에서는 `health`만 연다. 표본을 적재할 때는 `docker compose stop api` → 적재 → `docker compose start api` 순서로 실행한다.
+
 시험은 소유자의 `antlab`·`antlab_api`에 접속하지 않는다. 시험 실행마다 새 PostgreSQL 17
 Testcontainers DB를 시작하고 Flyway를 적용한다. 시험 DB에서 `clean`으로 공유 데이터를 지우지
 않는다. API DB의 기존 스키마를 자동 `baseline`하지 않으며, 문제가 있으면 새 DB와
