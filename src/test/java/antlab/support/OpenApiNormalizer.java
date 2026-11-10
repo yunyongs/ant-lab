@@ -16,10 +16,12 @@ import tools.jackson.databind.json.JsonMapper;
  * OpenAPI 문서를 "계약으로 비교할 것"만 남긴 평범한 자바 구조(맵·목록·문자열·불리언)로 바꾼다.
  * 저장소 계약(yaml)과 springdoc 출력(JSON)을 같은 규칙으로 줄여 {@link OpenApiDiff} 가 비교한다.
  *
- * <p>비교하는 것: 범위 안(/api/v1/) 운영의 operationId·deprecated·parameters·requestBody·responses, 스키마의
+ * <p>비교하는 것: 범위 안(/api/v1/) 운영의 operationId·deprecated·parameters(style·explode 는 어느 한쪽이라도 적었을
+ * 때만 — 기본값은 계약에 적지 않는다)·requestBody·responses(본문 스키마와 응답 헤더의 이름 집합·필수 여부·스키마), 스키마의
  * type·format·enum·required·properties·items·additionalProperties·수치/길이 제약·oneOf/anyOf/allOf,
- * 범위 안 운영에서 닿는 컴포넌트 집합, 머리의 openapi 주·부 판. 무시하는 것: summary·description·tags·
- * example(s)·default·readOnly/writeOnly·title·xml·info·servers·security.
+ * 범위 안 운영에서 닿는 컴포넌트 집합, 머리의 openapi 주·부 판. 미디어 형식은 {@code ;} 앞(예: charset 매개변수
+ * 제외)까지만 본다. 범위 밖 운영만 쓰는 컴포넌트는 고아로 세지 않는다.
+ * 무시하는 것: summary·description·tags·example(s)·default·readOnly/writeOnly·title·xml·info·servers·security.
  * $ref 는 컴포넌트 이름으로 바꿔 비교한다(이름도 계약 — 웹 타입 이름).
  */
 public final class OpenApiNormalizer {
@@ -83,14 +85,49 @@ public final class OpenApiNormalizer {
         }
         out.put("components", components);
         List<String> orphans = new ArrayList<>();
+        Set<String> outside = outOfScopeComponents();
         for (String name : schemas.propertyNames()) {
-            if (!reached.contains(name)) {
+            if (!reached.contains(name) && !outside.contains(name)) {
                 orphans.add(name);
             }
         }
         orphans.sort(null);
         out.put("orphans", orphans);
         return out;
+    }
+
+    /** 범위 밖 경로가 직접·간접으로 쓰는 스키마 이름. 이 컴포넌트는 범위 안 운영이 안 써도 고아가 아니다. */
+    private Set<String> outOfScopeComponents() {
+        Set<String> found = new TreeSet<>();
+        Deque<String> queue = new ArrayDeque<>();
+        for (Map.Entry<String, JsonNode> path : doc.path("paths").properties()) {
+            if (!path.getKey().startsWith(SCOPE_PREFIX)) {
+                collectRefs(path.getValue(), found, queue);
+            }
+        }
+        JsonNode schemas = doc.path("components").path("schemas");
+        while (!queue.isEmpty()) {
+            JsonNode target = schemas.get(queue.poll());
+            if (target != null) {
+                collectRefs(target, found, queue);
+            }
+        }
+        return found;
+    }
+
+    private static void collectRefs(JsonNode node, Set<String> found, Deque<String> queue) {
+        if (node.isObject()) {
+            JsonNode ref = node.get("$ref");
+            if (ref != null && ref.isString() && ref.asString().startsWith(SCHEMA_REF_PREFIX)) {
+                String name = ref.asString().substring(SCHEMA_REF_PREFIX.length());
+                if (found.add(name)) {
+                    queue.add(name);
+                }
+            }
+            node.forEach(child -> collectRefs(child, found, queue));
+        } else if (node.isArray()) {
+            node.forEach(child -> collectRefs(child, found, queue));
+        }
     }
 
     private Map<String, Object> operation(JsonNode op) {
@@ -107,6 +144,13 @@ public final class OpenApiNormalizer {
             Map<String, Object> pm = new TreeMap<>();
             pm.put("required", p.path("required").asBoolean(false));
             pm.put("schema", schema(p.path("schema")));
+            // style·explode 는 기본값이 위치마다 달라 "생략"과 "기본값 명시"를 같게 보지 않는다.
+            // 한쪽만 적어도 차이이므로 기본값(query 의 explode: true 등)은 yaml 에 적지 않는다.
+            for (String key : List.of("style", "explode")) {
+                if (p.has(key)) {
+                    pm.put(key, scalar(p.get(key)));
+                }
+            }
             parameters.put(p.path("name").asString("") + " in " + p.path("in").asString(""), pm);
         }
         m.put("parameters", parameters);
@@ -123,6 +167,7 @@ public final class OpenApiNormalizer {
         for (Map.Entry<String, JsonNode> r : op.path("responses").properties()) {
             Map<String, Object> rm = new TreeMap<>();
             rm.put("content", content(r.getValue().path("content")));
+            rm.put("headers", headers(r.getValue().path("headers")));
             responses.put(r.getKey(), rm);
         }
         m.put("responses", responses);
@@ -132,7 +177,40 @@ public final class OpenApiNormalizer {
     private Map<String, Object> content(JsonNode content) {
         Map<String, Object> m = new TreeMap<>();
         for (Map.Entry<String, JsonNode> e : content.properties()) {
-            m.put(e.getKey().toLowerCase(), schema(e.getValue().path("schema")));
+            String key = mediaType(e.getKey());
+            if (m.put(key, schema(e.getValue().path("schema"))) != null) {
+                throw new IllegalArgumentException("정규화 뒤 미디어 형식이 겹친다: " + key);
+            }
+        }
+        return m;
+    }
+
+    /** 미디어 형식은 {@code ;} 앞까지 소문자로 본다({@code application/json;charset=UTF-8} = {@code application/json}). */
+    static String mediaType(String raw) {
+        int semicolon = raw.indexOf(';');
+        return (semicolon < 0 ? raw : raw.substring(0, semicolon)).trim().toLowerCase();
+    }
+
+    /**
+     * 응답 헤더: 이름(대소문자 무시)·필수 여부·스키마. {@code Content-Type} 은 OpenAPI 규칙상 헤더 정의에서
+     * 무시되므로 뺀다.
+     */
+    private Map<String, Object> headers(JsonNode headers) {
+        Map<String, Object> m = new TreeMap<>();
+        for (Map.Entry<String, JsonNode> e : headers.properties()) {
+            String name = e.getKey().toLowerCase();
+            if (name.equals("content-type")) {
+                continue;
+            }
+            JsonNode h = e.getValue();
+            if (h.has("$ref")) {
+                m.put(name, Map.of("$ref", h.get("$ref").asString()));
+                continue;
+            }
+            Map<String, Object> hm = new TreeMap<>();
+            hm.put("required", h.path("required").asBoolean(false));
+            hm.put("schema", schema(h.path("schema")));
+            m.put(name, hm);
         }
         return m;
     }
