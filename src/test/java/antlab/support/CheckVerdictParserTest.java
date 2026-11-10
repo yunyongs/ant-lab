@@ -53,4 +53,21 @@ class CheckVerdictParserTest {
         assertThat(verdict.passed()).isFalse();
         assertThat(verdict.reason()).doesNotContain("secret_column").doesNotContain("123456");
     }
+
+    @Test
+    void 건수_열이_붙은_드릴_판정은_첫_칸과_실패_건수까지_본다() {
+        String head = "p0_17_drill|total|pass|fail\n";
+        assertThat(CheckVerdictParser.parseWithCounts(head + "PASS|20|20|0\n", "p0_17_drill").passed()).isTrue();
+        assertThat(CheckVerdictParser.parseWithCounts(head + "FAIL|20|19|1\n", "p0_17_drill").passed()).isFalse();
+        assertThat(CheckVerdictParser.parseWithCounts(head + "PASS|20|19|1\n", "p0_17_drill").passed()).isFalse();
+        assertThat(CheckVerdictParser.parseWithCounts(head + "PASS|20|20|0\n", "p0_17_check").passed()).isFalse();
+        assertThat(CheckVerdictParser.parseWithCounts(head + "PASS|20|20|0\nextra\n", "p0_17_drill").passed()).isFalse();
+        // 건수 칸: 검사 0건, pass != total, 숫자 아님, 다른 머리
+        assertThat(CheckVerdictParser.parseWithCounts(head + "PASS|0|0|0\n", "p0_17_drill").passed()).isFalse();
+        assertThat(CheckVerdictParser.parseWithCounts(head + "PASS|20|19|0\n", "p0_17_drill").passed()).isFalse();
+        assertThat(CheckVerdictParser.parseWithCounts(head + "PASS|x|20|0\n", "p0_17_drill").passed()).isFalse();
+        assertThat(CheckVerdictParser.parseWithCounts("p0_17_drill|n|pass|fail\nPASS|20|20|0\n", "p0_17_drill").passed()).isFalse();
+        // 한 열짜리 판정에는 쓰지 않는다
+        assertThat(CheckVerdictParser.parseWithCounts("p0_17_drill\nPASS\n", "p0_17_drill").passed()).isFalse();
+    }
 }

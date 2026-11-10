@@ -5,6 +5,8 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 import java.util.regex.Pattern;
 import org.testcontainers.containers.Container.ExecResult;
 import org.testcontainers.images.builder.Transferable;
@@ -22,6 +24,8 @@ public final class PsqlScriptRunner {
     public static final String WORK_ROOT = "/work";
 
     private static final Pattern SAFE_PATH = Pattern.compile("[A-Za-z0-9_][A-Za-z0-9_./-]*");
+    private static final Pattern SAFE_VAR_NAME = Pattern.compile("[a-z][a-z0-9_]{0,30}");
+    private static final Pattern SAFE_VAR_VALUE = Pattern.compile("[A-Za-z0-9_.-]{0,40}");
     private static final Pattern SAFE_DB = Pattern.compile("[a-z][a-z0-9_]{0,62}");
     /** timeout 명령이 시간 초과로 끝날 때의 종료 코드 */
     private static final int TIMEOUT_EXIT = 124;
@@ -58,6 +62,13 @@ public final class PsqlScriptRunner {
         return exec(database, timeout, List.of("-f", relativePath));
     }
 
+    /** psql 변수({@code -v 이름=값})를 주고 실행한다. 이름·값은 안전한 글자만 받는다(셸 문자열에 이어 붙이지 않고 인자로 넘긴다). */
+    public Result runFile(String database, String relativePath, Duration timeout, Map<String, String> variables)
+            throws Exception {
+        requireSafePath(relativePath);
+        return exec(database, timeout, List.of("-f", relativePath), variables);
+    }
+
     /** SQL 한 문장을 {@code -c} 로 실행한다. 호출하는 시험 코드의 상수만 넘긴다. */
     public Result runSql(String database, String sql, Duration timeout) throws Exception {
         return exec(database, timeout, List.of("-c", sql));
@@ -77,12 +88,22 @@ public final class PsqlScriptRunner {
     }
 
     private Result exec(String database, Duration timeout, List<String> actions) throws Exception {
+        return exec(database, timeout, actions, Map.of());
+    }
+
+    private Result exec(String database, Duration timeout, List<String> actions, Map<String, String> variables)
+            throws Exception {
         requireSafeDatabase(database);
         List<String> cmd = new ArrayList<>(List.of(
                 "sh", "-c", "cd \"$1\" && shift && exec \"$@\"", "sh", WORK_ROOT,
                 "timeout", "-k", "5", String.valueOf(Math.max(1, timeout.toSeconds())),
                 "psql", "-X", "-q", "-A", "-P", "footer=off", "-v", "ON_ERROR_STOP=1",
                 "-U", container.getUsername(), "-d", database));
+        new TreeMap<>(variables).forEach((name, value) -> {
+            requireSafeVariable(name, value);
+            cmd.add("-v");
+            cmd.add(name + "=" + value);
+        });
         cmd.addAll(actions);
         long start = System.nanoTime();
         ExecResult result = container.execInContainer(cmd.toArray(new String[0]));
@@ -94,6 +115,12 @@ public final class PsqlScriptRunner {
     static void requireSafePath(String relativePath) {
         if (!SAFE_PATH.matcher(relativePath).matches() || relativePath.contains("..")) {
             throw new IllegalArgumentException("허용되지 않는 상대 경로: " + relativePath);
+        }
+    }
+
+    static void requireSafeVariable(String name, String value) {
+        if (!SAFE_VAR_NAME.matcher(name).matches() || !SAFE_VAR_VALUE.matcher(value).matches()) {
+            throw new IllegalArgumentException("허용되지 않는 psql 변수: " + name);
         }
     }
 

@@ -83,11 +83,22 @@ public final class GoldenFixtureSource {
     private final Path repositoryRoot;
     private final Path sampleDir;
     private final boolean explicit;
+    private final boolean includeDrill;
 
     public GoldenFixtureSource(Path repositoryRoot, Path externalSampleDir) {
+        this(repositoryRoot, externalSampleDir, false);
+    }
+
+    private GoldenFixtureSource(Path repositoryRoot, Path externalSampleDir, boolean includeDrill) {
         this.repositoryRoot = repositoryRoot.toAbsolutePath();
         this.explicit = externalSampleDir != null;
         this.sampleDir = externalSampleDir != null ? externalSampleDir : this.repositoryRoot.resolve("db/sample");
+        this.includeDrill = includeDrill;
+    }
+
+    /** 롤백 드릴 파일({@code *_drill.sql})까지 담는 사본. 드릴 골든(버리는 DB 전용)만 쓴다 — 기본 묶음에는 넣지 않는다. */
+    public GoldenFixtureSource withDrill() {
+        return new GoldenFixtureSource(repositoryRoot, explicit ? sampleDir : null, true);
     }
 
     public static GoldenFixtureSource fromEnvironment() {
@@ -116,7 +127,7 @@ public final class GoldenFixtureSource {
         try (Stream<Path> sql = Files.list(repositoryRoot.resolve("db"))) {
             sql.filter(p -> p.getFileName().toString().matches("\\d{2}_.*\\.sql"))
                     // 드릴은 기본 회귀 밖이다 (파괴·롤백 사례는 명시적으로 고른 별도 DB 에서만)
-                    .filter(p -> !p.getFileName().toString().endsWith("_drill.sql"))
+                    .filter(p -> includeDrill || !p.getFileName().toString().endsWith("_drill.sql"))
                     .forEach(p -> sources.put("db/" + p.getFileName(), p));
         }
         for (String name : TRACKED_SAMPLE_CSV) {

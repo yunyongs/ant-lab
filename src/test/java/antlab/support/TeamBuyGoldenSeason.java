@@ -57,9 +57,19 @@ public final class TeamBuyGoldenSeason implements AutoCloseable {
 
     /** 컨테이너와 두 DB 를 만들고 앱이 API DB 를 보도록 접속 정보를 등록한다(@DynamicPropertySource 에서 부른다). */
     public static TeamBuyGoldenSeason start(DynamicPropertyRegistry registry, String apiDbName) throws Exception {
+        return start(registry, apiDbName, SOURCE);
+    }
+
+    /** 롤백 드릴 파일까지 컨테이너에 놓는 판(드릴 골든 전용). */
+    public static TeamBuyGoldenSeason startWithDrill(DynamicPropertyRegistry registry, String apiDbName) throws Exception {
+        return start(registry, apiDbName, SOURCE.withDrill());
+    }
+
+    private static TeamBuyGoldenSeason start(DynamicPropertyRegistry registry, String apiDbName, GoldenFixtureSource source)
+            throws Exception {
         PostgreSQLContainer container = SqlGoldenHarness.newContainer();
         container.start();
-        SqlGoldenHarness harness = new SqlGoldenHarness(container, SOURCE);
+        SqlGoldenHarness harness = new SqlGoldenHarness(container, source);
         harness.stageInputs();
         DatabaseHandle apiDb = harness.createSqlDatabase(apiDbName);
         registry.add("spring.datasource.url", () -> "jdbc:postgresql://" + container.getHost() + ":"
