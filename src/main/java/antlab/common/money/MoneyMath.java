@@ -133,6 +133,29 @@ public final class MoneyMath {
         return storedMoney(result, "총 평가액");
     }
 
+    /**
+     * 응답용 원 단위 금액 — scale 0 으로 정확히 바꾼다. DB 에서 읽은 값(scale 4)과 방금 만든 값(요청 scale)의
+     * 문자열을 같게 만드는 용도이며, 소수 자리에 0이 아닌 값이 있으면 반올림하지 않고 예외다.
+     */
+    public static BigDecimal exactWon(BigDecimal value) {
+        require(value, "금액");
+        return exactScale(value, 0, "금액");
+    }
+
+    /** 응답용 비율 — scale 8 로 정확히 바꾼다. 값이 바뀌면(9자리 이상 유효) 예외다. */
+    public static BigDecimal exactRate(BigDecimal value) {
+        require(value, "비율");
+        return exactScale(value, 8, "비율");
+    }
+
+    private static BigDecimal exactScale(BigDecimal value, int scale, String field) {
+        try {
+            return value.setScale(scale, RoundingMode.UNNECESSARY);
+        } catch (ArithmeticException ex) {
+            throw invalid(field + ": 허용된 소수 자리까지 정확히 표현되어야 한다");
+        }
+    }
+
     public record ReturnFactors(BigDecimal localReturn, BigDecimal fxChange) {
     }
 

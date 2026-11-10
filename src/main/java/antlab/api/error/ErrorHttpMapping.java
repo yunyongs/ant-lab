@@ -24,6 +24,9 @@ public final class ErrorHttpMapping {
             case POOL_NOT_LOADED -> HttpStatus.CONFLICT;
             case POOL_NOT_JUDGED -> HttpStatus.CONFLICT;
             case PATH_TOO_LONG -> HttpStatus.UNPROCESSABLE_ENTITY;
+            case SEASON_LIMIT -> HttpStatus.CONFLICT;
+            case TURN_NOT_REACHED -> HttpStatus.CONFLICT;
+            case MEMBER_UNAVAILABLE -> HttpStatus.SERVICE_UNAVAILABLE;
         };
     }
 

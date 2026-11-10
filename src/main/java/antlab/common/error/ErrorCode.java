@@ -17,5 +17,11 @@ public enum ErrorCode {
     /** 기준일 풀에 판정이 비어 있는 종목이 있다. */
     POOL_NOT_JUDGED,
     /** 요청한 길이의 경로를 만들 수 없다 — 60턴 초과이거나 재생 구간의 달이 모자란다(P0-29). */
-    PATH_TOO_LONG
+    PATH_TOO_LONG,
+    /** 진행 중인 시즌이 3개라 새로 시작할 수 없다(P0-30). */
+    SEASON_LIMIT,
+    /** 아직 진행하지 않은 턴이다(P0-30 가격 조회, P0-35). */
+    TURN_NOT_REACHED,
+    /** 현재 회원을 알 수 없다 — 운영에서 고정 회원이 꺼져 있고 인증(SEC)이 아직 없을 때. */
+    MEMBER_UNAVAILABLE
 }
