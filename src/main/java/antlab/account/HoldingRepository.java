@@ -1,5 +1,6 @@
 package antlab.account;
 
+import java.util.List;
 import java.util.Optional;
 import org.springframework.data.repository.Repository;
 
@@ -12,4 +13,7 @@ public interface HoldingRepository extends Repository<Holding, Long> {
 
     /** 시즌·종목의 보유 한 행. 잠그지 않는다 — 시즌 행 락 아래에서만 바뀌므로 이미 직렬화되어 있다. */
     Optional<Holding> findBySeasonIdAndAssetId(Long seasonId, Long assetId);
+
+    /** 시즌의 보유 전부(수량 0 포함) — 턴 스냅샷이 한 번에 읽는다. */
+    List<Holding> findBySeasonId(Long seasonId);
 }
