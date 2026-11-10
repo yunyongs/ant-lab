@@ -5,7 +5,7 @@
 -- 실행: 저장소 루트에서  psql -X -v ON_ERROR_STOP=1 -d <DB이름> -f db/23_turn_advance.sql
 --       한 번 실행 = 한 턴이다. 10턴은 셸 반복으로 돌린다 (db/README.md):
 --         for i in $(seq 1 10); do psql -X -q -v ON_ERROR_STOP=1 -d antlab -f db/23_turn_advance.sql || break; done
---       같은 폴더의 22_reconcile_season_def.sql·24_turn_feed_def.sql·23_turn_advance_def.sql 을 \ir 로 읽는다. 24 정의가 feed/*.csv 를 상대 경로로 읽으므로 반드시 저장소 루트에서 실행한다. -v ON_ERROR_STOP=1 이 없으면 맨 앞 가드가 아무것도 하지 않고 끝낸다
+--       같은 폴더의 22_reconcile_season_def.sql·24_turn_feed_def.sql·23_turn_advance_def.sql 을 \ir 로 읽는다. 24 정의가 feed/*.csv 를 상대 경로로 읽으므로 반드시 저장소 루트에서 실행한다. -v ON_ERROR_STOP=1 이 없으면 맨 앞 가드가 아무것도 하지 않고 종료 코드 3으로 끝낸다
 --       (대사 불일치를 종료 코드 3 으로 알리는 방법이 오류 한 번뿐이다).
 -- 하는 일: 연습 시즌(20 과 같은 이메일, 정확히 1개)의 현재 턴을 읽어 pg_temp.turn_advance 를 부른다 —
 --       다음 턴의 turn_price(풀 전체)와 turn 스냅샷을 만들고 대사 17개를 돌려, 전부 일치면 기록하고 현재 턴을 올려 커밋한다.
@@ -26,11 +26,13 @@
   \if :ON_ERROR_STOP
   \else
     \echo 'P0-17 턴 진행: ON_ERROR_STOP 이 꺼져 있다. psql -X -v ON_ERROR_STOP=1 -d <DB> -f db/23_turn_advance.sql 로 다시 실행한다'
-    \quit
+    \set ON_ERROR_STOP on
+    DO $$ BEGIN RAISE EXCEPTION 'P0-17 턴 진행: 실행하지 않았다 (위 안내 참고)' USING HINT = 'ON_ERROR_STOP'; END $$;
   \endif
 \else
   \echo 'P0-17 턴 진행: -v ON_ERROR_STOP=1 없이 실행할 수 없다 (대사 불일치를 종료 코드 3 으로 알리려면 오류에서 멈춰야 한다)'
-  \quit
+  \set ON_ERROR_STOP on
+  DO $$ BEGIN RAISE EXCEPTION 'P0-17 턴 진행: 실행하지 않았다 (위 안내 참고)' USING HINT = 'ON_ERROR_STOP'; END $$;
 \endif
 
 -- 정의는 트랜잭션 밖에서 읽는다 (턴 전환 프로시저의 COMMIT·ROLLBACK 이 정의를 지우지 않게). 22 정의를 먼저 읽는다.

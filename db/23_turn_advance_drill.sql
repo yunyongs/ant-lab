@@ -27,27 +27,32 @@
   \if :ON_ERROR_STOP
   \else
     \echo 'P0-17 드릴: ON_ERROR_STOP 이 꺼져 있다. psql -X -v ON_ERROR_STOP=1 -v drill=1 -d <버리는 DB> -f db/23_turn_advance_drill.sql 로 다시 실행한다'
-    \quit
+    \set ON_ERROR_STOP on
+    DO $$ BEGIN RAISE EXCEPTION 'P0-17 드릴: 실행하지 않았다 (위 안내 참고)' USING HINT = 'ON_ERROR_STOP'; END $$;
   \endif
 \else
   \echo 'P0-17 드릴: -v ON_ERROR_STOP=1 없이 실행할 수 없다'
-  \quit
+  \set ON_ERROR_STOP on
+  DO $$ BEGIN RAISE EXCEPTION 'P0-17 드릴: 실행하지 않았다 (위 안내 참고)' USING HINT = 'ON_ERROR_STOP'; END $$;
 \endif
 \if :{?drill}
 \else
   \echo 'P0-17 드릴: -v drill=1 이 없다. 이 파일은 커밋된 상태를 깨뜨리고 로그를 남긴다 — 버리는 DB 에서만 -v drill=1 로 실행한다'
-  \quit
+  \set ON_ERROR_STOP on
+  DO $$ BEGIN RAISE EXCEPTION 'P0-17 드릴: 실행하지 않았다 (위 안내 참고)' USING HINT = 'ON_ERROR_STOP'; END $$;
 \endif
 SELECT (:'drill' = '1') AS dr_flag_ok \gset
 \if :dr_flag_ok
 \else
   \echo 'P0-17 드릴: -v drill=1 이어야 한다 (다른 값은 받지 않는다). 버리는 DB 에서만 -v drill=1 로 실행한다'
-  \quit
+  \set ON_ERROR_STOP on
+  DO $$ BEGIN RAISE EXCEPTION 'P0-17 드릴: 실행하지 않았다 (위 안내 참고)' USING HINT = 'ON_ERROR_STOP'; END $$;
 \endif
 SELECT (current_database() IN ('antlab', 'antlab_test')) AS dr_is_keep \gset
 \if :dr_is_keep
   \echo 'P0-17 드릴: 이 DB 는 소유자의 상시 DB 이름(antlab·antlab_test)이다. 사본(CREATE DATABASE antlab_drill TEMPLATE antlab)에서 실행한다'
-  \quit
+  \set ON_ERROR_STOP on
+  DO $$ BEGIN RAISE EXCEPTION 'P0-17 드릴: 실행하지 않았다 (위 안내 참고)' USING HINT = 'ON_ERROR_STOP'; END $$;
 \endif
 
 \ir 22_reconcile_season_def.sql

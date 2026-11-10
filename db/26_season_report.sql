@@ -3,7 +3,7 @@
 -- 근거: docs/erd.md D38·9절 P0-20, docs/PLAN.md §6.1·§6.2, 정의는 db/26_season_report_def.sql 한 곳 (이 파일이 \ir 로 읽는다)
 -- 대상: db/20_season_start.sql → 21_team_buy.sql → 23_turn_advance.sql 을 1번 이상 실행한 DB (PostgreSQL 17). 25 매매 시나리오 전후, 끝난 시즌 모두 된다.
 -- 실행: 저장소 루트에서  psql -X -v ON_ERROR_STOP=1 -d <DB이름> -f db/26_season_report.sql
---       -v ON_ERROR_STOP=1 이 없으면 맨 앞 가드가 아무것도 하지 않고 끝낸다. 연습 시즌(이메일 phase0@example.invalid)이 정확히 1개여야 한다.
+--       -v ON_ERROR_STOP=1 이 없으면 맨 앞 가드가 아무것도 하지 않고 종료 코드 3으로 끝낸다. 연습 시즌(이메일 phase0@example.invalid)이 정확히 1개여야 한다.
 -- 쓰기: 없다. 읽기 전용 트랜잭션이다. 몇 번이든 돌릴 수 있고 실습 DB(antlab)에서도 된다.
 -- 출력: ① 진행 중이면 "잠정" 한 줄 ② 성적표 1행(37열, 세로로) ③ 턴별 표 ④ 시즌 실측 포지션별 판정 불능 사유 건수 ⑤ 선수별 역할 ⑥ 전술 변경별 비용
 --       열의 뜻: 금액은 원 단위, 비율은 소수 8자리(−0.2 = −20%), 개수는 정수. 열 이름은 docs/erd.md D38 의 표와 같다.
@@ -16,11 +16,13 @@
   \if :ON_ERROR_STOP
   \else
     \echo 'P0-20 성적표: ON_ERROR_STOP 이 꺼져 있다. psql -X -v ON_ERROR_STOP=1 -d <DB> -f db/26_season_report.sql 로 다시 실행한다'
-    \quit
+    \set ON_ERROR_STOP on
+    DO $$ BEGIN RAISE EXCEPTION 'P0-20 성적표: 실행하지 않았다 (위 안내 참고)' USING HINT = 'ON_ERROR_STOP'; END $$;
   \endif
 \else
   \echo 'P0-20 성적표: -v ON_ERROR_STOP=1 없이 실행할 수 없다 (단언이 실패하면 멈춰야 한다)'
-  \quit
+  \set ON_ERROR_STOP on
+  DO $$ BEGIN RAISE EXCEPTION 'P0-20 성적표: 실행하지 않았다 (위 안내 참고)' USING HINT = 'ON_ERROR_STOP'; END $$;
 \endif
 
 -- 정의는 트랜잭션 밖에서 읽는다 (12 → 21 → 25 → 26)

@@ -4,7 +4,7 @@
 --       docs/PLAN.md §4.1-2(종목·수량·포지션)·§4.6(정수 주·수수료)·§4.10(선언 포지션·현금은 골키퍼)·§5.2
 -- 대상: db/01·02·03 스키마, 10 적재, 12 판정, 20 시즌 시작을 실행한 DB (PostgreSQL 17). antlab 에서 실행한다. 11·13 은 필요 없다.
 -- 실행: 저장소 루트에서  psql -X -v ON_ERROR_STOP=1 -d <DB이름> -f db/21_team_buy.sql
---       같은 폴더의 21_team_buy_def.sql 을 \ir 로 읽는다. -v ON_ERROR_STOP=1 이 없으면 맨 앞 가드가 아무것도 하지 않고 끝낸다
+--       같은 폴더의 21_team_buy_def.sql 을 \ir 로 읽는다. -v ON_ERROR_STOP=1 이 없으면 맨 앞 가드가 아무것도 하지 않고 종료 코드 3으로 끝낸다
 --       (줄마다 COMMIT 하므로 단언이 실패해도 매수가 이어지면 안 된다). 가드를 지나도 전제 단언 표(tb_gate)가 없으면 team_build() 가 매수 전에 멈춘다.
 -- 팀 명단은 아래 [팀 명단 한 곳]에만 적는다. 한 줄에 한 종목이다. 명단에는 종목 코드·비중(%)·선언 포지션만 있고 수량은 없다 —
 --       수량은 실행할 때 0턴 가격에서 규칙으로 계산한다 (수량은 가격을 역산하게 하므로 저장소 파일에 적지 않는다).
@@ -32,11 +32,13 @@
   \if :ON_ERROR_STOP
   \else
     \echo 'P0-15 팀 구성: ON_ERROR_STOP 이 꺼져 있다. psql -X -v ON_ERROR_STOP=1 -d <DB> -f db/21_team_buy.sql 로 다시 실행한다'
-    \quit
+    \set ON_ERROR_STOP on
+    DO $$ BEGIN RAISE EXCEPTION 'P0-15 팀 구성: 실행하지 않았다 (위 안내 참고)' USING HINT = 'ON_ERROR_STOP'; END $$;
   \endif
 \else
   \echo 'P0-15 팀 구성: -v ON_ERROR_STOP=1 없이 실행할 수 없다 (줄마다 COMMIT 하므로 단언이 실패해도 매수가 이어질 수 있다)'
-  \quit
+  \set ON_ERROR_STOP on
+  DO $$ BEGIN RAISE EXCEPTION 'P0-15 팀 구성: 실행하지 않았다 (위 안내 참고)' USING HINT = 'ON_ERROR_STOP'; END $$;
 \endif
 
 \ir 21_team_buy_def.sql

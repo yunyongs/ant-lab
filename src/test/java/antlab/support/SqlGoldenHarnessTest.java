@@ -348,6 +348,6 @@ class SqlGoldenHarnessTest {
         assertThat(result.steps()).hasSize(SqlGoldenScenario.readmeRegression().steps().size());
         assertThat(bundle.files()).isNotEmpty();
         long checks = SqlGoldenScenario.readmeRegression().steps().stream().filter(s -> s.kind() == Kind.CHECK).count();
-        assertThat(checks).isEqualTo(12);
+        assertThat(checks).isEqualTo(27);
     }
 }
