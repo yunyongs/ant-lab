@@ -129,7 +129,7 @@ docker compose -p antlab-qa down -v                        # 이 프로젝트의
 - **되돌리기 — 앱과 스키마는 따로다.** 이전 SHA로 `up`하면 앱만 돌아가고, 새 판이 시작하며 적용한 Flyway 마이그레이션은 DB에 그대로 남는다. ① 새 마이그레이션이 없거나 이전 앱과 호환되는 변경(테이블·열 추가, 제약 완화)뿐이면 이전 SHA로 되돌린다. ② 이전 앱이 읽지 못하는 변경(열 이름 변경·삭제, 타입 변경, 제약 강화)은 이미지 롤백으로 복구되지 않는다 — `api`를 멈춰 쓰기를 막고 배포 직전 덤프로 복원하거나(§6 복원 절차), 고친 판을 다시 배포한다(전진 수정). 그래서 비호환 변경은 두 배포로 나눈다(새 구조 추가 → 다음 배포에서 옛 구조 삭제).
 - 대안: 별도 일회성 서비스 `migrate`(profile `tools`, 같은 api 이미지에 `--spring.main.web-application-type=none` 또는 `flyway/flyway` 이미지) → `docker compose run --rm migrate` 뒤 `up -d api`. 여러 인스턴스·긴 마이그레이션이 생기면 이 안으로.
 - DB 역할(MVP 때 확정, 초안): Flyway는 소유 역할 `antlab_owner`(DDL), 앱은 `antlab_app`(DML만), 엔진은 `antlab_engine`(**SELECT만**). Spring은 `spring.flyway.user`/`password`로 마이그레이션 접속을 따로 줄 수 있다. 엔진의 읽기 전용 역할은 PLAN §10 "DB에 쓰는 것은 Java뿐"을 DB 권한으로 강제한다.
-- Phase 0의 `db/*.sql`은 실습용 그대로다. Phase 0 API의 P0-23에서 Flyway `V1__…`–`V3__…`로 옮기면(`db/01`–`03`의 `[스키마]` 구간과 같은 내용) 그 시점부터 스키마의 정본은 Flyway다(SPRING_JPA §3). 로컬 API DB는 같은 `db` 서비스 안의 `antlab_api`이고 시험은 Testcontainers라 소유자의 `antlab` 프로젝트를 건드리지 않는다.
+- Phase 0의 `db/*.sql`은 실습용 그대로다. Phase 0 API의 P0-23에서 Flyway `V1__…`–`V3__…`로 옮기면(`db/01`–`03`의 `[스키마]` 구간과 같은 내용) 그때부터 스키마의 정본은 Flyway다(SPRING_JPA §3). 로컬 API DB는 같은 `db` 서비스 안의 `antlab_api`다. 시험은 Testcontainers를 사용하므로 소유자의 `antlab` 프로젝트를 건드리지 않는다. API DB에는 자동 baseline을 하지 않는다(`baseline-on-migrate: false`). 이력은 `public.flyway_schema_history`에 남는다. 기존 실습 DB를 API DB로 바꾸는 일은 범위 밖이다(스키마 대조와 수동 baseline이 필요).
 
 ## 8. 헬스체크·종료·로그
 
@@ -211,7 +211,7 @@ docker compose -p antlab-qa down -v                        # 이 프로젝트의
 |---|---|
 | Phase 0 | compose 이름 규칙(§3.1), 격리 시험 규칙(§3.2), 포트 원칙(§5), 비밀값·설정 규칙(§9), 문서의 Homebrew → Docker Compose, (선택) SQL 검증 CI(아래) |
 | Phase 1 | 건너뜀(2026-11-09) — 접속 정보 환경 변수(§9.2)는 Phase 0 API(P0-22)가 이어받는다 |
-| Phase 0 API | Spring 컨테이너 설정 체크리스트(SPRING_JPA §10.1, P0-22), api Dockerfile·`.dockerignore`, compose `api`(P0-24), Flyway 기준선(P0-23), 시험은 Testcontainers |
+| Phase 0 API | Spring 컨테이너 설정 체크리스트(SPRING_JPA §10.1, P0-22), api Dockerfile·`.dockerignore`, compose `api`(P0-24), Flyway V1–V3 기준선(P0-23; API DB에서 자동 baseline 금지), 시험은 새 Testcontainers로 실행 |
 | MVP | DB 역할 3개 초안(§7), 구조화 로그(configtree는 P0-24에서 이름만 확인하고 실제 사용은 OPS — §9.1) |
 | M1 | CI Gradle + Testcontainers PG17(SPRING_JPA §9) — Phase 0 API 시험을 합성 표본 픽스처로 CI에서, api 이미지 **빌드만**(푸시 없음, SPRING_JPA §10.1-8), 수집기 외부 호출은 `egress`만 |
 | M2 | engine Dockerfile·`/healthz`·읽기 전용 역할·`backend` 전용 네트워크, 서비스 토큰 |
