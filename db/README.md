@@ -51,6 +51,26 @@ Flyway가 자동 baseline 없이 시작을 멈춘다. DB를 지우거나 새 이
 있을 수 있다) 먼저 내용을 확인한다. 그다음 `dropdb antlab_api`로 지우고 다시 만들거나, 보존해야 하면 새 이름과
 `ANTLAB_DB_URL`을 쓴다. 기존 실습 DB `antlab`을 API DB로 바꾸는 일은 범위 밖이다(스키마 대조와 수동 baseline이 필요).
 
+### API 컨테이너 (P0-24)
+
+루트 `compose.yaml`의 `api` 서비스는 같은 `db`의 `antlab_api`에 연결된다(컨테이너 안 주소는 `jdbc:postgresql://db:5432/antlab_api`, 호스트 게시 포트 `ANTLAB_DB_PORT`와 무관). `antlab_api`를 만드는 방법은 두 가지다.
+
+- **새 볼륨(빈 데이터 디렉터리로 처음 시작)**: `db` 서비스의 `POSTGRES_DB=antlab_api`가 빈 DB를 만든다. `docker compose --profile api up -d --build --wait`를 한 번 실행하면 Flyway V1–V3까지 적용된다. 시간대 설정(`ALTER DATABASE … SET timezone`)은 필요 없다 — 앱이 세션마다 `Asia/Seoul`을 지정하고(`connection-init-sql`), 컨테이너 DB의 `TZ`도 `Asia/Seoul`이다. psql로 표본 SQL을 실행할 때만 위의 `ALTER DATABASE` 한 줄을 실행한다.
+- **기존 볼륨(이미 `antlab`이 들어 있는 `antlab_db-data` 등)**: `POSTGRES_*` 변수는 처음 시작할 때만 적용되므로 `antlab_api`가 자동으로 생기지 않는다. 자동 생성 서비스나 `CREATE DATABASE` 권한은 부여하지 않았다. 먼저 `db`만 올려 확인한다.
+
+```bash
+docker compose up -d --wait db
+docker compose exec -T db psql -U "$USER" -d postgres -Atc "SELECT datname FROM pg_database WHERE datname = 'antlab_api'"
+# 아무것도 안 나오면(없으면) 한 번만 만든다. 이미 있으면 실행하지 않는다(지우거나 다시 만들지 않는다)
+docker compose exec -T db createdb -U "$USER" -E UTF8 -T template0 antlab_api
+docker compose exec -T db psql -U "$USER" -d postgres -c "ALTER DATABASE antlab_api SET timezone TO 'Asia/Seoul'"
+docker compose --profile api up -d --build --wait --wait-timeout 240
+```
+
+`$USER`가 기존 DB 역할 이름과 다르면 그 역할 이름을 쓰고 `ANTLAB_DB_USER`에도 같은 값을 준다(OS 사용자 이름을 바꿔도 DB 역할은 바뀌지 않는다). 이 변수는 기존 볼륨의 역할 이름이 다를 때만 지정한다 — 새 볼륨의 역할은 항상 `${USER:-antlab}`로 만들어지므로 다른 이름을 주면 역할이 없어 api가 접속에 실패한다. api 컨테이너가 `Restarting`이면 먼저 `antlab_api` DB가 있는지(위 확인 명령) 확인한다. 소유자 프로젝트의 `db` 컨테이너는 `compose.yaml`이 바뀌면 다음 `up`에서 같은 볼륨으로 다시 만들어진다(데이터는 그대로).
+
+컨테이너 `api`는 `prod` 프로필이라 Swagger가 꺼져 있고 Actuator에서는 `health`만 연다. 표본을 적재할 때는 `docker compose stop api` → 적재 → `docker compose start api` 순서로 실행한다.
+
 시험은 소유자의 `antlab`·`antlab_api`에 접속하지 않는다. 시험 실행마다 새 PostgreSQL 17
 Testcontainers DB를 시작하고 Flyway를 적용한다. 시험 DB에서 `clean`으로 공유 데이터를 지우지
 않는다. API DB의 기존 스키마를 자동 `baseline`하지 않으며, 문제가 있으면 새 DB와
@@ -91,9 +111,15 @@ Testcontainers DB를 시작하고 Flyway를 적용한다. 시험 DB에서 `clean
 | `23_turn_advance.sql` | P0-17 | 연습 시즌을 **한 턴** 앞으로 보낸다. 다음 턴 `turn_price`(풀 전체)와 `turn` 스냅샷을 만든 뒤 대사 17개를 돌린다. 모두 일치하면 `reconciliation_log` 17행을 남기고 현재 턴을 올려 커밋한다(마지막 턴이면 `FINISHED`). 하나라도 불일치하면 **실제로 `ROLLBACK`** 한 뒤 새 트랜잭션에서 로그 17행만 남기고 종료 코드 3으로 끝난다. 10턴은 셸 반복으로 돌린다. 끝난 시즌에서는 "이미 끝났다"고 알리고 종료 코드 0으로 끝낸다. `-v ON_ERROR_STOP=1`이 필요하다 |
 | `23_turn_advance_check.sql` | P0-17 | 턴 진행을 검증한다. 진행 상태 계약(`turn`·`turn_price`·로그 17개 묶음), 가격 네 구현 대조(재귀 CTE · 창 함수 배열 · 절차형 반복 곱 · 저장값, "매달 반올림"과 다른 칸 수), 전 턴 스냅샷 재구성(체결 이력에서), 사후 정보 배제, 규칙 11·12·19 음성 사례(규칙 12는 `turn_price` 모든 행), 거부 사례(쓰기 전), 낙폭 합성 단위 사례를 단언한다. 0턴부터 `FINISHED`까지 어느 시점에서도 `PASS`한다. `INSERT`를 하지 않고 `ROLLBACK`하므로 `antlab`에서 돌릴 수 있다 |
 | `23_turn_advance_drill.sql` | P0-17 | 롤백 드릴이다. 커밋된 상태를 일부러 깨뜨려(보유 종목의 라인업 구간 닫기) 턴 전환이 실제 `ROLLBACK`으로 되돌려지고 `reconciliation_log`에만 17행(불일치 규칙 17·19)이 남는지 확인한다. 고치고 다시 실행하면 성공하고 시도 번호가 2인지도 확인한다. **버리는 DB 전용** — `-v drill=1`이 필요하고(다른 값은 멈춘다) DB 이름이 `antlab`·`antlab_test`면 멈춘다 |
+| `25_trade_formation_def.sql` | P0-19 | 턴 사이 매매·전술 변경을 세션 임시 함수로 정의한다. 공통 입구 `tr_open`은 격리 수준 확인 → `season` 잠금 → 상태·턴 확인 → `cash_account` 잠금 → 최신 원장 확인 순서로 처리한다. 이 파일은 출발점 검사 `tr_source`, 시각 확정 `tr_event_time`, 마지막 변경 확인 `tr_last_change`, 쓰기 함수 `trade_buy`·`trade_sell`·`formation_change`·`lineup_change`, 조회 함수 `formation_costs`를 제공한다. 21의 순수 계산(`buy_rate`·`buy_fee`·`buy_avg_price`·`buy_affordable`)을 재사용하므로 21 정의를 먼저 `\ir`한다. 호출자가 트랜잭션을 연다. 오류는 `P0001` + HINT(`INSUFFICIENT_HOLDING`·`INVALID_FEED_REFERENCE`·`INVALID_FORMATION`·`LINEUP_MISMATCH`·`EVENT_TIME_CONFLICT` 추가)로 알린다. 21·22·23 정의는 고치지 않는다 |
+| `25_trade_formation.sql` | P0-19 | 5턴 뒤 시나리오를 한 트랜잭션으로 실행한다. 먼저 변경 전 DIRECT 부분 매도를 하고, 전술을 1회 변경한다(수비 −10 · 공격 +10). 이어서 변경 뒤 FEED 매수(현재 턴 피드의 미보유 종목), 전량 매도, RANKING 추가 매수를 실행하고, 부분 매도했던 수비 종목의 선언을 미드필더로 변경한다. 종목·수량은 저장 상태에서 규칙으로 고른다(선택 기준은 파일 안 주석). 찾지 못하면 쓰기 전에 멈춘다. **멱등이 아니다** — 1턴 이후 주문이나 전술 변경이 이미 있으면 "이미 적용된 상태"로 멈춘다(종료 코드 3). 현재 턴이 5가 아니어도 멈춘다. 끝에서 22 수동 검사 15개가 모두 일치하는지 단언한다. 출력은 건수만 |
+| `25_trade_formation_check.sql` | P0-19 | 매매·전술 변경을 검증한다. 체결 이력을 순서대로 재생해 수량·평균단가·매도 실현 손익을 독립적으로 계산하고 저장 상태와 대조한다. 주문·체결 모양, 수수료 독립 식, 원장 유형·부호·순서·잔액 연쇄, 라인업 스냅샷(`start_turn < k ≤ end_turn`)·구간 겹침, 전술 변경 사슬·주문 연결(규칙 16), 출발점·피드(S6·S7), 변경 비용 조회, 22 수동 검사 15개, 거부 사례(쓰기 전, 행 수·identity 불변)도 확인한다. 규칙마다 일부러 어긴 음성 사례가 있으며, 대상이 없는 포트폴리오는 "적용 불가" 정보 행으로 남긴다(통과 사례 수·커버리지 요구에서 뺀다). 1턴 이후 주문이 하나도 없으면 0절 FAIL이다. `INSERT`가 없고 `ROLLBACK`하므로 `antlab`에서도 실행할 수 있다. 마지막 절(10)이 서브트랜잭션 밖에서 `lineup_change`를 부르므로 `season` 행 잠금은 파일 끝 `ROLLBACK`까지 유지된다 — 실행 중에는 다른 세션을 쓰지 않는다 |
+| `25_trade_formation_drill.sql` | P0-19 | 매매 드릴이다(**버리는 DB 전용**). 가드는 `-v drill=1`, DB 이름이 `antlab`·`antlab_test`가 아님, `ON_ERROR_STOP`이다. 사례 `-v drill_case=`는 allcash(전액 현금)·replace(초기 팀 전부 교체)·extremes(미드필더 없음·현금 여유 없음·부분 매도 뒤 포지션 변경)·rebuy(같은 턴 매수→전량 매도·재매수·전술 변경 둘과 주문 연결·변경 비용)·changeonly(주문 없는 변경과 포지션 변경)·atomic(중간 실패 복원)·alert(합성 NUDGE)·race(두 세션 경합의 한 세션)이다. 아래 실습 (l)·(m)을 참고한다 |
+
+Java `MoneyMathSqlParityTest`(P0-26)는 `21_team_buy_def.sql`의 순수 함수 5개를 `MoneyMath`와 같은 합성 입력으로 대조한다. 함수 원문은 같은 PostgreSQL 연결의 `pg_temp`에 설치하고, `order_buy`나 소유자 DB는 사용하지 않는다. 시험 컨테이너는 `postgres:17` 이미지를 사용한다.
 
 - 이름 규칙은 `{실행 순서 두 자리}_{종류}_{영역}.sql`이고, 검증은 같은 이름 뒤에 `_check`를 붙인다.
-- **새 기능이 파일을 더하는 규칙:** 기능은 자기 파일의 행을 위 표에 더하고, 아래 "전체 순서"와 "DB 다시 만들기"의 명령을 이어 적는다. 다른 기능의 파일은 고치지 않는다.
+- **새 기능이 파일을 더하는 규칙:** 기능별 파일을 위 표에 추가하고, 아래 "전체 순서"와 "DB 다시 만들기"에 실행 명령도 덧붙인다. 다른 기능의 파일은 고치지 않는다. **예외(P0-19):** 선행 기능의 하류 약속(P0-15·P0-17 리뷰)에 따라 `21_team_buy_check.sql`과 `23_turn_advance_check.sql`의 음성 사례만 "포트폴리오에 대상이 있을 때만 적용"으로 일반화했다. 20·22 파일과 모든 정의·스키마는 고치지 않았다.
 - 전체 순서: 아래 번호 순서대로 실행한다. 뒤 번호 파일(`02_`, `03_`)은 앞 번호 파일의 테이블을 참조하므로 순서가 곧 의존이다. 검증 파일(`_check`)은 선택이다. 기능은 자기 파일의 줄만 더한다.
   1. `01_schema_history.sql`
   2. `01_schema_history_check.sql`(선택)
@@ -118,8 +144,13 @@ Testcontainers DB를 시작하고 Flyway를 적용한다. 시험 DB에서 `clean
   21. `22_reconcile_season.sql` (수동 대사, `antlab`에. 저장소 루트에서 실행. 20 시즌 시작이 끝나 있어야 하고 21 팀 구성 뒤에 돌리는 것이 의미 있다. 같은 폴더의 `22_reconcile_season_def.sql`을 읽는다. **실행할 때마다 `reconciliation_log`에 새 시도 15행이 쌓인다** — 11·13과는 무관하다)
   22. `22_reconcile_season_check.sql`(선택. 쓰기 없이 되돌리므로 `antlab`에서 실행 가능. 팀 구성 뒤에 돌리며 턴 진행·매매 뒤에도 `PASS`다 — 전제가 진행으로 깨진 극단 상태에서는 0절 FAIL로 멈춘다. 실행 중에는 다른 세션을 쓰지 않는다)
   23. `23_turn_advance.sql` (턴 진행, `antlab`에. 저장소 루트에서 실행. 21 팀 구성이 끝나 있어야 한다. 같은 폴더의 `22_reconcile_season_def.sql`·`23_turn_advance_def.sql`을 읽는다. **한 번 실행할 때마다 한 턴 진행한다** — 10턴은 `for i in $(seq 1 10); do psql -X -q -v ON_ERROR_STOP=1 -d antlab -f db/23_turn_advance.sql || break; done`. 끝난 시즌에서는 아무것도 하지 않고 종료 코드 0으로 끝내므로 전체 순서를 다시 돌려도 이 줄에서 멈추지 않는다)
-  24. `23_turn_advance_check.sql`(선택. `INSERT` 없이 되돌리므로 `antlab`에서 실행 가능. 0턴 · 턴 전환 직후 · `FINISHED` 뒤 어느 시점에서도 `PASS`다. 턴 중간 매매 뒤(P0-19)에는 규칙 11·19의 전제가 깨져 0절에서 멈춘다 — 턴 전환 직후나 끝난 뒤에 돌린다. 현금 ≥ 1·미드필더 평가액 ≥ 1·가격 있는 보유 종목·열린 라인업이 없는 정상 상태(예: P0-19 뒤 미드필더 전량 매도·전액 현금)도 지금은 0절에서 멈춘다 — P0-19가 사례별 적용 가능성으로 바꾼다. 실행 중에는 다른 세션을 쓰지 않는다)
+  24. `23_turn_advance_check.sql`(선택. `INSERT` 없이 되돌리므로 `antlab`에서 실행 가능. 0턴 · 턴 전환 직후 · `FINISHED` 뒤 어느 시점에서도 `PASS`다. 턴 중간 매매 뒤(P0-19)에는 규칙 11·19의 전제가 깨져 0절에서 멈춘다 — 현재 턴의 주문뿐 아니라 현재 턴에 시작·끝난 라인업 구간(주문 없는 포지션 변경)도 범위 밖이다. 턴 전환 직후나 끝난 뒤에 돌린다. 음성 사례는 포트폴리오에 따라 적용 가능한 것만 돈다 — 현금·보유 종목·열린 라인업·비골키퍼 평가액이 없으면 그 사례는 "적용 불가" 정보 행이고 양성 검사는 그대로 모두 돈다. 실행 중에는 다른 세션을 쓰지 않는다)
   25. `23_turn_advance_drill.sql`(선택, **버리는 DB 전용** — 아래 실습 (i). 전체 순서에 넣지 않는다)
+  26. `25_trade_formation.sql` (5턴 뒤 전술 변경 1회와 매매를 실행한다. `antlab`에서 저장소 루트 기준으로 실행한다. **23을 정확히 5번 실행한 뒤**에 한다 — 현재 턴이 5가 아니면 멈춘다. 같은 폴더의 21·22·25 정의를 읽는다. 멱등이 아니다. 이미 적용됐는지는 잠금 밖에서 한 번만 확인하므로 두 세션에서 동시에 실행하지 않는다)
+  27. `25_trade_formation_check.sql`(선택. 쓰기 없이 되돌리므로 `antlab`에서 실행할 수 있다. 26 뒤부터 이후 어느 시점에도 `PASS`다)
+  28. 26 뒤, 매매 직후(턴 중간)에 실행한다. 20·21·22 검증과 22 수동 검사(`22_reconcile_season.sql`)가 `PASS`/15개 `MATCH`여야 한다. 20을 다시 실행해도 새 행은 없다. 23 검증은 범위 밖이라 0절에서 멈춘다(정상).
+  29. 23을 5번 더 실행하여 10턴까지 진행한 뒤 20·21·23·24·25 검증이 모두 `PASS`인지 확인한다.
+  30. `25_trade_formation_drill.sql`(선택, **버리는 DB 전용** — 아래 실습 (l)·(m). 전체 순서에 넣지 않는다)
 - 끝난 시즌 뒤 회귀 순서: 23을 `path_length`번 돌려 `FINISHED`가 된 뒤 20 · 21을 다시 실행해도 새 행이 없고(종료 코드 0), 20 · 21 · 22 · 23 검증이 모두 `PASS`한다. 22 수동 검사는 끝난 시즌에서도 돌며 15개가 `turn_no` = `path_length`로 일치한다. 끝난 시즌에서 `order_buy`는 `SEASON_NOT_ACTIVE`로 쓰기 전에 거부된다(23 검증 07절).
 - 스키마 파일은 `BEGIN` ... `COMMIT`으로 감싸 있어 중간에 실패하면 전부 없던 일이 된다. `DROP TABLE`에 `CASCADE`를 쓰지 않으므로, 뒤 번호 파일의 테이블이 이미 있는 DB에서 앞 번호 파일만 다시 실행하면 `2BP01`(dependent_objects_still_exist) 오류로 멈춘다. 안전한 실패이며, 전체를 다시 만들 때는 아래 "DB 다시 만들기"를 쓴다.
 
@@ -533,6 +564,85 @@ psql -X -d antlab_lab -c "SELECT (SELECT current_turn_no FROM season) AS cur, (S
 
 하나는 보고 표와 종료 코드 0으로 끝나고, 다른 하나는 `HINT: TURN_MISMATCH`와 종료 코드 3으로 끝난다. 둘째는 첫째가 커밋한 뒤에야 잠금을 얻는다. 그때 기대한 턴이 달라진 것을 확인하고 쓰기 전에 멈춘다. 중복 행이 없고 로그도 늘지 않는다(대사를 하지 않았다).
 
+**(l) 매매·전술 변경 드릴 — 버리는 DB, 한 세션.** 정상 재현 DB와 섞지 않는다. 드릴은 일부러 극단 상태를 남긴다. `antlab`을 복사한 DB(또는 23을 5번 돌린 사본)에서 사례마다 새 사본을 만들어 실행한다. 가드가 있어 `antlab`·`antlab_test`에서는 멈춘다.
+
+```bash
+createdb -T antlab antlab_drill       # antlab 에 다른 접속이 없어야 복사된다
+psql -X -q -v ON_ERROR_STOP=1 -v drill=1 -v drill_case=allcash -d antlab_drill -f db/25_trade_formation_drill.sql    # 마지막 줄 p0_19_drill_allcash = PASS
+# 이어서 극단 상태에서 회귀: 25·21·20 검증, 23 으로 한 턴, 23 검증
+for f in 25_trade_formation_check 21_team_buy_check 20_season_start_check; do psql -X -q -v ON_ERROR_STOP=1 -d antlab_drill -f db/$f.sql | tail -2; done
+psql -X -q -v ON_ERROR_STOP=1 -d antlab_drill -f db/23_turn_advance.sql
+psql -X -q -v ON_ERROR_STOP=1 -d antlab_drill -f db/23_turn_advance_check.sql | tail -2
+dropdb antlab_drill
+```
+
+사례 `allcash` · `replace` · `extremes` · `rebuy` · `atomic` · `alert`는 한 번에 하나씩 실행한다. `changeonly`는 새 턴(현재 턴에 주문이 없는 상태)에서 시작한다. 주문 없이 전술 변경 1회와 포지션 변경 1회만 한다. 그러면 현재 턴에 시작·끝난 라인업 구간이 있어 23 검증이 0절 범위 가드에서 멈춘다. 23으로 한 턴 넘긴 뒤에는 `PASS`다. 전액 현금(`allcash`)에서는 보유 수량 > 0·열린 라인업이 있어야 하므로 22 검증이 0절에서 FAIL이다 — 22 검증의 범위 밖이며 결함이 아니다. 21·23·25 검증은 `PASS`이고 대상이 없는 음성 사례는 "적용 불가" 정보 행으로 남는다. `atomic`은 트랜잭션 안에서 임시 트리거를 만들고 쓰기 한가운데(원장 FEE 행·시즌 갱신·새 구간)에서 실패시킨다. 그런 다음 업무 행이 처음과 같은지 확인하고 `ROLLBACK`으로 트리거까지 지운다.
+
+**(m) 두 세션 경합 — 버리는 DB.** 잠금 보유 세션(`-v mode=hold`)이 트랜잭션 안에서 `op`를 실행한 뒤 `-v hold_s`초 동안 잠금을 유지한다. 그동안 다른 세션(`-v mode=run`)이 같은 시즌에 쓰기를 시도한다. 결과는 `RESULT <op> OK` 또는 `RESULT <op> <HINT>` 한 줄이다. `op`는 `sell_all` · `buy1` · `formation` · `lineup` · `turn`이다. 대본의 기대:
+
+| 대본 | 세션 A (먼저) | 세션 B | 기대 |
+|---|---|---|---|
+| 동시 매도 | `hold sell_all` | `run sell_all` | A `OK`, B `INSUFFICIENT_HOLDING` (합계가 보유를 넘으면 뒤 요청 거절) |
+| 주문이 먼저 | `hold buy1`·`sell_all`·`formation`·`lineup` | `run turn` | 둘 다 `OK`, 다음 턴 스냅샷에 그 주문·변경이 들어간다(23 검증 `PASS`) |
+| 턴 전환이 먼저 | C `mode=cashlock`(계좌 행 잠금) + A `run turn`(시즌 잠금을 쥔 채 기다림) | B `run buy1`·`sell_all`·`formation`·`lineup` | A `OK`, B `TURN_MISMATCH` (옛 턴 주문·변경이 남지 않는다) |
+
+```bash
+D="-X -q -v ON_ERROR_STOP=1 -v drill=1 -v drill_case=race -d antlab_race -f db/25_trade_formation_drill.sql"
+psql $D -v mode=hold -v op=sell_all -v hold_s=10 &      # 세션 A
+sleep 5; psql $D -v mode=run -v op=sell_all; wait       # 세션 B (정의를 읽는 데 몇 초 걸리므로 A 가 잠금을 쥔 뒤에 시작한다)
+```
+
+각 세션이 정의 파일을 읽는 데 1–2초 걸리므로 B는 A가 잠금을 잡은 뒤 시작하도록 간격을 둔다. 교착이 없다는 근거는 잠금 순서(`season` → `cash_account`)가 같고 모든 경로가 끝까지 기다렸다가 종료한다는 사실이다. (zsh에서는 `$D`가 한 단어로 남으므로 bash로 실행한다.)
+
+## SQL 골든 하네스 (P0-25)
+
+Java 시험은 이 폴더의 SQL을 **그대로** 실행해 기준 행을 만든다. 이후 Java 구현이 만든 행과 정확히 비교하는 시험 전용 기반이다(`src/test/java/antlab/support`, 운영 코드에는 없다). 소유자의 `antlab`·`antlab_api`·상시 컨테이너에는 접속하지 않는다. 시험이 일회용 PostgreSQL 17 컨테이너를 따로 띄운다.
+
+**실행 방법.** 저장소 루트의 VS Code 통합 터미널에서 실행한다.
+
+```bash
+# 표본 CSV 없이 도는 시험(판정 파서·행 비교기·입력 공급·메타 명령·격리·Flyway DB 검증)
+./gradlew test -PexcludeSqlGolden
+# 실제 표본 골든 포함: 추적하지 않는 CSV 네 개가 있는 디렉터리를 지정한다
+ANTLAB_GOLDEN_SAMPLE_DIR=<db/sample 경로> ./gradlew test
+# 실제 표본 골든만
+ANTLAB_GOLDEN_SAMPLE_DIR=<db/sample 경로> ./gradlew test -PonlySqlGolden
+```
+
+`db/`·`events/`의 파일, 표본 경로 환경 변수, 지정한 경로의 CSV가 바뀌면 Gradle이 시험을 다시 돌린다. 입력이 같으면 `:test UP-TO-DATE`로 건너뛴다. 이 경우 골든이 실행되지 않은 것이 아니라 직전 실행 결과를 그대로 사용한 것이다.
+
+- 추적하지 않는 파일은 `asset_month_return.csv`·`asset_position.csv`·`fx_month.csv`·`hand_check.csv` 네 개뿐이다. 환경 변수가 없으면 작업본의 `db/sample`을 본다. 환경 변수를 지정하지 않았는데 파일이 하나라도 없으면 실제 표본 골든만 "실제 표본 골든을 건너뜁니다. 누락 파일: …"을 밝히고 건너뛴다(성공으로 세지 않는다). **환경 변수를 지정했는데 그 경로에 파일이 없으면 건너뛰지 않고 실패한다**(경로 오타로 골든이 돌지 않은 채 성공하는 것을 막는다). `db/sample/README.md`의 「표본 만들기」로 준비한다. 파일이 있어도 내용이 잘못되면 SQL 검증이 실패한다.
+- SQL·`events/`·추적 CSV는 현재 작업본에서 읽는다. 네 CSV만 지정한 곳에서 읽는다. 입력은 경로와 SHA-256으로 고정한다. 호스트 파일은 수정하지 않고, `.env`·`data/raw/`는 복사하지 않는다.
+- 컨테이너 작업 루트는 `/work`이고, 그 아래에 `db/`·`events/` 구조를 그대로 둔다. `\copy`는 작업 디렉터리를 기준으로, `\ir`은 포함하는 파일의 위치를 기준으로 경로를 해석한다.
+
+**시나리오(순서는 코드에 명시하고, 파일명 정렬로 자동 실행하지 않는다).**
+
+| 시나리오 | 순서 | 목적 |
+|---|---|---|
+| `README_REGRESSION` | 01·검증 → 02·검증 → 03·검증 → 10·검증 → 11·검증 → 12·검증 → 13·검증 → 14·검증 → 20·검증 → 21·검증 → 22·검증 → 23 × 10 → 23 검증 | 위 「전체 순서」를 자동 검증한다. 선택 사항인 `_check`도 필수다 |
+| `TURN_GOLDEN` | 01–03 → 10–13 → 20 → 21 → 23 × 10 | P0-33이 Java와 비교할 기준 시즌. **22를 실행하지 않는다**(시도 번호 보존, P0-17 리뷰 13절) |
+| 재생 | 별도 빈 DB 두 개에 같은 `TURN_GOLDEN` | SQL 재현성. 모든 테이블을 행 단위로 비교 |
+| 끝난 뒤 | 20 → 21 → 23 다시 실행 | 새 행이 없음(멱등) |
+
+`_def`는 다른 파일이 읽는 포함 파일이라 단계가 아니다. `23_turn_advance_drill.sql`은 기본 회귀에 넣지 않는다. 24–26은 해당 SQL 기능이 머지된 뒤 시나리오에 명시적으로 등록한다. 22와 23은 실행마다 상태가 변하므로(로그 추가, 턴 진행) 일반 멱등 스크립트로 취급하지 않는다.
+
+**마지막 판정 계약.** 검증 단계는 `psql -X -q -A -P footer=off -v ON_ERROR_STOP=1`로 실행한다. 종료 코드가 0이고 출력 끝 두 줄이 등록한 판정 열 이름(`p0_05_check` … `p0_17_check`)과 정확히 `PASS`일 때만 통과다. 앞쪽의 PASS나 종료 코드만으로는 성공으로 처리하지 않는다. 다른 검사 이름이 나오거나 판정 뒤에 결과가 추가되어도 통과시키지 않는다. 제한 시간(단계당 5분)을 넘기면 실패이며 다시 실행하지 않는다.
+
+**DB 분리.** 하네스가 띄우는 일회용 컨테이너(또는 같은 컨테이너의 별도 DB)에서 역할마다 다른 DB를 쓴다. Flyway를 적용한 API 시험 DB, `01–03`부터 실행하는 SQL 기준 DB, 같은 입력을 적용하는 재생 DB(각각 새로 만든 빈 DB), 드릴 DB(기본 회귀 밖)를 따로 둔다. SQL 기준 DB에는 Flyway를 실행하지 않고, API DB에는 01–03을 실행하지 않는다. 각 SQL DB에는 연습 시즌이 하나뿐이다.
+
+**하류가 쓰는 법.**
+
+| 기능 | 하네스 사용 |
+|---|---|
+| P0-32 대사 | `queryWithDefinitions`로 `22_reconcile_season_def.sql`을 읽은 같은 세션에서 `recon_rules`를 질의 |
+| P0-33 턴 전환 | `TURN_GOLDEN` 시즌에서 `captureReplayInput`으로 경로·0턴 팀을 꺼내 Java로 재생한다. `GoldenRowQueries`의 테이블별 질의·명세로 비교한다. 진행 턴 `turn_price`는 풀 전체(현재 표본 200행)를 비교하고, 0턴 가격은 따로 비교한다. 대사는 턴마다 17행·시도 번호를 보존한다 |
+| P0-36 매도 | 25 머지 뒤 매도 행동을 턴·순서대로 재생한다(질의·명세 확장) |
+| P0-38 성적표 | 26 머지 뒤 성적표 정의를 양쪽 시즌에 실행 |
+
+**정규화.** 대리 키·시즌·회원 식별자는 자연 키(시장·종목 코드, 턴 번호, 재생 행동 키)로 바꿔 비교한다. 제외 열은 이름과 이유를 명세에 적는다(전역으로 넓히지 않는다). NUMERIC은 `BigDecimal.compareTo`로 정확히 비교하며 자릿수 차이만 허용한다. NULL은 빈 값·0과 구분한다. 중복 키는 합치지 않고 보고한다. 같은 키의 한 행이 여러 열에서 달라도 `CHANGED` 한 건으로 처리한다. 보고에는 테이블·행 키·다른 열 이름·건수만 나온다. 가격·금액·원문 출력은 실패 메시지와 시험 보고서에 싣지 않는다. 로컬에서 원문을 봐야 하면 `ANTLAB_GOLDEN_RAW_DIR`에 저장소 밖 경로를 지정한다(저장소 아래 경로는 거부하고, 그 디렉터리에만 쓰며 커밋하지 않는다).
+
+**이 하네스가 보장하는 것과 아닌 것.** 같은 입력으로 SQL을 두 번 실행하면 같은 행이 나오는지(재현성)를 확인한다. 정규화·비교가 오류를 지우지 않는지도 확인한다. 업무 공식이 옳은지는 `_check`의 독립 계산이 따로 본다. Java와 SQL의 동등성은 P0-32·33·36·38의 시험이 따로 본다.
+
 ## 결과 읽는 법
 
 **스키마 파일(`01_schema_history.sql`).**
@@ -700,8 +810,21 @@ FAIL이 하나라도 있으면 오류 메시지와 함께 종료 코드 3으로 
 
 **드릴(`23_turn_advance_drill.sql`).** 마지막 출력이 `p0_17_drill` 열의 `PASS`이면 통과다(21개 단언). 중간에 나오는 `ERROR: … RECONCILIATION_FAILED`는 드릴이 일부러 낸 불일치의 오류라 정상이다.
 
+**소음 피드(`24_turn_feed.sql`)·검증·23 연결(P0-18).** `23_turn_advance.sql`은 먼저 `24_turn_feed_def.sql`을 적재한 뒤, 가격·턴 스냅샷을 만들고 대사 전에 `pg_temp.tf_append`를 호출한다. 23은 사건 편집 상태(11)와 관심 지수(13)를 입력으로 읽는다. 따라서 01·02·03·10·11·12·13·20·21 뒤에 실행해야 하며, `feed/*.csv`를 상대 경로로 읽으므로 저장소 루트에서 실행해야 한다(14는 필요 없다). 피드는 같은 턴 트랜잭션에 들어가므로 생성 오류나 대사 불일치가 발생하면 함께 되돌아간다. 입력 조립부(`tf_input`)는 현재까지의 `turn_price`, 현재 경로 블록에서 편집이 끝난 사건, 현재·직전 시즌 턴 블록의 저장 관심 지수, 직전 시즌 턴 피드만 JSON으로 넘긴다. 생성기는 업무 표를 직접 조회하지 않는다. 성공한 턴에는 `seq`가 1부터 연속인 5–15행이 생기며 `NUDGE`는 생기지 않는다. 사건 카드와 같은 문장 틀의 소음 템플릿도 후보에 포함되므로, 문장만 보고는 사건인지 알 수 없다. 선택은 시드·턴·규칙 버전 `p0-18:v2`·자연 키(종목 `market:ticker`, 그룹 `code`, 사건 `event_key`)를 해시해 결정한다. 후보를 한 바퀴 모두 사용한 뒤에만 두 번째 바퀴로 넘어간다. 관심 지수는 등급(상위 10% = 3, 상위 절반 = 2, 나머지 = 1, 지수 없음 = 강도 NULL)에 따라 강도와 선택 가중치를 정한다. `db/24_turn_feed_check.sql`의 마지막 `p0_18_check`가 `PASS`여야 한다. 이 검증은 ① 행 수·`seq`·0턴·미래 피드 ② 저장 피드 = 재생성(완료 턴 전부) ③ 사후 정보 차단(미래 전용 블록의 관심·사건 반응·수익률을 바꿔도 현재 턴 피드가 같고, 현재 블록을 바꾸면 달라지는 양성 대조군 2개) ④ ECHO 자격·반복 횟수와 "안 비었음" ⑤ 희소 숨김·현재 블록 사건 전부 포함 ⑥ 같은 옷(정적·생성기 경로) ⑦ 중복 선택 ⑧ 방향·수익률 변수를 `turn_price`에서 독립 계산해 대조 ⑨ 입력 오류 HINT(`FEED_EVENTS_UNREVIEWED`·`FEED_REACTION_MISSING`) ⑩ 손으로 만든 입력의 생성기 단독 시험을 확인한다. 피드 행은 기존 17개 대사 규칙에 포함하지 않는다. `24_turn_feed.sql`은 현재 턴 피드의 행 수·`seq` 빈틈·저장 = 재생성 여부를 읽기 전용으로 낸다. 23 드릴은 불일치 롤백 직후 실패 턴의 피드가 0행인지 확인하고, 복구 뒤에는 그 턴 피드가 한 묶음(5–15행)인지도 확인한다. 23 검증 01절의 피드 항목은 있는 행만 확인하므로, 피드를 만들지 않는 Java 진행 시즌에서도 사용할 수 있다. 피드 누락은 24 검증이 잡는다.
+
 - **로그 보기(값은 보지 않는다).** `SELECT attempt_no, turn_no, check_code, status, mismatch_count FROM reconciliation_log ORDER BY id DESC LIMIT 15;` 값 컬럼(`expected_value`·`actual_value`·`diff_value`)은 소유자가 자기 DB에서만 보고 PR·이슈에 붙이지 않는다. 스칼라 규칙 5개(`CASH_SUM`·`ORDER_LEDGER`·`HOLDING_QTY`·`RESERVED_ZERO`·`FEE_RULE`)만 세 값이 채워진다.
 - **`detail` 읽기.** `{"items": [{"kind": …, "order_id"|"execution_id"|"ledger_id"|"asset_id"|"lineup_id"|"other_lineup_id"|"formation_change_id": …, "turn_no"?: …, "kinds"?: […]}], "total": n, "truncated": bool}`. 항목은 최대 100개이고 `total`이 전체 불일치 수다. 규칙 4·7·8은 한 행에 종류가 여럿일 수 있어 `kinds` 배열이 있다. 종류 코드는 정의 파일의 규칙 절 머리 주석에 있다.
 - **"대사 불일치 0건"** = 마지막 22 실행의 `MISMATCH`가 0행이다.
 - 검증 파일은 마지막 출력이 `p0_16_check` 열의 `PASS`이고 종료 코드가 0이면 통과다. 절은 00 전제 → 01 양성 → 02 구조 → 03 음성 → 04 단위 → 05 정보 → 06 판정이고 07 흔적 확인이 끝에 있다. 00절이 FAIL이면 거기서 멈춘다(`연습 시즌이 정확히 1개`는 20, `0턴 매수 주문이 있다`는 21을 먼저 실행하라는 신호). 03 음성은 사례마다 `불일치 규칙 {…}`의 기대와 실제를 나란히 보인다 — 사례 하나가 기대한 규칙 집합과 **정확히 같을 때만** PASS다(다른 규칙이 함께 걸리면 단독성이 깨진 것). 06절이 커버리지 `15/15`를 보인다.
 - 연습 DB에는 매도·전술 변경 데이터가 없어 규칙 8(매도)·15(사슬)·16(묶기)의 양성은 "빈 집합이 일치"다. INSERT가 필요한 사례(원장 행 추가·매도·묶기·겹친 구간·1턴 이후 가격)는 이 파일이 아니라 격리 DB의 합성 시즌과 매매 기능(P0-19)의 검증이 맡는다.
+
+**턴 사이 매매·전술 변경(`25_trade_formation.sql`)·검증·드릴(P0-19).** 실행 파일의 종료 코드가 0이고 `ERROR`가 없으면 시나리오가 성공한 것이다. 보고 표는 한 줄로 출력되며 `orders_now`(현재 턴 주문 4) · `bound_to_change`(변경 뒤 주문 3) · `from_feed`(FEED 주문 1) · `formation_changes`(1) · `executions_now` · `sell_or_fee_rows_now` · `open_lineup` · `turn_no`를 담는다. 가격·수량·금액은 출력하지 않는다. 다시 실행하면 "이미 적용된 상태"로 종료 코드 3이 된다(멱등이 아니다).
+
+- **전체 재현:** 23을 5번 → 25 → (20·21·22 검증과 22 수동 검사) → 23을 5번 → 20·21·23·24·25 검증 순서로 실행한다. `reconciliation_log`의 `MISMATCH`가 0행이면 대사 불일치가 없는 것이다(수동 15개 묶음과 턴 전환 17개 묶음은 구분해서 센다).
+- **검증:** 마지막 줄 `p0_19_check`가 `PASS`이고 종료 코드가 0이면 통과다. 절은 00 전제 · 01 모양 · 02 원장 · 03 재생 · 04 라인업 · 05 전술 · 06 출발점 · 07 비용 · 08 대사 · 09 거부 · 10 양성 · 11 정보 · 13 판정 · 14 흔적이다. 절별 집계의 `na` 열에는 "적용 불가" 정보 행 수가 들어가며, 통과 사례 수에는 포함하지 않는다.
+- **전술 변경 비용 조회:** `pg_temp.formation_costs(시즌)`은 변경에 연결된 체결의 매수·매도 대금과 수수료·세금의 합을 낸다(주문 없는 변경은 0건 한 줄). 금액은 소유자가 자기 DB에서만 본다. 21·25 정의를 읽은 psql 세션에서 `SELECT * FROM pg_temp.formation_costs((SELECT id FROM season));`을 실행하며, 결과는 저장하지 않는다.
+- **출발점 `FEED`/`ALERT`:** `turn_feed_id`가 필수다. 피드는 같은 시즌에 속하고 이미 노출되어야 하며, FEED는 `NUDGE`가 아닌 종류이고 ALERT는 `NUDGE`여야 한다. P0-18은 `NUDGE`를 만들지 않으므로 ALERT 성공 사례는 드릴 `alert`의 합성 피드로만 확인한다.
+- **1턴 이후에는 21의 `order_buy`를 쓰지 않는다.** `order_buy`는 0턴 팀 구성 전용이라 전술 변경 연결(`formation_change_id`)과 시각 순서 검사가 없다. 같은 턴에 전술 변경이 있는 채로 부르면 주문이 변경에 묶이지 않아 22 규칙 16이 어긋나고 턴 전환이 막힌다(주문은 불변이라 고칠 길이 없다). 그래서 1턴 이후에 부르면 쓰기 전에 `USE_TRADE_BUY`로 거부한다. 1턴 이후 매수는 25의 `trade_buy`다.
+- **소유자 결정 대기 (과거 턴 피드):** 지난 턴에 노출된 피드로 현재 턴 주문을 시작할 수 있는지는 아직 정해지지 않았다. 결정될 때까지는 현재 턴 피드만 받고, 지난 턴 피드는 `INVALID_FEED_REFERENCE`로 거절한다(`tr_source` 한 곳). 정책은 아직 확정되지 않았다.
+- 매도 수수료는 매수와 같은 요율로 계산하며 `buy_fee`를 사용한다(세금 없음). 실현 손익에서는 수수료·세금을 빼지 않는다(D9). 전량 매도하면 보유 행은 남겨 두고 수량·평균단가를 0으로 만든 뒤, 열린 구간을 `end_turn = t`로 닫는다. 단일 종목 비중 한도는 강제하지 않는다(erd 6.5 후속 서비스 규칙).
+- 같은 시즌의 모든 쓰기 경로(21·25의 주문·변경, 23의 턴 전환)는 `season` → `cash_account` 순서로 잠금을 획득하므로 교착이 없다. 시각 순서(규칙 16)는 잠금을 얻은 뒤 `clock_timestamp()`로 정하며, 앞선 이벤트보다 늦지 않으면 쓰기 전에 `EVENT_TIME_CONFLICT`로 멈춘다.

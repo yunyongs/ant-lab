@@ -53,9 +53,18 @@ Java 21 · Spring Boot 4.1 · PostgreSQL 17 · JPA (리포트 쿼리에 MyBatis 
 
 준비물: JDK 21(`java -version`), Docker Desktop(시험과 `bootTestRun`이 일회용 PostgreSQL 17 컨테이너를 쓴다).
 
-- `./gradlew test` — 전체 시험. Docker Desktop이 꺼져 있으면 "Docker 환경을 찾을 수 없음"으로 실패한다. 소유자 DB(`antlab-db-1`)에는 접속하지 않는다.
+- `./gradlew test` — 전체 시험. Docker Desktop이 꺼져 있으면 "Docker 환경을 찾을 수 없음"으로 실패한다. 소유자 DB(`antlab-db-1`)에는 접속하지 않는다. 표본 CSV가 `db/sample`에 있으면 SQL 골든(약 2–3분)도 함께 실행한다. 표본 CSV가 없으면 그 부분만 이유를 밝힌 뒤 건너뛴다. 제외하려면 `-PexcludeSqlGolden` — [db/README.md「SQL 골든 하네스」](db/README.md#sql-골든-하네스-p0-25).
+- P0-26 금액 계산 시험은 다음 두 명령으로 나눠 실행한다: `./gradlew test --tests 'antlab.common.money.MoneyMathTest'`(DB 없음)와 `./gradlew test --tests 'antlab.common.money.MoneyMathSqlParityTest'`(일회용 PostgreSQL 17)이다.
 - `./gradlew bootTestRun` — 일회용 PostgreSQL 17로 앱을 띄운다. 소유자 DB가 필요 없어 가장 안전하다. 8080이 쓰이고 있으면 `./gradlew bootTestRun --args='--server.port=18080'`.
 - `./gradlew bootRun` — 로컬 compose `db`의 `antlab_api` DB로 띄운다. 처음 한 번은 빈 `antlab_api`를 만들고(인코딩·시간대 포함) 앱을 띄워 Flyway V1–V3를 적용한 뒤 표본을 적재한다. 명령은 [db/README.md「API DB와 실습 DB」](db/README.md#api-db와-실습-db)에 있다. 접속 정보는 환경 변수 `ANTLAB_DB_URL`·`ANTLAB_DB_USER`·`ANTLAB_DB_PASSWORD`이고, 없으면 `jdbc:postgresql://localhost:5432/antlab_api`·OS 사용자·비밀번호 없음이다.
+- 컨테이너로 실행(P0-24) — `db`와 `api`를 한 번에 올린다. `api`는 compose profile `api`라서 `--profile api`를 붙여야 켜진다(붙이지 않은 `docker compose up -d`는 지금처럼 `db`만 켠다). 늘 같이 켜고 싶으면 루트 `.env`에 `COMPOSE_PROFILES=api`를 둔다(선택, 기본은 끔). `bootRun`과 달리 `prod` 프로필이라 Swagger·명세가 꺼져 있고, 같은 이미지가 후속 CI·서버 배포에서도 쓰인다.
+  1. Docker Desktop을 켜고 준비 완료(고래 아이콘 안정)를 확인한다. VS Code로 저장소 루트를 열고 통합 터미널(`` Ctrl+` ``)에서 실행한다.
+  2. 새 볼륨(처음): `docker compose --profile api up -d --build --wait --wait-timeout 240` — 이미지를 빌드하고, `db`가 빈 `antlab_api`를 만들고, `api`가 Flyway V1–V3를 적용한 뒤 두 서비스가 `healthy`가 되면 끝난다. 첫 빌드는 Gradle 배포판과 의존성을 내려받아 몇 분 걸린다.
+  3. 이미 쓰던 볼륨(예: 소유자의 `antlab_db-data`)에는 `POSTGRES_DB` 변경이 적용되지 않는다. `antlab_api`가 있는지 먼저 확인하고 없을 때만 한 번 만든다 — [db/README.md「API 컨테이너」](db/README.md#api-컨테이너-p0-24). 볼륨을 지워서 해결하지 않는다.
+  4. 확인: `curl -fsS http://127.0.0.1:8080/actuator/health/readiness` → `{"status":"UP"}`, Docker Desktop의 Containers에서 `db`·`api`가 healthy. readiness는 "요청을 받을 수 있고 DB가 붙어 있다"는 뜻이지 표본 적재가 끝났다는 뜻이 아니다.
+  5. 컨테이너와 `bootRun`/`bootTestRun`을 동시에 켜면 8080이 겹친다. 컨테이너 포트는 `ANTLAB_API_PORT=18080 docker compose --profile api up -d`로 바꾼다(다시 `up`할 때도 같은 값을 붙인다). 잠깐 멈출 때는 `docker compose stop`, 다시 켤 때는 `docker compose start`.
+  6. 표본을 적재할 때는 `docker compose stop api`로 앱을 멈추고 [db/README.md](db/README.md#api-db와-실습-db)대로 실행한 뒤 `docker compose start api`.
+  7. QA·시험은 소유자 프로젝트를 건드리지 않게 `ANTLAB_DB_PORT=55432 ANTLAB_API_PORT=18080 docker compose --profile api -p antlab-qa up -d --build --wait` 로 띄우고, 끝나면 `docker compose --profile api -p antlab-qa down -v --rmi local`(정리에도 `--profile api`를 붙인다).
 - 확인 URL: `/actuator/health/readiness`, `/api/v1/pool`(표본 적재와 포지션 계산 뒤 20종목 — 적재 전이면 409 `POOL_NOT_LOADED`, 판정 전이면 409 `POOL_NOT_JUDGED`). `local` 프로필(`bootRun`·`bootTestRun`의 기본)에서만 명세 `/v3/api-docs`와 `/swagger-ui.html`이 열린다 — 프로필이 없거나 `prod`면 꺼져 있다.
 - 개인 덮어쓰기 설정은 프로젝트 루트의 `config/application-local.yml`에 둔다(git이 무시하고 jar에 들어가지 않는다). `src/main/resources/`에 두면 jar에 들어가므로 두지 않는다.
 

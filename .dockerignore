@@ -1,0 +1,33 @@
+# 빌드 컨텍스트 허용 목록. 기본은 전부 뺀다 — .gitignore 와 별개다(Git 추적 제외 != Docker 전송 제외).
+# Dockerfile 이 COPY 하는 입력만 연다. 새 빌드 입력을 더하면 아래 허용 줄도 함께 더한다(빠뜨리면 빌드가 바로 실패한다).
+*
+!gradlew
+!gradle/
+!build.gradle
+!settings.gradle
+!src/main/
+
+# 연 경로 안에서도 비밀값·개인 설정은 모든 깊이에서 다시 뺀다.
+**/.env
+**/.env.*
+**/.envrc
+**/*.secret
+**/secrets/
+**/*.pem
+**/*.key
+**/*.p12
+**/*.pfx
+**/*.jks
+**/*.keystore
+**/*.truststore
+**/id_rsa*
+**/id_ed25519*
+**/credentials.json
+**/service-account*.json
+**/*-credentials.json
+**/kis-token*.json
+**/token_*.json
+**/*.cnf
+**/.pgpass
+**/application-local.*
+**/application-secret.*

@@ -25,7 +25,7 @@
 --   ta_precheck: 1 인자·격리 수준 → 2 season FOR UPDATE → 상태·턴 일치 → 3 cash_account FOR UPDATE → 4 다음 턴 경로 → 5 다음 턴 가격 계산·풀 크기 확인
 --   ta_apply:    6 INSERT turn_price(다음 턴 풀 전체) → 7 INSERT turn ← ta_snapshot → 8 recon_rules_turn 17행 → 9 코드 묶음 단언
 --   turn_advance: 10 ta_apply → 11 전부 MATCH: recon_log → season 갱신 → COMMIT / 12 MISMATCH: ROLLBACK → recon_log → COMMIT → 오류
---   소음 피드(§5.3 7b)·기준 포트폴리오(8)·적립금(6)은 이 기능에서 하지 않는다 (P0-18·P0-20·EXT).
+--   소음 피드(§5.3 7b, P0-18)는 7단계 스냅샷 뒤에 생성하고 피드 오류도 턴 전체와 함께 되돌린다. 기준 포트폴리오(8)·적립금(6)은 이 기능에서 하지 않는다 (P0-20·EXT).
 -- 오류: 모두 RAISE EXCEPTION (SQLSTATE P0001)이고 HINT 에 종류 코드를 넣는다. 메시지에 금액·가격·달·블록 번호를 넣지 않는다. Java 도메인 예외 이름과 짝이다.
 --   HINT                   언제                                              Java 짝 (P0-33·P0-34)
 --   SEASON_NOT_FOUND       시즌 번호가 없다                                  SeasonNotFound (404)
@@ -36,6 +36,8 @@
 --   ISOLATION_LEVEL        격리 수준이 READ COMMITTED 가 아니다              (환경 오류)
 --   INVALID_ARGUMENT       인자가 NULL·음수, 또는 17개 묶음이 완전하지 않다  IllegalArgument (400/500)
 --   RECONCILIATION_FAILED  대사 불일치 — 롤백한 뒤 로그를 남기고 이 오류로 끝난다  ReconciliationFailed (409)
+--   FEED_*                 소음 피드 생성(24_turn_feed_def.sql)이 같은 규약으로 낸다: FEED_INPUT(턴·경로 없음)·FEED_EVENTS_UNREVIEWED(사건 편집 미완료)·FEED_REACTION_MISSING(반응값 NULL)·
+--                          FEED_NO_CANDIDATE(후보·템플릿 없음, 행 수 범위 밖)·FEED_RENDER(렌더 계약 위반)·FEED_ALREADY_STORED(같은 턴 재저장)   Java 짝: 피드를 Java 가 도입할 때 정한다 (Phase 0 API 는 피드를 만들지 않는다)
 --   앞의 일곱 가지는 아무것도 쓰기 전에 나므로 로그를 남기지 않는다 (대사를 하지 않았다 — 기록할 결과가 없다). 대사 불일치만 롤백 뒤 reconciliation_log 에 남는다.
 -- 격리 수준: READ COMMITTED 를 전제로 한다 (21 과 같음). ta_snapshot·규칙 함수는 STABLE 이라 부른 문장의 스냅샷을 쓰고, 앞선 문장에서 같은 트랜잭션이 넣은 행을 본다.
 --   ta_precheck·ta_apply 는 잠금을 잡으므로 VOLATILE(기본값)이어야 한다.
@@ -342,6 +344,9 @@ BEGIN
     INSERT INTO turn (season_id, turn_no, cash_balance, holdings_value, total_value, goalkeeper_value, defender_value, midfielder_value, forward_value, drawdown)
     SELECT p_season_id, v_next, s.cash_balance, s.holdings_value, s.total_value, s.goalkeeper_value, s.defender_value, s.midfielder_value, s.forward_value, s.drawdown
     FROM pg_temp.ta_snapshot(p_season_id, v_next) s;
+
+    -- 7b 현재 블록만으로 피드를 만들고, 대사 전 같은 트랜잭션에 넣는다.
+    PERFORM pg_temp.tf_append(p_season_id, v_next);
 
     -- 8 대사 17개 (한 문장)
     SELECT jsonb_agg(to_jsonb(r) ORDER BY r.rule_no) INTO v_rows FROM pg_temp.recon_rules_turn(p_season_id, v_next) r;

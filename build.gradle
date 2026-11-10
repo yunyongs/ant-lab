@@ -42,9 +42,31 @@ dependencies {
 }
 
 tasks.named('test') {
-    useJUnitPlatform()
+    useJUnitPlatform {
+        // 실제 표본 CSV 가 필요한 SQL 골든만 빼고 돌리려면 -PexcludeSqlGolden, 그것만 돌리려면 -PonlySqlGolden
+        if (project.hasProperty('excludeSqlGolden')) {
+            excludeTags 'sql-golden'
+        }
+        if (project.hasProperty('onlySqlGolden')) {
+            includeTags 'sql-golden'
+        }
+    }
+    // 시험이 실행 중에 읽는 SQL·사건 파일과 표본 위치가 바뀌면 다시 돌린다 (UP-TO-DATE 로 건너뛰지 않게)
+    inputs.dir('db').withPropertyName('sqlScripts').withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.dir('events').withPropertyName('eventFiles').withPathSensitivity(PathSensitivity.RELATIVE)
+    def sampleDir = System.getenv('ANTLAB_GOLDEN_SAMPLE_DIR')
+    inputs.property('goldenSampleDir', sampleDir ?: '')
+    if (sampleDir) {
+        inputs.files(fileTree(sampleDir) { include '*.csv' }).withPropertyName('goldenSampleCsv')
+                .withPathSensitivity(PathSensitivity.NAME_ONLY)
+    }
     // 운영 컨테이너 JVM 이 UTC 일 수 있다. 같은 조건에서 시간대 독립성을 시험한다.
     systemProperty 'user.timezone', 'UTC'
+}
+
+tasks.named('bootJar') {
+    // Dockerfile 이 이름으로 집는다. plain JAR·와일드카드 선택 실수를 막는다.
+    archiveFileName = 'app.jar'
 }
 
 tasks.named('bootRun') {
