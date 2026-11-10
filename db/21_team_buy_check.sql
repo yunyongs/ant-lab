@@ -6,6 +6,7 @@
 -- 실행: 저장소 루트에서  psql -X -q -v ON_ERROR_STOP=1 -d <DB이름> -f db/21_team_buy_check.sql
 --       21 을 실행한 DB 에서 한다. INSERT 를 하지 않으므로 identity(번호표)를 소비하지 않아 실습 DB(antlab)에서도 돌릴 수 있다.
 --       정의 파일을 \ir 로 읽으므로 같은 폴더의 21_team_buy_def.sql 이 있어야 한다.
+--       P0-19 이후: 음성 사례의 대상(보유 수량 > 0 인 보유·열린 라인업)이 없는 포트폴리오(초기 팀 전부 매도·교체)는 "적용 불가" 정보 행이고, 함수 사례는 열린 구간이 있는 첫 종목(없으면 풀의 첫 종목)으로 돈다.
 -- 판정: 마지막 줄 `p0_15_check` 가 `PASS` 이고 종료 코드가 0이면 통과다. 0절 전제가 FAIL 이면 결과를 보여 준 뒤 멈추고,
 --       그 밖에 하나라도 어긋나면 12절이 FAIL 행을 보여 주고 오류로 끝난다 (종료 코드 3).
 --       ON_ERROR_STOP 없이 돌리면 종료 코드가 0일 수 있으니 종료 코드가 아니라 마지막 줄을 본다.
@@ -126,12 +127,18 @@ END $$;
 
 -- 음성 사례(위반 개수형): 바꾼 뒤 규칙 쿼리를 돌려 위반이 p_min 건 이상 나와야 한다. 서브트랜잭션이라 바꾼 것은 되돌아간다.
 -- 바꾸는 문장은 ';' 로 이은 여러 개일 수 있다 (한 사례에 조건 하나만 어긴다 — P0-05 R12 — 는 규칙의 몫이고, 같은 사례를 이루는 문장은 함께 바꾼다).
-CREATE PROCEDURE pg_temp.neg_viol(p_code text, p_label text, p_mutate text, p_min bigint)
+CREATE PROCEDURE pg_temp.neg_viol(p_code text, p_label text, p_mutate text, p_min bigint, p_when text DEFAULT NULL)
 LANGUAGE plpgsql AS $$
 DECLARE
     v_sql text := (SELECT sql FROM zz_q WHERE code = p_code);
     v_n   text;
 BEGIN
+    -- p_when(참이어야 하는 쿼리)이 거짓이면 대상이 없는 포트폴리오다(P0-19 매매 뒤 전액 현금 등): "적용 불가" 정보 행을 남기고 그 사례는 통과 사례 수에도 요구에도 세지 않는다.
+    IF p_when IS NOT NULL AND pg_temp.cnt(p_when) = 0 THEN
+        INSERT INTO zz_check_result (section, item, expected, actual, ok)
+        VALUES (pg_temp.sec(p_code), '음성 [' || p_code || '] ' || p_label || ' — 적용 불가 (이 포트폴리오에 대상이 없다) (정보)', '(정보)', '적용 불가', true);
+        RETURN;
+    END IF;
     BEGIN
         EXECUTE p_mutate;
         v_n := pg_temp.cnt(v_sql)::text;
@@ -427,20 +434,33 @@ DECLARE
     v_call   text;
     v_big    text := '1000000000000';
     v_live   text;
+    v_noopen boolean := false;
 BEGIN
+    -- 열린 라인업이 있는 첫 종목(번호 순)을 쓴다 — 팀 구성 직후엔 명단 첫 줄이고, 매매·교체 뒤엔 지금 보유한 종목이다.
     SELECT c.id, c.current_turn_no, a.id, lu.declared_position, tp.price, a.market,
            pg_temp.buy_rate(a.market, c.fee_rate_kr, c.fee_rate_us, c.fx_spread_rate)
       INTO v_season, v_turn, v_asset, v_dp, v_price, v_market, v_rate
     FROM zz_cur c
-    JOIN zz_team t ON true
-    JOIN asset a ON a.market = t.market AND a.ticker = t.ticker
-    JOIN lineup lu ON lu.season_id = c.id AND lu.asset_id = a.id AND lu.end_turn IS NULL
+    JOIN lineup lu ON lu.season_id = c.id AND lu.end_turn IS NULL
+    JOIN asset a ON a.id = lu.asset_id
     JOIN turn_price tp ON tp.season_id = c.id AND tp.turn_no = c.current_turn_no AND tp.asset_id = a.id
     ORDER BY lu.id
     LIMIT 1;
     IF v_season IS NULL THEN
-        -- 현재 턴 가격 행이 없으면(턴 진행 뒤 풀 밖) 0턴 가격으로 대신하지 않는다. 사례를 만들 수 없으므로 FAIL 로 남긴다.
-        INSERT INTO zz_check_result VALUES (DEFAULT, '09 함수', '함수 사례 준비: 첫 명단 종목의 현재 턴 가격 행을 찾았다', 'true', 'false', false);
+        -- 열린 구간이 하나도 없다 (예: 전액 현금). 현재 턴 가격 풀의 번호가 가장 작은 종목으로 대신하고 선언 충돌 사례만 건너뛴다.
+        v_noopen := true;
+        SELECT c.id, c.current_turn_no, a.id, 'MIDFIELDER', tp.price, a.market,
+               pg_temp.buy_rate(a.market, c.fee_rate_kr, c.fee_rate_us, c.fx_spread_rate)
+          INTO v_season, v_turn, v_asset, v_dp, v_price, v_market, v_rate
+        FROM zz_cur c
+        JOIN turn_price tp ON tp.season_id = c.id AND tp.turn_no = c.current_turn_no
+        JOIN asset a ON a.id = tp.asset_id
+        ORDER BY a.id
+        LIMIT 1;
+    END IF;
+    IF v_season IS NULL THEN
+        -- 현재 턴 가격 행이 하나도 없으면(0턴 가격으로 대신하지 않는다) 사례를 만들 수 없으므로 FAIL 로 남긴다.
+        INSERT INTO zz_check_result VALUES (DEFAULT, '09 함수', '함수 사례 준비: 현재 턴 가격 행이 있는 종목을 찾았다', 'true', 'false', false);
         RETURN;
     END IF;
     v_fee1  := pg_temp.buy_fee(v_price, 1, v_rate);
@@ -481,10 +501,14 @@ BEGIN
         NULL, format(v_call, 0), 'INVALID_QUANTITY');
     CALL pg_temp.neg_fn('FN_POOL_QTY_POS', '수량이 음수면',
         NULL, format(v_call, -1), 'INVALID_QUANTITY');
-    CALL pg_temp.neg_fn('FN_POOL_QTY_POS', '열린 라인업과 다른 선언 포지션이면',
-        v_live || '; ' || format('UPDATE cash_account SET balance = %s WHERE season_id = %s; UPDATE cash_ledger SET balance_after = %s WHERE id = (SELECT max(id) FROM cash_ledger WHERE season_id = %s)',
-               v_big, v_season, v_big, v_season),
-        format('SELECT pg_temp.order_buy(%s, %s::smallint, %s, 1, %L)', v_season, v_turn, v_asset, v_other), 'POSITION_CONFLICT');
+    IF NOT v_noopen THEN
+        CALL pg_temp.neg_fn('FN_POOL_QTY_POS', '열린 라인업과 다른 선언 포지션이면',
+            v_live || '; ' || format('UPDATE cash_account SET balance = %s WHERE season_id = %s; UPDATE cash_ledger SET balance_after = %s WHERE id = (SELECT max(id) FROM cash_ledger WHERE season_id = %s)',
+                   v_big, v_season, v_big, v_season),
+            format('SELECT pg_temp.order_buy(%s, %s::smallint, %s, 1, %L)', v_season, v_turn, v_asset, v_other), 'POSITION_CONFLICT');
+    ELSE
+        INSERT INTO zz_check_result VALUES (DEFAULT, '09 함수', '열린 라인업이 없어 선언 포지션 충돌 사례는 적용 불가 (정보)', '(정보)', '적용 불가', true);
+    END IF;
     CALL pg_temp.neg_fn('FN_POOL_QTY_POS', '선언 포지션이 여섯 가지 안에 없으면',
         NULL, format('SELECT pg_temp.order_buy(%s, %s::smallint, %s, 1, %L)', v_season, v_turn, v_asset, 'FORWARD'), 'INVALID_ARGUMENT');
     CALL pg_temp.neg_fn('FN_POOL_QTY_POS', 'source 가 DIRECT 가 아니면',
@@ -541,15 +565,19 @@ CALL pg_temp.neg_viol('LEDGER_ORDER', '한 매수의 BUY 행과 FEE 행의 유�
 
 -- 05 보유
 CALL pg_temp.neg_viol('HOLDING_QTY', '한 보유의 수량을 +1 하면',
-    $m$UPDATE holding SET quantity = quantity + 1 WHERE id = (SELECT min(h.id) FROM holding h JOIN zz_cur c ON c.id = h.season_id WHERE h.quantity > 0)$m$, 1);
+    $m$UPDATE holding SET quantity = quantity + 1 WHERE id = (SELECT min(h.id) FROM holding h JOIN zz_cur c ON c.id = h.season_id WHERE h.quantity > 0)$m$, 1,
+    $w$SELECT count(*) FROM holding h JOIN zz_cur c ON c.id = h.season_id WHERE h.quantity > 0$w$);
 CALL pg_temp.neg_viol('AVG_PRICE', '한 보유의 평균 단가를 +0.0001 하면',
-    $m$UPDATE holding SET avg_price = avg_price + 0.0001 WHERE id = (SELECT min(h.id) FROM holding h JOIN zz_cur c ON c.id = h.season_id WHERE h.quantity > 0)$m$, 1);
+    $m$UPDATE holding SET avg_price = avg_price + 0.0001 WHERE id = (SELECT min(h.id) FROM holding h JOIN zz_cur c ON c.id = h.season_id WHERE h.quantity > 0)$m$, 1,
+    $w$SELECT count(*) FROM holding h JOIN zz_cur c ON c.id = h.season_id WHERE h.quantity > 0$w$);
 
 -- 06 라인업
 CALL pg_temp.neg_viol('LINEUP_HOLDING', '보유가 있는 종목의 열린 라인업 구간을 닫으면 (end_turn = start_turn)',
-    $m$UPDATE lineup SET end_turn = start_turn WHERE id = (SELECT min(lu.id) FROM lineup lu JOIN zz_cur c ON c.id = lu.season_id WHERE lu.end_turn IS NULL)$m$, 1);
+    $m$UPDATE lineup SET end_turn = start_turn WHERE id = (SELECT min(lu.id) FROM lineup lu JOIN zz_cur c ON c.id = lu.season_id WHERE lu.end_turn IS NULL)$m$, 1,
+    $w$SELECT count(*) FROM lineup lu JOIN zz_cur c ON c.id = lu.season_id WHERE lu.end_turn IS NULL$w$);
 CALL pg_temp.neg_viol('LINEUP_OVERLAP', '열린 라인업의 시작 턴을 현재 턴 + 1 로 바꾸면 (현재 턴을 넘는다)',
-    $m$UPDATE lineup SET start_turn = (SELECT current_turn_no + 1 FROM zz_cur) WHERE id = (SELECT min(lu.id) FROM lineup lu JOIN zz_cur c ON c.id = lu.season_id WHERE lu.end_turn IS NULL)$m$, 1);
+    $m$UPDATE lineup SET start_turn = (SELECT current_turn_no + 1 FROM zz_cur) WHERE id = (SELECT min(lu.id) FROM lineup lu JOIN zz_cur c ON c.id = lu.season_id WHERE lu.end_turn IS NULL)$m$, 1,
+    $w$SELECT count(*) FROM lineup lu JOIN zz_cur c ON c.id = lu.season_id WHERE lu.end_turn IS NULL$w$);
 CALL pg_temp.neg_viol('DECLARED_DIFF', '모든 선언을 시스템 판정과 같은 값으로 바꾸면 (선언 ≠ 판정 사례가 사라진다)',
     $m$UPDATE lineup lu SET declared_position = ap.system_position
        FROM zz_cur c, asset_position ap
@@ -601,18 +629,24 @@ SELECT '11 정보', '팀 직후 상태다 (보유 수량 = 팀 수량 · 열린 
         AND (SELECT count(*) FROM lineup lu JOIN zz_cur c ON c.id = lu.season_id WHERE lu.end_turn IS NULL) = (SELECT count(*) FROM zz_team))::text, true;
 
 -- 12 판정 ---------------------------------------------------------------------
--- 12.1 규칙 커버리지: 음성 사례가 통과한 규칙 코드 수 / 규칙 코드 수 (22/22 이어야 한다)
+-- 12.1 규칙 커버리지: 음성 사례가 통과한 규칙 코드 수 / 요구 코드 수. 요구 = 이 DB 에서 적용 가능한 사례가 하나라도 있는 코드
+--       (매매 뒤 대상이 없는 포트폴리오 — 예: 전액 현금 — 의 "적용 불가" 사례만 있는 코드는 요구에서 빠진다. 적용 불가 코드는 항목 이름에 적는다).
 INSERT INTO zz_check_result (section, item, expected, actual, ok)
-SELECT '12 판정', '규칙 커버리지 (음성 사례가 통과한 규칙 코드 / 전체 규칙 코드)',
-       (SELECT count(*) FROM zz_q) || '/' || (SELECT count(*) FROM zz_q),
-       cov.n || '/' || (SELECT count(*) FROM zz_q),
-       cov.n = (SELECT count(*) FROM zz_q)
-FROM (SELECT count(*) AS n
-      FROM zz_q q
-      WHERE EXISTS (SELECT 1 FROM zz_check_result r WHERE r.item LIKE '음성 [' || q.code || ']%' AND r.ok)) cov;
+SELECT '12 판정', '규칙 커버리지 (적용 가능한 음성 사례가 통과한 규칙 코드 / 적용 가능한 규칙 코드 — 적용 불가 코드: ' || COALESCE(na.list, '없음') || ')',
+       req.n || '/' || req.n, cov.n || '/' || req.n, req.n > 0 AND cov.n = req.n
+FROM (SELECT count(*) AS n FROM zz_q q
+      WHERE NOT (EXISTS (SELECT 1 FROM zz_check_result r WHERE r.item LIKE '음성 [' || q.code || ']%적용 불가%')
+                 AND NOT EXISTS (SELECT 1 FROM zz_check_result r WHERE r.item LIKE '음성 [' || q.code || ']%' AND r.item NOT LIKE '%적용 불가%'))) req,
+     (SELECT count(*) AS n FROM zz_q q
+      WHERE EXISTS (SELECT 1 FROM zz_check_result r WHERE r.item LIKE '음성 [' || q.code || ']%' AND r.item NOT LIKE '%적용 불가%' AND r.ok)
+        AND NOT EXISTS (SELECT 1 FROM zz_check_result r WHERE r.item LIKE '음성 [' || q.code || ']%' AND r.item NOT LIKE '%적용 불가%' AND NOT r.ok)) cov,
+     (SELECT string_agg(q.code, ',' ORDER BY q.code) AS list FROM zz_q q
+      WHERE EXISTS (SELECT 1 FROM zz_check_result r WHERE r.item LIKE '음성 [' || q.code || ']%적용 불가%')
+        AND NOT EXISTS (SELECT 1 FROM zz_check_result r WHERE r.item LIKE '음성 [' || q.code || ']%' AND r.item NOT LIKE '%적용 불가%')) na;
 
 -- 12.2 절별 집계 (total / pass / fail)
-SELECT section, count(*) AS total, count(*) FILTER (WHERE ok) AS pass, count(*) FILTER (WHERE NOT ok) AS fail
+SELECT section, count(*) AS total, count(*) FILTER (WHERE ok AND actual IS DISTINCT FROM '적용 불가') AS pass, count(*) FILTER (WHERE NOT ok) AS fail,
+       count(*) FILTER (WHERE actual = '적용 불가') AS na
 FROM zz_check_result
 GROUP BY section
 ORDER BY section;
@@ -627,8 +661,10 @@ ORDER BY seq;
 SELECT item, expected, actual FROM zz_check_result WHERE section = '12 판정' ORDER BY seq;
 
 -- 12.4 판정 행
-SELECT CASE WHEN count(*) > 0 AND count(*) FILTER (WHERE NOT ok) = 0 THEN 'PASS' ELSE 'FAIL' END AS verdict,
-       count(*) AS total, count(*) FILTER (WHERE ok) AS pass, count(*) FILTER (WHERE NOT ok) AS fail
+-- 적용 불가 정보 행은 통과 사례 수에 세지 않는다 (P0-19: 대상이 없는 포트폴리오의 음성 사례)
+SELECT CASE WHEN count(*) FILTER (WHERE actual IS DISTINCT FROM '적용 불가') > 0 AND count(*) FILTER (WHERE NOT ok) = 0 THEN 'PASS' ELSE 'FAIL' END AS verdict,
+       count(*) FILTER (WHERE actual IS DISTINCT FROM '적용 불가') AS total, count(*) FILTER (WHERE ok AND actual IS DISTINCT FROM '적용 불가') AS pass,
+       count(*) FILTER (WHERE NOT ok) AS fail, count(*) FILTER (WHERE actual = '적용 불가') AS not_applicable
 FROM zz_check_result;
 
 -- 12.5 판정을 종료 코드로: FAIL 이 있으면 오류로 끝낸다 (ON_ERROR_STOP=1 이면 종료 코드 3).
