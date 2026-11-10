@@ -162,6 +162,8 @@ TurnService.advance(seasonId, expectedTurnNo)
  10. season.currentTurnNo += 1; 마지막 턴이면 status = FINISHED 후 성적표 계산(별도 트랜잭션으로 분리해도 됨 — 초안: 같은 트랜잭션)
 ```
 
+Phase 0 API 구현(P0-33)에서 이 흐름은 `TurnService`가 맡고, 가격은 `TurnPriceCalculator`, 스냅샷은 `TurnSnapshotCalculator`가 계산한다. 1단계에서는 상태 검사를 턴 검사보다 먼저 한다(마지막 턴을 넘긴 뒤의 둘째 요청은 `SEASON_NOT_ACTIVE`, 중간 턴은 `TURN_MISMATCH`). 23 SQL과 다른 점은 두 가지다. ① `ABANDONING` 시즌은 포기 기능(MVP)이 들어올 때까지 거절한다. ② 현금 계좌 행이 없으면 데이터 손상으로 보고 500으로 멈춘다(23은 스냅샷 0행 → 대사 `NO_ACCOUNT`). 대사 불일치가 발생하면 예외 하나로 전부 롤백하고, 롤백 뒤 새 트랜잭션에 17행을 기록하는 일은 P0-34(`TurnFacade`)가 맡는다.
+
 - Phase 0 정본은 `db/23_turn_advance_def.sql`(erd D37)이다. 1–5단계의 전제 오류(`SEASON_NOT_FOUND`·`SEASON_NOT_ACTIVE`·`TURN_MISMATCH`·`NO_PATH`·`NO_RETURN`)는 쓰기 전에 거절하고 기록하지 않는다. 9단계 대사 불일치만 롤백한 뒤 17행을 기록한다(§6). 낙폭은 `MoneyMath.drawdown`으로 한 번만 반올림하고(HALF_UP), 골키퍼 평가액은 총액에서 다른 세 포지션을 뺀 값이다.
 - `turn(season_id, turn_no) UNIQUE`가 "같은 턴 두 번"을 DB 수준에서 막는다. 락과 턴 번호 검사가 먼저 걸러 주지만, UNIQUE는 마지막 안전망이다.
 - `season`과 `cash_account`에 `@Version`도 둔다. 비관적 락이 있는데 왜 또? 락을 거는 경로(주문·턴)가 아닌 **다른 경로**(시즌 포기, 관리자 상태 변경)가 같은 행을 고칠 때 "읽은 뒤 누가 바꿨다"를 잡기 위해서다. 둘은 서로 다른 일을 한다: 비관적 락은 돈 계산의 직렬화, 낙관적 락은 상태 변경의 충돌 감지.
@@ -211,7 +213,7 @@ TurnService.advance(seasonId, expectedTurnNo)
 - 리포트성 쿼리(통계 보드 EXT, 리그 순위 APP)는 MyBatis를 쓸 수 있다(PLAN §10). 한 테이블을 두 도구가 **쓰지는** 않는다 — MyBatis는 읽기만.
 - 인덱스는 DDL에 `idx_` 접두로 둔다(P0-02 규칙). JPA의 `@Index`는 쓰지 않는다(`validate`는 인덱스를 검사하지 않으므로 DDL이 유일한 출처).
 - 목록 API는 `Pageable`을 사용한다. 시즌 목록과 주문 이력은 페이지로 제공한다. **단 Phase 0 API(P0-30)의 `GET /api/v1/seasons`는 고정 회원 한 명의 시즌 전부를 `id` 내림차순으로 주고 페이지로 나누지 않는다** — 페이지 메타(`page`·`totalItems`)는 DB 열이 아니므로 노출 상한 검사에 예외 규칙이 필요하고, 시즌 수도 적다. 따라서 메타 예외 규칙과 함께 MVP/WEB에서 붙인다.
-- 턴 전환 1회의 쿼리 수 목표(초안): 보유 종목 수와 무관하게 20개 이하. 테스트에서 쿼리 수를 센다(`DataSource` 프록시 또는 Hibernate 통계).
+- 턴 전환 1회의 쿼리 수: **보유 종목 수와 무관해야 한다**(`TurnAdvanceQueryCountTest`는 보유 1종목과 3종목에서 문장 수가 같은지 확인한다). 문장 수는 풀 크기(`turn_price` INSERT)와 규칙 수(대사 17 + 기록 17)에 비례한다. 실측(P0-33, 풀 4종목 합성 시즌): 52문장 — 잠금 3 · 대사 규칙·격리 확인 18 · `reconciliation_log` INSERT 17 · `turn_price` INSERT 4 · `turn` INSERT 1 · `season` UPDATE 1 · 그 밖의 조회 8. 초안의 "20개 이하" 목표는 Phase 0 API의 실패 조건이 아니다(기능 표). 풀이 약 180종목인 MVP에서 `turn_price`·`reconciliation_log`를 배치로 쓰는 방법과 함께 목표를 다시 정한다. 문장 수는 Hibernate `StatementInspector`(시험 도구 `SqlRecorder`)로 센다.
 
 ## 9. 테스트 전략
 
