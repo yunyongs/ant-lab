@@ -31,13 +31,25 @@ public final class CheckConstraintCatalog {
         return values;
     }
 
-    /** 값 목록 꼴인가: 정규식({@code ~}) 검사가 아니고, 이름이 {@code ck_표_열} 이며 리터럴이 있다. */
+    private static final Pattern CAST = Pattern.compile("::[a-z ]+(\\[\\])?");
+
+    /**
+     * 값 목록 꼴인가: 이름이 {@code ck_표_열} 이고, 정의가 그 열 하나를 리터럴 목록과 견주는 것뿐이다.
+     * 리터럴·형 변환·열 이름·{@code ANY}·{@code ARRAY}·{@code =}·괄호를 모두 걷어 냈을 때 아무것도 남지 않아야 한다 —
+     * 다른 열이나 {@code AND}·{@code OR}·{@code <>}·함수가 섞인 조건 제약({@code ck_orders_limit_price} 등)은 목록이 아니다.
+     */
     public static boolean isValueList(String table, String constraint, Set<String> columns, String definition) {
         if (definition.contains(" ~ ") || !constraint.startsWith("ck_" + table + "_")) {
             return false;
         }
         String column = constraint.substring(("ck_" + table + "_").length());
-        return columns.contains(column) && !parseValues(definition).isEmpty();
+        if (!columns.contains(column) || parseValues(definition).isEmpty()) {
+            return false;
+        }
+        String rest = LITERAL.matcher(definition).replaceAll("");
+        rest = CAST.matcher(rest).replaceAll("");
+        rest = rest.replace("CHECK", "").replace("ANY", "").replace("ARRAY", "").replaceAll("\\b" + column + "\\b", "");
+        return rest.replaceAll("[\\s()\\[\\],=]", "").isEmpty();
     }
 
     /** public 스키마의 모든 값 목록 CHECK: {@code 표.열} → 값 집합. */

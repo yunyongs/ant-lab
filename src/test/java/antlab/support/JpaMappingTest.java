@@ -1,5 +1,7 @@
 package antlab.support;
 
+import antlab.common.persistence.ClockConfig;
+import antlab.common.persistence.JpaAuditingConfig;
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -12,7 +14,7 @@ import org.springframework.test.context.ActiveProfiles;
 
 /**
  * JPA 조각 시험 + 일회용 PostgreSQL 17(Flyway 적용). 내장 DB 로 바꾸지 않는다(H2 금지).
- * 각 시험은 트랜잭션 안에서 돌고 끝나면 롤백된다.
+ * 각 시험은 트랜잭션 안에서 돌고 끝나면 롤백된다. 시계와 감사(created_at·updated_at)는 슬라이스에 없어서 함께 가져온다.
  */
 @Target(ElementType.TYPE)
 @Retention(RetentionPolicy.RUNTIME)
@@ -20,6 +22,6 @@ import org.springframework.test.context.ActiveProfiles;
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ActiveProfiles("test")
-@Import(PostgresTestcontainersConfig.class)
+@Import({PostgresTestcontainersConfig.class, ClockConfig.class, JpaAuditingConfig.class})
 public @interface JpaMappingTest {
 }

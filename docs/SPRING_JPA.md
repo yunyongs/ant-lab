@@ -58,7 +58,7 @@ Flyway는 Spring 챕터의 범위를 조금 넘는 도구다. 처음에는 `V1__
 | 시각 | `Instant` | `TIMESTAMPTZ` (P0-03 결정 1, 2026-11-05) | | 저장값은 시간대와 무관한 순간. 표시·"오늘" 조회는 `Asia/Seoul`로 변환(DTO 또는 `AT TIME ZONE`). DB `timezone = 'Asia/Seoul'` |
 | 비율(수익률, 환율 변화, 참여율, 변동성, 낙폭, z-score, 강도) | `BigDecimal` | `NUMERIC(12,8)` | `@Column(precision = 12, scale = 8)` | 금액이 아닌 비율은 전부 이 하나(P0-03 기본값 2). 확률만 `NUMERIC(5,4)` |
 | 기본 키 | `Long` | `BIGINT GENERATED ALWAYS AS IDENTITY` | `@Id @GeneratedValue(strategy = IDENTITY)` | §4.2 |
-| 낙관적 잠금 버전 | `long` | `BIGINT NOT NULL DEFAULT 0` | `@Version` | `season`, `cash_account`에만(§5.3) |
+| 낙관적 잠금 버전 | **`Long`(래퍼)** | `BIGINT NOT NULL DEFAULT 0` | `@Version` | `season`, `cash_account`에만(§5.3). 원시 `long`이 아닌 이유: Spring Data `save()`는 버전 속성이 원시형이면 "id가 있으면 기존 엔티티"로 판단한다. 키를 직접 정하는 `cash_account`(§4.2)는 새 객체도 id가 있어 `merge`(SELECT 뒤 INSERT)로 가므로, 버전을 래퍼로 두어 `null` = 새 엔티티 → `persist`(INSERT 한 번)가 되게 한다. 두 엔티티를 같은 규칙으로 맞춘다. 시험: `MutableEntityTest` |
 
 `antlab.common.money.MoneyMath`는 상태 없는 `public static` 계산 클래스다. 공개 계약은 `initialPrice`, `priceAt`, `feeRate`, `fee`, `avgPrice`, `affordable`, `teamQty`, `drawdown`, `valuation`, `totalValue`와 `ReturnFactors`다. 입력 단위와 범위는 아래 표를 따른다. `priceAt`은 저장된 0턴 가격과 현지·환율 변화 목록을 받아 누적 곱을 유지하고, 가격·수수료는 마지막에 원 단위 `HALF_UP`, 평균단가는 소수 4자리, 낙폭은 소수 8자리로 한 번만 반올림한다. 이 클래스가 반올림이 일어나는 유일한 코드 위치다. 입력 검증 때문에 계산 결과가 0이 되는 경로는 반환할 수 있으며, 저장 경계가 양수 제약을 적용한다.
 
@@ -78,7 +78,7 @@ Flyway는 Spring 챕터의 범위를 조금 넘는 도구다. 처음에는 `V1__
 
 - 모든 테이블은 대리 키 `id BIGINT GENERATED ALWAYS AS IDENTITY`. 예외는 `cash_account`: PK = `season_id`(식별 1:1, `erd.md` D6 — 시즌당 계좌 하나를 DB가 보장). `IDENTITY` 전략은 INSERT마다 DB가 번호를 주므로 Hibernate가 INSERT를 모아서 보내지 못한다(배치 불가). 도메인 테이블은 한 요청에 수십 행이라 문제없고, 수만 행을 넣는 역사 데이터는 JPA를 쓰지 않는다(§7).
 - 자연 키(회원 이메일, 종목 코드, 시즌 × 턴 번호)는 `UNIQUE` 제약으로만 지키고 PK로 쓰지 않는다.
-- `equals`/`hashCode`는 `id`로만. `id`가 아직 없는(저장 전) 엔티티는 같은 인스턴스일 때만 같다. 엔티티를 `Set`에 넣지 않는 것이 더 간단하므로 연관 컬렉션은 `List`.
+- `equals`/`hashCode`는 **시즌·계좌 쪽 엔티티(P0-28)에서는 재정의하지 않는다.** `Set`·`@OneToMany`가 없어 비교할 일이 없고, 한 영속성 컨텍스트 안의 같은 행은 JPA가 같은 인스턴스로 돌려주며, id 비교는 프록시 클래스 비교를 잘못 짜는 흔한 버그가 있다. 비교가 필요해지는 기능이 그때 규칙과 시험을 더한다(P0-27의 읽기 전용 엔티티는 id 비교를 이미 갖고 있다). 컬렉션이 필요하면 `List`.
 
 ### 4.3 연관 관계
 
@@ -86,14 +86,17 @@ Flyway는 Spring 챕터의 범위를 조금 넘는 도구다. 처음에는 `V1__
 - **`@OneToMany` 컬렉션은 두지 않는 것을 기본**으로 한다(시즌 → 주문 목록 같은 것). 필요한 목록은 리포지토리 쿼리로 가져온다(`findBySeasonIdOrderByTurnNo`). 양방향 매핑은 금지 — 양쪽 동기화 실수가 잦고, 이 도메인에서 얻는 것이 없다.
 - 외래 키 컬럼을 그냥 `Long seasonId`로 들고 다니고 싶은 유혹이 있다. 규칙: **같은 패키지 안의 연관은 `@ManyToOne`**, **패키지를 넘는 참조(account → season, season → member)는 엔티티 연관 대신 `Long` id**로 둔다. 패키지 간 결합을 낮추기 위해서다.
 - 불변 엔티티(§4.4)끼리의 연관은 전부 `Long` id.
+- P0-28의 실제 적용: `season_path`·`turn`·`turn_price`·`formation_change`·`turn_feed`·`lineup`은 같은 `season` 패키지의 `Season`을, `cash_ledger`는 같은 `account` 패키지의 `CashAccount`를 `@ManyToOne(LAZY, optional = false)`로 가리킨다. 나머지(`season.member_id`는 `member`, `orders.season_id`·`holding.season_id`는 `season`, `reconciliation_log.season_id`는 `season`, `*.asset_id`는 `asset`, `execution.order_id`는 불변끼리)는 `Long` id다. 복합 FK 3개(`orders`의 전술 변경·피드, `cash_ledger`의 주문)도 컬럼 그대로 `Long`·`int`로 두고 일관성은 DB가 지킨다(erd D29). `member`(회원)와 `scoring`(`reconciliation_log`)도 자기 패키지를 갖는다(§2).
 
 ### 4.4 불변 엔티티
 
 | 테이블 | 이유 | 매핑 |
 |---|---|---|
-| `cash_ledger`, `execution` | 추가 전용 원장. 정정은 반대 부호 `ADJUSTMENT` 행 | `@Immutable`(Hibernate), setter 없음, 생성자만. `@Immutable`은 UPDATE를 무시하고 경고하므로, 테스트에서 "원장 수정 시도 → 변경 없음"을 확인한다 |
+| `cash_ledger`, `execution`, `orders` | 추가 전용 원장. 정정은 반대 부호 `ADJUSTMENT` 행. `orders`는 접수와 체결이 한 번에 일어나고(§5.2 5단계) 넣은 뒤 바뀌지 않으므로 불변이다 — 지정가(EXT)가 오면 다시 본다(erd 7.5 규칙 16) | `@Immutable`(Hibernate), setter 없음, 생성자만. `@Immutable`은 UPDATE를 무시하고 경고하므로, 테스트에서 "원장 수정 시도 → 변경 없음"을 확인한다 |
 | `season_path`, `turn`, `turn_price`, `formation_change`, `reconciliation_log`, `turn_feed` | 이력·턴 스냅샷·정본 가격·"사용자가 본 그대로"의 피드(PLAN §4.13) | 같음 |
 | `asset_group`, `asset`, `month_block`, `asset_month_return`, `fx_month`, `month_event`, `asset_position`, `asset_month_attention` | 읽기 전용 역사·종목 풀 데이터(적재 스크립트가 쓴다 — Phase 0는 SQL, 이후 Java 배치. Python은 읽기만, PLAN §10) | `@Immutable` + 리포지토리는 조회 메서드만(`save` 없음 — `Repository<T, ID>`를 직접 상속해 `findBy…`만 선언) |
+
+추가 전용 엔티티의 리포지토리는 `AppendOnlyRepository<T, ID>`(`antlab.common.persistence`, `Repository`를 상속한 `save`·`findById`만)를 상속해서 `delete*`·`saveAll`이 컴파일되지 않는다. 가변 엔티티의 리포지토리도 `Repository`를 직접 상속하고 필요한 메서드만 선언하며, `JpaRepository`는 쓰지 않는다(`RepositoryShapeTest`가 패키지를 가리지 않고 확인). 불변 엔티티는 모든 컬럼을 받는 공개 생성자 하나와 보호된 기본 생성자만 갖고, 가변 엔티티는 setter 대신 이름 있는 상태 변경 메서드(`Season.advanceTurn`·`changeFormation`, `CashAccount.applyLedgerAmount`, `Holding.applyBuy`·`applySell`, `Lineup.close`)만 갖는다. JPQL 일괄 `UPDATE`는 불변 엔티티에 대해 거부된다(Hibernate 7.4 기본, `InterpretationException`). 네이티브 SQL `UPDATE`는 막지 못한다 — 그 길은 DB 권한(MVP)이 막는다.
 
 Hibernate의 `@Immutable`은 "이 엔티티는 바뀌지 않는다"는 선언이다. 변경 감지(dirty checking: 트랜잭션 끝에 엔티티가 바뀌었는지 비교해 UPDATE를 만드는 것)를 건너뛰어 읽기 성능도 좋아진다.
 
@@ -101,7 +104,7 @@ Hibernate의 `@Immutable`은 "이 엔티티는 바뀌지 않는다"는 선언이
 
 - `created_at TIMESTAMPTZ NOT NULL DEFAULT now()`를 모든 테이블에. DB 기본값은 적재 스크립트·직접 SQL이 넣는 행을 위한 것이고, JPA가 넣는 행은 Auditing 값이 우선한다(DB 기본값 `now()`는 트랜잭션 시작 시각이라 한 트랜잭션의 행이 같은 값을 갖는다 — 행 사이 순서가 필요한 곳은 erd 7.5 규칙 16). Spring Data JPA Auditing(`@CreatedDate`, `@EnableJpaAuditing`)으로 채운다.
 - `updated_at`은 가변 엔티티(`member`, `season`, `lineup`, `cash_account`, `holding`)에만.
-- 시각은 앱 서버의 `Clock` 빈에서 받는다(테스트에서 고정 시각을 넣기 위해).
+- 시각은 앱 서버의 `Clock` 빈에서 받는다(시각의 출처를 한 곳에 두기 위해 — 시험은 흐르는 시계만 쓰고 `Clock.fixed`는 쓰지 않는다, erd §9 Phase 0 API ⑤). JPA가 넣는 행의 `created_at`은 `persist` 순간의 `Instant.now(clock)`이라, 서비스가 락을 얻은 뒤의 시각이다(규칙 16의 전제).
 
 ### 4.6 비공개 컬럼
 
@@ -136,7 +139,7 @@ OrderService.place(seasonId, expectedTurnNo, side, assetId, qty, declaredPositio
  10. lineup: 신규 보유면 선언 포지션 행 추가, 전량 매도면 구간 종료
 ```
 
-- 비관적 락(`@Lock(LockModeType.PESSIMISTIC_WRITE)` = `SELECT … FOR UPDATE`): 같은 시즌에 두 요청이 동시에 오면 둘째가 **기다렸다가** 첫째의 결과 위에서 검증한다. PostgreSQL의 기본 격리 수준 READ COMMITTED에서 보통 SELECT는 락을 잡지 않으므로, 락 없이 잔액을 읽으면 두 요청이 같은 잔액을 보고 둘 다 "충분하다"고 판단해 둘 다 커밋한다 — 잔액이 음수가 된다. `FOR UPDATE`는 둘째 SELECT를 첫째 트랜잭션이 끝날 때까지 기다리게 하고, 풀리면 **커밋된 최신 행**을 다시 읽는다(Phase 0의 두 세션 실습 P0-15가 이것을 보여 준다).
+- 비관적 락(`@Lock(LockModeType.PESSIMISTIC_WRITE)`. PostgreSQL에서 Hibernate 7은 `FOR UPDATE`가 아니라 **`FOR NO KEY UPDATE OF <별칭>`**을 낸다 — 같은 행의 `FOR NO KEY UPDATE`끼리, 그리고 SQL 실습의 `FOR UPDATE`와도 충돌하므로 직렬화는 같고, 자식 행 INSERT의 FK 검사(`FOR KEY SHARE`)만 기다리지 않는다): 같은 시즌에 두 요청이 동시에 오면 둘째가 **기다렸다가** 첫째의 결과 위에서 검증한다. PostgreSQL의 기본 격리 수준 READ COMMITTED에서 보통 SELECT는 락을 잡지 않으므로, 락 없이 잔액을 읽으면 두 요청이 같은 잔액을 보고 둘 다 "충분하다"고 판단해 둘 다 커밋한다 — 잔액이 음수가 된다. 행 잠금은 둘째 SELECT를 첫째 트랜잭션이 끝날 때까지 기다리게 하고, 풀리면 **커밋된 최신 행**을 다시 읽는다(Phase 0의 두 세션 실습 P0-15가 이것을 보여 준다).
 - 락 순서는 항상 **season → cash_account**. 턴 전환(§5.3)도 같은 순서라 교착이 나지 않는다.
 - 멱등성: 요청에 `expectedTurnNo`를 받아 "이미 넘어간 턴에 대한 주문"을 거부한다. 같은 주문을 두 번 보내는 것(더블 클릭)은 EXT에서 `Idempotency-Key` 헤더 + `orders.client_key UNIQUE`로 막는다. Phase 0 API와 MVP는 턴 번호 검사까지.
 
@@ -183,7 +186,7 @@ TurnService.advance(seasonId, expectedTurnNo)
 | 현재 포메이션 = 마지막 `formation_change.after` (없으면 시작 포메이션) | 중복 컬럼과 이력의 일치 |
 
 - 결과는 `reconciliation_log`(시즌, 턴, 항등식, 기대, 실제, 차이, 분류)에 남긴다. 일치해도 한 행(기록이 있어야 "검사했다"를 증명한다).
-- 불일치 시: 턴 전환 트랜잭션은 **롤백**하고 시즌은 그 턴에 멈춘다(`currentTurnNo` 그대로, 다시 시도 가능). 로그는 **롤백이 끝난 뒤** 바깥의 얇은 서비스(`TurnFacade.advance`: 트랜잭션 없음 → 안쪽 `TurnService.advance` 호출 → 예외를 잡아 `ReconciliationLogService.record`를 새 트랜잭션으로)가 남긴다. 안쪽 트랜잭션이 `season`을 `FOR UPDATE`로 잡고 있는 동안 `REQUIRES_NEW`로 로그를 넣으면 `reconciliation_log.season_id`의 FK 검사가 그 락을 기다리다 시간 초과가 나므로, "롤백 뒤에 쓴다"가 규칙이다. 분류(시차·조정·조사)는 MVP에서 전부 "조사"로 두고 사람이 본다.
+- 불일치 시: 턴 전환 트랜잭션은 **롤백**하고 시즌은 그 턴에 멈춘다(`currentTurnNo` 그대로, 다시 시도 가능). 로그는 **롤백이 끝난 뒤** 바깥의 얇은 서비스(`TurnFacade.advance`: 트랜잭션 없음 → 안쪽 `TurnService.advance` 호출 → 예외를 잡아 `ReconciliationLogService.record`를 새 트랜잭션으로)가 남긴다. 안쪽 트랜잭션이 `season`을 행 잠금(`FOR NO KEY UPDATE`)으로 잡고 있는 동안 `REQUIRES_NEW`로 로그를 넣으면, 로그 쪽 `attempt_no` 배정이 같은 `season` 행을 다시 잠그려다 자기 자신을 기다리는 교착(시간 초과)이 나므로, "롤백 뒤에 쓴다"가 규칙이다. (`FOR NO KEY UPDATE`는 자식 INSERT의 FK 검사 `FOR KEY SHARE`와 충돌하지 않으므로 FK 검사 자체가 기다리는 것은 아니다 — 이유는 `attempt_no` 배정이다. P0-34가 시험으로 확인한다.) 분류(시차·조정·조사)는 MVP에서 전부 "조사"로 두고 사람이 본다.
 - 이 검사는 Phase 0의 대사 쿼리를 JPQL/네이티브 쿼리로 옮긴 것이다. SQL 그대로 쓰기 위해 `@Query(nativeQuery = true)`를 허용한다. Phase 0 정본은 `db/22_reconcile_season_def.sql`(erd D36)이고, MVP는 같은 DB 고정본에서 Java 결과가 `recon_rules`와 같은 골든 테스트를 둔다.
 
 ## 7. 역사 데이터 적재
@@ -205,7 +208,7 @@ TurnService.advance(seasonId, expectedTurnNo)
 
 | 수준 | 도구 | 대상 |
 |---|---|---|
-| 매핑 | `@JpaMappingTest`(= `@DataJpaTest` + 실제 PostgreSQL, Phase 0 API는 Testcontainers 컨테이너, 아래) | 엔티티 ↔ DDL 일치(`validate`는 형 계열만 → `ColumnContractTest`가 길이·정밀도·NULL까지), enum ↔ CHECK 목록 글자 단위 대조(`EnumCheckContractTest`), 불변 엔티티 변경 무시(`ImmutableEntityTest`), 저장소 모양(`ReadOnlyRepositoryShapeTest`). 모든 `@Entity`를 훑으므로 엔티티를 추가하면 자동으로 포함된다 |
+| 매핑 | `@JpaMappingTest`(= `@DataJpaTest` + 실제 PostgreSQL, Phase 0 API는 Testcontainers 컨테이너, 아래) | 엔티티 ↔ DDL 일치(`validate`는 형 계열만 → `ColumnContractTest`가 길이·정밀도·NULL까지), enum ↔ CHECK 목록 글자 단위 대조(`EnumCheckContractTest`), 불변 엔티티 변경 무시(`ImmutableEntityTest`), 저장소 모양(`RepositoryShapeTest` — 읽기 전용·추가 전용·가변 세 분류, 패키지 고정 없음). 모든 `@Entity`를 훑으므로 엔티티를 추가하면 자동으로 포함된다. `MappingModel`은 `@MappedSuperclass` 부모 필드, `@Embedded` + `@AttributeOverride` 펼친 열, `@ManyToOne` 열, `@Version`, JSONB(`String` + `@JdbcTypeCode(JSON)`)를 읽는다. 시즌·계좌 엔티티의 불변(`AppendOnlyEntityTest` — `SqlRecorder`로 센 UPDATE 0건), 가변·낙관적 락·잠금 SQL·대기(`MutableEntityTest`·`LockingTest`), DB 제약 대표 세 건(`SeasonAccountConstraintTest`), Hibernate `validate`의 SMALLINT 거부(`HibernateValidateSpikeTest`)가 같은 방식으로 돈다 |
 | 서비스 | `@SpringBootTest` + 실제 PostgreSQL, 테스트마다 `@Transactional` 롤백 | 주문 체결 전부/전무, 턴 전환, 대사 항등식(골든에서는 P0-25 하네스가 띄우는 일회용 컨테이너에서 `db/20`–`26`으로 만든 연습 시즌을 API로 재생해 행 단위로 비교 — PLAN §13 2026-11-09) |
 | 동시성 | 스레드 2개로 같은 시즌에 동시 주문·턴 전환 | 둘 중 하나만 성공하거나 순서대로 처리되고, 끝나면 항등식 성립 |
 | 엔진 대조 | Java 부트스트랩 vs Phase 0 손 계산 | 같은 시드 → 같은 경로, 같은 수익률 → 같은 가격(원 단위) |
@@ -295,7 +298,7 @@ Phase 1은 건너뛰었다(PLAN §11, 2026-11-09). 이 표는 SQL(Phase 0)에서
 | `Connection.setAutoCommit(false)` … `commit()/rollback()` | `@Transactional` |
 | `PreparedStatement` INSERT/UPDATE | `repository.save(entity)` + 변경 감지 |
 | `ResultSet` → 객체 | 엔티티 매핑, DTO 생성자 표현식 |
-| `SELECT … FOR UPDATE` 직접 작성 | `@Lock(PESSIMISTIC_WRITE)` 리포지토리 메서드 |
+| `SELECT … FOR UPDATE` 직접 작성 | `@Lock(PESSIMISTIC_WRITE)` 리포지토리 메서드(`findByIdForUpdate`, `findBySeasonIdForUpdate`) — PostgreSQL에서는 `FOR NO KEY UPDATE`로 나가지만 같은 행의 `FOR UPDATE`와 서로 기다린다 |
 | 대사 SQL | 같은 SQL을 `@Query(nativeQuery = true)`로 |
 | 경로 생성 코드(단순 부트스트랩) | 그대로 `engine` 패키지로 이동 |
 
@@ -304,7 +307,7 @@ Phase 1은 건너뛰었다(PLAN §11, 2026-11-09). 이 표는 SQL(Phase 0)에서
 ## 12. 열린 결정(구현 중 확정)
 
 1. 성적표 계산을 마지막 턴 전환과 같은 트랜잭션에 둘지 분리할지(초안: 같이. 느리면 분리하고 `season.status = SCORING` 추가). Phase 0 API는 성적표를 저장하지 않고 조회로 계산하므로(P0-38) 이 질문은 저장이 생기는 MVP(`season_score`)로 미룬다.
-2. `holding`을 엔티티로 두고 UPSERT할지, `execution` 집계로만 계산할지(초안: 엔티티 — 조회가 잦고 대사로 집계와 대조).
+2. ~~`holding`을 엔티티로 두고 UPSERT할지, `execution` 집계로만 계산할지~~ — **결정됨(P0-28, 2026-11-10): 가변 엔티티.** 전량 매도 뒤에도 행을 남기고(수량 0·평균단가 0, erd D7) 대사가 체결 합계와 대조한다.
 3. 네이티브 쿼리와 JPQL의 경계(초안: 대사·집계는 네이티브, 나머지는 JPQL).
 4. `Idempotency-Key`(EXT) 저장 방식.
 5. ~~PostgreSQL 이전 때 `IDENTITY` 처리~~ — 처음부터 PostgreSQL이라 해소(2026-11-05). `GENERATED ALWAYS AS IDENTITY` + JPA `IDENTITY`로 간다. 시퀀스 + `SEQUENCE` 전략(배치 INSERT 가능)으로 바꿀지는 성능이 문제될 때만.

@@ -9,6 +9,8 @@ spring:
     properties:
       # 쿼리 수 단언용(N+1 방지 시험이 Statistics 를 읽는다)
       hibernate.generate_statistics: true
+      # 실행된 SQL 을 스레드별로 기록한다(SqlRecorder) — UPDATE 가 나갔는지, 잠금 SQL 이 무엇인지 단언하는 데 쓴다.
+      hibernate.session_factory.statement_inspector: antlab.support.SqlRecorder
 # 명세(/v3/api-docs) 단언용. Swagger UI 는 끈 채로 둔다.
 springdoc:
   api-docs:
