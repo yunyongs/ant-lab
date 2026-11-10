@@ -38,6 +38,8 @@ psql -X -q -v ON_ERROR_STOP=1 -d antlab_api -f db/13_calc_attention_check.sql
 ```
 
 적재한 뒤 앱을 띄워 `GET /api/v1/pool`이 200이고 20종목을 돌려주는지 확인한다(`local` 프로필 기본 포트 8080).
+
+시즌 시작 골든(`SeasonStartGoldenTest`, P0-30)은 하네스 컨테이너의 API DB(Flyway로 V1–V3이 적용된 DB)에 이 순서에서 **`10 → 12`만** 적재한다(`SqlGoldenScenario.apiDbLoad()`; 11·13은 시즌 시작에 사용하지 않는다). 시즌은 `POST /api/v1/seasons`로 만들고, 같은 DB에 `20_season_start_check.sql`을 그대로 실행해 `p0_14_check = PASS`인지 확인한다.
 `10`을 적재하기 전이면 409 `POOL_NOT_LOADED`, `12`를 계산하기 전이면 409 `POOL_NOT_JUDGED`다. 기준일은
 `antlab.pool.base-date` 설정(환경 변수 `ANTLAB_POOL_BASE_DATE`, 기본 2026-01-02)으로 정한다.
 
@@ -848,7 +850,7 @@ ANTLAB_GOLDEN_SAMPLE_DIR=<db/sample 경로> ./gradlew test -PonlySqlGolden
 |---|---|---|
 | `01`–`03` 스키마 | `SqlGoldenHarnessTest`(`README_REGRESSION`·`TURN_GOLDEN`), `SqlGoldenIsolationTest`, `SchemaParityTest`(Flyway DDL과 대조) | P0-23 이후 스키마 일치 |
 | `10`–`13` 적재·계산 | `SqlGoldenHarnessTest`(입력 CSV와 함께) | P0-27–29(적재·판정) |
-| `20_season_start.sql` | `TURN_GOLDEN`·끝난 뒤 멱등 | P0-30 시즌 시작 |
+| `20_season_start.sql` | `TURN_GOLDEN`·끝난 뒤 멱등, `SeasonStartGoldenTest`(`seasonStartGolden` — 같은 설정·경로·시드로 API가 만든 시즌 5개 표와 행 단위 비교) | P0-30 시즌 시작(완료), P0-31 팀 구성 |
 | `21_team_buy_def.sql` | `MoneyMathSqlParityTest`(순수 함수 5개를 `MoneyMath`와 같은 합성 입력으로 대조) | P0-26(이미 읽음), P0-31 팀 구성 |
 | `22_reconcile_season_def.sql` | `README_REGRESSION`(수동 대사 15행 `MATCH`) | P0-32 대사 |
 | `23_turn_advance*.sql`·`24_turn_feed_def.sql` | `TURN_GOLDEN`(10턴 기준 시즌)·재생 | P0-33 턴 전환·피드 |

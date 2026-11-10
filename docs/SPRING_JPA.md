@@ -110,7 +110,7 @@ Hibernate의 `@Immutable`은 "이 엔티티는 바뀌지 않는다"는 선언이
 
 `season_path.month_block_id`는 시즌 종료 전까지 사용자에게 보이면 안 된다(PLAN §4.2). 규칙: 이 테이블은 `season` 패키지 안에서만 읽고, DTO에는 "턴 번호"만 나간다. 복기 API는 `season.status = FINISHED`일 때만 월 블록의 날짜·사건을 조인한다. 상태 검사는 서비스에서 하고, 리포지토리에 `findRevealed…` 메서드를 따로 둬 이름에서 드러나게 한다. 같은 규칙이 `erd.md` 정의서에서 `[복기 전용]`으로 표시한 컬럼 전부(`month_block.month_start`·`event_summary`, `month_event.title`·`source`·`hindsight`, `asset.listed_on`)와 표본 수 3 미만인 사건 유형의 카드 범주·유형·결과·단계·방향(PLAN §4.11 고유 사건 예외)에 적용된다 — 시즌 중 DTO에서 제외하고 복기 API에서만 조인한다.
 
-**노출 상한 시험(P0-27).** 응답 record의 DB 열 구성 요소는 모두 `@ExposedFrom("표.열")`(`antlab.common.exposure`)로 원천 열을 밝힌다(중첩 record와 그 목록인 구성 요소는 애너테이션 없이 해당 record를 다시 검사한다). `ExposureContractTest`는 `/api/v1/**` 핸들러의 반환형을 따라가 해당 열의 DB 코멘트 태그가 `[노출]`인지 확인한다. `[복기 전용]`·`[내부]` 원천은 0건이다. 식별자 열(`id`·`*_id`)은 태그와 무관하게 **식별자 허용 목록**(시험 상수 `ExposureRules.IDENTIFIER_ALLOWED`, 지금은 `asset.id`·`asset.asset_group_id` 둘이고 `season.id` 등은 쓰는 기능이 더한다)으로만 통과한다 — FK 열이 `[노출]`이어도 부모 PK가 `[내부]`이면 같은 값이므로 우회를 막는다. **영구 금지**는 `month_block.id`·모든 `*.month_block_id`·`month_event.id`·`turn_feed.month_event_id`와, `month_block_id` 열이 있는 표(`asset_month_return`·`fx_month`·`asset_month_attention` 등)의 `id`다 — 적재 순서가 달 순서(`ORDER BY month_start`)라 번호 자체가 날짜 단서다. 목록·중첩 record는 해당 record를 다시 검사하고, 실제 응답 JSON의 키가 record 구성 요소 이름과 같은지와 본문에 날짜 꼴 문자열·금지 키가 없는지도 본다.
+**노출 상한 시험(P0-27).** 응답 record의 각 DB 열 구성 요소에는 `@ExposedFrom("표.열")`(`antlab.common.exposure`)를 붙여 원천 열을 밝힌다. 중첩 record와 그 목록의 구성 요소는 애너테이션 없이 해당 record를 다시 검사한다. `ExposureContractTest`는 `/api/v1/**` 핸들러의 반환형을 따라가 해당 열의 DB 코멘트 태그가 `[노출]`인지 확인한다. `[복기 전용]`·`[내부]` 원천은 0건이다. 식별자 열(`id`·`*_id`)은 태그와 무관하게 **식별자 허용 목록**(시험 상수 `ExposureRules.IDENTIFIER_ALLOWED`, 지금은 `asset.id`·`asset.asset_group_id`·`season.id`·`turn_price.asset_id` 넷이다 — `season.id`는 시즌 생성 순서라 역사 날짜와 무관하고 `turn_price.asset_id`는 이미 허용된 `asset.id`와 같은 값이다(P0-30). 목록이 더 늘면 DTO 옆 표시 방식으로 바꾸는 안(P0-27 대안 C)을 다시 본다)으로만 통과한다. FK 열이 `[노출]`이어도 부모 PK가 `[내부]`이면 같은 값이므로 우회를 막는다. **영구 금지**는 `month_block.id`·모든 `*.month_block_id`·`month_event.id`·`turn_feed.month_event_id`와, `month_block_id` 열이 있는 표(`asset_month_return`·`fx_month`·`asset_month_attention` 등)의 `id`다. 적재 순서가 달 순서(`ORDER BY month_start`)라 번호 자체가 날짜 단서이기 때문이다. 목록·중첩 record는 해당 record를 다시 검사하고, 실제 응답 JSON의 키가 record 구성 요소 이름과 같은지와 본문에 날짜 꼴 문자열·금지 키가 없는지도 본다.
 
 ## 5. 트랜잭션 경계와 락
 
@@ -140,7 +140,7 @@ OrderService.place(seasonId, expectedTurnNo, side, assetId, qty, declaredPositio
 ```
 
 - 비관적 락(`@Lock(LockModeType.PESSIMISTIC_WRITE)`. PostgreSQL에서 Hibernate 7은 `FOR UPDATE`가 아니라 **`FOR NO KEY UPDATE OF <별칭>`**을 낸다 — 같은 행의 `FOR NO KEY UPDATE`끼리, 그리고 SQL 실습의 `FOR UPDATE`와도 충돌하므로 직렬화는 같고, 자식 행 INSERT의 FK 검사(`FOR KEY SHARE`)만 기다리지 않는다): 같은 시즌에 두 요청이 동시에 오면 둘째가 **기다렸다가** 첫째의 결과 위에서 검증한다. PostgreSQL의 기본 격리 수준 READ COMMITTED에서 보통 SELECT는 락을 잡지 않으므로, 락 없이 잔액을 읽으면 두 요청이 같은 잔액을 보고 둘 다 "충분하다"고 판단해 둘 다 커밋한다 — 잔액이 음수가 된다. 행 잠금은 둘째 SELECT를 첫째 트랜잭션이 끝날 때까지 기다리게 하고, 풀리면 **커밋된 최신 행**을 다시 읽는다(Phase 0의 두 세션 실습 P0-15가 이것을 보여 준다).
-- 락 순서는 항상 **season → cash_account**. 턴 전환(§5.3)도 같은 순서라 교착이 나지 않는다.
+- 락 순서는 항상 **season → cash_account**다. 턴 전환(§5.3)도 같은 순서라 교착이 나지 않는다. 시즌 **시작**(P0-30)만 순서 맨 앞에 **member**를 추가한다. 새 시즌 행은 커밋 전에는 다른 세션에 보이지 않아 잠글 필요가 없으므로, 같은 회원의 동시 시작이 둘 다 "진행 중 2개"를 세어 4개가 되는 경합만 `member` 행 잠금(`FOR NO KEY UPDATE`)으로 직렬화한다 — member → season → cash_account. 주문·턴 전환은 member를 잠그지 않으므로 교착이 나지 않는다.
 - 멱등성: 요청에 `expectedTurnNo`를 받아 "이미 넘어간 턴에 대한 주문"을 거부한다. 같은 주문을 두 번 보내는 것(더블 클릭)은 EXT에서 `Idempotency-Key` 헤더 + `orders.client_key UNIQUE`로 막는다. Phase 0 API와 MVP는 턴 번호 검사까지.
 
 ### 5.3 턴 전환
@@ -201,7 +201,7 @@ TurnService.advance(seasonId, expectedTurnNo)
 - **N+1 금지:** 목록을 돌며 연관을 하나씩 읽는 패턴. 성적표·턴 결과처럼 여러 테이블을 묶는 조회는 **JPQL 생성자 표현식**(`SELECT new antlab.season.TurnResultDto(…)`) 또는 네이티브 쿼리로 DTO를 바로 만든다. 엔티티 그래프(`@EntityGraph`)는 연관이 꼭 필요한 곳(시즌 상세)에만.
 - 리포트성 쿼리(통계 보드 EXT, 리그 순위 APP)는 MyBatis를 쓸 수 있다(PLAN §10). 한 테이블을 두 도구가 **쓰지는** 않는다 — MyBatis는 읽기만.
 - 인덱스는 DDL에 `idx_` 접두로 둔다(P0-02 규칙). JPA의 `@Index`는 쓰지 않는다(`validate`는 인덱스를 검사하지 않으므로 DDL이 유일한 출처).
-- 목록 API는 `Pageable`. 시즌 목록·주문 이력은 페이지로.
+- 목록 API는 `Pageable`을 사용한다. 시즌 목록과 주문 이력은 페이지로 제공한다. **단 Phase 0 API(P0-30)의 `GET /api/v1/seasons`는 고정 회원 한 명의 시즌 전부를 `id` 내림차순으로 주고 페이지로 나누지 않는다** — 페이지 메타(`page`·`totalItems`)는 DB 열이 아니므로 노출 상한 검사에 예외 규칙이 필요하고, 시즌 수도 적다. 따라서 메타 예외 규칙과 함께 MVP/WEB에서 붙인다.
 - 턴 전환 1회의 쿼리 수 목표(초안): 보유 종목 수와 무관하게 20개 이하. 테스트에서 쿼리 수를 센다(`DataSource` 프록시 또는 Hibernate 통계).
 
 ## 9. 테스트 전략
@@ -271,9 +271,20 @@ spring.flyway:
 # 블록 길이(6)·허용 경로 길이·재생 시작·엔진 판은 설정이 아니라 SimpleBootstrap 상수다(P0-29) — 설정으로 두면 같은 engine_version 이 다른 경로를 낼 수 있어 재현성이 깨진다.
 # projection-paths: 2000 은 MVP 에서 antlab.engine.* 설정으로 더한다
 antlab.pool.base-date: ${ANTLAB_POOL_BASE_DATE:2026-01-02}   # P0-27: 기준일 풀(매년 1월 첫 거래일). P0-30 시즌 시작도 같은 값을 쓴다
+# P0-30: 새 시즌에 적는 설정(요청에서 받지 않는다). 시즌 행의 8개 설정 컬럼은 DB 기본값이 없으므로 값이 빠지면 기동 실패(@Validated)
+antlab.season.initial-cash: 30000000        # PLAN §4.1-1 기본 초기 자금
+antlab.season.fee-rate-kr: 0.00015          # PLAN §4.6
+antlab.season.fee-rate-us: 0.0025
+antlab.season.fx-spread-rate: 0.0040        # 환전 비용 0.40%(소유자, 2026-11-08)
+antlab.season.data-snapshot-date: 2026-11-07   # db/sample/README 상태 줄 = db/20 설정 표
+# 진행 중 시즌 상한 3은 설정이 아니라 SeasonStartService 상수다 — 설정이면 같은 판에서 규칙이 바뀐다
+# 인증(SEC) 전 임시 고정 회원. 이메일은 RFC 2606 예약 도메인(실제 주소 금지)
+antlab.single-member.enabled: true            # prod 문서는 false
+antlab.single-member.email: ${ANTLAB_SINGLE_MEMBER_EMAIL:player@example.invalid}
+antlab.single-member.name: 감독
 ```
 
-프로필은 `application.yml` 안의 `---` 문서 셋으로 구성된다. 공통 프로필에는 프로필을 지정하지 않아도 안전한 값(SQL 로그·명세 꺼짐)을 둔다. `local`은 SQL 로그와 명세·Swagger UI를 켜며 `bootRun`·`bootTestRun`에서 기본으로 사용한다. `prod`는 OPS 설정이며 springdoc을 끄고 `server.forward-headers-strategy: framework`을 사용한다. 시험 프로필 `test`만 `src/test/resources/application-test.yml`에 있으므로 jar에 포함되지 않는다(Testcontainers, 명세만 켬, Hibernate 통계 켬 — 쿼리 수 단언용; Flyway clean은 새 컨테이너 원칙상 쓰지 않는다). `local` 값을 `application-local.yml` 파일로 두지 않는 까닭은 `.gitignore`가 그 파일을 무시하기 때문이다(소유자 개인 덮어쓰기는 `config/application-local.yml`). `prod`는 고정 회원 구현이 켜져 있으면 시작을 거부한다(M4 JWT 전까지, PLAN §13 2026-11-09). 비밀값(DB 비밀번호)은 환경 변수나 `/run/secrets` 파일로만 둔다. `prod`의 `spring.datasource.url`은 `${ANTLAB_DB_URL}`로 **기본값이 없다**(빠뜨리면 localhost로 가지 않고 기동에 실패 — P0-24, `ProdProfileConfigTest`). `prod`는 `spring.config.import: optional:configtree:/run/secrets/`도 가진다: 파일 `/run/secrets/spring.datasource.password`의 내용이 속성 `spring.datasource.password`가 되고(디렉터리가 없어도 기동), 같은 속성을 환경 변수 `SPRING_DATASOURCE_PASSWORD`로도 주면 환경 변수가 이긴다 — 운영에서는 한 가지로만 준다. 운영 secrets의 실제 사용은 OPS다.
+프로필은 `application.yml` 안의 `---` 문서 셋으로 구성된다. 공통 프로필에는 프로필을 지정하지 않아도 안전하게 쓸 수 있는 값(SQL 로그·명세 꺼짐)을 둔다. `local`은 SQL 로그와 명세·Swagger UI를 켜며 `bootRun`·`bootTestRun`에서 기본으로 사용한다. `prod`는 OPS 설정이며 springdoc을 끄고 `server.forward-headers-strategy: framework`을 사용한다. 시험 프로필인 `test`는 `src/test/resources/application-test.yml`에만 있으므로 jar에 포함되지 않는다(Testcontainers, 명세만 켬, Hibernate 통계 켬 — 쿼리 수 단언용; Flyway clean은 새 컨테이너 원칙상 쓰지 않는다). `local` 값을 `application-local.yml` 파일로 두지 않는 까닭은 `.gitignore`가 그 파일을 무시하기 때문이다(소유자 개인 덮어쓰기는 `config/application-local.yml`). `prod`는 고정 회원이 켜져 있으면(`antlab.single-member.enabled=true`) 시작을 거부하고(`SingleMemberProductionGuard`), 문서 값은 `false`다. 고정 회원을 끈 동안 시즌 API(`/api/v1/seasons/**`)는 `CurrentMember`의 대체 구현이 503 `MEMBER_UNAVAILABLE`로 거절한다(M4 JWT 전까지, PLAN §13 2026-11-09 — compose `api` 컨테이너가 `prod`로 뜨므로 기동 자체를 막으면 상태 확인이 깨진다. 한 판은 로컬 `bootRun`(local)으로 한다). 비밀값(DB 비밀번호)은 환경 변수나 `/run/secrets` 파일로만 둔다. `prod`의 `spring.datasource.url`은 `${ANTLAB_DB_URL}`로 **기본값이 없다**(빠뜨리면 localhost로 가지 않고 기동에 실패 — P0-24, `ProdProfileConfigTest`). `prod`는 `spring.config.import: optional:configtree:/run/secrets/`도 가진다. 파일 `/run/secrets/spring.datasource.password`의 내용이 속성 `spring.datasource.password`가 되고(디렉터리가 없어도 기동), 같은 속성을 환경 변수 `SPRING_DATASOURCE_PASSWORD`로도 주면 환경 변수가 우선한다 — 운영에서는 한 가지로만 준다. 운영 secrets의 실제 사용은 OPS다.
 
 ### 10.1 컨테이너에서 실행 (Phase 0 API 체크리스트 초안)
 
