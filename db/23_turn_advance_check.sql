@@ -5,11 +5,12 @@
 -- 실행: 저장소 루트에서  psql -X -q -v ON_ERROR_STOP=1 -d <DB이름> -f db/23_turn_advance_check.sql
 --       21 팀 구성까지 실행한 DB 에서 한다 (20 만 실행한 DB 는 0절 전제가 FAIL 이다). INSERT 를 하지 않으므로 identity(번호표)를 소비하지 않아
 --       실습 DB(antlab)에서도 돌릴 수 있다. 정의 파일(21·22·23)을 \ir 로 읽으므로 같은 폴더에 있어야 한다.
---       범위: 진행 전(0턴)부터 FINISHED 까지 어느 진행 시점에서도 PASS 해야 한다. 규칙 11·19 사례(양성·음성)는 "마지막 스냅샷 뒤 매매 없음"
---       (현재 턴 ≥ 1 이면 orders.turn_no = 현재 턴이 0건)일 때만 의미가 있으므로 그 전제가 깨진 상태(턴 중간 매매 뒤)는 0절이 범위 밖 신호로 멈춘다 — 헛 PASS 가 아니다.
+--       범위: 진행 전(0턴)부터 FINISHED 까지 턴 전환 직후나 끝난 뒤 어느 시점에서도 PASS 해야 한다. 규칙 11·19 사례(양성·음성)는 "마지막 스냅샷 뒤 매매·포지션 변경 없음"
+--       (현재 턴 ≥ 1 이면 orders.turn_no = 현재 턴이 0건이고 현재 턴에 시작·끝난 라인업 구간이 0건 — 주문 없는 단독 포지션 변경도 저장된 스냅샷과 다른 선언을 만든다)일 때만 의미가 있으므로
+--       그 전제가 깨진 상태(턴 중간 매매·포지션 변경 뒤)는 0절이 범위 밖 신호로 멈춘다 — 헛 PASS 가 아니다. 다음 턴으로 넘기면 다시 PASS 다.
 --       현재 턴이 0 이면 규칙 11·19 사례는 건너뛰고(정보 행) 커버리지에서 빼며, 규칙 12 사례(턴 0 가격)는 그대로 돈다.
---       음성 사례가 쓰는 전제(현금 ≥ 1, 미드필더 평가액 ≥ 1, 가격이 있는 보유 종목)가 극단 상태에서 깨지면 헛 PASS 가 아니라 0절 FAIL 로 멈춘다.
---       현금 ≥ 1·미드필더 평가액 ≥ 1·가격 있는 보유 종목·열린 라인업이 없는 정상 상태(예: P0-19 뒤 미드필더 전량 매도·전액 현금)도 지금은 0절에서 멈춘다 — P0-19가 사례별 적용 가능성으로 바꾼다.
+--       음성 사례의 대상(현금·비골키퍼 포지션 평가액·가격 있는 보유 종목·열린 라인업)은 포트폴리오에 따라 없을 수 있다(P0-19: 초기 팀 전부 매도·전액 현금 등). 그 사례는 0절 FAIL 이 아니라
+--       "적용 불가" 정보 행이고 통과 사례 수에 세지 않으며, 적용 가능한 사례가 없는 규칙(예: 전액 현금의 POSITION_VALUE)은 커버리지 요구에서 빠진다. 양성 불변식 검사는 생략하지 않는다.
 --       규칙 12 전 행 사례는 turn_price 행마다 서브트랜잭션을 한 번씩 열어 시간이 걸린다 (10턴 뒤 220행 — 몇 초).
 -- 판정: 마지막 줄 `p0_17_check` 가 `PASS` 이고 종료 코드가 0이면 통과다. 0절 전제가 FAIL 이면 결과를 보여 준 뒤 멈추고,
 --       그 밖에 하나라도 어긋나면 09절이 FAIL 행을 보여 주고 오류로 끝난다 (종료 코드 3).
@@ -29,6 +30,7 @@
 
 \ir 21_team_buy_def.sql
 \ir 22_reconcile_season_def.sql
+\ir 24_turn_feed_def.sql
 \ir 23_turn_advance_def.sql
 
 -- 판정 표식: 트랜잭션이 되돌아가도 남는 임시 시퀀스 (1 = 미완료 또는 실패, 2 = 00–09절 통과·흔적 확인 대기, 0 = 최종 통과)
@@ -87,7 +89,8 @@ SELECT c.id AS season_id, c.current_turn_no AS turn_no, c.path_length, c.status,
        (SELECT min(h.asset_id) FROM holding h
         WHERE h.season_id = c.id AND h.quantity > 0
           AND EXISTS (SELECT 1 FROM turn_price tp WHERE tp.season_id = c.id AND tp.turn_no = c.current_turn_no AND tp.asset_id = h.asset_id)) AS held_asset,
-       (SELECT min(lu.id) FROM lineup lu WHERE lu.season_id = c.id AND lu.end_turn IS NULL) AS open_lineup
+       (SELECT min(lu.id) FROM lineup lu WHERE lu.season_id = c.id AND lu.end_turn IS NULL) AS open_lineup,
+       (SELECT min(tp.asset_id) FROM turn_price tp WHERE tp.season_id = c.id AND tp.turn_no = c.current_turn_no) AS any_asset
 FROM zz_cur c;
 
 -- 로그 제약 사본: reconciliation_log 의 CHECK 를 복사한 임시 표 (FK·PK·UNIQUE 는 복사되지 않는다). id 는 기본값이 없으므로 넣을 때 정한다.
@@ -371,15 +374,14 @@ FROM (VALUES
        + (to_regprocedure('pg_temp.order_buy(bigint, smallint, bigint, integer, text, text)') IS NOT NULL)::int)::text),
     ('연습 시즌이 정확히 1개 있다 (db/20_season_start.sql 을 먼저 실행한다)', '1', (SELECT count(*)::text FROM zz_cur)),
     ('0턴 매수 주문이 있다 (없으면 db/21_team_buy.sql 을 먼저 실행한다)', 'true', ((SELECT count(*) FROM orders o JOIN zz_cur c ON c.id = o.season_id WHERE o.turn_no = 0 AND o.side = 'BUY') > 0)::text),
-    ('범위: 현재 턴이 0 이거나 현재 턴의 주문이 없다 (마지막 스냅샷 뒤 매매 없음 — 있으면 규칙 11·19 의 전제가 깨진 범위 밖)', 'true',
-        ((SELECT turn_no FROM zz_t) = 0 OR NOT EXISTS (SELECT 1 FROM orders o JOIN zz_t t ON t.season_id = o.season_id AND o.turn_no = t.turn_no))::text),
+    ('범위: 현재 턴이 0 이거나 현재 턴의 주문·라인업 구간 변경이 없다 (마지막 스냅샷 뒤 매매·포지션 변경 없음 — 있으면 규칙 11·19 의 전제가 깨진 범위 밖)', 'true',
+        ((SELECT turn_no FROM zz_t) = 0
+         OR (NOT EXISTS (SELECT 1 FROM orders o JOIN zz_t t ON t.season_id = o.season_id AND o.turn_no = t.turn_no)
+             AND NOT EXISTS (SELECT 1 FROM lineup lu JOIN zz_t t ON t.season_id = lu.season_id AND (lu.start_turn = t.turn_no OR lu.end_turn = t.turn_no))))::text),
     ('현재 턴이 0 이면 상태는 진행 중이고 turn 행이 없다', 'true',
         ((SELECT turn_no FROM zz_t) > 0 OR (NOT EXISTS (SELECT 1 FROM turn t JOIN zz_t z ON z.season_id = t.season_id) AND (SELECT status FROM zz_t) = 'IN_PROGRESS'))::text),
-    ('현재 턴 ≥ 1 이면 그 turn 행이 있고 현금 ≥ 1·미드필더 평가액 ≥ 1 이다 (N11b·N19a 가 1 을 뺀다)', 'true',
-        ((SELECT turn_no FROM zz_t) = 0
-         OR EXISTS (SELECT 1 FROM turn t JOIN zz_t z ON z.season_id = t.season_id AND z.turn_no = t.turn_no WHERE t.cash_balance >= 1 AND t.midfielder_value >= 1))::text),
-    ('가격이 있는 보유 종목이 있다 (N11c)', 'true', ((SELECT held_asset FROM zz_t) IS NOT NULL)::text),
-    ('열린 라인업이 있다 (N17)', 'true', ((SELECT open_lineup FROM zz_t) IS NOT NULL)::text),
+    ('현재 턴 ≥ 1 이면 그 turn 행이 있다 (현금·미드필더 평가액·보유·열린 구간이 있는지는 전제가 아니라 사례별 적용 가능성이다 — 06절)', 'true',
+        ((SELECT turn_no FROM zz_t) = 0 OR EXISTS (SELECT 1 FROM turn t JOIN zz_t z ON z.season_id = t.season_id AND z.turn_no = t.turn_no))::text),
     ('경로 블록이 path_length 개다 (season_path)', 'true',
         ((SELECT count(*) FROM season_path sp JOIN zz_cur c ON c.id = sp.season_id) = (SELECT path_length FROM zz_cur))::text),
     ('zz_log 의 CHECK 가 9개다 (LIKE … INCLUDING CONSTRAINTS)', '9', (SELECT count(*)::text FROM pg_constraint WHERE conrelid = 'zz_log'::regclass AND contype = 'c')),
@@ -390,6 +392,11 @@ FROM (VALUES
 
 INSERT INTO zz_check_result (section, item, expected, actual, ok)
 VALUES ('00 전제', '현재 DB 이름 (정보)', '(정보)', current_database(), true);
+INSERT INTO zz_check_result (section, item, expected, actual, ok)
+SELECT '00 전제', '음성 사례 적용 가능성 (정보): 가격 있는 보유 종목 · 열린 라인업 · 현금 ≥ 1 · 비골키퍼 포지션 평가액 ≥ 1', '(정보)',
+       ((SELECT held_asset FROM zz_t) IS NOT NULL)::text || ' · ' || ((SELECT open_lineup FROM zz_t) IS NOT NULL)::text || ' · '
+       || COALESCE((SELECT (t.cash_balance >= 1)::text FROM turn t JOIN zz_t z ON z.season_id = t.season_id AND z.turn_no = t.turn_no), '-') || ' · '
+       || COALESCE((SELECT (t.defender_value + t.midfielder_value + t.forward_value >= 1)::text FROM turn t JOIN zz_t z ON z.season_id = t.season_id AND z.turn_no = t.turn_no), '-'), true;
 
 SELECT seq, item, expected, actual, CASE WHEN ok THEN 'PASS' ELSE 'FAIL' END AS result
 FROM zz_check_result
@@ -454,6 +461,12 @@ SELECT pg_temp.check_eq('01 진행 상태', '로그 ⑦ 규칙 11·19 코드가 
 SELECT pg_temp.check_eq('01 진행 상태', '로그 ⑧ 17개 시도의 행 수 = 17 이고 MATCH 행은 분류가 NULL, MISMATCH 행은 INVESTIGATE 다 (어긋난 행 수)', '0',
     (SELECT count(*) FROM reconciliation_log l JOIN zz_cur c ON c.id = l.season_id JOIN zz_att17 a ON a.turn_no = l.turn_no AND a.attempt_no = l.attempt_no
      WHERE (l.status = 'MATCH') <> (l.classification IS NULL) OR (l.status = 'MISMATCH' AND l.classification <> 'INVESTIGATE'))::text);
+SELECT pg_temp.check_eq('01 진행 상태', '피드 ① 완료 턴마다 5–15행·seq 연속이다', '0',
+    (SELECT count(*) FROM (SELECT f.turn_no FROM turn_feed f JOIN zz_cur c ON c.id = f.season_id
+                           GROUP BY f.turn_no HAVING count(*) NOT BETWEEN 5 AND 15 OR min(f.seq) <> 1 OR max(f.seq) <> count(*)) x)::text);
+SELECT pg_temp.check_eq('01 진행 상태', '피드 ② 0턴·현재 턴 이후 행이 없다', '0',
+    (SELECT count(*) FROM turn_feed f JOIN zz_cur c ON c.id = f.season_id
+      WHERE f.turn_no < 1 OR f.turn_no > c.current_turn_no)::text);
 
 -- 02 가격 — 네 구현 -------------------------------------------------------------------
 -- 저장된 turn_price(k ≥ 1)가 ① ta_prices(재귀 CTE) ② recon_expected_price(창 함수 배열 — 22 의 독립 구현) ③ zz_price_loop(절차형 반복 곱)와 전 행 같다.
@@ -677,35 +690,64 @@ SELECT pg_temp.check_eq('05 양성', '턴 전환 17행 모양: recon_rules_turn 
 -- 규칙 12 (모든 현재 턴에서 돈다: 턴 0 이면 턴 0 가격 행만, 이후는 턴 0..현재 턴 전 행)
 CALL pg_temp.neg_price_rows();
 
--- 규칙 11·19 (현재 턴 ≥ 1 일 때만 — 턴 0 에는 turn 행이 없다. 건너뛰면 정보 행을 남긴다)
+-- 규칙 11·19 (현재 턴 ≥ 1 일 때만 — 턴 0 에는 turn 행이 없다. 건너뛰면 정보 행을 남긴다).
+--   사례의 대상(현금·비골키퍼 포지션 평가액·가격 있는 보유 종목·열린 라인업)은 포트폴리오에 따라 없을 수 있다(P0-19: 전액 현금 등).
+--   대상이 없는 사례는 헛 PASS 도 FAIL 도 아닌 "적용 불가" 정보 행이다 (통과 사례 수에 세지 않고, 적용 가능한 사례가 없는 규칙은 커버리지 요구에서 뺀다). 양성 검사(05절)는 그대로 모두 돈다.
+CREATE PROCEDURE pg_temp.na_rule(p_code text, p_label text, p_why text)
+LANGUAGE plpgsql AS $$
+BEGIN
+    INSERT INTO zz_check_result (section, item, expected, actual, ok)
+    VALUES ('06 음성', '음성 [' || p_code || '] ' || p_label || ' — 적용 불가 (' || p_why || ') (정보)', '(정보)', '적용 불가', true);
+END $$;
+
 DO $$
 DECLARE
     v_s bigint := (SELECT season_id FROM zz_t);
     v_c smallint := (SELECT turn_no FROM zz_t);
+    t   record;
+    v_src text;
 BEGIN
     IF v_c = 0 THEN
         INSERT INTO zz_check_result (section, item, expected, actual, ok)
         VALUES ('06 음성', '규칙 11·19 음성 사례 건너뜀 (현재 턴 0 — turn 행이 없다) (정보)', '(정보)', '건너뜀', true);
         RETURN;
     END IF;
+    SELECT * INTO t FROM turn WHERE season_id = v_s AND turn_no = v_c;
     CALL pg_temp.neg_rule('VALUATION', 'N11a 현재 턴 turn 행의 낙폭만 1e-8 바꾸면 (나머지는 그대로)',
         $m$UPDATE turn SET drawdown = CASE WHEN drawdown > -0.5 THEN drawdown - 0.00000001 ELSE drawdown + 0.00000001 END
            WHERE season_id = (SELECT season_id FROM zz_t) AND turn_no = (SELECT turn_no FROM zz_t)$m$, ARRAY[11], 'DRAWDOWN');
-    CALL pg_temp.neg_rule('VALUATION', 'N11b 현재 턴 turn 행의 현금·총액·골키퍼를 같이 −1 하면 (CHECK 는 유지, 계좌 잔액과 갈림)',
-        $m$UPDATE turn SET cash_balance = cash_balance - 1, total_value = total_value - 1, goalkeeper_value = goalkeeper_value - 1
+    -- N11b: 현금·총액·골키퍼를 같이 +1 (CHECK 는 유지, 계좌 잔액과 갈림). 줄이는 방향이 아니라 늘리는 방향이라 현금이 0 이어도 대상이 있다.
+    CALL pg_temp.neg_rule('VALUATION', 'N11b 현재 턴 turn 행의 현금·총액·골키퍼를 같이 +1 하면 (CHECK 는 유지, 계좌 잔액과 갈림)',
+        $m$UPDATE turn SET cash_balance = cash_balance + 1, total_value = total_value + 1, goalkeeper_value = goalkeeper_value + 1
            WHERE season_id = (SELECT season_id FROM zz_t) AND turn_no = (SELECT turn_no FROM zz_t)$m$, ARRAY[11], 'CASH');
-    CALL pg_temp.neg_rule('POSITION_VALUE', 'N19a 현재 턴 turn 행의 수비를 +1·미드필더를 −1 하면 (합 유지 — 11 은 그대로)',
-        $m$UPDATE turn SET defender_value = defender_value + 1, midfielder_value = midfielder_value - 1
-           WHERE season_id = (SELECT season_id FROM zz_t) AND turn_no = (SELECT turn_no FROM zz_t)$m$, ARRAY[19], 'MIDFIELDER');
+    -- N19a: 합은 그대로 두고 1 을 골키퍼로 옮긴다 (11 은 그대로). 옮길 비골키퍼 포지션은 평가액 ≥ 1 인 것을 동적으로 고른다 (미드필더 → 수비 → 공격 순).
+    v_src := CASE WHEN t.midfielder_value >= 1 THEN 'MIDFIELDER' WHEN t.defender_value >= 1 THEN 'DEFENDER' WHEN t.forward_value >= 1 THEN 'FORWARD' END;
+    IF v_src IS NULL THEN
+        CALL pg_temp.na_rule('POSITION_VALUE', 'N19a 비골키퍼 포지션 평가액 1 을 골키퍼로 옮기면', '수비·미드필더·공격 평가액이 모두 0 이다 (전액 현금)');
+    ELSE
+        CALL pg_temp.neg_rule('POSITION_VALUE', 'N19a 현재 턴 turn 행의 ' || v_src || ' 1 을 골키퍼로 옮기면 (합 유지 — 11 은 그대로)',
+            format($m$UPDATE turn SET goalkeeper_value = goalkeeper_value + 1, %1$s = %1$s - 1
+                      WHERE season_id = (SELECT season_id FROM zz_t) AND turn_no = (SELECT turn_no FROM zz_t)$m$,
+                   CASE v_src WHEN 'MIDFIELDER' THEN 'midfielder_value' WHEN 'DEFENDER' THEN 'defender_value' ELSE 'forward_value' END),
+            ARRAY[19], v_src);
+    END IF;
     CALL pg_temp.neg_rule('VALUATION', 'N11c 현재 턴 turn 행의 보유 평가액·총액·공격을 같이 +1 하면 (함의: 포지션 합도 갈림)',
         $m$UPDATE turn SET holdings_value = holdings_value + 1, total_value = total_value + 1, forward_value = forward_value + 1
            WHERE season_id = (SELECT season_id FROM zz_t) AND turn_no = (SELECT turn_no FROM zz_t)$m$, ARRAY[11, 19], 'HOLDINGS');
-    CALL pg_temp.neg_rule('VALUATION', 'N11d 보유 종목의 현재 턴 가격 행을 지우면 (가격 없는 보유 — 12 MISSING·19 도 걸린다)',
-        $m$DELETE FROM turn_price WHERE season_id = (SELECT season_id FROM zz_t) AND turn_no = (SELECT turn_no FROM zz_t) AND asset_id = (SELECT held_asset FROM zz_t)$m$, ARRAY[11, 12, 19], 'NO_PRICE');
+    IF (SELECT held_asset FROM zz_t) IS NULL THEN
+        CALL pg_temp.na_rule('VALUATION', 'N11d 보유 종목의 현재 턴 가격 행을 지우면', '가격이 있는 보유 종목이 없다 (전액 현금)');
+    ELSE
+        CALL pg_temp.neg_rule('VALUATION', 'N11d 보유 종목의 현재 턴 가격 행을 지우면 (가격 없는 보유 — 12 MISSING·19 도 걸린다)',
+            $m$DELETE FROM turn_price WHERE season_id = (SELECT season_id FROM zz_t) AND turn_no = (SELECT turn_no FROM zz_t) AND asset_id = (SELECT held_asset FROM zz_t)$m$, ARRAY[11, 12, 19], 'NO_PRICE');
+    END IF;
     CALL pg_temp.neg_rule('VALUATION', 'N11e 현재 턴 turn 행을 지우면 (11·19 모두 NO_TURN)',
         $m$DELETE FROM turn WHERE season_id = (SELECT season_id FROM zz_t) AND turn_no = (SELECT turn_no FROM zz_t)$m$, ARRAY[11, 19], 'NO_TURN');
-    CALL pg_temp.neg_rule('POSITION_VALUE', 'N19b 보유 종목의 열린 라인업 구간을 닫으면 (스냅샷은 그대로라 포지션 합이 갈리고 17 도 걸린다)',
-        $m$UPDATE lineup SET end_turn = start_turn WHERE id = (SELECT open_lineup FROM zz_t)$m$, ARRAY[17, 19], NULL);
+    IF (SELECT open_lineup FROM zz_t) IS NULL THEN
+        CALL pg_temp.na_rule('POSITION_VALUE', 'N19b 보유 종목의 열린 라인업 구간을 닫으면', '열린 라인업이 없다 (전액 현금)');
+    ELSE
+        CALL pg_temp.neg_rule('POSITION_VALUE', 'N19b 보유 종목의 열린 라인업 구간을 닫으면 (스냅샷은 그대로라 포지션 합이 갈리고 17 도 걸린다)',
+            $m$UPDATE lineup SET end_turn = start_turn WHERE id = (SELECT open_lineup FROM zz_t)$m$, ARRAY[17, 19], NULL);
+    END IF;
 END $$;
 
 -- 07 거부 사례 (쓰기 전, identity 불변) -----------------------------------------------
@@ -749,7 +791,7 @@ CALL pg_temp.reject_case('ta_apply 도 같은 입구에서 막힌다 (없는 시
 -- 끝난 시즌에서 매수는 쓰기 전에 거부된다 (P0-15 C10): 서브트랜잭션에서 끝난 시즌으로 만든 뒤 order_buy (행 수·identity 는 10절 흔적과 아래 행 수 대조)
 CALL pg_temp.reject_case('C10 끝난 시즌에서 order_buy 는 SEASON_NOT_ACTIVE (쓰기 전)',
     $m$UPDATE season SET status = 'FINISHED', current_turn_no = path_length WHERE id = (SELECT season_id FROM zz_t)$m$,
-    $c$SELECT pg_temp.order_buy((SELECT season_id FROM zz_t), (SELECT path_length FROM zz_t), (SELECT held_asset FROM zz_t), 1, 'MIDFIELDER')$c$, 'SEASON_NOT_ACTIVE');
+    $c$SELECT pg_temp.order_buy((SELECT season_id FROM zz_t), (SELECT path_length FROM zz_t), COALESCE((SELECT held_asset FROM zz_t), (SELECT any_asset FROM zz_t)), 1, 'MIDFIELDER')$c$, 'SEASON_NOT_ACTIVE');
 
 -- ABANDONING 은 거부되지 않고 전제를 통과한다 (포기 시즌의 남은 턴 자동 진행 — W7): 풀 크기만큼 가격 배열이 나온다
 DO $$
@@ -883,19 +925,30 @@ SELECT '09 정보', '성공 시도보다 번호가 큰 같은 턴의 실패 17�
        (SELECT count(*) FROM zz_att17 s JOIN zz_att17 o ON o.turn_no = s.turn_no AND o.attempt_no > s.attempt_no WHERE s.bad = 0)::text, true;
 
 -- 09.1 규칙 커버리지: 이 파일의 음성 사례가 통과한 대상 규칙 코드 수 / 요구 코드 수.
---      요구 = TURN_PRICE, 그리고 현재 턴 ≥ 1 이면 VALUATION·POSITION_VALUE 도 (턴 0 에는 turn 행이 없다)
+--      요구 = TURN_PRICE, 그리고 현재 턴 ≥ 1 이면 VALUATION, 그리고 현재 턴 ≥ 1 이고 POSITION_VALUE 의 적용 가능한 사례가 하나라도 있으면 POSITION_VALUE
+--      (전액 현금이면 N19a·N19b 가 모두 "적용 불가"라 POSITION_VALUE 는 요구에서 빠진다 — 적용 불가 코드는 항목 이름에 적는다).
 INSERT INTO zz_check_result (section, item, expected, actual, ok)
-SELECT '09 판정', '규칙 커버리지 (음성 사례가 통과한 규칙 코드 / 요구 규칙 코드: 12, 현재 턴 ≥ 1 이면 11·19 포함)',
-       req.n || '/' || req.n, cov.n || '/' || req.n, cov.n = req.n
+SELECT '09 판정', '규칙 커버리지 (적용 가능한 음성 사례가 통과한 규칙 코드 / 요구 규칙 코드: 12, 현재 턴 ≥ 1 이면 11 과 (적용 가능하면) 19 — 적용 불가 코드: ' || COALESCE(na.list, '없음') || ')',
+       req.n || '/' || req.n, cov.n || '/' || req.n, req.n > 0 AND cov.n = req.n
 FROM (SELECT count(*) AS n FROM pg_temp.recon_code c
-      WHERE c.check_code = 'TURN_PRICE' OR (c.check_code IN ('VALUATION', 'POSITION_VALUE') AND (SELECT turn_no FROM zz_t) >= 1)) req,
+      WHERE c.check_code = 'TURN_PRICE'
+         OR (c.check_code = 'VALUATION' AND (SELECT turn_no FROM zz_t) >= 1)
+         OR (c.check_code = 'POSITION_VALUE' AND (SELECT turn_no FROM zz_t) >= 1
+             AND EXISTS (SELECT 1 FROM zz_check_result r WHERE r.item LIKE '음성 [POSITION_VALUE]%' AND r.actual IS DISTINCT FROM '적용 불가'))) req,
      (SELECT count(*) AS n FROM pg_temp.recon_code c
-      WHERE (c.check_code = 'TURN_PRICE' OR (c.check_code IN ('VALUATION', 'POSITION_VALUE') AND (SELECT turn_no FROM zz_t) >= 1))
-        AND EXISTS (SELECT 1 FROM zz_check_result r WHERE r.item LIKE '음성 [' || c.check_code || ']%' AND r.ok)) cov;
+      WHERE (c.check_code = 'TURN_PRICE'
+         OR (c.check_code = 'VALUATION' AND (SELECT turn_no FROM zz_t) >= 1)
+         OR (c.check_code = 'POSITION_VALUE' AND (SELECT turn_no FROM zz_t) >= 1))
+        AND EXISTS (SELECT 1 FROM zz_check_result r WHERE r.item LIKE '음성 [' || c.check_code || ']%' AND r.ok AND r.actual IS DISTINCT FROM '적용 불가')) cov,
+     (SELECT string_agg(c.check_code, ',' ORDER BY c.check_code) AS list FROM pg_temp.recon_code c
+      WHERE c.check_code IN ('VALUATION', 'POSITION_VALUE')
+        AND EXISTS (SELECT 1 FROM zz_check_result r WHERE r.item LIKE '음성 [' || c.check_code || ']%적용 불가%')
+        AND NOT EXISTS (SELECT 1 FROM zz_check_result r WHERE r.item LIKE '음성 [' || c.check_code || ']%' AND r.actual IS DISTINCT FROM '적용 불가')) na;
 \o
 
 -- 09.2 절별 집계 (total / pass / fail)
-SELECT section, count(*) AS total, count(*) FILTER (WHERE ok) AS pass, count(*) FILTER (WHERE NOT ok) AS fail
+SELECT section, count(*) AS total, count(*) FILTER (WHERE ok AND actual IS DISTINCT FROM '적용 불가') AS pass, count(*) FILTER (WHERE NOT ok) AS fail,
+       count(*) FILTER (WHERE actual = '적용 불가') AS na
 FROM zz_check_result
 GROUP BY section
 ORDER BY section;
@@ -910,8 +963,10 @@ ORDER BY seq;
 SELECT section, item, expected, actual FROM zz_check_result WHERE section IN ('09 판정', '09 정보') ORDER BY seq;
 
 -- 09.4 판정 행
-SELECT CASE WHEN count(*) > 0 AND count(*) FILTER (WHERE NOT ok) = 0 THEN 'PASS' ELSE 'FAIL' END AS verdict,
-       count(*) AS total, count(*) FILTER (WHERE ok) AS pass, count(*) FILTER (WHERE NOT ok) AS fail
+-- 적용 불가 정보 행은 통과 사례 수에 세지 않는다 (P0-19)
+SELECT CASE WHEN count(*) FILTER (WHERE actual IS DISTINCT FROM '적용 불가') > 0 AND count(*) FILTER (WHERE NOT ok) = 0 THEN 'PASS' ELSE 'FAIL' END AS verdict,
+       count(*) FILTER (WHERE actual IS DISTINCT FROM '적용 불가') AS total, count(*) FILTER (WHERE ok AND actual IS DISTINCT FROM '적용 불가') AS pass,
+       count(*) FILTER (WHERE NOT ok) AS fail, count(*) FILTER (WHERE actual = '적용 불가') AS not_applicable
 FROM zz_check_result;
 
 -- 09.5 판정을 종료 코드로: FAIL 이 있으면 오류로 끝낸다 (ON_ERROR_STOP=1 이면 종료 코드 3).

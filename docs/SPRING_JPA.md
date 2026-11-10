@@ -60,7 +60,19 @@ Flyway는 Spring 챕터의 범위를 조금 넘는 도구다. 처음에는 `V1__
 | 기본 키 | `Long` | `BIGINT GENERATED ALWAYS AS IDENTITY` | `@Id @GeneratedValue(strategy = IDENTITY)` | §4.2 |
 | 낙관적 잠금 버전 | `long` | `BIGINT NOT NULL DEFAULT 0` | `@Version` | `season`, `cash_account`에만(§5.3) |
 
-`MoneyMath`(common): 턴별 가격 = round(시작가 × 누적 곱 Π(1+rᵢ)) (rᵢ = 원화 결합 수익률 (1+r현지)(1+r환율) − 1, 시작가 = 0턴 원화 가격)(누적 곱은 `BigDecimal` 그대로 들고 있다가 **마지막에 한 번** `RoundingMode.HALF_UP`으로 원 단위), 평가액 합계, 평균단가(소수 4자리) — **반올림이 일어나는 유일한 클래스**. PLAN §5.2 "반올림은 코드 한 곳에서"의 그 한 곳이다. 매달 반올림한 값에 다시 수익률을 곱하면 Python 엔진과 1원씩 어긋나므로 누적 곱 방식이 정본이다.
+`antlab.common.money.MoneyMath`는 상태 없는 `public static` 계산 클래스다. 공개 계약은 `initialPrice`, `priceAt`, `feeRate`, `fee`, `avgPrice`, `affordable`, `teamQty`, `drawdown`, `valuation`, `totalValue`와 `ReturnFactors`다. 입력 단위와 범위는 아래 표를 따른다. `priceAt`은 저장된 0턴 가격과 현지·환율 변화 목록을 받아 누적 곱을 유지하고, 가격·수수료는 마지막에 원 단위 `HALF_UP`, 평균단가는 소수 4자리, 낙폭은 소수 8자리로 한 번만 반올림한다. 이 클래스가 반올림이 일어나는 유일한 코드 위치다. 입력 검증 때문에 계산 결과가 0이 되는 경로는 반환할 수 있으며, 저장 경계가 양수 제약을 적용한다.
+
+| 메서드 | 입력 단위·범위 | 반환 | 반올림 |
+|---|---|---|---|
+| `initialPrice` | 기준가(현지 통화)·기준 환율: 양수, `NUMERIC(19,4)`로 정확히 표현 | 원 단위 | 0자리 HALF_UP 한 번 |
+| `priceAt` | 저장된 0턴 가격(양의 원 단위), 턴 순서의 `ReturnFactors`(현지 ≥ −1, 환율 > −1, `NUMERIC(12,8)`; KRW 종목은 환율 0) | 원 단위(0 가능) | 정확 곱 뒤 0자리 HALF_UP 한 번 |
+| `feeRate` | 시장 `KR`·`US`, 시즌 요율 3개 각각 0 이상 1 미만·소수 8자리 이하 | 합산 요율, scale 8 | 없음 |
+| `fee`·`teamQty` | 가격(양의 원 단위), 합산 요율(0 이상, `NUMERIC(12,8)` — 1 이상도 허용) | 원 단위 / 정수 주 | 0자리 HALF_UP 한 번 / 정수 몫(SQL `div`) |
+| `avgPrice` | 기존 수량 ≥ 0·기존 평균(수량 0이면 0, 아니면 양수, 소수 4자리 이하), 신규 수량 > 0·체결가(양의 원 단위) | scale 4 | 정확 분자 ÷ 수량, 4자리 HALF_UP 한 번 |
+| `affordable`·`valuation`·`totalValue` | 0 이상 원 단위(가격은 양수) | 불리언 / 원 단위 | 없음 |
+| `drawdown` | 총액 ≥ 0, 고점 > 0, 원 단위 | scale 8, 0 이하 | 8자리 HALF_UP 한 번(음수 절반은 0에서 먼 쪽) |
+
+공통: null 거부, 반환 금액은 `NUMERIC(19,4)` 범위 검사, 오류는 값 없는 `IllegalArgumentException`(서비스가 도메인 오류로 바꾼다).
 
 ### 4.2 키와 식별자
 
@@ -133,9 +145,9 @@ TurnService.advance(seasonId, expectedTurnNo)
   1. season = findByIdForUpdate; currentTurnNo == expectedTurnNo 검사
   2. account = findBySeasonIdForUpdate
   3. nextBlock = seasonPathRepo.findBySeasonIdAndTurnNo(seasonId, expectedTurnNo + 1)
-  4. returns = assetMonthReturnRepo.findByMonthBlockId(nextBlock)   -- 풀의 모든 종목(사용자는 아무 종목이나 살 수 있다). 시즌 기준일 풀(`asset_position`)로 거르고 `fx_month`와 결합
+  4. returns = 1..expectedTurnNo+1 블록의 종목별 현지 수익률·환율 변화(턴 순서)   -- 풀의 모든 종목(사용자는 아무 종목이나 살 수 있다). 시즌 기준일 풀(`asset_position`)로 거르고 `fx_month`와 결합
      (이력 없는 달도 행은 항상 있다 — MVP는 적재 때 넣은 PROXY_INDEX 행(ETF는 추종 지수가 먼저이고 없으면 대표 지수, 개별 주식은 확장 구간에서 대표 지수), EXT는 지수 + 고유 변동성, PLAN §4.7)
-  5. 풀의 종목마다 누적 곱 갱신 → price' = MoneyMath.priceAt(시작가, 누적 곱) → INSERT turn_price (약 180행)
+  5. 풀의 종목마다 price' = MoneyMath.priceAt(저장된 0턴 가격, 이 턴까지의 `ReturnFactors` 목록) — 전 턴의 반올림 가격을 시작값으로 쓰지 않는다 → INSERT turn_price (약 180행)
   6. 적립금(EXT) → cash_ledger. (ETF 보수는 원장에서 빼지 않는다 — 수정 종가에 이미 반영, PLAN §4.6)
   7. INSERT turn(턴 번호, 평가액, 현금, 누적 낙폭, 포지션별 평가액 — 현금은 골키퍼, 비중은 조회)
   7b. (P0 API에서는 하지 않음 — 피드는 MVP, PLAN §13 2026-11-09) 소음 피드·독려 알림 생성 → INSERT turn_feed (PLAN §4.13). 생성기(FeedGenerator)의 입력 타입은 "이 턴까지의 가격·관심 지수·사건 태그"만 담는 값 객체로 제한해 다음 블록을 넘길 수 없게 한다. 난수는 시즌 시드 + 턴 번호에서 파생
@@ -153,6 +165,7 @@ TurnService.advance(seasonId, expectedTurnNo)
 
 - 전술 변경: `season` 락 → `season.current_formation_*` 갱신 + `formation_change` INSERT. 같은 턴에 두 번 바꾸면 마지막 것만 남지 않고 둘 다 기록된다(복기용). 턴 전환과 같은 락 순서. 변경 뒤의 매도·매수는 보통 주문이고, 주문 트랜잭션 안에서 `orders.formation_change_id`를 채운다(어느 변경에 묶는지의 규칙은 PLAN §5.1).
 - 세금(EXT)이 들어오면 원장 행(`TAX`)을 매도 주문 트랜잭션과 턴 전환 트랜잭션에서 추가한다. 세율·과세 시점·이연 표시는 PLAN §4.6이 정한다. 이 문서는 "어느 트랜잭션에서 원장에 쓰는가"만 정한다.
+- SQL 정본(P0-19): `db/25_trade_formation_def.sql`의 `trade_buy`·`trade_sell`·`formation_change`·`lineup_change`가 위 순서를 그대로 구현한다(Java 이전 시 골든 대조 — P0-36·37). 진입점은 0턴을 거부하고, 주문·변경의 `created_at`은 잠금 뒤 `clock_timestamp()`(테스트 `Clock`은 잠금 뒤에도 흐르는 시계), 앞선 이벤트와 시각이 같거나 거꾸로면 쓰기 전에 멈춘다. 전량 매도는 보유 행을 0·0으로 남기고 열린 구간을 `end_turn = t`로 닫으며, 과거 스냅샷 k에 기여하는 구간은 `start_turn < k ≤ end_turn`이다.
 - 포지션 지정·변경: `lineup` 행의 구간을 닫고 새 행을 연다. 주문과 같은 트랜잭션(신규 매수 시) 또는 단독 트랜잭션(보유 중 변경). 단독 변경도 전술 변경처럼 `season` 락 → 상태(`IN_PROGRESS`)·`expectedTurnNo` 검사 → 구간 닫기·열기 순서를 따른다(턴 전환과 겹칠 때 옛 턴 번호로 구간을 닫지 않도록).
 
 ## 6. 대사(턴마다)
@@ -194,6 +207,7 @@ TurnService.advance(seasonId, expectedTurnNo)
 | 서비스 | `@SpringBootTest` + 실제 PostgreSQL, 테스트마다 `@Transactional` 롤백 | 주문 체결 전부/전무, 턴 전환, 대사 항등식(골든에서는 P0-25 하네스가 띄우는 일회용 컨테이너에서 `db/20`–`26`으로 만든 연습 시즌을 API로 재생해 행 단위로 비교 — PLAN §13 2026-11-09) |
 | 동시성 | 스레드 2개로 같은 시즌에 동시 주문·턴 전환 | 둘 중 하나만 성공하거나 순서대로 처리되고, 끝나면 항등식 성립 |
 | 엔진 대조 | Java 부트스트랩 vs Phase 0 손 계산 | 같은 시드 → 같은 경로, 같은 수익률 → 같은 가격(원 단위) |
+| 금액 계산 | `MoneyMathTest` + `MoneyMathSqlParityTest` | 순수 Java 시험과 PostgreSQL 17 임시 연결의 P0-15 순수 함수 대조를 분리해 실행 |
 | 계약 | `@SpringBootTest` | springdoc이 낸 `/v3/api-docs`와 저장소 `docs/api/openapi.yaml`을 경로·필드·타입·필수·응답 코드로 대조 — 코드와 yaml이 갈라지면 실패(도구와 정규화는 첫 엔드포인트 기능 P0-27 계획에서 정함) |
 | API | `MockMvc` | 검증 오류 400, 턴 불일치 409, 잔액 부족 422(초안), 비공개 컬럼이 응답에 없음 |
 
