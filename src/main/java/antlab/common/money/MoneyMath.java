@@ -142,6 +142,12 @@ public final class MoneyMath {
         return exactScale(value, 0, "금액");
     }
 
+    /** 응답용 평균단가 — scale 4 로 정확히 바꾼다(저장 형식과 같다). 값이 바뀌면(5자리 이상 유효) 예외다. */
+    public static BigDecimal exactAvgPrice(BigDecimal value) {
+        require(value, "평균단가");
+        return exactScale(value, 4, "평균단가");
+    }
+
     /** 응답용 비율 — scale 8 로 정확히 바꾼다. 값이 바뀌면(9자리 이상 유효) 예외다. */
     public static BigDecimal exactRate(BigDecimal value) {
         require(value, "비율");

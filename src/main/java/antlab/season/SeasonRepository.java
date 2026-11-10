@@ -23,6 +23,14 @@ public interface SeasonRepository extends Repository<Season, Long> {
     @Query("select s from Season s where s.id = :id")
     Optional<Season> findByIdForUpdate(@Param("id") Long id);
 
+    /**
+     * 회원 조건을 포함해 시즌 행을 한 번에 잠근다 — 소유 확인과 잠금을 한 조회로 한다. 잠그지 않은 조회로 시즌을 먼저
+     * 영속성 컨텍스트에 올리면 뒤의 잠금 조회가 같은 객체를 돌려줘 옛 상태를 볼 수 있기 때문이다(P0-31 실측 M1).
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select s from Season s where s.id = :id and s.memberId = :memberId")
+    Optional<Season> findByIdAndMemberIdForUpdate(@Param("id") Long id, @Param("memberId") Long memberId);
+
     long countByMemberIdAndStatusNot(Long memberId, SeasonStatus status);
 
     Optional<Season> findByIdAndMemberId(Long id, Long memberId);

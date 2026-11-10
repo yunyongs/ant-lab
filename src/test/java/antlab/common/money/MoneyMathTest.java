@@ -172,4 +172,14 @@ class MoneyMathTest {
         assertThatThrownBy(() -> MoneyMath.exactWon(null)).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> MoneyMath.exactRate(null)).isInstanceOf(IllegalArgumentException.class);
     }
+
+    @Test
+    void 평균단가_응답_scale은_4자리로_맞추고_5자리_유효값은_거부한다() {
+        assertThat(MoneyMath.exactAvgPrice(bd("165000")).toPlainString()).isEqualTo("165000.0000");
+        assertThat(MoneyMath.exactAvgPrice(bd("150000.5000")).toPlainString()).isEqualTo("150000.5000");
+        assertThat(MoneyMath.exactAvgPrice(bd("1.2E+5")).toPlainString()).isEqualTo("120000.0000");
+        assertThatThrownBy(() -> MoneyMath.exactAvgPrice(bd("1.00005"))).isInstanceOf(IllegalArgumentException.class)
+                .hasMessageNotContaining("1.00005");
+        assertThatThrownBy(() -> MoneyMath.exactAvgPrice(null)).isInstanceOf(IllegalArgumentException.class);
+    }
 }
