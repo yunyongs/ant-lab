@@ -209,11 +209,11 @@ Phase 0 API 구현(P0-33)에서는 이 흐름을 `TurnService`가 맡는다. 가
 
 ## 8. 조회와 성능
 
-- **N+1 금지:** 목록을 돌며 연관을 하나씩 읽는 패턴. 성적표·턴 결과처럼 여러 테이블을 묶는 조회는 **JPQL 생성자 표현식**(`SELECT new antlab.season.TurnResultDto(…)`) 또는 네이티브 쿼리로 DTO를 바로 만든다. 엔티티 그래프(`@EntityGraph`)는 연관이 꼭 필요한 곳(시즌 상세)에만.
+- **N+1 금지:** 목록을 순회하면서 연관 데이터를 하나씩 읽지 않는다. 성적표·턴 결과처럼 여러 테이블을 묶어 조회할 때는 **JPQL 생성자 표현식**(`SELECT new antlab.account.HoldingViewRow(…)`(P0-35)) 또는 네이티브 쿼리로 DTO를 바로 만든다. 엔티티 그래프(`@EntityGraph`)는 연관이 꼭 필요한 곳(시즌 상세)에만 사용한다.
 - 리포트성 쿼리(통계 보드 EXT, 리그 순위 APP)는 MyBatis를 쓸 수 있다(PLAN §10). 한 테이블을 두 도구가 **쓰지는** 않는다 — MyBatis는 읽기만.
 - 인덱스는 DDL에 `idx_` 접두로 둔다(P0-02 규칙). JPA의 `@Index`는 쓰지 않는다(`validate`는 인덱스를 검사하지 않으므로 DDL이 유일한 출처).
 - 목록 API는 `Pageable`을 사용한다. 시즌 목록과 주문 이력은 페이지로 제공한다. **단 Phase 0 API(P0-30)의 `GET /api/v1/seasons`는 고정 회원 한 명의 시즌 전부를 `id` 내림차순으로 주고 페이지로 나누지 않는다** — 페이지 메타(`page`·`totalItems`)는 DB 열이 아니므로 노출 상한 검사에 예외 규칙이 필요하고, 시즌 수도 적다. 따라서 메타 예외 규칙과 함께 MVP/WEB에서 붙인다.
-- 턴 전환 1회의 쿼리 수: **보유 종목 수와 무관해야 한다**(`TurnAdvanceQueryCountTest`는 보유 1종목과 3종목에서 문장 수가 같은지 확인한다). 문장 수는 풀 크기(`turn_price` INSERT)와 규칙 수(대사 17 + 기록 17)에 비례한다. 실측(P0-33, 풀 4종목 합성 시즌): 52문장 — 잠금 3 · 대사 규칙·격리 확인 18 · `reconciliation_log` INSERT 17 · `turn_price` INSERT 4 · `turn` INSERT 1 · `season` UPDATE 1 · 그 밖의 조회 8. 초안의 "20개 이하" 목표는 Phase 0 API의 실패 조건이 아니다(기능 표). 풀이 약 180종목인 MVP에서 `turn_price`·`reconciliation_log`를 배치로 쓰는 방법과 함께 목표를 다시 정한다. 문장 수는 Hibernate `StatementInspector`(시험 도구 `SqlRecorder`)로 센다.
+- 턴 전환 1회의 쿼리 수는 **보유 종목 수와 무관해야 한다**(`TurnAdvanceQueryCountTest`는 보유 1종목과 3종목에서 문장 수가 같은지 확인한다). 문장 수는 풀 크기(`turn_price` INSERT)와 규칙 수(대사 17 + 기록 17)에 비례한다. P0-33의 실측 결과(풀 4종목 합성 시즌)는 52문장이다 — 잠금 3 · 대사 규칙·격리 확인 18 · `reconciliation_log` INSERT 17 · `turn_price` INSERT 4 · `turn` INSERT 1 · `season` UPDATE 1 · 그 밖의 조회 8. P0-35에서는 직전 턴 총액 조회 1문장이 더해져 53문장이 된다(2턴 이후 전환; 1턴 전환은 52문장 그대로). 턴 조회·보유 조회는 각각 4문장이며, 보유 수와 무관하다(`TurnViewQueryCountTest`·`HoldingsQueryCountTest`). 초안의 "20개 이하" 목표는 Phase 0 API의 실패 조건이 아니다(기능 표). 풀이 약 180종목인 MVP에서는 `turn_price`·`reconciliation_log`를 배치로 쓰는 방법과 함께 목표를 다시 정한다. 문장 수는 Hibernate `StatementInspector`(시험 도구 `SqlRecorder`)로 센다.
 
 ## 9. 테스트 전략
 
