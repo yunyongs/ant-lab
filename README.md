@@ -65,7 +65,7 @@ Java 21 · Spring Boot 4.1 · PostgreSQL 17 · JPA (리포트 쿼리에 MyBatis 
   5. 컨테이너와 `bootRun`/`bootTestRun`을 동시에 켜면 8080이 겹친다. 컨테이너 포트는 `ANTLAB_API_PORT=18080 docker compose --profile api up -d`로 바꾼다(다시 `up`할 때도 같은 값을 붙인다). 잠깐 멈출 때는 `docker compose stop`, 다시 켤 때는 `docker compose start`.
   6. 표본을 적재할 때는 `docker compose stop api`로 앱을 멈추고 [db/README.md](db/README.md#api-db와-실습-db)대로 실행한 뒤 `docker compose start api`.
   7. QA·시험은 소유자 프로젝트를 건드리지 않게 `ANTLAB_DB_PORT=55432 ANTLAB_API_PORT=18080 docker compose --profile api -p antlab-qa up -d --build --wait` 로 띄우고, 끝나면 `docker compose --profile api -p antlab-qa down -v --rmi local`(정리에도 `--profile api`를 붙인다).
-- 확인 URL: `/actuator/health/readiness`. `local` 프로필(`bootRun`·`bootTestRun`의 기본)에서만 명세 `/v3/api-docs`와 `/swagger-ui.html`이 열린다 — 프로필이 없거나 `prod`면 꺼져 있다.
+- 확인 URL: `/actuator/health/readiness`, `/api/v1/pool`(표본 적재와 포지션 계산 뒤 20종목 — 적재 전이면 409 `POOL_NOT_LOADED`, 판정 전이면 409 `POOL_NOT_JUDGED`). `local` 프로필(`bootRun`·`bootTestRun`의 기본)에서만 명세 `/v3/api-docs`와 `/swagger-ui.html`이 열린다 — 프로필이 없거나 `prod`면 꺼져 있다.
 - 개인 덮어쓰기 설정은 프로젝트 루트의 `config/application-local.yml`에 둔다(git이 무시하고 jar에 들어가지 않는다). `src/main/resources/`에 두면 jar에 들어가므로 두지 않는다.
 
 VS Code(macOS): 확장 "Extension Pack for Java", "Gradle for Java", "Spring Boot Extension Pack". 통합 터미널(`` Ctrl+` ``)에서 `./gradlew …`를 실행하고, 왼쪽 비커 아이콘(시험 탐색기)으로 시험을 하나씩 돌리며, Gradle 패널(코끼리 아이콘)의 `Tasks › application › bootTestRun`으로 앱을 띄운다. 가져오기가 꼬이면 `Cmd+Shift+P` → "Java: Clean Java Language Server Workspace". `.vscode/`는 git이 무시하므로 실행 설정 파일은 저장소에 없다.

@@ -21,6 +21,8 @@ public final class ErrorHttpMapping {
             case NOT_ACCEPTABLE -> HttpStatus.NOT_ACCEPTABLE;
             case UNSUPPORTED_MEDIA_TYPE -> HttpStatus.UNSUPPORTED_MEDIA_TYPE;
             case INTERNAL_ERROR -> HttpStatus.INTERNAL_SERVER_ERROR;
+            case POOL_NOT_LOADED -> HttpStatus.CONFLICT;
+            case POOL_NOT_JUDGED -> HttpStatus.CONFLICT;
         };
     }
 
