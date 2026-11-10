@@ -28,6 +28,164 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+  /api/v1/seasons:
+    post:
+      tags: [season]
+      operationId: startSeason
+      summary: 시즌 시작
+      description: |
+        위험 선언·포메이션·경로 길이로 새 시즌을 시작한다. 초기 자금·요율은 서버 설정이 정한다.
+        시즌·경로·현금 계좌·입금·0턴 가격이 한 트랜잭션으로 만들어진다.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StartSeasonRequest'
+      responses:
+        '201':
+          description: 시작한 시즌
+          headers:
+            Location:
+              description: 새 시즌의 주소
+              schema:
+                type: string
+                format: uri
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SeasonDto'
+        '400':
+          description: 입력이 틀렸다 — INVALID_ARGUMENT
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: 지금은 시작할 수 없다 — POOL_NOT_LOADED, POOL_NOT_JUDGED, SEASON_LIMIT(진행 중 3개)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          description: 요청한 길이의 경로를 만들 수 없다 — PATH_TOO_LONG
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '503':
+          description: 현재 회원을 알 수 없다 — MEMBER_UNAVAILABLE(운영, 인증 전)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+    get:
+      tags: [season]
+      operationId: listSeasons
+      summary: 내 시즌 목록
+      description: 현재 회원의 시즌 전부를 시즌 번호 내림차순으로 준다.
+      responses:
+        '200':
+          description: 시즌 목록
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SeasonListDto'
+        '503':
+          description: 현재 회원을 알 수 없다 — MEMBER_UNAVAILABLE
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /api/v1/seasons/{seasonId}:
+    get:
+      tags: [season]
+      operationId: getSeason
+      summary: 시즌 한 개
+      description: 현재 회원의 시즌 한 개. 없거나 다른 회원의 시즌이면 404.
+      parameters:
+        - name: seasonId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: 시즌
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SeasonDto'
+        '400':
+          description: 시즌 번호가 숫자가 아니다 — INVALID_ARGUMENT
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: 시즌이 없다 — NOT_FOUND
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '503':
+          description: 현재 회원을 알 수 없다 — MEMBER_UNAVAILABLE
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /api/v1/seasons/{seasonId}/prices:
+    get:
+      tags: [season]
+      operationId: getTurnPrices
+      summary: 턴 가격
+      description: 한 턴의 풀 전체 가격을 종목 번호 순으로 준다. turnNo 를 생략하면 현재 턴.
+      parameters:
+        - name: seasonId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+        - name: turnNo
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int32
+            minimum: 0
+      responses:
+        '200':
+          description: 그 턴의 가격
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TurnPricesDto'
+        '400':
+          description: turnNo 또는 시즌 번호가 틀렸다 — INVALID_ARGUMENT
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: 시즌이 없다 — NOT_FOUND
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: 아직 진행하지 않은 턴이다 — TURN_NOT_REACHED
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '503':
+          description: 현재 회원을 알 수 없다 — MEMBER_UNAVAILABLE
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
 components:
   schemas:
     PoolDto:
@@ -86,6 +244,135 @@ components:
           type: string
           format: decimal
           description: 최대 낙폭, 0 이하(−0.35 = −35%)
+    StartSeasonRequest:
+      type: object
+      description: 초기 자금·요율·시드는 요청에서 받지 않는다(서버 설정). pathLength 의 12·24·60 판정은 서버 규칙이다
+      required: [riskLimit, formation]
+      properties:
+        riskLimit:
+          type: string
+          format: decimal
+          description: '위험 선언(감수할 최대 낙폭): -0.10, -0.20, -0.30, -0.40 중 하나'
+        formation:
+          $ref: '#/components/schemas/FormationDto'
+        pathLength:
+          type: integer
+          format: int32
+          default: 12
+          description: 경로 길이(턴 수) 12, 24, 60. 생략하면 12
+    FormationDto:
+      type: object
+      description: 포지션별 비중(정수 퍼센트). 합 100, 골키퍼 1 이상. 요청과 응답이 같다
+      required: [goalkeeper, defender, midfielder, forward]
+      properties:
+        goalkeeper:
+          type: integer
+          format: int32
+          minimum: 1
+          maximum: 100
+          description: 골키퍼 비중(1–100)
+        defender:
+          type: integer
+          format: int32
+          minimum: 0
+          maximum: 100
+          description: 수비수 비중(0–100)
+        midfielder:
+          type: integer
+          format: int32
+          minimum: 0
+          maximum: 100
+          description: 미드필더 비중(0–100)
+        forward:
+          type: integer
+          format: int32
+          minimum: 0
+          maximum: 100
+          description: 공격수 비중(0–100)
+    SeasonDto:
+      type: object
+      description: 시드·엔진 버전·기준일·스냅샷 날짜·회원 번호·버전·시각은 싣지 않는다
+      required: [id, status, currentTurnNo, pathLength, riskLimit, startFormation, currentFormation,
+                 initialCash, cashBalance, feeRateKr, feeRateUs, fxSpreadRate]
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: 시즌 식별자
+        status:
+          $ref: '#/components/schemas/SeasonStatus'
+        currentTurnNo:
+          type: integer
+          format: int32
+          description: 현재 턴(0 = 시작)
+        pathLength:
+          type: integer
+          format: int32
+          description: 경로 길이(턴 수)
+        riskLimit:
+          type: string
+          format: decimal
+          description: 위험 선언, 소수 8자리(-0.20000000 = -20%)
+        startFormation:
+          $ref: '#/components/schemas/FormationDto'
+        currentFormation:
+          $ref: '#/components/schemas/FormationDto'
+        initialCash:
+          type: string
+          format: decimal
+          description: 초기 자금, 원 단위 정수
+        cashBalance:
+          type: string
+          format: decimal
+          description: 현금 잔액, 원 단위 정수
+        feeRateKr:
+          type: string
+          format: decimal
+          description: 국내 수수료율, 소수 8자리
+        feeRateUs:
+          type: string
+          format: decimal
+          description: 미국 수수료율, 소수 8자리
+        fxSpreadRate:
+          type: string
+          format: decimal
+          description: 환전 비용률, 소수 8자리
+    SeasonListDto:
+      type: object
+      description: 현재 회원의 시즌 전부(시즌 번호 내림차순). 쪽 나누기 없음
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/SeasonDto'
+    TurnPricesDto:
+      type: object
+      description: 한 턴의 풀 전체 가격(종목 번호 오름차순)
+      required: [turnNo, prices]
+      properties:
+        turnNo:
+          type: integer
+          format: int32
+        prices:
+          type: array
+          items:
+            $ref: '#/components/schemas/TurnPriceDto'
+    TurnPriceDto:
+      type: object
+      required: [assetId, price]
+      properties:
+        assetId:
+          type: integer
+          format: int64
+          description: 종목 식별자(풀 응답의 assetId 와 같다)
+        price:
+          type: string
+          format: decimal
+          description: 가격, 원 단위 정수
+    SeasonStatus:
+      type: string
+      enum: [IN_PROGRESS, ABANDONING, FINISHED]
     Market:
       type: string
       enum: [KR, US]
@@ -137,4 +424,5 @@ components:
     ErrorCode:
       type: string
       enum: [INVALID_ARGUMENT, NOT_FOUND, METHOD_NOT_ALLOWED, NOT_ACCEPTABLE,
-             UNSUPPORTED_MEDIA_TYPE, INTERNAL_ERROR, POOL_NOT_LOADED, POOL_NOT_JUDGED, PATH_TOO_LONG]
+             UNSUPPORTED_MEDIA_TYPE, INTERNAL_ERROR, POOL_NOT_LOADED, POOL_NOT_JUDGED, PATH_TOO_LONG,
+             SEASON_LIMIT, TURN_NOT_REACHED, MEMBER_UNAVAILABLE]
