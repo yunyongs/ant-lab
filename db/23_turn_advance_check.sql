@@ -29,6 +29,7 @@
 
 \ir 21_team_buy_def.sql
 \ir 22_reconcile_season_def.sql
+\ir 24_turn_feed_def.sql
 \ir 23_turn_advance_def.sql
 
 -- 판정 표식: 트랜잭션이 되돌아가도 남는 임시 시퀀스 (1 = 미완료 또는 실패, 2 = 00–09절 통과·흔적 확인 대기, 0 = 최종 통과)
@@ -454,6 +455,12 @@ SELECT pg_temp.check_eq('01 진행 상태', '로그 ⑦ 규칙 11·19 코드가 
 SELECT pg_temp.check_eq('01 진행 상태', '로그 ⑧ 17개 시도의 행 수 = 17 이고 MATCH 행은 분류가 NULL, MISMATCH 행은 INVESTIGATE 다 (어긋난 행 수)', '0',
     (SELECT count(*) FROM reconciliation_log l JOIN zz_cur c ON c.id = l.season_id JOIN zz_att17 a ON a.turn_no = l.turn_no AND a.attempt_no = l.attempt_no
      WHERE (l.status = 'MATCH') <> (l.classification IS NULL) OR (l.status = 'MISMATCH' AND l.classification <> 'INVESTIGATE'))::text);
+SELECT pg_temp.check_eq('01 진행 상태', '피드 ① 완료 턴마다 5–15행·seq 연속이다', '0',
+    (SELECT count(*) FROM (SELECT f.turn_no FROM turn_feed f JOIN zz_cur c ON c.id = f.season_id
+                           GROUP BY f.turn_no HAVING count(*) NOT BETWEEN 5 AND 15 OR min(f.seq) <> 1 OR max(f.seq) <> count(*)) x)::text);
+SELECT pg_temp.check_eq('01 진행 상태', '피드 ② 0턴·현재 턴 이후 행이 없다', '0',
+    (SELECT count(*) FROM turn_feed f JOIN zz_cur c ON c.id = f.season_id
+      WHERE f.turn_no < 1 OR f.turn_no > c.current_turn_no)::text);
 
 -- 02 가격 — 네 구현 -------------------------------------------------------------------
 -- 저장된 turn_price(k ≥ 1)가 ① ta_prices(재귀 CTE) ② recon_expected_price(창 함수 배열 — 22 의 독립 구현) ③ zz_price_loop(절차형 반복 곱)와 전 행 같다.

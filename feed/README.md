@@ -219,6 +219,10 @@ rm -rf "${D:?}"
 
 ## P0-18이 지킬 것 (하류 약속)
 
+SQL 생성기는 `db/24_turn_feed_def.sql`에서 `tf_input → tf_generate → tf_append` 순서로 동작한다. 관심 지수 값은 `asset_month_attention`에 저장된 역사값을 사용하며, 연속·지난달 비교만 시즌에서 실제 지나온 `turn_price` 순서로 계산한다. `ta_apply`는 턴 스냅샷 뒤 피드를 같은 트랜잭션에 넣고, 저장한 뒤에는 `template_id`·`template_vars`·`body`를 수정하지 않는다. Phase 0 API는 이 피드를 생성하거나 읽지 않는다.
+
+구현 상태(P0-18, 규칙 버전 `p0-18:v2`): `tf_template_pool`은 아래 약속 2(후보를 `template_id` 순으로 세워 시드로 고름)·9(NULL 자리 제외)·10(r = 0 예외)·12(같은 옷)를 한 함수로 구현한다. 선택 경로와 `db/24_turn_feed_check.sql`의 같은 옷 시험은 모두 이 함수를 거친다. 관심 지수 기준은 위 단락과 같다.
+
 1. **적재:** `check_templates.sql` 1절의 임시 테이블 정의와 `\copy … HEADER MATCH`를 그대로 복사한다. 고르는 것은 `status = 'ACTIVE'`만.
 2. **선택:** (kind, target, direction, strength 일치 또는 빈 칸, EVENT면 `category_hidden`·범주) 후보를 `template_id` 오름차순으로 세우고 시즌 시드 + 턴 번호의 난수로 고른다. EVENT는 가장 구체적인 행이 이긴다(`event_type`+`outcome` > `event_category` > 범주 비공개). `category_hidden = TRUE` 카드는 비공개 템플릿만.
 3. `template_vars` 키 = 고른 템플릿의 자리 집합 정확히(`jsonb_object_keys`로 검사). 범주·유형·월 블록 키 금지(erd D27).
