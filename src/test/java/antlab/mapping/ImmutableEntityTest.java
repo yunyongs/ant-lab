@@ -2,6 +2,7 @@ package antlab.mapping;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import antlab.support.FieldMutator;
 import antlab.support.JpaMappingTest;
 import antlab.support.MappingModel;
 import jakarta.persistence.EntityManager;
@@ -9,9 +10,6 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
-import java.math.BigDecimal;
-import java.time.Instant;
-import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -32,29 +30,64 @@ class ImmutableEntityTest {
     @Autowired
     JdbcTemplate jdbc;
 
+    /** 읽기 전용 8개: 적재 SQL 이 만든 행을 읽기만 한다. 공개 생성자가 없다. */
+    static final Set<String> READ_ONLY = Set.of("AssetGroup", "Asset", "AssetPosition", "MonthBlock",
+            "AssetMonthReturn", "FxMonth", "MonthEvent", "AssetMonthAttention");
+
+    /** 추가 전용 9개: 넣을 수는 있고 넣은 뒤 바뀌지 않는다. 공개 생성자가 정확히 하나다. */
+    static final Set<String> APPEND_ONLY = Set.of("SeasonPath", "Turn", "TurnPrice", "FormationChange", "TurnFeed",
+            "ReconciliationLog", "Order", "Execution", "CashLedger");
+
+    /** 가변 5개: 상태 변경은 이름 있는 메서드만 한다(setter 없음). 분류를 바꾸려면 이 목록을 고쳐 리뷰에 드러낸다. */
+    static final Set<String> MUTABLE = Set.of("Member", "Season", "Lineup", "CashAccount", "Holding");
+
     private List<Class<?>> immutableEntities() {
         return MappingModel.entities(em).stream().filter(c -> c.isAnnotationPresent(Immutable.class)).toList();
     }
 
-    @Test
-    void 읽기_전용_엔티티는_여덟_개다() {
-        assertThat(immutableEntities().stream().map(Class::getSimpleName))
-                .containsExactlyInAnyOrder("AssetGroup", "Asset", "AssetPosition", "MonthBlock",
-                        "AssetMonthReturn", "FxMonth", "MonthEvent", "AssetMonthAttention");
+    private List<Class<?>> readOnlyEntities() {
+        return immutableEntities().stream().filter(c -> READ_ONLY.contains(c.getSimpleName())).toList();
     }
 
     @Test
-    void 엔티티에는_setter와_인자_있는_공개_생성자가_없다() {
+    void 엔티티_분류는_읽기_전용_8_추가_전용_9_가변_5다() {
+        assertThat(immutableEntities().stream().map(Class::getSimpleName))
+                .containsExactlyInAnyOrderElementsOf(
+                        java.util.stream.Stream.concat(READ_ONLY.stream(), APPEND_ONLY.stream()).toList());
+        assertThat(MappingModel.entities(em).stream().filter(c -> !c.isAnnotationPresent(Immutable.class))
+                .map(Class::getSimpleName))
+                .containsExactlyInAnyOrderElementsOf(MUTABLE);
+    }
+
+    @Test
+    void 어떤_엔티티에도_setter가_없다() {
         List<String> violations = new ArrayList<>();
-        for (Class<?> c : immutableEntities()) {
+        for (Class<?> c : MappingModel.entities(em)) {
             for (Method m : c.getDeclaredMethods()) {
                 if (m.getName().startsWith("set") && !Modifier.isPrivate(m.getModifiers())) {
                     violations.add(c.getSimpleName() + "." + m.getName());
                 }
             }
+        }
+        assertThat(violations).isEmpty();
+    }
+
+    @Test
+    void 읽기_전용은_공개_생성자가_없고_나머지는_하나다() {
+        List<String> violations = new ArrayList<>();
+        for (Class<?> c : MappingModel.entities(em)) {
+            long publicCount = java.util.Arrays.stream(c.getDeclaredConstructors())
+                    .filter(k -> Modifier.isPublic(k.getModifiers())).count();
+            String name = c.getSimpleName();
+            if (READ_ONLY.contains(name) && publicCount != 0) {
+                violations.add(name + " 공개 생성자 " + publicCount + "개");
+            }
+            if (!READ_ONLY.contains(name) && publicCount != 1) {
+                violations.add(name + " 공개 생성자 " + publicCount + "개(하나여야 함)");
+            }
             for (Constructor<?> k : c.getDeclaredConstructors()) {
-                if (Modifier.isPublic(k.getModifiers())) {
-                    violations.add(c.getSimpleName() + " 공개 생성자");
+                if (k.getParameterCount() == 0 && !Modifier.isProtected(k.getModifiers())) {
+                    violations.add(name + " 기본 생성자가 protected 가 아님");
                 }
             }
         }
@@ -63,7 +96,7 @@ class ImmutableEntityTest {
 
     @Test
     void 필드를_바꾸고_flush_해도_DB_값은_그대로다() throws Exception {
-        for (Class<?> entity : immutableEntities()) {
+        for (Class<?> entity : readOnlyEntities()) {
             String table = MappingModel.table(entity);
             Long id = jdbc.queryForObject("SELECT min(id) FROM " + table, Long.class);
             assertThat(id).as(table + " 고정본 행").isNotNull();
@@ -78,7 +111,7 @@ class ImmutableEntityTest {
                     continue;
                 }
                 f.setAccessible(true);
-                Object next = changeOf(f.get(loaded), f.getType());
+                Object next = FieldMutator.changeOf(f.get(loaded), f.getType());
                 if (next != null) {
                     f.set(loaded, next);
                     changed++;
@@ -92,49 +125,5 @@ class ImmutableEntityTest {
                     String.class, id);
             assertThat(after).as(table + " 의 DB 행").isEqualTo(before);
         }
-    }
-
-    /** 값을 다른 값으로 바꾼다. 값이 NULL 이면 바꾸지 않는다. 바뀐 값이 DB 에 가면 길이·제약 위반이 날 수도 있다 — 그것도 실패다. */
-    private static Object changeOf(Object value, Class<?> type) {
-        if (value == null) {
-            return null;
-        }
-        if (value instanceof String s) {
-            return s.isEmpty() ? "X" : s.substring(1);
-        }
-        if (value instanceof BigDecimal b) {
-            return b.add(BigDecimal.ONE);
-        }
-        if (value instanceof Long l) {
-            return l + 1;
-        }
-        if (value instanceof Integer i) {
-            return i + 1;
-        }
-        if (value instanceof Boolean b) {
-            return !b;
-        }
-        if (value instanceof LocalDate d) {
-            return d.plusDays(1);
-        }
-        if (value instanceof Instant t) {
-            return t.plusSeconds(1);
-        }
-        if (type.isEnum()) {
-            Object[] all = type.getEnumConstants();
-            return all[(((Enum<?>) value).ordinal() + 1) % all.length];
-        }
-        throw new IllegalStateException("바꾸는 방법이 없는 형 " + type);
-    }
-
-    /** 가변 엔티티 허용 목록. 지금은 비어 있고, P0-28 이 가변 5개(member·season·cash_account·holding·lineup)를 더한다. */
-    private static final Set<String> MUTABLE_ALLOWED = Set.of();
-
-    @Test
-    void 모든_엔티티는_불변이거나_가변_허용_목록에_있다() {
-        assertThat(MappingModel.entities(em))
-                .filteredOn(c -> !c.isAnnotationPresent(Immutable.class))
-                .extracting(Class::getSimpleName)
-                .allMatch(MUTABLE_ALLOWED::contains);
     }
 }

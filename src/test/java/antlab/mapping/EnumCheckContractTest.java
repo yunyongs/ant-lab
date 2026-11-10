@@ -56,7 +56,7 @@ class EnumCheckContractTest {
                 if (!MappingModel.isStringEnum(f)) {
                     continue;
                 }
-                String key = MappingModel.table(entity) + "." + MappingModel.column(f);
+                String key = MappingModel.table(entity) + "." + f.getAnnotation(jakarta.persistence.Column.class).name();
                 Set<String> constants = new LinkedHashSet<>();
                 Arrays.stream(f.getType().getEnumConstants()).forEach(c -> constants.add(((Enum<?>) c).name()));
                 Set<String> check = checks.get(key);
@@ -72,7 +72,7 @@ class EnumCheckContractTest {
             }
         }
         assertThat(diffs).isEmpty();
-        assertThat(compared).as("대조한 enum 열 수").isGreaterThanOrEqualTo(14);
+        assertThat(compared).as("대조한 enum 열 수").isGreaterThanOrEqualTo(27);
     }
 
     @Test
@@ -84,7 +84,7 @@ class EnumCheckContractTest {
             mappedTables.add(MappingModel.table(entity));
             for (Field f : MappingModel.fields(entity)) {
                 if (MappingModel.isStringEnum(f)) {
-                    enumColumns.add(MappingModel.table(entity) + "." + MappingModel.column(f));
+                    enumColumns.add(MappingModel.table(entity) + "." + f.getAnnotation(jakarta.persistence.Column.class).name());
                 }
             }
         }

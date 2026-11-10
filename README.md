@@ -59,6 +59,7 @@ Java 21 · Spring Boot 4.1 · PostgreSQL 17 · JPA (리포트 쿼리에 MyBatis 
 - P0-26 금액 계산 시험은 다음 두 명령으로 나눠 실행한다: `./gradlew test --tests 'antlab.common.money.MoneyMathTest'`(DB 없음)와 `./gradlew test --tests 'antlab.common.money.MoneyMathSqlParityTest'`(일회용 PostgreSQL 17)이다.
 - `./gradlew bootTestRun` — 일회용 PostgreSQL 17로 앱을 띄운다. 소유자 DB가 필요 없어 가장 안전하다. 8080이 쓰이고 있으면 `./gradlew bootTestRun --args='--server.port=18080'`.
 - `./gradlew bootRun` — 로컬 compose `db`의 `antlab_api` DB로 띄운다. 처음 한 번은 빈 `antlab_api`를 만들고(인코딩·시간대 포함) 앱을 띄워 Flyway V1–V3를 적용한 뒤 표본을 적재한다. 명령은 [db/README.md「API DB와 실습 DB」](db/README.md#api-db와-실습-db)에 있다. 접속 정보는 환경 변수 `ANTLAB_DB_URL`·`ANTLAB_DB_USER`·`ANTLAB_DB_PASSWORD`이고, 없으면 `jdbc:postgresql://localhost:5432/antlab_api`·OS 사용자·비밀번호 없음이다.
+- 매핑·잠금 시험만: `./gradlew test --tests 'antlab.mapping.*' --tests 'antlab.persistence.*'` — 엔티티 22개의 열·enum·불변 대조, 가변 엔티티와 두 스레드 잠금(`FOR NO KEY UPDATE`)·낙관적 락 시험이 돈다. 일회용 컨테이너만 쓴다.
 - 컨테이너로 실행(P0-24) — `db`와 `api`를 한 번에 올린다. `api`는 compose profile `api`라서 `--profile api`를 붙여야 켜진다(붙이지 않은 `docker compose up -d`는 지금처럼 `db`만 켠다). 늘 같이 켜고 싶으면 루트 `.env`에 `COMPOSE_PROFILES=api`를 둔다(선택, 기본은 끔). `bootRun`과 달리 `prod` 프로필이라 Swagger·명세가 꺼져 있고, 같은 이미지가 후속 CI·서버 배포에서도 쓰인다.
   1. Docker Desktop을 켜고 준비 완료(고래 아이콘 안정)를 확인한다. VS Code로 저장소 루트를 열고 통합 터미널(`` Ctrl+` ``)에서 실행한다.
   2. 새 볼륨(처음): `docker compose --profile api up -d --build --wait --wait-timeout 240` — 이미지를 빌드하고, `db`가 빈 `antlab_api`를 만들고, `api`가 Flyway V1–V3를 적용한 뒤 두 서비스가 `healthy`가 되면 끝난다. 첫 빌드는 Gradle 배포판과 의존성을 내려받아 몇 분 걸린다.
