@@ -211,7 +211,7 @@ TurnService.advance(seasonId, expectedTurnNo)
 | 매핑 | `@JpaMappingTest`(= `@DataJpaTest` + 실제 PostgreSQL, Phase 0 API는 Testcontainers 컨테이너, 아래) | 엔티티 ↔ DDL 일치(`validate`는 형 계열만 → `ColumnContractTest`가 길이·정밀도·NULL까지), enum ↔ CHECK 목록 글자 단위 대조(`EnumCheckContractTest`), 불변 엔티티 변경 무시(`ImmutableEntityTest`), 저장소 모양(`RepositoryShapeTest` — 읽기 전용·추가 전용·가변 세 분류, 패키지 고정 없음). 모든 `@Entity`를 훑으므로 엔티티를 추가하면 자동으로 포함된다. `MappingModel`은 `@MappedSuperclass` 부모 필드, `@Embedded` + `@AttributeOverride` 펼친 열, `@ManyToOne` 열, `@Version`, JSONB(`String` + `@JdbcTypeCode(JSON)`)를 읽는다. 시즌·계좌 엔티티의 불변(`AppendOnlyEntityTest` — `SqlRecorder`로 센 UPDATE 0건), 가변·낙관적 락·잠금 SQL·대기(`MutableEntityTest`·`LockingTest`), DB 제약 대표 세 건(`SeasonAccountConstraintTest`), Hibernate `validate`의 SMALLINT 거부(`HibernateValidateSpikeTest`)가 같은 방식으로 돈다 |
 | 서비스 | `@SpringBootTest` + 실제 PostgreSQL, 테스트마다 `@Transactional` 롤백 | 주문 체결 전부/전무, 턴 전환, 대사 항등식(골든에서는 P0-25 하네스가 띄우는 일회용 컨테이너에서 `db/20`–`26`으로 만든 연습 시즌을 API로 재생해 행 단위로 비교 — PLAN §13 2026-11-09) |
 | 동시성 | 스레드 2개로 같은 시즌에 동시 주문·턴 전환 | 둘 중 하나만 성공하거나 순서대로 처리되고, 끝나면 항등식 성립 |
-| 엔진 대조 | Java 부트스트랩 vs Phase 0 손 계산 | 같은 시드 → 같은 경로, 같은 수익률 → 같은 가격(원 단위) |
+| 엔진 대조 | 고정 벡터(`p0-boot6-v1_vectors.csv`) + M2 Python 병행 대사, 손 경로는 `FixedPathSource`로 P0-30 골든 | 같은 시드를 쓰면 같은 달 목록이 나오고(번호가 아니라 `month_start` 기준), 같은 수익률이면 같은 가격(원 단위)이 나온다 |
 | 금액 계산 | `MoneyMathTest` + `MoneyMathSqlParityTest` | 순수 Java 시험과 PostgreSQL 17 임시 연결의 P0-15 순수 함수 대조를 분리해 실행 |
 | 계약 | `@SpringBootTest` | springdoc이 낸 `/v3/api-docs`와 저장소 `docs/api/openapi.yaml`을 경로·필드·타입·필수·응답 코드로 대조한다 — 코드와 yaml이 갈라지면 실패(`OpenApiContractTest`). 도구는 자체 정규화 비교기(`OpenApiNormalizer`·`OpenApiDiff`, 새 라이브러리 없음)이며 비교기 자체는 `OpenApiNormalizerTest`가 검증한다. `/api/v1/**` 운영의 operationId·parameters·requestBody·responses(상태 코드와 미디어 형식), 스키마의 type·format·enum·required·properties·items·제약, 닿는 컴포넌트 이름(`$ref`는 이름으로)을 비교한다. 설명·예시·태그·info·속성 순서는 무시한다. 응답 코드는 운영 고유의 성공·도메인 오류만 적는다 — springdoc이 `@RestControllerAdvice`의 일반 오류(400·404·405…)를 운영마다 붙이지 않음을 확인했다. 노출 상한은 `ExposureContractTest`가 맡는다(§4.6) |
 | API | `MockMvc` | 검증 오류 400, 턴 불일치 409, 잔액 부족 422(초안), 비공개 컬럼이 응답에 없음 |
@@ -268,7 +268,8 @@ spring.flyway:
   baseline-on-migrate: false
   clean-disabled: true
   validate-on-migrate: true
-# P0-23 이후: antlab.engine.*(projection-paths: 2000, block-mean-length: 6)
+# 블록 길이(6)·허용 경로 길이·재생 시작·엔진 판은 설정이 아니라 SimpleBootstrap 상수다(P0-29) — 설정으로 두면 같은 engine_version 이 다른 경로를 낼 수 있어 재현성이 깨진다.
+# projection-paths: 2000 은 MVP 에서 antlab.engine.* 설정으로 더한다
 antlab.pool.base-date: ${ANTLAB_POOL_BASE_DATE:2026-01-02}   # P0-27: 기준일 풀(매년 1월 첫 거래일). P0-30 시즌 시작도 같은 값을 쓴다
 ```
 
@@ -300,7 +301,7 @@ Phase 1은 건너뛰었다(PLAN §11, 2026-11-09). 이 표는 SQL(Phase 0)에서
 | `ResultSet` → 객체 | 엔티티 매핑, DTO 생성자 표현식 |
 | `SELECT … FOR UPDATE` 직접 작성 | `@Lock(PESSIMISTIC_WRITE)` 리포지토리 메서드(`findByIdForUpdate`, `findBySeasonIdForUpdate`) — PostgreSQL에서는 `FOR NO KEY UPDATE`로 나가지만 같은 행의 `FOR UPDATE`와 서로 기다린다 |
 | 대사 SQL | 같은 SQL을 `@Query(nativeQuery = true)`로 |
-| 경로 생성 코드(단순 부트스트랩) | 그대로 `engine` 패키지로 이동 |
+| 경로 생성 코드(단순 부트스트랩) | JDBC 판은 만들지 않았다(Phase 1 건너뜀). 대신 `engine` 패키지의 `SimpleBootstrap`을 처음부터 JPA 조회(`findReplayMonths`)로 사용한다 |
 
 트랜잭션·락·반올림을 SQL에서 손으로 한 번 해 보는 것이 이 문서의 결정들을 이해하는 가장 빠른 길이다.
 
