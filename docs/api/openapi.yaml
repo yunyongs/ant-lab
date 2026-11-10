@@ -1,0 +1,140 @@
+openapi: 3.1.0
+info:
+  title: my Fund Manager API
+  version: 0.0.1
+  description: |
+    시즌 한 판 REST API(Phase 0). 금액·비율은 지수 없는 문자열(소수 자릿수 유지),
+    수량·턴 번호·포메이션 비중은 정수다. 오류는 application/problem+json(Problem).
+    시즌 중 응답에는 실제 날짜·사건 이름·경로가 나가지 않는다.
+paths:
+  /api/v1/pool:
+    get:
+      tags: [pool]
+      operationId: getPool
+      summary: 기준일 종목 풀
+      description: |
+        서버 설정의 기준일 풀 전체를 시장·종목코드 순서로 준다. 시스템 판정 포지션과
+        판정 근거(참여율·변동성·최대 낙폭, 원화·월 단위·소수 8자리)를 함께 준다.
+      responses:
+        '200':
+          description: 기준일 풀
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PoolDto'
+        '409':
+          description: 풀이 준비되지 않았다 — POOL_NOT_LOADED(행 없음), POOL_NOT_JUDGED(판정 빈 종목 있음)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+components:
+  schemas:
+    PoolDto:
+      type: object
+      required: [assets]
+      properties:
+        assets:
+          type: array
+          items:
+            $ref: '#/components/schemas/PoolAssetDto'
+    PoolAssetDto:
+      type: object
+      required: [assetId, market, ticker, name, assetType, returnBasis, proxyIndexName,
+                 groupId, groupName, groupKind, systemPosition,
+                 upParticipation, downParticipation, volatility, maxDrawdown]
+      properties:
+        assetId:
+          type: integer
+          format: int64
+          description: 종목 식별자(주문 요청에 쓴다). 표시하지 않는다
+        market:
+          $ref: '#/components/schemas/Market'
+        ticker:
+          type: string
+        name:
+          type: string
+        assetType:
+          $ref: '#/components/schemas/AssetType'
+        returnBasis:
+          $ref: '#/components/schemas/ReturnBasis'
+        proxyIndexName:
+          type: [string, 'null']
+          description: 상장 전 구간에 쓰는 추종 지수 이름(ETF만)
+        groupId:
+          type: integer
+          format: int64
+        groupName:
+          type: string
+        groupKind:
+          $ref: '#/components/schemas/AssetGroupKind'
+        systemPosition:
+          $ref: '#/components/schemas/Position'
+        upParticipation:
+          type: string
+          format: decimal
+          description: 상승장 참여율(시장이 1% 이상 오른 달, 원화)
+        downParticipation:
+          type: string
+          format: decimal
+          description: 하락장 참여율(시장이 1% 이상 빠진 달, 원화)
+        volatility:
+          type: string
+          format: decimal
+          description: 월 수익률 표본 표준편차(연율화 안 함)
+        maxDrawdown:
+          type: string
+          format: decimal
+          description: 최대 낙폭, 0 이하(−0.35 = −35%)
+    Market:
+      type: string
+      enum: [KR, US]
+    AssetType:
+      type: string
+      enum: [STOCK, ETF]
+    ReturnBasis:
+      type: string
+      enum: [PRICE, TOTAL]
+    AssetGroupKind:
+      type: string
+      enum: [SECTOR, ASSET_CLASS]
+    Position:
+      type: string
+      enum: [GOALKEEPER, DEFENDER, MIDFIELDER, FORWARD_TARGET, FORWARD_BREAKOUT, FORWARD_DEFENSIVE]
+    Problem:
+      type: object
+      description: RFC 9457 문제 상세 + 최상위 code. type은 about:blank라 생략된다
+      required: [title, status, detail, instance, code]
+      properties:
+        type:
+          type: string
+        title:
+          type: string
+        status:
+          type: integer
+          format: int32
+        detail:
+          type: string
+          description: 고정 한국어 문장. 거부된 값·금액을 싣지 않는다
+        instance:
+          type: string
+        code:
+          $ref: '#/components/schemas/ErrorCode'
+        errors:
+          type: array
+          description: '@Valid 위반일 때만'
+          items:
+            $ref: '#/components/schemas/FieldViolation'
+    FieldViolation:
+      type: object
+      required: [field, reason]
+      properties:
+        field:
+          type: string
+        reason:
+          type: string
+          description: 제약 애너테이션 단순 이름(예 Min)
+    ErrorCode:
+      type: string
+      enum: [INVALID_ARGUMENT, NOT_FOUND, METHOD_NOT_ALLOWED, NOT_ACCEPTABLE,
+             UNSUPPORTED_MEDIA_TYPE, INTERNAL_ERROR, POOL_NOT_LOADED, POOL_NOT_JUDGED]

@@ -34,6 +34,11 @@ spring:
 server:
   shutdown: graceful
 
+antlab:
+  pool:
+    # 기준일 풀(PLAN §7 매년 1월 첫 거래일). 표본 = 2026-01-02(db/20_season_start.sql 설정 표와 같음)
+    base-date: ${ANTLAB_POOL_BASE_DATE:2026-01-02}
+
 # springdoc 은 설정이 없으면 켜진다(matchIfMissing). 공통에서 끄고 local 에서만 켠다.
 springdoc:
   api-docs:
@@ -74,6 +79,12 @@ spring:
   config:
     activate:
       on-profile: prod
+    # 운영 비밀(DB 비밀번호 등)은 파일로 받는다: /run/secrets/spring.datasource.password -> spring.datasource.password.
+    # 디렉터리가 없어도(로컬 compose) 기동한다. 같은 속성을 환경 변수(SPRING_DATASOURCE_PASSWORD)로도 주면 환경 변수가 이긴다.
+    import: optional:configtree:/run/secrets/
+  datasource:
+    # 기본값 없음: 운영 프로필에서 ANTLAB_DB_URL 을 빠뜨리면 localhost 로 가지 않고 기동에 실패한다.
+    url: ${ANTLAB_DB_URL}
 server:
   forward-headers-strategy: framework
 springdoc:

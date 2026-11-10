@@ -16,13 +16,14 @@
 --   pg_temp.order_buy(season_id, expected_turn_no, asset_id, quantity, declared_position, source DEFAULT 'DIRECT') → bigint (새 orders.id)
 --     하나의 트랜잭션 안에서 orders · execution · holding · cash_ledger(BUY → FEE) · cash_account · lineup 을 함께 만든다. 호출자가 COMMIT/ROLLBACK 한다.
 --     순서(SPRING_JPA §5.2): 인자 검사 → 잠금 ① season FOR UPDATE → 잠금 ② cash_account FOR UPDATE → 최신 원장 읽기 → 체결가·요율 → 계산 →
---     INSERT 전에 잔액 검사 → 라인업 충돌 검사 → orders → execution → holding(UPSERT) → cash_ledger → cash_account → lineup
+--     INSERT 전에 잔액 검사 → 라인업 충돌 검사 → (1턴 이후면 거부) → orders → execution → holding(UPSERT) → cash_ledger → cash_account → lineup
+--     0턴 팀 구성 전용이다: 1턴 이후에는 HINT USE_TRADE_BUY 로 거부한다 (전술 변경 연결·시각 순서 검사가 없어 규칙 16 이 어긋난다). 1턴 이후 매수는 25 의 trade_buy.
 -- 잠금 순서: season → cash_account (고정). 시즌 계좌 5개 테이블에 쓰는 모든 SQL 은 먼저 season 을 잠근다. 같은 순서로 잠그면 서로 기다리는 고리(교착)가 생기지 않는다.
 -- 격리 수준: READ COMMITTED (PostgreSQL 기본값)를 전제로 한다. 문장마다 새 스냅샷을 쓰므로 잠금을 얻은 뒤의 일반 SELECT 가 앞 트랜잭션이 커밋한 행을 본다.
 --     다른 수준이면 첫 줄에서 멈춘다 (HINT ISOLATION_LEVEL).
 --     order_buy 는 VOLATILE(기본값)이어야 한다 — 문장마다 새 스냅샷을 쓰기 때문이다. STABLE·IMMUTABLE 로 바꾸면 함수 시작 스냅샷을 써서 3단계 원장 읽기가 낡은 값을 본다.
 -- 오류: 모두 RAISE EXCEPTION (SQLSTATE P0001) 이고 HINT 에 종류 코드를 넣는다. Java 도메인 예외 이름과 짝이다 (SPRING_JPA §5.1).
---     SEASON_NOT_ACTIVE · TURN_MISMATCH · ASSET_NOT_IN_POOL · INVALID_QUANTITY · INSUFFICIENT_CASH · POSITION_CONFLICT · LEDGER_MISMATCH
+--     SEASON_NOT_ACTIVE · TURN_MISMATCH · ASSET_NOT_IN_POOL · INVALID_QUANTITY · INSUFFICIENT_CASH · POSITION_CONFLICT · LEDGER_MISMATCH · USE_TRADE_BUY(1턴 이후)
 --     그리고 인자·환경 오류 둘: INVALID_ARGUMENT(선언 포지션·source) · ISOLATION_LEVEL.
 --     메시지에 금액·가격·수량을 넣지 않는다 (터미널에 남고 PR 에 복사되기 쉽다).
 -- 이번 기능은 source 로 DIRECT 만 받는다. FEED·ALERT 는 turn_feed_id 가 필요하다 (ck_orders_source_feed) — P0-19 가 자기 함수를 둔다.
@@ -181,6 +182,13 @@ BEGIN
     WHERE lu.season_id = p_season_id AND lu.asset_id = p_asset_id AND lu.end_turn IS NULL;
     IF FOUND AND v_open_pos <> p_declared_position THEN
         RAISE EXCEPTION 'P0-15 매수: 이미 다른 선언 포지션으로 보유 중이다. 포지션 변경은 별도 동작이다' USING HINT = 'POSITION_CONFLICT';
+    END IF;
+
+    -- 7b 1턴 이후에는 쓰지 않는다 (P0-19 리뷰 R1): 이 함수는 전술 변경 연결(formation_change_id)과 시각 순서 검사를 하지 않는다.
+    --   같은 턴에 전술 변경이 있으면 주문이 변경에 묶이지 않아 대사 규칙 16 이 어긋나고 턴 전환이 막힌다. 주문은 불변이라 고칠 길이 없다.
+    --   1턴 이후 매수는 25 의 trade_buy 를 쓴다. 위의 검사들 뒤에 두어 다른 오류 사례를 가리지 않는다.
+    IF v_turn > 0 THEN
+        RAISE EXCEPTION 'P0-15 매수: 1턴 이후의 매수는 이 함수로 하지 않는다 (전술 변경 연결이 없다). 25 의 trade_buy 를 쓴다' USING HINT = 'USE_TRADE_BUY';
     END IF;
 
     -- 8 주문: 접수와 체결이 한 번 (시장가). created_at 은 잠금을 얻은 뒤의 시각 clock_timestamp() — 대사 규칙 16 의 순서 기준.

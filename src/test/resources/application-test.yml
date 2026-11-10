@@ -2,6 +2,13 @@
 logging:
   level:
     org.hibernate.SQL: info
+    # 통계를 켜면 세션마다 요약 로그가 INFO 로 나온다 — 시험 출력을 조용하게 한다.
+    org.hibernate.engine.internal.StatisticalLoggingSessionEventListener: warn
+spring:
+  jpa:
+    properties:
+      # 쿼리 수 단언용(N+1 방지 시험이 Statistics 를 읽는다)
+      hibernate.generate_statistics: true
 # 명세(/v3/api-docs) 단언용. Swagger UI 는 끈 채로 둔다.
 springdoc:
   api-docs:

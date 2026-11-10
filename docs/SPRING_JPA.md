@@ -26,10 +26,10 @@ src/main/java/antlab/
 └── api/           REST 컨트롤러, 요청·응답 DTO, 예외 → HTTP 매핑
 ```
 
-- **도메인별 패키지**(계층별이 아니라)로 나눈다. `season` 안에 `Season`(엔티티), `SeasonRepository`, `SeasonService`, `SeasonDto`가 함께 있다. 기능 하나를 고칠 때 한 폴더만 열면 되게 하기 위해서다.
+- **도메인별 패키지**(계층별이 아니라)로 나눈다. `season` 안에 `Season`(엔티티), `SeasonRepository`, `SeasonService`, `SeasonDto`를 함께 둔다. 기능 하나를 고칠 때 한 폴더만 열면 되게 하기 위해서다.
 - 계층은 세 개: **컨트롤러**(HTTP ↔ DTO) → **서비스**(트랜잭션, 규칙) → **리포지토리**(Spring Data JPA 인터페이스). 컨트롤러는 리포지토리를 직접 부르지 않는다.
-- **API 계약 관리(Phase 0 API부터, PLAN §13 2026-11-09):** 기능의 계획 단계에서 `docs/api/openapi.yaml`의 해당 경로·스키마를 **먼저** 쓰고 계획 리뷰에서 함께 본다 → 컨트롤러·DTO를 구현하고 springdoc-openapi가 `/v3/api-docs`와 Swagger UI를 낸다(UI는 `/swagger-ui.html`, `local` 프로필에서만 켠다 — 시험은 명세 `/v3/api-docs`만 켠다) → 시험이 그 명세와 저장소 yaml을 대조한다(§9). 웹 타입은 이 yaml에서, 엔진(FastAPI)과 Spring 사이의 타입은 M2에서 만드는 `docs/api/engine.yaml`에서 생성한다. yaml 파일은 첫 엔드포인트 기능(P0-27)의 계획에서 만들고(공통 오류 스키마는 P0-22 것을 옮긴다), 대조 도구는 그때 정한다.
-- **JSON·오류 규칙(Phase 0 API, PLAN §13 2026-11-09):** 접두 `/api/v1`, 금액·비율은 JSON 문자열(부동소수 금지, PLAN §5.2), 오류는 `ProblemDetail` + `code`(SQL 힌트 코드와 같은 글자). 5xx 응답에는 예외 내용을 싣지 않는다(고정 문장, 내용은 로그에만). `BigDecimal`은 지수 없는 문자열이고 펼친 자릿수 상한은 64다(입력 초과 400, 출력 초과 500 — 업무별 자릿수는 DTO `@Digits`가 정한다). 출력 500은 응답을 보내기 전에만 된다 — 큰 응답을 이미 보내기 시작한 뒤 초과하면 상태는 200 그대로이고 JSON은 닫히지 않은 채 끝난다(값이 빠진 응답이 정상 JSON처럼 보이지 않게 자동 닫기를 껐다). 그래서 응답 DTO의 금액은 반올림해 scale을 정한 값만 담는다(PLAN §5.2). JSON 정수 필드에 소수점·지수 표기 숫자(`1.5`·`2.0`·`1e1`)가 오면 400이다(`accept-float-as-int: false`). 오류 응답의 `type`은 `about:blank`라 생략된다(RFC 9457) — `code`·`title`·`status`·`detail`·`instance`는 늘 있다(`openapi.yaml`에서 optional로 둘지 명시할지는 P0-27). `problem+json` 보장은 DispatcherServlet 안까지다 — Tomcat이 직접 거절하는 요청(잘못된 `%` 인코딩·너무 큰 헤더)과 Security 필터 예외(M4)는 따로 다룬다.
+- **API 계약 관리(Phase 0 API부터, PLAN §13 2026-11-09):** 기능을 계획할 때 `docs/api/openapi.yaml`의 해당 경로·스키마를 **먼저** 쓰고 계획 리뷰에서 함께 본다 → 컨트롤러·DTO를 구현하고 springdoc-openapi가 `/v3/api-docs`와 Swagger UI를 낸다(UI는 `/swagger-ui.html`, `local` 프로필에서만 켠다 — 시험은 명세 `/v3/api-docs`만 켠다) → 시험이 그 명세와 저장소 yaml을 대조한다(§9). 웹 타입은 이 yaml에서, 엔진(FastAPI)과 Spring 사이의 타입은 M2에서 만드는 `docs/api/engine.yaml`에서 생성한다. yaml 파일은 P0-27에서 처음 만들었다(풀 경로 + 공통 오류 스키마 `Problem`). 대조에는 자체 정규화 비교기를 쓴다(§9). 차이가 나면 yaml을 기준으로 코드(애너테이션·설정)를 맞춘다.
+- **JSON·오류 규칙(Phase 0 API, PLAN §13 2026-11-09):** 접두 `/api/v1`, 금액·비율은 JSON 문자열(부동소수 금지, PLAN §5.2)로 보낸다. 오류는 `ProblemDetail` + `code`(SQL 힌트 코드와 같은 글자)로 보낸다. 5xx 응답에는 예외 내용을 싣지 않는다(고정 문장, 내용은 로그에만). `BigDecimal`은 지수 없는 문자열이고 펼친 자릿수 상한은 64다(입력 초과 400, 출력 초과 500 — 업무별 자릿수는 DTO `@Digits`가 정한다). 출력 500은 응답을 보내기 전에만 된다 — 큰 응답을 이미 보내기 시작한 뒤 초과하면 상태는 200 그대로이고 JSON은 닫히지 않은 채 끝난다(값이 빠진 응답이 정상 JSON처럼 보이지 않게 자동 닫기를 껐다). 따라서 응답 DTO의 금액은 반올림해 scale을 정한 값만 담는다(PLAN §5.2). JSON 정수 필드에 소수점·지수 표기 숫자(`1.5`·`2.0`·`1e1`)가 오면 400이다(`accept-float-as-int: false`). 오류 응답의 `type`은 `about:blank`라 생략된다(RFC 9457) — `code`·`title`·`status`·`detail`·`instance`는 늘 있다(`openapi.yaml`의 `Problem`에서 `type`은 선택·생략, `title`·`status`·`detail`·`instance`·`code`는 필수, `errors`는 선택이다). `problem+json` 보장은 DispatcherServlet 안까지다 — Tomcat이 직접 거절하는 요청(잘못된 `%` 인코딩·너무 큰 헤더)과 Security 필터 예외(M4)는 따로 다룬다.
 - **DTO**(Data Transfer Object): 화면·API에 보낼 값만 담은 단순 객체. 엔티티를 그대로 JSON으로 내보내면 지연 로딩·순환 참조·비공개 컬럼(`season_path`)이 새므로 금지한다. Java `record`로 만든다.
 
 ## 3. 스키마 관리
@@ -60,7 +60,19 @@ Flyway는 Spring 챕터의 범위를 조금 넘는 도구다. 처음에는 `V1__
 | 기본 키 | `Long` | `BIGINT GENERATED ALWAYS AS IDENTITY` | `@Id @GeneratedValue(strategy = IDENTITY)` | §4.2 |
 | 낙관적 잠금 버전 | **`Long`(래퍼)** | `BIGINT NOT NULL DEFAULT 0` | `@Version` | `season`, `cash_account`에만(§5.3). 원시 `long`이 아닌 이유: Spring Data `save()`는 버전 속성이 원시형이면 "id가 있으면 기존 엔티티"로 판단한다. 키를 직접 정하는 `cash_account`(§4.2)는 새 객체도 id가 있어 `merge`(SELECT 뒤 INSERT)로 가므로, 버전을 래퍼로 두어 `null` = 새 엔티티 → `persist`(INSERT 한 번)가 되게 한다. 두 엔티티를 같은 규칙으로 맞춘다. 시험: `MutableEntityTest` |
 
-`MoneyMath`(common): 턴별 가격 = round(시작가 × 누적 곱 Π(1+rᵢ)) (rᵢ = 원화 결합 수익률 (1+r현지)(1+r환율) − 1, 시작가 = 0턴 원화 가격)(누적 곱은 `BigDecimal` 그대로 들고 있다가 **마지막에 한 번** `RoundingMode.HALF_UP`으로 원 단위), 평가액 합계, 평균단가(소수 4자리) — **반올림이 일어나는 유일한 클래스**. PLAN §5.2 "반올림은 코드 한 곳에서"의 그 한 곳이다. 매달 반올림한 값에 다시 수익률을 곱하면 Python 엔진과 1원씩 어긋나므로 누적 곱 방식이 정본이다.
+`antlab.common.money.MoneyMath`는 상태 없는 `public static` 계산 클래스다. 공개 계약은 `initialPrice`, `priceAt`, `feeRate`, `fee`, `avgPrice`, `affordable`, `teamQty`, `drawdown`, `valuation`, `totalValue`와 `ReturnFactors`다. 입력 단위와 범위는 아래 표를 따른다. `priceAt`은 저장된 0턴 가격과 현지·환율 변화 목록을 받아 누적 곱을 유지하고, 가격·수수료는 마지막에 원 단위 `HALF_UP`, 평균단가는 소수 4자리, 낙폭은 소수 8자리로 한 번만 반올림한다. 이 클래스가 반올림이 일어나는 유일한 코드 위치다. 입력 검증 때문에 계산 결과가 0이 되는 경로는 반환할 수 있으며, 저장 경계가 양수 제약을 적용한다.
+
+| 메서드 | 입력 단위·범위 | 반환 | 반올림 |
+|---|---|---|---|
+| `initialPrice` | 기준가(현지 통화)·기준 환율: 양수, `NUMERIC(19,4)`로 정확히 표현 | 원 단위 | 0자리 HALF_UP 한 번 |
+| `priceAt` | 저장된 0턴 가격(양의 원 단위), 턴 순서의 `ReturnFactors`(현지 ≥ −1, 환율 > −1, `NUMERIC(12,8)`; KRW 종목은 환율 0) | 원 단위(0 가능) | 정확 곱 뒤 0자리 HALF_UP 한 번 |
+| `feeRate` | 시장 `KR`·`US`, 시즌 요율 3개 각각 0 이상 1 미만·소수 8자리 이하 | 합산 요율, scale 8 | 없음 |
+| `fee`·`teamQty` | 가격(양의 원 단위), 합산 요율(0 이상, `NUMERIC(12,8)` — 1 이상도 허용) | 원 단위 / 정수 주 | 0자리 HALF_UP 한 번 / 정수 몫(SQL `div`) |
+| `avgPrice` | 기존 수량 ≥ 0·기존 평균(수량 0이면 0, 아니면 양수, 소수 4자리 이하), 신규 수량 > 0·체결가(양의 원 단위) | scale 4 | 정확 분자 ÷ 수량, 4자리 HALF_UP 한 번 |
+| `affordable`·`valuation`·`totalValue` | 0 이상 원 단위(가격은 양수) | 불리언 / 원 단위 | 없음 |
+| `drawdown` | 총액 ≥ 0, 고점 > 0, 원 단위 | scale 8, 0 이하 | 8자리 HALF_UP 한 번(음수 절반은 0에서 먼 쪽) |
+
+공통: null 거부, 반환 금액은 `NUMERIC(19,4)` 범위 검사, 오류는 값 없는 `IllegalArgumentException`(서비스가 도메인 오류로 바꾼다).
 
 ### 4.2 키와 식별자
 
@@ -97,6 +109,8 @@ Hibernate의 `@Immutable`은 "이 엔티티는 바뀌지 않는다"는 선언이
 ### 4.6 비공개 컬럼
 
 `season_path.month_block_id`는 시즌 종료 전까지 사용자에게 보이면 안 된다(PLAN §4.2). 규칙: 이 테이블은 `season` 패키지 안에서만 읽고, DTO에는 "턴 번호"만 나간다. 복기 API는 `season.status = FINISHED`일 때만 월 블록의 날짜·사건을 조인한다. 상태 검사는 서비스에서 하고, 리포지토리에 `findRevealed…` 메서드를 따로 둬 이름에서 드러나게 한다. 같은 규칙이 `erd.md` 정의서에서 `[복기 전용]`으로 표시한 컬럼 전부(`month_block.month_start`·`event_summary`, `month_event.title`·`source`·`hindsight`, `asset.listed_on`)와 표본 수 3 미만인 사건 유형의 카드 범주·유형·결과·단계·방향(PLAN §4.11 고유 사건 예외)에 적용된다 — 시즌 중 DTO에서 제외하고 복기 API에서만 조인한다.
+
+**노출 상한 시험(P0-27).** 응답 record의 DB 열 구성 요소는 모두 `@ExposedFrom("표.열")`(`antlab.common.exposure`)로 원천 열을 밝힌다(중첩 record와 그 목록인 구성 요소는 애너테이션 없이 해당 record를 다시 검사한다). `ExposureContractTest`는 `/api/v1/**` 핸들러의 반환형을 따라가 해당 열의 DB 코멘트 태그가 `[노출]`인지 확인한다. `[복기 전용]`·`[내부]` 원천은 0건이다. 식별자 열(`id`·`*_id`)은 태그와 무관하게 **식별자 허용 목록**(시험 상수 `ExposureRules.IDENTIFIER_ALLOWED`, 지금은 `asset.id`·`asset.asset_group_id` 둘이고 `season.id` 등은 쓰는 기능이 더한다)으로만 통과한다 — FK 열이 `[노출]`이어도 부모 PK가 `[내부]`이면 같은 값이므로 우회를 막는다. **영구 금지**는 `month_block.id`·모든 `*.month_block_id`·`month_event.id`·`turn_feed.month_event_id`와, `month_block_id` 열이 있는 표(`asset_month_return`·`fx_month`·`asset_month_attention` 등)의 `id`다 — 적재 순서가 달 순서(`ORDER BY month_start`)라 번호 자체가 날짜 단서다. 목록·중첩 record는 해당 record를 다시 검사하고, 실제 응답 JSON의 키가 record 구성 요소 이름과 같은지와 본문에 날짜 꼴 문자열·금지 키가 없는지도 본다.
 
 ## 5. 트랜잭션 경계와 락
 
@@ -136,9 +150,9 @@ TurnService.advance(seasonId, expectedTurnNo)
   1. season = findByIdForUpdate; currentTurnNo == expectedTurnNo 검사
   2. account = findBySeasonIdForUpdate
   3. nextBlock = seasonPathRepo.findBySeasonIdAndTurnNo(seasonId, expectedTurnNo + 1)
-  4. returns = assetMonthReturnRepo.findByMonthBlockId(nextBlock)   -- 풀의 모든 종목(사용자는 아무 종목이나 살 수 있다). 시즌 기준일 풀(`asset_position`)로 거르고 `fx_month`와 결합
+  4. returns = 1..expectedTurnNo+1 블록의 종목별 현지 수익률·환율 변화(턴 순서)   -- 풀의 모든 종목(사용자는 아무 종목이나 살 수 있다). 시즌 기준일 풀(`asset_position`)로 거르고 `fx_month`와 결합
      (이력 없는 달도 행은 항상 있다 — MVP는 적재 때 넣은 PROXY_INDEX 행(ETF는 추종 지수가 먼저이고 없으면 대표 지수, 개별 주식은 확장 구간에서 대표 지수), EXT는 지수 + 고유 변동성, PLAN §4.7)
-  5. 풀의 종목마다 누적 곱 갱신 → price' = MoneyMath.priceAt(시작가, 누적 곱) → INSERT turn_price (약 180행)
+  5. 풀의 종목마다 price' = MoneyMath.priceAt(저장된 0턴 가격, 이 턴까지의 `ReturnFactors` 목록) — 전 턴의 반올림 가격을 시작값으로 쓰지 않는다 → INSERT turn_price (약 180행)
   6. 적립금(EXT) → cash_ledger. (ETF 보수는 원장에서 빼지 않는다 — 수정 종가에 이미 반영, PLAN §4.6)
   7. INSERT turn(턴 번호, 평가액, 현금, 누적 낙폭, 포지션별 평가액 — 현금은 골키퍼, 비중은 조회)
   7b. (P0 API에서는 하지 않음 — 피드는 MVP, PLAN §13 2026-11-09) 소음 피드·독려 알림 생성 → INSERT turn_feed (PLAN §4.13). 생성기(FeedGenerator)의 입력 타입은 "이 턴까지의 가격·관심 지수·사건 태그"만 담는 값 객체로 제한해 다음 블록을 넘길 수 없게 한다. 난수는 시즌 시드 + 턴 번호에서 파생
@@ -156,6 +170,7 @@ TurnService.advance(seasonId, expectedTurnNo)
 
 - 전술 변경: `season` 락 → `season.current_formation_*` 갱신 + `formation_change` INSERT. 같은 턴에 두 번 바꾸면 마지막 것만 남지 않고 둘 다 기록된다(복기용). 턴 전환과 같은 락 순서. 변경 뒤의 매도·매수는 보통 주문이고, 주문 트랜잭션 안에서 `orders.formation_change_id`를 채운다(어느 변경에 묶는지의 규칙은 PLAN §5.1).
 - 세금(EXT)이 들어오면 원장 행(`TAX`)을 매도 주문 트랜잭션과 턴 전환 트랜잭션에서 추가한다. 세율·과세 시점·이연 표시는 PLAN §4.6이 정한다. 이 문서는 "어느 트랜잭션에서 원장에 쓰는가"만 정한다.
+- SQL 정본(P0-19): `db/25_trade_formation_def.sql`의 `trade_buy`·`trade_sell`·`formation_change`·`lineup_change`가 위 순서를 그대로 구현한다(Java 이전 시 골든 대조 — P0-36·37). 진입점은 0턴을 거부하고, 주문·변경의 `created_at`은 잠금 뒤 `clock_timestamp()`(테스트 `Clock`은 잠금 뒤에도 흐르는 시계), 앞선 이벤트와 시각이 같거나 거꾸로면 쓰기 전에 멈춘다. 전량 매도는 보유 행을 0·0으로 남기고 열린 구간을 `end_turn = t`로 닫으며, 과거 스냅샷 k에 기여하는 구간은 `start_turn < k ≤ end_turn`이다.
 - 포지션 지정·변경: `lineup` 행의 구간을 닫고 새 행을 연다. 주문과 같은 트랜잭션(신규 매수 시) 또는 단독 트랜잭션(보유 중 변경). 단독 변경도 전술 변경처럼 `season` 락 → 상태(`IN_PROGRESS`)·`expectedTurnNo` 검사 → 구간 닫기·열기 순서를 따른다(턴 전환과 겹칠 때 옛 턴 번호로 구간을 닫지 않도록).
 
 ## 6. 대사(턴마다)
@@ -194,14 +209,25 @@ TurnService.advance(seasonId, expectedTurnNo)
 | 수준 | 도구 | 대상 |
 |---|---|---|
 | 매핑 | `@JpaMappingTest`(= `@DataJpaTest` + 실제 PostgreSQL, Phase 0 API는 Testcontainers 컨테이너, 아래) | 엔티티 ↔ DDL 일치(`validate`는 형 계열만 → `ColumnContractTest`가 길이·정밀도·NULL까지), enum ↔ CHECK 목록 글자 단위 대조(`EnumCheckContractTest`), 불변 엔티티 변경 무시(`ImmutableEntityTest`), 저장소 모양(`RepositoryShapeTest` — 읽기 전용·추가 전용·가변 세 분류, 패키지 고정 없음). 모든 `@Entity`를 훑으므로 엔티티를 추가하면 자동으로 포함된다. `MappingModel`은 `@MappedSuperclass` 부모 필드, `@Embedded` + `@AttributeOverride` 펼친 열, `@ManyToOne` 열, `@Version`, JSONB(`String` + `@JdbcTypeCode(JSON)`)를 읽는다. 시즌·계좌 엔티티의 불변(`AppendOnlyEntityTest` — `SqlRecorder`로 센 UPDATE 0건), 가변·낙관적 락·잠금 SQL·대기(`MutableEntityTest`·`LockingTest`), DB 제약 대표 세 건(`SeasonAccountConstraintTest`), Hibernate `validate`의 SMALLINT 거부(`HibernateValidateSpikeTest`)가 같은 방식으로 돈다 |
-| 서비스 | `@SpringBootTest` + 실제 PostgreSQL, 테스트마다 `@Transactional` 롤백 | 주문 체결 전부/전무, 턴 전환, 대사 항등식(골든: P0-25 하네스가 같은 컨테이너에서 `db/20`–`26`으로 만든 연습 시즌을 API로 재생해 행 단위로 비교 — PLAN §13 2026-11-09) |
+| 서비스 | `@SpringBootTest` + 실제 PostgreSQL, 테스트마다 `@Transactional` 롤백 | 주문 체결 전부/전무, 턴 전환, 대사 항등식(골든에서는 P0-25 하네스가 띄우는 일회용 컨테이너에서 `db/20`–`26`으로 만든 연습 시즌을 API로 재생해 행 단위로 비교 — PLAN §13 2026-11-09) |
 | 동시성 | 스레드 2개로 같은 시즌에 동시 주문·턴 전환 | 둘 중 하나만 성공하거나 순서대로 처리되고, 끝나면 항등식 성립 |
 | 엔진 대조 | Java 부트스트랩 vs Phase 0 손 계산 | 같은 시드 → 같은 경로, 같은 수익률 → 같은 가격(원 단위) |
+| 금액 계산 | `MoneyMathTest` + `MoneyMathSqlParityTest` | 순수 Java 시험과 PostgreSQL 17 임시 연결의 P0-15 순수 함수 대조를 분리해 실행 |
 | 계약 | `@SpringBootTest` | springdoc이 낸 `/v3/api-docs`와 저장소 `docs/api/openapi.yaml`을 경로·필드·타입·필수·응답 코드로 대조한다 — 코드와 yaml이 갈라지면 실패(`OpenApiContractTest`). 도구는 자체 정규화 비교기(`OpenApiNormalizer`·`OpenApiDiff`, 새 라이브러리 없음)이며 비교기 자체는 `OpenApiNormalizerTest`가 검증한다. `/api/v1/**` 운영의 operationId·parameters·requestBody·responses(상태 코드와 미디어 형식), 스키마의 type·format·enum·required·properties·items·제약, 닿는 컴포넌트 이름(`$ref`는 이름으로)을 비교한다. 설명·예시·태그·info·속성 순서는 무시한다. 응답 코드는 운영 고유의 성공·도메인 오류만 적는다 — springdoc이 `@RestControllerAdvice`의 일반 오류(400·404·405…)를 운영마다 붙이지 않음을 확인했다. 노출 상한은 `ExposureContractTest`가 맡는다(§4.6) |
 | API | `MockMvc` | 검증 오류 400, 턴 불일치 409, 잔액 부족 422(초안), 비공개 컬럼이 응답에 없음 |
 
-- **H2를 쓰지 않는다.** CHECK·`NUMERIC` 반올림·`FOR UPDATE`·문자열 비교의 동작이 PostgreSQL과 달라서, 시험이 통과해도 믿을 수 없다. **Phase 0 API(2026-11-09 결정, PLAN §13)는 로컬 시험부터 Testcontainers PostgreSQL 17**을 쓴다. 이는 처음에 적은 compose `db` 서비스의 `antlab_test` 안(`db/README.md`의 데이터베이스 생성 블록)을 바꾼 것이다. 이렇게 하면 시험이 소유자의 컨테이너를 건드리지 않고(DEPLOY §3.2 격리 규칙을 저절로 지킨다), 시험 실행마다 빈 DB에서 시작하며, M1 CI와 같은 방식으로 실행된다. 시험은 로컬에서 실행하고 CI(M1)가 같은 시험을 합성 표본으로 돌린다. 이 DB는 Flyway 파일을 적용한 빈 DB이며, SQL 골든 시험(P0-25)은 같은 컨테이너에서 `db/` 스크립트를 `psql`로 돌려 Java 결과와 행 단위로 비교한다.
-- 테스트 DB는 `./gradlew test`를 실행할 때마다 새 Testcontainers PostgreSQL 17로 시작하고 Flyway `migrate`만 실행한다. 같은 구성의 시험 클래스는 Spring 시험 문맥과 해당 컨테이너를 공유한다. 따라서 데이터를 쓰는 시험은 자신이 쓴 행을 정리하고 identity 값(번호표)을 가정하지 않는다. 빈 테이블을 전제로 하는 시험(`FlywayMigrationTest`·`FlywaySchemaCheckTest`)은 표지 속성으로 별도 문맥(컨테이너)에서 실행한다. 공유 시험 문맥에서는 `clean`을 호출하지 않으며, 실습 DB `antlab`과 API 로컬 DB `antlab_api`에는 접속하지 않는다(프로필 `test`의 URL은 Testcontainers가 준다).
+- **H2를 쓰지 않는다.** CHECK·`NUMERIC` 반올림·`FOR UPDATE`·문자열 비교의 동작이 PostgreSQL과 달라서, 시험이 통과해도 믿을 수 없다. **Phase 0 API(2026-11-09 결정, PLAN §13)는 로컬 시험부터 Testcontainers PostgreSQL 17**을 쓴다. 이는 처음에 적은 compose `db` 서비스의 `antlab_test` 안(`db/README.md`의 데이터베이스 생성 블록)을 바꾼 것이다. 이렇게 하면 시험이 소유자의 컨테이너를 건드리지 않는다(DEPLOY §3.2 격리 규칙을 저절로 지킨다). 시험 실행마다 빈 DB에서 시작하고, M1 CI와 같은 방식으로 실행한다. 시험은 로컬에서 실행하고 CI(M1)가 같은 시험을 합성 표본으로 돌린다. 이 DB에는 Flyway 파일을 적용한다. SQL 골든 시험(P0-25)은 하네스가 띄우는 일회용 컨테이너에서 `db/` 스크립트를 `psql`로 실행해 Java 결과와 행 단위로 비교한다.
+
+- 테스트 DB는 `./gradlew test`를 실행할 때마다 새 Testcontainers PostgreSQL 17로 시작하고 Flyway `migrate`만 실행한다. 같은 구성의 시험 클래스는 Spring 시험 문맥과 해당 컨테이너를 공유한다. 따라서 데이터를 쓰는 시험은 자신이 쓴 행을 정리하고 identity 값(번호표)을 가정하지 않는다. 빈 테이블을 전제로 하는 시험(`FlywayMigrationTest`·`FlywaySchemaCheckTest`)은 표지 속성을 사용해 별도 문맥(컨테이너)에서 실행한다. 공유 시험 문맥에서는 `clean`을 호출하지 않는다. 실습 DB `antlab`과 API 로컬 DB `antlab_api`에도 접속하지 않는다(프로필 `test`의 URL은 Testcontainers가 준다).
+
+**SQL 골든 하네스(P0-25, 시험 전용 `src/test/java/antlab/support`).**
+
+- **역할별 DB.** 하네스가 띄우는 일회용 컨테이너(또는 같은 컨테이너의 별도 DB)에서, Flyway를 적용한 API 시험 DB와 별개로 빈 DB를 새로 만든다. 그 DB에서 `db/01`–`03`부터 실행해 SQL 기준 DB와 재생 DB를 만든다. SQL 기준 DB에는 Flyway를 실행하지 않고, API DB에는 01–03 실습 DDL을 실행하지 않는다. `clean → migrate`는 Flyway 시험 DB에만 해당한다. SQL 기준 DB의 재생은 새 DB를 만들어 격리한다. 하네스는 자기가 만든 DB만 지운다.
+- **psql과 Java 사이의 커밋 경계.** 스크립트는 컨테이너 안의 `psql`로 실행한다. `\copy`·`\ir`·`\gset`·`\if`·세션 임시 함수·프로시저 안의 COMMIT/ROLLBACK을 원본 그대로 사용하기 위해서다. 행 조회는 JDBC로 한다. 두 연결은 서로 다른 세션이므로, 시험 메서드의 미커밋 `@Transactional` 상태에 준비 데이터를 두지 않는다. `_def`가 만드는 임시 함수는 정의 로딩과 질의를 같은 psql 세션에서 실행한다. 결과는 `COPY … TO STDOUT`의 CSV(NULL 표지 `\N`)로 받아 NULL과 빈 문자열을 구분한다.
+- **판정.** 검증 SQL은 종료 코드 0이고 출력 끝 두 줄이 등록한 판정 열 이름과 정확히 `PASS`일 때만 통과다(앞쪽 PASS·다른 검사 이름·판정 뒤 추가 결과는 실패).
+- **정규화 비교(`RowSetDiff`).** 대리 키·시즌·회원 식별자는 비교하지 않고 자연 키(시장·종목 코드, 턴 번호, 재생 행동 키)로 대응한다. 제외하는 열은 이름과 이유를 명세에 적는다. NUMERIC은 `BigDecimal.compareTo`로 정확히 비교하며 자릿수 차이만 허용한다(오차 허용·반올림 없음). NULL은 빈 값·0과 구분한다. 중복 키는 집합으로 합치지 않고 보고한다. 진행 턴의 `turn_price`는 풀 전체를 비교하고, 대사 로그의 시도 번호는 지우지 않는다.
+- **입력과 보고.** 입력 파일은 경로와 SHA-256으로 고정한다. 추적하지 않는 시세 파생 CSV 네 개만 `ANTLAB_GOLDEN_SAMPLE_DIR`(없으면 작업본의 `db/sample`)에서 읽는다. 파일이 없으면(환경 변수를 지정하지 않은 경우) 이유를 밝히고 실제 표본 골든만 건너뛴다. 환경 변수를 지정했는데 파일이 없으면 실패한다. 실패 메시지와 시험 보고서에는 스크립트 이름·종료 코드·판정 분류·행 키·다른 열 이름·건수만 싣는다. 가격·금액·원문 출력은 싣지 않는다.
+- **범위.** P0-25의 재생 완료는 "같은 입력으로 SQL을 두 번 실행하면 같다"와 재생 입력 추출까지다. Java API를 통한 재생과 업무별 동등성은 P0-32·33·36·38의 완료 기준이다. 실행법은 `db/README.md`의 「SQL 골든 하네스」를 본다.
 
 ## 10. 설정
 
@@ -243,22 +269,23 @@ spring.flyway:
   clean-disabled: true
   validate-on-migrate: true
 # P0-23 이후: antlab.engine.*(projection-paths: 2000, block-mean-length: 6)
+antlab.pool.base-date: ${ANTLAB_POOL_BASE_DATE:2026-01-02}   # P0-27: 기준일 풀(매년 1월 첫 거래일). P0-30 시즌 시작도 같은 값을 쓴다
 ```
 
-프로필은 `application.yml` 안의 `---` 문서 셋이다. 공통 프로필에는 프로필 없이 떠도 안전한 값(SQL 로그·명세 꺼짐)을 둔다. `local`은 SQL 로그와 명세·Swagger UI를 켜며 `bootRun`·`bootTestRun`이 기본으로 준다. `prod`는 OPS 설정이며 springdoc을 끄고 `server.forward-headers-strategy: framework`을 사용한다. 시험 프로필 `test`만 `src/test/resources/application-test.yml`에 있으므로 jar에 들어가지 않는다(Testcontainers, 명세만 켬; Flyway clean은 새 컨테이너 원칙상 쓰지 않는다). `local` 값을 `application-local.yml` 파일로 두지 않는 까닭은 `.gitignore`가 그 파일을 무시하기 때문이다(소유자 개인 덮어쓰기는 `config/application-local.yml`). `prod`는 고정 회원 구현이 켜져 있으면 시작을 거부한다(M4 JWT 전까지, PLAN §13 2026-11-09). 비밀값(DB 비밀번호)은 환경 변수로만 둔다.
+프로필은 `application.yml` 안의 `---` 문서 셋으로 구성된다. 공통 프로필에는 프로필을 지정하지 않아도 안전한 값(SQL 로그·명세 꺼짐)을 둔다. `local`은 SQL 로그와 명세·Swagger UI를 켜며 `bootRun`·`bootTestRun`에서 기본으로 사용한다. `prod`는 OPS 설정이며 springdoc을 끄고 `server.forward-headers-strategy: framework`을 사용한다. 시험 프로필 `test`만 `src/test/resources/application-test.yml`에 있으므로 jar에 포함되지 않는다(Testcontainers, 명세만 켬, Hibernate 통계 켬 — 쿼리 수 단언용; Flyway clean은 새 컨테이너 원칙상 쓰지 않는다). `local` 값을 `application-local.yml` 파일로 두지 않는 까닭은 `.gitignore`가 그 파일을 무시하기 때문이다(소유자 개인 덮어쓰기는 `config/application-local.yml`). `prod`는 고정 회원 구현이 켜져 있으면 시작을 거부한다(M4 JWT 전까지, PLAN §13 2026-11-09). 비밀값(DB 비밀번호)은 환경 변수나 `/run/secrets` 파일로만 둔다. `prod`의 `spring.datasource.url`은 `${ANTLAB_DB_URL}`로 **기본값이 없다**(빠뜨리면 localhost로 가지 않고 기동에 실패 — P0-24, `ProdProfileConfigTest`). `prod`는 `spring.config.import: optional:configtree:/run/secrets/`도 가진다: 파일 `/run/secrets/spring.datasource.password`의 내용이 속성 `spring.datasource.password`가 되고(디렉터리가 없어도 기동), 같은 속성을 환경 변수 `SPRING_DATASOURCE_PASSWORD`로도 주면 환경 변수가 이긴다 — 운영에서는 한 가지로만 준다. 운영 secrets의 실제 사용은 OPS다.
 
 ### 10.1 컨테이너에서 실행 (Phase 0 API 체크리스트 초안)
 
 Spring 프로젝트를 만들 때(Phase 0 API, P0-22·P0-24) 아래를 지킨다. 같은 이미지가 로컬·CI·운영에서 돌고, 운영 값은 환경 변수와 `/run/secrets`가 정한다. 구조 전체는 [DEPLOY.md](DEPLOY.md).
 
-1. `application.yml`은 `${ANTLAB_…:기본값}` 자리표시자와 로컬 기본값만 두고, 운영 값은 환경 변수·configtree(`spring.config.import=optional:configtree:/run/secrets/`, 세부 **확인 필요**)로 준다. `application-prod.yml`에는 비밀값을 쓰지 않는다.
+1. `application.yml`은 `${ANTLAB_…:기본값}` 자리표시자와 로컬 기본값만 두고, 운영 값은 환경 변수·configtree(`prod`의 `spring.config.import=optional:configtree:/run/secrets/`, 파일 이름이 속성 이름 — 위 §10, P0-24에서 임시 파일로 매핑·우선순위를 확인)로 준다. `application-prod.yml`에는 비밀값을 쓰지 않는다.
 2. 프로필은 위의 `local`·`test`·`prod` 셋이고, 컨테이너에서는 `SPRING_PROFILES_ACTIVE=prod`다. `prod`는 SQL 로그를 끄고 `open-in-view: false`를 유지한다.
-3. Actuator는 `health`만 노출하고 probes(liveness·readiness)를 `management.endpoint.health.probes.enabled=true`로 **명시해** 켠다(3.x는 Kubernetes 밖에서 자동으로 켜지지 않는다 — [DEPLOY.md](DEPLOY.md) §8. 4.1.2 문서는 자동 켜짐이지만 명시해서 고정한다 — 명시 때문에 자동 켜짐 여부는 독립적으로 확인하지 못했고, `ActuatorProbesTest`가 liveness·readiness 200을 확인한다). `info`에 git SHA를 넣는다.
+3. Actuator는 `health`만 노출하고 probes(liveness·readiness)를 `management.endpoint.health.probes.enabled=true`로 **명시해** 켠다(3.x는 Kubernetes 밖에서 자동으로 켜지지 않는다 — [DEPLOY.md](DEPLOY.md) §8. 4.1.2 문서는 자동으로 켜진다고 설명하지만, 이 설정을 명시해 동작을 고정한다 — 명시했기 때문에 자동 켜짐 여부를 독립적으로 확인하지는 못했고, `ActuatorProbesTest`가 liveness·readiness 200을 확인한다). `info`는 HTTP로 열지 않고, git SHA는 OPS의 이미지 태그(SHA)·metadata로 추적한다([DEPLOY.md](DEPLOY.md) §8).
 4. 그레이스풀 셧다운: 4.1.2는 기본 `graceful`이고(설정 메타데이터 확인, `server.shutdown: graceful`도 명시) `spring.lifecycle.timeout-per-shutdown-phase=20s`로 둔다(`SettingsAssertionTest`).
 5. 프록시 뒤: `server.forward-headers-strategy=framework`(Caddy의 `X-Forwarded-*`로 HTTPS·원래 IP 인식 — 속성 이름은 4.1.2 설정 메타데이터로 확인했고 `prod` 문서에 있다).
 6. Flyway는 시작 때 적용하고 `ddl-auto: validate`를 유지한다.
 7. 로그는 stdout만, 키·토큰은 마스킹한다.
-8. Dockerfile(멀티 스테이지)·`.dockerignore`를 api 첫 PR에서 만들고, `compose.yaml`에 `api`(`build: .`)를 더한다. CI는 이미지 **빌드만** 하고 푸시하지 않는다.
+8. Dockerfile(멀티 스테이지)·`.dockerignore`와 `compose.yaml`의 `api`(`build: .`)는 P0-24에서 만들었다(루트 `Dockerfile` — 펼친 bootJar를 의존성·loader·앱 레이어로 나눠 복사하고, 비루트 UID 10001로 실행하며, exec `ENTRYPOINT`로 `JarLauncher`를 사용한다). CI는 이미지 **빌드만** 하고 푸시하지 않는다(M1).
 9. Spring Boot 판은 **4.1.x(Java 21)로 정했다**(소유자 Gate 0, 2026-11-09 — 커리큘럼 프로젝트가 4.1.2, PLAN §10). 이 문서의 3.x 전제는 위 3·4번에서 4.1.2 기준으로 바꿨다. 스타터 이름(`spring-boot-starter-webmvc` 등)과 직렬화 라이브러리(Jackson 3, 패키지 `tools.jackson`, `JsonMapperBuilderCustomizer`는 `org.springframework.boot.jackson.autoconfigure`)는 P0-22에서 실행으로 확인했다.
 10. API 계약: 기능마다 `docs/api/openapi.yaml`을 계획 단계에서 먼저 쓰고(§2), springdoc 명세와 yaml을 대조하는 시험(§9)을 통과시킨다. springdoc은 3.2.0(Boot 4.1.x와 호환)이고 Swagger UI 경로는 `/swagger-ui.html`이다. 공통 문서에서 끄고 `local`에서만 켜며(시험은 명세만), `BigDecimal`은 `SpringDocUtils.getConfig().replaceWithSchema(...)`로 명세에서도 `type: string`으로 맞췄다(`JsonMoneyFormatTest`).
 
