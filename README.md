@@ -34,7 +34,7 @@
 | Plan v3 | 에이전트 펀드 매니저(사람·에이전트 공존, 모의 직접 매매, 지식 축적, 종합 리더보드) | 승인 (2026-11-07) |
 | Plan v3.1 | 릴리스 v1(모의)·v2(실제 투자), 단계 코드 EXT·APP·AI·OPS, 확장 구간(1997-01–)과 새 기술 전환기 케이스(닷컴 ↔ 생성형 AI) | 소유자 결정 반영 (2026-11-07) |
 | 로드맵 재배치 | Phase 0에 시즌 한 판 API(P0-22–P0-40), Phase 1 건너뜀, WEB 단계, Spring Boot 4.1 | 소유자 결정 반영 (2026-11-09) |
-| Phase 0 — SQL(PostgreSQL 17) → API | 새 도메인 ERD·DDL, 역사 데이터 표본 적재, SQL 트랜잭션으로 시즌 1판, 대사·집계 쿼리. 이어서 **시즌 한 판 REST API**(Spring Boot·JPA·Flyway, 표본 데이터 위 — SQL이 골든) | 진행 중 — 기능 표 P0-03–P0-40([PLAN §11.1](docs/PLAN.md#111-phase-0-체크리스트-sql-postgresql-17)), PLAN v1 DDL(P0-02)은 대체됨 |
+| Phase 0 — SQL(PostgreSQL 17) → API | 새 도메인 ERD·DDL과 역사 데이터 표본을 준비하고, SQL 트랜잭션으로 시즌 1판을 실행해 대사·집계 쿼리를 확인한다. 이어서 **시즌 한 판 REST API**(Spring Boot·JPA·Flyway, 표본 데이터를 기반으로 하며 SQL이 골든이다) | 진행 중 — SQL 구간은 P0-20(성적 집계)까지 완료, 기능 표 P0-03–P0-40([PLAN §11.1](docs/PLAN.md#111-phase-0-체크리스트-sql-postgresql-17)), PLAN v1 DDL(P0-02)은 대체됨 |
 | Phase 1 — JDBC | 콘솔 앱(시즌·팀·턴·매매·성적표), 단순 부트스트랩 | **건너뜀** (2026-11-09, Phase 0 API에 흡수) |
 | MON — 모니터링(Grafana) | Actuator·Micrometer → Prometheus → Grafana 대시보드(API 응답 시간·오류율, JVM·DB, 게임 지표)를 구축한다 | 시작 전 (2026-11-10 추가) |
 | SEC — 인증(JWT) | Spring Security + JWT — 가입·로그인, 토큰 발급·검증·갱신을 구현하고 고정 회원을 실제 회원으로 교체한다(M4에서 앞당겼다) | 시작 전 (2026-11-10 추가) |
