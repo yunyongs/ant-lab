@@ -1,6 +1,11 @@
--- 가짜 데이터 정리 — 커밋하는 시즌 시작 시험이 자기가 만든 행만 지운다(자식 → 부모 순서).
+-- 가짜 데이터 정리 — 커밋하는 시즌·주문 시험이 자기가 만든 행만 지운다(자식 → 부모 순서).
 -- 대상: 고정 회원(player@example.invalid)의 시즌, history_pool.sql·replay_months.sql 의 가짜 행.
+DELETE FROM execution   WHERE order_id IN (SELECT id FROM orders WHERE season_id IN (SELECT s.id FROM season s JOIN member m ON m.id = s.member_id WHERE lower(m.email) = 'player@example.invalid'));
 DELETE FROM cash_ledger WHERE season_id IN (SELECT s.id FROM season s JOIN member m ON m.id = s.member_id WHERE lower(m.email) = 'player@example.invalid');
+DELETE FROM holding     WHERE season_id IN (SELECT s.id FROM season s JOIN member m ON m.id = s.member_id WHERE lower(m.email) = 'player@example.invalid');
+DELETE FROM lineup      WHERE season_id IN (SELECT s.id FROM season s JOIN member m ON m.id = s.member_id WHERE lower(m.email) = 'player@example.invalid');
+DELETE FROM orders      WHERE season_id IN (SELECT s.id FROM season s JOIN member m ON m.id = s.member_id WHERE lower(m.email) = 'player@example.invalid');
+DELETE FROM formation_change WHERE season_id IN (SELECT s.id FROM season s JOIN member m ON m.id = s.member_id WHERE lower(m.email) = 'player@example.invalid');
 DELETE FROM turn_price  WHERE season_id IN (SELECT s.id FROM season s JOIN member m ON m.id = s.member_id WHERE lower(m.email) = 'player@example.invalid');
 DELETE FROM season_path WHERE season_id IN (SELECT s.id FROM season s JOIN member m ON m.id = s.member_id WHERE lower(m.email) = 'player@example.invalid');
 DELETE FROM cash_account WHERE season_id IN (SELECT s.id FROM season s JOIN member m ON m.id = s.member_id WHERE lower(m.email) = 'player@example.invalid');

@@ -26,6 +26,14 @@ public final class ErrorHttpMapping {
             case PATH_TOO_LONG -> HttpStatus.UNPROCESSABLE_ENTITY;
             case SEASON_LIMIT -> HttpStatus.CONFLICT;
             case TURN_NOT_REACHED -> HttpStatus.CONFLICT;
+            case SEASON_NOT_ACTIVE -> HttpStatus.CONFLICT;
+            case TURN_MISMATCH -> HttpStatus.CONFLICT;
+            case LEDGER_MISMATCH -> HttpStatus.CONFLICT;
+            case LINEUP_MISMATCH -> HttpStatus.CONFLICT;
+            case ASSET_NOT_IN_POOL -> HttpStatus.UNPROCESSABLE_ENTITY;
+            case INSUFFICIENT_CASH -> HttpStatus.UNPROCESSABLE_ENTITY;
+            case POSITION_CONFLICT -> HttpStatus.UNPROCESSABLE_ENTITY;
+            case POSITION_REQUIRED -> HttpStatus.UNPROCESSABLE_ENTITY;
             case MEMBER_UNAVAILABLE -> HttpStatus.SERVICE_UNAVAILABLE;
         };
     }

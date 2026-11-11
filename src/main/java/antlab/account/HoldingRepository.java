@@ -9,4 +9,7 @@ public interface HoldingRepository extends Repository<Holding, Long> {
     Holding save(Holding holding);
 
     Optional<Holding> findById(Long id);
+
+    /** 시즌·종목의 보유 한 행. 잠그지 않는다 — 시즌 행 락 아래에서만 바뀌므로 이미 직렬화되어 있다. */
+    Optional<Holding> findBySeasonIdAndAssetId(Long seasonId, Long assetId);
 }

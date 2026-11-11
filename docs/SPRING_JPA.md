@@ -126,7 +126,7 @@ Hibernate의 `@Immutable`은 "이 엔티티는 바뀌지 않는다"는 선언이
 
 ```
 OrderService.place(seasonId, expectedTurnNo, side, assetId, qty, declaredPosition)
-  1. season = seasonRepo.findByIdForUpdate(seasonId)        -- 비관적 락
+  1. season = seasonRepo.findByIdAndMemberIdForUpdate(seasonId, memberId)   -- 회원 조건을 포함한 비관적 락 한 번
      - status == IN_PROGRESS, season.currentTurnNo == expectedTurnNo 아니면 TurnMismatch(409)
   2. account = cashAccountRepo.findBySeasonIdForUpdate(seasonId)   -- 비관적 락
   3. price = turnPriceRepo.find(seasonId, currentTurnNo, assetId)   -- 정본 가격(원 단위, 환산 포함)
@@ -140,6 +140,7 @@ OrderService.place(seasonId, expectedTurnNo, side, assetId, qty, declaredPositio
 ```
 
 - 비관적 락(`@Lock(LockModeType.PESSIMISTIC_WRITE)`. PostgreSQL에서 Hibernate 7은 `FOR UPDATE`가 아니라 **`FOR NO KEY UPDATE OF <별칭>`**을 낸다 — 같은 행의 `FOR NO KEY UPDATE`끼리, 그리고 SQL 실습의 `FOR UPDATE`와도 충돌하므로 직렬화는 같고, 자식 행 INSERT의 FK 검사(`FOR KEY SHARE`)만 기다리지 않는다): 같은 시즌에 두 요청이 동시에 오면 둘째가 **기다렸다가** 첫째의 결과 위에서 검증한다. PostgreSQL의 기본 격리 수준 READ COMMITTED에서 보통 SELECT는 락을 잡지 않으므로, 락 없이 잔액을 읽으면 두 요청이 같은 잔액을 보고 둘 다 "충분하다"고 판단해 둘 다 커밋한다 — 잔액이 음수가 된다. 행 잠금은 둘째 SELECT를 첫째 트랜잭션이 끝날 때까지 기다리게 하고, 풀리면 **커밋된 최신 행**을 다시 읽는다(Phase 0의 두 세션 실습 P0-15가 이것을 보여 준다).
+- **Phase 0 API(P0-31)의 주문은 위 의사 코드와 세 가지가 다르다.** ① 1단계는 소유 확인과 잠금을 **한 번의 잠금 조회**로 한다. 잠그지 않은 조회로 시즌을 먼저 영속성 컨텍스트에 올리면, 뒤의 잠금 조회가 기다린 끝에 새 행을 읽어도 Hibernate는 이미 관리 중인 엔티티(옛 `current_turn_no`·`status`)를 그대로 돌려주기 때문이다(턴 전환과 겹친 주문이 옛 턴으로 통과한다 — 실측으로 확인). 그래서 첫 시즌 조회가 곧 잠금 조회다. ② 4단계의 "단일 종목 한도"는 P0 API가 강제하지 않는다(erd 6.5가 분리, SQL `trade_buy`도 강제하지 않는다). ③ 0턴 팀 구성과 1턴 이후 매수는 한 경로다(SQL은 `order_buy`·`trade_buy`로 나뉘지만 Java 경로는 그 턴의 마지막 전술 변경 번호를 INSERT 때 넣는다). 주문·변경의 시각 순서 가드(`EVENT_TIME_CONFLICT`)는 전술 변경 API(P0-37)에서 함께 들어온다. 출발점은 서버가 `DIRECT`로 고정한다.
 - 락 순서는 항상 **season → cash_account**다. 턴 전환(§5.3)도 같은 순서라 교착이 나지 않는다. 시즌 **시작**(P0-30)만 순서 맨 앞에 **member**를 추가한다. 새 시즌 행은 커밋 전에는 다른 세션에 보이지 않아 잠글 필요가 없으므로, 같은 회원의 동시 시작이 둘 다 "진행 중 2개"를 세어 4개가 되는 경합만 `member` 행 잠금(`FOR NO KEY UPDATE`)으로 직렬화한다 — member → season → cash_account. 주문·턴 전환은 member를 잠그지 않으므로 교착이 나지 않는다.
 - 멱등성: 요청에 `expectedTurnNo`를 받아 "이미 넘어간 턴에 대한 주문"을 거부한다. 같은 주문을 두 번 보내는 것(더블 클릭)은 EXT에서 `Idempotency-Key` 헤더 + `orders.client_key UNIQUE`로 막는다. Phase 0 API와 MVP는 턴 번호 검사까지.
 

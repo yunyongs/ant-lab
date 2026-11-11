@@ -40,7 +40,7 @@
 --   X12 성적표 저장(season_score)  MVP 스케치다 (PLAN §5.1, SPRING_JPA §12-1). → MVP
 -- 공개 편향 (값이 아니라 정의의 한계): 기준선 대용 069500 은 가격 수익률이고 SPY 는 수정 종가(배당 포함)다 — PLAN §4.6 "국내 배당 제외"와 같다. 국내 매도 거래세는 반영하지 않았다.
 --       기준선은 PLAN §6.1 의 KOSPI 200·S&P 500 지수 대신 Phase 0 대용 ETF 를 쓴다 (D35 M5 와 같은 이유, 같은 두 종목·같은 50/50).
--- 소유자 기본값으로 진행한 두 가지 (나중에 바뀔 수 있다): ① 매매 규율을 뺀다(X5) ② 플랫폼 수익 중 독려 몫의 출발점 = RANKING·ALERT (sr_k 의 platform_sources 한 곳).
+-- 소유자 결정 두 가지 (2026-11-10, PLAN §13 — P0-20 Q1·Q2): ① 매매 규율을 뺀다(X5) ② 플랫폼 수익 중 독려 몫의 출발점 = RANKING·ALERT (sr_k 의 platform_sources 한 곳).
 -- 새 문법: LANGUAGE sql 문자열 본문 함수, RETURNS TABLE 의 plpgsql 함수(RETURN QUERY, RETURN NEXT, #variable_conflict), unnest(배열 둘) 의 LATERAL, 창 함수 lag()·rank(),
 --       정수 산술 div(), 집계 FILTER, 정확한 분수 합(공통 분모를 곱해 나눗셈을 마지막에 한 번), 배열 입력 함수 호출.
 -- 명령줄(psql)이 기준이다. \ir 은 psql 메타 명령이라 VS Code 에서는 통합 터미널에서 실행한다.
@@ -56,7 +56,7 @@ RETURNS TABLE (min_months integer, min_up integer, min_down integer, annual inte
 LANGUAGE sql IMMUTABLE AS $$
     SELECT 6, 3, 3, 12,
            ARRAY['RANKING', 'FEED', 'ALERT']::text[],   -- 독려 반응(PLAN §6.2): 랭킹·피드·알림에서 시작된 매매
-           ARRAY['RANKING', 'ALERT']::text[]            -- 플랫폼 수익 중 독려 몫(PLAN §4.13 "랭킹·알림에서 시작된 몫") — 소유자 기본값 Q2, 바꾸려면 이 한 줄
+           ARRAY['RANKING', 'ALERT']::text[]            -- 플랫폼 수익 중 독려 몫(PLAN §4.13 "랭킹·알림에서 시작된 몫") — 소유자 결정 P0-20 Q2(PLAN §13), 바꾸려면 이 한 줄
 $$;
 
 -- 정수 ÷ 정수 → 소수 8자리, 0 에서 먼 쪽 HALF_UP, 중간 반올림 없음. 정수가 아닌 입력·0 으로 나누기는 거부한다.

@@ -186,6 +186,62 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+  /api/v1/seasons/{seasonId}/orders:
+    post:
+      tags: [order]
+      operationId: placeOrder
+      summary: 주문(시장가 매수)
+      description: 현재 턴 가격으로 한 건을 바로 체결한다. 0턴 팀 구성과 1턴 이후 매수가 같은 경로다. 대금과 수수료는 현금에서 빠지고 보유·라인업이 함께 바뀐다. 매도는 아직 받지 않는다(400).
+      parameters:
+        - name: seasonId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlaceOrderRequest'
+      responses:
+        '201':
+          description: 체결 결과
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderResultDto'
+        '400':
+          description: 입력이 틀렸다(수량 0 이하, 매도 포함) — INVALID_ARGUMENT
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: 시즌이 없다 — NOT_FOUND
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: 지금은 주문할 수 없다 — SEASON_NOT_ACTIVE, TURN_MISMATCH, LEDGER_MISMATCH, LINEUP_MISMATCH
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          description: 주문 내용을 받을 수 없다 — ASSET_NOT_IN_POOL, INSUFFICIENT_CASH, POSITION_CONFLICT, POSITION_REQUIRED
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '503':
+          description: 현재 회원을 알 수 없다 — MEMBER_UNAVAILABLE(운영, 인증 전)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
 components:
   schemas:
     PoolDto:
@@ -370,6 +426,87 @@ components:
           type: string
           format: decimal
           description: 가격, 원 단위 정수
+    PlaceOrderRequest:
+      type: object
+      description: 시장가 한 건. 체결가·수수료·요율은 서버가 정하고 출발점은 서버가 DIRECT 로 고정한다
+      required: [expectedTurnNo, side, assetId, quantity]
+      properties:
+        expectedTurnNo:
+          type: integer
+          format: int32
+          minimum: 0
+          description: 주문이 보는 턴. 시즌의 현재 턴과 다르면 409
+        side:
+          $ref: '#/components/schemas/OrderSide'
+        assetId:
+          type: integer
+          format: int64
+          exclusiveMinimum: 0
+          description: 종목 식별자(풀 응답의 assetId 와 같다)
+        quantity:
+          type: integer
+          format: int32
+          minimum: 1
+          description: 정수 주(1 이상)
+        declaredPosition:
+          $ref: '#/components/schemas/Position'
+    OrderResultDto:
+      type: object
+      description: 기록 시각·출발점·유형·상태·피드 번호·시드·경로·연월은 싣지 않는다
+      required: [orderId, turnNo, side, assetId, quantity, fillPrice, notional, fee, cashBalance,
+                 holdingQuantity, avgPrice, declaredPosition, formationChangeId]
+      properties:
+        orderId:
+          type: integer
+          format: int64
+          description: 주문 식별자
+        turnNo:
+          type: integer
+          format: int32
+          description: 주문한 턴
+        side:
+          $ref: '#/components/schemas/OrderSide'
+        assetId:
+          type: integer
+          format: int64
+          description: 종목 식별자(풀 응답의 assetId 와 같다)
+        quantity:
+          type: integer
+          format: int32
+          description: 체결 수량
+        fillPrice:
+          type: string
+          format: decimal
+          description: 체결가(그 턴 가격), 원 단위 정수
+        notional:
+          type: string
+          format: decimal
+          description: 대금(체결가 × 수량), 원 단위 정수
+        fee:
+          type: string
+          format: decimal
+          description: 수수료, 원 단위 정수
+        cashBalance:
+          type: string
+          format: decimal
+          description: 체결 뒤 현금 잔액, 원 단위 정수
+        holdingQuantity:
+          type: integer
+          format: int32
+          description: 체결 뒤 보유 수량
+        avgPrice:
+          type: string
+          format: decimal
+          description: 체결 뒤 평균단가(수수료 제외), 소수 4자리
+        declaredPosition:
+          $ref: '#/components/schemas/Position'
+        formationChangeId:
+          type: [integer, 'null']
+          format: int64
+          description: 그 턴의 마지막 전술 변경 식별자. 변경이 없으면 null
+    OrderSide:
+      type: string
+      enum: [BUY, SELL]
     SeasonStatus:
       type: string
       enum: [IN_PROGRESS, ABANDONING, FINISHED]
@@ -425,4 +562,6 @@ components:
       type: string
       enum: [INVALID_ARGUMENT, NOT_FOUND, METHOD_NOT_ALLOWED, NOT_ACCEPTABLE,
              UNSUPPORTED_MEDIA_TYPE, INTERNAL_ERROR, POOL_NOT_LOADED, POOL_NOT_JUDGED, PATH_TOO_LONG,
-             SEASON_LIMIT, TURN_NOT_REACHED, MEMBER_UNAVAILABLE]
+             SEASON_LIMIT, TURN_NOT_REACHED, SEASON_NOT_ACTIVE, TURN_MISMATCH, LEDGER_MISMATCH,
+             LINEUP_MISMATCH, ASSET_NOT_IN_POOL, INSUFFICIENT_CASH, POSITION_CONFLICT, POSITION_REQUIRED,
+             MEMBER_UNAVAILABLE]

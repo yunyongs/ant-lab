@@ -145,6 +145,25 @@ public final class SqlGoldenScenario {
     }
 
     /**
+     * 팀 구성 골든(P0-31)의 SQL 쪽 기준: 시즌 시작 골든 + 0턴 팀 매수(db/21) + 그 검증(p0_15_check).
+     * 11·13 은 db/21 이 필요로 하지 않아 넣지 않는다.
+     */
+    public static ScenarioPlan teamBuyGolden() {
+        List<ScriptStep> steps = new ArrayList<>(seasonStartGolden().steps());
+        steps.add(run("21_team_buy"));
+        steps.add(check("21_team_buy", "p0_15_check"));
+        return new ScenarioPlan("TEAM_BUY_GOLDEN", List.copyOf(steps));
+    }
+
+    /** 팀 매수 검증 파일 하나만 — API 가 주문을 넣은 DB 에서 SQL 검증을 그대로 돌린다. */
+    public static ScriptStep teamBuyCheck() {
+        return check("21_team_buy", "p0_15_check");
+    }
+
+    /** 대사 정의 파일(db/22) — 정의 질의로 recon_rules 를 부를 때 같은 세션에서 읽는다. */
+    public static final String RECONCILE_DEFINITIONS = "db/22_reconcile_season_def.sql";
+
+    /**
      * API DB(Flyway 로 V1–V3 이 이미 돈 DB)의 표본 적재 순서 — 스키마 단계는 건너뛰고 10 → 12 만 돌린다
      * (db/README 「API DB 표본 적재」와 같은 순서).
      */
