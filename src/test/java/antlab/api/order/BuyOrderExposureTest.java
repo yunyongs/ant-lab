@@ -34,7 +34,7 @@ class BuyOrderExposureTest {
 
     static final Set<String> FORBIDDEN_KEYS = Set.of("seed", "engineVersion", "dataSnapshotDate", "baseDate",
             "monthBlockId", "monthStart", "memberId", "version", "createdAt", "updatedAt", "source", "type", "status",
-            "turnFeedId", "limitPrice", "tax", "realizedPnl", "currency", "code");
+            "turnFeedId", "limitPrice", "tax", "currency", "code");
 
     @Autowired
     MockMvcTester mvc;

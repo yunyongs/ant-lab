@@ -190,8 +190,8 @@ paths:
     post:
       tags: [order]
       operationId: placeOrder
-      summary: 주문(시장가 매수)
-      description: 현재 턴 가격으로 한 건을 바로 체결한다. 0턴 팀 구성과 1턴 이후 매수가 같은 경로다. 대금과 수수료는 현금에서 빠지고 보유·라인업이 함께 바뀐다. 매도는 아직 받지 않는다(400).
+      summary: 주문(시장가 매수·매도)
+      description: 현재 턴 가격으로 한 건을 바로 체결한다. 0턴 팀 구성과 1턴 이후 매수가 같은 경로다. 매수는 대금과 수수료가 현금에서 빠지고 보유·라인업이 함께 바뀐다. 매도는 대금이 현금에 더해지고 수수료가 빠지며 실현 손익이 기록되고, 전량 매도면 구간이 닫힌다.
       parameters:
         - name: seasonId
           in: path
@@ -213,7 +213,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/OrderResultDto'
         '400':
-          description: 입력이 틀렸다(수량 0 이하, 매도 포함) — INVALID_ARGUMENT
+          description: 입력이 틀렸다(수량 0 이하, 매도에 선언 포지션) — INVALID_ARGUMENT
           content:
             application/problem+json:
               schema:
@@ -231,7 +231,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
         '422':
-          description: 주문 내용을 받을 수 없다 — ASSET_NOT_IN_POOL, INSUFFICIENT_CASH, POSITION_CONFLICT, POSITION_REQUIRED
+          description: 주문 내용을 받을 수 없다 — ASSET_NOT_IN_POOL, INSUFFICIENT_CASH, INSUFFICIENT_HOLDING, POSITION_CONFLICT, POSITION_REQUIRED
           content:
             application/problem+json:
               schema:
@@ -567,7 +567,7 @@ components:
           description: 가격, 원 단위 정수
     PlaceOrderRequest:
       type: object
-      description: 시장가 한 건. 체결가·수수료·요율은 서버가 정하고 출발점은 서버가 DIRECT 로 고정한다
+      description: 시장가 매수·매도 한 건. 체결가·수수료·요율은 서버가 정하고 출발점은 서버가 DIRECT 로 고정한다
       required: [expectedTurnNo, side, assetId, quantity]
       properties:
         expectedTurnNo:
@@ -593,7 +593,7 @@ components:
       type: object
       description: 기록 시각·출발점·유형·상태·피드 번호·시드·경로·연월은 싣지 않는다
       required: [orderId, turnNo, side, assetId, quantity, fillPrice, notional, fee, cashBalance,
-                 holdingQuantity, avgPrice, declaredPosition, formationChangeId]
+                 holdingQuantity, avgPrice, realizedPnl, declaredPosition, formationChangeId]
       properties:
         orderId:
           type: integer
@@ -637,6 +637,10 @@ components:
           type: string
           format: decimal
           description: 체결 뒤 평균단가(수수료 제외), 소수 4자리
+        realizedPnl:
+          type: [string, 'null']
+          format: decimal
+          description: 실현 손익(체결가 − 체결 직전 평균단가) × 수량, 소수 4자리 문자열, 음수 가능. 매수는 null
         declaredPosition:
           $ref: '#/components/schemas/Position'
         formationChangeId:
@@ -945,5 +949,5 @@ components:
       enum: [INVALID_ARGUMENT, NOT_FOUND, METHOD_NOT_ALLOWED, NOT_ACCEPTABLE,
              UNSUPPORTED_MEDIA_TYPE, INTERNAL_ERROR, POOL_NOT_LOADED, POOL_NOT_JUDGED, PATH_TOO_LONG,
              SEASON_LIMIT, TURN_NOT_REACHED, SEASON_NOT_ACTIVE, TURN_MISMATCH, LEDGER_MISMATCH,
-             LINEUP_MISMATCH, ASSET_NOT_IN_POOL, INSUFFICIENT_CASH, POSITION_CONFLICT, POSITION_REQUIRED,
+             LINEUP_MISMATCH, ASSET_NOT_IN_POOL, INSUFFICIENT_CASH, INSUFFICIENT_HOLDING, POSITION_CONFLICT, POSITION_REQUIRED,
              MEMBER_UNAVAILABLE, RECONCILIATION_FAILED, FORBIDDEN]

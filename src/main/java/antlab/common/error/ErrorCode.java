@@ -34,6 +34,8 @@ public enum ErrorCode {
     ASSET_NOT_IN_POOL,
     /** 대금과 수수료를 낼 현금이 모자란다(P0-31). */
     INSUFFICIENT_CASH,
+    /** 보유 수량보다 많이 팔려 하거나 보유가 없다(P0-36). */
+    INSUFFICIENT_HOLDING,
     /** 열린 구간의 선언 포지션과 요청의 선언이 다르다(P0-31). */
     POSITION_CONFLICT,
     /** 새로 여는 보유인데 선언 포지션이 없다(P0-31). */
