@@ -102,6 +102,19 @@ final class OrderApiSupport {
         return jdbc.queryForObject(sql, Long.class, seasonId);
     }
 
+    /**
+     * 시즌을 {@code turn} 턴으로 직접 넘기는 고정 도구 — 0턴 가격을 복사하고 {@code prices}(ticker → 가격)만 바꾼다.
+     * 가격을 손으로 정해 기대값을 독립 계산하려는 시험용이며 턴 스냅샷·대사 로그는 만들지 않는다(대사 시험은 실제 전환을 쓴다).
+     */
+    static void fixTurn(JdbcTemplate jdbc, long seasonId, int turn, Map<String, String> prices) {
+        jdbc.update("INSERT INTO turn_price (season_id, turn_no, asset_id, price) "
+                + "SELECT season_id, ?, asset_id, price FROM turn_price WHERE season_id = ? AND turn_no = 0", turn, seasonId);
+        prices.forEach((ticker, price) -> jdbc.update(
+                "UPDATE turn_price SET price = ?::numeric WHERE season_id = ? AND turn_no = ? AND asset_id = ?",
+                price, seasonId, turn, assetId(jdbc, ticker)));
+        jdbc.update("UPDATE season SET current_turn_no = ? WHERE id = ?", turn, seasonId);
+    }
+
     /** 합성 풀에 가격이 정해진 종목을 더한다(수수료 경계·0원 시험용). 이름이 '가짜'로 시작해 정리 SQL 이 지운다. */
     static long addAsset(JdbcTemplate jdbc, long seasonId, String market, String ticker, String price) {
         Long group = jdbc.queryForObject("SELECT id FROM asset_group WHERE code = 'FAKE_SEMI'", Long.class);
