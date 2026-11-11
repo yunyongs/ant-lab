@@ -52,4 +52,20 @@ final class ReconciliationApiSupport {
         }
         return season;
     }
+
+    /** {@link #seasonWithOrders} 에 매도 둘을 더한다 — 국내 종목 일부 매도(구간 유지), 미국 종목 전량 매도(구간 닫힘, 보유 행 (0, 0) 유지). */
+    static long seasonWithSells(MockMvcTester mvc, JdbcTemplate jdbc) throws Exception {
+        long season = seasonWithOrders(mvc, jdbc);
+        if (sell(mvc, jdbc, season, "000660", 4).getStatus() != 201 || sell(mvc, jdbc, season, "SPY", 2).getStatus() != 201) {
+            throw new IllegalStateException("기준 매도 실패");
+        }
+        return season;
+    }
+
+    static MockHttpServletResponse sell(MockMvcTester mvc, JdbcTemplate jdbc, long seasonId, String ticker, int quantity) {
+        String body = "{\"expectedTurnNo\": 0, \"side\": \"SELL\", \"assetId\": " + assetId(jdbc, ticker)
+                + ", \"quantity\": " + quantity + "}";
+        return mvc.post().uri("/api/v1/seasons/" + seasonId + "/orders").contentType(MediaType.APPLICATION_JSON)
+                .content(body).exchange().getResponse();
+    }
 }
