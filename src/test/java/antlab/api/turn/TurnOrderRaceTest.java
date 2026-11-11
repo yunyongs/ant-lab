@@ -96,9 +96,10 @@ class TurnOrderRaceTest {
             AtomicReference<Future<T>> response = new AtomicReference<>();
             new TransactionTemplate(txManager).executeWithoutResult(status -> {
                 holder.run();
+                long base = LockWaitSupport.waiters(jdbc);
                 response.set(pool.submit(request));
                 try {
-                    LockWaitSupport.awaitWaiters(jdbc, 1);
+                    LockWaitSupport.awaitWaitersAbove(jdbc, base, 1);
                 } catch (InterruptedException e) {
                     throw new IllegalStateException(e);
                 }
@@ -199,10 +200,11 @@ class TurnOrderRaceTest {
                 lock.executeQuery();
             }
             List<Future<MockHttpServletResponse>> responses = new ArrayList<>();
+            long base = LockWaitSupport.waiters(jdbc);
             responses.add(pool.submit(() -> advance(mvc, season, 0)));
-            LockWaitSupport.awaitWaiters(jdbc, 1);
+            LockWaitSupport.awaitWaitersAbove(jdbc, base, 1);
             responses.add(pool.submit(() -> advance(mvc, season, 0)));
-            LockWaitSupport.awaitWaiters(jdbc, 2);
+            LockWaitSupport.awaitWaitersAbove(jdbc, base, 2);
             holder.commit();
             for (Future<MockHttpServletResponse> f : responses) {
                 MockHttpServletResponse r = f.get(60, TimeUnit.SECONDS);

@@ -15,18 +15,22 @@ public final class LockWaitSupport {
     private LockWaitSupport() {
     }
 
-    /** 잠금을 기다리는 백엔드가 {@code count} 개 이상 될 때까지 기다린다. 못 되면 AssertionError. */
-    public static void awaitWaiters(JdbcTemplate jdbc, int count) throws InterruptedException {
+    /**
+     * 기준선보다 대기자가 {@code count} 명 더 늘 때까지 기다린다. 못 되면 AssertionError.
+     * 기준선({@link #waiters})은 기다릴 요청 스레드를 <em>시작하기 전에</em> 읽는다 — 앞선 시험이나 다른 연결의 대기자가
+     * 섞여 있어도 이 시험의 요청이 실제로 기다리는지만 확인된다(절대 개수로 비교하면 빈말이 될 수 있다).
+     */
+    public static void awaitWaitersAbove(JdbcTemplate jdbc, long base, int count) throws InterruptedException {
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(TIMEOUT_SECONDS);
-        long waiting = 0;
+        long waiting = base;
         while (System.nanoTime() < deadline) {
             waiting = waiters(jdbc);
-            if (waiting >= count) {
+            if (waiting >= base + count) {
                 return;
             }
             Thread.sleep(50);
         }
-        throw new AssertionError("잠금 대기자가 " + count + " 개가 되지 않았다(지금 " + waiting + ")");
+        throw new AssertionError("잠금 대기자가 기준선 " + base + " 에서 " + count + " 명 늘지 않았다(지금 " + waiting + ")");
     }
 
     public static long waiters(JdbcTemplate jdbc) {

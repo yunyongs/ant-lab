@@ -79,8 +79,9 @@ class TurnFacadeRetryTest {
                 insert.setLong(1, season);
                 insert.executeUpdate(); // 미커밋 — 시즌 잠금과 무관하다(FK 검사는 FOR KEY SHARE)
             }
+            long base = LockWaitSupport.waiters(jdbc);
             Future<MockHttpServletResponse> response = pool.submit(() -> advance(mvc, season, 0));
-            LockWaitSupport.awaitWaiters(jdbc, 1); // 기록기가 미커밋 유일 키를 기다린다
+            LockWaitSupport.awaitWaitersAbove(jdbc, base, 1); // 기록기가 미커밋 유일 키를 기다린다
             assertThat(response.isDone()).isFalse();
             holder.commit();
 
