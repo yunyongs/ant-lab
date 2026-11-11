@@ -11,7 +11,7 @@ import java.util.Map;
  *
  * @param settings   시즌 설정(한 행)
  * @param path       턴 번호 순으로 정렬된 경로
- * @param actions    실행 순서가 있는 행동 목록: 0턴 주문들 다음에 턴 전환
+ * @param actions    실행 순서가 있는 행동 목록: 턴별로 교차한 주문과 턴 전환(턴 k 의 주문 → 전환 k+1)
  * @param orderKeys  원본 주문 ID → 재생 행동 키 (서로 다른 DB 의 ID 를 맞출 때 쓴다)
  */
 public record SeasonReplayInput(RowSet settings, RowSet path, List<ReplayAction> actions, Map<Long, String> orderKeys) {

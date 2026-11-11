@@ -342,24 +342,34 @@ public final class SqlGoldenHarness implements AutoCloseable {
         return !wasQuoted && value.equals("\\N") ? null : value;
     }
 
-    /** 시즌의 경로·설정·행동 순서를 재생 입력으로 꺼낸다. 20·21·23 이 만든 행동(0턴 매수와 턴 전환)을 지원한다. */
+    /**
+     * 시즌의 경로·설정·행동 순서를 재생 입력으로 꺼낸다. 20·21·23·25 가 만든 행동(주문과 턴 전환)을 지원한다.
+     * 행동은 턴별로 교차한다: 턴 k 의 주문(번호 순) → 새 턴 k+1 로의 전환 → … 현재 턴의 주문은 맨 끝이다.
+     * 0턴 주문만 있는 시즌은 예전과 같이 "주문 전부 → 전환 1..현재" 순서가 된다.
+     */
     public SeasonReplayInput captureReplayInput(DatabaseHandle database, long seasonId) throws Exception {
         RowSet settings = readRows(database, GoldenRowQueries.season().query(), seasonId);
         RowSet path = readRows(database, GoldenRowQueries.seasonPath().query(), seasonId);
         List<ReplayAction> actions = new ArrayList<>();
         Map<Long, String> orderKeys = new LinkedHashMap<>();
+        long currentTurn = ((Long) settings.get(0, "current_turn_no"));
+        long advanced = 0; // 지금까지 행동으로 낸 전환의 새 턴 번호
         try (Connection c = connect(database); Statement st = c.createStatement();
                 ResultSet rs = st.executeQuery(GoldenRowQueries.orderCaptureSql(seasonId))) {
             while (rs.next()) {
+                while (advanced < Math.min(rs.getLong("turn_no"), currentTurn)) {
+                    advanced++;
+                    actions.add(new ReplayAction(ActionKind.ADVANCE_TURN, Long.toString(advanced), 0));
+                }
                 String key = GoldenRowQueries.orderKey(rs.getLong("turn_no"), rs.getString("market"),
                         rs.getString("ticker"), rs.getString("side"), rs.getLong("nth"));
                 orderKeys.put(rs.getLong("id"), key);
                 actions.add(new ReplayAction(ActionKind.PLACE_ORDER, key, rs.getLong("quantity")));
             }
         }
-        long currentTurn = ((Long) settings.get(0, "current_turn_no"));
-        for (long turn = 1; turn <= currentTurn; turn++) {
-            actions.add(new ReplayAction(ActionKind.ADVANCE_TURN, Long.toString(turn), 0));
+        while (advanced < currentTurn) {
+            advanced++;
+            actions.add(new ReplayAction(ActionKind.ADVANCE_TURN, Long.toString(advanced), 0));
         }
         return new SeasonReplayInput(settings, path, List.copyOf(actions), orderKeys);
     }
