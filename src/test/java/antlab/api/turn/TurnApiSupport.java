@@ -30,19 +30,19 @@ public final class TurnApiSupport {
         return advanceRaw(mvc, seasonId, "{\"expectedTurnNo\": " + expectedTurnNo + "}");
     }
 
-    static long assetId(JdbcTemplate jdbc, String ticker) {
+    public static long assetId(JdbcTemplate jdbc, String ticker) {
         return jdbc.queryForObject("SELECT id FROM asset WHERE ticker = ?", Long.class, ticker);
     }
 
-    static JsonNode json(MockHttpServletResponse r) throws Exception {
+    public static JsonNode json(MockHttpServletResponse r) throws Exception {
         return JsonMapper.shared().readTree(r.getContentAsString());
     }
 
-    static String code(MockHttpServletResponse r) throws Exception {
+    public static String code(MockHttpServletResponse r) throws Exception {
         return json(r).get("code").asString();
     }
 
-    static void buy(MockMvcTester mvc, JdbcTemplate jdbc, long season, int turn, String ticker, int qty,
+    public static void buy(MockMvcTester mvc, JdbcTemplate jdbc, long season, int turn, String ticker, int qty,
             String position) {
         String body = "{\"expectedTurnNo\": " + turn + ", \"side\": \"BUY\", \"assetId\": " + assetId(jdbc, ticker)
                 + ", \"quantity\": " + qty + (position == null ? "" : ", \"declaredPosition\": \"" + position + "\"") + "}";
@@ -61,12 +61,12 @@ public final class TurnApiSupport {
         buy(mvc, jdbc, season, 0, "BRK.B", 5, "GOALKEEPER");
     }
 
-    static void buy(MockMvcTester mvc, JdbcTemplate jdbc, long season, int turn, String ticker, int qty) {
+    public static void buy(MockMvcTester mvc, JdbcTemplate jdbc, long season, int turn, String ticker, int qty) {
         buy(mvc, jdbc, season, turn, ticker, qty, null);
     }
 
     /** 12턴 경로 시즌을 연다(고정 회원). */
-    static long startSeason(MockMvcTester mvc) throws Exception {
+    public static long startSeason(MockMvcTester mvc) throws Exception {
         MockHttpServletResponse r = mvc.post().uri("/api/v1/seasons").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"riskLimit\": \"-0.20\", \"formation\": {\"goalkeeper\": 10, \"defender\": 30,"
                         + " \"midfielder\": 30, \"forward\": 30}, \"pathLength\": 12}").exchange().getResponse();

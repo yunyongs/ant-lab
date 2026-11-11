@@ -29,6 +29,7 @@ import tools.jackson.databind.json.JsonMapper;
 /**
  * 노출 상한 계약. /api/v1/** 의 모든 응답 record 가 {@code [노출]} 열(또는 식별자 허용 목록)에서만 오고,
  * 실제 응답에 금지 값이 없는지 확인한다. 새 응답 DTO 는 별도 작업 없이 이 시험에 들어온다.
+ * 시즌이 있어야 하는 경로(턴 조회·보유 조회)의 실제 응답 본문·로그 검사는 {@code antlab.api.turn.TurnViewExposureTest} 가 한다.
  */
 @IntegrationTest
 @Transactional
