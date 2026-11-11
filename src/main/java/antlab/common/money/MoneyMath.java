@@ -37,7 +37,7 @@ public final class MoneyMath {
         return storedMoney(initialPrice.multiply(factor).setScale(0, RoundingMode.HALF_UP), "계산 가격");
     }
 
-    /** 시장별 매수 요율을 계산한다. */
+    /** 시장별 매매 요율(매수·매도 같음)을 계산한다. */
     public static BigDecimal feeRate(String market, BigDecimal krRate, BigDecimal usRate, BigDecimal fxRate) {
         require(market, "시장 코드");
         nonNegativeRate(krRate, "국내 요율");
@@ -81,6 +81,22 @@ public final class MoneyMath {
         return storedMoney(oldAvgPrice.multiply(BigDecimal.valueOf(oldQuantity))
                 .add(price.multiply(BigDecimal.valueOf(quantity)))
                 .divide(BigDecimal.valueOf(total), 4, RoundingMode.HALF_UP), "평균단가");
+    }
+
+    /**
+     * 실현 손익 = (체결가 − 체결 직전 평균단가) × 수량, 소수 4자리 HALF_UP(SQL {@code ROUND(…, 4)} 의 짝, erd D9).
+     * 평균단가가 소수 4자리 정확하고 수량이 정수라 값은 이미 정확하며, 반올림은 이 한 곳에만 있다. 손실이면 음수다.
+     */
+    public static BigDecimal realizedPnl(BigDecimal price, BigDecimal avgPrice, int quantity) {
+        positiveInteger(price, "체결가");
+        require(avgPrice, "체결 직전 평균단가");
+        numeric(avgPrice, 19, 4, "체결 직전 평균단가");
+        if (avgPrice.signum() <= 0) {
+            throw invalid("체결 직전 평균단가: 양수여야 한다");
+        }
+        positive(quantity, "수량");
+        return storedSignedMoney(price.subtract(avgPrice).multiply(BigDecimal.valueOf(quantity))
+                .setScale(4, RoundingMode.HALF_UP), "실현 손익");
     }
 
     /** 대금과 수수료를 함께 지불할 수 있는지 확인한다. */
@@ -164,6 +180,11 @@ public final class MoneyMath {
         return exactScale(value, 4, "평균단가");
     }
 
+    /** 응답용 실현 손익 — scale 4 로 정확히 바꾼다(저장 형식과 같다). 값이 없으면(매수) null 이다. */
+    public static BigDecimal exactPnl(BigDecimal value) {
+        return value == null ? null : exactScale(value, 4, "실현 손익");
+    }
+
     /** 응답용 비율 — scale 8 로 정확히 바꾼다. 값이 바뀌면(9자리 이상 유효) 예외다. */
     public static BigDecimal exactRate(BigDecimal value) {
         require(value, "비율");
@@ -230,6 +251,13 @@ public final class MoneyMath {
 
     private static BigDecimal storedMoney(BigDecimal value, String field) {
         if (value.signum() < 0 || value.compareTo(MAX_MONEY) > 0) {
+            throw invalid(field + ": NUMERIC(19,4) 범위를 넘는다");
+        }
+        return value;
+    }
+
+    private static BigDecimal storedSignedMoney(BigDecimal value, String field) {
+        if (value.abs().compareTo(MAX_MONEY) > 0) {
             throw invalid(field + ": NUMERIC(19,4) 범위를 넘는다");
         }
         return value;
