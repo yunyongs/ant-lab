@@ -77,7 +77,7 @@ public final class TurnApiSupport {
     }
 
     /** 0턴 팀을 산 뒤 보유 종목(069500)의 라인업 구간을 닫아 대사가 어긋나게 한다(드릴 3단계와 같은 문장). */
-    static long brokenSeason(MockMvcTester mvc, JdbcTemplate jdbc) throws Exception {
+    public static long brokenSeason(MockMvcTester mvc, JdbcTemplate jdbc) throws Exception {
         long season = startSeason(mvc);
         buyTeam(mvc, jdbc, season);
         jdbc.update("UPDATE lineup SET end_turn = 0 WHERE season_id = ? AND asset_id = ?", season, assetId(jdbc, "069500"));
