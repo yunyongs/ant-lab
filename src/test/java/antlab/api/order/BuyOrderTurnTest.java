@@ -20,9 +20,10 @@ import org.springframework.test.web.servlet.assertj.MockMvcTester;
 import tools.jackson.databind.JsonNode;
 
 /**
- * 1턴 이후 매수와 무결성 가드. 턴 전환(P0-33)이 아직 없어서 JDBC 로 1턴 상태를 직접 만든 <b>고정본</b>이다 —
+ * 1턴 이후 매수와 무결성 가드. 턴 전환을 거치지 않고 JDBC 로 1턴 상태를 직접 만든 <b>고정본</b>이다 —
  * 매수 경로(같은 코드가 0턴이 아닌 턴도 처리하는지, 전술 변경에 묶는지)를 확인하는 것이 목적이고,
- * 이 상태는 대사 규칙을 만족하지 않는다(턴 스냅샷·기준 포트폴리오가 없다). 실제 전환 뒤 매수는 P0-33 에서 확인한다.
+ * 이 상태는 대사 규칙을 만족하지 않는다(턴 스냅샷·기준 포트폴리오가 없다). 1턴 가격을 손으로 바꿔 체결가 분기를 보는 시험이라
+ * 실제 전환으로 대신할 수 없어 남겨 둔다. 실제 전환 뒤 매수와 다음 전환의 대사 17개 일치는 {@code TurnAdvanceApiTest} 가 확인한다.
  */
 @IntegrationTest
 @Sql(scripts = {"/fixtures/cleanup_season_start.sql", "/fixtures/history_pool.sql", "/fixtures/replay_months.sql"})

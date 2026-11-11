@@ -83,9 +83,18 @@ public final class TeamBuyGoldenSeason implements AutoCloseable {
      */
     public Replayed replay(MockMvcTester mvc, DeferredPathSource deferred, MonthBlockRepository monthBlocks)
             throws Exception {
+        return replay(mvc, deferred, monthBlocks, SqlGoldenScenario.teamBuyGolden(), "team_buy_sql");
+    }
+
+    /**
+     * 기준 SQL 계획을 고를 수 있는 판. 계획은 0턴 팀 매수까지 같은 시작을 가져야 한다(예: 턴 골든 {@code TURN_GOLDEN} 은
+     * 20 → 21 뒤 23 을 10번 더 돌린다). 재생하는 주문은 0턴 주문뿐이다.
+     */
+    public Replayed replay(MockMvcTester mvc, DeferredPathSource deferred, MonthBlockRepository monthBlocks,
+            SqlGoldenScenario.ScenarioPlan sqlPlan, String sqlDbName) throws Exception {
         harness.execute(apiDb, SqlGoldenScenario.apiDbLoad());
-        DatabaseHandle sqlDb = harness.createSqlDatabase("team_buy_sql");
-        harness.execute(sqlDb, SqlGoldenScenario.teamBuyGolden());
+        DatabaseHandle sqlDb = harness.createSqlDatabase(sqlDbName);
+        harness.execute(sqlDb, sqlPlan);
         long sqlSeason = harness.practiceSeasonId(sqlDb);
 
         RowSet path = harness.readRows(sqlDb, GoldenRowQueries.seasonPath().query(), sqlSeason);

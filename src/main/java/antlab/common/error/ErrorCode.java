@@ -39,5 +39,7 @@ public enum ErrorCode {
     /** 새로 여는 보유인데 선언 포지션이 없다(P0-31). */
     POSITION_REQUIRED,
     /** 현재 회원을 알 수 없다 — 운영에서 고정 회원이 꺼져 있고 인증(SEC)이 아직 없을 때. */
-    MEMBER_UNAVAILABLE
+    MEMBER_UNAVAILABLE,
+    /** 턴 전환 대사가 하나라도 어긋나 아무것도 바꾸지 않았다(P0-33). */
+    RECONCILIATION_FAILED
 }

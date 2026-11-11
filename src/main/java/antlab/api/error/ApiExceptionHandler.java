@@ -84,7 +84,7 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
             // 4xx 도메인 코드는 던진 쪽 문장을 쓰므로 여기에 오지 않는다(위 분기). 기본 분기를 두지 않아 코드 추가 시 컴파일이 막는다.
             case POOL_NOT_LOADED, POOL_NOT_JUDGED, PATH_TOO_LONG, SEASON_LIMIT, TURN_NOT_REACHED,
                     SEASON_NOT_ACTIVE, TURN_MISMATCH, LEDGER_MISMATCH, LINEUP_MISMATCH, ASSET_NOT_IN_POOL,
-                    INSUFFICIENT_CASH, POSITION_CONFLICT, POSITION_REQUIRED -> "요청을 처리할 수 없는 상태다";
+                    INSUFFICIENT_CASH, POSITION_CONFLICT, POSITION_REQUIRED, RECONCILIATION_FAILED -> "요청을 처리할 수 없는 상태다";
             // 5xx 는 언제나 이 고정 문장이다(내용은 로그에만).
             case MEMBER_UNAVAILABLE -> "지금은 이 기능을 쓸 수 없다";
         };
