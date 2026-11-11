@@ -189,6 +189,14 @@ TurnService.advance(seasonId, expectedTurnNo)
 - 결과는 `reconciliation_log`(시즌, 턴, 항등식, 기대, 실제, 차이, 분류)에 남긴다. 일치해도 한 행(기록이 있어야 "검사했다"를 증명한다).
 - 불일치 시: 턴 전환 트랜잭션은 **롤백**하고 시즌은 그 턴에 멈춘다(`currentTurnNo` 그대로, 다시 시도 가능). 로그는 **롤백이 끝난 뒤** 바깥의 얇은 서비스(`TurnFacade.advance`: 트랜잭션 없음 → 안쪽 `TurnService.advance` 호출 → 예외를 잡아 `ReconciliationLogService.record`를 새 트랜잭션으로)가 남긴다. 안쪽 트랜잭션이 `season`을 행 잠금(`FOR NO KEY UPDATE`)으로 잡고 있는 동안 `REQUIRES_NEW`로 로그를 넣으면, 로그 쪽 `attempt_no` 배정이 같은 `season` 행을 다시 잠그려다 자기 자신을 기다리는 교착(시간 초과)이 나므로, "롤백 뒤에 쓴다"가 규칙이다. (`FOR NO KEY UPDATE`는 자식 INSERT의 FK 검사 `FOR KEY SHARE`와 충돌하지 않으므로 FK 검사 자체가 기다리는 것은 아니다 — 이유는 `attempt_no` 배정이다. P0-34가 시험으로 확인한다.) 분류(시차·조정·조사)는 MVP에서 전부 "조사"로 두고 사람이 본다.
 - 이 검사는 Phase 0의 대사 쿼리를 JPQL/네이티브 쿼리로 옮긴 것이다. SQL 그대로 쓰기 위해 `@Query(nativeQuery = true)`를 허용한다. Phase 0 정본은 `db/22_reconcile_season_def.sql`(erd D36)이고, MVP는 같은 DB 고정본에서 Java 결과가 `recon_rules`와 같은 골든 테스트를 둔다.
+- **P0-32의 Java 구조.** `ReconciliationLogRepository`에 수동 검사 규칙 15개가 `find…` 네이티브 쿼리 15개로 들어 있다(추가 전용 저장소의 조회 접두사 규칙을 지킨다). 기록·평가·수동 검사는 서비스 셋으로 나눈다.
+  - `ReconciliationService.evaluateManual(시즌, 턴)` → `RuleResult` 15개(규칙 번호 순). 순수 값(record)이라 롤백을 건너 운반할 수 있고(SQL의 jsonb 지역 변수와 같은 역할), 판정·차이·분류는 `RuleResult.of` 한 곳에서 붙인다(반올림 없음). `MANDATORY`(호출자 트랜잭션 안에서만)이고 시작에서 시즌 잠금을 다시 잡는다(같은 트랜잭션이면 즉시 — 턴은 호출자가 잠근 뒤 읽어 넘긴다), 시작에 `flush`, 격리 수준이 READ COMMITTED가 아니면 쓰기 전에 거절한다.
+  - `ReconciliationLogWriter.record(시즌, 턴, 결과)` → 새 `attempt_no`. 시즌 잠금 → 코드 집합 검사(수동 15개 또는 전체 17개) → `max + 1` → 행마다 INSERT. 수동 검사·턴 전환·SQL(`recon_log`)이 한 번호 공간을 쓴다. 전파는 `REQUIRED`라 수동 검사·성공 턴에서는 합류하고, 롤백 뒤 기록(P0-34)에서는 바깥 트랜잭션이 없어 새로 열린다.
+  - `ManualReconciliationService.run(시즌)`은 한 트랜잭션이다: 시즌 잠금(첫 시즌 조회, 소유 확인 포함) → 현재 턴 읽기 → 평가 → 기록. 잠금이 있어 읽기 전용으로 둘 수 없다(PostgreSQL은 읽기 전용 트랜잭션의 `FOR NO KEY UPDATE`를 25006으로 거절한다).
+- **복사 규칙(계산식을 다시 만들지 않는다).** 쿼리 15개는 22 규칙 함수 본문에 기계적 치환만 한 사본이다: 매개변수 → `CAST(:seasonId AS bigint)`·`CAST(:turnNo AS smallint)`, `recon_detail`·`recon_expected_price`·`recon_price`를 본문 그대로 인라인(재귀 CTE 포함) (규칙 12의 인라인 부분 질의에는 열 별칭 목록 `x(turn_no, asset_id, price)`를 붙이고, `recon_price`에 넘기는 인자는 괄호로 감싼다), 바깥 껍데기로 열 별칭과 jsonb → text. `ReconciliationSqlCopyTest`가 같은 치환을 22 원문에 적용해 `@Query` 값과 공백 정규화 뒤 글자 단위로 비교하므로, 22를 고치고 Java를 안 고치면 깨진다.
+- **읽기 일관성.** 쿼리가 15문장이라 READ COMMITTED에서는 문장마다 스냅샷이 다르다(SQL은 STABLE 함수 15개를 한 문장으로 불러 한 스냅샷을 얻는다, erd D36). Java는 "시즌에 딸린 행을 쓰는 모든 경로가 먼저 `season` 행을 잠근다"는 불변식으로 같은 결과를 얻는다 — 지금 있는 쓰기 경로(주문·기록기)와 SQL 쓰기 스크립트(`db/21`·`23`·`25`)가 그렇고, 앞으로의 턴 전환(P0-33)·매도(P0-36)·전술·라인업 변경(P0-37)도 `season` 잠금이 첫 단계여야 한다. 규칙 하나는 한 문장이라 그 자체로 한 스냅샷이다 — 잠금이 지키는 것은 검사 턴과 데이터의 짝, 그리고 한 시도의 15행이 같은 상태를 본다는 점이다. 역사 테이블(수익률·환율·풀)은 API가 쓰지 않고 적재 스크립트만 쓰므로 Phase 0에서는 적재와 API 실행을 동시에 하지 않는다.
+- **23505 재시도는 옮기지 않았다(22 `recon_log`와 다름).** PostgreSQL에서 유일 위반은 트랜잭션을 망가뜨려 같은 트랜잭션에서 다시 읽을 수 없고(세이브포인트가 필요하다), 모든 기록 경로가 같은 `season` 잠금 아래라 시도 번호가 겹치지 않는다. 동시 수동 검사 2개가 시도 1·2로 직렬화됨을 시험이 확인한다.
+- **개발 엔드포인트.** `POST /api/v1/dev/seasons/{seasonId}/reconciliation`은 `local` 프로필에서만 빈이 만들어지고(`@Profile("local & !prod")`, Swagger에서도 `@Hidden`, `openapi.yaml`에는 넣지 않는다) 다른 프로필에는 경로 자체가 없다. 호출마다 새 시도 번호로 15행을 기록하고, 불일치여도 200 + `result: MISMATCH`로 커밋한다(되돌릴 턴 전환이 없다). 응답은 규칙 번호·코드·상태·건수·시도 번호만 담고 기대·실제·차이·`detail` 값은 내지 않는다(22의 보고 규칙과 같음). 코드·상태·건수는 `[내부]` 열이지만 local 개발 도구라 허용한다(`ExposureContractTest`는 `test` 프로필의 핸들러만 본다). 응답에는 값이 없지만, 기록 INSERT가 CHECK에 걸리면 PostgreSQL 오류 문장(`Failing row contains …`)이 값과 함께 서버 로그에 남을 수 있다.
 
 ## 7. 역사 데이터 적재
 
@@ -321,7 +329,7 @@ Phase 1은 건너뛰었다(PLAN §11, 2026-11-09). 이 표는 SQL(Phase 0)에서
 
 1. 성적표 계산을 마지막 턴 전환과 같은 트랜잭션에 둘지 분리할지(초안: 같이. 느리면 분리하고 `season.status = SCORING` 추가). Phase 0 API는 성적표를 저장하지 않고 조회로 계산하므로(P0-38) 이 질문은 저장이 생기는 MVP(`season_score`)로 미룬다.
 2. ~~`holding`을 엔티티로 두고 UPSERT할지, `execution` 집계로만 계산할지~~ — **결정됨(P0-28, 2026-11-10): 가변 엔티티.** 전량 매도 뒤에도 행을 남기고(수량 0·평균단가 0, erd D7) 대사가 체결 합계와 대조한다.
-3. 네이티브 쿼리와 JPQL의 경계(초안: 대사·집계는 네이티브, 나머지는 JPQL).
+3. ~~네이티브 쿼리와 JPQL의 경계~~ — **결정됨(P0-32, 2026-11-11): 대사는 네이티브(22 SQL 사본), 나머지는 JPQL.** 대사는 윈도 함수·`FULL JOIN`·`jsonb_agg`·재귀 CTE를 쓰고 "같은 SQL을 두 곳에서 돌려 같은 답"이 목적이라 다시 쓰지 않는다.
 4. `Idempotency-Key`(EXT) 저장 방식.
 5. ~~PostgreSQL 이전 때 `IDENTITY` 처리~~ — 처음부터 PostgreSQL이라 해소(2026-11-05). `GENERATED ALWAYS AS IDENTITY` + JPA `IDENTITY`로 간다. 시퀀스 + `SEQUENCE` 전략(배치 INSERT 가능)으로 바꿀지는 성능이 문제될 때만.
 6. `turn_price`를 풀 전체(턴마다 약 180행, 5년 시즌 10,800행)로 둘지 "보유 + 기준 종목"만 두고 나머지는 주문 때 계산할지(초안: 풀 전체 — 조회가 단순하고 병행 대사가 전수 비교가 된다).

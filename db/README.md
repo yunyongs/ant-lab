@@ -852,7 +852,7 @@ ANTLAB_GOLDEN_SAMPLE_DIR=<db/sample 경로> ./gradlew test -PonlySqlGolden
 | `10`–`13` 적재·계산 | `SqlGoldenHarnessTest`(입력 CSV와 함께) | P0-27–29(적재·판정) |
 | `20_season_start.sql` | `TURN_GOLDEN`·끝난 뒤 멱등, `SeasonStartGoldenTest`(`seasonStartGolden` — 같은 설정·경로·시드로 API가 만든 시즌 5개 표와 행 단위 비교) | P0-30 시즌 시작(완료) |
 | `21_team_buy_def.sql`·`21_team_buy.sql`·`21_team_buy_check.sql` | `MoneyMathSqlParityTest`(순수 함수 5개를 `MoneyMath`와 같은 합성 입력으로 대조), `BuyOrderGoldenTest`(`teamBuyGolden` — SQL 0턴 주문을 같은 순서·수량·선언 포지션으로 API에 보내고 6개 표를 행 단위로 비교하며, API DB에서 `p0_15_check`를 통과) | P0-26(이미 읽음), P0-31 팀 구성(완료) |
-| `22_reconcile_season_def.sql` | `README_REGRESSION`(수동 대사 15행 `MATCH`), `BuyOrderGoldenTest`(API가 만든 0턴 팀에 대해 `recon_rules(시즌, 0)`의 15행이 `MATCH`인지 확인) | P0-31(읽음), P0-32 대사 |
+| `22_reconcile_season_def.sql` | `README_REGRESSION`(수동 대사 15행 `MATCH`), `BuyOrderGoldenTest`(API가 만든 0턴 팀에 대해 `recon_rules(시즌, 0)`의 15행이 `MATCH`인지 확인), `ReconciliationSqlCopyTest`(규칙 쿼리 15개가 이 파일 본문의 기계적 치환 사본과 글자 단위로 같은지 확인), `ReconciliationServiceParityTest`·`ReconciliationMutationTest`·`ReconciliationPriceParityTest`(같은 연결에 이 정의를 싣고 Java 결과와 `recon_rules`의 9컬럼을 비교), `ReconciliationGoldenTest`(실제 표본 API 시즌에서 규칙별 결과와 기록 두 시도를 비교) | P0-31·P0-32(읽음), P0-33 턴 전환(11·19를 같은 방식으로 더하고 시험을 23까지 넓힌다) |
 | `23_turn_advance*.sql`·`24_turn_feed_def.sql` | `TURN_GOLDEN`(10턴 기준 시즌)·재생 | P0-33 턴 전환·피드 |
 | `25_trade_formation_def.sql` | `README_REGRESSION`(5턴 매매 포함 전체 순서) | P0-36·37 매도·전술 변경 재생 |
 | `26_season_report_def.sql` | `README_REGRESSION`(성적표 검증 PASS) | P0-38 성적표 |
@@ -863,12 +863,14 @@ ANTLAB_GOLDEN_SAMPLE_DIR=<db/sample 경로> ./gradlew test -PonlySqlGolden
 
 | 기능 | 하네스 사용 |
 |---|---|
-| P0-32 대사 | `queryWithDefinitions`로 `22_reconcile_season_def.sql`을 읽은 같은 세션에서 `recon_rules`를 질의 |
+| P0-32 대사(완료) | `queryWithDefinitions`로 `22_reconcile_season_def.sql`을 읽은 같은 세션에서 `recon_rules`를 질의하고, 합성 상태·깨뜨린 사례는 `ReconDefinitions.load`로 같은 JDBC 연결(시험 트랜잭션)에 정의를 싣는다. API 시즌 준비는 `TeamBuyGoldenSeason`이 맡는다 |
 | P0-33 턴 전환 | `TURN_GOLDEN` 시즌에서 `captureReplayInput`으로 경로·0턴 팀을 꺼내 Java로 재생한다. `GoldenRowQueries`의 테이블별 질의·명세로 비교한다. 진행 턴 `turn_price`는 풀 전체(현재 표본 200행)를 비교하고, 0턴 가격은 따로 비교한다. 대사는 턴마다 17행·시도 번호를 보존한다 |
 | P0-36 매도 | 25 머지 뒤 매도 행동을 턴·순서대로 재생한다(질의·명세 확장) |
 | P0-38 성적표 | 26 머지 뒤 성적표 정의를 양쪽 시즌에 실행 |
 
 **정규화.** 대리 키·시즌·회원 식별자는 자연 키(시장·종목 코드, 턴 번호, 재생 행동 키)로 바꿔 비교한다. 제외 열은 이름과 이유를 명세에 적는다(전역으로 넓히지 않는다). NUMERIC은 `BigDecimal.compareTo`로 정확히 비교하며 자릿수 차이만 허용한다. NULL은 빈 값·0과 구분한다. 중복 키는 합치지 않고 보고한다. 같은 키의 한 행이 여러 열에서 달라도 `CHANGED` 한 건으로 처리한다. 보고에는 테이블·행 키·다른 열 이름·건수만 나온다. 가격·금액·원문 출력은 실패 메시지와 시험 보고서에 싣지 않는다. 로컬에서 원문을 봐야 하면 `ANTLAB_GOLDEN_RAW_DIR`에 저장소 밖 경로를 지정한다(저장소 아래 경로는 거부하고, 그 디렉터리에만 쓰며 커밋하지 않는다).
+
+**API로 수동 대사 돌리기(P0-32).** 로컬 `antlab_api`에서는 `22_reconcile_season.sql` 대신 `local` 프로필의 개발 엔드포인트 `POST /api/v1/dev/seasons/{seasonId}/reconciliation`을 쓸 수 있다(본문은 없고, 호출할 때마다 새 시도 번호로 15행을 기록하며 일치해도 남긴다). 응답에는 규칙 번호·코드·상태·건수·시도 번호만 담고 기대·실제·차이 값은 담지 않는다 — 값은 22와 마찬가지로 자기 DB의 `reconciliation_log`에서 본다. SQL 수동 대사와 같은 번호 공간을 사용하므로 둘을 섞어 실행해도 시도 번호가 이어진다. `./gradlew bootRun`은 `SPRING_PROFILES_ACTIVE`가 없으면 `local`로 실행되므로 이 경로가 열린다(컨테이너는 compose가 `prod`를 준다).
 
 **이 하네스가 보장하는 것과 아닌 것.** 같은 입력으로 SQL을 두 번 실행하면 같은 행이 나오는지(재현성)를 확인한다. 정규화·비교가 오류를 지우지 않는지도 확인한다. 업무 공식이 옳은지는 `_check`의 독립 계산이 따로 본다. Java와 SQL의 동등성은 P0-32·33·36·38의 시험이 따로 본다.
 
