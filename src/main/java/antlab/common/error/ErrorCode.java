@@ -40,6 +40,10 @@ public enum ErrorCode {
     POSITION_CONFLICT,
     /** 새로 여는 보유인데 선언 포지션이 없다(P0-31). */
     POSITION_REQUIRED,
+    /** 저장된 현재 포메이션이 마지막 전술 변경의 이후 값(없으면 시작 값)과 다르다 — 사슬이 깨졌다(P0-37). */
+    INVALID_FORMATION,
+    /** 같은 시즌·턴의 앞선 주문·전술 변경과 시각이 같거나 앞선다(P0-37). */
+    EVENT_TIME_CONFLICT,
     /** 현재 회원을 알 수 없다 — 운영에서 고정 회원이 꺼져 있고 인증(SEC)이 아직 없을 때. */
     MEMBER_UNAVAILABLE,
     /** 턴 전환 대사가 하나라도 어긋나 아무것도 바꾸지 않았다(P0-33). */

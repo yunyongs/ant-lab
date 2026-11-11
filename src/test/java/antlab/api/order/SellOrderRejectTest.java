@@ -11,6 +11,7 @@ import static antlab.api.order.OrderApiSupport.state;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import antlab.support.IntegrationTest;
+import antlab.support.ProblemBodyAssert;
 import antlab.support.SqlRecorder;
 import java.util.List;
 import java.util.Map;
@@ -79,7 +80,9 @@ class SellOrderRejectTest {
         long season = seasonHolding("000660", 10);
         JsonNode p = rejected(season, body(0, "SELL", assetId(jdbc, "000660"), Integer.MAX_VALUE, null), 422,
                 "INSUFFICIENT_HOLDING");
-        assertThat(p.toString()).doesNotContain("2147483647").doesNotContain("150000").doesNotContain("10");
+        // instance(시즌 번호가 우연히 같은 숫자를 품을 수 있다)만 뺀 본문 사본 전체에서 수량·가격·보유 수량 값이 없다
+        ProblemBodyAssert.assertAbsent(p.toString(), "2147483647", "150000", "10");
+        ProblemBodyAssert.assertInstanceShape(p.toString(), "orders");
     }
 
     // ---- T12 턴·시즌 ----

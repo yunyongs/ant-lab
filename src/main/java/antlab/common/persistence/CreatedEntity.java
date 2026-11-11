@@ -17,4 +17,9 @@ public abstract class CreatedEntity {
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
+
+    /** 서비스가 확정한 시각을 직접 넣는 하위 클래스({@link ExplicitCreatedEntity})만 부른다. */
+    protected final void assignCreatedAt(Instant at) {
+        this.createdAt = at;
+    }
 }

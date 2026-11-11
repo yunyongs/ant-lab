@@ -69,11 +69,11 @@ class SeasonAccountConstraintTest {
         Season other = fixture.newSeason(fixture.newMember());
         long assetId = fixture.newAssetId();
         FormationChange foreign = new FormationChange(other, 1, new Formation(20, 30, 30, 20),
-                new Formation(10, 20, 30, 40), null);
+                new Formation(10, 20, 30, 40), null, java.time.Instant.now());
         em.persist(foreign);
 
         Order order = new Order(mine.getId(), assetId, 1, OrderSide.BUY, OrderType.MARKET, 1, null,
-                OrderStatus.FILLED, OrderSource.DIRECT, foreign.getId(), null);
+                OrderStatus.FILLED, OrderSource.DIRECT, foreign.getId(), null, java.time.Instant.now());
         assertThatThrownBy(() -> em.persist(order)).satisfies(e -> {
             SQLException sql = sqlCause(e);
             assertThat(sql.getSQLState()).isEqualTo("23503");
