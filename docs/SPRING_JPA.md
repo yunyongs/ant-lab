@@ -174,7 +174,8 @@ Phase 0 API 구현(P0-33)에서는 이 흐름을 `TurnService`가 맡는다. 가
 - 전술 변경은 `season` 락을 얻은 뒤 `season.current_goalkeeper`·`current_defender`·`current_midfielder`·`current_forward`를 갱신하고 `formation_change`를 INSERT. 전술 변경은 `formation_change` INSERT와 이 네 컬럼 갱신을 한 트랜잭션으로 처리한다. 같은 턴의 여러 변경을 모두 남긴다 — 마지막 것만 남지 않는다(복기용). 턴 전환과 같은 락 순서(P0-37: `FormationChangeService`는 계좌를 잠그지 않는다 — 계좌·보유·원장을 쓰지 않는다). 요청 오류(합 ≠ 100·골키퍼 0·같은 포메이션·사유 200자 초과)는 400 `INVALID_ARGUMENT`, 저장된 현재 포메이션이 마지막 변경의 이후 값과 다른 상태 불일치는 409 `INVALID_FORMATION`이다(SQL은 둘 다 `INVALID_FORMATION` HINT). 0턴에는 바꿀 수 없다(409 `TURN_MISMATCH`). 변경 뒤의 매도·매수는 보통 주문이고, 주문 트랜잭션 안에서 `orders.formation_change_id`를 채운다(어느 변경에 묶는지의 규칙은 PLAN §5.1).
 - 세금(EXT)이 들어오면 원장 행(`TAX`)을 매도 주문 트랜잭션과 턴 전환 트랜잭션에서 추가한다. 세율·과세 시점·이연 표시는 PLAN §4.6이 정한다. 이 문서는 "어느 트랜잭션에서 원장에 쓰는가"만 정한다.
 - SQL 정본(P0-19): `db/25_trade_formation_def.sql`의 `trade_buy`·`trade_sell`·`formation_change`·`lineup_change`가 위 순서를 그대로 구현한다(Java 이전 시 골든 대조 — P0-36·37). 진입점은 0턴을 거부하고, 주문·변경의 `created_at`은 잠금 뒤 `clock_timestamp()`(테스트 `Clock`은 잠금 뒤에도 흐르는 시계), 앞선 이벤트와 시각이 같거나 거꾸로면 쓰기 전에 멈춘다. 전량 매도는 보유 행을 0·0으로 남기고 열린 구간을 `end_turn = t`로 닫으며, 과거 스냅샷 k에 기여하는 구간은 `start_turn < k ≤ end_turn`이다.
-- 포지션 지정·변경: `lineup` 행의 구간을 닫고 새 행을 연다. 주문과 같은 트랜잭션(신규 매수 시) 또는 단독 트랜잭션(보유 중 변경). 단독 변경도 전술 변경처럼 `season` 락 → 상태(`IN_PROGRESS`)·`expectedTurnNo` 검사 → 구간 닫기·열기 순서를 따른다(턴 전환과 겹칠 때 옛 턴 번호로 구간을 닫지 않도록).
+- 포지션 지정·변경은 `lineup` 행의 기존 구간을 닫은 뒤 새 행을 연다(P0-37: 단독 변경은 내부 서비스 `LineupChangeService`이고 공개 HTTP 경로가 없다. 닫는 UPDATE를 새 구간 INSERT보다 먼저 내보내야 열린 구간 유일 인덱스를 지킨다). 주문과 같은 트랜잭션(신규 매수 시) 또는 단독 트랜잭션(보유 중 변경). 단독 변경도 전술 변경처럼 `season` 락 → 상태(`IN_PROGRESS`)·`expectedTurnNo` 검사 → 구간 닫기·열기 순서를 따른다(턴 전환과 겹칠 때 옛 턴 번호로 구간을 닫지 않도록).
+- 변경 비용은 저장하지 않고, 내부 조회 `FormationCostQuery`가 체결을 주문별로 먼저 합쳐 변경별로 낸다(SQL `formation_costs`와 같다).
 
 ## 6. 대사(턴마다)
 
