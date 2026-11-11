@@ -838,7 +838,7 @@ ANTLAB_GOLDEN_SAMPLE_DIR=<db/sample 경로> ./gradlew test -PonlySqlGolden
 | 재생 | 별도 빈 DB 두 개에 같은 `TURN_GOLDEN` | SQL 재현성. 모든 테이블을 행 단위로 비교 |
 | 끝난 뒤 | 20 → 21 → 23 다시 실행 | 새 행이 없음(멱등) |
 
-`_def`는 다른 파일이 읽는 포함 파일이라 단계가 아니다. `23_turn_advance_drill.sql`은 기본 회귀에 넣지 않는다. 24–26과 90은 P0-21에서 `README_REGRESSION`에 등록했다. `TURN_GOLDEN`과 끝난 뒤 멱등 시나리오는 그대로다(25 재생은 P0-36·37, 성적표 골든은 P0-38). 22와 23은 실행마다 상태가 변하므로(로그 추가, 턴 진행) 일반 멱등 스크립트로 취급하지 않는다.
+`_def`는 다른 파일이 읽는 포함 파일이므로 단계가 아니다. `23_turn_advance_drill.sql`은 기본 회귀에 넣지 않는다. 24–26과 90은 P0-21에서 `README_REGRESSION`에 등록했다. `TURN_GOLDEN`과 끝난 뒤 멱등 시나리오는 그대로 둔다(25 재생은 P0-36 매도·P0-37 전술·라인업 변경까지 구현됐고, 성적표 골든은 P0-38). 22와 23은 실행할 때마다 상태가 변하므로(로그 추가, 턴 진행) 일반 멱등 스크립트로 취급하지 않는다.
 
 **마지막 판정 계약.** 검증 단계는 `psql -X -q -A -P footer=off -v ON_ERROR_STOP=1`로 실행한다. 종료 코드가 0이고 출력 끝 두 줄이 등록한 판정 열 이름(`p0_05_check` … `p0_21_check`)과 정확히 `PASS`일 때만 통과다. 앞쪽의 PASS나 종료 코드만으로는 성공으로 처리하지 않는다. 다른 검사 이름이 나오거나 판정 뒤에 결과가 추가되어도 통과시키지 않는다. 제한 시간(단계당 5분)을 넘기면 실패이며 다시 실행하지 않는다.
 
@@ -854,7 +854,7 @@ ANTLAB_GOLDEN_SAMPLE_DIR=<db/sample 경로> ./gradlew test -PonlySqlGolden
 | `21_team_buy_def.sql`·`21_team_buy.sql`·`21_team_buy_check.sql` | `MoneyMathSqlParityTest`(순수 함수 5개를 `MoneyMath`와 같은 합성 입력으로 대조), `BuyOrderGoldenTest`(`teamBuyGolden` — SQL 0턴 주문을 같은 순서·수량·선언 포지션으로 API에 보내고 6개 표를 행 단위로 비교하며, API DB에서 `p0_15_check`를 통과) | P0-26(이미 읽음), P0-31 팀 구성(완료) |
 | `22_reconcile_season_def.sql` | `README_REGRESSION`(수동 대사 15행 `MATCH`), `BuyOrderGoldenTest`(API가 만든 0턴 팀에 대해 `recon_rules(시즌, 0)`의 15행이 `MATCH`인지 확인), `ReconciliationSqlCopyTest`(규칙 쿼리 15개가 이 파일 본문의 기계적 치환 사본과 글자 단위로 같은지 확인), `ReconciliationServiceParityTest`·`ReconciliationMutationTest`·`ReconciliationPriceParityTest`(같은 연결에 이 정의를 싣고 Java 결과와 `recon_rules`의 9컬럼을 비교), `ReconciliationGoldenTest`(실제 표본 API 시즌에서 규칙별 결과와 기록 두 시도를 비교) | P0-31·P0-32(읽음), P0-33 턴 전환(11·19를 같은 방식으로 더하고 시험을 23까지 넓힌다) |
 | `23_turn_advance*.sql`·`24_turn_feed_def.sql` | `TurnAdvanceGoldenTest`·`ReconciliationSqlCopyTest`·`ReconciliationTurnParityTest`(P0-21 하류)·`TURN_GOLDEN`(10턴 기준 시즌)·재생 | P0-33 턴 전환·피드 |
-| `25_trade_formation_def.sql` | `README_REGRESSION`(5턴 매매 포함 전체 순서) | P0-36·37 매도·전술 변경 재생 |
+| `25_trade_formation_def.sql` | `README_REGRESSION`(5턴 매매 포함 전체 순서), `SellOrderGoldenTest`·`FormationChangeGoldenTest`(25 재생) | P0-36·37 매도·전술 변경 재생 — P0-37 골든은 SQL 25의 전술·라인업 변경과 주문 연결을 포함한다. 표본 경로를 지정하고 필수 골든을 건너뛰지 않았는지 확인한다 |
 | `26_season_report_def.sql` | `README_REGRESSION`(성적표 검증 PASS) | P0-38 성적표 |
 | `90_full_run_check.sql` | `README_REGRESSION`(마지막 단계) | P0-40 한 판 E2E의 SQL 쪽 기준 |
 
@@ -866,6 +866,7 @@ ANTLAB_GOLDEN_SAMPLE_DIR=<db/sample 경로> ./gradlew test -PonlySqlGolden
 | P0-32 대사(완료) | `queryWithDefinitions`로 `22_reconcile_season_def.sql`을 읽은 같은 세션에서 `recon_rules`를 질의하고, 합성 상태·깨뜨린 사례는 `ReconDefinitions.load`로 같은 JDBC 연결(시험 트랜잭션)에 정의를 싣는다. API 시즌 준비는 `TeamBuyGoldenSeason`이 맡는다 |
 | P0-33 턴 전환 | `TURN_GOLDEN` 시즌에서 `captureReplayInput`으로 경로·0턴 팀을 꺼내 Java로 재생한다. `GoldenRowQueries`의 테이블별 질의·명세로 비교한다. 진행 턴 `turn_price`는 풀 전체(현재 표본 200행)를 비교하고, 0턴 가격은 따로 비교한다. 대사는 턴마다 17행·시도 번호를 보존한다 |
 | P0-36 매도 | 25 머지 뒤 매도 행동을 턴·순서대로 재생한다(질의·명세 확장) |
+| P0-37 전술 변경(완료) | 재생 입력의 행동을 주문·전술 변경·라인업 변경·턴 전환의 자료형으로 나누고, 같은 턴 안의 순서는 기록 시각으로 병합한다(라인업 변경은 그 턴 맨 끝). 비교 대상에는 전술 변경 이력(턴·같은 턴 안 순번), 주문의 변경 연결(논리 키), 라인업 구간(구간 순번 포함)을 더한다. 변경 비용은 `queryWithDefinitions`로 `25_trade_formation_def.sql`의 `formation_costs`를 읽어 내부 조회와 대조한다 |
 | P0-38 성적표 | 26 머지 뒤 성적표 정의를 양쪽 시즌에 실행 |
 
 **정규화.** 대리 키·시즌·회원 식별자는 자연 키(시장·종목 코드, 턴 번호, 재생 행동 키)로 바꿔 비교한다. 제외 열은 이름과 이유를 명세에 적는다(전역으로 넓히지 않는다). NUMERIC은 `BigDecimal.compareTo`로 정확히 비교하며 자릿수 차이만 허용한다. NULL은 빈 값·0과 구분한다. 중복 키는 합치지 않고 보고한다. 같은 키의 한 행이 여러 열에서 달라도 `CHANGED` 한 건으로 처리한다. 보고에는 테이블·행 키·다른 열 이름·건수만 나온다. 가격·금액·원문 출력은 실패 메시지와 시험 보고서에 싣지 않는다. 로컬에서 원문을 봐야 하면 `ANTLAB_GOLDEN_RAW_DIR`에 저장소 밖 경로를 지정한다(저장소 아래 경로는 거부하고, 그 디렉터리에만 쓰며 커밋하지 않는다).

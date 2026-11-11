@@ -17,7 +17,7 @@ import antlab.support.RowSet.RowColumn;
 import antlab.support.RowSet.RowQuery;
 import antlab.support.RowSetDiff;
 import antlab.support.SeasonReplayInput;
-import antlab.support.SeasonReplayInput.ActionKind;
+import antlab.support.SeasonReplayInput.PlaceOrder;
 import antlab.support.SeasonReplayInput.ReplayAction;
 import antlab.support.SqlGoldenHarness;
 import antlab.support.SqlGoldenHarness.DatabaseHandle;
@@ -173,8 +173,8 @@ class BuyOrderGoldenTest {
                 a.get("assetId").asLong()));
 
         int count = 0;
-        for (ReplayAction action : input.actions()) {
-            if (action.kind() != ActionKind.PLACE_ORDER) {
+        for (ReplayAction replay : input.actions()) {
+            if (!(replay instanceof PlaceOrder action)) {
                 continue;
             }
             // 키: 턴/시장/종목/방향/순번

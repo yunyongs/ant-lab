@@ -10,7 +10,7 @@ import java.util.List;
  * 골든 비교 대상 테이블의 조회와 비교 명세. 대리 키는 자연 키(시장·종목 코드, 턴 번호, 재생 행동 키)로 바꿔 내보낸다.
  * 모든 질의는 {@code :sid} 로 시즌 하나를 가리키고, 열 타입을 명시한다. 업무 공식은 여기서 다시 계산하지 않는다.
  *
- * <p>현재 SQL(20·21·23)이 채우는 테이블만 담는다. 매도는 P0-36이 25 재생으로 비교한다. 전술 변경·피드 테이블은 P0-37·MVP가 확장한다.
+ * <p>SQL(20·21·23·25)이 채우는 테이블을 담는다. 전술 변경 이력·주문의 변경 연결·라인업 구간은 25 재생이 비교한다(P0-37). 피드 테이블은 MVP가 확장한다.
  */
 public final class GoldenRowQueries {
 
@@ -48,10 +48,41 @@ public final class GoldenRowQueries {
     /** 재생 입력을 꺼내는 주문 질의 (실행 순서: 턴, 주문 번호) */
     public static String orderCaptureSql(long seasonId) {
         return """
-                SELECT o.id, o.turn_no, a.market, a.ticker, o.side, o.quantity, %s AS nth
+                SELECT o.id, o.turn_no, a.market, a.ticker, o.side, o.quantity, o.created_at, %s AS nth
                 FROM orders o JOIN asset a ON a.id = o.asset_id WHERE o.season_id = %d ORDER BY o.turn_no, o.id"""
                 .formatted(ORDER_NTH_SQL, seasonId);
     }
+
+    /** 전술 변경 재생 입력 질의 — 같은 턴 안의 순번(번호 순)이 논리 키다. */
+    public static String formationChangeCaptureSql(long seasonId) {
+        return """
+                SELECT fc.id, fc.turn_no, row_number() OVER (PARTITION BY fc.turn_no ORDER BY fc.id) AS nth,
+                       fc.after_goalkeeper, fc.after_defender, fc.after_midfielder, fc.after_forward, fc.reason, fc.created_at
+                FROM formation_change fc WHERE fc.season_id = %d ORDER BY fc.turn_no, fc.id""".formatted(seasonId);
+    }
+
+    /**
+     * 라인업 변경 재생 입력 질의: 이전 구간이 그 턴에 닫히며 열린 구간 중 그 종목의 그 턴 매수 주문이 없는 것
+     * (매수 주문이 있으면 매수로 연 구간과 구분할 수 없어 복원하지 않는다).
+     */
+    public static String lineupChangeCaptureSql(long seasonId) {
+        return """
+                SELECT lu.start_turn, a.market, a.ticker, lu.declared_position
+                FROM lineup lu JOIN asset a ON a.id = lu.asset_id
+                WHERE lu.season_id = %d
+                  AND EXISTS (SELECT 1 FROM lineup p WHERE p.season_id = lu.season_id AND p.asset_id = lu.asset_id
+                              AND p.end_turn = lu.start_turn AND p.id < lu.id)
+                  AND NOT EXISTS (SELECT 1 FROM orders o WHERE o.season_id = lu.season_id AND o.asset_id = lu.asset_id
+                                  AND o.turn_no = lu.start_turn AND o.side = 'BUY')
+                ORDER BY lu.start_turn, lu.id""".formatted(seasonId);
+    }
+
+    /** 변경의 논리 키(같은 턴 안 번호 순 순번)를 만드는 CTE — 주문의 변경 연결을 서로 다른 DB 에서 맞출 때 쓴다. */
+    private static final String CHANGE_KEY_CTE = """
+            WITH fcn AS (
+              SELECT fc.id, fc.turn_no || '/' || row_number() OVER (PARTITION BY fc.turn_no ORDER BY fc.id) AS fkey
+              FROM formation_change fc WHERE fc.season_id = :sid)
+            """;
 
     /** 재생 행동 키 문자열. {@link #ORD_KEY_SQL} 과 같은 모양이어야 한다. */
     public static String orderKey(long turnNo, String market, String ticker, String side, long nth) {
@@ -146,21 +177,39 @@ public final class GoldenRowQueries {
     }
 
     public static GoldenTable orders() {
-        RowQuery q = new RowQuery("orders", """
+        RowQuery q = new RowQuery("orders", CHANGE_KEY_CTE + """
                 SELECT o.turn_no, a.market, a.ticker, o.side,
                        %s AS nth,
                        o.type, o.quantity, o.limit_price, o.status, o.source,
-                       (o.formation_change_id IS NOT NULL) AS has_formation_change,
+                       (SELECT fcn.fkey FROM fcn WHERE fcn.id = o.formation_change_id) AS formation_change_key,
                        (o.turn_feed_id IS NOT NULL) AS has_turn_feed
                 FROM orders o JOIN asset a ON a.id = o.asset_id WHERE o.season_id = :sid""".formatted(ORDER_NTH_SQL), List.of(
                 col("turn_no", ColumnType.LONG), col("market", ColumnType.TEXT), col("ticker", ColumnType.TEXT),
                 col("side", ColumnType.TEXT), col("nth", ColumnType.LONG), col("type", ColumnType.TEXT),
                 col("quantity", ColumnType.LONG), col("limit_price", ColumnType.DECIMAL),
                 col("status", ColumnType.TEXT), col("source", ColumnType.TEXT),
-                col("has_formation_change", ColumnType.BOOLEAN), col("has_turn_feed", ColumnType.BOOLEAN)));
+                col("formation_change_key", ColumnType.TEXT), col("has_turn_feed", ColumnType.BOOLEAN)));
         return new GoldenTable(q, ComparisonSpec.named("orders").keys("turn_no", "market", "ticker", "side", "nth")
-                .values("type", "quantity", "limit_price", "status", "source", "has_formation_change", "has_turn_feed")
+                .values("type", "quantity", "limit_price", "status", "source", "formation_change_key", "has_turn_feed")
                 .build());
+    }
+
+    /** 전술 변경 이력 — 키: (턴, 같은 턴 안 번호 순 순번). 번호표·시각은 DB 마다 달라 비교하지 않는다. */
+    public static GoldenTable formationChange() {
+        RowQuery q = new RowQuery("formation_change", """
+                SELECT fc.turn_no, row_number() OVER (PARTITION BY fc.turn_no ORDER BY fc.id) AS nth,
+                       fc.before_goalkeeper, fc.before_defender, fc.before_midfielder, fc.before_forward,
+                       fc.after_goalkeeper, fc.after_defender, fc.after_midfielder, fc.after_forward, fc.reason
+                FROM formation_change fc WHERE fc.season_id = :sid""", List.of(
+                col("turn_no", ColumnType.LONG), col("nth", ColumnType.LONG),
+                col("before_goalkeeper", ColumnType.LONG), col("before_defender", ColumnType.LONG),
+                col("before_midfielder", ColumnType.LONG), col("before_forward", ColumnType.LONG),
+                col("after_goalkeeper", ColumnType.LONG), col("after_defender", ColumnType.LONG),
+                col("after_midfielder", ColumnType.LONG), col("after_forward", ColumnType.LONG),
+                col("reason", ColumnType.TEXT)));
+        return new GoldenTable(q, ComparisonSpec.named("formation_change").keys("turn_no", "nth")
+                .values("before_goalkeeper", "before_defender", "before_midfielder", "before_forward",
+                        "after_goalkeeper", "after_defender", "after_midfielder", "after_forward", "reason").build());
     }
 
     public static GoldenTable execution() {
@@ -202,11 +251,13 @@ public final class GoldenRowQueries {
 
     public static GoldenTable lineup() {
         RowQuery q = new RowQuery("lineup", """
-                SELECT a.market, a.ticker, lu.start_turn, lu.declared_position, lu.end_turn
+                SELECT a.market, a.ticker, lu.start_turn,
+                       row_number() OVER (PARTITION BY lu.asset_id, lu.start_turn ORDER BY lu.id) AS seg,
+                       lu.declared_position, lu.end_turn
                 FROM lineup lu JOIN asset a ON a.id = lu.asset_id WHERE lu.season_id = :sid""", List.of(
                 col("market", ColumnType.TEXT), col("ticker", ColumnType.TEXT), col("start_turn", ColumnType.LONG),
-                col("declared_position", ColumnType.TEXT), col("end_turn", ColumnType.LONG)));
-        return new GoldenTable(q, ComparisonSpec.named("lineup").keys("market", "ticker", "start_turn")
+                col("seg", ColumnType.LONG), col("declared_position", ColumnType.TEXT), col("end_turn", ColumnType.LONG)));
+        return new GoldenTable(q, ComparisonSpec.named("lineup").keys("market", "ticker", "start_turn", "seg")
                 .values("declared_position", "end_turn").build());
     }
 

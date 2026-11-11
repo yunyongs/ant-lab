@@ -133,6 +133,21 @@ public final class SqlGoldenScenario {
         return new ScenarioPlan("TRADE_GOLDEN", List.copyOf(steps));
     }
 
+    /** 이미 만들어진 SQL 시즌에서 23 을 {@code turns} 번 더 돌리는 토막(매도·전술 변경 골든이 5턴 뒤 10턴까지 잇는 데 쓴다). */
+    public static ScenarioPlan advanceTurns(int turns) {
+        if (turns < 1 || turns > PATH_LENGTH) {
+            throw new IllegalArgumentException("턴 수가 범위를 벗어났다: " + turns);
+        }
+        List<ScriptStep> steps = new ArrayList<>();
+        for (int i = 0; i < turns; i++) {
+            steps.add(run("23_turn_advance"));
+        }
+        return new ScenarioPlan("ADVANCE_" + turns, List.copyOf(steps));
+    }
+
+    /** 변경 비용 조회 정의 파일(db/25) — 정의 질의로 formation_costs 를 부를 때 같은 세션에서 읽는다. */
+    public static final String TRADE_DEFINITIONS = "db/25_trade_formation_def.sql";
+
     /**
      * 롤백 드릴 골든의 앞 토막: 턴 골든과 같은 시작에서 23 을 {@code turns} 번만 돌리고 멈춘다.
      * 끊은 자리에서 질의하고 드릴({@link #rollbackDrill()})을 끼운 뒤 {@link #turnGoldenFrom(int)} 으로 이어 간다.
