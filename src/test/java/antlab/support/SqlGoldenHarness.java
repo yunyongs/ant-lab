@@ -4,7 +4,6 @@ import antlab.support.GoldenFixtureSource.InputBundle;
 import antlab.support.GoldenFixtureSource.StagedFile;
 import antlab.support.RowSet.ColumnType;
 import antlab.support.RowSet.RowQuery;
-import antlab.support.SeasonReplayInput.ActionKind;
 import antlab.support.SeasonReplayInput.ReplayAction;
 import antlab.support.SqlGoldenScenario.Kind;
 import antlab.support.SqlGoldenScenario.ScenarioPlan;
@@ -343,33 +342,83 @@ public final class SqlGoldenHarness implements AutoCloseable {
     }
 
     /**
-     * 시즌의 경로·설정·행동 순서를 재생 입력으로 꺼낸다. 20·21·23·25 가 만든 행동(주문과 턴 전환)을 지원한다.
-     * 행동은 턴별로 교차한다: 턴 k 의 주문(번호 순) → 새 턴 k+1 로의 전환 → … 현재 턴의 주문은 맨 끝이다.
+     * 시즌의 경로·설정·행동 순서를 재생 입력으로 꺼낸다. 20·21·23·25 가 만든 행동(주문·전술 변경·라인업 변경과 턴 전환)을 지원한다.
+     * 행동은 턴별로 교차한다: 턴 k 의 행동 → 새 턴 k+1 로의 전환 → … 현재 턴의 행동은 맨 끝이다.
+     *
+     * <p>같은 턴 안의 순서: 주문과 전술 변경은 기록 시각({@code created_at}, 같은 DB 의 시계)으로 병합한다. 서로 다른 표의 번호는
+     * 전역 순번이 아니므로 비교하지 않고, 시각이 같으면 순서를 정할 수 없어 입력 오류로 실패한다.
+     * 라인업 변경은 시각이 없어(저장 결과가 구간 경계뿐) 그 턴의 주문·전술 변경 <b>뒤</b>에 둔다 — 기본 25 시나리오의 실제 순서(⑥)다.
+     * 라인업 변경으로 보는 조건: 이전 구간이 그 턴에 닫히며 새 구간이 열렸는데 그 종목의 그 턴 매수 주문이 없는 경우. 매수 주문이 있으면
+     * 매수로 연 구간과 구분할 수 없어 이 입력으로는 복원하지 않는다(그런 확장 드릴은 행동 목록을 따로 만들고 저장 결과와 비교한다).
      * 0턴 주문만 있는 시즌은 예전과 같이 "주문 전부 → 전환 1..현재" 순서가 된다.
      */
     public SeasonReplayInput captureReplayInput(DatabaseHandle database, long seasonId) throws Exception {
         RowSet settings = readRows(database, GoldenRowQueries.season().query(), seasonId);
         RowSet path = readRows(database, GoldenRowQueries.seasonPath().query(), seasonId);
-        List<ReplayAction> actions = new ArrayList<>();
         Map<Long, String> orderKeys = new LinkedHashMap<>();
         long currentTurn = ((Long) settings.get(0, "current_turn_no"));
-        long advanced = 0; // 지금까지 행동으로 낸 전환의 새 턴 번호
-        try (Connection c = connect(database); Statement st = c.createStatement();
-                ResultSet rs = st.executeQuery(GoldenRowQueries.orderCaptureSql(seasonId))) {
-            while (rs.next()) {
-                while (advanced < Math.min(rs.getLong("turn_no"), currentTurn)) {
-                    advanced++;
-                    actions.add(new ReplayAction(ActionKind.ADVANCE_TURN, Long.toString(advanced), 0));
+
+        /** 한 턴의 시각 있는 행동(주문·전술 변경). */
+        record Timed(long turn, java.time.Instant at, ReplayAction action) {
+        }
+        List<Timed> timed = new ArrayList<>();
+        List<SeasonReplayInput.LineupChange> lineupChanges = new ArrayList<>();
+        try (Connection c = connect(database); Statement st = c.createStatement()) {
+            try (ResultSet rs = st.executeQuery(GoldenRowQueries.orderCaptureSql(seasonId))) {
+                while (rs.next()) {
+                    String key = GoldenRowQueries.orderKey(rs.getLong("turn_no"), rs.getString("market"),
+                            rs.getString("ticker"), rs.getString("side"), rs.getLong("nth"));
+                    orderKeys.put(rs.getLong("id"), key);
+                    timed.add(new Timed(rs.getLong("turn_no"), rs.getObject("created_at", java.time.OffsetDateTime.class).toInstant(),
+                            new SeasonReplayInput.PlaceOrder(key, rs.getLong("quantity"))));
                 }
-                String key = GoldenRowQueries.orderKey(rs.getLong("turn_no"), rs.getString("market"),
-                        rs.getString("ticker"), rs.getString("side"), rs.getLong("nth"));
-                orderKeys.put(rs.getLong("id"), key);
-                actions.add(new ReplayAction(ActionKind.PLACE_ORDER, key, rs.getLong("quantity")));
+            }
+            try (ResultSet rs = st.executeQuery(GoldenRowQueries.formationChangeCaptureSql(seasonId))) {
+                while (rs.next()) {
+                    timed.add(new Timed(rs.getLong("turn_no"), rs.getObject("created_at", java.time.OffsetDateTime.class).toInstant(),
+                            new SeasonReplayInput.FormationChange(rs.getLong("turn_no"), rs.getLong("nth"),
+                                    new SeasonReplayInput.Shape(rs.getInt("after_goalkeeper"), rs.getInt("after_defender"),
+                                            rs.getInt("after_midfielder"), rs.getInt("after_forward")),
+                                    rs.getString("reason"))));
+                }
+            }
+            try (ResultSet rs = st.executeQuery(GoldenRowQueries.lineupChangeCaptureSql(seasonId))) {
+                while (rs.next()) {
+                    lineupChanges.add(new SeasonReplayInput.LineupChange(rs.getLong("start_turn"),
+                            rs.getString("market") + "/" + rs.getString("ticker"), rs.getString("declared_position")));
+                }
             }
         }
-        while (advanced < currentTurn) {
-            advanced++;
-            actions.add(new ReplayAction(ActionKind.ADVANCE_TURN, Long.toString(advanced), 0));
+        // 턴 → 같은 시각의 동률 검사 → 시각 순
+        timed.sort(java.util.Comparator.comparingLong(Timed::turn).thenComparing(Timed::at));
+        for (int i = 1; i < timed.size(); i++) {
+            Timed prev = timed.get(i - 1);
+            Timed cur = timed.get(i);
+            if (prev.turn() == cur.turn() && prev.at().equals(cur.at())) {
+                throw new IllegalStateException("같은 턴에 기록 시각이 같은 행동이 있어 순서를 정할 수 없다: 턴 " + cur.turn());
+            }
+        }
+
+        List<ReplayAction> actions = new ArrayList<>();
+        for (long turn = 0; turn <= currentTurn; turn++) {
+            if (turn > 0) {
+                actions.add(new SeasonReplayInput.AdvanceTurn(turn));
+            }
+            for (Timed t : timed) {
+                if (t.turn() == turn) {
+                    actions.add(t.action());
+                }
+            }
+            for (SeasonReplayInput.LineupChange change : lineupChanges) {
+                if (change.turn() == turn) {
+                    actions.add(change);
+                }
+            }
+        }
+        for (Timed t : timed) {
+            if (t.turn() > currentTurn) {
+                throw new IllegalStateException("현재 턴보다 늦은 턴의 행동이 있다");
+            }
         }
         return new SeasonReplayInput(settings, path, List.copyOf(actions), orderKeys);
     }

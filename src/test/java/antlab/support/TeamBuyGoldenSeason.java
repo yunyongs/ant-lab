@@ -3,7 +3,10 @@ package antlab.support;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import antlab.history.MonthBlockRepository;
-import antlab.support.SeasonReplayInput.ActionKind;
+import antlab.support.SeasonReplayInput.AdvanceTurn;
+import antlab.support.SeasonReplayInput.FormationChange;
+import antlab.support.SeasonReplayInput.LineupChange;
+import antlab.support.SeasonReplayInput.PlaceOrder;
 import antlab.support.SeasonReplayInput.ReplayAction;
 import antlab.support.SqlGoldenHarness.DatabaseHandle;
 import java.time.LocalDate;
@@ -107,18 +110,7 @@ public final class TeamBuyGoldenSeason implements AutoCloseable {
         harness.execute(sqlDb, sqlPlan);
         long sqlSeason = harness.practiceSeasonId(sqlDb);
 
-        RowSet path = harness.readRows(sqlDb, GoldenRowQueries.seasonPath().query(), sqlSeason);
-        List<LocalDate> months = new ArrayList<>();
-        for (int i = 0; i < path.size(); i++) {
-            months.add((LocalDate) path.get(i, "month_start"));
-        }
-        deferred.set(new FixedPathSource("p0-sql", months, monthBlocks));
-        MockHttpServletResponse started = mvc.post().uri("/api/v1/seasons").contentType(MediaType.APPLICATION_JSON)
-                .content("{\"riskLimit\": \"-0.20\", \"formation\": {\"goalkeeper\": 10, \"defender\": 30,"
-                        + " \"midfielder\": 30, \"forward\": 30}, \"pathLength\": " + SqlGoldenScenario.PATH_LENGTH + "}")
-                .exchange().getResponse();
-        assertThat(started.getStatus()).isEqualTo(201);
-        long apiSeason = harness.practiceSeasonId(apiDb);
+        long apiSeason = startApiSeason(mvc, deferred, monthBlocks, sqlDb, sqlSeason);
 
         SeasonReplayInput input = harness.captureReplayInput(sqlDb, sqlSeason);
         RowSet lineup = harness.readRows(sqlDb, GoldenRowQueries.lineup().query(), sqlSeason);
@@ -135,8 +127,8 @@ public final class TeamBuyGoldenSeason implements AutoCloseable {
                 a.get("assetId").asLong()));
 
         int count = 0;
-        for (ReplayAction action : input.actions()) {
-            if (action.kind() != ActionKind.PLACE_ORDER) {
+        for (ReplayAction replay : input.actions()) {
+            if (!(replay instanceof PlaceOrder action)) {
                 continue;
             }
             String[] k = action.key().split("/");
@@ -153,21 +145,93 @@ public final class TeamBuyGoldenSeason implements AutoCloseable {
         return new Replayed(sqlDb, sqlSeason, apiSeason, count);
     }
 
+    /** 라인업 변경을 내부 서비스로 부르는 쪽(시험이 서비스를 주입해 넘긴다 — 공개 HTTP 경로가 없다). */
+    @FunctionalInterface
+    public interface LineupChangeRunner {
+        void change(long apiSeason, int expectedTurnNo, long assetId, String position);
+    }
+
     /**
-     * 팀 구성 뒤의 매매까지 재생하는 판(P0-36). SQL 기준 DB 에서 {@code sqlPlan} 을 돌린 뒤 같은 경로·시드·설정으로 API 시즌을 시작하고,
-     * SQL 의 행동을 순서대로 보낸다: 0턴 매수 → 턴 전환 → 턴 t 의 주문(BUY·SELL)을 번호 순으로 → … (전술 변경·라인업 변경은 재생하지 않는다).
+     * 팀 구성 뒤의 행동까지 모두 재생하는 판(P0-36 매매 → P0-37 전술·라인업 변경). SQL 기준 DB 에서 {@code sqlPlan} 을 돌린 뒤
+     * 같은 경로·시드·설정으로 API 시즌을 시작하고, 캡처한 행동을 순서대로 보낸다: 0턴 매수 → 턴 전환 → 턴 t 의 주문(BUY·SELL)과
+     * 전술 변경(POST, 시각 순) → 그 턴의 라인업 변경(내부 서비스) → …
      * BUY 의 선언 포지션은 SQL 라인업에서 (종목, 시작 턴 = 주문 턴) 행이 정확히 1개면 그 값, 0개면 생략(열린 구간에 추가 매수),
-     * 2개 이상이면 실패한다(그 재생은 라인업 변경의 몫). SELL 은 선언을 보내지 않는다.
+     * 2개 이상이면 실패한다(라인업 변경으로 연 구간과 구분할 수 없는 확장 시나리오는 행동 목록을 따로 만든다). SELL 은 선언을 보내지 않는다.
      *
-     * @return 재생한 주문 수와 전환 수
+     * @return 재생한 주문 수
      */
     public Replayed replayTrades(MockMvcTester mvc, DeferredPathSource deferred, MonthBlockRepository monthBlocks,
-            SqlGoldenScenario.ScenarioPlan sqlPlan, String sqlDbName) throws Exception {
+            SqlGoldenScenario.ScenarioPlan sqlPlan, String sqlDbName, LineupChangeRunner lineupRunner) throws Exception {
         harness.execute(apiDb, SqlGoldenScenario.apiDbLoad());
         DatabaseHandle sqlDb = harness.createSqlDatabase(sqlDbName);
         harness.execute(sqlDb, sqlPlan);
         long sqlSeason = harness.practiceSeasonId(sqlDb);
+        long apiSeason = startApiSeason(mvc, deferred, monthBlocks, sqlDb, sqlSeason);
 
+        SeasonReplayInput input = harness.captureReplayInput(sqlDb, sqlSeason);
+        RowSet lineup = harness.readRows(sqlDb, GoldenRowQueries.lineup().query(), sqlSeason);
+        Map<String, Long> assetIds = new HashMap<>();
+        JsonNode assets = JsonMapper.shared().readTree(
+                mvc.get().uri("/api/v1/pool").exchange().getResponse().getContentAsString()).get("assets");
+        assets.forEach(a -> assetIds.put(a.get("market").asString() + "/" + a.get("ticker").asString(),
+                a.get("assetId").asLong()));
+
+        int count = 0;
+        for (ReplayAction replay : input.actions()) {
+            switch (replay) {
+                case AdvanceTurn advance -> {
+                    MockHttpServletResponse r = mvc.post().uri("/api/v1/seasons/" + apiSeason + "/turns")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"expectedTurnNo\": " + (advance.toTurn() - 1) + "}").exchange().getResponse();
+                    assertThat(r.getStatus()).as("재생 전환 " + advance.toTurn()).isEqualTo(201);
+                }
+                case FormationChange change -> {
+                    String reason = change.reason() == null ? "" : ", \"reason\": "
+                            + JsonMapper.shared().writeValueAsString(change.reason());
+                    String body = "{\"expectedTurnNo\": " + change.turn() + ", \"formation\": {\"goalkeeper\": "
+                            + change.after().goalkeeper() + ", \"defender\": " + change.after().defender()
+                            + ", \"midfielder\": " + change.after().midfielder() + ", \"forward\": "
+                            + change.after().forward() + "}" + reason + "}";
+                    MockHttpServletResponse r = mvc.post().uri("/api/v1/seasons/" + apiSeason + "/formation-changes")
+                            .contentType(MediaType.APPLICATION_JSON).content(body).exchange().getResponse();
+                    assertThat(r.getStatus()).as("재생 전술 변경 " + change.turn() + "/" + change.ordinal()).isEqualTo(201);
+                }
+                case LineupChange change -> lineupRunner.change(apiSeason, (int) change.turn(),
+                        assetIds.get(change.asset()), change.position());
+                case PlaceOrder action -> {
+                    String[] k = action.key().split("/");
+                    long turn = Long.parseLong(k[0]);
+                    String asset = k[1] + "/" + k[2];
+                    String side = k[3];
+                    String declared = null;
+                    if (side.equals("BUY")) {
+                        List<String> starts = new ArrayList<>();
+                        for (int i = 0; i < lineup.size(); i++) {
+                            if ((lineup.get(i, "market") + "/" + lineup.get(i, "ticker")).equals(asset)
+                                    && lineup.get(i, "start_turn").equals(turn)) {
+                                starts.add((String) lineup.get(i, "declared_position"));
+                            }
+                        }
+                        assertThat(starts.size()).as("같은 종목·같은 턴에 새로 연 구간은 많아야 하나다")
+                                .isLessThanOrEqualTo(1);
+                        declared = starts.isEmpty() ? null : starts.get(0);
+                    }
+                    String body = "{\"expectedTurnNo\": " + turn + ", \"side\": \"" + side + "\", \"assetId\": "
+                            + assetIds.get(asset) + ", \"quantity\": " + action.quantity()
+                            + (declared == null ? "" : ", \"declaredPosition\": \"" + declared + "\"") + "}";
+                    MockHttpServletResponse r = mvc.post().uri("/api/v1/seasons/" + apiSeason + "/orders")
+                            .contentType(MediaType.APPLICATION_JSON).content(body).exchange().getResponse();
+                    assertThat(r.getStatus()).as("재생 주문 " + count).isEqualTo(201);
+                    count++;
+                }
+            }
+        }
+        return new Replayed(sqlDb, sqlSeason, apiSeason, count);
+    }
+
+    /** SQL 시즌의 경로·시드·설정으로 API 시즌을 시작하고 번호를 돌려준다(두 재생이 함께 쓴다). */
+    private long startApiSeason(MockMvcTester mvc, DeferredPathSource deferred, MonthBlockRepository monthBlocks,
+            DatabaseHandle sqlDb, long sqlSeason) throws Exception {
         RowSet path = harness.readRows(sqlDb, GoldenRowQueries.seasonPath().query(), sqlSeason);
         List<LocalDate> months = new ArrayList<>();
         for (int i = 0; i < path.size(); i++) {
@@ -179,52 +243,7 @@ public final class TeamBuyGoldenSeason implements AutoCloseable {
                         + " \"midfielder\": 30, \"forward\": 30}, \"pathLength\": " + SqlGoldenScenario.PATH_LENGTH + "}")
                 .exchange().getResponse();
         assertThat(started.getStatus()).isEqualTo(201);
-        long apiSeason = harness.practiceSeasonId(apiDb);
-
-        SeasonReplayInput input = harness.captureReplayInput(sqlDb, sqlSeason);
-        RowSet lineup = harness.readRows(sqlDb, GoldenRowQueries.lineup().query(), sqlSeason);
-        Map<String, Long> assetIds = new HashMap<>();
-        JsonNode assets = JsonMapper.shared().readTree(
-                mvc.get().uri("/api/v1/pool").exchange().getResponse().getContentAsString()).get("assets");
-        assets.forEach(a -> assetIds.put(a.get("market").asString() + "/" + a.get("ticker").asString(),
-                a.get("assetId").asLong()));
-
-        int count = 0;
-        for (ReplayAction action : input.actions()) {
-            if (action.kind() == ActionKind.ADVANCE_TURN) {
-                long to = Long.parseLong(action.key());
-                MockHttpServletResponse r = mvc.post().uri("/api/v1/seasons/" + apiSeason + "/turns")
-                        .contentType(MediaType.APPLICATION_JSON).content("{\"expectedTurnNo\": " + (to - 1) + "}")
-                        .exchange().getResponse();
-                assertThat(r.getStatus()).as("재생 전환 " + to).isEqualTo(201);
-                continue;
-            }
-            String[] k = action.key().split("/");
-            long turn = Long.parseLong(k[0]);
-            String asset = k[1] + "/" + k[2];
-            String side = k[3];
-            String declared = null;
-            if (side.equals("BUY")) {
-                List<String> starts = new ArrayList<>();
-                for (int i = 0; i < lineup.size(); i++) {
-                    if ((lineup.get(i, "market") + "/" + lineup.get(i, "ticker")).equals(asset)
-                            && lineup.get(i, "start_turn").equals(turn)) {
-                        starts.add((String) lineup.get(i, "declared_position"));
-                    }
-                }
-                assertThat(starts.size()).as("같은 종목·같은 턴에 새로 연 구간은 많아야 하나다(그 이상은 라인업 변경 재생의 몫)")
-                        .isLessThanOrEqualTo(1);
-                declared = starts.isEmpty() ? null : starts.get(0);
-            }
-            String body = "{\"expectedTurnNo\": " + turn + ", \"side\": \"" + side + "\", \"assetId\": "
-                    + assetIds.get(asset) + ", \"quantity\": " + action.quantity()
-                    + (declared == null ? "" : ", \"declaredPosition\": \"" + declared + "\"") + "}";
-            MockHttpServletResponse r = mvc.post().uri("/api/v1/seasons/" + apiSeason + "/orders")
-                    .contentType(MediaType.APPLICATION_JSON).content(body).exchange().getResponse();
-            assertThat(r.getStatus()).as("재생 주문 " + count).isEqualTo(201);
-            count++;
-        }
-        return new Replayed(sqlDb, sqlSeason, apiSeason, count);
+        return harness.practiceSeasonId(apiDb);
     }
 
     @Override

@@ -9,6 +9,8 @@ import antlab.scoring.ReconciliationClassification;
 import antlab.scoring.ReconciliationService;
 import antlab.scoring.ReconciliationStatus;
 import antlab.scoring.RuleResult;
+import antlab.asset.Position;
+import antlab.season.LineupChangeService;
 import antlab.season.SeedGenerator;
 import antlab.support.ComparisonSpec;
 import antlab.support.DeferredPathSource;
@@ -22,6 +24,7 @@ import antlab.support.RowSet.RowQuery;
 import antlab.support.RowSetDiff;
 import antlab.support.SeasonReplayInput;
 import antlab.support.SeasonReplayInput.ActionKind;
+import antlab.support.SeasonReplayInput.PlaceOrder;
 import antlab.support.SeasonReplayInput.ReplayAction;
 import antlab.support.SqlGoldenHarness;
 import antlab.support.SqlGoldenHarness.DatabaseHandle;
@@ -61,10 +64,11 @@ import tools.jackson.databind.json.JsonMapper;
  * 매도 골든(P0-36) — 실제 표본 CSV 가 있을 때만 돈다(없으면 건너뜀, 환경 변수로 지정했는데 없으면 실패).
  *
  * <p>SQL 기준은 {@code tradeGolden}(20 → 21 → 23 × 5 → 24 → 25 → 25 검증)이고, API 시즌은 같은 경로·시드로 0턴 팀을 사고
- * 턴 1..5 로 전환한 뒤 5턴의 주문 4건(① 부분 매도 · ③ 매수 · ④ 전량 매도 · ⑤ 추가 매수)을 SQL 번호 순서로 보낸다.
- * ② 전술 변경과 ⑥ 라인업 변경은 재생하지 않는다(P0-37). 둘 다 현금·보유를 바꾸지 않으므로 {@code execution}·{@code cash_ledger}·
- * {@code holding}·{@code cash_account} 는 제외 열 없이 같아야 한다. {@code orders}·{@code lineup} 의 차이는 사유와 함께 빼고,
- * 빼도 차이를 숨기지 않게 반대쪽(정확한 건수·모양)을 따로 단언한다. 시즌을 6턴으로 넘기는 시험(T26b)은 맨 뒤에 둔다.
+ * 턴 1..5 로 전환한 뒤 5턴의 행동 6건(① 부분 매도 · ② 전술 변경 · ③ 매수 · ④ 전량 매도 · ⑤ 추가 매수 · ⑥ 라인업 변경)을 SQL 순서로
+ * 보낸다(P0-37 부터 전술 변경·라인업 변경도 재생한다). {@code execution}·{@code cash_ledger}·{@code holding}·{@code cash_account}·
+ * {@code lineup} 은 제외 열 없이, {@code orders} 는 피드 출발점 열({@code source}·{@code turn_feed_id})만 빼고 같아야 한다 —
+ * 주문의 전술 변경 연결은 (턴, 변경 순번) 논리 키로 비교한다. 빼는 피드 열은 반대쪽(SQL 5턴 FEED 1건, Java 전부 DIRECT)을 따로 단언한다.
+ * 시즌을 6턴으로 넘기는 시험(T26b)은 맨 뒤에 둔다. 전술 변경 이력·비용·10턴 완주는 {@code FormationChangeGoldenTest} 가 본다.
  */
 @Tag("sql-golden")
 @SpringBootTest(properties = {"antlab.single-member.email=phase0@example.invalid", "antlab.single-member.name=연습 감독"})
@@ -113,6 +117,8 @@ class SellOrderGoldenTest {
     PlatformTransactionManager txManager;
     @Autowired
     org.springframework.jdbc.core.JdbcTemplate jdbc;
+    @Autowired
+    LineupChangeService lineupChanges;
 
     private SqlGoldenHarness harness;
     private DatabaseHandle apiDb;
@@ -128,14 +134,19 @@ class SellOrderGoldenTest {
         apiDb = golden.apiDb();
         long started = System.nanoTime();
         TeamBuyGoldenSeason.Replayed r = golden.replayTrades(mvc, deferred, monthBlocks, SqlGoldenScenario.tradeGolden(),
-                "trade_sql");
+                "trade_sql", (season, turn, asset, position) -> lineupChanges.change(season, turn, asset, Position.valueOf(position)));
         System.out.println("[X1] 매도 골든 준비(SQL 기준 + 재생) 걸린 시간(ms) = " + (System.nanoTime() - started) / 1_000_000);
         sqlDb = r.sqlDb();
         sqlSeason = r.sqlSeason();
         apiSeason = r.apiSeason();
         SeasonReplayInput input = harness.captureReplayInput(sqlDb, sqlSeason);
-        turnFiveKeys = input.actions().stream().filter(a -> a.kind() == ActionKind.PLACE_ORDER)
-                .map(ReplayAction::key).filter(k -> k.startsWith("5/")).toList();
+        turnFiveKeys = input.actions().stream().filter(a -> a instanceof PlaceOrder).map(a -> ((PlaceOrder) a).key())
+                .filter(k -> k.startsWith("5/")).toList();
+        // 5턴의 행동 순서는 SQL 시나리오 ①–⑥ 그대로다(전술 변경은 ① 뒤·③ 앞, 라인업 변경은 맨 끝)
+        int five = input.actions().indexOf(new SeasonReplayInput.AdvanceTurn(5));
+        assertThat(five).isPositive();
+        assertThat(input.actions().subList(five + 1, input.actions().size()).stream().map(ReplayAction::kind).toList()).as("5턴 행동 종류 순서").containsExactly(ActionKind.PLACE_ORDER, ActionKind.FORMATION_CHANGE,
+                ActionKind.PLACE_ORDER, ActionKind.PLACE_ORDER, ActionKind.PLACE_ORDER, ActionKind.LINEUP_CHANGE);
         assertThat(turnFiveKeys).as("5턴 주문 4건").hasSize(4);
         assertThat(turnFiveKeys.stream().map(k -> k.split("/")[3]).toList())
                 .as("① 매도 ③ 매수 ④ 매도 ⑤ 매수").containsExactly("SELL", "BUY", "SELL", "BUY");
@@ -195,12 +206,11 @@ class SellOrderGoldenTest {
     @Test
     @Order(2)
     @Timeout(value = 25, unit = TimeUnit.MINUTES)
-    void T24_주문은_출발점_전술_변경_피드_열만_빼고_같고_빼도_차이를_숨기지_않는다() throws Exception {
+    void T24_주문은_피드_출발점_열만_빼고_같고_전술_변경_연결은_논리_키까지_같다() throws Exception {
         GoldenTable plain = GoldenRowQueries.orders();
         ComparisonSpec spec = ComparisonSpec.named("orders").keys("turn_no", "market", "ticker", "side", "nth")
-                .values("type", "quantity", "limit_price", "status")
-                .exclude("source", "P0-37 전술 변경·MVP 피드 출발점 — Phase 0 API 는 DIRECT 만 쓴다(Q5-A). 아래에서 SQL 쪽 모양을 따로 단언")
-                .exclude("has_formation_change", "P0-37 전술 변경 — 재생하지 않으므로 SQL 의 변경 묶음이 Java 에는 없다. 아래에서 따로 단언")
+                .values("type", "quantity", "limit_price", "status", "formation_change_key")
+                .exclude("source", "MVP 피드 출발점 — Phase 0 API 는 DIRECT 만 쓴다(Q5-A). 아래에서 SQL 쪽 모양을 따로 단언")
                 .exclude("has_turn_feed", "MVP 피드 출발점 — Phase 0 API 에 없다(Q5-A). 아래에서 따로 단언")
                 .build();
         RowSet expected = harness.readRows(sqlDb, plain.query(), sqlSeason);
@@ -208,35 +218,40 @@ class SellOrderGoldenTest {
         assertThat(actual.size()).isEqualTo(expected.size());
         RowSetDiff.assertNoDifference(expected, actual, spec);
 
-        // 반대쪽 단언: SQL 5턴은 정확히 "FEED 1건(③) · 전술 변경에 묶인 3건(③④⑤)", 5턴 밖은 전부 DIRECT·묶임 없음·피드 없음. Java 는 전부 DIRECT·묶임 없음·피드 없음
+        // 반대쪽 단언: SQL 5턴은 정확히 "FEED 1건(③) · 전술 변경에 묶인 3건(③④⑤, 변경 5/1)", 5턴 밖은 전부 DIRECT·묶임 없음·피드 없음.
+        // Java 는 전부 DIRECT·피드 없음이고, 전술 변경 연결은 SQL 과 같다(위 비교가 키까지 확인했다 — 비어 있어 헛으로 일치하지 않게 건수도 본다)
         int sqlFeed = 0;
-        int sqlBound = 0;
         int sqlFeedRef = 0;
+        List<String> sqlBound = new ArrayList<>();
+        List<String> javaBound = new ArrayList<>();
         for (int i = 0; i < expected.size(); i++) {
             if (expected.get(i, "turn_no").equals(5L)) {
                 if ("FEED".equals(expected.get(i, "source"))) {
                     sqlFeed++;
-                }
-                if (Boolean.TRUE.equals(expected.get(i, "has_formation_change"))) {
-                    sqlBound++;
                 }
                 if (Boolean.TRUE.equals(expected.get(i, "has_turn_feed"))) {
                     sqlFeedRef++;
                 }
             } else {
                 assertThat(expected.get(i, "source")).as("SQL 5턴 밖 출발점").isEqualTo("DIRECT");
-                assertThat(expected.get(i, "has_formation_change")).isEqualTo(false);
+                assertThat(expected.get(i, "formation_change_key")).isNull();
                 assertThat(expected.get(i, "has_turn_feed")).isEqualTo(false);
+            }
+            if (expected.get(i, "formation_change_key") != null) {
+                sqlBound.add(expected.get(i, "formation_change_key").toString());
             }
         }
         assertThat(sqlFeed).as("SQL 5턴 FEED 주문").isEqualTo(1);
-        assertThat(sqlBound).as("SQL 5턴 전술 변경에 묶인 주문").isEqualTo(3);
         assertThat(sqlFeedRef).as("SQL 5턴 피드 번호가 있는 주문").isEqualTo(1);
+        assertThat(sqlBound).as("SQL 5턴 전술 변경에 묶인 주문").containsExactly("5/1", "5/1", "5/1");
         for (int i = 0; i < actual.size(); i++) {
             assertThat(actual.get(i, "source")).isEqualTo("DIRECT");
-            assertThat(actual.get(i, "has_formation_change")).isEqualTo(false);
             assertThat(actual.get(i, "has_turn_feed")).isEqualTo(false);
+            if (actual.get(i, "formation_change_key") != null) {
+                javaBound.add(actual.get(i, "formation_change_key").toString());
+            }
         }
+        assertThat(javaBound).as("Java 5턴 전술 변경에 묶인 주문").containsExactly("5/1", "5/1", "5/1");
     }
 
     // ---- T25 ----
@@ -244,31 +259,22 @@ class SellOrderGoldenTest {
     @Test
     @Order(3)
     @Timeout(value = 25, unit = TimeUnit.MINUTES)
-    void T25_라인업은_부분_매도_종목만_빼고_같고_그_종목은_각자의_모양이다() throws Exception {
+    void T25_라인업은_제외_열_없이_구간까지_같고_포지션_변경_종목은_닫고_다시_연_두_구간이다() throws Exception {
         String a1 = assetOf(turnFiveKeys.get(0));
         GoldenTable table = GoldenRowQueries.lineup();
         RowSet expected = harness.readRows(sqlDb, table.query(), sqlSeason);
         RowSet actual = harness.readRows(apiDb, table.query(), apiSeason);
-        List<List<Object>> sqlA1 = rowsOf(expected, a1);
-        List<List<Object>> apiA1 = rowsOf(actual, a1);
-        // SQL: ⑥ 이 닫고 다시 연 2행 — [0,5) 닫힘 + [5,∞) 미드필더. Java: 0턴 구간 1행이 열린 채(부분 매도는 구간을 닫지 않는다)
-        assertThat(sqlA1).as("SQL a1 구간").hasSize(2);
-        assertThat(apiA1).as("Java a1 구간").hasSize(1);
-        int start = expected.indexOf("start_turn");
-        int end = expected.indexOf("end_turn");
-        int position = expected.indexOf("declared_position");
-        assertThat(sqlA1.stream().map(r -> r.get(start) + ":" + r.get(end)).toList()).containsExactlyInAnyOrder("0:5", "5:null");
-        assertThat(sqlA1.stream().filter(r -> r.get(end) == null).findFirst().orElseThrow().get(position)).isEqualTo("MIDFIELDER");
-        assertThat(apiA1.get(0).get(start)).isEqualTo(0L);
-        assertThat(apiA1.get(0).get(end)).isNull();
-        Object sqlA1Declared = sqlA1.stream().filter(r -> Long.valueOf(0L).equals(r.get(start))).findFirst().orElseThrow().get(position);
-        assertThat(apiA1.get(0).get(position)).as("Java a1 구간의 선언 = SQL a1 의 0턴 구간 선언(부분 매도는 선언을 바꾸지 않는다)").isEqualTo(sqlA1Declared);
-
-        removeAsset(expected, a1);
-        removeAsset(actual, a1);
         assertThat(actual.size()).isEqualTo(expected.size());
         RowSetDiff.assertNoDifference(expected, actual, table.spec());
-        // c1(전량 매도)은 닫힌 구간 [0,5), b1 은 새 구간 [5,∞) 로 위 비교에 포함돼 있다 — 비어 있어 헛으로 일치하지 않게
+
+        // 비어 있어 헛으로 일치하지 않게 모양을 따로 본다: a1(부분 매도 + 포지션 변경)은 [0,5) 닫힘 + [5,∞) 미드필더 두 구간,
+        // c1(전량 매도)은 닫힌 구간 [0,5), b1(변경 뒤 신규 매수)은 새 구간 [5,∞)
+        int start = actual.indexOf("start_turn");
+        int end = actual.indexOf("end_turn");
+        int position = actual.indexOf("declared_position");
+        List<List<Object>> javaA1 = rowsOf(actual, a1);
+        assertThat(javaA1.stream().map(r -> r.get(start) + ":" + r.get(end)).toList()).containsExactlyInAnyOrder("0:5", "5:null");
+        assertThat(javaA1.stream().filter(r -> r.get(end) == null).findFirst().orElseThrow().get(position)).isEqualTo("MIDFIELDER");
         String c1 = assetOf(turnFiveKeys.get(2));
         String b1 = assetOf(turnFiveKeys.get(1));
         assertThat(rowsOf(actual, c1).stream().map(r -> r.get(start) + ":" + r.get(end)).toList()).containsExactly("0:5");
@@ -283,14 +289,6 @@ class SellOrderGoldenTest {
             }
         }
         return out;
-    }
-
-    private static void removeAsset(RowSet rows, String asset) {
-        for (int i = rows.size() - 1; i >= 0; i--) {
-            if ((rows.get(i, "market") + "/" + rows.get(i, "ticker")).equals(asset)) {
-                rows.removeRow(i);
-            }
-        }
     }
 
     // ---- T26 ----
