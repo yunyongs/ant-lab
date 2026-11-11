@@ -10,12 +10,14 @@ import antlab.season.FormationChange;
 import antlab.season.FormationChangeRepository;
 import antlab.season.Lineup;
 import antlab.season.LineupRepository;
+import antlab.season.SeasonEventTime;
 import antlab.season.Season;
 import antlab.season.SeasonRepository;
 import antlab.season.SeasonStatus;
 import antlab.season.TurnPrice;
 import antlab.season.TurnPriceRepository;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.Optional;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,6 +33,9 @@ import org.springframework.transaction.annotation.Transactional;
  * <p>매도(S1–S10): 보유 ≥ 수량(아니면 INSUFFICIENT_HOLDING) → 열린 구간 → 금액·실현 손익(체결 직전 평균단가, 보유를
  * 바꾸기 전에 계산) → orders → execution → holding → cash_ledger(SELL → FEE) → cash_account → 전량이면 구간 닫기.
  * 매도에는 선언 포지션을 받지 않고(잠금 전 400), 0턴 매도도 막지 않는다(SQL 의 0턴 거부는 파일 구조 때문이다).
+ *
+ * <p>이벤트 시각: 검증이 끝난 뒤 첫 INSERT 직전에 {@link SeasonEventTime} 에서 시각을 확정하고(같은 턴의 앞선 주문·전술 변경보다
+ * 엄격히 늦지 않으면 EVENT_TIME_CONFLICT), 그 값을 주문 INSERT 에 그대로 저장한다. 그래서 기존 검증 오류의 우선순위는 그대로다.
  *
  * <p>검증은 모두 첫 INSERT 앞에 있어, 거절된 요청은 번호표(identity)도 쓰지 않는다.
  * 던지는 예외는 모두 unchecked 라 어느 단계에서든 전부 되돌아간다. 이 서비스는 턴 전환 퍼사드를 부르지 않는다.
@@ -49,11 +54,12 @@ public class OrderService {
     private final FormationChangeRepository formationChanges;
     private final OrderRepository orders;
     private final ExecutionRepository executions;
+    private final SeasonEventTime eventTime;
 
     public OrderService(CurrentMember currentMember, SeasonRepository seasons, CashAccountRepository accounts,
             CashLedgerRepository ledgers, TurnPriceRepository turnPrices, AssetRepository assets,
             HoldingRepository holdings, LineupRepository lineups, FormationChangeRepository formationChanges,
-            OrderRepository orders, ExecutionRepository executions) {
+            OrderRepository orders, ExecutionRepository executions, SeasonEventTime eventTime) {
         this.currentMember = currentMember;
         this.seasons = seasons;
         this.accounts = accounts;
@@ -65,6 +71,7 @@ public class OrderService {
         this.formationChanges = formationChanges;
         this.orders = orders;
         this.executions = executions;
+        this.eventTime = eventTime;
     }
 
     @Transactional
@@ -111,7 +118,7 @@ public class OrderService {
         BigDecimal rate = MoneyMath.feeRate(market, season.getFeeRateKr(), season.getFeeRateUs(),
                 season.getFxSpreadRate());
 
-        // 같은 턴의 마지막 전술 변경에 묶는다 — 주문은 불변이라 INSERT 때 넣는다.
+        // 같은 턴의 마지막 전술 변경(번호 기준)에 묶는다 — 주문은 불변이라 INSERT 때 넣는다.
         Long changeId = formationChanges.findLastBySeasonIdAndTurnNo(seasonId, turnNo)
                 .map(FormationChange::getId).orElse(null);
         return new OrderContext(season, account, turnNo, price, rate, changeId);
@@ -153,19 +160,15 @@ public class OrderService {
         }
 
         // 8~13. 쓰기. 검증은 모두 위에서 끝났다.
+        Instant at = eventTime.next(seasonId, turnNo);
         Order order = orders.save(new Order(seasonId, assetId, turnNo, OrderSide.BUY, OrderType.MARKET, quantity,
-                null, OrderStatus.FILLED, OrderSource.DIRECT, ctx.changeId(), null));
+                null, OrderStatus.FILLED, OrderSource.DIRECT, ctx.changeId(), null, at));
         Execution execution = executions.save(new Execution(order.getId(), price, quantity, fee, BigDecimal.ZERO, null));
 
         holding.applyBuy(quantity, MoneyMath.avgPrice(holding.getQuantity(), holding.getAvgPrice(), quantity, price));
         holdings.save(holding);
 
-        ledgers.save(new CashLedger(account, LedgerType.BUY, notional.negate(),
-                account.applyLedgerAmount(notional.negate()), order.getId()));
-        if (fee.signum() > 0) {
-            ledgers.save(new CashLedger(account, LedgerType.FEE, fee.negate(),
-                    account.applyLedgerAmount(fee.negate()), order.getId()));
-        }
+        recordLedger(account, LedgerType.BUY, notional.negate(), fee, order.getId());
         // 계좌 UPDATE 는 커밋 때 flush 되며 버전이 하나 오른다.
 
         Position position = open.map(Lineup::getDeclaredPosition).orElse(declared);
@@ -198,19 +201,15 @@ public class OrderService {
         BigDecimal pnl = MoneyMath.realizedPnl(price, holding.getAvgPrice(), quantity);
 
         // S4~S9. 쓰기. 검증은 모두 위에서 끝났다.
+        Instant at = eventTime.next(seasonId, turnNo);
         Order order = orders.save(new Order(seasonId, assetId, turnNo, OrderSide.SELL, OrderType.MARKET, quantity,
-                null, OrderStatus.FILLED, OrderSource.DIRECT, ctx.changeId(), null));
+                null, OrderStatus.FILLED, OrderSource.DIRECT, ctx.changeId(), null, at));
         Execution execution = executions.save(new Execution(order.getId(), price, quantity, fee, BigDecimal.ZERO, pnl));
 
         holding.applySell(quantity);
         holdings.save(holding);
 
-        ledgers.save(new CashLedger(account, LedgerType.SELL, notional, account.applyLedgerAmount(notional),
-                order.getId()));
-        if (fee.signum() > 0) {
-            ledgers.save(new CashLedger(account, LedgerType.FEE, fee.negate(),
-                    account.applyLedgerAmount(fee.negate()), order.getId()));
-        }
+        recordLedger(account, LedgerType.SELL, notional, fee, order.getId());
         // 계좌 UPDATE 는 커밋 때 flush 되며 버전이 하나 오른다.
 
         if (holding.getQuantity() == 0) {
@@ -218,6 +217,19 @@ public class OrderService {
         }
         return OrderResultDto.of(order, execution, notional, account.getBalance(), holding,
                 open.getDeclaredPosition());
+    }
+
+    /**
+     * 원장 두 줄 — 주 거래 줄(매수는 음수·매도는 양수 대금) 다음에 수수료 줄. 수수료가 0 이면 수수료 줄은 만들지 않는다.
+     * 각 줄의 거래 후 잔액은 계좌에 금액을 반영한 값이라 순서가 곧 사슬이다.
+     */
+    private void recordLedger(CashAccount account, LedgerType type, BigDecimal signedAmount, BigDecimal fee,
+            Long orderId) {
+        ledgers.save(new CashLedger(account, type, signedAmount, account.applyLedgerAmount(signedAmount), orderId));
+        if (fee.signum() > 0) {
+            ledgers.save(new CashLedger(account, LedgerType.FEE, fee.negate(),
+                    account.applyLedgerAmount(fee.negate()), orderId));
+        }
     }
 
     /** 공통 앞부분의 결과 — 매수·매도 분기가 함께 읽는다. */

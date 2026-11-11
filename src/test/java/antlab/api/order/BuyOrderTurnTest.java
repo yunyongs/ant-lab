@@ -48,13 +48,13 @@ class BuyOrderTurnTest {
     }
 
     @Test
-    void 일_턴_매수는_그_턴_가격으로_체결되고_마지막_전술_변경에_묶인다() throws Exception {
+    void 일_턴_매수는_그_턴_가격으로_체결되고_번호가_가장_큰_전술_변경에_묶인다() throws Exception {
         long season = seasonAtTurnOne("000660", "160000");
-        // 그 턴의 전술 변경 두 행 — 시각이 늦은 쪽이 마지막이다(번호 순서와 다르게 만든다)
-        long late = changeRow(season, 1, "2030-01-01 10:00:00", 10, 30, 30, 30, 10, 40, 30, 20);
-        long early = changeRow(season, 1, "2030-01-01 09:00:00", 10, 40, 30, 20, 10, 30, 30, 30);
+        // 그 턴의 전술 변경 두 행 — 연결은 시각이 아니라 번호 순이다(정상 쓰기에서는 둘이 같은 순서다. 여기서는 일부러 어긋나게 만든 변조 데이터)
+        long late = changeRow(season, 1, "2020-01-01 10:00:00", 10, 30, 30, 30, 10, 40, 30, 20);
+        long early = changeRow(season, 1, "2020-01-01 09:00:00", 10, 40, 30, 20, 10, 30, 30, 30);
         // 0턴의 변경은 묶이지 않는다
-        changeRow(season, 0, "2031-01-01 00:00:00", 10, 30, 30, 30, 20, 30, 30, 20);
+        changeRow(season, 0, "2020-01-01 00:00:00", 10, 30, 30, 30, 20, 30, 30, 20);
         assertThat(early).isGreaterThan(late);
 
         MockHttpServletResponse r = place(mvc, season, body(1, "BUY", assetId(jdbc, "000660"), 10, "FORWARD_BREAKOUT"));
@@ -63,18 +63,18 @@ class BuyOrderTurnTest {
         JsonNode o = json(r);
         assertThat(o.get("turnNo").asInt()).isEqualTo(1);
         assertThat(o.get("fillPrice").asString()).isEqualTo("160000");
-        assertThat(o.get("formationChangeId").asLong()).isEqualTo(late);
+        assertThat(o.get("formationChangeId").asLong()).isEqualTo(early);
         Map<String, Object> order = jdbc.queryForMap("SELECT * FROM orders WHERE season_id = ?", season);
         assertThat(order.get("turn_no")).isEqualTo(1);
-        assertThat(order.get("formation_change_id")).isEqualTo(late);
+        assertThat(order.get("formation_change_id")).isEqualTo(early);
         assertThat(jdbc.queryForObject("SELECT start_turn FROM lineup WHERE season_id = ?", Integer.class, season)).isEqualTo(1);
     }
 
     @Test
     void 시각이_같으면_번호가_큰_변경에_묶인다() throws Exception {
         long season = seasonAtTurnOne("000660", "160000");
-        changeRow(season, 1, "2030-01-01 09:00:00", 10, 30, 30, 30, 10, 40, 30, 20);
-        long bigger = changeRow(season, 1, "2030-01-01 09:00:00", 10, 40, 30, 20, 10, 30, 30, 30);
+        changeRow(season, 1, "2020-01-01 09:00:00", 10, 30, 30, 30, 10, 40, 30, 20);
+        long bigger = changeRow(season, 1, "2020-01-01 09:00:00", 10, 40, 30, 20, 10, 30, 30, 30);
         JsonNode o = json(place(mvc, season, body(1, "BUY", assetId(jdbc, "069500"), 1, "MIDFIELDER")));
         assertThat(o.get("formationChangeId").asLong()).isEqualTo(bigger);
     }

@@ -100,7 +100,7 @@ class SeasonStateTest {
     @Test
     void 포메이션_변경_기록은_이전과_이후가_같으면_거부한다() {
         Formation f = new Formation(25, 25, 25, 25);
-        assertThatThrownBy(() -> new FormationChange(season(5), 1, f, f, null))
+        assertThatThrownBy(() -> new FormationChange(season(5), 1, f, f, null, java.time.Instant.now()))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 }

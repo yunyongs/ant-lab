@@ -1,6 +1,6 @@
 package antlab.season;
 
-import antlab.common.persistence.CreatedEntity;
+import antlab.common.persistence.ExplicitCreatedEntity;
 import jakarta.persistence.AttributeOverride;
 import jakarta.persistence.AttributeOverrides;
 import jakarta.persistence.Column;
@@ -13,6 +13,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import java.time.Instant;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -20,13 +21,13 @@ import org.hibernate.annotations.Immutable;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
-/** 포메이션 변경 기록: 어느 턴에 어떤 비중에서 어떤 비중으로 바꿨는지. 추가 전용. 변경 비용은 저장하지 않는다(erd D31). */
+/** 포메이션 변경 기록: 어느 턴에 어떤 비중에서 어떤 비중으로 바꿨는지. 추가 전용. 만든 시각은 서비스가 잠금 뒤 확정해 넘긴다. 변경 비용은 저장하지 않는다(erd D31). */
 @Entity
 @Immutable
 @Table(name = "formation_change")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class FormationChange extends CreatedEntity {
+public class FormationChange extends ExplicitCreatedEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -60,7 +61,9 @@ public class FormationChange extends CreatedEntity {
     @Column(name = "reason", length = 200, nullable = true)
     private String reason;
 
-    public FormationChange(Season season, int turnNo, Formation before, Formation after, String reason) {
+    public FormationChange(Season season, int turnNo, Formation before, Formation after, String reason,
+            Instant createdAt) {
+        super(createdAt);
         if (before.equals(after)) {
             throw new IllegalArgumentException("이전과 이후 포메이션이 같을 수 없다");
         }

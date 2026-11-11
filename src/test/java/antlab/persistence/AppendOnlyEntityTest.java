@@ -89,13 +89,13 @@ class AppendOnlyEntityTest {
                 bd("0")));
         m.put("turn_price", new TurnPrice(season, 0, assetId, bd("1500")));
         m.put("formation_change", new FormationChange(season, 1, new Formation(20, 30, 30, 20),
-                new Formation(10, 20, 30, 40), "사유"));
+                new Formation(10, 20, 30, 40), "사유", Instant.now()));
         m.put("turn_feed", new TurnFeed(season, 1, 1, FeedKind.NUDGE, null, null, null, false, MoveDirection.UP, 2,
                 0, "tmpl", "{\"a\": 1}", "본문"));
         m.put("reconciliation_log", new ReconciliationLog(season.getId(), 1, 1, CheckCode.CASH_SUM,
                 ReconciliationStatus.MATCH, bd("100"), bd("100"), bd("0"), 0, null, "{\"k\": [1, 2]}"));
         Order order = new Order(season.getId(), assetId, 1, OrderSide.BUY, OrderType.MARKET, 3, null,
-                OrderStatus.FILLED, OrderSource.DIRECT, null, null);
+                OrderStatus.FILLED, OrderSource.DIRECT, null, null, Instant.now());
         m.put("orders", order);
         m.put("execution", null); // 주문이 저장된 뒤 채운다
         m.put("cash_ledger", new CashLedger(account, LedgerType.DEPOSIT, bd("10000000"), bd("10000000"), null));
@@ -228,7 +228,7 @@ class AppendOnlyEntityTest {
     @Test
     void type_필드로_JPQL_조건을_쓸_수_있다() {
         em.persist(new Order(season.getId(), assetId, 1, OrderSide.BUY, OrderType.MARKET, 3, null,
-                OrderStatus.FILLED, OrderSource.DIRECT, null, null));
+                OrderStatus.FILLED, OrderSource.DIRECT, null, null, Instant.now()));
         em.flush();
         List<Order> found = em.createQuery("select o from Orders o where o.type = :t and o.seasonId = :s", Order.class)
                 .setParameter("t", OrderType.MARKET).setParameter("s", season.getId()).getResultList();
@@ -241,7 +241,7 @@ class AppendOnlyEntityTest {
     @Test
     void 포메이션_임베더블이_왕복한다() {
         FormationChange fc = new FormationChange(season, 2, new Formation(20, 30, 30, 20),
-                new Formation(5, 15, 25, 55), null);
+                new Formation(5, 15, 25, 55), null, Instant.now());
         em.persist(fc);
         em.flush();
         em.clear();

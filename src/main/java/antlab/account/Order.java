@@ -1,6 +1,6 @@
 package antlab.account;
 
-import antlab.common.persistence.CreatedEntity;
+import antlab.common.persistence.ExplicitCreatedEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -10,6 +10,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
+import java.time.Instant;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -20,6 +21,7 @@ import org.hibernate.type.SqlTypes;
 /**
  * 주문 — 추가 전용. 접수와 체결이 한 번에 일어나므로(SPRING_JPA §5.2) 넣은 뒤 바꾸지 않는다.
  * 지정가가 들어오면(EXT) 다시 본다. 엔티티 이름은 {@code Orders} 다 — JPQL 에서 {@code ORDER} 는 예약어다.
+ * 만든 시각은 서비스가 시즌 잠금 뒤에 확정해 넘긴다({@link ExplicitCreatedEntity}).
  * 시즌·종목·전술 변경·피드는 {@code Long} 번호 그대로이고, 복합 FK 의 일관성은 DB 가 지킨다(erd D29).
  */
 @Entity(name = "Orders")
@@ -27,7 +29,7 @@ import org.hibernate.type.SqlTypes;
 @Table(name = "orders")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class Order extends CreatedEntity {
+public class Order extends ExplicitCreatedEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -73,7 +75,9 @@ public class Order extends CreatedEntity {
     private Long turnFeedId;
 
     public Order(Long seasonId, Long assetId, int turnNo, OrderSide side, OrderType type, int quantity,
-            BigDecimal limitPrice, OrderStatus status, OrderSource source, Long formationChangeId, Long turnFeedId) {
+            BigDecimal limitPrice, OrderStatus status, OrderSource source, Long formationChangeId, Long turnFeedId,
+            Instant createdAt) {
+        super(createdAt);
         this.seasonId = seasonId;
         this.assetId = assetId;
         this.turnNo = turnNo;
