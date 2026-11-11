@@ -20,7 +20,7 @@ import tools.jackson.databind.json.JsonMapper;
  * 때만 — 기본값은 계약에 적지 않는다)·requestBody·responses(본문 스키마와 응답 헤더의 이름 집합·필수 여부·스키마), 스키마의
  * type·format·enum·required·properties·items·additionalProperties·수치/길이 제약·oneOf/anyOf/allOf,
  * 범위 안 운영에서 닿는 컴포넌트 집합, 머리의 openapi 주·부 판. 미디어 형식은 {@code ;} 앞(예: charset 매개변수
- * 제외)까지만 본다. 범위 밖 운영만 쓰는 컴포넌트는 고아로 세지 않는다.
+ * 제외)까지만 본다. 응답의 {@code #/components/responses/…} 참조는 풀어서 본문을 비교한다. 범위 밖 운영만 쓰는 컴포넌트는 고아로 세지 않는다.
  * 무시하는 것: summary·description·tags·example(s)·default·readOnly/writeOnly·title·xml·info·servers·security.
  * $ref 는 컴포넌트 이름으로 바꿔 비교한다(이름도 계약 — 웹 타입 이름).
  */
@@ -28,6 +28,7 @@ public final class OpenApiNormalizer {
 
     static final String SCOPE_PREFIX = "/api/v1/";
     private static final List<String> METHODS = List.of("get", "put", "post", "delete", "patch", "head", "options", "trace");
+    private static final String RESPONSE_REF_PREFIX = "#/components/responses/";
     private static final String SCHEMA_REF_PREFIX = "#/components/schemas/";
     /** 값이 그대로 비교되는 스칼라 제약 키 */
     private static final List<String> SCALAR_KEYS = List.of("format", "minimum", "maximum", "exclusiveMinimum",
@@ -166,12 +167,22 @@ public final class OpenApiNormalizer {
         Map<String, Object> responses = new TreeMap<>();
         for (Map.Entry<String, JsonNode> r : op.path("responses").properties()) {
             Map<String, Object> rm = new TreeMap<>();
-            rm.put("content", content(r.getValue().path("content")));
-            rm.put("headers", headers(r.getValue().path("headers")));
+            JsonNode response = resolveResponse(r.getValue());
+            rm.put("content", content(response.path("content")));
+            rm.put("headers", headers(response.path("headers")));
             responses.put(r.getKey(), rm);
         }
         m.put("responses", responses);
         return m;
+    }
+
+    /** 응답이 {@code #/components/responses/이름} 참조면 그 컴포넌트를 돌려준다(없으면 빈 노드 — 차이로 드러난다). */
+    private JsonNode resolveResponse(JsonNode response) {
+        JsonNode ref = response.get("$ref");
+        if (ref == null || !ref.asString().startsWith(RESPONSE_REF_PREFIX)) {
+            return response;
+        }
+        return doc.path("components").path("responses").path(ref.asString().substring(RESPONSE_REF_PREFIX.length()));
     }
 
     private Map<String, Object> content(JsonNode content) {
