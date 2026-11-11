@@ -40,7 +40,7 @@ public class ManualReconciliationService {
         List<RuleResult> results = reconciliation.evaluateManual(seasonId, turnNo);
         int attemptNo = writer.record(seasonId, turnNo, results);
         List<RuleSummaryDto> rules = results.stream().map(r -> new RuleSummaryDto(r.ruleNo(), r.checkCode().name(),
-                r.status().name(), r.mismatchCount())).toList();
+                r.status().name(), r.mismatchCount(), r.expectedValue(), r.actualValue(), r.diffValue(), r.detail())).toList();
         int mismatchRules = (int) results.stream().filter(r -> r.status() == ReconciliationStatus.MISMATCH).count();
         return new ManualReconciliationDto(seasonId, turnNo, attemptNo, mismatchRules == 0 ? "MATCH" : "MISMATCH",
                 mismatchRules, rules);

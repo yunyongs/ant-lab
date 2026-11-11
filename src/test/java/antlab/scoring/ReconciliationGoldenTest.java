@@ -183,8 +183,9 @@ class ReconciliationGoldenTest {
     @Timeout(value = 25, unit = TimeUnit.MINUTES)
     void 개발_엔드포인트의_기록과_SQL_수동_대사의_기록이_한_번호_공간에서_행까지_같다() throws Exception {
         int before = maxAttempt();
-        MockHttpServletResponse r = mvc.post().uri("/api/v1/dev/seasons/" + apiSeason + "/reconciliation").exchange()
-                .getResponse();
+        MockHttpServletResponse r = mvc.post().uri("/api/v1/dev/seasons/" + apiSeason + "/reconciliation")
+                .header(antlab.api.dev.DevReconciliationController.DEV_HEADER, antlab.api.dev.DevReconciliationController.DEV_HEADER_VALUE)
+                .exchange().getResponse();
         assertThat(r.getStatus()).isEqualTo(200);
         int javaAttempt = JsonMapper.shared().readTree(r.getContentAsString()).get("attemptNo").asInt();
         assertThat(javaAttempt).isEqualTo(before + 1);

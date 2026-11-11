@@ -41,5 +41,7 @@ public enum ErrorCode {
     /** 현재 회원을 알 수 없다 — 운영에서 고정 회원이 꺼져 있고 인증(SEC)이 아직 없을 때. */
     MEMBER_UNAVAILABLE,
     /** 턴 전환 대사가 하나라도 어긋나 아무것도 바꾸지 않았다(P0-33). */
-    RECONCILIATION_FAILED
+    RECONCILIATION_FAILED,
+    /** 개발용 엔드포인트를 고정 헤더 없이 불렀다(로컬 개발 전용 관문). */
+    FORBIDDEN
 }

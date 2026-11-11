@@ -36,12 +36,14 @@ public final class ErrorHttpMapping {
             case POSITION_REQUIRED -> HttpStatus.UNPROCESSABLE_ENTITY;
             case MEMBER_UNAVAILABLE -> HttpStatus.SERVICE_UNAVAILABLE;
             case RECONCILIATION_FAILED -> HttpStatus.CONFLICT;
+            case FORBIDDEN -> HttpStatus.FORBIDDEN;
         };
     }
 
     /** 상태 → 코드. 목록에 없는 4xx 는 INVALID_ARGUMENT, 5xx 는 INTERNAL_ERROR 로 접는다. */
     public static ErrorCode code(HttpStatusCode status) {
         return switch (status.value()) {
+            case 403 -> ErrorCode.FORBIDDEN;
             case 404 -> ErrorCode.NOT_FOUND;
             case 405 -> ErrorCode.METHOD_NOT_ALLOWED;
             case 406 -> ErrorCode.NOT_ACCEPTABLE;

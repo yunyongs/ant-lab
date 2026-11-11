@@ -40,6 +40,8 @@ class ExposureContractTest {
     static final Set<String> FORBIDDEN_KEYS = Set.of("currency", "code", "listedOn", "baseDate", "windowStart",
             "windowEnd", "monthsUsed", "marketCapRank", "baseFxRate", "basePrice", "createdAt");
 
+    static final String DEV_PATH_PREFIX = "/api/v1/dev/";
+
     @Autowired
     @Qualifier("requestMappingHandlerMapping")
     RequestMappingHandlerMapping handlerMapping;
@@ -62,7 +64,8 @@ class ExposureContractTest {
                 type = type.getGeneric(0);
             }
             for (String p : patterns) {
-                if (p.startsWith("/api/v1/")) {
+                // 개발 엔드포인트(local 전용, prod 미등록)는 값을 보여 주는 도구라 노출 검사 예외다(소유자 결정 2026-11-11).
+                if (p.startsWith("/api/v1/") && !p.startsWith(DEV_PATH_PREFIX)) {
                     out.add(new Endpoint(p, type.toClass()));
                 }
             }
