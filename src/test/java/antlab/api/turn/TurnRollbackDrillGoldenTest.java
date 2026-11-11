@@ -161,8 +161,9 @@ class TurnRollbackDrillGoldenTest {
         assertThat(code(failed)).isEqualTo("RECONCILIATION_FAILED");
         assertThat(count(apiDb, apiSeason, "SELECT count(*) AS n FROM reconciliation_log WHERE season_id = :sid"))
                 .as("실패한 전환은 로그 17행만 남긴다").isEqualTo(before + 17);
-        jdbc.update("UPDATE lineup SET end_turn = NULL, updated_at = now() WHERE season_id = ? AND end_turn IS NOT NULL"
+        int reopened = jdbc.update("UPDATE lineup SET end_turn = NULL, updated_at = now() WHERE season_id = ? AND end_turn IS NOT NULL"
                 + " AND asset_id = (SELECT id FROM asset WHERE market = ? AND ticker = ?)", apiSeason, market, ticker);
+        assertThat(reopened).as("고치기 UPDATE 가 실제로 한 행을 열었다").isEqualTo(1);
         assertThat(advance(mvc, apiSeason, K).getStatus()).isEqualTo(201);
         for (int t = K + 1; t < SqlGoldenScenario.PATH_LENGTH; t++) {
             assertThat(advance(mvc, apiSeason, t).getStatus()).as("전환 " + t).isEqualTo(201);

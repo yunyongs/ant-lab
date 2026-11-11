@@ -8,7 +8,7 @@ import io.swagger.v3.oas.annotations.media.Schema.RequiredMode;
 import java.math.BigDecimal;
 
 /**
- * 체결 결과 한 건. 금액은 원 단위 정수 문자열, 평균단가는 소수 4자리 문자열이다 — scale 은 {@link #of} 한 곳에서 정한다.
+ * 체결 결과 한 건(매수·매도). 금액은 원 단위 정수 문자열, 평균단가는 소수 4자리 문자열이다 — scale 은 {@link #of} 한 곳에서 정한다.
  * 기록 시각·출발점·유형·상태·피드 번호·시드·경로·연월은 싣지 않는다.
  */
 public record OrderResultDto(
@@ -45,8 +45,12 @@ public record OrderResultDto(
         @ExposedFrom("holding.avg_price")
         @Schema(requiredMode = RequiredMode.REQUIRED, description = "체결 뒤 평균단가(수수료 제외), 소수 4자리")
         BigDecimal avgPrice,
+        @ExposedFrom("execution.realized_pnl")
+        @Schema(requiredMode = RequiredMode.REQUIRED, types = {"string", "null"},
+                description = "실현 손익(체결가 − 체결 직전 평균단가) × 수량, 소수 4자리 문자열, 음수 가능. 매수는 null")
+        BigDecimal realizedPnl,
         @ExposedFrom("lineup.declared_position")
-        @Schema(requiredMode = RequiredMode.REQUIRED, description = "이 종목의 열린 구간 선언 포지션")
+        @Schema(requiredMode = RequiredMode.REQUIRED, description = "이 종목의 구간 선언 포지션(전량 매도면 방금 닫은 구간)")
         Position declaredPosition,
         @ExposedFrom("orders.formation_change_id")
         @Schema(requiredMode = RequiredMode.REQUIRED, types = {"integer", "null"},
@@ -58,6 +62,7 @@ public record OrderResultDto(
         return new OrderResultDto(order.getId(), order.getTurnNo(), order.getSide(), order.getAssetId(),
                 execution.getQuantity(), MoneyMath.exactWon(execution.getFillPrice()), MoneyMath.exactWon(notional),
                 MoneyMath.exactWon(execution.getFee()), MoneyMath.exactWon(cashBalance), holding.getQuantity(),
-                MoneyMath.exactAvgPrice(holding.getAvgPrice()), declaredPosition, order.getFormationChangeId());
+                MoneyMath.exactAvgPrice(holding.getAvgPrice()), MoneyMath.exactPnl(execution.getRealizedPnl()),
+                declaredPosition, order.getFormationChangeId());
     }
 }

@@ -139,7 +139,9 @@ class TurnAdvanceRollbackTest {
         assertThat(advance(mvc, season, 0).getStatus()).isEqualTo(409);
         assertThat(advance(mvc, season, 0).getStatus()).isEqualTo(409); // 고치지 않았다 → 시도 2 도 실패
         assertThat(attempt(season, 2, "MISMATCH")).isEqualTo(2);
-        jdbc.update("UPDATE lineup SET end_turn = NULL WHERE season_id = ? AND asset_id = ?", season, assetId(jdbc, "069500"));
+        int reopened = jdbc.update("UPDATE lineup SET end_turn = NULL WHERE season_id = ? AND asset_id = ?", season,
+                assetId(jdbc, "069500"));
+        assertThat(reopened).as("고치기 UPDATE 가 실제로 한 행을 열었다").isEqualTo(1);
         MockHttpServletResponse ok = advance(mvc, season, 0);
         assertThat(ok.getStatus()).isEqualTo(201);
 

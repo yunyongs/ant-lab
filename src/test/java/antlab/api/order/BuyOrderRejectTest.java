@@ -183,14 +183,6 @@ class BuyOrderRejectTest {
     // ---- 입력 검증(400) ----
 
     @Test
-    void 매도는_아직_받지_않아_400이다() throws Exception {
-        long season = startSeason(mvc);
-        JsonNode p = rejected(season, body(0, "SELL", assetId(jdbc, "000660"), 1, "FORWARD_BREAKOUT"), 400,
-                "INVALID_ARGUMENT");
-        assertThat(p.get("detail").asString()).isEqualTo("매도는 아직 받지 않는다");
-    }
-
-    @Test
     void 수량_0_음수는_400이고_errors에_quantity가_나온다() throws Exception {
         long season = startSeason(mvc);
         long asset = assetId(jdbc, "000660");

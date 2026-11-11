@@ -1,6 +1,7 @@
 package antlab.scoring;
 
 import static antlab.scoring.ReconciliationApiSupport.seasonWithOrders;
+import static antlab.scoring.ReconciliationApiSupport.seasonWithSells;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import antlab.support.IntegrationTest;
@@ -180,5 +181,48 @@ class ReconciliationMutationTest {
         Set<CheckCode> covered = new java.util.HashSet<>();
         mutations().forEach(a -> covered.addAll(((Mutation) a.get()[0]).expected()));
         assertThat(covered).containsAll(RuleCatalog.manualCodes());
+    }
+
+    // ---- 매도 양성 사례: 매수 2건 + 부분 매도(국내) + 전량 매도(미국)가 있는 기준 상태 ----
+
+    private static final String SELL_ORDER = "(SELECT min(id) FROM orders WHERE season_id = {S} AND side = 'SELL')";
+    private static final String SELL_LEDGER = "(SELECT min(id) FROM cash_ledger WHERE season_id = {S} AND type = 'SELL')";
+    private static final String CLOSED_LINEUP = "(SELECT min(id) FROM lineup WHERE season_id = {S} AND end_turn IS NOT NULL)";
+
+    static Stream<Arguments> sellMutations() {
+        return Stream.of(
+                m("N8b 매도 체결의 realized_pnl 을 비움", "UPDATE execution SET realized_pnl = NULL WHERE order_id = " + SELL_ORDER,
+                        "SELL_PNL", CheckCode.EXEC_VALUES),
+                m("N17b 전량 매도 종목의 닫힌 구간을 다시 염", "UPDATE lineup SET end_turn = NULL WHERE id = " + CLOSED_LINEUP,
+                        "OPEN_NO_HOLDING", CheckCode.LINEUP_HOLDING),
+                // 유형을 BUY 로 바꾸면 부호 CHECK(ck_cash_ledger_amount_sign)가 먼저 막는다 — 부호가 자유로운 ADJUSTMENT 로 바꾼다
+                m("N4c 매도 원장 행의 유형을 ADJUSTMENT 로(총액은 맞고 분류만 틀림)",
+                        "UPDATE cash_ledger SET type = 'ADJUSTMENT' WHERE id = " + SELL_LEDGER, "TYPE", CheckCode.ORDER_LEDGER)).map(Arguments::of);
+    }
+
+    @Test
+    void 매도가_낀_기준_상태에서도_열다섯_개가_모두_일치하고_Java가_SQL과_같다() throws Exception {
+        long season = seasonWithSells(mvc, jdbc);
+        Pair p = compareIn(season, 0, null);
+        RuleResultAssert.assertSame(p.sql(), p.java());
+        assertThat(p.java()).hasSize(15);
+        assertThat(RuleResultAssert.mismatchCodes(p.java())).isEmpty();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM execution e JOIN orders o ON o.id = e.order_id"
+                + " WHERE o.season_id = ? AND o.side = 'SELL' AND e.realized_pnl IS NOT NULL", Long.class, season))
+                .as("매도 체결 2건이 실제로 있다").isEqualTo(2L);
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("sellMutations")
+    void 매도_사례를_깨뜨리면_Java가_SQL과_같고_불일치_집합이_기대와_같다(Mutation mutation) throws Exception {
+        long season = seasonWithSells(mvc, jdbc);
+        Pair p = compareIn(season, 0, mutation.sql());
+        RuleResultAssert.assertSame(p.sql(), p.java());
+        System.out.println("[X6] " + mutation.name() + " → "
+                + p.java().stream().filter(r -> r.detail() != null).map(RuleResult::detail).toList());
+        assertThat(RuleResultAssert.mismatchCodes(p.java())).as(mutation.name()).isEqualTo(mutation.expected());
+        assertThat(p.java().stream().filter(r -> r.detail() != null).map(RuleResult::detail).toList())
+                .as(mutation.name() + " 종류").anyMatch(d -> d.contains("\"" + mutation.kind() + "\""));
+        assertThat(RuleResultAssert.mismatchCodes(compareIn(season, 0, null).java())).isEmpty();
     }
 }

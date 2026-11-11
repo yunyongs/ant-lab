@@ -54,10 +54,11 @@ class TurnAdvanceConcurrencyTest {
                 lock.setLong(1, season);
                 lock.executeQuery();
             }
+            long base = LockWaitSupport.waiters(jdbc);
             Future<MockHttpServletResponse> first = pool.submit(() -> advance(mvc, season, expectedTurnNo));
-            LockWaitSupport.awaitWaiters(jdbc, 1);
+            LockWaitSupport.awaitWaitersAbove(jdbc, base, 1);
             Future<MockHttpServletResponse> second = pool.submit(() -> advance(mvc, season, expectedTurnNo));
-            LockWaitSupport.awaitWaiters(jdbc, 2);
+            LockWaitSupport.awaitWaitersAbove(jdbc, base, 2);
             assertThat(first.isDone() || second.isDone()).as("잠금이 풀리기 전에는 응답이 없다").isFalse();
             holder.commit();
             List<MockHttpServletResponse> out = new ArrayList<>();

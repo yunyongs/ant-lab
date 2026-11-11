@@ -182,4 +182,36 @@ class MoneyMathTest {
                 .hasMessageNotContaining("1.00005");
         assertThatThrownBy(() -> MoneyMath.exactAvgPrice(null)).isInstanceOf(IllegalArgumentException.class);
     }
+
+    @Test
+    void 실현_손익은_체결가와_평균단가의_차이에_수량을_곱해_소수_4자리로_낸다() {
+        assertThat(MoneyMath.realizedPnl(bd("160000"), bd("150000.0000"), 4).toPlainString()).isEqualTo("40000.0000");
+        assertThat(MoneyMath.realizedPnl(bd("30000"), bd("35000"), 40).toPlainString()).isEqualTo("-200000.0000");
+        assertThat(MoneyMath.realizedPnl(bd("150000"), bd("150000.0000"), 1).toPlainString()).isEqualTo("0.0000");
+        assertThat(MoneyMath.realizedPnl(bd("150001"), bd("150000.6667"), 3).toPlainString()).isEqualTo("0.9999");
+        assertThat(MoneyMath.realizedPnl(bd("1"), bd("0.0001"), 2).toPlainString()).isEqualTo("1.9998");
+        // 큰 수량 경계: NUMERIC(19,4) 상한 안은 받고, 넘으면 값 없이 거부한다
+        assertThat(MoneyMath.realizedPnl(bd("999999999"), bd("1"), 1_000_000).scale()).isEqualTo(4);
+        assertThatThrownBy(() -> MoneyMath.realizedPnl(bd("999999999999999"), bd("1"), 2))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageNotContaining("999999999999999");
+    }
+
+    @Test
+    void 실현_손익의_잘못된_입력은_거부한다() {
+        assertThatThrownBy(() -> MoneyMath.realizedPnl(bd("100.5"), bd("1"), 1)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> MoneyMath.realizedPnl(bd("100"), bd("0"), 1)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> MoneyMath.realizedPnl(bd("100"), bd("1.00001"), 1)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> MoneyMath.realizedPnl(bd("100"), bd("1"), 0)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> MoneyMath.realizedPnl(null, bd("1"), 1)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> MoneyMath.realizedPnl(bd("100"), null, 1)).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void 실현_손익_응답_scale은_4자리이고_매수의_null은_그대로_null이다() {
+        assertThat(MoneyMath.exactPnl(bd("40000")).toPlainString()).isEqualTo("40000.0000");
+        assertThat(MoneyMath.exactPnl(bd("-1.5")).toPlainString()).isEqualTo("-1.5000");
+        assertThat(MoneyMath.exactPnl(null)).isNull();
+        assertThatThrownBy(() -> MoneyMath.exactPnl(bd("1.00005"))).isInstanceOf(IllegalArgumentException.class)
+                .hasMessageNotContaining("1.00005");
+    }
 }

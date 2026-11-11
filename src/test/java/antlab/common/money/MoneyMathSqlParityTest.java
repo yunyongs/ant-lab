@@ -64,6 +64,23 @@ class MoneyMathSqlParityTest {
     }
 
     @Test
+    void 실현_손익_SQL_round_4와_Java가_같다() throws Exception {
+        // 체결가, 평균단가, 수량 — 이익, 손실, 0, 평균단가 소수 4자리, 큰 수량
+        String[][] cases = {{"160000", "150000.0000", "4"}, {"30000", "35000", "40"}, {"150000", "150000", "1"},
+                {"150001", "150000.6667", "3"}, {"1", "0.0001", "2"}, {"999999999", "1", "1000000"}};
+        try (Connection connection = dataSource.getConnection()) {
+            for (String[] c : cases) {
+                int quantity = Integer.parseInt(c[2]);
+                BigDecimal expected = sql(connection, "SELECT ROUND((?::numeric - ?::numeric) * ?::numeric, 4)",
+                        bd(c[0]), bd(c[1]), bd(c[2]));
+                BigDecimal actual = MoneyMath.realizedPnl(bd(c[0]), bd(c[1]), quantity);
+                assertThat(actual).isEqualByComparingTo(expected);
+                assertThat(actual.scale()).isEqualTo(4);
+            }
+        }
+    }
+
+    @Test
     void 초기_가격_SQL_round와_Java가_같다() throws Exception {
         try (Connection connection = dataSource.getConnection();
              PreparedStatement statement = connection.prepareStatement("SELECT ROUND(? * ?, 0)")) {

@@ -166,24 +166,6 @@ class BuyOrderTurnTest {
         assertThat(state(jdbc, season)).isEqualTo(before);
     }
 
-    @Test
-    void 전량_매도_뒤_재매수는_새_구간을_연다() throws Exception {
-        long season = startSeason(mvc);
-        long asset = assetId(jdbc, "000660");
-        place(mvc, season, body(0, "BUY", asset, 1, "FORWARD_BREAKOUT"));
-        // 전량 매도 상태(수량 0, 평균단가 0, 구간 닫힘)를 직접 만든다 — 매도 API 는 P0-36
-        jdbc.update("UPDATE holding SET quantity = 0, avg_price = 0 WHERE season_id = ?", season);
-        jdbc.update("UPDATE lineup SET end_turn = 0 WHERE season_id = ?", season);
-
-        MockHttpServletResponse r = place(mvc, season, body(0, "BUY", asset, 2, "FORWARD_TARGET"));
-
-        assertThat(r.getStatus()).isEqualTo(201);
-        assertThat(jdbc.queryForObject("SELECT count(*) FROM holding WHERE season_id = ?", Long.class, season)).isEqualTo(1);
-        assertThat(jdbc.queryForObject("SELECT quantity FROM holding WHERE season_id = ?", Integer.class, season)).isEqualTo(2);
-        assertThat(jdbc.queryForList("SELECT declared_position FROM lineup WHERE season_id = ? ORDER BY id", String.class, season))
-                .containsExactly("FORWARD_BREAKOUT", "FORWARD_TARGET");
-    }
-
     private long changeRow(long season, int turn, String createdAt, int bGk, int bDf, int bMf, int bFw,
             int aGk, int aDf, int aMf, int aFw) {
         return jdbc.queryForObject("""
