@@ -122,6 +122,18 @@ public final class SqlGoldenScenario {
     }
 
     /**
+     * 매도 골든(P0-36)의 SQL 쪽 기준: 턴 골든의 5턴 지점 + 피드(db/24) + 5턴 매매(db/25)와 그 검증(p0_19_check).
+     * 25 는 현재 턴이 5 이고 현재 턴 피드가 있어야 한다. 현재 턴은 5 에서 멈춘다(시즌은 진행 중).
+     */
+    public static ScenarioPlan tradeGolden() {
+        List<ScriptStep> steps = new ArrayList<>(turnGoldenUntil(5, "TRADE_GOLDEN").steps());
+        steps.add(run("24_turn_feed"));
+        steps.add(run("25_trade_formation"));
+        steps.add(check("25_trade_formation", "p0_19_check"));
+        return new ScenarioPlan("TRADE_GOLDEN", List.copyOf(steps));
+    }
+
+    /**
      * 롤백 드릴 골든의 앞 토막: 턴 골든과 같은 시작에서 23 을 {@code turns} 번만 돌리고 멈춘다.
      * 끊은 자리에서 질의하고 드릴({@link #rollbackDrill()})을 끼운 뒤 {@link #turnGoldenFrom(int)} 으로 이어 간다.
      */
