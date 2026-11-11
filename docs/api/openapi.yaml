@@ -254,6 +254,58 @@ paths:
                 $ref: '#/components/schemas/Problem'
         '500':
           $ref: '#/components/responses/InternalError'
+  /api/v1/seasons/{seasonId}/formation-changes:
+    post:
+      tags: [formation]
+      operationId: changeFormation
+      summary: 전술 변경
+      description: 현재 포메이션을 새 값으로 바꾸고 변경 이력을 남긴다. 같은 턴에 여러 번 바꿀 수 있고 모두 기록된다. 변경 뒤 같은 턴의 주문은 가장 마지막 변경에 묶인다. 팀 구성 중인 0턴에는 바꿀 수 없다.
+      parameters:
+        - name: seasonId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangeFormationRequest'
+      responses:
+        '201':
+          description: 변경 결과(턴·이전·이후·사유)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FormationChangeDto'
+        '400':
+          description: 입력이 틀렸다(합 ≠ 100, 골키퍼 0, 범위 밖, 필수값 누락, 사유 200자 초과, 현재와 같은 포메이션) — INVALID_ARGUMENT
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: 시즌이 없다 — NOT_FOUND
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: 지금은 바꿀 수 없다 — SEASON_NOT_ACTIVE, TURN_MISMATCH(0턴 포함), INVALID_FORMATION, EVENT_TIME_CONFLICT
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '503':
+          description: 현재 회원을 알 수 없다 — MEMBER_UNAVAILABLE(운영, 인증 전)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /api/v1/seasons/{seasonId}/turns:
     post:
       tags: [turn]
@@ -509,6 +561,38 @@ components:
           minimum: 0
           maximum: 100
           description: 공격수 비중(0–100)
+    ChangeFormationRequest:
+      type: object
+      description: 전술 변경 요청. 변경 전 포메이션과 같은 턴 주문과의 연결은 서버가 정한다
+      required: [expectedTurnNo, formation]
+      properties:
+        expectedTurnNo:
+          type: integer
+          format: int32
+          minimum: 0
+          description: 변경이 보는 턴. 시즌의 현재 턴과 다르면 409. 0턴(팀 구성 중)에는 전술을 바꿀 수 없어 409
+        formation:
+          $ref: '#/components/schemas/FormationDto'
+        reason:
+          type: [string, 'null']
+          maxLength: 200
+          description: 선택 한 줄 사유(최대 200자, 유니코드 문자 수 기준). 생략과 null 은 같다
+    FormationChangeDto:
+      type: object
+      description: 전술 변경 결과. 변경 번호·시즌 번호·기록 시각·비용은 싣지 않는다
+      required: [turnNo, before, after, reason]
+      properties:
+        turnNo:
+          type: integer
+          format: int32
+          description: 변경한 턴
+        before:
+          $ref: '#/components/schemas/FormationDto'
+        after:
+          $ref: '#/components/schemas/FormationDto'
+        reason:
+          type: [string, 'null']
+          description: 사유. 없으면 null
     SeasonDto:
       type: object
       description: 시드·엔진 버전·기준일·스냅샷 날짜·회원 번호·버전·시각은 싣지 않는다
