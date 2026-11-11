@@ -3,6 +3,7 @@ package antlab.support;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 골든 시험의 실행 계획. 파일명 정렬이나 glob 으로 자동 실행하지 않고 순서와 반복 횟수를 여기에 명시한다.
@@ -17,9 +18,15 @@ public final class SqlGoldenScenario {
         CHECK
     }
 
-    /** 단계 하나. 경로는 작업 루트 기준 상대 경로다. */
-    public record ScriptStep(String path, Kind kind, String verdictColumn, Duration timeout) {
+    /** 단계 하나. 경로는 작업 루트 기준 상대 경로다. {@code variables} 는 psql {@code -v} 변수(기본 없음). */
+    public record ScriptStep(String path, Kind kind, String verdictColumn, Duration timeout, Map<String, String> variables) {
+        public ScriptStep(String path, Kind kind, String verdictColumn, Duration timeout) {
+            this(path, kind, verdictColumn, timeout, Map.of());
+        }
+
         public ScriptStep {
+            variables = Map.copyOf(variables);
+            variables.forEach(PsqlScriptRunner::requireSafeVariable);
             PsqlScriptRunner.requireSafePath(path);
             if (kind == Kind.CHECK && (verdictColumn == null || verdictColumn.isBlank())) {
                 throw new IllegalArgumentException("검증 단계에는 판정 열 이름이 필요하다: " + path);
@@ -111,6 +118,21 @@ public final class SqlGoldenScenario {
 
     /** 기준 시즌. 22 는 실행하지 않는다(시도 번호를 보존한다, P0-17 리뷰 13절). 검증 없이 재현 가능한 행만 만든다. */
     public static ScenarioPlan turnGolden() {
+        return turnGoldenUntil(PATH_LENGTH, "TURN_GOLDEN");
+    }
+
+    /**
+     * 롤백 드릴 골든의 앞 토막: 턴 골든과 같은 시작에서 23 을 {@code turns} 번만 돌리고 멈춘다.
+     * 끊은 자리에서 질의하고 드릴({@link #rollbackDrill()})을 끼운 뒤 {@link #turnGoldenFrom(int)} 으로 이어 간다.
+     */
+    public static ScenarioPlan turnGoldenUntil(int turns) {
+        return turnGoldenUntil(turns, "TURN_GOLDEN_UNTIL_" + turns);
+    }
+
+    private static ScenarioPlan turnGoldenUntil(int turns, String name) {
+        if (turns < 0 || turns > PATH_LENGTH) {
+            throw new IllegalArgumentException("턴 수가 범위를 벗어났다: " + turns);
+        }
         List<ScriptStep> steps = new ArrayList<>();
         steps.add(run("01_schema_history"));
         steps.add(run("02_schema_season"));
@@ -121,10 +143,34 @@ public final class SqlGoldenScenario {
         steps.add(run("13_calc_attention"));
         steps.add(run("20_season_start"));
         steps.add(run("21_team_buy"));
-        for (int i = 0; i < PATH_LENGTH; i++) {
+        for (int i = 0; i < turns; i++) {
             steps.add(run("23_turn_advance"));
         }
-        return new ScenarioPlan("TURN_GOLDEN", List.copyOf(steps));
+        return new ScenarioPlan(name, List.copyOf(steps));
+    }
+
+    /**
+     * 드릴이 한 번 성공 전환한 뒤(드릴 = 실패 1회 + 성공 1회) 시즌 끝까지 이어 가는 뒤 토막.
+     * 드릴이 이미 한 턴을 진행했으므로 {@code PATH_LENGTH - drilledAt - 1} 번 더 돌린다.
+     */
+    public static ScenarioPlan turnGoldenFrom(int drilledAt) {
+        if (drilledAt < 0 || drilledAt >= PATH_LENGTH) {
+            throw new IllegalArgumentException("드릴 턴이 범위를 벗어났다: " + drilledAt);
+        }
+        List<ScriptStep> steps = new ArrayList<>();
+        for (int i = 0; i < PATH_LENGTH - drilledAt - 1; i++) {
+            steps.add(run("23_turn_advance"));
+        }
+        return new ScenarioPlan("TURN_GOLDEN_FROM_" + drilledAt, List.copyOf(steps));
+    }
+
+    /**
+     * 롤백 너머 기록 드릴(P0-17) — 버리는 DB 에서만. {@code -v drill=1} 이 가드이고 판정 열은 {@code p0_17_drill} 이다.
+     * 하네스 DB 이름은 {@code golden_*} 이라 상시 DB 이름 가드에 걸리지 않는다.
+     * 판정이 건수 열(4열)이라 `SqlGoldenHarness.execute`·`assertCheckPassed` 에 넣지 않는다 — `run` 뒤 `CheckVerdictParser.parseWithCounts` 로만 읽는다(이 단계의 `ScriptResult.reason` 은 한 열 판독기의 값이라 뜻이 없다).
+     */
+    public static ScriptStep rollbackDrill() {
+        return new ScriptStep("db/23_turn_advance_drill.sql", Kind.CHECK, "p0_17_drill", STEP_TIMEOUT, Map.of("drill", "1"));
     }
 
     /** 턴 골든을 끝낸 뒤 20·21 재실행(새 행 없음)과 23 추가 실행("이미 끝났다")의 멱등성 확인용 단계 */

@@ -110,7 +110,7 @@ public final class SqlGoldenHarness implements AutoCloseable {
 
     public ScriptResult run(DatabaseHandle database, ScriptStep step) throws Exception {
         requireOwned(database);
-        PsqlScriptRunner.Result result = runner.runFile(database.name(), step.path(), step.timeout());
+        PsqlScriptRunner.Result result = runner.runFile(database.name(), step.path(), step.timeout(), step.variables());
         dumpRawOutputIfRequested(database, step, result);
         String reason = null;
         if (step.kind() == Kind.CHECK && result.exitCode() == 0) {

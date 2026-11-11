@@ -7,7 +7,7 @@ import java.util.Objects;
 
 /**
  * 턴 전환 대사 불일치 — 던지면 바깥 트랜잭션 전체가 롤백된다. 응답에는 고정 문장만 나가고(규칙 코드·금액 없음),
- * 17행 결과는 롤백 너머로 운반하기 위해 불변 값으로 싣는다(롤백 뒤 기록은 P0-34 몫).
+ * 17행 결과는 롤백 너머로 운반하기 위해 불변 값으로 싣는다(롤백 뒤 기록은 `TurnFacade` 가 한다).
  */
 public class ReconciliationFailedException extends DomainException {
 

@@ -226,6 +226,56 @@ public final class GoldenRowQueries {
                         "detail").build());
     }
 
+    /**
+     * 롤백 드릴 골든용 대사 로그 표: {@link #reconciliationLog()} 와 같고, {@code detail} 은 {@link JsonIdNormalizer} 로 정규화한
+     * 뒤({@link #normalizeLogDetail}) 비교하므로 {@code items} 를 정렬 키로 집합 비교한다. 정규화하지 않은 행에는 쓰지 않는다.
+     */
+    public static GoldenTable reconciliationLogNormalized() {
+        GoldenTable plain = reconciliationLog();
+        return new GoldenTable(plain.query(), ComparisonSpec.named("reconciliation_log")
+                .keys("turn_no", "attempt_no", "check_code")
+                .values("status", "expected_value", "actual_value", "diff_value", "mismatch_count", "classification", "detail")
+                .jsonSetArray("items", JsonIdNormalizer.SORT_KEY).build());
+    }
+
+    /** 드릴 골든이 비교하는 11개 표 — 대사 로그만 정규화 판이다. */
+    public static List<GoldenTable> allForDrillGolden() {
+        List<GoldenTable> tables = allForTurnGolden();
+        tables.set(tables.size() - 1, reconciliationLogNormalized());
+        return tables;
+    }
+
+    /** 그 DB 의 종목 번호 → 자연 키({@code 시장/티커}). 질의에 시즌 자리표시자는 없다(전체 표). */
+    public static RowQuery assetKeys() {
+        return new RowQuery("asset_keys", "SELECT a.id + 0 AS id, a.market || '/' || a.ticker AS natural_key FROM asset a",
+                List.of(col("id", ColumnType.LONG), col("natural_key", ColumnType.TEXT)));
+    }
+
+    /**
+     * 대사 로그 행의 {@code detail} 을 정규화한 사본. 정규화 규칙에 없는 키가 나오면 실패한다(조용히 통과시키지 않는다).
+     * @param assetKeys {@link #assetKeys()} 로 읽은 그 DB 의 표
+     */
+    public static RowSet normalizeLogDetail(RowSet logRows, RowSet assetKeys) {
+        java.util.Map<Long, String> keys = new java.util.HashMap<>();
+        for (int i = 0; i < assetKeys.size(); i++) {
+            keys.put((Long) assetKeys.get(i, "id"), (String) assetKeys.get(i, "natural_key"));
+        }
+        RowSet out = logRows.copy();
+        java.util.Set<String> unknown = new java.util.LinkedHashSet<>();
+        for (int i = 0; i < out.size(); i++) {
+            Object cell = out.get(i, "detail");
+            if (cell instanceof tools.jackson.databind.JsonNode node && !node.isNull()) {
+                JsonIdNormalizer.Result result = JsonIdNormalizer.normalize(node, keys);
+                unknown.addAll(result.unknownKeys());
+                out.set(i, "detail", result.json());
+            }
+        }
+        if (!unknown.isEmpty()) {
+            throw new AssertionError("detail 정규화 규칙에 없는 키: " + unknown);
+        }
+        return out;
+    }
+
     /** 현재 SQL(20·21·23)이 채우는 모든 테이블 */
     public static List<GoldenTable> allForTurnGolden() {
         return new ArrayList<>(List.of(season(), seasonPath(), turnPrice(), turn(), cashAccount(), holding(),

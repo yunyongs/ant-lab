@@ -3,7 +3,7 @@ package antlab.api.turn;
 import antlab.api.error.ApiProblem;
 import antlab.season.AdvanceTurnRequest;
 import antlab.season.TurnResultDto;
-import antlab.season.TurnService;
+import antlab.season.TurnFacade;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -24,9 +24,9 @@ public class TurnController {
 
     private static final String PROBLEM = "application/problem+json";
 
-    private final TurnService turns;
+    private final TurnFacade turns;
 
-    public TurnController(TurnService turns) {
+    public TurnController(TurnFacade turns) {
         this.turns = turns;
     }
 
@@ -34,7 +34,7 @@ public class TurnController {
             produces = MediaType.APPLICATION_JSON_VALUE)
     @Operation(operationId = "advanceTurn", summary = "턴 전환(다음 달)",
             description = "다음 달 블록을 적용한다. 한 트랜잭션에서 풀 전체의 다음 턴 가격과 턴 스냅샷을 만들고 대사 17개가 모두 일치하면"
-                    + " 기록하고 현재 턴을 올린다. 마지막 턴이면 시즌이 끝난다. 대사가 하나라도 어긋나면 아무것도 바꾸지 않고 409다.")
+                    + " 기록하고 현재 턴을 올린다. 마지막 턴이면 시즌이 끝난다. 대사가 하나라도 어긋나면 대사 기록만 남기고 409다.")
     @ApiResponse(responseCode = "201", description = "턴 결과")
     @ApiResponse(responseCode = "400", description = "입력이 틀렸다 — INVALID_ARGUMENT",
             content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ApiProblem.class)))
