@@ -5,8 +5,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import antlab.common.error.DomainException;
 import antlab.common.error.ErrorCode;
 import antlab.support.IntegrationTest;
+import antlab.support.OpenApiNormalizer;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Import;
@@ -18,6 +23,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import tools.jackson.databind.JsonNode;
 
 @IntegrationTest
 @Import(ProblemDetailTest.ProbeController.class)
@@ -110,6 +116,27 @@ class ProblemDetailTest {
         assertThat(result).bodyJson().extractingPath("$.title").isEqualTo("Internal Server Error");
         assertThat(result).body().asString().doesNotContain("XYZ").doesNotContain("IllegalState")
                 .doesNotContain("Exception");
+    }
+
+    @Test
+    void 실제_500_본문이_명세의_공통_500_모양과_같다() throws Exception {
+        JsonNode spec = OpenApiNormalizer.fromYaml(Files.readString(Path.of("docs/api/openapi.yaml")));
+        JsonNode problem = spec.path("components").path("schemas").path("Problem");
+        assertThat(spec.path("components").path("responses").path("InternalError")
+                .path("content").has("application/problem+json")).isTrue();
+        List<String> required = new ArrayList<>();
+        problem.path("required").forEach(n -> required.add(n.asString()));
+        List<String> allowed = new ArrayList<>();
+        problem.path("properties").propertyNames().forEach(allowed::add);
+
+        String body = mvc.get().uri("/probe/boom").exchange().getResponse().getContentAsString();
+        JsonNode actual = OpenApiNormalizer.fromJson(body);
+        List<String> names = new ArrayList<>();
+        actual.propertyNames().forEach(names::add);
+        assertThat(names).containsAll(required).isSubsetOf(allowed);
+        assertThat(actual.path("status").asInt()).isEqualTo(500);
+        assertThat(actual.path("code").asString()).isEqualTo("INTERNAL_ERROR");
+        assertThat(actual.path("detail").asString()).doesNotContain("XYZ");
     }
 
     @Test

@@ -28,6 +28,8 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /api/v1/seasons:
     post:
       tags: [season]
@@ -79,6 +81,8 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+        '500':
+          $ref: '#/components/responses/InternalError'
     get:
       tags: [season]
       operationId: listSeasons
@@ -97,6 +101,8 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /api/v1/seasons/{seasonId}:
     get:
       tags: [season]
@@ -135,6 +141,8 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /api/v1/seasons/{seasonId}/prices:
     get:
       tags: [season]
@@ -186,6 +194,8 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /api/v1/seasons/{seasonId}/orders:
     post:
       tags: [order]
@@ -242,6 +252,8 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /api/v1/seasons/{seasonId}/turns:
     post:
       tags: [turn]
@@ -292,6 +304,8 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /api/v1/seasons/{seasonId}/turns/{turnNo}:
     get:
       tags: [turn]
@@ -343,6 +357,8 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /api/v1/seasons/{seasonId}/holdings:
     get:
       tags: [holding]
@@ -381,7 +397,16 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+        '500':
+          $ref: '#/components/responses/InternalError'
 components:
+  responses:
+    InternalError:
+      description: 예상하지 못한 서버 오류 — INTERNAL_ERROR. 예외 내용은 싣지 않는 고정 문장이다(내용은 서버 로그에만)
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
   schemas:
     PoolDto:
       type: object
