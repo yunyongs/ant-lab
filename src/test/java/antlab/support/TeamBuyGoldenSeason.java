@@ -260,7 +260,6 @@ public final class TeamBuyGoldenSeason implements AutoCloseable {
 
     @Override
     public void close() throws Exception {
-        harness.close();
-        container.stop();
+        GoldenCleanup.closeThenStop(harness, container);
     }
 }

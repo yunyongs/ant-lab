@@ -49,12 +49,7 @@ class SqlGoldenReplayTest {
 
     @AfterAll
     static void stop() throws Exception {
-        if (harness != null) {
-            harness.close();
-        }
-        if (container != null) {
-            container.stop();
-        }
+        GoldenCleanup.closeThenStop(harness, container);
     }
 
     private static Map<String, RowSet> snapshot(DatabaseHandle db, long seasonId) throws Exception {

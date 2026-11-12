@@ -9,6 +9,7 @@ import antlab.history.MonthBlockRepository;
 import antlab.season.SeedGenerator;
 import antlab.support.DeferredPathSource;
 import antlab.support.FixedPathSource;
+import antlab.support.GoldenCleanup;
 import antlab.support.GoldenFixtureSource;
 import antlab.support.GoldenRowQueries;
 import antlab.support.GoldenRowQueries.GoldenTable;
@@ -159,12 +160,7 @@ class SeasonStartGoldenTest {
 
     @AfterAll
     static void stop() throws Exception {
-        if (harness != null) {
-            harness.close();
-        }
-        if (container != null) {
-            container.stop();
-        }
+        GoldenCleanup.closeThenStop(harness, container);
     }
 
     @Test

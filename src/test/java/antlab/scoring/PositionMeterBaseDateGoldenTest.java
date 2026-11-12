@@ -3,6 +3,7 @@ package antlab.scoring;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import antlab.asset.Position;
+import antlab.support.GoldenCleanup;
 import antlab.support.GoldenFixtureSource;
 import antlab.support.RowSet;
 import antlab.support.RowSet.ColumnType;
@@ -59,12 +60,7 @@ class PositionMeterBaseDateGoldenTest {
 
     @AfterAll
     static void stop() throws Exception {
-        if (harness != null) {
-            harness.close();
-        }
-        if (container != null) {
-            container.stop();
-        }
+        GoldenCleanup.closeThenStop(harness, container);
     }
 
     private static RowColumn col(String name, ColumnType type) {

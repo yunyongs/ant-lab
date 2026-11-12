@@ -3,6 +3,7 @@ package antlab.scoring;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import antlab.asset.Position;
+import antlab.support.GoldenCleanup;
 import antlab.support.PsqlScriptRunner;
 import antlab.support.RowSet;
 import antlab.support.RowSet.ColumnType;
@@ -60,8 +61,7 @@ class ReportRulesSqlParityTest {
 
     @AfterAll
     static void stop() throws Exception {
-        harness.close();
-        container.stop();
+        GoldenCleanup.closeThenStop(harness, container);
     }
 
     private static String literals(String[] values) {
