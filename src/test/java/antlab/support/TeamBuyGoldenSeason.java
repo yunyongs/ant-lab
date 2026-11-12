@@ -155,8 +155,8 @@ public final class TeamBuyGoldenSeason implements AutoCloseable {
      * 팀 구성 뒤의 행동까지 모두 재생하는 판(P0-36 매매 → P0-37 전술·라인업 변경). SQL 기준 DB 에서 {@code sqlPlan} 을 돌린 뒤
      * 같은 경로·시드·설정으로 API 시즌을 시작하고, 캡처한 행동을 순서대로 보낸다: 0턴 매수 → 턴 전환 → 턴 t 의 주문(BUY·SELL)과
      * 전술 변경(POST, 시각 순) → 그 턴의 라인업 변경(내부 서비스) → …
-     * BUY 의 선언 포지션은 SQL 라인업에서 (종목, 시작 턴 = 주문 턴) 행이 정확히 1개면 그 값, 0개면 생략(열린 구간에 추가 매수),
-     * 2개 이상이면 실패한다(라인업 변경으로 연 구간과 구분할 수 없는 확장 시나리오는 행동 목록을 따로 만든다). SELL 은 선언을 보내지 않는다.
+     * BUY 의 선언 포지션은 SQL 라인업에서 (종목, 시작 턴 = 주문 턴) 행의 선언이 하나면 그 값(같은 선언의 구간이 둘 이상이어도 한 값), 0개면 생략(열린 구간에 추가 매수),
+     * 서로 다른 선언이 둘 이상이면 실패한다(라인업 변경으로 연 구간과 구분할 수 없는 확장 시나리오는 행동 목록을 따로 만든다). SELL 은 선언을 보내지 않는다.
      *
      * @return 재생한 주문 수
      */
@@ -206,14 +206,22 @@ public final class TeamBuyGoldenSeason implements AutoCloseable {
                     String declared = null;
                     if (side.equals("BUY")) {
                         List<String> starts = new ArrayList<>();
+                        int lengthful = 0;
                         for (int i = 0; i < lineup.size(); i++) {
                             if ((lineup.get(i, "market") + "/" + lineup.get(i, "ticker")).equals(asset)
                                     && lineup.get(i, "start_turn").equals(turn)) {
                                 starts.add((String) lineup.get(i, "declared_position"));
+                                // 길이 없는 구간(end_turn = start_turn)이 아닌 구간
+                                if (!sameTurn(lineup.get(i, "end_turn"), turn)) {
+                                    lengthful++;
+                                }
                             }
                         }
-                        assertThat(starts.size()).as("같은 종목·같은 턴에 새로 연 구간은 많아야 하나다")
+                        // 같은 턴에 매수→전량 매도→재매수면 같은 선언의 구간이 둘 열린다. 이 드릴이 유일한 사례이며, 선언은 하나이고
+                        // 하나를 뺀 나머지는 모두 길이 없는 구간이어야 한다(같은 선언의 열린 구간이 둘 생기는 결함을 놓치지 않는다)
+                        assertThat(starts.stream().distinct().count()).as("같은 종목·같은 턴에 새로 연 구간의 선언은 많아야 하나다")
                                 .isLessThanOrEqualTo(1);
+                        assertThat(lengthful).as("같은 종목·같은 턴에 연 구간 중 길이가 있는 구간은 많아야 하나다").isLessThanOrEqualTo(1);
                         declared = starts.isEmpty() ? null : starts.get(0);
                     }
                     String body = "{\"expectedTurnNo\": " + turn + ", \"side\": \"" + side + "\", \"assetId\": "
@@ -227,6 +235,10 @@ public final class TeamBuyGoldenSeason implements AutoCloseable {
             }
         }
         return new Replayed(sqlDb, sqlSeason, apiSeason, count);
+    }
+
+    private static boolean sameTurn(Object endTurn, long turn) {
+        return endTurn != null && endTurn.equals(turn);
     }
 
     /** SQL 시즌의 경로·시드·설정으로 API 시즌을 시작하고 번호를 돌려준다(두 재생이 함께 쓴다). */

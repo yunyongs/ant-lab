@@ -358,10 +358,7 @@ public final class SqlGoldenHarness implements AutoCloseable {
         Map<Long, String> orderKeys = new LinkedHashMap<>();
         long currentTurn = ((Long) settings.get(0, "current_turn_no"));
 
-        /** 한 턴의 시각 있는 행동(주문·전술 변경). */
-        record Timed(long turn, java.time.Instant at, ReplayAction action) {
-        }
-        List<Timed> timed = new ArrayList<>();
+        List<SeasonReplayInput.Timed> timed = new ArrayList<>();
         List<SeasonReplayInput.LineupChange> lineupChanges = new ArrayList<>();
         try (Connection c = connect(database); Statement st = c.createStatement()) {
             try (ResultSet rs = st.executeQuery(GoldenRowQueries.orderCaptureSql(seasonId))) {
@@ -369,13 +366,13 @@ public final class SqlGoldenHarness implements AutoCloseable {
                     String key = GoldenRowQueries.orderKey(rs.getLong("turn_no"), rs.getString("market"),
                             rs.getString("ticker"), rs.getString("side"), rs.getLong("nth"));
                     orderKeys.put(rs.getLong("id"), key);
-                    timed.add(new Timed(rs.getLong("turn_no"), rs.getObject("created_at", java.time.OffsetDateTime.class).toInstant(),
+                    timed.add(new SeasonReplayInput.Timed(rs.getLong("turn_no"), rs.getObject("created_at", java.time.OffsetDateTime.class).toInstant(),
                             new SeasonReplayInput.PlaceOrder(key, rs.getLong("quantity"))));
                 }
             }
             try (ResultSet rs = st.executeQuery(GoldenRowQueries.formationChangeCaptureSql(seasonId))) {
                 while (rs.next()) {
-                    timed.add(new Timed(rs.getLong("turn_no"), rs.getObject("created_at", java.time.OffsetDateTime.class).toInstant(),
+                    timed.add(new SeasonReplayInput.Timed(rs.getLong("turn_no"), rs.getObject("created_at", java.time.OffsetDateTime.class).toInstant(),
                             new SeasonReplayInput.FormationChange(rs.getLong("turn_no"), rs.getLong("nth"),
                                     new SeasonReplayInput.Shape(rs.getInt("after_goalkeeper"), rs.getInt("after_defender"),
                                             rs.getInt("after_midfielder"), rs.getInt("after_forward")),
@@ -389,37 +386,7 @@ public final class SqlGoldenHarness implements AutoCloseable {
                 }
             }
         }
-        // 턴 → 같은 시각의 동률 검사 → 시각 순
-        timed.sort(java.util.Comparator.comparingLong(Timed::turn).thenComparing(Timed::at));
-        for (int i = 1; i < timed.size(); i++) {
-            Timed prev = timed.get(i - 1);
-            Timed cur = timed.get(i);
-            if (prev.turn() == cur.turn() && prev.at().equals(cur.at())) {
-                throw new IllegalStateException("같은 턴에 기록 시각이 같은 행동이 있어 순서를 정할 수 없다: 턴 " + cur.turn());
-            }
-        }
-
-        List<ReplayAction> actions = new ArrayList<>();
-        for (long turn = 0; turn <= currentTurn; turn++) {
-            if (turn > 0) {
-                actions.add(new SeasonReplayInput.AdvanceTurn(turn));
-            }
-            for (Timed t : timed) {
-                if (t.turn() == turn) {
-                    actions.add(t.action());
-                }
-            }
-            for (SeasonReplayInput.LineupChange change : lineupChanges) {
-                if (change.turn() == turn) {
-                    actions.add(change);
-                }
-            }
-        }
-        for (Timed t : timed) {
-            if (t.turn() > currentTurn) {
-                throw new IllegalStateException("현재 턴보다 늦은 턴의 행동이 있다");
-            }
-        }
+        List<ReplayAction> actions = SeasonReplayInput.merge(currentTurn, timed, lineupChanges);
         return new SeasonReplayInput(settings, path, List.copyOf(actions), orderKeys);
     }
 

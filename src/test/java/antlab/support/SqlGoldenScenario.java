@@ -133,6 +133,22 @@ public final class SqlGoldenScenario {
         return new ScenarioPlan("TRADE_GOLDEN", List.copyOf(steps));
     }
 
+    /**
+     * 같은 턴 여러 변경 드릴 골든(P0-38 G4)의 SQL 쪽 기준: 턴 골든의 5턴 지점 + 매매·전술 변경 드릴 {@code rebuy} 사례 + 나머지 5턴.
+     * 드릴(-v drill=1)은 커밋된 극단 상태를 남기므로 하네스의 버리는 DB 에서만 돌린다 — 하네스 DB 이름은 {@code golden_*} 이라
+     * 상시 DB 이름 가드에 걸리지 않는다. 판정 열 {@code p0_19_drill_rebuy} 는 한 열이라 일반 검증 단계처럼 읽는다.
+     * 드릴 파일은 {@link GoldenFixtureSource#withDrill()} 로 놓은 묶음에만 있다.
+     */
+    public static ScenarioPlan formationDrill() {
+        List<ScriptStep> steps = new ArrayList<>(turnGoldenUntil(5, "FORMATION_DRILL").steps());
+        steps.add(new ScriptStep("db/25_trade_formation_drill.sql", Kind.CHECK, "p0_19_drill_rebuy", STEP_TIMEOUT,
+                Map.of("drill", "1", "drill_case", "rebuy")));
+        for (int i = 0; i < PATH_LENGTH - 5; i++) {
+            steps.add(run("23_turn_advance"));
+        }
+        return new ScenarioPlan("FORMATION_DRILL", List.copyOf(steps));
+    }
+
     /** 이미 만들어진 SQL 시즌에서 23 을 {@code turns} 번 더 돌리는 토막(매도·전술 변경 골든이 5턴 뒤 10턴까지 잇는 데 쓴다). */
     public static ScenarioPlan advanceTurns(int turns) {
         if (turns < 1 || turns > PATH_LENGTH) {
