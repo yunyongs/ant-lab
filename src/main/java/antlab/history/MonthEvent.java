@@ -62,12 +62,16 @@ public class MonthEvent {
     @Column(name = "reaction_change", precision = 12, scale = 8, nullable = true)
     private BigDecimal reactionChange;
 
+    // No getter on [복기 전용] values: they leave the DB only through the review projections (SPRING_JPA §4.6).
+    @Getter(AccessLevel.NONE)
     @Column(name = "title", length = 100, nullable = false)
     private String title;
 
+    @Getter(AccessLevel.NONE)
     @Column(name = "source", length = 500, nullable = false)
     private String source;
 
+    @Getter(AccessLevel.NONE)
     @Column(name = "hindsight", length = 300, nullable = true)
     private String hindsight;
 

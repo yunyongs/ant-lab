@@ -41,6 +41,8 @@ public class SeasonPath extends CreatedEntity {
     @Column(name = "turn_no", nullable = false)
     private int turnNo;
 
+    // No getter: the block id is [복기 전용] and is used only as a join key inside the review projections (SPRING_JPA §4.6).
+    @Getter(AccessLevel.NONE)
     @Column(name = "month_block_id", nullable = false)
     private Long monthBlockId;
 

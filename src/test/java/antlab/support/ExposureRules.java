@@ -49,6 +49,13 @@ public final class ExposureRules {
     public static final Set<String> COUNT_ONLY_ALLOWED = Set.of("reconciliation_log.status", "reconciliation_log.turn_no",
             "reconciliation_log.attempt_no");
 
+    /**
+     * Reproducibility triple of a season. Tagged {@code [내부]} in the DB (true while the season runs) but allowed on the
+     * one handler that carries both {@code @FinishedSeasonOnly} and {@code @ReviewReveal}.
+     */
+    public static final Set<String> REVIEW_INTERNAL_ALLOWED = Set.of("season.seed", "season.engine_version",
+            "season.data_snapshot_date");
+
     private ExposureRules() {
     }
 
@@ -76,13 +83,19 @@ public final class ExposureRules {
 
     /** {@code finishedSeasonOnly} 는 핸들러에 {@code @FinishedSeasonOnly} 가 있는지다. */
     public static List<String> check(Class<?> record, ExposureCatalog catalog, boolean finishedSeasonOnly) {
+        return check(record, catalog, finishedSeasonOnly, false);
+    }
+
+    /** {@code reviewReveal} is whether the handler also has {@code @ReviewReveal}; it only counts together with {@code finishedSeasonOnly}. */
+    public static List<String> check(Class<?> record, ExposureCatalog catalog, boolean finishedSeasonOnly,
+            boolean reviewReveal) {
         List<String> out = new ArrayList<>();
-        walk(record, catalog, finishedSeasonOnly, new HashSet<>(), out);
+        walk(record, catalog, finishedSeasonOnly, reviewReveal, new HashSet<>(), out);
         return out;
     }
 
-    private static void walk(Class<?> record, ExposureCatalog catalog, boolean finishedSeasonOnly, Set<Class<?>> seen,
-            List<String> out) {
+    private static void walk(Class<?> record, ExposureCatalog catalog, boolean finishedSeasonOnly, boolean reviewReveal,
+            Set<Class<?>> seen, List<String> out) {
         if (!seen.add(record)) {
             return;
         }
@@ -96,18 +109,22 @@ public final class ExposureRules {
                 }
             } else {
                 for (String source : from.value()) {
-                    out.addAll(checkRestricted(where, source, from.value(), rc.getType(), catalog, finishedSeasonOnly));
+                    out.addAll(checkRestricted(where, source, from.value(), rc.getType(), catalog, finishedSeasonOnly,
+                            reviewReveal));
                 }
             }
             if (nested != null) {
-                walk(nested, catalog, finishedSeasonOnly, seen, out);
+                walk(nested, catalog, finishedSeasonOnly, reviewReveal, seen, out);
             }
         }
     }
 
     /** 끝난 시즌 전용·건수 전용 원천은 표지와 형 조건으로만 통과시키고, 나머지는 {@link #checkSource} 로 보낸다. */
     static List<String> checkRestricted(String where, String source, String[] sources, Class<?> type, ExposureCatalog catalog,
-            boolean finishedSeasonOnly) {
+            boolean finishedSeasonOnly, boolean reviewReveal) {
+        if (finishedSeasonOnly && reviewReveal && revealed(source, catalog)) {
+            return List.of();
+        }
         boolean finishedOnly = FINISHED_ONLY_ALLOWED.contains(source);
         boolean countOnly = COUNT_ONLY_ALLOWED.contains(source);
         if (!finishedOnly && !countOnly) {
@@ -126,6 +143,21 @@ public final class ExposureRules {
                     + type.getSimpleName() + ")");
         }
         return out;
+    }
+
+    /**
+     * Sources a review handler may expose: the reproducibility triple and non-identifier {@code [복기 전용]} value columns.
+     * Identifier columns (block and event ids, join keys) never pass here, so the permanent bans still fire.
+     */
+    private static boolean revealed(String source, ExposureCatalog catalog) {
+        if (!catalog.has(source)) {
+            return false;
+        }
+        if (REVIEW_INTERNAL_ALLOWED.contains(source)) {
+            return true;
+        }
+        return ExposureCatalog.REVEAL_ONLY.equals(catalog.tag(source)) && !identifierColumn(source)
+                && !forbidden(source, catalog);
     }
 
     /** 끝난 시즌 전용 원천의 조건: 형이 BigDecimal·Integer·int 이고, 같은 {@code @ExposedFrom} 에 전용 목록 밖의 원천이 하나 이상이다. */
