@@ -124,6 +124,21 @@ class FormationChangeApiTest {
         }
     }
 
+    @Test
+    void 따옴표_숫자는_400이고_아무것도_남지_않고_값을_되돌려주지_않는다() throws Exception {
+        long season = seasonAtTurnOne();
+        String turnQuoted = "{\"expectedTurnNo\": \"1\", \"formation\": " + FormationApiSupport.formation(A) + "}";
+        String slotQuoted = "{\"expectedTurnNo\": 1, \"formation\": {\"goalkeeper\": \"10\", \"defender\": 40, \"midfielder\": 30, \"forward\": 20}}";
+        for (String body : List.of(turnQuoted, slotQuoted)) {
+            Map<String, Object> before = state(jdbc, season);
+            MockHttpServletResponse r = change(mvc, season, body);
+            assertThat(r.getStatus()).as(r.getContentAsString()).isEqualTo(400);
+            assertThat(code(r)).isEqualTo("INVALID_ARGUMENT");
+            assertThat(r.getContentAsString()).doesNotContain("\"1\"").doesNotContain("\"10\"");
+            assertThat(state(jdbc, season)).as("거절된 요청은 아무것도 바꾸지 않는다").isEqualTo(before);
+        }
+    }
+
     // ---- T03 같은 포메이션 ----
 
     @Test

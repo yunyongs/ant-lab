@@ -202,6 +202,16 @@ class BuyOrderRejectTest {
         assertThat(state(jdbc, season).get("orders")).isEqualTo(0L);
     }
 
+    @Test
+    void 따옴표_숫자_수량은_400이고_아무것도_쓰지_않는다() throws Exception {
+        long season = startSeason(mvc);
+        long asset = assetId(jdbc, "000660");
+        JsonNode p = rejected(season, body(0, "BUY", asset, "\"3\"", "FORWARD_BREAKOUT"), 400, "INVALID_ARGUMENT");
+        assertThat(p.toString()).doesNotContain("\"3\"");
+        rejected(season, body("\"0\"", "BUY", asset, 3, "FORWARD_BREAKOUT"), 400, "INVALID_ARGUMENT");
+        rejected(season, body(0, "BUY", "\"" + asset + "\"", 3, "FORWARD_BREAKOUT"), 400, "INVALID_ARGUMENT");
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {"{}", "{\"expectedTurnNo\": -1, \"side\": \"BUY\", \"assetId\": 1, \"quantity\": 1}",
             "{\"expectedTurnNo\": 0, \"side\": \"BUY\", \"assetId\": 0, \"quantity\": 1}",
