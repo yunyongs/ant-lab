@@ -112,6 +112,8 @@ Hibernate의 `@Immutable`은 "이 엔티티는 바뀌지 않는다"는 선언이
 
 **노출 상한 시험(P0-27).** 응답 record의 각 DB 열 구성 요소에는 `@ExposedFrom("표.열")`(`antlab.common.exposure`)를 붙여 원천 열을 밝힌다. 중첩 record와 그 목록의 구성 요소는 애너테이션 없이 해당 record를 다시 검사한다. `ExposureContractTest`는 `/api/v1/**` 핸들러의 반환형을 따라가 해당 열의 DB 코멘트 태그가 `[노출]`인지 확인한다. `[복기 전용]`·`[내부]` 원천은 0건이다. 식별자 열(`id`·`*_id`)은 태그와 무관하게 **식별자 허용 목록**(시험 상수 `ExposureRules.IDENTIFIER_ALLOWED`, 지금은 `asset.id`·`asset.asset_group_id`·`season.id`·`turn_price.asset_id` 넷이다 — `season.id`는 시즌 생성 순서라 역사 날짜와 무관하고 `turn_price.asset_id`는 이미 허용된 `asset.id`와 같은 값이다(P0-30). 목록이 더 늘면 DTO 옆 표시 방식으로 바꾸는 안(P0-27 대안 C)을 다시 본다)으로만 통과한다. FK 열이 `[노출]`이어도 부모 PK가 `[내부]`이면 같은 값이므로 우회를 막는다. **영구 금지**는 `month_block.id`·모든 `*.month_block_id`·`month_event.id`·`turn_feed.month_event_id`와, `month_block_id` 열이 있는 표(`asset_month_return`·`fx_month`·`asset_month_attention` 등)의 `id`다. 적재 순서가 달 순서(`ORDER BY month_start`)라 번호 자체가 날짜 단서이기 때문이다. 목록·중첩 record는 해당 record를 다시 검사하고, 실제 응답 JSON의 키가 record 구성 요소 이름과 같은지와 본문에 날짜 꼴 문자열·금지 키가 없는지도 본다.
 
+**성적표(P0-38)의 좁은 예외 둘.** ① 끝난 시즌 전용 원천 `season_path.month_block_id`(역할 수행 — 경로의 달 순서로 잰 실측): 핸들러에 `@FinishedSeasonOnly`가 있어야 하고 진행 중 시즌은 409이며, 구성 요소는 다른 원천과 함께 집계한 `BigDecimal`·`Integer`일 때만 통과한다(블록 번호 값 자체는 여전히 영구 금지). ② 건수 전용 원천 `reconciliation_log.status`·`turn_no`·`attempt_no`: 같은 표지가 필요하고 구성 요소는 `Integer`만. 다른 핸들러가 두 원천을 쓰면 실패한다(`ExposureRules.FINISHED_ONLY_ALLOWED`·`COUNT_ONLY_ALLOWED`). P0-39 복기가 같은 장치를 넓혀 쓴다.
+
 ## 5. 트랜잭션 경계와 락
 
 ### 5.1 규칙
@@ -214,7 +216,7 @@ Phase 0 API 구현(P0-33)에서는 이 흐름을 `TurnService`가 맡는다. 가
 - 리포트성 쿼리(통계 보드 EXT, 리그 순위 APP)는 MyBatis를 쓸 수 있다(PLAN §10). 한 테이블을 두 도구가 **쓰지는** 않는다 — MyBatis는 읽기만.
 - 인덱스는 DDL에 `idx_` 접두로 둔다(P0-02 규칙). JPA의 `@Index`는 쓰지 않는다(`validate`는 인덱스를 검사하지 않으므로 DDL이 유일한 출처).
 - 목록 API는 `Pageable`을 사용한다. 시즌 목록과 주문 이력은 페이지로 제공한다. **단 Phase 0 API(P0-30)의 `GET /api/v1/seasons`는 고정 회원 한 명의 시즌 전부를 `id` 내림차순으로 주고 페이지로 나누지 않는다** — 페이지 메타(`page`·`totalItems`)는 DB 열이 아니므로 노출 상한 검사에 예외 규칙이 필요하고, 시즌 수도 적다. 따라서 메타 예외 규칙과 함께 MVP/WEB에서 붙인다.
-- 턴 전환 1회의 쿼리 수는 **보유 종목 수와 무관해야 한다**(`TurnAdvanceQueryCountTest`는 보유 1종목과 3종목에서 문장 수가 같은지 확인한다). 문장 수는 풀 크기(`turn_price` INSERT)와 규칙 수(대사 17 + 기록 17)에 비례한다. P0-33의 실측 결과(풀 4종목 합성 시즌)는 52문장이다 — 잠금 3 · 대사 규칙·격리 확인 18 · `reconciliation_log` INSERT 17 · `turn_price` INSERT 4 · `turn` INSERT 1 · `season` UPDATE 1 · 그 밖의 조회 8. P0-35에서는 직전 턴 총액 조회 1문장이 더해져 53문장이 된다(2턴 이후 전환; 1턴 전환은 52문장 그대로). 턴 조회·보유 조회는 각각 4문장이며, 보유 수와 무관하다(`TurnViewQueryCountTest`·`HoldingsQueryCountTest`). 초안의 "20개 이하" 목표는 Phase 0 API의 실패 조건이 아니다(기능 표). 풀이 약 180종목인 MVP에서는 `turn_price`·`reconciliation_log`를 배치로 쓰는 방법과 함께 목표를 다시 정한다. 문장 수는 Hibernate `StatementInspector`(시험 도구 `SqlRecorder`)로 센다.
+- 턴 전환 1회의 쿼리 수는 **보유 종목 수와 무관해야 한다**(`TurnAdvanceQueryCountTest`는 보유 1종목과 3종목에서 문장 수가 같은지 확인한다). 문장 수는 풀 크기(`turn_price` INSERT)와 규칙 수(대사 17 + 기록 17)에 비례한다. P0-33의 실측 결과(풀 4종목 합성 시즌)는 52문장이다 — 잠금 3 · 대사 규칙·격리 확인 18 · `reconciliation_log` INSERT 17 · `turn_price` INSERT 4 · `turn` INSERT 1 · `season` UPDATE 1 · 그 밖의 조회 8. P0-35에서는 직전 턴 총액 조회 1문장이 더해져 53문장이 된다(2턴 이후 전환; 1턴 전환은 52문장 그대로). 턴 조회·보유 조회는 각각 4문장이며, 보유 수와 무관하다(`TurnViewQueryCountTest`·`HoldingsQueryCountTest`). 성적표 조회는 13문장(Hibernate 7 · 네이티브 원천 5 · 변경 비용 1)이며 보유 종목 수와 무관하다(`SeasonReportTransactionTest` — 네이티브 문장은 `SqlRecorder`에 잡히지 않아 원천 문장 수를 상수로 단언한다). 초안의 "20개 이하" 목표는 Phase 0 API의 실패 조건이 아니다(기능 표). 풀이 약 180종목인 MVP에서는 `turn_price`·`reconciliation_log`를 배치로 쓰는 방법과 함께 목표를 다시 정한다. 문장 수는 Hibernate `StatementInspector`(시험 도구 `SqlRecorder`)로 센다.
 
 ## 9. 테스트 전략
 
@@ -332,7 +334,7 @@ Phase 1은 건너뛰었다(PLAN §11, 2026-11-09). 이 표는 SQL(Phase 0)에서
 
 1. 성적표 계산을 마지막 턴 전환과 같은 트랜잭션에 둘지 분리할지(초안: 같이. 느리면 분리하고 `season.status = SCORING` 추가). Phase 0 API는 성적표를 저장하지 않고 조회로 계산하므로(P0-38) 이 질문은 저장이 생기는 MVP(`season_score`)로 미룬다.
 2. ~~`holding`을 엔티티로 두고 UPSERT할지, `execution` 집계로만 계산할지~~ — **결정됨(P0-28, 2026-11-10): 가변 엔티티.** 전량 매도 뒤에도 행을 남기고(수량 0·평균단가 0, erd D7) 대사가 체결 합계와 대조한다.
-3. ~~네이티브 쿼리와 JPQL의 경계~~ — **결정됨(P0-32, 2026-11-11): 대사는 네이티브(22 SQL 사본), 나머지는 JPQL.** 대사는 윈도 함수·`FULL JOIN`·`jsonb_agg`·재귀 CTE를 쓰고 "같은 SQL을 두 곳에서 돌려 같은 답"이 목적이라 다시 쓰지 않는다.
+3. ~~네이티브 쿼리와 JPQL의 경계~~ — **결정됨(P0-32, 2026-11-11): 대사는 네이티브(22 SQL 사본), 나머지는 JPQL.** 대사는 윈도 함수·`FULL JOIN`·`jsonb_agg`·재귀 CTE를 쓰고 "같은 SQL을 두 곳에서 돌려 같은 답"이 목적이라 다시 쓰지 않는다. 성적표(P0-38)는 원천 조회만 네이티브(JdbcClient — 집계 FILTER·generate_series)이고 계산은 Java다(26 사본이 아니다 — 26 본문 대부분이 plpgsql이라 기계적 사본이 성립하지 않고, 값은 골든 셋이 묶는다).
 4. `Idempotency-Key`(EXT) 저장 방식.
 5. ~~PostgreSQL 이전 때 `IDENTITY` 처리~~ — 처음부터 PostgreSQL이라 해소(2026-11-05). `GENERATED ALWAYS AS IDENTITY` + JPA `IDENTITY`로 간다. 시퀀스 + `SEQUENCE` 전략(배치 INSERT 가능)으로 바꿀지는 성능이 문제될 때만.
 6. `turn_price`를 풀 전체(턴마다 약 180행, 5년 시즌 10,800행)로 둘지 "보유 + 기준 종목"만 두고 나머지는 주문 때 계산할지(초안: 풀 전체 — 조회가 단순하고 병행 대사가 전수 비교가 된다).

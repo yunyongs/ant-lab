@@ -849,13 +849,13 @@ ANTLAB_GOLDEN_SAMPLE_DIR=<db/sample 경로> ./gradlew test -PonlySqlGolden
 | 파일 | 지금 읽는 Java 시험 | 앞으로 읽을 기능 |
 |---|---|---|
 | `01`–`03` 스키마 | `SqlGoldenHarnessTest`(`README_REGRESSION`·`TURN_GOLDEN`), `SqlGoldenIsolationTest`, `SchemaParityTest`(Flyway DDL과 대조) | P0-23 이후 스키마 일치 |
-| `10`–`13` 적재·계산 | `SqlGoldenHarnessTest`(입력 CSV와 함께) | P0-27–29(적재·판정) |
+| `10`–`13` 적재·계산 | `SqlGoldenHarnessTest`(입력 CSV와 함께), `PositionMeterBaseDateGoldenTest`(12 판정을 Java 측정기와 대조) | P0-27–29(적재·판정) |
 | `20_season_start.sql` | `TURN_GOLDEN`·끝난 뒤 멱등, `SeasonStartGoldenTest`(`seasonStartGolden` — 같은 설정·경로·시드로 API가 만든 시즌 5개 표와 행 단위 비교) | P0-30 시즌 시작(완료) |
 | `21_team_buy_def.sql`·`21_team_buy.sql`·`21_team_buy_check.sql` | `MoneyMathSqlParityTest`(순수 함수 5개를 `MoneyMath`와 같은 합성 입력으로 대조), `BuyOrderGoldenTest`(`teamBuyGolden` — SQL 0턴 주문을 같은 순서·수량·선언 포지션으로 API에 보내고 6개 표를 행 단위로 비교하며, API DB에서 `p0_15_check`를 통과) | P0-26(이미 읽음), P0-31 팀 구성(완료) |
 | `22_reconcile_season_def.sql` | `README_REGRESSION`(수동 대사 15행 `MATCH`), `BuyOrderGoldenTest`(API가 만든 0턴 팀에 대해 `recon_rules(시즌, 0)`의 15행이 `MATCH`인지 확인), `ReconciliationSqlCopyTest`(규칙 쿼리 15개가 이 파일 본문의 기계적 치환 사본과 글자 단위로 같은지 확인), `ReconciliationServiceParityTest`·`ReconciliationMutationTest`·`ReconciliationPriceParityTest`(같은 연결에 이 정의를 싣고 Java 결과와 `recon_rules`의 9컬럼을 비교), `ReconciliationGoldenTest`(실제 표본 API 시즌에서 규칙별 결과와 기록 두 시도를 비교) | P0-31·P0-32(읽음), P0-33 턴 전환(11·19를 같은 방식으로 더하고 시험을 23까지 넓힌다) |
 | `23_turn_advance*.sql`·`24_turn_feed_def.sql` | `TurnAdvanceGoldenTest`·`ReconciliationSqlCopyTest`·`ReconciliationTurnParityTest`(P0-21 하류)·`TURN_GOLDEN`(10턴 기준 시즌)·재생 | P0-33 턴 전환·피드 |
 | `25_trade_formation_def.sql` | `README_REGRESSION`(5턴 매매 포함 전체 순서), `SellOrderGoldenTest`·`FormationChangeGoldenTest`(25 재생) | P0-36·37 매도·전술 변경 재생 — P0-37 골든은 SQL 25의 전술·라인업 변경과 주문 연결을 포함한다. 표본 경로를 지정하고 필수 골든을 건너뛰지 않았는지 확인한다 |
-| `26_season_report_def.sql` | `README_REGRESSION`(성적표 검증 PASS) | P0-38 성적표 |
+| `26_season_report_def.sql` | `README_REGRESSION`(성적표 검증 PASS), `SeasonReportTradeGoldenTest`·`SeasonReportDrillGoldenTest`·`SeasonReportJavaOnlyGoldenTest` | P0-38 성적표 |
 | `90_full_run_check.sql` | `README_REGRESSION`(마지막 단계) | P0-40 한 판 E2E의 SQL 쪽 기준 |
 
 
