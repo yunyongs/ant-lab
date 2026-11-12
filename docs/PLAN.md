@@ -807,7 +807,7 @@ The release column shows the scope of §1.2. The public launch of release v1 (fo
 
 | 단계 | 내용 | 커리큘럼 | 릴리스 |
 |---|---|---|---|
-| Phase 0 | 새 도메인 ERD(§5.1)와 DDL을 작성하고, 역사 데이터 적재 스크립트를 만든다(월 블록 100개·종목 20개 표본, 표본 달의 사건 태그, 종목별 시스템 판정 포지션). 손으로 만든 경로 1개로 시즌 1판을 SQL 트랜잭션으로 진행한다(포메이션 선언 → 팀 구성 → 턴 10개 → 성적 집계). 이어서 대사 쿼리와 참여율·월별 평균·관심 지수 같은 집계 쿼리, 소음 템플릿 표본(`feed/`)을 만든다. **이어서 시즌 한 판 REST API**(소유자 2026-11-09): Spring Boot + JPA + Flyway로 표본 데이터 위에서 시즌 시작·팀 구성·턴 진행·매매·전술 변경·성적표·복기 최소를 제공한다 — SQL 스크립트(`db/20`–`26`)가 Java의 골든(정답을 둘이 독립으로 만들어 비교)이다. 기능 표는 §11.1 | SQL(PostgreSQL 17) → Spring Boot + JPA — **현재** | v0.1 |
+| Phase 0 | 새 도메인 ERD(§5.1)와 DDL을 작성하고, 역사 데이터 적재 스크립트를 만든다(월 블록 100개·종목 20개 표본, 표본 달의 사건 태그, 종목별 시스템 판정 포지션). 손으로 만든 경로 1개로 시즌 1판을 SQL 트랜잭션으로 진행한다(포메이션 선언 → 팀 구성 → 턴 10개 → 성적 집계). 이어서 대사 쿼리와 참여율·월별 평균·관심 지수 같은 집계 쿼리, 소음 템플릿 표본(`feed/`)을 만든다. **이어서 시즌 한 판 REST API**(소유자 2026-11-09): Spring Boot + JPA + Flyway로 표본 데이터 위에서 시즌 시작·팀 구성·턴 진행·매매·전술 변경·성적표·복기 최소를 제공한다 — SQL 스크립트(`db/20`–`26`)가 Java의 골든(정답을 둘이 독립으로 만들어 비교)이다. 기능 표는 §11.1 | SQL(PostgreSQL 17) → Spring Boot + JPA — **Done (2026-11-13) / 완료 (2026-11-13)** | v0.1 |
 | Phase 1 | ~~콘솔 앱~~ **건너뜀(소유자, 2026-11-09)** — 시즌 시작·팀 구성·턴 진행·매매·성적표는 Phase 0 API(P0-30–P0-38)로, 단순 부트스트랩(Java, 달력 정렬 포함)은 P0-29로 흡수한다. JDBC 학습은 [SPRING_JPA.md](SPRING_JPA.md) §11 대응표를 읽을거리로 남긴다 | (JDBC — 수업에서) | — |
 | MON | **모니터링(소유자, 2026-11-10)**: Spring Boot Actuator·Micrometer로 지표를 내보내고, Prometheus가 이를 수집하며, Grafana에서 대시보드로 확인한다. 확인할 항목은 API 응답 시간·오류율, JVM·DB 연결 풀, 게임 지표(턴 전환 수, 대사 불일치 수, 주문 거부 수)다. 대시보드와 데이터 원천은 provisioning 코드로 저장소에서 관리하고, compose profile `monitoring`으로 켠다([DEPLOY.md](DEPLOY.md) §2). 지표 끝점은 외부에 열지 않는다. 로그 수집(Loki)과 경보는 OPS에서 다룬다 | Spring(관측), Docker | v0.1 |
 | SEC | **인증 기본(소유자, 2026-11-10 — M4에서 앞당김)**: Spring Security와 JWT를 쓴다. 회원 가입·로그인, 액세스·갱신 토큰을 발급·검증·갱신하고, 보안 필터 체인과 API별 권한을 만든다. Phase 0의 고정 회원은 실제 회원으로 바꾼다(회원 표 확장은 Flyway `V4` 이후). 시즌 다중 진행·리그·명예의 전당·전망 모드는 M4에 남는다 | Spring Security | v0.1 |
@@ -885,7 +885,7 @@ The release column shows the scope of §1.2. The public launch of release v1 (fo
 - [x] P0-37 전술 변경 API — `formation_change`와 같은 턴 주문 묶기
 - [x] P0-38 성적표 API — 저장하지 않고 조회로 계산
 - [x] P0-39 복기 최소 API — 끝난 시즌의 날짜 공개
-- [ ] P0-40 API 계약(OpenAPI)·"한 판" E2E·실행 문서
+- [x] P0-40 API 계약(OpenAPI)·"한 판" E2E·실행 문서
 
 ERD 확정 범위(Gate 0 결정 2): Phase 0 SQL이 쓰는 22개 테이블(역사·종목 풀 8, 회원·시즌·피드·대사 9, 시즌 계좌 5)은 P0-03·P0-04에서 확정한다. `season_score`·`projection`·`rating_history`는 MVP에서, EXT 이후 테이블은 각 단계에서 확정한다(§5.1).
 
