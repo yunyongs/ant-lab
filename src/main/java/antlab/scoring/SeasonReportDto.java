@@ -12,6 +12,7 @@ import java.math.BigDecimal;
  * 날짜·월 블록·사건·시드·종목 이름·변경 번호는 싣지 않는다 — 날짜 공개는 복기의 몫이다. 기준선은 Phase 0 대용 ETF(069500·SPY 50/50)
  * 매수 후 보유이며 가격 수익률과 수정 종가가 섞인 편향이 있다.
  */
+@Schema(description = "시즌 성적표")
 public record SeasonReportDto(
         @ExposedFrom("season.status")
         @Schema(requiredMode = RequiredMode.REQUIRED, description = "시즌 상태(끝난 시즌만 성적표를 내므로 FINISHED)")

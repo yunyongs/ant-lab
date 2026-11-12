@@ -13,6 +13,7 @@ import java.math.BigDecimal;
  * {@code targetFormation} 은 그 턴 <b>시작 시점</b>의 목표(그 턴 이전의 마지막 전술 변경의 이후 값, 없으면 시작 포메이션)다.
  * 대사 시도 번호·상태·시드·경로·월 블록·연월·수익률 종류는 싣지 않는다.
  */
+@Schema(description = "저장한 턴 행의 값과 거기서 계산한 비율. 턴 전환 응답과 턴 조회가 같은 형이다. 비중 4개의 합은 1과 최대 2e-8 다를 수 있고, status·pathLength 는 시즌의 지금 값이다. targetFormation 은 그 턴 시작 시점의 목표다. 대사 시도 번호·상태·시드·경로·월 블록·연월·수익률 종류는 싣지 않는다")
 public record TurnResultDto(
         @ExposedFrom("season.id")
         @Schema(requiredMode = RequiredMode.REQUIRED, description = "시즌 식별자")

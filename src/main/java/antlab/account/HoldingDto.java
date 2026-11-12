@@ -7,6 +7,7 @@ import io.swagger.v3.oas.annotations.media.Schema.RequiredMode;
 import java.math.BigDecimal;
 
 /** 보유 한 종목. 종목 이름은 싣지 않는다 — 풀 응답의 assetId 로 잇는다. 평균단가는 소수 4자리, 비중은 소수 8자리 문자열. */
+@Schema(description = "보유 한 종목. 종목 이름은 싣지 않는다 — 풀 응답의 assetId 로 잇는다")
 public record HoldingDto(
         @ExposedFrom("turn_price.asset_id")
         @Schema(requiredMode = RequiredMode.REQUIRED, description = "종목 식별자(풀 응답의 assetId 와 같다)")

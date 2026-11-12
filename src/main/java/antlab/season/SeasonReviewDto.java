@@ -9,6 +9,7 @@ import java.util.List;
  * Review of a finished season. Carries no block number, event id, event key, base date, member id or timestamp.
  * The seed is a decimal string because a JS number loses digits of a 64-bit integer.
  */
+@Schema(description = "끝난 시즌의 복기. 월 블록 번호·사건 번호·사건 키·기준일·회원 번호·시각은 싣지 않는다")
 public record SeasonReviewDto(
         @ExposedFrom("season.status")
         @Schema(requiredMode = RequiredMode.REQUIRED, description = "시즌 상태(끝난 시즌만 복기를 내므로 FINISHED)")
