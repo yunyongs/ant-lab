@@ -451,6 +451,67 @@ paths:
                 $ref: '#/components/schemas/Problem'
         '500':
           $ref: '#/components/responses/InternalError'
+  /api/v1/seasons/{seasonId}/report:
+    get:
+      tags: [season]
+      operationId: getSeasonReport
+      summary: 시즌 성적표 조회
+      description: |-
+        끝난 시즌의 성적표(결과·기준선·과정·비용·대사 상태 37항목)를 저장 없이 조회로 계산해 준다. 진행 중이거나 포기 중인 시즌은 409 SEASON_NOT_FINISHED 다. 금액은 원 단위 정수 문자열, 비율은 소수 8자리 문자열(−0.2 = −20%)이고 값을 만들 수 없는 칸은 null 이다(키는 생략하지 않는다). 기준선은 대용 ETF(069500·SPY 50/50) 매수 후 보유이며 가격 수익률과 수정 종가가 섞인 편향이 있다. 날짜·월 블록·시드·종목·변경 번호는 싣지 않는다.
+
+        제외(Phase 0 범위 밖):
+        - X1 연평균 성장률(CAGR) 분수 거듭제곱(ln·exp)이 필요한데 Java BigDecimal 에 정확한 짝이 없어 골든 8자리 일치를 보장할 수 없다. 짧은 시즌에서는 값이 부풀려진다. → MVP(M3 점수와 함께)
+        - X2 Sharpe 10턴 표본으로는 의미가 없고, 무위험 수익률(현금 무이자) 정의도 함께 정해야 한다. → MVP
+        - X3 경로 백분위·일관성 예상 분포(수천 경로)가 필요하다. → M2
+        - X4 60/40·내 포메이션(따라감)·시작 포메이션(고정) 기준선, 선수 선택·전술 변경·구조 효과 3분해, 변경 뒤 6턴 효과 밴드 리밸런싱 시뮬레이션과 포지션별 대표 ETF 표가 필요하다 (PLAN §6.1 "MVP 구현 때 정한다"). → MVP(Java)
+        - X5 매매 규율(패닉·추격)·하락 직후 전술 변경 정의가 비어 있다: "상승 직후" 문턱이 없고 −8% 의 기준이 종목·팀·시장 중 무엇인지 문서에 없다. 기능 표 §3.4 의 "경로에 있으면 포함"과 다르다. → MVP
+        - X6 분산 중 자산군 수·평균 상관 기능 표 P0-20 행에 없고 상관은 10턴으로는 불안정하다. → MVP
+        - X7 소음 반응(방향) 피드 방향을 판정하는 규칙이 필요하다. → MVP
+        - X8 관심 추종·수비수 득점·벤치 득점·신호 판별 복기 항목이라 점수에 넣지 않는다 (PLAN §6.2). 신호 판별은 EXT. → MVP/EXT
+        - X9 세금·청산 시 세후·이연 세금 세금은 EXT 다 (PLAN §4.6). execution.tax 가 항상 0 인지는 검증이 단언한다. → EXT
+        - X10 수수료 중 환전 몫 표시 몫을 나누면 원 단위 반올림 지점이 새로 생긴다. PLAN §4.6 이 "표시만"이라 한 항목이다. → MVP
+        - X11 시즌 점수 0–100·레이팅 PLAN §6.3 은 초안이다. → M3
+        - X12 성적표 저장(season_score) MVP 스케치다 (PLAN §5.1, SPRING_JPA §12-1). → MVP
+      parameters:
+        - name: seasonId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: 시즌 성적표
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SeasonReportDto'
+        '400':
+          description: 시즌 번호가 숫자가 아니다 — INVALID_ARGUMENT
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: 시즌이 없다 — NOT_FOUND
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: 끝나지 않은 시즌이다 — SEASON_NOT_FINISHED
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '503':
+          description: 현재 회원을 알 수 없다 — MEMBER_UNAVAILABLE(운영, 인증 전)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '500':
+          $ref: '#/components/responses/InternalError'
 components:
   responses:
     InternalError:
@@ -882,6 +943,157 @@ components:
           type: string
           format: decimal
           description: 포메이션 이탈 = 포지션별 |비중 − 목표|의 합, 소수 8자리
+    SeasonReportDto:
+      type: object
+      description: "시즌 성적표"
+      required: [seasonStatus, isFinal, reportTurns, pathLength, pendingOrders, pendingChanges, initialCash, finalValue, totalReturn, monthlyVolatility, maxDrawdown, baselineFinalValue, baselineReturn, excessReturn, riskLimit, riskBreachTurns, riskBreachDepth, maxSingleWeight, tradeNotional, turnoverAnnual, formationDeviation, roleFit, rolePlayersJudged, rolePlayersUnjudged, nudgeShare, nudgeSameTurnShare, totalFee, teamFee, formationChangeFee, platformNudgeFee, formationChanges, formationChangeOrders, changesWithoutOrders, reconMismatchRows, reconTurnBundles, reconManualBundles, reconOutOfRangeRows]
+      properties:
+        seasonStatus:
+          $ref: '#/components/schemas/SeasonStatus'
+          description: 시즌 상태(끝난 시즌만 성적표를 내므로 FINISHED)
+        isFinal:
+          type: boolean
+          description: 확정 여부(끝난 시즌이면 true, 진행 중 잠정 성적표는 MVP 이후)
+        reportTurns:
+          type: integer
+          format: int32
+          description: 보고 턴 수 = 마지막 스냅샷 턴
+        pathLength:
+          type: integer
+          format: int32
+          description: 경로 길이(턴 수)
+        pendingOrders:
+          type: integer
+          format: int32
+          description: 보고 턴의 보류 주문 수(끝난 시즌은 0)
+        pendingChanges:
+          type: integer
+          format: int32
+          description: 보고 턴의 보류 전술 변경 수(끝난 시즌은 0)
+        initialCash:
+          type: string
+          format: decimal
+          description: 초기 자금, 원 단위 정수
+        finalValue:
+          type: string
+          format: decimal
+          description: 최종 총 평가액, 원 단위 정수
+        totalReturn:
+          type: string
+          format: decimal
+          description: 총 수익률 = (최종 − 초기) ÷ 초기, 소수 8자리
+        monthlyVolatility:
+          type: [string, null]
+          format: decimal
+          description: 월 변동성 = 월 수익률의 표본 표준편차(n − 1), 연율화하지 않음, 소수 8자리. 한 턴이면 null
+        maxDrawdown:
+          type: string
+          format: decimal
+          description: 최대 낙폭(0 이하), 소수 8자리
+        baselineFinalValue:
+          type: string
+          format: decimal
+          description: 기준선(시장 지수 대용 ETF 매수 후 보유)의 최종 평가액, 원 단위 정수
+        baselineReturn:
+          type: string
+          format: decimal
+          description: 기준선 수익률, 소수 8자리
+        excessReturn:
+          type: string
+          format: decimal
+          description: 초과 수익률 = (최종 − 기준선 최종) ÷ 초기, 한 번 나눔 — 두 수익률의 차가 아니다. 소수 8자리
+        riskLimit:
+          type: string
+          format: decimal
+          description: 위험 선언(0 이하), 소수 8자리
+        riskBreachTurns:
+          type: integer
+          format: int32
+          description: 낙폭이 위험 선언을 넘은 턴 수
+        riskBreachDepth:
+          type: string
+          format: decimal
+          description: 위험 선언을 넘은 가장 깊은 정도(0 이하, 넘은 적 없으면 0), 소수 8자리
+        maxSingleWeight:
+          type: string
+          format: decimal
+          description: 최대 단일 종목 비중 = 턴마다 (가장 큰 종목 가치 ÷ 총 평가액)의 최댓값(보유가 없으면 0), 소수 8자리
+        tradeNotional:
+          type: string
+          format: decimal
+          description: 매매 대금 합(체결가 × 수량, 0턴 팀 구성 제외), 원 단위 정수
+        turnoverAnnual:
+          type: string
+          format: decimal
+          description: 연 환산 회전율 = 12 × 매매 대금 ÷ 턴별 총 평가액 합, 소수 8자리
+        formationDeviation:
+          type: string
+          format: decimal
+          description: 포메이션 이탈 평균 = 턴마다 Σ|실제 비중 − 목표 비중|의 정확한 평균(공통 분모로 한 번 나눔), 소수 8자리
+        roleFit:
+          type: [string, null]
+          format: decimal
+          description: 역할 수행 = 선언과 시즌 실측 포지션이 같은 선수의 노출 가치 ÷ 실측된 선수의 노출 가치, 소수 8자리. 실측된 노출이 없으면 null
+        rolePlayersJudged:
+          type: integer
+          format: int32
+          description: 실측 포지션이 나온 노출 종목 수
+        rolePlayersUnjudged:
+          type: integer
+          format: int32
+          description: 표본 부족으로 실측하지 못한 노출 종목 수
+        nudgeShare:
+          type: [string, null]
+          format: decimal
+          description: 독려 비중 = 랭킹·피드·알림에서 시작된 매매 대금 ÷ 매매 대금, 소수 8자리. 매매 대금이 0이면 null
+        nudgeSameTurnShare:
+          type: [string, null]
+          format: decimal
+          description: 같은 턴 독려 비중 = 랭킹 또는 피드 턴과 주문 턴이 같은 독려 매매 대금 ÷ 매매 대금, 소수 8자리. 매매 대금이 0이면 null
+        totalFee:
+          type: string
+          format: decimal
+          description: 수수료 합(0턴 팀 구성 포함), 원 단위 정수
+        teamFee:
+          type: string
+          format: decimal
+          description: 0턴 팀 구성 수수료(매수·매도 모두), 원 단위 정수
+        formationChangeFee:
+          type: string
+          format: decimal
+          description: 전술 변경에 연결된 체결의 수수료 합, 원 단위 정수
+        platformNudgeFee:
+          type: string
+          format: decimal
+          description: 플랫폼 수익 중 독려 몫 = 랭킹·알림에서 시작된 매매의 수수료, 원 단위 정수
+        formationChanges:
+          type: integer
+          format: int32
+          description: 전술 변경 수(보고 범위)
+        formationChangeOrders:
+          type: integer
+          format: int32
+          description: 전술 변경에 연결된 주문 수
+        changesWithoutOrders:
+          type: integer
+          format: int32
+          description: 연결된 주문이 없는 전술 변경 수
+        reconMismatchRows:
+          type: integer
+          format: int32
+          description: 기록된 대사 불일치 행 수(복구된 시도 포함)
+        reconTurnBundles:
+          type: integer
+          format: int32
+          description: 턴 전환 대사 묶음 수(턴·시도마다 17행)
+        reconManualBundles:
+          type: integer
+          format: int32
+          description: 수동 대사 묶음 수(턴·시도마다 15행)
+        reconOutOfRangeRows:
+          type: integer
+          format: int32
+          description: 경로 길이를 넘는 턴의 대사 행 수
     HoldingsDto:
       type: object
       description: 현재 턴의 보유 × 그 턴 가격(이번 턴의 매매가 바로 반영되는 실시간 값). 매매가 없는 턴이면 총액·보유 평가액·포지션별 평가액이 그 턴의 턴 결과와 같다. currentFormation 은 지금 적용 중인 포메이션이다. 비중 4개의 합은 1과 최대 2e-8 다를 수 있다. 시드·경로·월 블록·연월·수익률 종류는 싣지 않는다
@@ -1057,6 +1269,6 @@ components:
       type: string
       enum: [INVALID_ARGUMENT, NOT_FOUND, METHOD_NOT_ALLOWED, NOT_ACCEPTABLE,
              UNSUPPORTED_MEDIA_TYPE, INTERNAL_ERROR, POOL_NOT_LOADED, POOL_NOT_JUDGED, PATH_TOO_LONG,
-             SEASON_LIMIT, TURN_NOT_REACHED, SEASON_NOT_ACTIVE, TURN_MISMATCH, LEDGER_MISMATCH,
+             SEASON_LIMIT, TURN_NOT_REACHED, SEASON_NOT_FINISHED, SEASON_NOT_ACTIVE, TURN_MISMATCH, LEDGER_MISMATCH,
              LINEUP_MISMATCH, ASSET_NOT_IN_POOL, INSUFFICIENT_CASH, INSUFFICIENT_HOLDING, POSITION_CONFLICT, POSITION_REQUIRED,
              INVALID_FORMATION, EVENT_TIME_CONFLICT, MEMBER_UNAVAILABLE, RECONCILIATION_FAILED, FORBIDDEN]

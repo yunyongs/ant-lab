@@ -22,6 +22,8 @@ public enum ErrorCode {
     SEASON_LIMIT,
     /** 아직 진행하지 않은 턴이다(P0-30 가격 조회, P0-35). */
     TURN_NOT_REACHED,
+    /** 끝나지 않은 시즌의 성적표는 볼 수 없다(P0-38). */
+    SEASON_NOT_FINISHED,
     /** 진행 중이 아닌 시즌에는 주문할 수 없다(P0-31). */
     SEASON_NOT_ACTIVE,
     /** 주문이 본 턴과 시즌의 현재 턴이 다르다(P0-31). */

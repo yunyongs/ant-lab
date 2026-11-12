@@ -2,7 +2,13 @@ package antlab.api;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import antlab.common.exposure.FinishedSeasonOnly;
+import antlab.member.CurrentMember;
+import antlab.member.MemberRepository;
+import antlab.season.SeasonRepository;
+import antlab.account.CashAccountRepository;
 import antlab.support.ExposureCatalog;
+import antlab.support.SeasonAccountFixture;
 import antlab.support.ExposureRules;
 import antlab.support.IntegrationTest;
 import java.lang.reflect.RecordComponent;
@@ -52,7 +58,19 @@ class ExposureContractTest {
     @Autowired
     MockMvcTester mvc;
 
-    record Endpoint(String path, Class<?> responseType) {
+    @Autowired
+    CurrentMember currentMember;
+
+    @Autowired
+    MemberRepository members;
+
+    @Autowired
+    SeasonRepository seasons;
+
+    @Autowired
+    CashAccountRepository accounts;
+
+    record Endpoint(String path, Class<?> responseType, boolean finishedSeasonOnly) {
     }
 
     private List<Endpoint> apiEndpoints() {
@@ -66,7 +84,7 @@ class ExposureContractTest {
             for (String p : patterns) {
                 // 개발 엔드포인트(local 전용, prod 미등록)는 값을 보여 주는 도구라 노출 검사 예외다(소유자 결정 2026-11-11).
                 if (p.startsWith("/api/v1/") && !p.startsWith(DEV_PATH_PREFIX)) {
-                    out.add(new Endpoint(p, type.toClass()));
+                    out.add(new Endpoint(p, type.toClass(), e.getValue().hasMethodAnnotation(FinishedSeasonOnly.class)));
                 }
             }
         }
@@ -90,7 +108,7 @@ class ExposureContractTest {
         assertThat(endpoints).as("검사한 /api/v1 운영").isNotEmpty();
         for (Endpoint ep : endpoints) {
             assertThat(ep.responseType().isRecord()).as(ep.path() + " 응답은 record").isTrue();
-            assertThat(ExposureRules.check(ep.responseType(), catalog)).as(ep.path()).isEmpty();
+            assertThat(ExposureRules.check(ep.responseType(), catalog, ep.finishedSeasonOnly())).as(ep.path()).isEmpty();
         }
     }
 
@@ -110,6 +128,30 @@ class ExposureContractTest {
             assertThat(body).doesNotContain("1999-01-04", "2002-10-14", "2003-05-01", "1996-05-09", "2026-01-02",
                     "2020-01-01", "2025-12-01", "1350");
             assertThat(body).doesNotContainPattern("\\d{4}-\\d{2}-\\d{2}");
+        }
+    }
+
+    @Test
+    void 끝난_시즌_전용_핸들러는_진행_중_시즌에_409로_답한다() throws Exception {
+        List<Endpoint> restricted = apiEndpoints().stream().filter(Endpoint::finishedSeasonOnly).toList();
+        assertThat(restricted).as("@FinishedSeasonOnly 핸들러").isNotEmpty();
+        SeasonAccountFixture fixture = new SeasonAccountFixture(jdbc, members, seasons, accounts);
+        long seasonId = fixture.newSeason(members.findById(currentMember.ensureId()).orElseThrow()).getId();
+        for (Endpoint ep : restricted) {
+            var response = mvc.get().uri(ep.path().replace("{seasonId}", Long.toString(seasonId))).exchange().getResponse();
+            assertThat(response.getStatus()).as(ep.path()).isEqualTo(409);
+            assertThat(JsonMapper.shared().readTree(response.getContentAsString()).get("code").asString())
+                    .as(ep.path()).isEqualTo("SEASON_NOT_FINISHED");
+        }
+    }
+
+    @Test
+    void 확장_허용_원천은_표지_없는_핸들러의_응답에서는_쓰이지_않는다() {
+        ExposureCatalog catalog = ExposureCatalog.load(jdbc);
+        for (Endpoint ep : apiEndpoints()) {
+            if (!ep.finishedSeasonOnly()) {
+                assertThat(ExposureRules.check(ep.responseType(), catalog, false)).as(ep.path()).isEmpty();
+            }
         }
     }
 

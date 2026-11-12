@@ -2,6 +2,7 @@ package antlab.season;
 
 import antlab.common.persistence.AppendOnlyRepository;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -19,6 +20,13 @@ public interface FormationChangeRepository extends AppendOnlyRepository<Formatio
             order by f.id desc limit 1""")
     Optional<FormationChange> findLastBySeasonIdAndTurnNo(@Param("seasonId") Long seasonId,
             @Param("turnNo") int turnNo);
+
+    /**
+     * 시즌의 전술 변경 전부, 번호(id) 오름차순 — 성적표가 한 번 읽어 메모리에서 턴마다 목표를 고른다(P0-38).
+     * 턴 t 시작 시점의 목표는 이 목록에서 {@code turn_no < t} 인 마지막 항목이며 {@code findLastBefore} 와 같은 규칙이다.
+     */
+    @Query("select f from FormationChange f where f.season.id = :seasonId order by f.id asc")
+    List<FormationChange> findAllBySeasonId(@Param("seasonId") Long seasonId);
 
     /** 시즌 전체의 마지막 전술 변경 — 번호(id) 내림차순. 현재 포메이션 사슬의 끝(규칙 15)이다. */
     @Query("""
