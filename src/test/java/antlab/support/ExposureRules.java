@@ -4,7 +4,9 @@ import antlab.common.exposure.ExposedFrom;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.RecordComponent;
 import java.lang.reflect.Type;
+import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -32,6 +34,21 @@ public final class ExposureRules {
     /** 영구 금지: 적재 순서가 달 순서라 번호 자체가 날짜 단서다(erd §2, SPRING_JPA §4.6). */
     public static final Set<String> FORBIDDEN = Set.of("month_block.id", "month_event.id", "turn_feed.month_event_id");
 
+    /**
+     * 끝난 시즌 전용 원천(P0-38): 경로의 달 순서로 잰 집계 값(역할 수행)이 나오는 열. 이 열을 쓰는 응답은 핸들러에
+     * {@code @FinishedSeasonOnly} 가 있어야 하고(진행 중 시즌은 409), 다른 핸들러는 여전히 영구 금지다. 구성 요소는 ① 형이
+     * {@code BigDecimal}·{@code Integer}·{@code int} 이고 ② 같은 {@code @ExposedFrom} 에 이 목록 밖의 원천이 하나 이상이어야 한다 —
+     * 경로 순서는 집계의 입력일 뿐 단독 값이 아니다(블록 번호 그대로의 노출은 SPRING_JPA §4.6 의 영구 금지). P0-39 복기가 같은 장치를 넓혀 쓴다.
+     */
+    public static final Set<String> FINISHED_ONLY_ALLOWED = Set.of("season_path.month_block_id");
+
+    /**
+     * 건수 전용 원천(P0-38): 대사 로그의 상태·턴·시도는 [내부]이지만 성적표는 행·묶음 <b>개수</b>만 낸다(값·detail 없음).
+     * 이 열을 쓰는 구성 요소는 형이 {@code Integer}(또는 {@code int})여야 하고, 핸들러에 {@code @FinishedSeasonOnly} 가 있어야 한다.
+     */
+    public static final Set<String> COUNT_ONLY_ALLOWED = Set.of("reconciliation_log.status", "reconciliation_log.turn_no",
+            "reconciliation_log.attempt_no");
+
     private ExposureRules() {
     }
 
@@ -52,13 +69,20 @@ public final class ExposureRules {
         return column.equals("id") || column.endsWith("_id");
     }
 
+    /** 표지 없는 핸들러의 응답 검사 — 끝난 시즌 전용·건수 전용 원천은 허용되지 않는다. */
     public static List<String> check(Class<?> record, ExposureCatalog catalog) {
+        return check(record, catalog, false);
+    }
+
+    /** {@code finishedSeasonOnly} 는 핸들러에 {@code @FinishedSeasonOnly} 가 있는지다. */
+    public static List<String> check(Class<?> record, ExposureCatalog catalog, boolean finishedSeasonOnly) {
         List<String> out = new ArrayList<>();
-        walk(record, catalog, new HashSet<>(), out);
+        walk(record, catalog, finishedSeasonOnly, new HashSet<>(), out);
         return out;
     }
 
-    private static void walk(Class<?> record, ExposureCatalog catalog, Set<Class<?>> seen, List<String> out) {
+    private static void walk(Class<?> record, ExposureCatalog catalog, boolean finishedSeasonOnly, Set<Class<?>> seen,
+            List<String> out) {
         if (!seen.add(record)) {
             return;
         }
@@ -72,13 +96,43 @@ public final class ExposureRules {
                 }
             } else {
                 for (String source : from.value()) {
-                    out.addAll(checkSource(where, source, catalog));
+                    out.addAll(checkRestricted(where, source, from.value(), rc.getType(), catalog, finishedSeasonOnly));
                 }
             }
             if (nested != null) {
-                walk(nested, catalog, seen, out);
+                walk(nested, catalog, finishedSeasonOnly, seen, out);
             }
         }
+    }
+
+    /** 끝난 시즌 전용·건수 전용 원천은 표지와 형 조건으로만 통과시키고, 나머지는 {@link #checkSource} 로 보낸다. */
+    static List<String> checkRestricted(String where, String source, String[] sources, Class<?> type, ExposureCatalog catalog,
+            boolean finishedSeasonOnly) {
+        boolean finishedOnly = FINISHED_ONLY_ALLOWED.contains(source);
+        boolean countOnly = COUNT_ONLY_ALLOWED.contains(source);
+        if (!finishedOnly && !countOnly) {
+            return checkSource(where, source, catalog);
+        }
+        List<String> out = new ArrayList<>();
+        if (!catalog.has(source)) {
+            out.add(where + " — 원천 열 " + source + " 이(가) DB 에 없음");
+        } else if (!finishedSeasonOnly) {
+            out.add(where + " — " + (finishedOnly ? "끝난 시즌 전용" : "건수 전용") + " 원천 " + source
+                    + " 은(는) @FinishedSeasonOnly 핸들러에서만 쓸 수 있음");
+        } else if (countOnly && type != Integer.class && type != int.class) {
+            out.add(where + " — 건수 전용 원천 " + source + " 의 구성 요소 형이 Integer 가 아님 (" + type.getSimpleName() + ")");
+        } else if (finishedOnly && !aggregateOfOthers(type, sources)) {
+            out.add(where + " — 끝난 시즌 전용 원천 " + source + " 은(는) 다른 원천과 함께 집계한 BigDecimal·Integer 값에만 쓸 수 있음 ("
+                    + type.getSimpleName() + ")");
+        }
+        return out;
+    }
+
+    /** 끝난 시즌 전용 원천의 조건: 형이 BigDecimal·Integer·int 이고, 같은 {@code @ExposedFrom} 에 전용 목록 밖의 원천이 하나 이상이다. */
+    private static boolean aggregateOfOthers(Class<?> type, String[] sources) {
+        boolean numeric = type == BigDecimal.class || type == Integer.class || type == int.class;
+        boolean mixed = Arrays.stream(sources).anyMatch(s -> !FINISHED_ONLY_ALLOWED.contains(s));
+        return numeric && mixed;
     }
 
     static List<String> checkSource(String where, String source, ExposureCatalog catalog) {
