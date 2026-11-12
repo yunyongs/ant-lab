@@ -10,20 +10,20 @@ import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
 
 /** 성적표 API 시험 공용 도구. 합성 고정본(실제 시세 아님)의 12턴 시즌을 팀 구성부터 끝까지 진행한다. */
-final class ReportApiSupport {
+public final class ReportApiSupport {
 
     static final String[] SCRIPTS = {"/fixtures/cleanup_season_start.sql", "/fixtures/history_pool.sql",
             "/fixtures/replay_months.sql", "/fixtures/turn_returns.sql"};
 
     /** 금액 열: 소수점 없는 정수 문자열. */
-    static final Set<String> MONEY = Set.of("initialCash", "finalValue", "baselineFinalValue", "tradeNotional",
+    public static final Set<String> MONEY = Set.of("initialCash", "finalValue", "baselineFinalValue", "tradeNotional",
             "totalFee", "teamFee", "formationChangeFee", "platformNudgeFee");
     /** 비율 열: 소수 8자리 문자열(값이 없으면 null). */
-    static final Set<String> RATIO = Set.of("totalReturn", "monthlyVolatility", "maxDrawdown", "baselineReturn",
+    public static final Set<String> RATIO = Set.of("totalReturn", "monthlyVolatility", "maxDrawdown", "baselineReturn",
             "excessReturn", "riskLimit", "riskBreachDepth", "maxSingleWeight", "turnoverAnnual", "formationDeviation",
             "roleFit", "nudgeShare", "nudgeSameTurnShare");
-    static final String MONEY_FORMAT = "-?\\d+";
-    static final String RATIO_FORMAT = "-?\\d+\\.\\d{8}";
+    public static final String MONEY_FORMAT = "-?\\d+";
+    public static final String RATIO_FORMAT = "-?\\d+\\.\\d{8}";
 
     private ReportApiSupport() {
     }
