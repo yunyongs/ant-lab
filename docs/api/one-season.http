@@ -1,0 +1,215 @@
+# Play one season through the API / API로 한 판
+#
+# VS Code with the "REST Client" extension (humao.rest-client). Send the requests from top to bottom
+# (click "Send Request" above each ### block). Start the local database and the API first: see README
+# "Play one season through the API (API로 한 판)". Every money field is a string; the server decides prices and fees.
+# VS Code의 "REST Client" 확장으로 위에서부터 차례로 보낸다(각 ### 블록 위의 "Send Request"). 먼저 로컬 DB와 API를 띄운다:
+# README "Play one season through the API (API로 한 판)" 참고. 금액은 모두 문자열이고 가격·수수료는 서버가 정한다.
+#
+# The asset ids come from the pool answer, so nothing here is typed by hand except the quantity.
+# If a buy answers 422 INSUFFICIENT_CASH, lower `qty` and send it again (the season keeps its state).
+# 종목 번호는 풀 응답에서 가져오므로 손으로 적는 값은 수량뿐이다. 매수가 422 INSUFFICIENT_CASH 면 `qty` 를 줄여 다시 보낸다(시즌 상태는 그대로다).
+
+@base = http://127.0.0.1:8080
+@qty = 2
+
+### 1. Start a season (12 turns, risk limit -20%, formation 10/30/30/30) / 시즌 시작
+# @name start
+POST {{base}}/api/v1/seasons
+Content-Type: application/json
+
+{
+  "riskLimit": "-0.20",
+  "formation": { "goalkeeper": 10, "defender": 30, "midfielder": 30, "forward": 30 },
+  "pathLength": 12
+}
+
+###
+@season = {{start.response.body.$.id}}
+
+### 2. The pool you can buy from / 살 수 있는 종목 풀
+# @name pool
+GET {{base}}/api/v1/pool
+
+### 3. Turn-0 prices / 0턴 가격
+GET {{base}}/api/v1/seasons/{{season}}/prices?turnNo=0
+
+### 4. Buy the team at turn 0: the first eight pool assets, each declared as its system position
+# 0턴 팀 매수: 풀의 앞 여덟 종목, 선언 포지션은 시스템 포지션
+# @name buy1
+POST {{base}}/api/v1/seasons/{{season}}/orders
+Content-Type: application/json
+
+{ "expectedTurnNo": 0, "side": "BUY", "assetId": {{pool.response.body.$.assets[0].assetId}}, "quantity": {{qty}}, "declaredPosition": "{{pool.response.body.$.assets[0].systemPosition}}" }
+
+###
+POST {{base}}/api/v1/seasons/{{season}}/orders
+Content-Type: application/json
+
+{ "expectedTurnNo": 0, "side": "BUY", "assetId": {{pool.response.body.$.assets[1].assetId}}, "quantity": {{qty}}, "declaredPosition": "{{pool.response.body.$.assets[1].systemPosition}}" }
+
+###
+POST {{base}}/api/v1/seasons/{{season}}/orders
+Content-Type: application/json
+
+{ "expectedTurnNo": 0, "side": "BUY", "assetId": {{pool.response.body.$.assets[2].assetId}}, "quantity": {{qty}}, "declaredPosition": "{{pool.response.body.$.assets[2].systemPosition}}" }
+
+###
+POST {{base}}/api/v1/seasons/{{season}}/orders
+Content-Type: application/json
+
+{ "expectedTurnNo": 0, "side": "BUY", "assetId": {{pool.response.body.$.assets[3].assetId}}, "quantity": {{qty}}, "declaredPosition": "{{pool.response.body.$.assets[3].systemPosition}}" }
+
+###
+POST {{base}}/api/v1/seasons/{{season}}/orders
+Content-Type: application/json
+
+{ "expectedTurnNo": 0, "side": "BUY", "assetId": {{pool.response.body.$.assets[4].assetId}}, "quantity": {{qty}}, "declaredPosition": "{{pool.response.body.$.assets[4].systemPosition}}" }
+
+###
+POST {{base}}/api/v1/seasons/{{season}}/orders
+Content-Type: application/json
+
+{ "expectedTurnNo": 0, "side": "BUY", "assetId": {{pool.response.body.$.assets[5].assetId}}, "quantity": {{qty}}, "declaredPosition": "{{pool.response.body.$.assets[5].systemPosition}}" }
+
+###
+POST {{base}}/api/v1/seasons/{{season}}/orders
+Content-Type: application/json
+
+{ "expectedTurnNo": 0, "side": "BUY", "assetId": {{pool.response.body.$.assets[6].assetId}}, "quantity": {{qty}}, "declaredPosition": "{{pool.response.body.$.assets[6].systemPosition}}" }
+
+###
+POST {{base}}/api/v1/seasons/{{season}}/orders
+Content-Type: application/json
+
+{ "expectedTurnNo": 0, "side": "BUY", "assetId": {{pool.response.body.$.assets[7].assetId}}, "quantity": {{qty}}, "declaredPosition": "{{pool.response.body.$.assets[7].systemPosition}}" }
+
+### 5. What you hold, and the weights / 보유와 비중
+GET {{base}}/api/v1/seasons/{{season}}/holdings
+
+### 6. Optional: the development reconciliation check (local profile only, outside the contract). It writes a 15-rule check to the log.
+# 선택: 개발용 수동 대사(local 프로필 전용, 계약 밖). 15개 규칙 대사를 로그에 남긴다.
+POST {{base}}/api/v1/dev/seasons/{{season}}/reconciliation
+X-Antlab-Dev: true
+
+### 7. Advance turns: the body carries the turn you are leaving (so a repeated click cannot advance twice) / 턴 넘기기
+POST {{base}}/api/v1/seasons/{{season}}/turns
+Content-Type: application/json
+
+{ "expectedTurnNo": 0 }
+
+###
+POST {{base}}/api/v1/seasons/{{season}}/turns
+Content-Type: application/json
+
+{ "expectedTurnNo": 1 }
+
+###
+POST {{base}}/api/v1/seasons/{{season}}/turns
+Content-Type: application/json
+
+{ "expectedTurnNo": 2 }
+
+###
+POST {{base}}/api/v1/seasons/{{season}}/turns
+Content-Type: application/json
+
+{ "expectedTurnNo": 3 }
+
+###
+POST {{base}}/api/v1/seasons/{{season}}/turns
+Content-Type: application/json
+
+{ "expectedTurnNo": 4 }
+
+### 8. Turn 5: sell one unit, change the formation, buy a pool asset not held yet (bound to the change), read the turn / 5턴: 한 주 매도, 전술 변경, 안 가진 풀 종목 매수(변경에 묶임), 턴 조회
+# @name holdings5
+GET {{base}}/api/v1/seasons/{{season}}/holdings
+
+###
+POST {{base}}/api/v1/seasons/{{season}}/orders
+Content-Type: application/json
+
+{ "expectedTurnNo": 5, "side": "SELL", "assetId": {{holdings5.response.body.$.holdings[0].assetId}}, "quantity": 1 }
+
+###
+POST {{base}}/api/v1/seasons/{{season}}/formation-changes
+Content-Type: application/json
+
+{ "expectedTurnNo": 5, "formation": { "goalkeeper": 10, "defender": 20, "midfielder": 30, "forward": 40 }, "reason": "Less defence, more attack / 방어를 줄이고 공격을 늘린다" }
+
+###
+# The ninth pool asset was not bought at turn 0; this buy comes after the change, so the server binds it to the change.
+# 풀의 아홉 번째 종목은 0턴에 사지 않았다. 이 매수는 전술 변경 뒤라서 서버가 변경에 묶는다.
+POST {{base}}/api/v1/seasons/{{season}}/orders
+Content-Type: application/json
+
+{ "expectedTurnNo": 5, "side": "BUY", "assetId": {{pool.response.body.$.assets[8].assetId}}, "quantity": {{qty}}, "declaredPosition": "{{pool.response.body.$.assets[8].systemPosition}}" }
+
+###
+GET {{base}}/api/v1/seasons/{{season}}/turns/5
+
+### 9. Keep advancing to turn 8 / 8턴까지 넘기기
+POST {{base}}/api/v1/seasons/{{season}}/turns
+Content-Type: application/json
+
+{ "expectedTurnNo": 5 }
+
+###
+POST {{base}}/api/v1/seasons/{{season}}/turns
+Content-Type: application/json
+
+{ "expectedTurnNo": 6 }
+
+###
+POST {{base}}/api/v1/seasons/{{season}}/turns
+Content-Type: application/json
+
+{ "expectedTurnNo": 7 }
+
+### 10. Turn 8: sell the whole first holding (the line closes) / 8턴: 첫 보유 종목 전량 매도(라인이 닫힌다)
+# @name holdings8
+GET {{base}}/api/v1/seasons/{{season}}/holdings
+
+###
+POST {{base}}/api/v1/seasons/{{season}}/orders
+Content-Type: application/json
+
+{ "expectedTurnNo": 8, "side": "SELL", "assetId": {{holdings8.response.body.$.holdings[0].assetId}}, "quantity": {{holdings8.response.body.$.holdings[0].quantity}} }
+
+### 11. Keep advancing to the end / 끝까지 넘기기
+POST {{base}}/api/v1/seasons/{{season}}/turns
+Content-Type: application/json
+
+{ "expectedTurnNo": 8 }
+
+###
+POST {{base}}/api/v1/seasons/{{season}}/turns
+Content-Type: application/json
+
+{ "expectedTurnNo": 9 }
+
+###
+POST {{base}}/api/v1/seasons/{{season}}/turns
+Content-Type: application/json
+
+{ "expectedTurnNo": 10 }
+
+###
+POST {{base}}/api/v1/seasons/{{season}}/turns
+Content-Type: application/json
+
+{ "expectedTurnNo": 11 }
+
+### 12. The season is FINISHED now. Check it, then read the report and the review (only a finished season shows real dates)
+# 시즌이 끝났다. 확인한 뒤 성적표와 복기를 본다(끝난 시즌만 실제 날짜를 보여 준다)
+GET {{base}}/api/v1/seasons/{{season}}
+
+###
+GET {{base}}/api/v1/seasons/{{season}}/report
+
+###
+GET {{base}}/api/v1/seasons/{{season}}/review
+
+###
+GET {{base}}/api/v1/seasons
