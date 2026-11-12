@@ -57,6 +57,13 @@ class TurnAdvanceRejectTest {
     }
 
     @Test
+    void 따옴표_숫자_expectedTurnNo는_400이고_아무것도_쓰지_않는다() throws Exception {
+        long season = teamSeason();
+        Map<String, Object> before = state(jdbc, season);
+        assertRejected(advanceRaw(mvc, season, "{\"expectedTurnNo\": \"0\"}"), 400, "INVALID_ARGUMENT", before, season);
+    }
+
+    @Test
     void 끝난_시즌_전환은_409_SEASON_NOT_ACTIVE이고_아무것도_쓰지_않는다() throws Exception {
         long season = teamSeason();
         for (int t = 0; t < 12; t++) {

@@ -10,7 +10,7 @@ import jakarta.validation.constraints.Positive;
 /**
  * 주문 요청(시장가 매수·매도 한 건). 체결가·수수료·요율은 서버가 정한다 — 요청에서 받지 않는다.
  * 출발점(source)과 피드 번호는 받지 않고 서버가 DIRECT 로 고정한다(MVP 피드 API 가 선택 필드로 더한다).
- * 수량은 정수 주다. 소수·지수 표기는 읽는 단계에서 400 이다(Jackson 설정으로 정수 자리에 소수를 받지 않는다).
+ * 수량은 정수 주다. 소수·지수 표기는 읽는 단계에서 400 이다(Jackson 설정으로 정수 자리에 소수를 받지 않는다). Quoted numbers such as "3" are rejected with 400 as well.
  */
 public record PlaceOrderRequest(
         @Schema(requiredMode = RequiredMode.REQUIRED, description = "주문이 보는 턴. 시즌의 현재 턴과 다르면 409")

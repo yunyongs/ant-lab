@@ -257,6 +257,8 @@ class SeasonStartApiTest {
             "{\"riskLimit\":\"-0.20\",\"formation\":{\"goalkeeper\":10,\"defender\":30,\"midfielder\":30,\"forward\":30},\"pathLength\":12.5}",
             "{\"riskLimit\":\"-0.20\",\"formation\":{\"goalkeeper\":10,\"defender\":30,\"midfielder\":30,\"forward\":30},\"pathLength\":12.0}",
             "{\"riskLimit\":\"-0.20\",\"formation\":{\"goalkeeper\":10,\"defender\":30,\"midfielder\":30,\"forward\":30},\"pathLength\":1e1}",
+            "{\"riskLimit\":\"-0.20\",\"formation\":{\"goalkeeper\":10,\"defender\":30,\"midfielder\":30,\"forward\":30},\"pathLength\":\"12\"}",
+            "{\"riskLimit\":\"-0.20\",\"formation\":{\"goalkeeper\":\"10\",\"defender\":30,\"midfielder\":30,\"forward\":30}}",
             // 깨진 JSON
             "{\"riskLimit\":"})
     void 입력이_틀리면_400_INVALID_ARGUMENT이고_행이_늘지_않는다(String requestBody) throws Exception {

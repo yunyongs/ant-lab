@@ -9,10 +9,13 @@ import tools.jackson.core.JsonParser;
 import tools.jackson.core.StreamWriteFeature;
 import tools.jackson.databind.DeserializationContext;
 import tools.jackson.databind.SerializationContext;
+import tools.jackson.databind.cfg.CoercionAction;
+import tools.jackson.databind.cfg.CoercionInputShape;
 import tools.jackson.databind.deser.jdk.NumberDeserializers;
 import tools.jackson.databind.exc.InvalidFormatException;
 import tools.jackson.databind.module.SimpleModule;
 import tools.jackson.databind.ser.std.StdSerializer;
+import tools.jackson.databind.type.LogicalType;
 
 /**
  * JSON 형식 규칙. 금액·비율({@link BigDecimal})은 지수 없는 문자열로 보낸다.
@@ -45,7 +48,10 @@ public class JsonConfig {
         module.addDeserializer(BigDecimal.class, new BoundedBigDecimalDeserializer());
         // 응답을 쓰다가 실패하면(예: 자릿수 상한 초과) 열린 배열·객체를 닫지 않는다.
         // 이미 보내기 시작한 큰 응답이 값이 빠진 정상 JSON 처럼 끝나지 않게 한다(상태 200 은 바꿀 수 없다).
-        return builder -> builder.addModule(module).disable(StreamWriteFeature.AUTO_CLOSE_CONTENT);
+        // Quoted numbers are rejected for integer logical types only; money (BigDecimal) stays string-in.
+        return builder -> builder.addModule(module).disable(StreamWriteFeature.AUTO_CLOSE_CONTENT)
+                .withCoercionConfig(LogicalType.Integer,
+                        cfg -> cfg.setCoercion(CoercionInputShape.String, CoercionAction.Fail));
     }
 
     static class PlainBigDecimalSerializer extends StdSerializer<BigDecimal> {
