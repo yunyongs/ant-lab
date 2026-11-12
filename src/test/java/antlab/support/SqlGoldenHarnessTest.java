@@ -298,6 +298,21 @@ class SqlGoldenHarnessTest {
     // ---- DB 격리와 정리 ----
 
     @Test
+    void 정리에_실패하면_나머지를_지운_뒤_실패한_DB를_보고한다() throws Exception {
+        SqlGoldenHarness local = new SqlGoldenHarness(container, GoldenFixtureSource.fromEnvironment());
+        DatabaseHandle ok = local.createSqlDatabase("cleanfail");
+        // The connection database cannot be dropped from itself, so this drop must fail.
+        local.trackForCleanup("postgres");
+
+        assertThatThrownBy(local::close)
+                .isInstanceOf(IllegalStateException.class).hasMessageContaining("postgres")
+                .hasMessageNotContaining(ok.name());
+
+        DatabaseHandle admin = new DatabaseHandle(container.getDatabaseName());
+        assertThat(scalar(admin, "SELECT count(*) FROM pg_database WHERE datname = '" + ok.name() + "'")).isZero();
+    }
+
+    @Test
     void SQL_DB는_서로_다른_빈_DB이고_정리는_만든_DB만_지운다() throws Exception {
         SqlGoldenHarness local = new SqlGoldenHarness(container, GoldenFixtureSource.fromEnvironment());
         DatabaseHandle first = local.createSqlDatabase("iso");

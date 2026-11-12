@@ -443,12 +443,29 @@ public final class SqlGoldenHarness implements AutoCloseable {
         }
     }
 
-    /** 하네스가 만든 DB 만 지운다. */
+    /** Test seam: registers a name for the drop pass without creating it, so a drop that must fail can be exercised. */
+    void trackForCleanup(String name) {
+        created.add(name);
+    }
+
+    /** 하네스가 만든 DB 만 지운다. Every drop is attempted even if one fails; the names that could not be dropped are then thrown together. */
     @Override
     public void close() throws Exception {
+        List<String> failed = new ArrayList<>();
         for (String name : created) {
-            runner.runSql("postgres", "DROP DATABASE IF EXISTS " + name + " WITH (FORCE)", ADMIN_TIMEOUT);
+            try {
+                PsqlScriptRunner.Result result = runner.runSql("postgres",
+                        "DROP DATABASE IF EXISTS " + name + " WITH (FORCE)", ADMIN_TIMEOUT);
+                if (result.timedOut() || result.exitCode() != 0) {
+                    failed.add(name);
+                }
+            } catch (Exception e) {
+                failed.add(name);
+            }
         }
         created.clear();
+        if (!failed.isEmpty()) {
+            throw new IllegalStateException("test database cleanup failed: " + failed);
+        }
     }
 }
