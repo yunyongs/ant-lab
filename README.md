@@ -76,5 +76,23 @@ Java 21 · Spring Boot 4.1 · PostgreSQL 17 · JPA (리포트 쿼리에 MyBatis 
   7. QA·시험은 소유자 프로젝트를 건드리지 않게 `ANTLAB_DB_PORT=55432 ANTLAB_API_PORT=18080 docker compose --profile api -p antlab-qa up -d --build --wait` 로 띄우고, 끝나면 `docker compose --profile api -p antlab-qa down -v --rmi local`(정리에도 `--profile api`를 붙인다).
 - 확인 URL: `/actuator/health/readiness`, `POST·GET /api/v1/seasons`·`GET /api/v1/seasons/{seasonId}`·`GET /api/v1/seasons/{seasonId}/prices?turnNo=`·`POST /api/v1/seasons/{seasonId}/orders`(P0-31 시장가 매수; P0-30 — 고정 회원 하나만 사용하므로 `local`·`bootRun`에서만 쓴다. 컨테이너 `prod`는 SEC 전까지 503 `MEMBER_UNAVAILABLE`을 반환한다), `/api/v1/pool`(표본 적재와 포지션 계산 뒤 20종목 — 적재 전이면 409 `POOL_NOT_LOADED`, 판정 전이면 409 `POOL_NOT_JUDGED`). 명세 `/v3/api-docs`와 `/swagger-ui.html`은 `local` 프로필(`bootRun`·`bootTestRun`의 기본)에서만 열리며, 프로필을 지정하지 않거나 `prod`이면 꺼져 있다.
 - 개인 덮어쓰기 설정은 프로젝트 루트의 `config/application-local.yml`에 둔다(git이 무시하고 jar에 들어가지 않는다). `src/main/resources/`에 두면 jar에 들어가므로 두지 않는다.
+- P0-40 one-season E2E (sample CSVs needed): `./gradlew test -PonlySqlGolden --tests '*OneSeasonE2ETest*'`; the error sweep (`ApiErrorSweepTest`) runs in every `./gradlew test`. / P0-40 한 판 E2E(표본 CSV 필요): `./gradlew test -PonlySqlGolden --tests '*OneSeasonE2ETest*'`. 오류 응답 전수 시험(`ApiErrorSweepTest`)은 모든 `./gradlew test`에서 돈다.
 
 VS Code(macOS): 확장 "Extension Pack for Java", "Gradle for Java", "Spring Boot Extension Pack". 통합 터미널(`` Ctrl+` ``)에서 `./gradlew …`를 실행하고, 왼쪽 비커 아이콘(시험 탐색기)으로 시험을 하나씩 돌리며, Gradle 패널(코끼리 아이콘)의 `Tasks › application › bootTestRun`으로 앱을 띄운다. 가져오기가 꼬이면 `Cmd+Shift+P` → "Java: Clean Java Language Server Workspace". `.vscode/`는 git이 무시하므로 실행 설정 파일은 저장소에 없다.
+
+## Play one season through the API (API로 한 판)
+
+Start the local database with `docker compose up -d --wait db`, prepare `antlab_api` and load the sample as in [db/README.md «API DB와 실습 DB»](db/README.md#api-db와-실습-db), then run `./gradlew bootRun` (the `local` profile). Open [docs/api/one-season.http](docs/api/one-season.http) in VS Code (REST Client extension) and send the requests from top to bottom: start a season, read the pool and the turn-0 prices, buy the team, advance the turns (sell and change the formation in between), then read the report and the review. A season has 12 turns, so the whole play is a few dozen clicks.
+로컬 DB를 `docker compose up -d --wait db`로 띄우고 [db/README.md «API DB와 실습 DB»](db/README.md#api-db와-실습-db)대로 `antlab_api`를 준비해 표본을 적재한 뒤 `./gradlew bootRun`(`local` 프로필)을 실행한다. VS Code에서 [docs/api/one-season.http](docs/api/one-season.http)를 열고(REST Client 확장) 위에서부터 차례로 보낸다: 시즌 시작, 종목 풀과 0턴 가격 조회, 팀 매수, 턴 진행(중간에 매도·전술 변경), 성적표와 복기 조회. 한 시즌은 12턴이라 전체가 클릭 수십 번이다.
+
+The `api` container runs the `prod` profile and answers 503 for season calls until SEC adds sign-in, so it is health-check only for now; use `bootRun` to play.
+`api` 컨테이너는 `prod` 프로필이라 SEC에서 로그인이 생기기 전까지 시즌 호출에 503을 주므로 지금은 헬스체크 용도뿐이다. 직접 둘 때는 `bootRun`을 쓴다.
+
+The contract covers the `/api/v1` operations. Requests that Tomcat rejects while parsing the URL or headers (a bad percent-encoding such as `%ZZ`, an encoded slash `%2F`, an oversized header) get Tomcat's plain HTML 400 before Spring sees them; a proxy in front of the server is expected to stop those, and a follow-up issue tracks making them `problem+json`.
+계약은 `/api/v1` 연산을 다룬다. URL·헤더를 읽는 단계에서 Tomcat이 거절하는 요청(`%ZZ` 같은 잘못된 퍼센트 인코딩, 인코딩된 슬래시 `%2F`, 너무 큰 헤더)은 Spring에 닿기 전에 Tomcat의 HTML 400이 나간다. 이런 요청은 서버 앞의 프록시가 막는 것을 전제로 하고, `problem+json`으로 통일하는 일은 후속 이슈로 둔다.
+
+To run a whole season at once on a throwaway database instead of clicking, use the temporary script in [tools/play/README.md](tools/play/README.md).
+클릭 대신 일회용 DB에서 한 시즌을 한 번에 돌려 보려면 [tools/play/README.md](tools/play/README.md)의 임시 스크립트를 쓴다.
+
+The same steps are checked by a test: `OneSeasonE2ETest` plays one season over a real port (with a buy bound to the formation change and a full sell at turn 8) and runs `db/90_full_run_check.sql` unchanged on the result (see the bullet above for the command).
+같은 순서를 시험이 확인한다: `OneSeasonE2ETest`가 실제 포트로 한 시즌을 두고(전술 변경에 묶인 매수와 8턴 전량 매도 포함) 그 결과에 `db/90_full_run_check.sql`을 그대로 실행한다(명령은 위 목록 참고).
