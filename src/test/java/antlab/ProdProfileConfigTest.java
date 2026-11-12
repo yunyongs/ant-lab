@@ -49,6 +49,14 @@ class ProdProfileConfigTest {
     }
 
     @Test
+    void prod에서도_드라이버_서버_오류_상세를_끈다() {
+        ConfigurableEnvironment env =
+                prodEnvironment(Map.of("ANTLAB_DB_URL", "jdbc:postgresql://db:5432/antlab_api"));
+        assertThat(env.getProperty("spring.datasource.hikari.data-source-properties.logServerErrorDetail"))
+                .isEqualTo("false");
+    }
+
+    @Test
     void prod에서_ANTLAB_DB_URL이_있으면_그_값을_쓴다() {
         ConfigurableEnvironment env =
                 prodEnvironment(Map.of("ANTLAB_DB_URL", "jdbc:postgresql://db:5432/antlab_api"));
