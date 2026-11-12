@@ -1,14 +1,10 @@
 package antlab.api.order;
 
-import static antlab.api.order.OrderApiSupport.body;
-import static antlab.api.order.OrderApiSupport.place;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import antlab.history.MonthBlockRepository;
 import antlab.season.SeedGenerator;
 import antlab.support.DeferredPathSource;
-import antlab.support.FixedPathSource;
-import antlab.support.GoldenFixtureSource;
 import antlab.support.GoldenRowQueries;
 import antlab.support.GoldenRowQueries.GoldenTable;
 import antlab.support.RowSet;
@@ -16,17 +12,11 @@ import antlab.support.RowSet.ColumnType;
 import antlab.support.RowSet.RowColumn;
 import antlab.support.RowSet.RowQuery;
 import antlab.support.RowSetDiff;
-import antlab.support.SeasonReplayInput;
-import antlab.support.SeasonReplayInput.PlaceOrder;
-import antlab.support.SeasonReplayInput.ReplayAction;
 import antlab.support.SqlGoldenHarness;
 import antlab.support.SqlGoldenHarness.DatabaseHandle;
 import antlab.support.SqlGoldenScenario;
-import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.HashMap;
+import antlab.support.TeamBuyGoldenSeason;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -41,15 +31,10 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
-import org.springframework.mock.web.MockHttpServletResponse;
-import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
-import org.testcontainers.postgresql.PostgreSQLContainer;
-import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.json.JsonMapper;
 
 /**
  * 팀 구성 골든 — 실제 표본 CSV 가 있을 때만 돈다(없으면 건너뜀, 환경 변수로 지정했는데 없으면 실패).
@@ -69,36 +54,15 @@ import tools.jackson.databind.json.JsonMapper;
 @EnabledIf("sampleAvailable")
 class BuyOrderGoldenTest {
 
-    private static final long GOLDEN_SEED = 14L;
-    private static final GoldenFixtureSource SOURCE = GoldenFixtureSource.fromEnvironment();
+    private static TeamBuyGoldenSeason golden;
 
-    private static PostgreSQLContainer container;
-    private static SqlGoldenHarness harness;
-    private static DatabaseHandle apiDb;
-
-    /** 표본이 없으면 false(건너뜀), 지정했는데 파일이 없으면 AssertionError 로 실패한다. */
     static boolean sampleAvailable() {
-        GoldenFixtureSource.FixtureAvailability availability = SOURCE.inspect();
-        if (availability.explicit() && !availability.isComplete()) {
-            availability.requireOrSkip();
-        }
-        if (!availability.isComplete()) {
-            System.out.println("[sql-golden] 건너뜀 — " + availability.skipMessage());
-        }
-        return availability.isComplete();
+        return TeamBuyGoldenSeason.sampleAvailable();
     }
 
     @DynamicPropertySource
     static void database(DynamicPropertyRegistry registry) throws Exception {
-        container = SqlGoldenHarness.newContainer();
-        container.start();
-        harness = new SqlGoldenHarness(container, SOURCE);
-        harness.stageInputs();
-        apiDb = harness.createSqlDatabase("team_buy_api");
-        registry.add("spring.datasource.url", () -> "jdbc:postgresql://" + container.getHost() + ":"
-                + container.getMappedPort(5432) + "/" + apiDb.name());
-        registry.add("spring.datasource.username", container::getUsername);
-        registry.add("spring.datasource.password", container::getPassword);
+        golden = TeamBuyGoldenSeason.start(registry, "team_buy_api");
     }
 
     @TestConfiguration(proxyBeanMethods = false)
@@ -112,7 +76,7 @@ class BuyOrderGoldenTest {
         @Bean
         @Primary
         SeedGenerator fixedSeed() {
-            return () -> GOLDEN_SEED;
+            return () -> TeamBuyGoldenSeason.GOLDEN_SEED;
         }
     }
 
@@ -125,6 +89,8 @@ class BuyOrderGoldenTest {
     @Autowired
     MonthBlockRepository monthBlocks;
 
+    private SqlGoldenHarness harness;
+    private DatabaseHandle apiDb;
     private DatabaseHandle sqlDb;
     private long sqlSeason;
     private long apiSeason;
@@ -132,71 +98,19 @@ class BuyOrderGoldenTest {
 
     @BeforeAll
     void prepare() throws Exception {
-        // API DB: Flyway 가 스키마를 만든 뒤 표본 적재(10 → 12)
-        harness.execute(apiDb, SqlGoldenScenario.apiDbLoad());
-        // SQL 기준 DB: 시즌 시작 → 0턴 팀 매수 → 검증
-        sqlDb = harness.createSqlDatabase("team_buy_sql");
-        harness.execute(sqlDb, SqlGoldenScenario.teamBuyGolden());
-        sqlSeason = harness.practiceSeasonId(sqlDb);
-
-        // 같은 경로·같은 시드·같은 설정으로 API 시즌을 시작한다
-        RowSet path = harness.readRows(sqlDb, GoldenRowQueries.seasonPath().query(), sqlSeason);
-        List<LocalDate> months = new ArrayList<>();
-        for (int i = 0; i < path.size(); i++) {
-            months.add((LocalDate) path.get(i, "month_start"));
-        }
-        deferred.set(new FixedPathSource("p0-sql", months, monthBlocks));
-        MockHttpServletResponse started = mvc.post().uri("/api/v1/seasons").contentType(MediaType.APPLICATION_JSON)
-                .content("{\"riskLimit\": \"-0.20\", \"formation\": {\"goalkeeper\": 10, \"defender\": 30,"
-                        + " \"midfielder\": 30, \"forward\": 30}, \"pathLength\": " + SqlGoldenScenario.PATH_LENGTH + "}")
-                .exchange().getResponse();
-        assertThat(started.getStatus()).isEqualTo(201);
-        apiSeason = harness.practiceSeasonId(apiDb);
-
-        replayed = replayOrders();
-    }
-
-    /** SQL 의 0턴 주문을 (턴, 주문 번호) 순서로 API 에 보낸다. 선언 포지션은 SQL 라인업(시작 턴 0), 종목 번호는 풀 응답에서 읽는다. */
-    private int replayOrders() throws Exception {
-        SeasonReplayInput input = harness.captureReplayInput(sqlDb, sqlSeason);
-        RowSet lineup = harness.readRows(sqlDb, GoldenRowQueries.lineup().query(), sqlSeason);
-        Map<String, String> declared = new HashMap<>();
-        for (int i = 0; i < lineup.size(); i++) {
-            assertThat(lineup.get(i, "start_turn")).isEqualTo(0L);
-            declared.put(lineup.get(i, "market") + "/" + lineup.get(i, "ticker"),
-                    (String) lineup.get(i, "declared_position"));
-        }
-        Map<String, Long> assetIds = new HashMap<>();
-        JsonNode assets = JsonMapper.shared().readTree(
-                mvc.get().uri("/api/v1/pool").exchange().getResponse().getContentAsString()).get("assets");
-        assets.forEach(a -> assetIds.put(a.get("market").asString() + "/" + a.get("ticker").asString(),
-                a.get("assetId").asLong()));
-
-        int count = 0;
-        for (ReplayAction replay : input.actions()) {
-            if (!(replay instanceof PlaceOrder action)) {
-                continue;
-            }
-            // 키: 턴/시장/종목/방향/순번
-            String[] k = action.key().split("/");
-            assertThat(k[0]).as("팀 구성은 0턴 주문뿐이다").isEqualTo("0");
-            assertThat(k[3]).isEqualTo("BUY");
-            String asset = k[1] + "/" + k[2];
-            MockHttpServletResponse r = place(mvc, apiSeason,
-                    body(0, "BUY", assetIds.get(asset), action.quantity(), declared.get(asset)));
-            assertThat(r.getStatus()).as("재생 주문 " + count).isEqualTo(201);
-            count++;
-        }
-        return count;
+        harness = golden.harness();
+        apiDb = golden.apiDb();
+        TeamBuyGoldenSeason.Replayed r = golden.replay(mvc, deferred, monthBlocks);
+        sqlDb = r.sqlDb();
+        sqlSeason = r.sqlSeason();
+        apiSeason = r.apiSeason();
+        replayed = r.orders();
     }
 
     @AfterAll
     static void stop() throws Exception {
-        if (harness != null) {
-            harness.close();
-        }
-        if (container != null) {
-            container.stop();
+        if (golden != null) {
+            golden.close();
         }
     }
 
