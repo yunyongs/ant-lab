@@ -23,6 +23,12 @@ class ExposureRulesTest {
         tags.put("fx_month.month_block_id", ExposureCatalog.INTERNAL);
         tags.put("asset.asset_group_id", ExposureCatalog.EXPOSED);
         tags.put("turn_feed.asset_id", ExposureCatalog.EXPOSED);
+        tags.put("season_path.month_block_id", ExposureCatalog.REVEAL_ONLY);
+        tags.put("lineup.declared_position", ExposureCatalog.EXPOSED);
+        tags.put("reconciliation_log.status", ExposureCatalog.INTERNAL);
+        tags.put("reconciliation_log.turn_no", ExposureCatalog.INTERNAL);
+        tags.put("reconciliation_log.attempt_no", ExposureCatalog.INTERNAL);
+        tags.put("reconciliation_log.detail", ExposureCatalog.INTERNAL);
         return new ExposureCatalog(tags);
     }
 
@@ -54,6 +60,35 @@ class ExposureRulesTest {
     }
 
     record UnknownColumn(@ExposedFrom("asset.nothing") String x) {
+    }
+
+    record FinishedOnlyCount(
+            @ExposedFrom({"season_path.month_block_id", "lineup.declared_position"}) Integer fit) {
+    }
+
+    /** 블록 번호를 그대로 내보내는 형 — 표지가 있어도 실패해야 한다. */
+    record FinishedOnlyId(@ExposedFrom("season_path.month_block_id") Long monthBlockId) {
+    }
+
+    /** 단독 원천인 정수 — 경로 순서 자체이므로 실패해야 한다. */
+    record FinishedOnlyAlone(@ExposedFrom("season_path.month_block_id") Integer x) {
+    }
+
+    /** 다른 원천과 함께여도 형이 문자열이면 실패해야 한다. */
+    record FinishedOnlyText(@ExposedFrom({"season_path.month_block_id", "lineup.declared_position"}) String x) {
+    }
+
+    record ReconCounts(@ExposedFrom("reconciliation_log.status") Integer mismatchRows,
+            @ExposedFrom({"reconciliation_log.turn_no", "reconciliation_log.attempt_no"}) Integer bundles) {
+    }
+
+    record ReconText(@ExposedFrom("reconciliation_log.status") String status) {
+    }
+
+    record ReconLong(@ExposedFrom("reconciliation_log.turn_no") long turns) {
+    }
+
+    record ReconDetail(@ExposedFrom("reconciliation_log.detail") Integer x) {
     }
 
     record Wrapper(List<Good> items) {
@@ -118,5 +153,46 @@ class ExposureRulesTest {
     @Test
     void 허용_목록과_영구_금지_목록은_겹치지_않는다() {
         assertThat(ExposureRules.IDENTIFIER_ALLOWED).noneMatch(source -> ExposureRules.forbidden(source, catalog()));
+    }
+
+    @Test
+    void 끝난_시즌_전용_원천은_표지가_있는_핸들러에서만_통과한다() {
+        assertThat(ExposureRules.check(FinishedOnlyCount.class, catalog(), true)).isEmpty();
+        assertThat(ExposureRules.check(FinishedOnlyCount.class, catalog(), false)).singleElement().asString()
+                .contains("season_path.month_block_id").contains("@FinishedSeasonOnly");
+        // 표지 없는 기본 검사는 예전처럼 영구 금지가 아니라도 실패한다
+        assertThat(ExposureRules.check(FinishedOnlyCount.class, catalog())).hasSize(1);
+    }
+
+    @Test
+    void 끝난_시즌_전용_원천은_표지가_있어도_단독이거나_수치가_아니면_실패한다() {
+        String rule = "다른 원천과 함께 집계한 BigDecimal·Integer 값에만 쓸 수 있음";
+        assertThat(ExposureRules.check(FinishedOnlyId.class, catalog(), true)).anySatisfy(m -> assertThat(m).contains(rule));
+        assertThat(ExposureRules.check(FinishedOnlyAlone.class, catalog(), true)).singleElement().asString().contains(rule);
+        assertThat(ExposureRules.check(FinishedOnlyText.class, catalog(), true)).anySatisfy(m -> assertThat(m).contains(rule));
+    }
+
+    @Test
+    void 건수_전용_원천은_표지와_Integer_형이_모두_있어야_통과한다() {
+        assertThat(ExposureRules.check(ReconCounts.class, catalog(), true)).isEmpty();
+        assertThat(ExposureRules.check(ReconCounts.class, catalog(), false)).hasSize(3);
+        assertThat(ExposureRules.check(ReconText.class, catalog(), true)).singleElement().asString()
+                .contains("Integer 가 아님").contains("String");
+        assertThat(ExposureRules.check(ReconLong.class, catalog(), true)).singleElement().asString()
+                .contains("Integer 가 아님");
+    }
+
+    @Test
+    void 허용_목록에_없는_대사_열은_표지가_있어도_실패한다() {
+        assertThat(ExposureRules.check(ReconDetail.class, catalog(), true)).singleElement().asString()
+                .contains("reconciliation_log.detail").contains("내부");
+    }
+
+    @Test
+    void 확장_허용_목록은_영구_금지_목록과_식별자_허용_목록과_겹치지_않는다() {
+        assertThat(ExposureRules.FINISHED_ONLY_ALLOWED).doesNotContainAnyElementsOf(ExposureRules.FORBIDDEN)
+                .doesNotContainAnyElementsOf(ExposureRules.IDENTIFIER_ALLOWED);
+        assertThat(ExposureRules.COUNT_ONLY_ALLOWED).doesNotContainAnyElementsOf(ExposureRules.FORBIDDEN)
+                .doesNotContainAnyElementsOf(ExposureRules.IDENTIFIER_ALLOWED);
     }
 }

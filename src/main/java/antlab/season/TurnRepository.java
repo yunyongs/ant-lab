@@ -18,7 +18,7 @@ public interface TurnRepository extends AppendOnlyRepository<Turn, Long> {
     @Query("select t.totalValue from Turn t where t.season.id = :seasonId and t.turnNo = :turnNo")
     Optional<BigDecimal> findTotalValueBySeasonIdAndTurnNo(@Param("seasonId") Long seasonId, @Param("turnNo") int turnNo);
 
-    /** 턴 번호 범위의 스냅샷(번호 오름차순, 많아야 둘) — 턴 조회가 그 턴과 직전 턴을 1문장으로 읽는다. */
+    /** 턴 번호 범위의 스냅샷(번호 오름차순) — 턴 조회는 그 턴과 직전 턴 둘, 성적표는 1..T 전부를 1문장으로 읽는다. */
     @Query("select t from Turn t where t.season.id = :seasonId and t.turnNo between :from and :to order by t.turnNo")
     List<Turn> findBySeasonIdAndTurnNoBetween(@Param("seasonId") Long seasonId, @Param("from") int from,
             @Param("to") int to);

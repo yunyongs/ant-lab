@@ -27,6 +27,7 @@ public final class ErrorHttpMapping {
             case SEASON_LIMIT -> HttpStatus.CONFLICT;
             case TURN_NOT_REACHED -> HttpStatus.CONFLICT;
             case SEASON_NOT_ACTIVE -> HttpStatus.CONFLICT;
+            case SEASON_NOT_FINISHED -> HttpStatus.CONFLICT;
             case TURN_MISMATCH -> HttpStatus.CONFLICT;
             case LEDGER_MISMATCH -> HttpStatus.CONFLICT;
             case LINEUP_MISMATCH -> HttpStatus.CONFLICT;
