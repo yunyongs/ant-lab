@@ -10,6 +10,9 @@ spring:
     hikari:
       # 세션 시간대를 JVM 기본값과 떼어 놓는다(db/README 규칙: DB 시간대 Asia/Seoul).
       connection-init-sql: SET TIME ZONE 'Asia/Seoul'
+      data-source-properties:
+        # Kept here, not in the URL: prod replaces the whole URL via env, which would drop URL-side properties.
+        logServerErrorDetail: "false"
   jpa:
     open-in-view: false
     hibernate:
