@@ -877,7 +877,7 @@ default_formation: [10, 30, 30, 30]
 - [x] P0-36 매도 주문 API — 실현 손익·구간 닫기
 - [x] P0-37 전술 변경 API — `formation_change`와 같은 턴 주문 묶기
 - [x] P0-38 성적표 API — 저장하지 않고 조회로 계산
-- [ ] P0-39 복기 최소 API — 끝난 시즌의 날짜 공개
+- [x] P0-39 복기 최소 API — 끝난 시즌의 날짜 공개
 - [ ] P0-40 API 계약(OpenAPI)·"한 판" E2E·실행 문서
 
 ERD 확정 범위(Gate 0 결정 2): Phase 0 SQL이 쓰는 22개 테이블(역사·종목 풀 8, 회원·시즌·피드·대사 9, 시즌 계좌 5)은 P0-03·P0-04에서 확정한다. `season_score`·`projection`·`rating_history`는 MVP에서, EXT 이후 테이블은 각 단계에서 확정한다(§5.1).
@@ -973,6 +973,9 @@ ERD 확정 범위(Gate 0 결정 2): Phase 0 SQL이 쓰는 22개 테이블(역사
 - **매도 주문 API(소유자, 2026-11-11, P0-36 Q1).** "허용 (추천)" — 0턴(팀 구성 중)에도 보유 종목을 팔 수 있다. 매수와 같은 경로를 사용하며 수수료는 그대로 든다. SQL `trade_sell`이 0턴을 거부하는 것(0턴 주문은 21이 만든다는 파일 구조 때문)과는 다르며, 이 차이는 SPRING_JPA §5.2에 적었다. 성적표(P0-38)는 0턴 수수료를 팀 구성 비용으로 보고 회전율 계산에서 0턴을 제외하는 26 정의를 그대로 쓴다.
 - **전술 변경 API(소유자, 2026-11-11, P0-37).** 0턴 전술 변경: "1턴부터만 (추천)" — 팀 구성 중인 0턴에는 전술을 바꿀 수 없다(409 `TURN_MISMATCH`). 0턴 매수·매도 허용(P0-31·P0-36)과는 별개다. 라인업 단독 변경 공개 API: "내부만 (추천)" — 선언 포지션 단독 변경은 내부 서비스와 골든 재생까지만 만들고 공개 HTTP 경로는 만들지 않는다.
 - **성적표 API(소유자, 2026-11-11, P0-38 Q1·Q2).** Q1 "싣는다 (추천)" — 대사 상태 4열(불일치 행·턴 묶음·수동 묶음·범위 밖 행)을 공개 성적표에 건수로 싣는다. Q2 "넣지 않는다 (추천)" — 보조 목록(턴별 표·선수별 역할·변경별 비용)은 응답에 넣지 않는다(P0-39·WEB). 끝난 시즌만 성적표를 내고(그 밖은 409 `SEASON_NOT_FINISHED`), 0턴 수수료는 팀 구성 비용·총수수료에 넣고 대금·회전율에서는 뺀다(26 정의 그대로).
+- **Review API (recommendation adopted under the owner's standing rule, 2026-11-12, P0-39 Q1·Q2).** Q1 "include (recommended)": the review response also carries the formation-change record (turn, before and after formation, reason; PLAN §4.10). Q2 "changed sentences only (recommended)": a feature PR writes each new or changed sentence of a Korean doc in English first, then in Korean; whole-file English versions wait for a pass the owner schedules. Only a finished season has a review (any other status gets 409 `SEASON_NOT_FINISHED`), and the seed is sent as a string.
+
+  **복기 API(소유자 상시 규칙에 따른 추천안 채택, 2026-11-12, P0-39 Q1·Q2).** Q1 "넣는다 (추천)" — 복기 응답에 전술 변경 기록(턴·이전/이후 포메이션·사유)을 함께 싣는다(PLAN §4.10). Q2 "바뀐 문장만 (추천)" — 기능 PR에서는 한국어 문서의 새 문장과 바뀐 문장을 영어로 먼저 쓰고 한국어를 잇는다. 문서 전체 영어판은 소유자가 일정을 잡는 별도 작업으로 미룬다. 끝난 시즌만 복기를 내고(그 밖의 상태는 409 `SEASON_NOT_FINISHED`), 시드는 문자열로 보낸다.
 
 ## 14. 빌더에게 맡기는 것
 
@@ -1017,6 +1020,7 @@ Spring Boot 프로젝트는 Phase 0 API(P0-22)에서 저장소 루트에 추가�
 | 2026-11-07 | Plan | Plan v3.1: 릴리스 v1(모의 투자 — 웹 페이지·데스크탑 앱·모바일 앱)과 v2(실제 투자), 단계 코드를 EXT·APP·AI·OPS로 바꾸고 첫 규칙 집합을 MVP로, 감독 모드 재생 표본에 확장 구간(1997-01–2006)과 대표 지수 대체 수익률, 케이스 훈련의 닷컴 ↔ 생성형 AI 짝(새 기술 전환기) |
 | 2026-11-09 | Phase 0 | 로드맵 재배치: Phase 0에 시즌 한 판 REST API(P0-22–P0-40), Phase 1 건너뜀, API 다음 웹(WEB). Spring Boot 4.1.x(수업 판). Flyway·Testcontainers·Actuator·`ProblemDetail`·`@Lock`·`@Version`·`@Immutable`을 이 API에서 처음 쓴다 |
 | 2026-11-10 | Phase 0 | SQL 구간 마감: 전체 실행 순서 한 표, 최종 판정 SQL(`p0_21_check`), 실행 파일 가드 종료 코드 3, 순서 = 의존·멱등 분류·대사 묶음 세기 실습 |
+| 2026-11-12 | Phase 0 | P0-39 review API: a privileged read made visible by its name — repository methods that read `[복기 전용]` values are named `findRevealed…`, and a reflection and source scan enforces the name and the callers. JPQL `join … on` between entities without an association and `select new` constructor projections keep block ids out of the result. A handler marker (`@ReviewReveal`) is frozen to one path by a test, and the 409 test checks the executed SQL as well as the body. P0-39 복기 API: 특권 조회를 이름으로 드러낸다 — `[복기 전용]` 값을 읽는 리포지토리 메서드는 `findRevealed…`로 이름 짓고, 리플렉션과 소스 훑기가 이름과 호출처를 강제한다. 연관 없는 엔티티의 JPQL `join … on`과 `select new` 생성자 투영으로 블록 번호를 결과에서 뺀다. 핸들러 표지(`@ReviewReveal`)는 시험이 경로 하나로 고정하고, 409 시험은 본문뿐 아니라 실행된 SQL도 본다 |
 | 2026-11-11 | Phase 0 | P0-38 성적표 API: 26 정의를 Java가 계산한다 — 원천은 고정 13문장의 읽기 전용 조회(정수·원 단위), 비율·평균·변동성·시즌 실측 포지션은 순수 계산기와 MoneyMath 한 곳에서 26과 같은 자릿수 단계로 반올림. 연습 시즌·Java 시즌·API 응답 셋을 같은 26 정의로 대조하고(피드 출발점 3열은 반대쪽 단언, 출발점을 바꾼 시즌에서 다시 대조), 판정 로직은 기준일 풀 전 종목에서 asset_position과 대조. 읽기 전용 REPEATABLE READ 한 스냅샷, 잠금 없음 |
 | 2026-11-11 | Phase 0 | P0-32 대사 서비스: 수동 검사 규칙 15개를 22 SQL의 기계적 치환 사본인 네이티브 쿼리로 옮기고(복사 동일성을 시험이 강제) 같은 DB에서 Java 결과가 `recon_rules`와 규칙마다 같음을 골든·깨뜨린 사례로 확인한다. 쿼리가 15문장이라 한 스냅샷이 아니므로 일관성은 "시즌에 딸린 행을 쓰는 모든 경로가 먼저 `season`을 잠근다"는 불변식에 둔다. 기록기는 수동 검사·턴 전환·SQL이 한 번호 공간을 쓰고 23505 재시도는 옮기지 않는다. 개발 엔드포인트는 `local`에서만 열리며 값 열을 내지 않는다 |
 | 2026-11-10 | Phase 0 | P0-31 매수 주문 API: 0턴 팀 구성과 1턴 이후 매수가 한 서비스 경로다. 소유 확인과 시즌 잠금을 한 번의 잠금 조회로 하고(락 순서 season → cash_account, 잠그지 않은 조회가 먼저 영속성 컨텍스트에 올리면 잠금 조회가 옛 상태를 돌려준다), 주문은 불변이라 같은 턴의 마지막 전술 변경 번호를 INSERT 때 넣는다. 0턴 주문을 SQL 팀 구성과 행 단위로 비교하고 대사 규칙 15개가 모두 일치함을 확인한다 |

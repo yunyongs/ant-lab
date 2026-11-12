@@ -29,6 +29,13 @@ class ExposureRulesTest {
         tags.put("reconciliation_log.turn_no", ExposureCatalog.INTERNAL);
         tags.put("reconciliation_log.attempt_no", ExposureCatalog.INTERNAL);
         tags.put("reconciliation_log.detail", ExposureCatalog.INTERNAL);
+        tags.put("month_event.title", ExposureCatalog.REVEAL_ONLY);
+        tags.put("month_event.event_key", ExposureCatalog.INTERNAL);
+        tags.put("month_event.id", ExposureCatalog.INTERNAL);
+        tags.put("season.seed", ExposureCatalog.INTERNAL);
+        tags.put("season.engine_version", ExposureCatalog.INTERNAL);
+        tags.put("season.data_snapshot_date", ExposureCatalog.INTERNAL);
+        tags.put("season.base_date", ExposureCatalog.INTERNAL);
         return new ExposureCatalog(tags);
     }
 
@@ -89,6 +96,21 @@ class ExposureRulesTest {
     }
 
     record ReconDetail(@ExposedFrom("reconciliation_log.detail") Integer x) {
+    }
+
+    record RevealTitle(@ExposedFrom("month_event.title") String title) {
+    }
+
+    record RevealSeed(@ExposedFrom("season.seed") String seed) {
+    }
+
+    record RevealBaseDate(@ExposedFrom("season.base_date") String baseDate) {
+    }
+
+    record RevealEventKey(@ExposedFrom("month_event.event_key") String key) {
+    }
+
+    record RevealEventId(@ExposedFrom("month_event.id") Long id) {
     }
 
     record Wrapper(List<Good> items) {
@@ -193,6 +215,44 @@ class ExposureRulesTest {
         assertThat(ExposureRules.FINISHED_ONLY_ALLOWED).doesNotContainAnyElementsOf(ExposureRules.FORBIDDEN)
                 .doesNotContainAnyElementsOf(ExposureRules.IDENTIFIER_ALLOWED);
         assertThat(ExposureRules.COUNT_ONLY_ALLOWED).doesNotContainAnyElementsOf(ExposureRules.FORBIDDEN)
+                .doesNotContainAnyElementsOf(ExposureRules.IDENTIFIER_ALLOWED);
+    }
+
+    @Test
+    void 복기_전용_값은_두_표지가_모두_있는_핸들러에서만_통과한다() {
+        assertThat(ExposureRules.check(RevealTitle.class, catalog(), true, true)).isEmpty();
+        assertThat(ExposureRules.check(RevealTitle.class, catalog(), true, false)).singleElement().asString()
+                .contains("month_event.title").contains("복기 전용");
+        assertThat(ExposureRules.check(RevealTitle.class, catalog(), false, true)).hasSize(1);
+        assertThat(ExposureRules.check(RevealTitle.class, catalog(), true)).hasSize(1);
+        assertThat(ExposureRules.check(RevealTitle.class, catalog())).hasSize(1);
+    }
+
+    @Test
+    void 재현_정보_열은_복기_핸들러에서만_통과하고_성적표_같은_record에서는_실패한다() {
+        assertThat(ExposureRules.check(RevealSeed.class, catalog(), true, true)).isEmpty();
+        assertThat(ExposureRules.check(RevealSeed.class, catalog(), true, false)).singleElement().asString()
+                .contains("season.seed").contains("내부");
+        assertThat(ExposureRules.check(RevealSeed.class, catalog())).hasSize(1);
+        // base_date is not part of the reproducibility triple
+        assertThat(ExposureRules.check(RevealBaseDate.class, catalog(), true, true)).singleElement().asString()
+                .contains("season.base_date");
+    }
+
+    @Test
+    void 복기_핸들러여도_영구_금지_번호와_사건_키는_실패한다() {
+        assertThat(ExposureRules.check(FinishedOnlyId.class, catalog(), true, true)).isNotEmpty();
+        assertThat(ExposureRules.check(BlockFk.class, catalog(), true, true)).singleElement().asString().contains("영구 금지");
+        assertThat(ExposureRules.check(DateKey.class, catalog(), true, true)).singleElement().asString().contains("영구 금지");
+        assertThat(ExposureRules.check(RevealEventId.class, catalog(), true, true)).singleElement().asString()
+                .contains("영구 금지");
+        assertThat(ExposureRules.check(RevealEventKey.class, catalog(), true, true)).singleElement().asString()
+                .contains("month_event.event_key").contains("내부");
+    }
+
+    @Test
+    void 재현_정보_허용_목록은_영구_금지_목록과_식별자_허용_목록과_겹치지_않는다() {
+        assertThat(ExposureRules.REVIEW_INTERNAL_ALLOWED).doesNotContainAnyElementsOf(ExposureRules.FORBIDDEN)
                 .doesNotContainAnyElementsOf(ExposureRules.IDENTIFIER_ALLOWED);
     }
 }

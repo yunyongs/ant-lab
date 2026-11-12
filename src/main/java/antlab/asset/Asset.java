@@ -50,6 +50,8 @@ public class Asset {
     @Column(name = "asset_group_id", nullable = false)
     private Long assetGroupId;
 
+    // No getter on [복기 전용] values: they leave the DB only through the review projections (SPRING_JPA §4.6).
+    @Getter(AccessLevel.NONE)
     @Column(name = "listed_on", nullable = false)
     private LocalDate listedOn;
 

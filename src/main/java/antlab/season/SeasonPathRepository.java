@@ -28,4 +28,20 @@ public interface SeasonPathRepository extends AppendOnlyRepository<SeasonPath, L
             ORDER BY tp.asset_id, sp.turn_no
             """)
     List<TurnFactorRow> findTurnFactors(@Param("seasonId") long seasonId, @Param("uptoTurn") int uptoTurn);
+
+    /**
+     * Review only: each turn's real month and its one-line summary, turn order. Reads {@code [복기 전용]} values, hence the
+     * name; {@code SeasonReviewService} is the only caller and calls it after the FINISHED check. No block id is projected.
+     */
+    @Query("select new antlab.season.RevealedMonthRow(sp.turnNo, mb.monthStart, mb.eventSummary) "
+            + "from SeasonPath sp join MonthBlock mb on mb.id = sp.monthBlockId "
+            + "where sp.season.id = :seasonId order by sp.turnNo")
+    List<RevealedMonthRow> findRevealedMonths(@Param("seasonId") long seasonId);
+
+    /** Review only: event tags of each turn's real month, turn order then event key. See {@link #findRevealedMonths}. */
+    @Query("select new antlab.season.RevealedEventRow(sp.turnNo, me.category, me.eventType, me.phase, me.title, "
+            + "me.hindsight, me.source) "
+            + "from SeasonPath sp join MonthEvent me on me.monthBlockId = sp.monthBlockId "
+            + "where sp.season.id = :seasonId order by sp.turnNo, me.eventKey")
+    List<RevealedEventRow> findRevealedEvents(@Param("seasonId") long seasonId);
 }

@@ -105,8 +105,9 @@ public final class SeasonReportCalculator {
         BigDecimal nudgeShare = null;
         BigDecimal nudgeSameTurnShare = null;
         if (orders.tradeNotional().signum() > 0) {
-            nudgeShare = MoneyMath.ratio(orders.nudgeNotional(), orders.tradeNotional());
-            nudgeSameTurnShare = MoneyMath.ratio(orders.nudgeSameTurnNotional(), orders.tradeNotional());
+            nudgeShare = MoneyMath.exactRate(MoneyMath.ratio(orders.nudgeNotional(), orders.tradeNotional()));
+            nudgeSameTurnShare = MoneyMath.exactRate(
+                    MoneyMath.ratio(orders.nudgeSameTurnNotional(), orders.tradeNotional()));
         }
         BigDecimal formationChangeFee = BigDecimal.ZERO;
         int formationChanges = 0;

@@ -30,6 +30,8 @@ public class MonthBlock {
     @Column(name = "id")
     private Long id;
 
+    // No getter on [복기 전용] values: they leave the DB only through the review projections (SPRING_JPA §4.6).
+    @Getter(AccessLevel.NONE)
     @Column(name = "month_start", nullable = false)
     private LocalDate monthStart;
 
@@ -73,6 +75,7 @@ public class MonthBlock {
     @Column(name = "prob_p4", precision = 5, scale = 4, nullable = true)
     private BigDecimal probP4;
 
+    @Getter(AccessLevel.NONE)
     @Column(name = "event_summary", length = 200, nullable = true)
     private String eventSummary;
 

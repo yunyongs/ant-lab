@@ -3,9 +3,11 @@ package antlab.api;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import antlab.common.exposure.FinishedSeasonOnly;
+import antlab.common.exposure.ReviewReveal;
 import antlab.member.CurrentMember;
 import antlab.member.MemberRepository;
 import antlab.season.SeasonRepository;
+import antlab.season.SeasonReviewDto;
 import antlab.account.CashAccountRepository;
 import antlab.support.ExposureCatalog;
 import antlab.support.SeasonAccountFixture;
@@ -70,7 +72,7 @@ class ExposureContractTest {
     @Autowired
     CashAccountRepository accounts;
 
-    record Endpoint(String path, Class<?> responseType, boolean finishedSeasonOnly) {
+    record Endpoint(String path, Class<?> responseType, boolean finishedSeasonOnly, boolean reviewReveal) {
     }
 
     private List<Endpoint> apiEndpoints() {
@@ -84,7 +86,8 @@ class ExposureContractTest {
             for (String p : patterns) {
                 // 개발 엔드포인트(local 전용, prod 미등록)는 값을 보여 주는 도구라 노출 검사 예외다(소유자 결정 2026-11-11).
                 if (p.startsWith("/api/v1/") && !p.startsWith(DEV_PATH_PREFIX)) {
-                    out.add(new Endpoint(p, type.toClass(), e.getValue().hasMethodAnnotation(FinishedSeasonOnly.class)));
+                    out.add(new Endpoint(p, type.toClass(), e.getValue().hasMethodAnnotation(FinishedSeasonOnly.class),
+                            e.getValue().hasMethodAnnotation(ReviewReveal.class)));
                 }
             }
         }
@@ -108,7 +111,8 @@ class ExposureContractTest {
         assertThat(endpoints).as("검사한 /api/v1 운영").isNotEmpty();
         for (Endpoint ep : endpoints) {
             assertThat(ep.responseType().isRecord()).as(ep.path() + " 응답은 record").isTrue();
-            assertThat(ExposureRules.check(ep.responseType(), catalog, ep.finishedSeasonOnly())).as(ep.path()).isEmpty();
+            assertThat(ExposureRules.check(ep.responseType(), catalog, ep.finishedSeasonOnly(), ep.reviewReveal()))
+                    .as(ep.path()).isEmpty();
         }
     }
 
@@ -153,6 +157,21 @@ class ExposureContractTest {
                 assertThat(ExposureRules.check(ep.responseType(), catalog, false)).as(ep.path()).isEmpty();
             }
         }
+    }
+
+    @Test
+    void 복기_표지는_끝난_시즌_표지와_함께만_있고_경로가_하나로_고정되어_있다() {
+        List<Endpoint> reveal = apiEndpoints().stream().filter(Endpoint::reviewReveal).toList();
+        assertThat(reveal).as("@ReviewReveal handlers").isNotEmpty().allMatch(Endpoint::finishedSeasonOnly);
+        assertThat(reveal.stream().map(Endpoint::path)).containsExactly("/api/v1/seasons/{seasonId}/review");
+    }
+
+    @Test
+    void 복기_응답은_복기_표지가_없으면_실패한다() {
+        ExposureCatalog catalog = ExposureCatalog.load(jdbc);
+        assertThat(ExposureRules.check(SeasonReviewDto.class, catalog, true, true)).isEmpty();
+        assertThat(ExposureRules.check(SeasonReviewDto.class, catalog, true, false)).isNotEmpty();
+        assertThat(ExposureRules.check(SeasonReviewDto.class, catalog, false, false)).isNotEmpty();
     }
 
     private static void keysMatch(Class<?> record, JsonNode node, String path, List<String> out) {

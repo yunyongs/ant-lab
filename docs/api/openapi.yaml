@@ -512,6 +512,60 @@ paths:
                 $ref: '#/components/schemas/Problem'
         '500':
           $ref: '#/components/responses/InternalError'
+  /api/v1/seasons/{seasonId}/review:
+    get:
+      tags: [season]
+      operationId: getSeasonReview
+      summary: 시즌 복기 조회
+      description: |-
+        끝난 시즌의 각 턴이 실제로 어느 달이었는지(연월), 그 달의 한 줄 요약과 사건 태그(실제 이름·사후 평가·출처), 전술 변경 기록, 재현 정보(시드·엔진 버전·데이터 스냅샷 날짜)를 준다. 진행 중이거나 포기 중인 시즌은 409 SEASON_NOT_FINISHED 이고 본문에 연월·사건 이름이 없다. 시드는 64비트 정수라 문자열로 보낸다. 월 블록 번호·사건 번호·사건 키는 싣지 않는다.
+
+        제외(Phase 0 범위 밖):
+        - 국면 경로·축 방향 → M2/MVP
+        - 피드 공개(어느 항목이 실제 사건이었나)·관심 추종·수비수/벤치 득점·플랫폼 수익 → MVP
+        - 사건 카드 수치(결과·방향·강도·반응 변화율) → MVP
+        - 과거 턴 종목별 보유·턴별 평가액 목록 → MVP/WEB
+        - 사건 설명(RAG) → AI
+      parameters:
+        - name: seasonId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: 시즌 복기
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SeasonReviewDto'
+        '400':
+          description: 시즌 번호가 숫자가 아니다 — INVALID_ARGUMENT
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: 시즌이 없다 — NOT_FOUND
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: 끝나지 않은 시즌이다 — SEASON_NOT_FINISHED
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '503':
+          description: 현재 회원을 알 수 없다 — MEMBER_UNAVAILABLE(운영, 인증 전)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '500':
+          $ref: '#/components/responses/InternalError'
 components:
   responses:
     InternalError:
@@ -1094,6 +1148,83 @@ components:
           type: integer
           format: int32
           description: 경로 길이를 넘는 턴의 대사 행 수
+    SeasonReviewDto:
+      type: object
+      description: 끝난 시즌의 복기. 월 블록 번호·사건 번호·사건 키·기준일·회원 번호·시각은 싣지 않는다
+      required: [seasonStatus, pathLength, abandonedTurnNo, seed, engineVersion, dataSnapshotDate, turns, formationChanges]
+      properties:
+        seasonStatus:
+          $ref: '#/components/schemas/SeasonStatus'
+          description: 시즌 상태(끝난 시즌만 복기를 내므로 FINISHED)
+        pathLength:
+          type: integer
+          format: int32
+          description: 경로 길이(턴 수)
+        abandonedTurnNo:
+          type: [integer, 'null']
+          format: int32
+          description: 포기한 턴. 포기하지 않았으면 null
+        seed:
+          type: string
+          pattern: '^-?[0-9]{1,19}$'
+          description: 경로 시드(64비트 정수의 10진 문자열)
+        engineVersion:
+          type: string
+          description: 경로를 만든 엔진 버전
+        dataSnapshotDate:
+          type: string
+          format: date
+          description: 데이터 스냅샷 날짜(yyyy-MM-dd)
+        turns:
+          type: array
+          description: 턴 번호 순서(1..경로 길이)
+          items:
+            $ref: '#/components/schemas/ReviewTurnDto'
+        formationChanges:
+          type: array
+          description: 전술 변경 기록(변경 순서). 없으면 빈 목록
+          items:
+            $ref: '#/components/schemas/FormationChangeDto'
+    ReviewTurnDto:
+      type: object
+      required: [turnNo, yearMonth, eventSummary, events]
+      properties:
+        turnNo:
+          type: integer
+          format: int32
+          description: 턴 번호(1부터)
+        yearMonth:
+          type: string
+          pattern: '^[0-9]{4}-[0-9]{2}$'
+          description: 이 턴에 쓰인 실제 연월(yyyy-MM)
+        eventSummary:
+          type: [string, 'null']
+          description: 그 달의 한 줄 요약. 없으면 null
+        events:
+          type: array
+          description: 그 달의 사건 태그(사건 키 순서). 없으면 빈 목록
+          items:
+            $ref: '#/components/schemas/ReviewEventDto'
+    ReviewEventDto:
+      type: object
+      required: [category, eventType, phase, title, hindsight, source]
+      properties:
+        category:
+          $ref: '#/components/schemas/EventCategory'
+        eventType:
+          type: string
+          description: 사건 유형
+        phase:
+          $ref: '#/components/schemas/EventPhase'
+        title:
+          type: string
+          description: 실제 이름
+        hindsight:
+          type: [string, 'null']
+          description: 나중에 붙은 이름·사후 평가. 없으면 null
+        source:
+          type: string
+          description: URL 또는 서지
     HoldingsDto:
       type: object
       description: 현재 턴의 보유 × 그 턴 가격(이번 턴의 매매가 바로 반영되는 실시간 값). 매매가 없는 턴이면 총액·보유 평가액·포지션별 평가액이 그 턴의 턴 결과와 같다. currentFormation 은 지금 적용 중인 포메이션이다. 비중 4개의 합은 1과 최대 2e-8 다를 수 있다. 시드·경로·월 블록·연월·수익률 종류는 싣지 않는다
@@ -1217,6 +1348,12 @@ components:
     SeasonStatus:
       type: string
       enum: [IN_PROGRESS, ABANDONING, FINISHED]
+    EventCategory:
+      type: string
+      enum: [GEOPOLITICS, TRADE, POLITICS, SUPPLY_SHOCK, FINANCIAL, POLICY, HEALTH]
+    EventPhase:
+      type: string
+      enum: [START, ONGOING, END]
     Market:
       type: string
       enum: [KR, US]
