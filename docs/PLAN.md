@@ -840,6 +840,45 @@ The release column shows the scope of §1.2. The public launch of release v1 (fo
 | AG-07 | 전망 모드 에이전트 참가(논제 출력, 실명)와 에이전트 명예 기록 — 전망 리더보드 점수(§6.9)와 명예 기록 기준값을 이 기능에서 정한다 | M4 뒤 | M4 전망 모드 |
 | AG-08 | 메모리 RAG(pgvector) — 대상은 필터를 통과한 자기 메모리, 시즌 시작 버전까지(§4.16) | AI 단계 | AI 단계(RAG) |
 
+The tables below are drafts pending owner approval; work proceeds with the recommended defaults for Q1–Q7 until approval. / 아래 표는 소유자 승인 전 초안이며, 승인 전에는 Q1–Q7의 추천 기본값으로 진행한다.
+
+**MON feature table (draft) / MON 기능 표(초안)**
+
+| Feature / 기능 | Name / 이름 | When / 시기 | Depends on / 선행 |
+|---|---|---|---|
+| MON-01 | Prometheus endpoint on an internal management port / 내부 관리 포트의 Prometheus 엔드포인트 | After P0-40 PR A / P0-40 PR A 뒤 | P0-40 |
+| MON-02 | Compose monitoring profile: Prometheus + Grafana with a provisioned data source / 데이터 소스가 자동 설정된 Prometheus + Grafana Compose 모니터링 프로필 | After MON-01 / MON-01 뒤 | MON-01 |
+| MON-03 | Game and error metrics / 게임·오류 지표 | After MON-01, alongside MON-02 / MON-01 뒤, MON-02와 병행 | MON-01 |
+| MON-04 | Grafana dashboards as code / 코드로 관리하는 Grafana 대시보드 | After MON-02 and MON-03 / MON-02·MON-03 뒤 | MON-02, MON-03 |
+| MON-05 | Monitoring smoke and run docs / 모니터링 스모크 시험·실행 문서 | After MON-04, before SEC-05 / MON-04 뒤, SEC-05 전 | MON-04 |
+
+**SEC feature table (draft) / SEC 기능 표(초안)**
+
+| Feature / 기능 | Name / 이름 | When / 시기 | Depends on / 선행 |
+|---|---|---|---|
+| SEC-01 | ERD and Flyway V4: refresh tokens and member role / ERD·Flyway V4: 갱신 토큰·회원 역할 | After P0-40 merges, alongside MON / P0-40 머지 뒤, MON과 병행 | P0-40 |
+| SEC-02 | Security filter chain baseline and signup / 보안 필터 체인 기초·가입 | After SEC-01 / SEC-01 뒤 | SEC-01 |
+| SEC-03 | Login, access/refresh JWT, refresh rotation, logout / 로그인·접근/갱신 JWT·갱신 토큰 회전·로그아웃 | After SEC-02 / SEC-02 뒤 | SEC-02 |
+| SEC-04 | Bearer validation and per-API permissions / Bearer 검증·API별 권한 | After SEC-03 and P0-40 PR B/C merge / SEC-03·P0-40 PR B/C 머지 뒤 | SEC-03, P0-40 |
+| SEC-05 | Replace the fixed member with the authenticated member / 고정 회원을 인증된 회원으로 교체 | After SEC-04 / SEC-04 뒤 | SEC-04 |
+| SEC-06 | Auth E2E, secrets and docs / 인증 E2E·비밀 설정·문서 | After SEC-05; update MON-05 smoke if merged / SEC-05 뒤, MON-05가 머지됐으면 스모크 갱신 | SEC-05, MON-05 |
+
+**WEB feature table (draft) / WEB 기능 표(초안)**
+
+| Feature / 기능 | Name / 이름 | When / 시기 | Depends on / 선행 |
+|---|---|---|---|
+| WEB-01 | Vite + TypeScript React skeleton / Vite + TypeScript React 골격 | After P0-40 merges, alongside SEC / P0-40 머지 뒤, SEC와 병행 | P0-40 |
+| WEB-02 | API types, client and error catalog from openapi.yaml / openapi.yaml 기반 API 타입·클라이언트·오류 목록 | After WEB-01 and P0-40 PR B/C merge; regenerate after SEC-04 / WEB-01·P0-40 PR B/C 머지 뒤, SEC-04 뒤 재생성 | WEB-01, P0-40, SEC-04 |
+| WEB-03 | Login, signup and session handling / 로그인·가입·세션 처리 | After SEC-04 merges; real-season play needs SEC-05 / SEC-04 머지 뒤, 실제 시즌 진행은 SEC-05 필요 | WEB-02, SEC-04, SEC-05 |
+| WEB-04 | Season list and season start / 시즌 목록·시즌 시작 | After WEB-03 / WEB-03 뒤 | WEB-03 |
+| WEB-05 | Team build at turn 0 / 0턴 팀 구성 | After WEB-04 / WEB-04 뒤 | WEB-04 |
+| WEB-06 | Turn advance and turn result / 턴 전환·턴 결과 | After WEB-05 / WEB-05 뒤 | WEB-05 |
+| WEB-07 | Between-turn trading and formation change / 턴 사이 매매·포메이션 변경 | After WEB-06, alongside WEB-08/09 / WEB-06 뒤, WEB-08/09와 병행 | WEB-06, WEB-05 |
+| WEB-08 | Report card / 성적표 | After WEB-06; fixtures allow earlier work / WEB-06 뒤, 시험 데이터로 먼저 작업 가능 | WEB-06 |
+| WEB-09 | Season review / 시즌 복기 | After WEB-08 / WEB-08 뒤 | WEB-08 |
+| WEB-10 | End-to-end play at mobile and desktop width / 모바일·데스크톱 폭 전체 플레이 시험 | After WEB-07, WEB-08 and WEB-09 / WEB-07·WEB-08·WEB-09 뒤 | WEB-07, WEB-08, WEB-09 |
+| WEB-11 | Web CI: build, lint, unit tests, contract drift / 웹 CI: 빌드·린트·단위 시험·계약 불일치 검사 | Any time after WEB-02 / WEB-02 뒤 언제든 | WEB-02 |
+
 최소 시제품 경로는 P0-08 → AG-01(탐지 보고서) → Phase 0 API(P0-40) → AG-02(에이전트 1 · 시즌 1) → AG-04(사람 1 + 에이전트 2, 같은 시드)다. 여기까지가 "사람과 에이전트가 같은 표에 선다"는 것을 보여 주는 첫 증거다.
 
 ### 11.1 Phase 0 체크리스트 (SQL, PostgreSQL 17)
@@ -984,6 +1023,15 @@ ERD 확정 범위(Gate 0 결정 2): Phase 0 SQL이 쓰는 22개 테이블(역사
 - **Review API (recommendation adopted under the owner's standing rule, 2026-11-12, P0-39 Q1·Q2).** Q1 "include (recommended)": the review response also carries the formation-change record (turn, before and after formation, reason; PLAN §4.10). Q2 "changed sentences only (recommended)": a feature PR writes each new or changed sentence of a Korean doc in English first, then in Korean; whole-file English versions wait for a pass the owner schedules. Only a finished season has a review (any other status gets 409 `SEASON_NOT_FINISHED`), and the seed is sent as a string.
 
   **복기 API(소유자 상시 규칙에 따른 추천안 채택, 2026-11-12, P0-39 Q1·Q2).** Q1 "넣는다 (추천)" — 복기 응답에 전술 변경 기록(턴·이전/이후 포메이션·사유)을 함께 싣는다(PLAN §4.10). Q2 "바뀐 문장만 (추천)" — 기능 PR에서는 한국어 문서의 새 문장과 바뀐 문장을 영어로 먼저 쓰고 한국어를 잇는다. 문서 전체 영어판은 소유자가 일정을 잡는 별도 작업으로 미룬다. 끝난 시즌만 복기를 내고(그 밖의 상태는 409 `SEASON_NOT_FINISHED`), 시드는 문자열로 보낸다.
+
+- **v0.1 feature-table draft (2026-11-13). / v0.1 기능 표 초안(2026-11-13).** Scope: 22 features (MON-01–05, SEC-01–06, WEB-01–11), listed in §11. Estimated code completion: optimistic 2026-11-21 / conservative 2026-11-28, excluding the owner's merge wait. Status: awaiting owner confirmation (questions at 2026-11-13 07:00); the following recommended defaults apply pending approval. / 범위: §11의 기능 22개(MON-01–05, SEC-01–06, WEB-01–11). 코드 완료 예상: 낙관 2026-11-21 / 보수 2026-11-28, 소유자 머지 대기 제외. 상태: 소유자 확인 대기(2026-11-13 07:00 질문). 승인 전에는 다음 추천 기본값을 적용한다.
+  - **Q1 — WEB start vs React curriculum.** Start WEB-01/02 as soon as P0-40 merges, alongside SEC and ahead of the React classes; learning notes cover core logic only (auth flow, contract-to-types, money strings, turn state). / **Q1 — WEB 시작과 React 진도.** P0-40 머지 직후 React 수업보다 먼저 WEB-01/02를 SEC와 병행하고, 학습 설명은 핵심 로직(인증 흐름·계약에서 타입 생성·금액 문자열·턴 상태)에만 붙인다.
+  - **Q2 — Token placement.** Access token in memory; refresh token in an HttpOnly, SameSite=Strict cookie; same origin. / **Q2 — 토큰 위치.** 접근 토큰은 메모리, 갱신 토큰은 HttpOnly·SameSite=Strict 쿠키에 두고 같은 출처를 쓴다.
+  - **Q3 — JWT implementation.** Spring Security OAuth2 Resource Server, reducing custom security code. / **Q3 — JWT 구현.** Spring Security OAuth2 Resource Server로 직접 작성하는 보안 코드를 줄인다.
+  - **Q4 — Fixed member after SEC.** Delete the resolver, fallback, guard and properties; tests and `.http` log in through a helper, keeping one authentication path. / **Q4 — SEC 이후 고정 회원.** 리졸버·대체 구현·가드·설정 속성을 삭제하고 시험과 `.http`는 헬퍼로 로그인해 인증 경로를 하나로 둔다.
+  - **Q5 — Web folder.** One package in `web/`; APP later moves it into a workspace such as `apps/web` + `packages/api`. / **Q5 — 웹 폴더.** `web/` 단일 패키지로 시작하고 APP에서 `apps/web` + `packages/api` 같은 워크스페이스로 옮긴다.
+  - **Q6 — Web CI in v0.1.** Include WEB-11 as a web-only Node workflow without secrets; Gradle CI stays in M1. This brings the web slice ahead of the existing M1 CI roadmap. / **Q6 — v0.1 웹 CI.** 비밀 값 없는 Node 전용 웹 워크플로 WEB-11을 포함하고 Gradle CI는 M1에 둔다. 기존 M1 CI 로드맵에서 웹 부분만 앞당긴다.
+  - **Q7 — Signup policy.** Open self-signup without email verification or login rate limits for local-only v0.1; rate limits and lockout move to OPS with public deployment. / **Q7 — 가입 정책.** 로컬 전용 v0.1은 이메일 확인·로그인 요청 제한 없이 자유 가입을 허용하고, 요청 제한·잠금은 공개 배포와 함께 OPS에서 다룬다.
 
 ## 14. 빌더에게 맡기는 것
 
