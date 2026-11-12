@@ -1,0 +1,63 @@
+# Play one season by hand / 시즌 한 판을 직접 돌려 보기
+
+Run the Phase 0 API on a throwaway database and play a whole season: start, build the team, advance 12 turns (with a sell and a formation change), reconciliation, report, review.
+Phase 0 API를 일회용 DB 위에 띄워 시즌 한 판(시작 → 팀 구성 → 12턴(매도·전술 변경 포함) → 대사 → 성적표 → 복기)을 직접 돌려 본다.
+
+The project below (`antlab-play`, port 55433) is separate from the `antlab-db-1` container and from the `antlab` / `antlab_api` databases you already use, so nothing of yours is touched.
+아래 프로젝트(`antlab-play`, 포트 55433)는 기존 `antlab-db-1` 컨테이너와 그 안의 `antlab`·`antlab_api` DB와 따로라서 기존 데이터를 건드리지 않는다.
+
+## Prerequisites / 준비
+
+- Docker, JDK 21, `psql`, Python 3 · the four git-ignored sample CSVs in `db/sample/` (`db/sample/README.md`).
+- 표본 CSV 네 개가 `db/sample/`에 있어야 한다(git 무시 파일).
+
+## 1. Database / DB 만들기
+
+```bash
+ANTLAB_DB_PORT=55433 docker compose -p antlab-play up -d --wait db
+export PGHOST=localhost PGPORT=55433
+export ANTLAB_DB_URL=jdbc:postgresql://localhost:55433/antlab_api
+```
+
+## 2. Create the schema (first start) / 스키마 만들기 (첫 실행)
+
+```bash
+./gradlew bootRun --args='--server.port=18080'
+# when curl -fsS http://127.0.0.1:18080/actuator/health/readiness prints {"status":"UP"}, stop with Ctrl+C
+```
+
+## 3. Load the sample / 표본 적재 (앱을 끈 상태)
+
+```bash
+psql -X -d antlab_api -c "ALTER DATABASE antlab_api SET timezone TO 'Asia/Seoul'"
+for f in 10_load_sample 11_load_events 12_calc_position 13_calc_attention; do
+  psql -X -q -v ON_ERROR_STOP=1 -d antlab_api -f db/$f.sql && psql -X -q -v ON_ERROR_STOP=1 -d antlab_api -f db/${f}_check.sql
+done
+```
+
+## 4. Start the API and play / API를 띄우고 한 판 돌리기
+
+```bash
+./gradlew bootRun --args='--server.port=18080'          # keep this terminal / 이 터미널은 그대로 둔다
+python3 tools/play/play_season.py --base http://127.0.0.1:18080     # in a second terminal / 두 번째 터미널
+```
+
+Options / 옵션: `--turns 12|24|60`, `--risk -0.10|-0.20|-0.30|-0.40`. Each run creates a new season; at most 3 seasons may be in progress.
+실행할 때마다 새 시즌이 만들어지고, 진행 중 시즌은 최대 3개다.
+
+## 5. Try it by hand / 직접 눌러 보기
+
+- Swagger UI (local profile only): <http://127.0.0.1:18080/swagger-ui.html>
+- Pool / 풀: `curl -s http://127.0.0.1:18080/api/v1/pool`
+- Season / 시즌 조회: `curl -s http://127.0.0.1:18080/api/v1/seasons/1`
+- Manual reconciliation / 수동 대사: `curl -s -X POST -H 'X-Antlab-Dev: true' http://127.0.0.1:18080/api/v1/dev/seasons/1/reconciliation`
+- Review before the season ends is `409 SEASON_NOT_FINISHED` with no dates in the body / 시즌이 끝나기 전 복기는 날짜 없이 409다: `curl -i http://127.0.0.1:18080/api/v1/seasons/1/review`
+
+Error bodies are `application/problem+json` with a top-level `code`. Order bodies need `expectedTurnNo` equal to the season's current turn, and a new buy needs `declaredPosition`.
+오류 응답은 최상위 `code`가 있는 `application/problem+json`이다. 주문 본문의 `expectedTurnNo`는 시즌의 현재 턴과 같아야 하고, 처음 사는 종목에는 `declaredPosition`이 필요하다.
+
+## Clean up / 정리
+
+```bash
+docker compose -p antlab-play down -v     # removes only this project's container and volume / 이 프로젝트의 컨테이너·볼륨만 지운다
+```
