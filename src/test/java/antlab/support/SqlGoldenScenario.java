@@ -244,6 +244,12 @@ public final class SqlGoldenScenario {
         return new ScenarioPlan("API_DB_LOAD", List.of(run("10_load_sample"), run("12_calc_position")));
     }
 
+    /** 기준일 판정 대조용 — 스키마(01–03)와 표본 적재(10), 기준일 판정 계산(12)까지만. 시즌은 만들지 않는다(P0-38 PositionMeter 대조). */
+    public static ScenarioPlan positionBaseDate() {
+        return new ScenarioPlan("POSITION_BASE_DATE", List.of(run("01_schema_history"), run("02_schema_season"),
+                run("03_schema_account"), run("10_load_sample"), run("12_calc_position")));
+    }
+
     /** 시즌 시작 검증 파일 하나만 — API 가 시즌을 만든 DB 에서 SQL 검증 20개를 그대로 돌린다. */
     public static ScriptStep seasonStartCheck() {
         return check("20_season_start", "p0_14_check");
