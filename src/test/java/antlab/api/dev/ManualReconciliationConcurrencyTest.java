@@ -36,9 +36,9 @@ import tools.jackson.databind.json.JsonMapper;
 @AutoConfigureMockMvc
 @ActiveProfiles({"test", "local"})
 @Import(PostgresTestcontainersConfig.class)
-@Sql(scripts = {"/fixtures/cleanup_reconciliation_log.sql", "/fixtures/cleanup_season_start.sql", "/fixtures/history_pool.sql",
+@Sql(scripts = {"/fixtures/cleanup_season_start.sql", "/fixtures/history_pool.sql",
         "/fixtures/replay_months.sql"})
-@Sql(scripts = {"/fixtures/cleanup_reconciliation_log.sql", "/fixtures/cleanup_season_start.sql"},
+@Sql(scripts = {"/fixtures/cleanup_season_start.sql"},
         executionPhase = ExecutionPhase.AFTER_TEST_METHOD)
 class ManualReconciliationConcurrencyTest {
 
