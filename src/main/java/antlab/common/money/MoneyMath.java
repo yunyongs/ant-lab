@@ -1,6 +1,7 @@
 package antlab.common.money;
 
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.math.RoundingMode;
 import java.util.List;
 import java.util.Objects;
@@ -197,6 +198,142 @@ public final class MoneyMath {
         } catch (ArithmeticException ex) {
             throw invalid(field + ": 허용된 소수 자리까지 정확히 표현되어야 한다");
         }
+    }
+
+    /**
+     * 정확한 분수 평균 = (1/n)·Σ aᵢ/bᵢ 를 공통 분모로 합쳐 마지막에 {@link #ratio} 한 번만 나눈다(SQL {@code sr_frac_mean} 의 짝).
+     * 분수마다 먼저 반올림한 뒤 평균하는 것과 값이 다를 수 있다. 목록이 비었거나 길이가 다르거나 분모가 0이면 예외다.
+     */
+    public static BigDecimal fractionMean(List<BigInteger> numerators, List<BigInteger> denominators) {
+        require(numerators, "분자 목록");
+        require(denominators, "분모 목록");
+        int n = numerators.size();
+        if (n == 0 || n != denominators.size()) {
+            throw invalid("분수 목록이 비었거나 길이가 다르다");
+        }
+        BigInteger num = BigInteger.ZERO;
+        BigInteger den = BigInteger.ONE;
+        for (int i = 0; i < n; i++) {
+            BigInteger a = numerators.get(i);
+            BigInteger b = denominators.get(i);
+            require(a, "분자");
+            require(b, "분모");
+            num = num.multiply(b).add(a.multiply(den));
+            den = den.multiply(b);
+        }
+        return ratio(new BigDecimal(num), new BigDecimal(den.multiply(BigInteger.valueOf(n))));
+    }
+
+    /**
+     * SQL {@code (n + 0.000…(소수 40자리)) / d} 와 같은 나눗셈 — 몫의 소수 자릿수까지 PostgreSQL {@code numeric} 규칙을 따른다(단계 그대로 따라 하기, 계획 W2).
+     * 자릿수 = max(분자 scale·40, 분모 scale, 16 − 4·(몫의 4자리 묶음 지수 추정)), 그 자리에서 HALF_UP 한 번이다. 0으로 나누면 예외다.
+     */
+    public static BigDecimal pad40Divide(BigDecimal numerator, BigDecimal denominator) {
+        require(numerator, "분자");
+        require(denominator, "분모");
+        if (denominator.signum() == 0) {
+            throw invalid("분모는 0일 수 없다");
+        }
+        int rscale = divScale(numerator, Math.max(Math.max(numerator.scale(), 0), PAD_SCALE),
+                denominator, Math.max(denominator.scale(), 0));
+        return numerator.divide(denominator, rscale, RoundingMode.HALF_UP);
+    }
+
+    /**
+     * 표본 표준편차(n − 1) 소수 8자리 — SQL {@code ROUND(stddev_samp(x), 8)} 의 짝. 값이 둘보다 적으면 null 이다.
+     * PostgreSQL {@code numeric} 의 단계를 따른다: Σx 와 Σx² 는 정확, 분산 분자 N·Σx² − (Σx)² 도 정확하며(자릿수 2·s, s = 입력 최대 scale),
+     * 분산은 {@code select_div_scale} 자리에서 한 번 반올림하고, 제곱근도 같은 자리에서 한 번 반올림한 뒤 8자리로 반올림한다.
+     */
+    public static BigDecimal sampleStddev8(List<BigDecimal> values) {
+        BigDecimal variance = sampleVariance(values);
+        if (variance == null) {
+            return null;
+        }
+        if (variance.signum() == 0) {
+            return ZERO.setScale(8, RoundingMode.UNNECESSARY);
+        }
+        // 제곱근을 분산의 자릿수에서 한 번 반올림한다: round(sqrt(U·10^rscale)) = r 또는 r + 1 (r = 정수 제곱근).
+        int rscale = variance.scale();
+        BigInteger scaled = variance.unscaledValue().multiply(BigInteger.TEN.pow(rscale));
+        BigInteger root = scaled.sqrt();
+        if (scaled.subtract(root.multiply(root)).compareTo(root) > 0) {
+            root = root.add(BigInteger.ONE);
+        }
+        return new BigDecimal(root, rscale).setScale(8, RoundingMode.HALF_UP);
+    }
+
+    /**
+     * 표본 분산(n − 1) — PG {@code var_samp} 의 짝. 분자 N·Σx² − (Σx)² 는 정확하고 {@code select_div_scale} 자리에서 한 번 반올림한다.
+     * 값이 둘보다 적으면 null, 분자가 0 이하(모두 같은 값)면 0 이다. 분산의 반올림 모드는 8자리 결과로는 거의 드러나지 않아
+     * 분산 단계에서 PG 와 직접 대조한다({@code MoneyMathSqlParityTest}).
+     */
+    static BigDecimal sampleVariance(List<BigDecimal> values) {
+        require(values, "값 목록");
+        int n = values.size();
+        if (n < 2) {
+            return null;
+        }
+        int s = 0;
+        BigDecimal sumX = ZERO;
+        BigDecimal sumX2 = ZERO;
+        for (BigDecimal x : values) {
+            require(x, "값");
+            s = Math.max(s, x.scale());
+            sumX = sumX.add(x);
+            sumX2 = sumX2.add(x.multiply(x));
+        }
+        BigDecimal bigN = BigDecimal.valueOf(n);
+        BigDecimal numerator = bigN.multiply(sumX2).subtract(sumX.multiply(sumX));
+        if (numerator.signum() <= 0) {
+            return ZERO;
+        }
+        BigDecimal denominator = BigDecimal.valueOf((long) n * (n - 1));
+        int rscale = divScale(numerator, 2 * s, denominator, 0);
+        // 분산의 반올림 모드는 8자리 결과로는 거의 드러나지 않아 분산 단계에서 PG 와 직접 대조한다
+        return numerator.divide(denominator, rscale, RoundingMode.HALF_UP);
+    }
+
+    private static final int PAD_SCALE = 40;
+
+    /** 소수 8자리 HALF_UP 한 번 — 성적표·포지션 측정의 비율 반올림 자리. 반올림 구현은 이 파일에만 둔다. */
+    public static BigDecimal round8(BigDecimal value) {
+        require(value, "값");
+        return value.setScale(8, RoundingMode.HALF_UP);
+    }
+
+    /** CEIL(ratio × n) — 풀 상대 순위의 상위·하위 개수 k (SQL {@code ceil(top_ratio * count(*))}). */
+    public static int ceilCount(BigDecimal ratio, long n) {
+        require(ratio, "비율");
+        return ratio.multiply(BigDecimal.valueOf(n)).setScale(0, RoundingMode.CEILING).intValueExact();
+    }
+
+    /** PostgreSQL {@code select_div_scale}: 몫이 16자리 유효 숫자를 갖도록 자릿수를 정하되 두 입력의 자릿수보다 작지 않게 한다. */
+    private static int divScale(BigDecimal v1, int dscale1, BigDecimal v2, int dscale2) {
+        int qweight = groupWeight(v1) - groupWeight(v2);
+        if (firstGroup(v1) <= firstGroup(v2)) {
+            qweight--;
+        }
+        int rscale = 16 - qweight * 4;
+        rscale = Math.max(rscale, dscale1);
+        rscale = Math.max(rscale, dscale2);
+        return Math.min(Math.max(rscale, 0), 1000);
+    }
+
+    /** 10000 진 묶음 기준 최상위 자리의 지수(0이면 0). */
+    private static int groupWeight(BigDecimal value) {
+        if (value.signum() == 0) {
+            return 0;
+        }
+        int exponent = value.precision() - value.scale() - 1;
+        return Math.floorDiv(exponent, 4);
+    }
+
+    /** 최상위 10000 진 묶음의 값(1–9999, 0이면 0). */
+    private static int firstGroup(BigDecimal value) {
+        if (value.signum() == 0) {
+            return 0;
+        }
+        return value.abs().movePointLeft(4 * groupWeight(value)).setScale(0, RoundingMode.DOWN).intValue();
     }
 
     public record ReturnFactors(BigDecimal localReturn, BigDecimal fxChange) {

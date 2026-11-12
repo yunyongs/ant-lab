@@ -60,7 +60,7 @@ Flyway는 Spring 챕터의 범위를 조금 넘는 도구다. 처음에는 `V1__
 | 기본 키 | `Long` | `BIGINT GENERATED ALWAYS AS IDENTITY` | `@Id @GeneratedValue(strategy = IDENTITY)` | §4.2 |
 | 낙관적 잠금 버전 | **`Long`(래퍼)** | `BIGINT NOT NULL DEFAULT 0` | `@Version` | `season`, `cash_account`에만(§5.3). 원시 `long`이 아닌 이유: Spring Data `save()`는 버전 속성이 원시형이면 "id가 있으면 기존 엔티티"로 판단한다. 키를 직접 정하는 `cash_account`(§4.2)는 새 객체도 id가 있어 `merge`(SELECT 뒤 INSERT)로 가므로, 버전을 래퍼로 두어 `null` = 새 엔티티 → `persist`(INSERT 한 번)가 되게 한다. 두 엔티티를 같은 규칙으로 맞춘다. 시험: `MutableEntityTest` |
 
-`antlab.common.money.MoneyMath`는 상태 없는 `public static` 계산 클래스다. 공개 계약은 `initialPrice`, `priceAt`, `feeRate`, `fee`, `avgPrice`, `affordable`, `teamQty`, `drawdown`, `valuation`, `totalValue`와 `ReturnFactors`다. 입력 단위와 범위는 아래 표를 따른다. `priceAt`은 저장된 0턴 가격과 현지·환율 변화 목록을 받아 누적 곱을 유지하고, 가격·수수료는 마지막에 원 단위 `HALF_UP`, 평균단가는 소수 4자리, 낙폭은 소수 8자리로 한 번만 반올림한다. 이 클래스가 반올림이 일어나는 유일한 코드 위치다. 입력 검증 때문에 계산 결과가 0이 되는 경로는 반환할 수 있으며, 저장 경계가 양수 제약을 적용한다.
+`antlab.common.money.MoneyMath`는 상태 없는 `public static` 계산 클래스다. 공개 계약은 `initialPrice`, `priceAt`, `feeRate`, `fee`, `avgPrice`, `affordable`, `teamQty`, `drawdown`, `valuation`, `totalValue`, 성적표용 `fractionMean`(26 `sr_frac_mean` 짝)·`pad40Divide`(40자리 나눗셈, PG 몫 자릿수 규칙)·`sampleStddev8`(PG `stddev_samp` 단계)·`round8`·`ceilCount`와 `ReturnFactors`다. 입력 단위와 범위는 아래 표를 따른다. `priceAt`은 저장된 0턴 가격과 현지·환율 변화 목록을 받아 누적 곱을 유지하고, 가격·수수료는 마지막에 원 단위 `HALF_UP`, 평균단가는 소수 4자리, 낙폭은 소수 8자리로 한 번만 반올림한다. 이 클래스가 반올림이 일어나는 유일한 코드 위치다. 입력 검증 때문에 계산 결과가 0이 되는 경로는 반환할 수 있으며, 저장 경계가 양수 제약을 적용한다.
 
 | 메서드 | 입력 단위·범위 | 반환 | 반올림 |
 |---|---|---|---|
