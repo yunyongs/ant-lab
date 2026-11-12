@@ -107,6 +107,20 @@ class RowSetDiffTest {
     }
 
     @Test
+    void 같은_열을_두_번_분류하면_거부한다() {
+        assertThatThrownBy(() -> ComparisonSpec.named("s").keys("turn_no").values("turn_no").build())
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("turn_no");
+        assertThatThrownBy(() -> ComparisonSpec.named("s").keys("turn_no", "turn_no").build())
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> ComparisonSpec.named("s").keys("turn_no").values("memo").exclude("memo", "reason").build())
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("memo");
+        assertThatThrownBy(() -> ComparisonSpec.named("s").keys("turn_no").exclude("memo", "a").exclude("memo", "b"))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("memo");
+        ComparisonSpec ok = ComparisonSpec.named("s").keys("turn_no").values("amount").exclude("memo", "reason").build();
+        assertThat(ok.allColumns()).containsExactly("turn_no", "amount", "memo");
+    }
+
+    @Test
     void 제외_열은_이유가_있어야_하고_비교에서_빠진다() {
         assertThatThrownBy(() -> ComparisonSpec.named("s").keys("turn_no").exclude("memo", " ").build())
                 .isInstanceOf(IllegalArgumentException.class);

@@ -1,5 +1,6 @@
 package antlab.support;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -22,6 +23,15 @@ public record ComparisonSpec(
     public ComparisonSpec {
         if (keyColumns.isEmpty()) {
             throw new IllegalArgumentException("행 키 열이 필요하다: " + name);
+        }
+        Set<String> seen = new LinkedHashSet<>();
+        List<String> classified = new ArrayList<>(keyColumns);
+        classified.addAll(valueColumns);
+        classified.addAll(excludedColumns.keySet());
+        for (String column : classified) {
+            if (!seen.add(column)) {
+                throw new IllegalArgumentException("column classified more than once: " + column);
+            }
         }
         excludedColumns.forEach((column, reason) -> {
             if (reason == null || reason.isBlank()) {
@@ -63,6 +73,9 @@ public record ComparisonSpec(
         }
 
         public Builder exclude(String column, String reason) {
+            if (excluded.containsKey(column)) {
+                throw new IllegalArgumentException("column excluded more than once: " + column);
+            }
             excluded.put(column, reason);
             return this;
         }
