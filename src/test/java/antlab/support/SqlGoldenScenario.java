@@ -260,6 +260,23 @@ public final class SqlGoldenScenario {
         return new ScenarioPlan("API_DB_LOAD", List.of(run("10_load_sample"), run("12_calc_position")));
     }
 
+    /**
+     * Loads the sample into the API database in the db/README "API DB와 실습 DB" order (10 → 11 → 12 → 13) and checks each step.
+     * The one-season E2E needs 11 for review events and 13 for the report's attention index.
+     */
+    public static ScenarioPlan apiDbFullLoad() {
+        return new ScenarioPlan("API_DB_FULL_LOAD", List.of(
+                run("10_load_sample"), check("10_load_sample", "p0_08_check"),
+                run("11_load_events"), check("11_load_events", "p0_09_check"),
+                run("12_calc_position"), check("12_calc_position", "p0_10_check"),
+                run("13_calc_attention"), check("13_calc_attention", "p0_11_check")));
+    }
+
+    /** Final verdict 90 (P0-21), run unchanged on the database of a season played through the API. */
+    public static ScriptStep fullRunCheck() {
+        return check("90_full_run", "p0_21_check");
+    }
+
     /** 기준일 판정 대조용 — 스키마(01–03)와 표본 적재(10), 기준일 판정 계산(12)까지만. 시즌은 만들지 않는다(P0-38 PositionMeter 대조). */
     public static ScenarioPlan positionBaseDate() {
         return new ScenarioPlan("POSITION_BASE_DATE", List.of(run("01_schema_history"), run("02_schema_season"),

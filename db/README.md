@@ -180,7 +180,7 @@ Java `MoneyMathSqlParityTest`(P0-26)는 `21_team_buy_def.sql`의 순수 함수 5
 | S34 | `20`·`21` 검증, `22_reconcile_season.sql`, `22` 검증 | S33 | 22만 15행이 쌓인다 | `p0_14`·`p0_15`, 22의 `match_count` 15 · `mismatch_rules` 0, `p0_16` | — |
 | S35 | `26_season_report.sql` | S31 | 읽기 전용 | 종료 0(확정) | P0-38(26 정의) |
 | S36 | `26_season_report_check.sql` | S31 | 몇 번이든 | `p0_20_check` | — |
-| S37 | `90_full_run_check.sql` | S34(마지막 22 실행 뒤) | 몇 번이든 | `p0_21_check` | P0-40(E2E 기준) |
+| S37 | `90_full_run_check.sql` | S34(마지막 22 실행 뒤) | 몇 번이든 | `p0_21_check` | `OneSeasonE2ETest`(E2E SQL criterion / E2E의 SQL 쪽 기준) |
 
 전체 순서에 넣지 않는 것: `23_turn_advance_drill.sql`·`25_trade_formation_drill.sql`(버리는 DB 전용 — 실습 (i)·(l)·(m)), 실습 (e)–(n).
 
@@ -851,14 +851,14 @@ ANTLAB_GOLDEN_SAMPLE_DIR=<db/sample 경로> ./gradlew test -PonlySqlGolden
 | 파일 | 지금 읽는 Java 시험 | 앞으로 읽을 기능 |
 |---|---|---|
 | `01`–`03` 스키마 | `SqlGoldenHarnessTest`(`README_REGRESSION`·`TURN_GOLDEN`), `SqlGoldenIsolationTest`, `SchemaParityTest`(Flyway DDL과 대조) | P0-23 이후 스키마 일치 |
-| `10`–`13` 적재·계산 | `SqlGoldenHarnessTest`(입력 CSV와 함께), `PositionMeterBaseDateGoldenTest`(12 판정을 Java 측정기와 대조) | P0-27–29(적재·판정) |
+| `10`–`13` 적재·계산 | `SqlGoldenHarnessTest`(입력 CSV와 함께), `PositionMeterBaseDateGoldenTest`(12 판정을 Java 측정기와 대조), `OneSeasonE2ETest`(API DB sample load 10 → 11 → 12 → 13 / API DB 표본 적재 10 → 11 → 12 → 13) | P0-27–29(적재·판정) |
 | `20_season_start.sql` | `TURN_GOLDEN`·끝난 뒤 멱등, `SeasonStartGoldenTest`(`seasonStartGolden` — 같은 설정·경로·시드로 API가 만든 시즌 5개 표와 행 단위 비교) | P0-30 시즌 시작(완료) |
 | `21_team_buy_def.sql`·`21_team_buy.sql`·`21_team_buy_check.sql` | `MoneyMathSqlParityTest`(순수 함수 5개를 `MoneyMath`와 같은 합성 입력으로 대조), `BuyOrderGoldenTest`(`teamBuyGolden` — SQL 0턴 주문을 같은 순서·수량·선언 포지션으로 API에 보내고 6개 표를 행 단위로 비교하며, API DB에서 `p0_15_check`를 통과) | P0-26(이미 읽음), P0-31 팀 구성(완료) |
 | `22_reconcile_season_def.sql` | `README_REGRESSION`(수동 대사 15행 `MATCH`), `BuyOrderGoldenTest`(API가 만든 0턴 팀에 대해 `recon_rules(시즌, 0)`의 15행이 `MATCH`인지 확인), `ReconciliationSqlCopyTest`(규칙 쿼리 15개가 이 파일 본문의 기계적 치환 사본과 글자 단위로 같은지 확인), `ReconciliationServiceParityTest`·`ReconciliationMutationTest`·`ReconciliationPriceParityTest`(같은 연결에 이 정의를 싣고 Java 결과와 `recon_rules`의 9컬럼을 비교), `ReconciliationGoldenTest`(실제 표본 API 시즌에서 규칙별 결과와 기록 두 시도를 비교) | P0-31·P0-32(읽음), P0-33 턴 전환(11·19를 같은 방식으로 더하고 시험을 23까지 넓힌다) |
 | `23_turn_advance*.sql`·`24_turn_feed_def.sql` | `TurnAdvanceGoldenTest`·`ReconciliationSqlCopyTest`·`ReconciliationTurnParityTest`(P0-21 하류)·`TURN_GOLDEN`(10턴 기준 시즌)·재생 | P0-33 턴 전환·피드 |
 | `25_trade_formation_def.sql` | `README_REGRESSION`(5턴 매매 포함 전체 순서), `SellOrderGoldenTest`·`FormationChangeGoldenTest`(25 재생) | P0-36·37 매도·전술 변경 재생 — P0-37 골든은 SQL 25의 전술·라인업 변경과 주문 연결을 포함한다. 표본 경로를 지정하고 필수 골든을 건너뛰지 않았는지 확인한다 |
 | `26_season_report_def.sql` | `README_REGRESSION`(성적표 검증 PASS), `SeasonReportTradeGoldenTest`·`SeasonReportDrillGoldenTest`·`SeasonReportJavaOnlyGoldenTest` | P0-38 성적표 |
-| `90_full_run_check.sql` | `README_REGRESSION`(마지막 단계) | P0-40 한 판 E2E의 SQL 쪽 기준 |
+| `90_full_run_check.sql` | `README_REGRESSION`(마지막 단계), `OneSeasonE2ETest`(run unchanged on a 12-turn season played through the API / API로 둔 12턴 시즌에 그대로 실행) | — |
 
 
 **하류가 쓰는 법.**
@@ -870,6 +870,7 @@ ANTLAB_GOLDEN_SAMPLE_DIR=<db/sample 경로> ./gradlew test -PonlySqlGolden
 | P0-36 매도 | 25 머지 뒤 매도 행동을 턴·순서대로 재생한다(질의·명세 확장) |
 | P0-37 전술 변경(완료) | 재생 입력의 행동을 주문·전술 변경·라인업 변경·턴 전환의 자료형으로 나누고, 같은 턴 안의 순서는 기록 시각으로 병합한다(라인업 변경은 그 턴 맨 끝). 비교 대상에는 전술 변경 이력(턴·같은 턴 안 순번), 주문의 변경 연결(논리 키), 라인업 구간(구간 순번 포함)을 더한다. 변경 비용은 `queryWithDefinitions`로 `25_trade_formation_def.sql`의 `formation_costs`를 읽어 내부 조회와 대조한다 |
 | P0-38 성적표(완료) | 26 정의를 연습 시즌과 Java 시즌에 돌리고 API 응답과 셋을 대조한다(독려 3열은 반대쪽 단언). 롤백 드릴 시즌·Java 단독 긴 시즌(역할 수행 양성)·같은 턴 여러 변경 드릴 시즌(`FORMATION_DRILL`)을 함께 둔다. 12 정의는 기준일 판정 대조(`POSITION_BASE_DATE`)에도 쓰인다 |
+| P0-40 one-season E2E (done) / P0-40 한 판 E2E(완료) | Loads 10–13 into the harness API DB, plays one season over a real port, then runs the dev manual reconciliation (at turn 0 and at the end) and `90` unchanged. / 하네스 컨테이너의 API DB에 10–13을 적재하고 실제 포트로 한 판을 둔 뒤 개발용 수동 대사(0턴과 끝)와 `90`을 그대로 실행한다. |
 
 **정규화.** 대리 키·시즌·회원 식별자는 자연 키(시장·종목 코드, 턴 번호, 재생 행동 키)로 바꿔 비교한다. 제외 열은 이름과 이유를 명세에 적는다(전역으로 넓히지 않는다). NUMERIC은 `BigDecimal.compareTo`로 정확히 비교하며 자릿수 차이만 허용한다. NULL은 빈 값·0과 구분한다. 중복 키는 합치지 않고 보고한다. 같은 키의 한 행이 여러 열에서 달라도 `CHANGED` 한 건으로 처리한다. 보고에는 테이블·행 키·다른 열 이름·건수만 나온다. 가격·금액·원문 출력은 실패 메시지와 시험 보고서에 싣지 않는다. 로컬에서 원문을 봐야 하면 `ANTLAB_GOLDEN_RAW_DIR`에 저장소 밖 경로를 지정한다(저장소 아래 경로는 거부하고, 그 디렉터리에만 쓰며 커밋하지 않는다).
 

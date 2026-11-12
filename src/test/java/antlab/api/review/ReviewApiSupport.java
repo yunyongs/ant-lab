@@ -14,7 +14,7 @@ import org.springframework.test.web.servlet.assertj.MockMvcTester;
  * Review API test helpers. A season's stored path is replaced by SQL so that turn 1 is the fixture month with the fixture
  * event and turn 2 the fixture month without one; the other turns cycle over the synthetic replay months.
  */
-final class ReviewApiSupport {
+public final class ReviewApiSupport {
 
     static final String[] SCRIPTS = {"/fixtures/cleanup_season_start.sql", "/fixtures/history_pool.sql",
             "/fixtures/replay_months.sql"};
@@ -72,7 +72,7 @@ final class ReviewApiSupport {
     }
 
     /** Oracle rows grouped by turn: {@code turn_no -> [event row or all-null row]}, in turn order. */
-    static Map<Integer, List<Map<String, Object>>> oracle(JdbcTemplate jdbc, long season) {
+    public static Map<Integer, List<Map<String, Object>>> oracle(JdbcTemplate jdbc, long season) {
         Map<Integer, List<Map<String, Object>>> byTurn = new LinkedHashMap<>();
         for (Map<String, Object> row : jdbc.queryForList(ORACLE, season)) {
             byTurn.computeIfAbsent(((Number) row.get("turn_no")).intValue(), t -> new ArrayList<>()).add(row);
