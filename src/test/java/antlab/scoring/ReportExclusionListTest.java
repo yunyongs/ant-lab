@@ -66,12 +66,47 @@ class ReportExclusionListTest {
                 if (!line.isEmpty() && !line.startsWith("        ")) {
                     break;
                 }
-                if (line.strip().startsWith("- X")) {
+                // the description is English first, then Korean; the SQL head is Korean, so only the Korean bullets count
+                if (line.strip().startsWith("- X") && line.matches(".*[\\uAC00-\\uD7A3].*")) {
                     out.add(fold(line.strip().substring(2)));
                 }
             }
         }
         return out;
+    }
+
+    /** The English "- X…" bullets (no Hangul) of the same description. */
+    static List<String> documentedEnglishEntries() throws IOException {
+        List<String> lines = Files.readAllLines(CONTRACT);
+        int op = lines.indexOf("      operationId: getSeasonReport");
+        assertThat(op).as("getSeasonReport 운영").isPositive();
+        List<String> out = new ArrayList<>();
+        boolean inDescription = false;
+        for (int i = op + 1; i < lines.size(); i++) {
+            String line = lines.get(i);
+            if (line.startsWith("      description:")) {
+                inDescription = true;
+                continue;
+            }
+            if (inDescription) {
+                if (!line.isEmpty() && !line.startsWith("        ")) {
+                    break;
+                }
+                if (line.strip().startsWith("- X") && !line.matches(".*[\\uAC00-\\uD7A3].*")) {
+                    out.add(fold(line.strip().substring(2)));
+                }
+            }
+        }
+        return out;
+    }
+
+    @Test
+    void 영어_제외_목록도_열두_항목이_X1부터_X12까지_차례로_있다() throws IOException {
+        List<String> english = documentedEnglishEntries();
+        assertThat(english).hasSize(12);
+        for (int n = 1; n <= 12; n++) {
+            assertThat(english.get(n - 1)).startsWith("X" + n + " ");
+        }
     }
 
     @Test

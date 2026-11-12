@@ -52,7 +52,9 @@ public class OpenApiConfig {
             // 오류 본문 스키마(Problem·ErrorCode)가 컴포넌트에 있게 한다 — 다른 운영이 안 써도 500 이 참조한다.
             ModelConverters.getInstance(true).readAll(ApiProblem.class).forEach(components::addSchemas);
             components.addResponses(INTERNAL_ERROR_RESPONSE, new ApiResponse()
-                    .description("예상하지 못한 서버 오류 — INTERNAL_ERROR. 예외 내용은 싣지 않는 고정 문장이다(내용은 서버 로그에만)")
+                    .description("An unexpected server error — INTERNAL_ERROR. The message is a fixed sentence that "
+                            + "carries no exception content (the content goes to the server log only)\n\n"
+                            + "예상하지 못한 서버 오류 — INTERNAL_ERROR. 예외 내용은 싣지 않는 고정 문장이다(내용은 서버 로그에만)")
                     .content(new Content().addMediaType("application/problem+json",
                             new MediaType().schema(new Schema<>().$ref("#/components/schemas/Problem")))));
             if (openApi.getPaths() == null) {

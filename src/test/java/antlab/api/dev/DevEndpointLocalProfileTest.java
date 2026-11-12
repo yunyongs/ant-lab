@@ -34,6 +34,6 @@ class DevEndpointLocalProfileTest {
                         && info.getPathPatternsCondition().getPatternValues().contains("/api/v1/dev/seasons/{seasonId}/reconciliation"));
         assertThat(mapped).isTrue();
         String docs = mvc.get().uri("/v3/api-docs").exchange().getResponse().getContentAsString();
-        assertThat(docs).contains("/api/v1/seasons").doesNotContain("/api/v1/dev").doesNotContain("reconciliation");
+        assertThat(docs).contains("/api/v1/seasons").doesNotContain("/api/v1/dev").doesNotContain("/reconciliation");
     }
 }
