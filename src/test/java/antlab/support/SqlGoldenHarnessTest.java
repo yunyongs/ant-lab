@@ -38,8 +38,7 @@ class SqlGoldenHarnessTest {
 
     @AfterAll
     static void stop() throws Exception {
-        harness.close();
-        container.stop();
+        GoldenCleanup.closeThenStop(harness, container);
     }
 
     private static void put(String path, String content) {
@@ -310,6 +309,18 @@ class SqlGoldenHarnessTest {
 
         DatabaseHandle admin = new DatabaseHandle(container.getDatabaseName());
         assertThat(scalar(admin, "SELECT count(*) FROM pg_database WHERE datname = '" + ok.name() + "'")).isZero();
+    }
+
+    @Test
+    void 정리에_실패해도_컨테이너_정지가_실행된다() throws Exception {
+        SqlGoldenHarness local = new SqlGoldenHarness(container, GoldenFixtureSource.fromEnvironment());
+        local.trackForCleanup("postgres");
+        java.util.concurrent.atomic.AtomicBoolean stopped = new java.util.concurrent.atomic.AtomicBoolean();
+
+        assertThatThrownBy(() -> GoldenCleanup.closeThenStop(local::close, () -> stopped.set(true)))
+                .isInstanceOf(IllegalStateException.class).hasMessageContaining("postgres");
+
+        assertThat(stopped).isTrue();
     }
 
     @Test
