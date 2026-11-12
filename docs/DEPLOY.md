@@ -225,7 +225,7 @@ docker compose --profile api -p antlab-qa down -v --rmi local            # 이 �
 | AG-02 | agent-runner(profile `agents`), OpenRouter만 자동, 구독 경로 어댑터 꺼짐(§9.3) |
 | AI | db 이미지를 pgvector판으로 교체(덤프·복원 절차 §6) |
 | OPS | 아래 "OPS로 미루는 것" 전부, 복원 시험, 공개 데모 |
-| R3(릴리스 v2) | 실계좌 키·주문 경로가 들어오므로 호스팅·비밀값 관리(Vault·클라우드 비밀 관리 서비스)·접근 통제를 다시 평가 — v1 구조를 그대로 쓰지 않는다 |
+| R3(릴리스 v3) | 실계좌 키·주문 경로가 들어오므로 호스팅·비밀값 관리(Vault·클라우드 비밀 관리 서비스)·접근 통제를 다시 평가 — v1·v2 구조를 그대로 쓰지 않는다 |
 
 **OPS로 미루는 것:** 클라우드 계정·지역·종량제 전환, 도메인·DNS, `compose.prod.yaml`, `deploy/Caddyfile`, GHCR 푸시·공개 범위, 배포 워크플로(소유자가 수동 실행 — MACRO_ETF §6.4 "수동 배포" 유지), 백업·복원 시험, VM 하드닝(SSH 키만, 자동 보안 업데이트), 메모리 한도 실측, 모니터링·알림(`job_run` + Slack은 기존 설계).
 

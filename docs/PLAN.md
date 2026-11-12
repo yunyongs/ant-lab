@@ -44,7 +44,8 @@ my Fund Manager는 **포트폴리오 매니저 훈련 게임**이다. 사용자�
 2. **에이전트화** — 두 갈래다. (가) **에이전트 펀드 매니저**: 페르소나를 주입한 LLM 에이전트가 훈련장에서 직접 운용하고, 자기 매매 기록과 반성으로 시즌마다 지식을 쌓아 우수 매니저가 되는 것을 목표로 한다(§4.16). (나) **매니저 복제 봇**: 훈련장이 검증한 사람 매니저(명예의 전당 기준을 넘고 동의한 사람, §6.8)의 기록에서 규칙을 추출한다(§4.15).
 3. **실전 운용** — 훈련장과 전망 모드에서 검증된 에이전트가 실제 계좌를 운용한다. 실계좌에서 LLM 에이전트는 주문을 제안까지만 하고, 그 제안은 규칙 위험 점검과 사람 승인을 거친다. 규칙 봇의 한도 안 자율은 R3 조건이다(§4.15).
 
-1·2단은 릴리스 v1, 3단은 릴리스 v2다(§1.2). 3단 안의 자율 단계 1(모의 운용)은 돈이 움직이지 않으므로 v1에 속한다.
+Stages 1 and 2 belong to releases v1 and v2 (web and app simulation); stage 3 is release v3 (§1.2). Autonomy stage 1 (mock operation) moves no money, so it stays in v1.
+1·2단은 릴리스 v1·v2(웹 모의 투자·앱 모의 투자), 3단은 릴리스 v3다(§1.2). 3단 안의 자율 단계 1(모의 운용)은 돈이 움직이지 않으므로 v1에 속한다.
 
 1이 없으면 2는 근거가 없고, 2의 검증 없이 3으로 가지 않는다. 훈련장은 사람에게는 연습장이고 에이전트에게는 **경기장이자 시험장**이다 — 같은 속성 표로 사람과 에이전트를 함께 잰다. **거장 추적**(§4.14)은 2·3과 전망 모드의 입력이다 — 지금 세상에서 검증된 운용자들이 실제로 무엇을 하는지가 훈련장과 에이전트의 기준선이 된다.
 
@@ -66,17 +67,22 @@ my Fund Manager는 **포트폴리오 매니저 훈련 게임**이다. 사용자�
 
 속성 1–3·6–7·11은 감독 레이팅, 4는 선별 레이팅, 5·9는 전망 레이팅으로 묶인다(§6.4). 2와 11은 겹쳐 보이지만 다르다 — 2는 **가격**(하락·상승 직후)에 대한 반응이고, 11은 **이야기와 관심**(뉴스·쏠림)에 대한 반응이다. 둘의 상관이 높으면 M3에서 합친다. 10은 선택 사항이라 레이팅 밖에서 표시한다. 프로필은 레이팅 셋과 함께 **속성 프로필**(속성별 누적 점수, 레이더 형태)을 보여 준다 — "나는 선별은 되는데 행동 규율이 약하다"가 보이게. 속성 프로필은 매니저 복제 봇(§4.15)의 입력이기도 하다 — 복제 봇은 모든 속성이 높은 매니저가 아니라 **재현성(8)·자기 인식(9)이 높은** 매니저부터 만든다. 한 번의 운이 아니라 기록이어야 재현할 수 있다. 에이전트 펀드 매니저(§4.16)도 같은 속성 프로필을 받는다 — 소음 판별(11)·행동 규율(2)이 사람과 어떻게 다른지가 이 제품의 관찰 대상이다.
 
-### 1.2 릴리스 — v1(모의 투자)과 v2(실제 투자)
+### 1.2 릴리스 — v0.1·v1·v2·v3
 
-제품은 두 릴리스로 나눈다(소유자, 2026-11-07). 릴리스는 출시 날짜가 아니라 **범위의 묶음**이다. 어느 단계(§11)가 어느 릴리스에 속하는지를 정하고, 공개 시점은 따로 정한다.
+Releases are bundles of scope, not dates (owner, 2026-11-07; redefined 2026-11-12). Each stage (§11) belongs to one release; the public launch date is decided separately.
+제품은 네 릴리스로 나눈다(소유자, 2026-11-07 처음, 2026-11-12 재정의). 릴리스는 출시 날짜가 아니라 **범위의 묶음**이다. 어느 단계(§11)가 어느 릴리스에 속하는지를 정하고, 공개 시점은 따로 정한다.
 
-| 릴리스 | 범위 | 화면 |
+| 릴리스 / Release | 범위 / Scope | 화면 / Screens |
 |---|---|---|
-| **릴리스 v1 — 모의 투자** | 실계좌 주문과 실계좌 돈의 기록이 없는 모든 것: 세 기둥(감독 모드·케이스 훈련·전망 모드), 점수·레이팅·리그·명예의 전당, 에이전트 펀드 매니저(AG — 모의 시즌 안의 직접 주문), 거장 추적(R1), 매니저 복제 봇과 그 훈련장 검증(R2), 실전 운용의 자율 단계 1 "모의 운용"(§4.15) | **웹 페이지·데스크탑 앱·모바일 앱**(§10) |
-| **릴리스 v2 — 실제 투자** | 실제 계좌를 운용하는 것: 실전 운용(R3)의 승인 운용과 한도 안 자율, 증권사 주문·계좌 연동, 실계좌 원장과 대사(훈련장과 다른 스키마), 사람 승인 파이프라인, `MACRO_ETF.md`의 계좌 운용 절(§3.3–3.6, §6.3, §8.4), 법률 확인 | 릴리스 v1의 화면 위에 승인 화면을 더한다(R3에서 정함) |
+| **릴리스 v0.1 — 대시보드·web** | Backend dashboard and frontend web on top of the Phase 0 API: monitoring (MON: Actuator → Prometheus → Grafana), authentication basics (SEC: JWT, a prerequisite for the web login) and the one-season web (WEB). 백엔드용 대시보드와 프런트엔드용 web — Phase 0 API 위에 모니터링(MON), 인증 기본(SEC — web 로그인의 선행 조건), 한 판 웹(WEB)을 얹는다 | Grafana 대시보드, 웹 페이지(모바일 폭 우선 반응형) |
+| **릴리스 v1 — 웹 모의 투자** | Web-based simulation, including the AI features and the AI agents' simulated trading: the three pillars (supervisor mode, case training, outlook mode), scores, ratings, leagues, hall of fame, agent fund managers (AG — direct orders inside a simulated season), AI features (AI), master tracking (R1), manager-clone bots and their validation (R2), mock operation of live operation (autonomy stage 1, §4.15), deployment and operations (OPS). 웹 기반 모의 투자 — AI 기능과 AI 에이전트의 모의 투자까지: 세 기둥(감독 모드·케이스 훈련·전망 모드), 점수·레이팅·리그·명예의 전당, 에이전트 펀드 매니저(AG — 모의 시즌 안의 직접 주문), AI 기능(AI), 거장 추적(R1), 매니저 복제 봇과 그 훈련장 검증(R2), 실전 운용의 자율 단계 1 "모의 운용"(§4.15), 배포·운영(OPS) | 웹 페이지 |
+| **릴리스 v2 — 앱 모의 투자** | App-based simulation: the desktop app and the mobile app (APP) built on v1. 앱 기반 모의 투자 — v1을 바탕으로 데스크탑 앱과 모바일 앱(APP)을 만든다 | 데스크탑 앱, 모바일 앱 |
+| **릴리스 v3 — 실제 투자** | Operating a real account: approved operation and autonomy within limits (R3), broker order and account links, a real-account ledger and reconciliation (a schema separate from the training ground), the human approval pipeline, the account-operation sections of `MACRO_ETF.md` (§3.3–3.6, §6.3, §8.4), legal review. 실제 계좌를 운용하는 것: 실전 운용(R3)의 승인 운용과 한도 안 자율, 증권사 주문·계좌 연동, 실계좌 원장과 대사(훈련장과 다른 스키마), 사람 승인 파이프라인, `MACRO_ETF.md`의 계좌 운용 절(§3.3–3.6, §6.3, §8.4), 법률 확인 | v2 화면 위에 승인 화면을 더한다(R3에서 정함) |
 
-**경계는 하나다: 실제 계좌로 주문이 나가거나 실제 계좌의 돈을 기록하면 릴리스 v2, 아니면 릴리스 v1이다.** 그래서 실제 시간·실제 가격으로 도는 전망 모드도 v1이다. 실전 운용의 자율 단계 1(실제 시세, 주문은 실계좌로 보내지 않고 모의로만 기록)도 v1이며, 릴리스 v2로 들어가는 입구 조건이다. 시세를 받는 데 증권사 API(KIS)를 쓰는 것은 v1이다 — 시세 조회만 하고 주문·계좌 경로는 쓰지 않는다. 릴리스 v2는 릴리스 v1의 검증(§1.1 2단, §6.9 에이전트 명예 기록, 전망 모드 기간)을 통과한 에이전트로만 시작한다(§2 안티목표). 인증서·타인 자금 운용(향후)은 어느 릴리스에도 정하지 않았다 — 법적 확인이 먼저다(§6.8, §2).
+**One line draws the boundary: sending an order to a real account or recording real-account money makes it release v3; anything else is release v0.1, v1 or v2.** Outlook mode, which runs on real time and real prices, is therefore simulation (v1). Autonomy stage 1 of live operation (real quotes, orders recorded as mock only) is v1 and is the entry condition for release v3. Using a broker API (KIS) to fetch quotes is v1 — quote lookup only, no order or account path. Release v3 starts only with agents that passed the release v1 validation (§1.1 stage 2, the agent honor record of §6.9, an outlook-mode period) (§2 anti-goal). Certificates and managing other people's money (future) belong to no release — legal review comes first (§6.8, §2).
+**경계는 하나다: 실제 계좌로 주문이 나가거나 실제 계좌의 돈을 기록하면 릴리스 v3, 아니면 릴리스 v0.1·v1·v2다.** 그래서 실제 시간·실제 가격으로 도는 전망 모드도 모의 투자(v1)다. 실전 운용의 자율 단계 1(실제 시세, 주문은 실계좌로 보내지 않고 모의로만 기록)도 v1이며, 릴리스 v3로 들어가는 입구 조건이다. 시세를 받는 데 증권사 API(KIS)를 쓰는 것은 v1이다 — 시세 조회만 하고 주문·계좌 경로는 쓰지 않는다. 릴리스 v3는 릴리스 v1의 검증(§1.1 2단, §6.9 에이전트 명예 기록, 전망 모드 기간)을 통과한 에이전트로만 시작한다(§2 안티목표). 인증서·타인 자금 운용(향후)은 어느 릴리스에도 정하지 않았다 — 법적 확인이 먼저다(§6.8, §2).
 
+**Notation.** Write releases as "릴리스 v1" (lowercase `v` plus "릴리스"). Document versions carry the document name (PLAN v3.1, erd v2). Stage codes (§11) are uppercase names without `V` (CONVENTION §0).
 **표기.** 릴리스는 "릴리스 v1"처럼 소문자 `v`에 "릴리스"를 붙인다. 문서 판은 문서 이름을 붙인다(PLAN v3.1, erd v2). 단계 코드(§11)는 대문자 이름이며 `V`를 쓰지 않는다(CONVENTION §0).
 
 ## 2. 목표, 비목표, 안티목표
@@ -96,7 +102,7 @@ my Fund Manager는 **포트폴리오 매니저 훈련 게임**이다. 사용자�
 - 지금 세상에서 검증된 운용자들(13F를 내는 기관, 공개 발언을 남기는 트레이더)의 **동향을 추적**하고 주요 변화를 감지해 전망 모드·복기·에이전트의 기준선으로 쓴다(§4.14).
 
 **비목표**
-- **릴리스 v1의**(훈련장 안의) 실제 돈, 실계좌 주문, 증권사 주문·계좌 연동(증권사 시세 조회는 비목표가 아니다 — 릴리스 v1, §1.2). 시즌과 시즌 계좌는 끝까지 게임 안에 둔다. 실전 운용(§4.15)은 **릴리스 v2**(§1.2, §11 R3 — 자율 단계 1 모의 운용만 v1)이고, 실계좌 원장은 시즌 계좌와 섞지 않는다.
+- **릴리스 v1·v2의**(훈련장 안의) 실제 돈, 실계좌 주문, 증권사 주문·계좌 연동(증권사 시세 조회는 비목표가 아니다 — 릴리스 v1, §1.2). 시즌과 시즌 계좌는 끝까지 게임 안에 둔다. 실전 운용(§4.15)은 **릴리스 v3**(§1.2, §11 R3 — 자율 단계 1 모의 운용만 v1)이고, 실계좌 원장은 시즌 계좌와 섞지 않는다.
 - **사용자에게** 하는 투자 조언. 시스템은 사용자에게 "무엇을 사라"고 하지 않고, 예상치를 예측으로 포장하지 않는다. 에이전트의 실전 운용은 소유자 자금으로 한정하고, 타인 자금 운용·자문은 법적 인가(투자일임업·투자자문업 등 — R3 계획 때 확인) 전에는 하지 않는다.
 - 미래를 맞히는 예측 모델. 엔진은 과거를 재조합할 뿐 예측하지 않는다.
 - 훈련장의 실시간 시세. 게임의 시간은 턴으로만 흐른다(실전 운용 단계는 실제 시세를 쓴다).
@@ -424,7 +430,7 @@ my Fund Manager는 **포트폴리오 매니저 훈련 게임**이다. 사용자�
 - **속성 보존:** 복제 봇의 성적표도 §1.1 속성으로 낸다. 원본 매니저와 봇의 속성 프로필이 닮아야 "그 매니저의 복제 봇"이라고 부른다.
 
 **실전 운용.**
-- **릴리스(§1.2).** 아래 자율 단계 1은 릴리스 v1이고, 단계 2·3, 증권사 주문·계좌 연동, 실계좌 원장은 릴리스 v2다.
+- **릴리스(§1.2).** 아래 자율 단계 1은 릴리스 v1이고, 단계 2·3, 증권사 주문·계좌 연동, 실계좌 원장은 릴리스 v3다.
 - **자금:** 소유자 자금·소액부터 시작한다. 타인 자금은 법적 인가 뒤에만 다룬다. 인가 전에는 에이전트의 판단을 외부에 보여 주는 것도 자문으로 해석될 수 있으므로 공개 범위를 법률 확인 뒤 정한다.
 - **자율 단계:** (1) **모의 운용** — 실제 시세·실제 시간, 주문은 기록만. (2) **승인 운용** — 에이전트(복제 봇 또는 에이전트 펀드 매니저)가 주문을 제안하고 사람이 승인해야 전송한다(이전 설계의 승인 파이프라인, `MACRO_ETF.md` §8.4). (3) **한도 안 자율** — 종목당·일일·낙폭 한도 안에서 자동 전송하고, 한도 밖은 승인을 받는다. 이 단계는 규칙 봇에게만 고려하며 **LLM 에이전트에게는 열지 않는다**(별도 결정 전까지). 단계마다 올라갈 조건(기간, 성과, 사고 0건)을 R3에서 적는다.
 - **증권사 연동:** 국내는 KIS OpenAPI(`MACRO_ETF.md` §6.3), 미국은 R3에서 검토. 실계좌 원장은 훈련장 시즌 계좌와 **다른 테이블·다른 스키마**로 두고, 대사는 §5와 같은 방식으로 한다.
@@ -776,13 +782,13 @@ default_formation: [10, 30, 30, 30]
 | 매핑 | JPA(주), 리포트 쿼리에 MyBatis 선택 | |
 | API 문서 | springdoc-openapi(Swagger UI `/swagger-ui.html`은 `local` 프로필에서만 켬, 명세 `/v3/api-docs`는 `local`과 시험에서만 켬 — P0-22 확인) + 저장소 계약 `docs/api/openapi.yaml`(P0-27에서 만들었다 — 풀 경로와 공통 오류 스키마) | 소유자 2026-11-09(§13). 기능을 계획할 때 yaml의 해당 경로·스키마를 먼저 쓰고 계획 리뷰에서 함께 본다. 이후 시험이 springdoc이 만든 명세와 yaml을 대조한다. 웹(TypeScript)의 타입은 이 yaml에서 생성한다. 엔진(FastAPI)과 Spring 사이의 타입은 M2에서 만드는 별도 계약 파일 `docs/api/engine.yaml`에서 생성한다(소비자별로 계약 파일을 가른다) |
 | 시뮬레이션 엔진 | Python, FastAPI, pandas | 월 블록 재조합, 예상 분포, 국면 라벨, 점수 검증 백테스트. 내부 전용 |
-| 프런트엔드 | **웹 페이지 + 모바일 앱(중심) + 데스크탑 앱** — 릴리스 v1의 세 화면(§1.2). 초안: 모바일은 React Native(Expo, iOS·Android)다. 웹 페이지와 데스크탑 앱은 같은 TypeScript React 웹 앱이다 — 브라우저에서 여는 것이 웹 페이지, Tauri로 포장한 것이 데스크탑 앱이다. 공용 패키지: API 클라이언트, 도메인 타입, 차트. 웹의 한 판 화면은 WEB 단계(모바일 폭 우선 반응형)가 먼저 만든다 | WEB, APP |
+| 프런트엔드 | **웹 페이지 + 모바일 앱(중심) + 데스크탑 앱** — 웹 페이지는 릴리스 v0.1·v1, 모바일·데스크탑 앱은 릴리스 v2의 화면(§1.2). 초안: 모바일은 React Native(Expo, iOS·Android)다. 웹 페이지와 데스크탑 앱은 같은 TypeScript React 웹 앱이다 — 브라우저에서 여는 것이 웹 페이지, Tauri로 포장한 것이 데스크탑 앱이다. 공용 패키지: API 클라이언트, 도메인 타입, 차트. 웹의 한 판 화면은 WEB 단계(모바일 폭 우선 반응형)가 먼저 만든다 | WEB, APP |
 | AI | RAG, LangChain, LangGraph | AI |
 | 운영 | Docker Compose(서비스 `db`·`api`·`engine`·`proxy` + 선택 profile), GHCR arm64 이미지, GitHub Actions, OCI Always Free A1 VM + Caddy(HTTPS) | 구조·규칙은 [DEPLOY.md](DEPLOY.md). 로컬 compose는 Phase 0부터, 서버 배포는 OPS |
 | 모니터링 | Spring Boot Actuator + Micrometer(Prometheus 레지스트리) → Prometheus → Grafana. 대시보드와 데이터 원천은 저장소에서 코드로 관리한다(Grafana provisioning) | MON 단계(소유자, 2026-11-10). 지표와 대시보드까지 다루며, 로그 수집(Loki)과 경보는 OPS에서 다룬다 |
 | 보안 | Spring Security + JWT(액세스·갱신 토큰) | SEC 단계(소유자, 2026-11-10). M4에 있던 인증 기본을 SEC로 앞당겼다. 서명 키는 비밀값으로 다룬다([DEPLOY.md](DEPLOY.md) §9) |
 | LLM 공급(에이전트 펀드 매니저) | OpenRouter(`OPENROUTER_API_KEY`), 소유자 구독 Claude Code·Codex CLI(소유자 기기 한정), Ollama(로컬 또는 원격 API, `OLLAMA_BASE_URL`·`OLLAMA_API_KEY` 이름 초안, 설정 전 꺼짐), 공통 `ModelPort` 어댑터 | AG(§4.16). Anthropic·OpenAI 계열은 OpenRouter에서 고르지 않는다 |
-| 실전 운용 | KIS OpenAPI(국내), 미국 증권사 API는 검토, 사람 승인 파이프라인(LangGraph interrupt, `MACRO_ETF.md` §8.4) | R3(릴리스 v2) |
+| 실전 운용 | KIS OpenAPI(국내), 미국 증권사 API는 검토, 사람 승인 파이프라인(LangGraph interrupt, `MACRO_ETF.md` §8.4) | R3(릴리스 v3) |
 
 **두 서비스로 나누는 이유(이전 설계 유지):** Java는 트랜잭션 도메인(시즌 계좌)을, Python은 통계(재조합·분포)를 맡는다. **DB에 쓰는 것은 Java뿐이다.** 역사 테이블은 Java의 적재 스크립트·수집기 잡(M1)이 쓰고, Python은 읽기만 한다. 경로 생성과 예상 분포는 M2부터 Python이 **계산해서 반환**하고 저장(`season_path`, `projection`)은 Java가 한다. 에이전트 러너(§4.16)도 같다 — 호출·계산·반환만 하고 DB에 쓰지 않으며, Java가 응답을 검증·체결·기록한다. 이렇게 하면 트랜잭션·락·대사가 한 서비스에 모인다. 예상 분포와 시즌 재생이 같은 엔진이라는 주장은 병행 대사(같은 시드로 Java 엔진과 Python 엔진을 돌려 경로·가격을 비교)로 검증한다.
 
@@ -796,28 +802,29 @@ default_formation: [10, 30, 30, 30]
 
 ## 11. 로드맵(커리큘럼 순서 유지)
 
-릴리스 열은 §1.2의 범위를 나타낸다. 릴리스 v1의 공개 시점(예: APP·OPS 뒤의 공개 데모)은 해당 단계를 시작할 때 정한다.
+The release column shows the scope of §1.2. The public launch of release v1 (for example a public demo after OPS) is decided when that stage starts.
+릴리스 열은 §1.2의 범위를 나타낸다. 릴리스 v1의 공개 시점(예: OPS 뒤의 공개 데모)은 해당 단계를 시작할 때 정한다.
 
 | 단계 | 내용 | 커리큘럼 | 릴리스 |
 |---|---|---|---|
-| Phase 0 | 새 도메인 ERD(§5.1)와 DDL을 작성하고, 역사 데이터 적재 스크립트를 만든다(월 블록 100개·종목 20개 표본, 표본 달의 사건 태그, 종목별 시스템 판정 포지션). 손으로 만든 경로 1개로 시즌 1판을 SQL 트랜잭션으로 진행한다(포메이션 선언 → 팀 구성 → 턴 10개 → 성적 집계). 이어서 대사 쿼리와 참여율·월별 평균·관심 지수 같은 집계 쿼리, 소음 템플릿 표본(`feed/`)을 만든다. **이어서 시즌 한 판 REST API**(소유자 2026-11-09): Spring Boot + JPA + Flyway로 표본 데이터 위에서 시즌 시작·팀 구성·턴 진행·매매·전술 변경·성적표·복기 최소를 제공한다 — SQL 스크립트(`db/20`–`26`)가 Java의 골든(정답을 둘이 독립으로 만들어 비교)이다. 기능 표는 §11.1 | SQL(PostgreSQL 17) → Spring Boot + JPA — **현재** | v1 |
+| Phase 0 | 새 도메인 ERD(§5.1)와 DDL을 작성하고, 역사 데이터 적재 스크립트를 만든다(월 블록 100개·종목 20개 표본, 표본 달의 사건 태그, 종목별 시스템 판정 포지션). 손으로 만든 경로 1개로 시즌 1판을 SQL 트랜잭션으로 진행한다(포메이션 선언 → 팀 구성 → 턴 10개 → 성적 집계). 이어서 대사 쿼리와 참여율·월별 평균·관심 지수 같은 집계 쿼리, 소음 템플릿 표본(`feed/`)을 만든다. **이어서 시즌 한 판 REST API**(소유자 2026-11-09): Spring Boot + JPA + Flyway로 표본 데이터 위에서 시즌 시작·팀 구성·턴 진행·매매·전술 변경·성적표·복기 최소를 제공한다 — SQL 스크립트(`db/20`–`26`)가 Java의 골든(정답을 둘이 독립으로 만들어 비교)이다. 기능 표는 §11.1 | SQL(PostgreSQL 17) → Spring Boot + JPA — **현재** | v0.1 |
 | Phase 1 | ~~콘솔 앱~~ **건너뜀(소유자, 2026-11-09)** — 시즌 시작·팀 구성·턴 진행·매매·성적표는 Phase 0 API(P0-30–P0-38)로, 단순 부트스트랩(Java, 달력 정렬 포함)은 P0-29로 흡수한다. JDBC 학습은 [SPRING_JPA.md](SPRING_JPA.md) §11 대응표를 읽을거리로 남긴다 | (JDBC — 수업에서) | — |
-| MON | **모니터링(소유자, 2026-11-10)**: Spring Boot Actuator·Micrometer로 지표를 내보내고, Prometheus가 이를 수집하며, Grafana에서 대시보드로 확인한다. 확인할 항목은 API 응답 시간·오류율, JVM·DB 연결 풀, 게임 지표(턴 전환 수, 대사 불일치 수, 주문 거부 수)다. 대시보드와 데이터 원천은 provisioning 코드로 저장소에서 관리하고, compose profile `monitoring`으로 켠다([DEPLOY.md](DEPLOY.md) §2). 지표 끝점은 외부에 열지 않는다. 로그 수집(Loki)과 경보는 OPS에서 다룬다 | Spring(관측), Docker | v1 |
-| SEC | **인증 기본(소유자, 2026-11-10 — M4에서 앞당김)**: Spring Security와 JWT를 쓴다. 회원 가입·로그인, 액세스·갱신 토큰을 발급·검증·갱신하고, 보안 필터 체인과 API별 권한을 만든다. Phase 0의 고정 회원은 실제 회원으로 바꾼다(회원 표 확장은 Flyway `V4` 이후). 시즌 다중 진행·리그·명예의 전당·전망 모드는 M4에 남는다 | Spring Security | v1 |
-| WEB | **한 판 웹(소유자, 2026-11-09)**: TypeScript React(Vite)로 Phase 0 API 범위의 화면만 만든다. 화면에는 시즌 시작(위험 선언·포메이션), 팀 구성(종목 풀·시스템 판정·선언 포지션·수량), 턴 진행과 결과, 턴 사이 매매·전술 변경, 성적표(·복기)를 포함한다. **모바일 폭 우선 반응형**(§10 — 화면은 모바일 기준으로 먼저 짠다)으로 구현한다. API 클라이언트·도메인 타입은 저장소 계약 `docs/api/openapi.yaml`(§10 API 문서)에서 만든다(공용 패키지의 시작). 로컬에서는 Vite 개발 서버와 `/api` 프록시를 사용한다. 커리큘럼상 React는 Python 뒤에 있으므로 이 단계만 커리큘럼보다 앞선다. 시작 시점은 React 진도를 보고 정한다(§13). 로그인 화면은 SEC의 인증을 처음부터 쓴다(2026-11-10) | React | v1 |
+| MON | **모니터링(소유자, 2026-11-10)**: Spring Boot Actuator·Micrometer로 지표를 내보내고, Prometheus가 이를 수집하며, Grafana에서 대시보드로 확인한다. 확인할 항목은 API 응답 시간·오류율, JVM·DB 연결 풀, 게임 지표(턴 전환 수, 대사 불일치 수, 주문 거부 수)다. 대시보드와 데이터 원천은 provisioning 코드로 저장소에서 관리하고, compose profile `monitoring`으로 켠다([DEPLOY.md](DEPLOY.md) §2). 지표 끝점은 외부에 열지 않는다. 로그 수집(Loki)과 경보는 OPS에서 다룬다 | Spring(관측), Docker | v0.1 |
+| SEC | **인증 기본(소유자, 2026-11-10 — M4에서 앞당김)**: Spring Security와 JWT를 쓴다. 회원 가입·로그인, 액세스·갱신 토큰을 발급·검증·갱신하고, 보안 필터 체인과 API별 권한을 만든다. Phase 0의 고정 회원은 실제 회원으로 바꾼다(회원 표 확장은 Flyway `V4` 이후). 시즌 다중 진행·리그·명예의 전당·전망 모드는 M4에 남는다 | Spring Security | v0.1 |
+| WEB | **한 판 웹(소유자, 2026-11-09)**: TypeScript React(Vite)로 Phase 0 API 범위의 화면만 만든다. 화면에는 시즌 시작(위험 선언·포메이션), 팀 구성(종목 풀·시스템 판정·선언 포지션·수량), 턴 진행과 결과, 턴 사이 매매·전술 변경, 성적표(·복기)를 포함한다. **모바일 폭 우선 반응형**(§10 — 화면은 모바일 기준으로 먼저 짠다)으로 구현한다. API 클라이언트·도메인 타입은 저장소 계약 `docs/api/openapi.yaml`(§10 API 문서)에서 만든다(공용 패키지의 시작). 로컬에서는 Vite 개발 서버와 `/api` 프록시를 사용한다. 커리큘럼상 React는 Python 뒤에 있으므로 이 단계만 커리큘럼보다 앞선다. 시작 시점은 React 진도를 보고 정한다(§13). 로그인 화면은 SEC의 인증을 처음부터 쓴다(2026-11-10) | React | v0.1 |
 | MVP | **데이터 준비:** 전체 역사 데이터 일회성 적재(월 블록 1997-01–작년 말(확장 구간 + 본 구간, §4.7 — 시작 1997-01(2026-11 실측)), 확장 구간의 대표 지수 대체 대응표, 풀 180종목 월 수익률, 환율, 거시 지표 — 공개 CSV를 Phase 0 적재 스크립트의 확장으로; 사건 태그 1차 편집; 시스템 판정 포지션 계산; 관심 지수 계산; 소음·알림 템플릿 1차 편집). 국면 확률은 없음(M2). **기능(Phase 0 API에서 끝나는 것을 뺀 나머지):** 예상 분포, 소음 피드(사건 카드 포함)·랭킹 보드·독려 알림과 주문 출발점 기록, 시즌 포기·포지션 단독 변경, 포지션·포메이션·전술 변경·소음 반응·독려 반응 점수(`season_score`·`rating_history` Flyway), 관심 지수·포지션 판정의 Java 계산기와 SQL 골든 대사. (계층형 아키텍처, 검증·예외 처리, 턴 전환 트랜잭션과 동시성, 턴마다 대사, 사용자 스토리 1·2·4·5·6·7의 기본 API는 Phase 0 API에서 끝난다 — §8) | Spring Boot + JPA | v1 |
 | M1 | 데이터 수집기(가격·환율·거시 지표, 시점 기준 저장), 시스템 판정 포지션·관심 지수 갱신 잡, 스케줄, CI(Testcontainers PostgreSQL; SQL 스키마 검증 CI는 Phase 0에서 먼저 — [DEPLOY.md](DEPLOY.md) §11)를 구축한다. Phase 0 API 시험도 합성 표본 픽스처로 CI에서 실행한다 | Spring, 스케줄링, CI | v1 |
 | M2 | Python 엔진: 월 블록·국면 라벨·재조합(달력 정렬, 국면 조건부)·예상 분포. Java 엔진과 병행 대사 | Python | v1 |
 | M3 | 점수 체계 백테스트(봇 3종 + 뉴스 추종 봇 + 대가 봇 초안), 국면 조건부 전이 효과 검증, 달력 정렬로 계절성이 남는지 검증, 블록 길이 민감도, 생존 편향 측정, 사건 대응·스타일 준수 점수 필요성 판단, 소음·독려 반응과 매매 규율·회전율의 중복 판단(§4.13), 피드 생성기의 사후 정보 차단 테스트; 확장 구간의 효과(국면·블록 분포), 긴 블록 시나리오 검토(시즌 안에 확장 구간의 긴 연속 블록을 하나 보장하는 엔진 옵션 — 날짜 누출·리롤 문제가 있어 기록만) | Python | v1 |
 | EXT | 적립금·비용·대체 수익률·게임 머니, 통계 보드 API, 사건 태그 전체 편집, **케이스 훈련**(데이터 편집 `cases/`, API, 선별 점수), **대가 라이브러리·스타일**(데이터 편집 `masters/`, 기준일 재무, 체크리스트, 스타일 준수 표시), 소음 환경 확장(신호/소음 표시, 소음 수준, 거래량) | Spring, 데이터 편집 | v1 |
 | M4 | 시즌 다중 진행, 리그 기초(대가 봇 참가), 속성 프로필 집계, 명예의 전당 API, **전망 모드**(실제 시간 시즌, 논제, 판정) | 스케줄링(인증 기본은 SEC로 앞당겼다, 2026-11-10) | v1 |
-| APP | **모바일 앱**(턴 진행·피드·랭킹·알림·매매·전술 변경·성적표·리그·프로필, 포메이션 보드)과 **데스크탑 앱**(복기·통계 보드·케이스 훈련·대가 라이브러리·명예의 전당·관심 지도)을 만든다. **웹 페이지**는 WEB 단계에서 시작한 웹 앱을 확장해 데스크탑 앱과 같은 React 코드를 브라우저에서 사용한다(기능 같음, 푸시 없음). WEB의 한 판 화면 위에 나머지 화면을 더한다. 같은 API와 공용 TypeScript 패키지를 사용하며, 샘플 시즌 복기를 공개 데모로 제공한다 | React, React Native | v1 |
+| APP | **모바일 앱**(턴 진행·피드·랭킹·알림·매매·전술 변경·성적표·리그·프로필, 포메이션 보드)과 **데스크탑 앱**(복기·통계 보드·케이스 훈련·대가 라이브러리·명예의 전당·관심 지도)을 만든다. **웹 페이지**는 릴리스 v1의 단계들(MVP·EXT·AI·AG 등)이 WEB 앱에 화면을 더하며 만들어 간다(2026-11-12). 이 단계의 데스크탑 앱은 그 웹 앱과 같은 React 코드를 재사용한다(기능 같음, 푸시 없음). 같은 API와 공용 TypeScript 패키지를 사용하며, 샘플 시즌 복기를 공개 데모로 제공한다 | React, React Native | v2 |
 | AI | 복기 RAG, 질의, 시즌 코치(LangGraph), 피드 문장 다양화(외부 검색 없음) | RAG, LangChain, LangGraph | v1 |
 | OPS | 운영 compose 덮어쓰기·Caddy HTTPS·GHCR 이미지 배포(수동 워크플로)·`pg_dump` 백업과 복원 시험·VM 하드닝([DEPLOY.md](DEPLOY.md) §11 체크리스트 — 이전 단계는 각자 준비 일을 한다) | Docker, CI/CD, 클라우드 | v1 |
 | AG | **에이전트 펀드 매니저**(§4.16, §6.9): 누출 탐지 시험(AG-01, Phase 0 직후) → 에이전트 러너 시제품(AG-02, Phase 0 API 뒤) → 구독 경로 어댑터(AG-03) → 페르소나·같은 시드 다중 참가(AG-04) → 지식 축적(AG-05, M2 뒤) → 종합 매니저 점수·리더보드(AG-06, M3와 함께) → 전망 모드 참가·에이전트 명예 기록(AG-07, M4 뒤) → 메모리 RAG(AG-08, AI 단계). 기능 표는 아래 | Spring, Python, HTTP, RAG | v1 |
 | R1 | **거장 추적**(§4.14): 추적 대상 편집(`trackers/`), EDGAR·DART·X 수집기, 주요 변화 감지, 전망 모드 추적 보드, 복기 연결, 감독 모드 피드의 거장 동향 카드 | Spring 수집기, 스케줄링 | v1 |
 | R2 | **매니저 복제 봇**(§4.15): 규칙 추출, 복제 봇, 훈련장 검증(같은 경로 비교 + 전망 모드 기간), 동의·익명화, 속성 프로필 비교 | Python, LangGraph | v1 |
-| R3 | **실전 운용**(§4.15, 소유자 자금): 검증된 에이전트(AG 명예 기록 또는 R2 복제 봇)로 모의 운용 → 승인 운용(KIS, 승인 파이프라인; LLM 에이전트는 주문 제안까지) → 한도 안 자율(규칙 봇만), 실계좌 원장·대사, 법률 확인 | Spring, LangGraph, 운영 | v2(자율 단계 1은 v1) |
+| R3 | **실전 운용**(§4.15, 소유자 자금): 검증된 에이전트(AG 명예 기록 또는 R2 복제 봇)로 모의 운용 → 승인 운용(KIS, 승인 파이프라인; LLM 에이전트는 주문 제안까지) → 한도 안 자율(규칙 봇만), 실계좌 원장·대사, 법률 확인 | Spring, LangGraph, 운영 | v3(자율 단계 1은 v1) |
 | 향후 | 인증서 발급(§6.8), 속성 표의 검증·개정(§1.1), Saltlux AI·API 활용 검토(§17.1), 타인 자금 운용(인가 뒤) | — | — |
 
 **AG 기능 표(초안, 단계를 시작할 때 확정).** 기능 번호 `AG-01`~는 CONVENTION §0을 따른다. Phase 0에서 에이전트를 위해 할 수 있는 일은 AG-01뿐이며 `P0` 번호를 쓰지 않는다(Phase 0 기능 표 §11.1은 2026-11-09에 API 기능 P0-22–P0-40으로 늘었지만 에이전트 몫은 여전히 없다).
@@ -973,6 +980,7 @@ ERD 확정 범위(Gate 0 결정 2): Phase 0 SQL이 쓰는 22개 테이블(역사
 - **매도 주문 API(소유자, 2026-11-11, P0-36 Q1).** "허용 (추천)" — 0턴(팀 구성 중)에도 보유 종목을 팔 수 있다. 매수와 같은 경로를 사용하며 수수료는 그대로 든다. SQL `trade_sell`이 0턴을 거부하는 것(0턴 주문은 21이 만든다는 파일 구조 때문)과는 다르며, 이 차이는 SPRING_JPA §5.2에 적었다. 성적표(P0-38)는 0턴 수수료를 팀 구성 비용으로 보고 회전율 계산에서 0턴을 제외하는 26 정의를 그대로 쓴다.
 - **전술 변경 API(소유자, 2026-11-11, P0-37).** 0턴 전술 변경: "1턴부터만 (추천)" — 팀 구성 중인 0턴에는 전술을 바꿀 수 없다(409 `TURN_MISMATCH`). 0턴 매수·매도 허용(P0-31·P0-36)과는 별개다. 라인업 단독 변경 공개 API: "내부만 (추천)" — 선언 포지션 단독 변경은 내부 서비스와 골든 재생까지만 만들고 공개 HTTP 경로는 만들지 않는다.
 - **성적표 API(소유자, 2026-11-11, P0-38 Q1·Q2).** Q1 "싣는다 (추천)" — 대사 상태 4열(불일치 행·턴 묶음·수동 묶음·범위 밖 행)을 공개 성적표에 건수로 싣는다. Q2 "넣지 않는다 (추천)" — 보조 목록(턴별 표·선수별 역할·변경별 비용)은 응답에 넣지 않는다(P0-39·WEB). 끝난 시즌만 성적표를 내고(그 밖은 409 `SEASON_NOT_FINISHED`), 0턴 수수료는 팀 구성 비용·총수수료에 넣고 대금·회전율에서는 뺀다(26 정의 그대로).
+- **Release redefinition (owner, 2026-11-12). 릴리스 재정의(소유자, 2026-11-12).** Instruction: "v0.1 targets the dashboard (backend) and web (frontend); v1 is web-based simulation including AI features and the AI agents' simulated trading; v2 is app-based (desktop, mobile) simulation; v3 is real investment." 지시: "v0.1은 대시보드(백엔드용), web(프런트엔드용)을 목표로 한다. v1 웹 기반 모의투자까지(AI 기능 및 AI 에이전트의 모의투자), v2 앱 기반(데스크탑 앱, 모바일 앱) 모의투자까지, v3 실제 투자." Decisions: (1) stage → release: Phase 0, SEC, MON, WEB = v0.1 (SEC is the prerequisite of the web login); MVP, M1–M4, EXT, AI, OPS, AG, R1, R2 and R3's autonomy stage 1 (mock operation) = v1; APP = v2; the rest of R3 (approved operation, limited autonomy, broker links, real-account ledger) = v3. (2) The web page grows with the v1 stages; APP adds the desktop and mobile apps that reuse the same React code. (3) The boundary rule moved from "v1 vs v2" to "real account = v3". 결정: ① 단계 → 릴리스: Phase 0·SEC·MON·WEB = v0.1(SEC는 web 로그인의 선행 조건), MVP·M1–M4·EXT·AI·OPS·AG·R1·R2와 R3의 자율 단계 1(모의 운용) = v1, APP = v2, R3의 나머지(승인 운용·한도 안 자율·증권사 연동·실계좌 원장) = v3. ② 웹 페이지는 v1 단계들이 화면을 더하며 키우고, APP는 같은 React 코드를 재사용하는 데스크탑·모바일 앱을 더한다. ③ 경계 규칙은 "v1 대 v2"에서 "실계좌면 v3"로 옮겼다. 제품 규칙·엔진·ERD는 바뀌지 않는다.
 - **Review API (recommendation adopted under the owner's standing rule, 2026-11-12, P0-39 Q1·Q2).** Q1 "include (recommended)": the review response also carries the formation-change record (turn, before and after formation, reason; PLAN §4.10). Q2 "changed sentences only (recommended)": a feature PR writes each new or changed sentence of a Korean doc in English first, then in Korean; whole-file English versions wait for a pass the owner schedules. Only a finished season has a review (any other status gets 409 `SEASON_NOT_FINISHED`), and the seed is sent as a string.
 
   **복기 API(소유자 상시 규칙에 따른 추천안 채택, 2026-11-12, P0-39 Q1·Q2).** Q1 "넣는다 (추천)" — 복기 응답에 전술 변경 기록(턴·이전/이후 포메이션·사유)을 함께 싣는다(PLAN §4.10). Q2 "바뀐 문장만 (추천)" — 기능 PR에서는 한국어 문서의 새 문장과 바뀐 문장을 영어로 먼저 쓰고 한국어를 잇는다. 문서 전체 영어판은 소유자가 일정을 잡는 별도 작업으로 미룬다. 끝난 시즌만 복기를 내고(그 밖의 상태는 409 `SEASON_NOT_FINISHED`), 시드는 문자열로 보낸다.
@@ -1019,6 +1027,7 @@ Spring Boot 프로젝트는 Phase 0 API(P0-22)에서 저장소 루트에 추가�
 | 2026-11-07 | Plan | Plan v3: 에이전트 펀드 매니저(사람·에이전트 공존, 모의 안 직접 매매, 페르소나 × 모델, OpenRouter·구독 CLI·Ollama, 지식 축적, 종합 매니저 점수 리더보드, 탐지 시험은 보고 전용). 결정과 계산을 가르는 원칙(§4.16), 로드맵 AG 트랙 |
 | 2026-11-07 | Plan | Plan v3.1: 릴리스 v1(모의 투자 — 웹 페이지·데스크탑 앱·모바일 앱)과 v2(실제 투자), 단계 코드를 EXT·APP·AI·OPS로 바꾸고 첫 규칙 집합을 MVP로, 감독 모드 재생 표본에 확장 구간(1997-01–2006)과 대표 지수 대체 수익률, 케이스 훈련의 닷컴 ↔ 생성형 AI 짝(새 기술 전환기) |
 | 2026-11-09 | Phase 0 | 로드맵 재배치: Phase 0에 시즌 한 판 REST API(P0-22–P0-40), Phase 1 건너뜀, API 다음 웹(WEB). Spring Boot 4.1.x(수업 판). Flyway·Testcontainers·Actuator·`ProblemDetail`·`@Lock`·`@Version`·`@Immutable`을 이 API에서 처음 쓴다 |
+| 2026-11-12 | Plan | Release redefinition: v0.1 (dashboard + web: Phase 0, SEC, MON, WEB), v1 (web simulation incl. AI and agents), v2 (desktop and mobile apps, APP), v3 (real investment, R3 except autonomy stage 1). 릴리스 재정의: §1.2, §1.1, §2, §4.15, §10, §11 릴리스 열 |
 | 2026-11-10 | Phase 0 | SQL 구간 마감: 전체 실행 순서 한 표, 최종 판정 SQL(`p0_21_check`), 실행 파일 가드 종료 코드 3, 순서 = 의존·멱등 분류·대사 묶음 세기 실습 |
 | 2026-11-12 | Phase 0 | P0-39 review API: a privileged read made visible by its name — repository methods that read `[복기 전용]` values are named `findRevealed…`, and a reflection and source scan enforces the name and the callers. JPQL `join … on` between entities without an association and `select new` constructor projections keep block ids out of the result. A handler marker (`@ReviewReveal`) is frozen to one path by a test, and the 409 test checks the executed SQL as well as the body. P0-39 복기 API: 특권 조회를 이름으로 드러낸다 — `[복기 전용]` 값을 읽는 리포지토리 메서드는 `findRevealed…`로 이름 짓고, 리플렉션과 소스 훑기가 이름과 호출처를 강제한다. 연관 없는 엔티티의 JPQL `join … on`과 `select new` 생성자 투영으로 블록 번호를 결과에서 뺀다. 핸들러 표지(`@ReviewReveal`)는 시험이 경로 하나로 고정하고, 409 시험은 본문뿐 아니라 실행된 SQL도 본다 |
 | 2026-11-11 | Phase 0 | P0-38 성적표 API: 26 정의를 Java가 계산한다 — 원천은 고정 13문장의 읽기 전용 조회(정수·원 단위), 비율·평균·변동성·시즌 실측 포지션은 순수 계산기와 MoneyMath 한 곳에서 26과 같은 자릿수 단계로 반올림. 연습 시즌·Java 시즌·API 응답 셋을 같은 26 정의로 대조하고(피드 출발점 3열은 반대쪽 단언, 출발점을 바꾼 시즌에서 다시 대조), 판정 로직은 기준일 풀 전 종목에서 asset_position과 대조. 읽기 전용 REPEATABLE READ 한 스냅샷, 잠금 없음 |

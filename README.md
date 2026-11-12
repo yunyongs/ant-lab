@@ -16,7 +16,8 @@
 
 > 학습 프로젝트이며 투자 조언이 아니다. 훈련장(모의 시즌)은 실제 돈이나 실계좌 주문을 쓰지 않고, 에이전트의 매매도 모의 시즌 안에서만 일어난다. 실계좌 운용(R3)은 소유자 자금·사람 승인을 전제로 한 후속 계획이다. 예상 분포는 예측이 아니라 과거 데이터로 만든 가능성의 범위다.
 
-릴리스는 둘이다: **릴리스 v1**은 모의 투자 전체(웹 페이지·데스크탑 앱·모바일 앱), **릴리스 v2**는 실제 투자(소유자 자금·사람 승인, R3)다([PLAN §1.2](docs/PLAN.md#12-릴리스--v1모의-투자과-v2실제-투자)).
+Releases are four: **v0.1** backend dashboard and web, **v1** web-based simulation including AI features and AI agents, **v2** desktop and mobile app simulation, **v3** real investment (R3).
+릴리스는 넷이다: **v0.1**은 백엔드용 대시보드(Grafana)와 프런트엔드용 web, **v1**은 웹 기반 모의 투자(AI 기능과 AI 에이전트의 모의 투자까지), **v2**는 앱 기반(데스크탑·모바일) 모의 투자, **v3**는 실제 투자(소유자 자금·사람 승인, R3)다([PLAN §1.2](docs/PLAN.md#12-릴리스--v01v1v2v3)).
 
 - 계획, 게임 규칙, 도메인, 점수, 로드맵: [docs/PLAN.md](docs/PLAN.md)
 - Spring Boot + JPA 기술 설계: [docs/SPRING_JPA.md](docs/SPRING_JPA.md)
@@ -32,7 +33,7 @@
 |---|---|---|
 | Plan v2 | 제품 방향 전환(포트폴리오 매니저 훈련 게임), 기술 설계 | 승인 (2026-11-05) |
 | Plan v3 | 에이전트 펀드 매니저(사람·에이전트 공존, 모의 직접 매매, 지식 축적, 종합 리더보드) | 승인 (2026-11-07) |
-| Plan v3.1 | 릴리스 v1(모의)·v2(실제 투자), 단계 코드 EXT·APP·AI·OPS, 확장 구간(1997-01–)과 새 기술 전환기 케이스(닷컴 ↔ 생성형 AI) | 소유자 결정 반영 (2026-11-07) |
+| Plan v3.1 | 릴리스 구분(이후 2026-11-12에 v0.1·v1·v2·v3로 재정의), 단계 코드 EXT·APP·AI·OPS, 확장 구간(1997-01–)과 새 기술 전환기 케이스(닷컴 ↔ 생성형 AI) | 소유자 결정 반영 (2026-11-07) |
 | 로드맵 재배치 | Phase 0에 시즌 한 판 API(P0-22–P0-40), Phase 1 건너뜀, WEB 단계, Spring Boot 4.1 | 소유자 결정 반영 (2026-11-09) |
 | Phase 0 — SQL(PostgreSQL 17) → API | 새 도메인의 ERD·DDL과 역사 데이터 표본을 준비한다. SQL 트랜잭션으로 시즌 1판을 실행해 대사·집계 쿼리를 확인한 뒤, **시즌 한 판 REST API**를 Spring Boot·JPA·Flyway로 구현한다. 표본 데이터를 기준으로 SQL 결과를 골든으로 삼는다 | 진행 중 — **SQL 구간 완료**(P0-03–P0-21, 최종 판정 `p0_21_check`), API는 P0-35(턴·보유 조회)·P0-36(매도 주문)·P0-37(전술 변경)·P0-38(성적표)·P0-39(복기)까지 진행됐다 — P0-37 전술 변경 API는 변경 이력과 현재 포메이션을 함께 갱신하고, 같은 턴의 후속 주문을 INSERT 시점에 연결한다. SQL 25 재생과 변경 비용 비교를 통과했다. P0-38 성적표 API는 끝난 시즌의 37항목을 저장 없이 계산하고 SQL 26 정의와 골든으로 대조한다. The P0-39 review API reveals, for a finished season only, each turn's real year-month, that month's one-line summary and event tags, the formation-change record and the reproducibility triple (seed, engine version, data snapshot date); any other season gets 409. P0-39 복기 API는 끝난 시즌에만 턴마다 실제 연월, 그 달의 한 줄 요약과 사건 태그, 전술 변경 기록, 재현 정보(시드·엔진 버전·데이터 스냅샷 날짜)를 공개하고, 그 밖의 시즌에는 409를 준다. 기능 표 P0-03–P0-40([PLAN §11.1](docs/PLAN.md#111-phase-0-체크리스트-sql-postgresql-17)), PLAN v1 DDL(P0-02)은 대체됨 |
 | Phase 1 — JDBC | 콘솔 앱(시즌·팀·턴·매매·성적표), 단순 부트스트랩 | **건너뜀** (2026-11-09, Phase 0 API에 흡수) |
