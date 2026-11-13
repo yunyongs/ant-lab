@@ -7,6 +7,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import antlab.auth.JwtCurrentMember;
 import antlab.common.error.DomainException;
 import antlab.common.error.ErrorCode;
 import java.util.Optional;
@@ -30,7 +31,7 @@ class SingleMemberResolverTest {
     }
 
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
-            .withUserConfiguration(Base.class, SingleMemberResolver.class, UnavailableCurrentMember.class,
+            .withUserConfiguration(Base.class, SingleMemberResolver.class, JwtCurrentMember.class,
                     SingleMemberProductionGuard.class)
             .withPropertyValues("antlab.single-member.email=player@example.invalid", "antlab.single-member.name=감독");
 
@@ -43,10 +44,10 @@ class SingleMemberResolverTest {
     }
 
     @Test
-    void 꺼지면_시즌_API가_쓰는_두_메서드가_모두_MEMBER_UNAVAILABLE이다() {
+    void 꺼지면_토큰의_회원_구현이_뜨고_보안_문맥이_없으면_두_메서드가_모두_MEMBER_UNAVAILABLE이다() {
         runner.withPropertyValues("antlab.single-member.enabled=false").run(ctx -> {
             CurrentMember member = ctx.getBean(CurrentMember.class);
-            assertThat(member).isInstanceOf(UnavailableCurrentMember.class);
+            assertThat(member).isInstanceOf(JwtCurrentMember.class);
             assertThatThrownBy(member::existingId).isInstanceOfSatisfying(DomainException.class,
                     e -> assertThat(e.getCode()).isEqualTo(ErrorCode.MEMBER_UNAVAILABLE));
             assertThatThrownBy(member::ensureId).isInstanceOfSatisfying(DomainException.class,

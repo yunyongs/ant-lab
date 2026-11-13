@@ -14,6 +14,13 @@ public interface MemberRepository extends Repository<Member, Long> {
 
     Optional<Member> findById(Long id);
 
+    boolean existsById(Long id);
+
+    /** Locks the row by id ({@code FOR NO KEY UPDATE}), same lock order as the email variant. */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select m from Member m where m.id = :id")
+    Optional<Member> findByIdForUpdate(@Param("id") Long id);
+
     @Query("select m from Member m where lower(m.email) = lower(:email)")
     Optional<Member> findByEmail(@Param("email") String email);
 

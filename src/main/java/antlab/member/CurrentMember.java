@@ -3,8 +3,9 @@ package antlab.member;
 import java.util.Optional;
 
 /**
- * 지금 요청을 보낸 회원. 인증(SEC)이 들어오기 전에는 고정 회원 한 명이다.
- * 조회는 {@link #existingId()}(회원을 만들지 않는다), 쓰기는 {@link #ensureId()}(없으면 만들고 행을 잠근다)를 쓴다.
+ * The member who sent the request: the token's member, or the fixed member until SEC-05.
+ * Reads use {@link #existingId()} (never creates a member); writes use {@link #ensureId()} (locks the member row;
+ * the fixed member is created if missing).
  */
 public interface CurrentMember {
 
