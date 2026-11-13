@@ -55,7 +55,7 @@ class ExposureContractTest {
      * Endpoints whose response is a freshly issued credential, not data read from a table column. They are exempt from the
      * column rule and must answer exactly {@link AccessTokenDto}.
      */
-    static final Set<String> CREDENTIAL_PATHS = Set.of("/api/v1/auth/login");
+    static final Set<String> CREDENTIAL_PATHS = Set.of("/api/v1/auth/login", "/api/v1/auth/refresh");
 
     @Autowired
     @Qualifier("requestMappingHandlerMapping")
@@ -89,6 +89,9 @@ class ExposureContractTest {
             ResolvableType type = ResolvableType.forMethodReturnType(e.getValue().getMethod());
             if (ResponseEntity.class.isAssignableFrom(type.toClass())) {
                 type = type.getGeneric(0);
+            }
+            if (type.toClass() == Void.class || type.toClass() == void.class) {
+                continue; // no body (logout answers 204)
             }
             for (String p : patterns) {
                 // 개발 엔드포인트(local 전용, prod 미등록)는 값을 보여 주는 도구라 노출 검사 예외다(소유자 결정 2026-11-11).
