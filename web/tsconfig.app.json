@@ -4,9 +4,8 @@
     "target": "es2023",
     "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "module": "esnext",
-    "types": ["vite/client", "node"],
+    "types": ["vite/client"],
     "allowArbitraryExtensions": true,
-    "allowJs": true,
     "skipLibCheck": true,
 
     /* Bundler mode */
@@ -26,5 +25,10 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src", "eslint.restrictions.js"]
+  "include": ["src"],
+  "exclude": [
+    "src/test/apiSchema.test.ts",
+    "src/test/lintRestrictions.test.ts",
+    "src/test/packagePins.test.ts"
+  ]
 }

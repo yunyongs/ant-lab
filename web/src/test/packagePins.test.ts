@@ -39,6 +39,26 @@ describe('prettier ignore', () => {
   });
 });
 
+describe('app tsconfig', () => {
+  const app = read('tsconfig.app.json');
+
+  it('keeps JavaScript and Node typings out of the browser project', () => {
+    expect(app).not.toMatch(/"allowJs"\s*:\s*true/);
+    expect(app).not.toMatch(/"types"\s*:\s*\[[^\]]*"node"/);
+  });
+
+  it('leaves every Node-environment test to tsconfig.node.json', () => {
+    const nodeConfig = read('tsconfig.node.json');
+    for (const name of readdirSync(new URL('./', import.meta.url))) {
+      if (!name.endsWith('.test.ts')) continue;
+      const source = readFileSync(new URL(name, import.meta.url), 'utf8');
+      if (!source.startsWith('// @vitest-environment node')) continue;
+      expect(app, name).toContain(`src/test/${name}`);
+      expect(nodeConfig, name).toContain(`src/test/${name}`);
+    }
+  });
+});
+
 describe('client env', () => {
   const webRoot = new URL('../../', import.meta.url);
 
