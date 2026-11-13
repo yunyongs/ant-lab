@@ -844,6 +844,9 @@ ANTLAB_GOLDEN_SAMPLE_DIR=<db/sample 경로> ./gradlew test -PonlySqlGolden
 
 **마지막 판정 계약.** 검증 단계는 `psql -X -q -A -P footer=off -v ON_ERROR_STOP=1`로 실행한다. 종료 코드가 0이고 출력 끝 두 줄이 등록한 판정 열 이름(`p0_05_check` … `p0_21_check`)과 정확히 `PASS`일 때만 통과다. 앞쪽의 PASS나 종료 코드만으로는 성공으로 처리하지 않는다. 다른 검사 이름이 나오거나 판정 뒤에 결과가 추가되어도 통과시키지 않는다. 제한 시간(단계당 5분)을 넘기면 실패이며 다시 실행하지 않는다.
 
+**Verdict marker (copied bundle).** Every `_check` file creates its verdict marker as `CREATE TEMP SEQUENCE zz_verdict`, asserts it exists in `pg_temp`, and reads and writes it only as `pg_temp.zz_verdict`, so a permanent `public.zz_verdict` or a missing TEMP privilege can never be touched or mistaken for it; a file that copies the bundle must keep the qualified name.
+**판정 표식(복사한 묶음).** 모든 `_check` 파일은 판정 표식을 `CREATE TEMP SEQUENCE zz_verdict`로 만들고 `pg_temp`에 있는지 단언하며, 읽고 쓸 때는 항상 `pg_temp.zz_verdict`로 한정한다. 같은 이름의 영구 시퀀스(`public.zz_verdict`)가 있거나 TEMP 권한이 없어도 영구 시퀀스를 건드리거나 혼동하지 않는다. 묶음을 복사하는 파일은 한정한 이름을 그대로 유지한다.
+
 **DB 분리.** 하네스가 띄우는 일회용 컨테이너(또는 같은 컨테이너의 별도 DB)에서 역할마다 다른 DB를 쓴다. Flyway를 적용한 API 시험 DB, `01–03`부터 실행하는 SQL 기준 DB, 같은 입력을 적용하는 재생 DB(각각 새로 만든 빈 DB), 드릴 DB(기본 회귀 밖)를 따로 둔다. SQL 기준 DB에는 Flyway를 실행하지 않고, API DB에는 01–03을 실행하지 않는다. 각 SQL DB에는 연습 시즌이 하나뿐이다.
 
 **골든 파일.** 어느 SQL 파일을 어느 Java 시험이 지금 읽고, 앞으로 어느 기능이 읽을지의 표다. SQL 파일을 바꾸면 같은 PR에서 이 표의 Java 쪽도 확인한다(행이 바뀌면 골든이 바뀐다). 새 기능이 SQL 파일을 더하면 이 표에도 줄을 더한다.
