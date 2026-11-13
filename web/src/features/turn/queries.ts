@@ -16,13 +16,16 @@ export const turnKey = (id: number, turnNo: number) =>
 export const advanceKey = (id: number) => ['advance', id] as const;
 
 // A stored turn row never changes after its advance, so it is fetched once.
-// `enabled` lets a caller skip the request for a turn it knows is out of range.
-export function useTurn(id: number, turnNo: number, enabled = true) {
-  return useQuery({
+// Shared by `useTurn` and the review's per-turn value lookups (one key).
+export function turnQueryOptions(id: number, turnNo: number) {
+  return {
     queryKey: turnKey(id, turnNo),
     staleTime: Infinity,
-    enabled,
-    queryFn: async ({ signal }): Promise<TurnResult> => {
+    queryFn: async ({
+      signal,
+    }: {
+      signal: AbortSignal;
+    }): Promise<TurnResult> => {
       const { data } = await apiClient.GET(
         '/api/v1/seasons/{seasonId}/turns/{turnNo}',
         { params: { path: { seasonId: id, turnNo } }, signal },
@@ -30,7 +33,12 @@ export function useTurn(id: number, turnNo: number, enabled = true) {
       if (data === undefined) throw new UnreachableError();
       return data;
     },
-  });
+  };
+}
+
+// `enabled` lets a caller skip the request for a turn it knows is out of range.
+export function useTurn(id: number, turnNo: number, enabled = true) {
+  return useQuery({ ...turnQueryOptions(id, turnNo), enabled });
 }
 
 // No retries: a turn advance must never be sent twice by the client.
