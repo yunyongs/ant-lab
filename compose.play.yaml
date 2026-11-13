@@ -1,7 +1,0 @@
-# Until SEC-06: runs the api container with no project profile. Seasons need a login in every profile (SEC-05).
-# Swagger and the dev endpoints stay off. Usage: docker compose -f compose.yaml -f compose.play.yaml --profile api up -d (docs/DEPLOY.md §3).
-# SEC-06: delete this file.
-services:
-  api:
-    environment:
-      SPRING_PROFILES_ACTIVE: default
