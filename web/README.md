@@ -39,6 +39,8 @@ Open <http://localhost:5173>. Always use `localhost`, not `127.0.0.1`: cookies a
 
 `cd web && npm ci && npm run verify` needs no backend, no secrets and no fixed ports.
 `cd web && npm ci && npm run verify`는 백엔드·비밀값·고정 포트가 필요 없다.
+The same checks run on GitHub for pull requests that touch `web/` or the API contract (`.github/workflows/web.yml`).
+`web/`이나 API 계약을 바꾼 PR에서는 GitHub에서도 같은 검사가 돈다(`.github/workflows/web.yml`).
 
 `gen:api` — regenerates `src/api/schema.d.ts` from `../docs/api/openapi.yaml`; commit the result. `npm test` fails when it is stale.
 `gen:api` — `../docs/api/openapi.yaml`에서 `src/api/schema.d.ts`를 다시 만든다. 결과를 커밋한다. 낡으면 `npm test`가 실패한다.
