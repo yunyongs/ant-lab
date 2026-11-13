@@ -26,6 +26,18 @@ describe('lint restrictions', () => {
     ['Number("1")', /decimal strings/],
     ['new Number("1")', /decimal strings/],
     ['Number.parseFloat("1")', /decimal strings/],
+    ['const s = "1"; +s', /decimal strings/],
+    ['const s = "1"; ~~s', /decimal strings/],
+    ['const N = Number; N("1")', /decimal strings/],
+    ['const { parseFloat: p } = Number; p("1")', /decimal strings/],
+    ['["1"].map(Number)', /decimal strings/],
+    ['globalThis.Number("1")', /decimal strings/],
+    ['window.parseFloat("1")', /decimal strings/],
+    ['globalThis.parseFloat("1")', /decimal strings/],
+    ['Number["parseFloat"]("1")', /decimal strings/],
+    ['Number.call(null, "1")', /decimal strings/],
+    ['Number.apply(null, ["1"])', /decimal strings/],
+    ['const f = Number.bind(null); f("1")', /decimal strings/],
     ['localStorage.getItem("k")', /memory only/],
     ['sessionStorage.getItem("k")', /memory only/],
     ['window.localStorage', /memory only/],
@@ -34,19 +46,35 @@ describe('lint restrictions', () => {
     ['document.cookie', /memory only/],
   ])('rejects %s with its reason', async (code, reason) => {
     const found = await messages(code);
-    expect(found).toHaveLength(1);
-    expect(found[0]?.message).toMatch(reason);
+    expect(found.length).toBeGreaterThan(0);
+    for (const message of found) expect(message.message).toMatch(reason);
   });
 
-  it.each(['Number.isInteger(1)', 'String(1)', 'const n = 1; `${n}`'])(
-    'allows %s',
-    async (code) => {
-      expect(await messages(code)).toHaveLength(0);
-    },
-  );
+  it.each([
+    'Number.isInteger(1)',
+    'Number.parseInt("1", 10)',
+    'parseInt("1", 10)',
+    'Number.MAX_SAFE_INTEGER',
+    'String(1)',
+    'const n = 1; `${n}`',
+    'const n = 1; n.toString()',
+    'let x = 0; x += 1',
+    'const y = -1',
+    'const a = 1; const b = 2; a + b',
+  ])('allows %s', async (code) => {
+    expect(await messages(code)).toHaveLength(0);
+  });
 });
 
 describe('real eslint.config.js', () => {
+  it('ignores the generated schema file', async () => {
+    const real = new ESLint({
+      cwd: fileURLToPath(new URL('../../', import.meta.url)),
+    });
+    expect(await real.isPathIgnored('src/api/schema.d.ts')).toBe(true);
+    expect(await real.isPathIgnored('src/api/client.ts')).toBe(false);
+  });
+
   const real = new ESLint({
     cwd: fileURLToPath(new URL('../../', import.meta.url)),
   });

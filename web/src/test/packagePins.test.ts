@@ -31,6 +31,14 @@ describe('package pins', () => {
   });
 });
 
+describe('prettier ignore', () => {
+  it('lists the generated schema file', () => {
+    expect(read('.prettierignore').split('\n')).toContain(
+      'src/api/schema.d.ts',
+    );
+  });
+});
+
 describe('client env', () => {
   const webRoot = new URL('../../', import.meta.url);
 
