@@ -10,6 +10,7 @@ import antlab.support.SqlGoldenHarness;
 import antlab.support.SqlGoldenHarness.DatabaseHandle;
 import antlab.support.SqlGoldenScenario;
 import antlab.support.TeamBuyGoldenSeason;
+import antlab.support.TestTokens;
 import antlab.scoring.SeasonReportDto;
 import antlab.season.SeedGenerator;
 import java.math.BigDecimal;
@@ -37,6 +38,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
@@ -57,6 +59,7 @@ import tools.jackson.databind.JsonNode;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = {"antlab.single-member.email=phase0@example.invalid", "antlab.single-member.name=연습 감독"})
 @ActiveProfiles({"test", "local"})
+@Import(TestTokens.class)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @EnabledIf("sampleAvailable")
@@ -65,7 +68,6 @@ class OneSeasonE2ETest {
     /** Long enough that its digits cannot appear in a response by chance. */
     private static final long SEED = 4815162342L;
     private static final int TURNS = 12;
-    private static final Map<String, String> DEV = Map.of("X-Antlab-Dev", "true");
     private static final String CHANGE_REASON = "방어를 줄이고 공격을 늘린다";
     private static final String CHANGE_BODY = "{\"expectedTurnNo\": 5, \"formation\": {\"goalkeeper\": 10,"
             + " \"defender\": 20, \"midfielder\": 30, \"forward\": 40}, \"reason\": \"" + CHANGE_REASON + "\"}";
@@ -97,6 +99,14 @@ class OneSeasonE2ETest {
 
     private SqlGoldenHarness harness;
     private DatabaseHandle apiDb;
+    @Autowired
+    TestTokens tokens;
+
+    /** The dev gate header plus an ADMIN token (replaces the default user token for the call). */
+    private Map<String, String> dev() {
+        return Map.of("X-Antlab-Dev", "true", "Authorization", "Bearer " + tokens.admin(TestTokens.DEFAULT_SUBJECT));
+    }
+
     private E2eHttp http;
     private long season;
     private int finishedAtReply;
@@ -108,7 +118,7 @@ class OneSeasonE2ETest {
         harness = golden.harness();
         apiDb = golden.apiDb();
         harness.execute(apiDb, SqlGoldenScenario.apiDbFullLoad());
-        http = new E2eHttp(port);
+        http = new E2eHttp(port, Map.of("Authorization", "Bearer " + tokens.user(TestTokens.DEFAULT_SUBJECT)));
     }
 
     @AfterAll
@@ -160,7 +170,7 @@ class OneSeasonE2ETest {
         assertThat(money(holdings.json().get("cashBalance")).signum()).isGreaterThanOrEqualTo(0);
 
         // the turn-0 manual check (S21 of the SQL run): 90's negative cases N2 and N6 need an earlier manual bundle
-        Reply manual = http.post("/api/v1/dev/seasons/" + season + "/reconciliation", "{}", DEV);
+        Reply manual = http.post("/api/v1/dev/seasons/" + season + "/reconciliation", "{}", dev());
         assertThat(manual.status()).as(manual.body()).isEqualTo(200);
         assertThat(manual.json().get("mismatchRules").asInt()).isZero();
     }
@@ -366,7 +376,7 @@ class OneSeasonE2ETest {
     @Order(9)
     @Timeout(value = 2, unit = TimeUnit.MINUTES)
     void SQL_최종_판정_90이_PASS다() throws Exception {
-        Reply manual = http.post("/api/v1/dev/seasons/" + season + "/reconciliation", "{}", DEV);
+        Reply manual = http.post("/api/v1/dev/seasons/" + season + "/reconciliation", "{}", dev());
         assertThat(manual.status()).as(manual.body()).isEqualTo(200);
         assertThat(manual.json().get("rules").size()).isEqualTo(15);
         assertThat(manual.json().get("mismatchRules").asInt()).isZero();

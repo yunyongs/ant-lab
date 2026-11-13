@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
@@ -43,9 +44,16 @@ public final class E2eHttp {
 
     private final RestClient client;
     private final String baseUrl;
+    private final Map<String, String> defaultHeaders = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
     private final List<Reply> captured = Collections.synchronizedList(new ArrayList<>());
 
     public E2eHttp(int port) {
+        this(port, Map.of());
+    }
+
+    /** Headers sent with every call; a header given for one call replaces the default of the same name. */
+    public E2eHttp(int port, Map<String, String> defaultHeaders) {
+        this.defaultHeaders.putAll(defaultHeaders);
         this.baseUrl = "http://127.0.0.1:" + port;
         JdkClientHttpRequestFactory factory = new JdkClientHttpRequestFactory(
                 HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build());
@@ -74,7 +82,10 @@ public final class E2eHttp {
     public Reply send(HttpMethod method, String path, String body, String contentType, String accept,
             Map<String, String> headers) {
         RestClient.RequestBodySpec spec = client.method(method).uri(URI.create(baseUrl + path));
-        headers.forEach(spec::header);
+        Map<String, String> all = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+        all.putAll(defaultHeaders);
+        all.putAll(headers);
+        all.forEach(spec::header);
         if (accept != null) {
             spec.header("Accept", accept);
         }

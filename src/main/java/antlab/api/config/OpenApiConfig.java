@@ -1,6 +1,7 @@
 package antlab.api.config;
 
 import antlab.api.error.ApiProblem;
+import antlab.api.security.PublicPaths;
 import io.swagger.v3.core.converter.ModelConverters;
 import io.swagger.v3.core.jackson.ModelResolver;
 import io.swagger.v3.oas.models.Components;
@@ -13,6 +14,8 @@ import io.swagger.v3.oas.models.media.MediaType;
 import io.swagger.v3.oas.models.media.Schema;
 import io.swagger.v3.oas.models.responses.ApiResponse;
 import io.swagger.v3.oas.models.responses.ApiResponses;
+import io.swagger.v3.oas.models.security.SecurityRequirement;
+import io.swagger.v3.oas.models.security.SecurityScheme;
 import java.math.BigDecimal;
 import org.springdoc.core.customizers.OpenApiCustomizer;
 import org.springdoc.core.utils.SpringDocUtils;
@@ -25,6 +28,14 @@ public class OpenApiConfig {
 
     /** 모든 엔드포인트가 공유하는 500 응답 컴포넌트 이름(계약 docs/api/openapi.yaml 의 components.responses 와 같다). */
     static final String INTERNAL_ERROR_RESPONSE = "InternalError";
+
+    /** The 401 response component of the secured operations. */
+    static final String UNAUTHENTICATED_RESPONSE = "Unauthenticated";
+
+    /** The security scheme name used by every secured operation. */
+    static final String BEARER_SCHEME = "bearerAuth";
+
+    private static final String PATH_PREFIX = "/api/v1/";
 
     static {
         // enum 은 이름 붙은 컴포넌트로 낸다(웹 타입 이름이 된다 — 계약 docs/api/openapi.yaml 과 같게).
@@ -69,6 +80,49 @@ public class OpenApiConfig {
                             new ApiResponse().$ref("#/components/responses/" + INTERNAL_ERROR_RESPONSE));
                 }
             }
+        };
+    }
+
+    /**
+     * Marks every operation that is not in {@link PublicPaths#CONTRACT_PUBLIC} as needing the bearer token and lists the
+     * shared 401 for it, so the contract follows the same list as the security rules. An operation that already
+     * declares a 401 keeps it.
+     */
+    @Bean
+    OpenApiCustomizer bearerSecurityCustomizer() {
+        return openApi -> {
+            if (openApi.getComponents() == null) {
+                openApi.setComponents(new Components());
+            }
+            Components components = openApi.getComponents();
+            components.addSecuritySchemes(BEARER_SCHEME, new SecurityScheme()
+                    .type(SecurityScheme.Type.HTTP).scheme("bearer").bearerFormat("JWT")
+                    .description("The access token from POST /api/v1/auth/login or /api/v1/auth/refresh, sent as "
+                            + "Authorization: Bearer <token>. It lasts 15 minutes.\n\n"
+                            + "POST /api/v1/auth/login이나 /api/v1/auth/refresh가 준 접근 토큰을 "
+                            + "Authorization: Bearer <토큰>으로 보낸다. 15분 동안 쓴다."));
+            components.addResponses(UNAUTHENTICATED_RESPONSE, new ApiResponse()
+                    .description("The request has no valid bearer token: missing, expired or wrongly signed — "
+                            + "UNAUTHENTICATED\n\n"
+                            + "유효한 Bearer 토큰이 없다: 없거나 만료됐거나 서명이 틀렸다 — UNAUTHENTICATED")
+                    .content(new Content().addMediaType("application/problem+json",
+                            new MediaType().schema(new Schema<>().$ref("#/components/schemas/Problem")))));
+            if (openApi.getPaths() == null) {
+                return;
+            }
+            openApi.getPaths().forEach((path, item) -> {
+                if (!path.startsWith(PATH_PREFIX) || PublicPaths.CONTRACT_PUBLIC.contains(path)) {
+                    return;
+                }
+                for (Operation operation : item.readOperations()) {
+                    operation.addSecurityItem(new SecurityRequirement().addList(BEARER_SCHEME));
+                    if (operation.getResponses() == null) {
+                        operation.setResponses(new ApiResponses());
+                    }
+                    operation.getResponses().putIfAbsent("401",
+                            new ApiResponse().$ref("#/components/responses/" + UNAUTHENTICATED_RESPONSE));
+                }
+            });
         };
     }
 }

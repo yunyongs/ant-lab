@@ -7,6 +7,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import antlab.history.MonthBlockRepository;
 import antlab.season.SeedGenerator;
 import antlab.support.CheckVerdictParser;
+import antlab.support.DefaultBearerConfig;
 import antlab.support.DeferredPathSource;
 import antlab.support.GoldenRowQueries;
 import antlab.support.GoldenRowQueries.GoldenTable;
@@ -19,6 +20,7 @@ import antlab.support.SqlGoldenHarness;
 import antlab.support.SqlGoldenHarness.DatabaseHandle;
 import antlab.support.SqlGoldenScenario;
 import antlab.support.TeamBuyGoldenSeason;
+import antlab.support.TestTokens;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterAll;
@@ -33,6 +35,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpServletResponse;
@@ -51,6 +54,7 @@ import org.springframework.test.web.servlet.assertj.MockMvcTester;
 @Tag("sql-golden")
 @SpringBootTest(properties = {"antlab.single-member.email=phase0@example.invalid", "antlab.single-member.name=연습 감독"})
 @AutoConfigureMockMvc
+@Import({TestTokens.class, DefaultBearerConfig.class})
 @ActiveProfiles({"test", "local"})
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @EnabledIf("sampleAvailable")

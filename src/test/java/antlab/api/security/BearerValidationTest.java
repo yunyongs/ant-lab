@@ -1,5 +1,6 @@
 package antlab.api.security;
 
+import static antlab.support.DefaultBearerConfig.ANONYMOUS;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import antlab.api.auth.ScriptedClockConfig;
@@ -48,7 +49,7 @@ class BearerValidationTest {
 
     private MvcTestResult get(String authorization) {
         var request = mvc.get().uri(PROBE);
-        return (authorization == null ? request : request.header("Authorization", authorization)).exchange();
+        return (authorization == null ? request.requestAttr(ANONYMOUS, true) : request.header("Authorization", authorization)).exchange();
     }
 
     private MvcTestResult bearer(String token) {
@@ -96,7 +97,7 @@ class BearerValidationTest {
 
     @Test
     void 쿼리_매개변수의_토큰은_읽지_않는다() {
-        assertThat(mvc.get().uri(PROBE).queryParam("access_token", tokens.user(7)).exchange().getResponse().getStatus())
+        assertThat(mvc.get().uri(PROBE).queryParam("access_token", tokens.user(7)).requestAttr(ANONYMOUS, true).exchange().getResponse().getStatus())
                 .isEqualTo(401);
     }
 
@@ -195,8 +196,10 @@ class BearerValidationTest {
     }
 
     @Test
-    void 시즌_경로는_토큰이_없으면_그대로이고_잘못된_토큰이면_401이다() {
-        assertThat(mvc.get().uri("/api/v1/seasons").exchange().getResponse().getStatus()).isEqualTo(200);
+    void 시즌_경로는_토큰이_없거나_잘못되면_401이고_유효하면_200이다() {
+        var anonymous = mvc.get().uri("/api/v1/seasons").requestAttr(ANONYMOUS, true).exchange();
+        assertThat(anonymous.getResponse().getStatus()).isEqualTo(401);
+        assertThat(body(anonymous)).contains("UNAUTHENTICATED");
         var valid = mvc.get().uri("/api/v1/seasons").header("Authorization", "Bearer " + tokens.user(7)).exchange();
         assertThat(valid.getResponse().getStatus()).isEqualTo(200);
         var garbage = mvc.get().uri("/api/v1/seasons").header("Authorization", "Bearer garbage").exchange();

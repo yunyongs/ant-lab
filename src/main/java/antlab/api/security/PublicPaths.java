@@ -7,10 +7,10 @@ import org.springframework.security.web.util.matcher.OrRequestMatcher;
 import org.springframework.security.web.util.matcher.RequestMatcher;
 
 /** The one list of paths reached without an access token; the allow rules and the bearer resolver both read it. */
-final class PublicPaths {
+public final class PublicPaths {
 
     /** Contract operations that need no token. Exact paths. */
-    static final List<String> CONTRACT_PUBLIC = List.of("/api/v1/pool", "/api/v1/auth/signup", "/api/v1/auth/login",
+    public static final List<String> CONTRACT_PUBLIC = List.of("/api/v1/pool", "/api/v1/auth/signup", "/api/v1/auth/login",
             "/api/v1/auth/refresh", "/api/v1/auth/logout");
 
     static final List<String> OPERATIONS = List.of("/livez", "/readyz", "/actuator/**");

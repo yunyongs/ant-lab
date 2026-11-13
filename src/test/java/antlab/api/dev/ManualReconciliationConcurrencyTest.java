@@ -3,7 +3,9 @@ package antlab.api.dev;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import antlab.scoring.ReconciliationApiSupportAccess;
+import antlab.support.DefaultBearerConfig;
 import antlab.support.PostgresTestcontainersConfig;
+import antlab.support.TestTokens;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.util.ArrayList;
@@ -35,7 +37,7 @@ import tools.jackson.databind.json.JsonMapper;
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles({"test", "local"})
-@Import(PostgresTestcontainersConfig.class)
+@Import({PostgresTestcontainersConfig.class, TestTokens.class, DefaultBearerConfig.class})
 @Sql(scripts = {"/fixtures/cleanup_season_start.sql", "/fixtures/history_pool.sql",
         "/fixtures/replay_months.sql"})
 @Sql(scripts = {"/fixtures/cleanup_season_start.sql"},
@@ -46,6 +48,8 @@ class ManualReconciliationConcurrencyTest {
 
     @Autowired
     MockMvcTester mvc;
+    @Autowired
+    TestTokens tokens;
     @Autowired
     JdbcTemplate jdbc;
     @Autowired
@@ -78,6 +82,7 @@ class ManualReconciliationConcurrencyTest {
 
     private int attemptOf(long season) throws Exception {
         var r = mvc.post().uri("/api/v1/dev/seasons/" + season + "/reconciliation")
+                .header("Authorization", "Bearer " + tokens.admin(TestTokens.DEFAULT_SUBJECT))
                 .header(DevReconciliationController.DEV_HEADER, DevReconciliationController.DEV_HEADER_VALUE).exchange().getResponse();
         assertThat(r.getStatus()).isEqualTo(200);
         return JsonMapper.shared().readTree(r.getContentAsString()).get("attemptNo").asInt();
@@ -132,6 +137,7 @@ class ManualReconciliationConcurrencyTest {
             }
             Future<String> response = pool.submit(() -> {
                 var r = mvc.post().uri("/api/v1/dev/seasons/" + season + "/reconciliation")
+                .header("Authorization", "Bearer " + tokens.admin(TestTokens.DEFAULT_SUBJECT))
                 .header(DevReconciliationController.DEV_HEADER, DevReconciliationController.DEV_HEADER_VALUE).exchange().getResponse();
                 assertThat(r.getStatus()).isEqualTo(200);
                 return r.getContentAsString();

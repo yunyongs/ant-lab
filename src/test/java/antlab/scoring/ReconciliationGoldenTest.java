@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import antlab.history.MonthBlockRepository;
 import antlab.season.SeedGenerator;
 import antlab.support.ComparisonSpec;
+import antlab.support.DefaultBearerConfig;
 import antlab.support.DeferredPathSource;
 import antlab.support.RowSet;
 import antlab.support.RowSet.ColumnType;
@@ -18,6 +19,7 @@ import antlab.support.SqlGoldenScenario;
 import antlab.support.SqlGoldenScenario.Kind;
 import antlab.support.SqlGoldenScenario.ScriptStep;
 import antlab.support.TeamBuyGoldenSeason;
+import antlab.support.TestTokens;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -34,6 +36,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.context.ActiveProfiles;
@@ -54,6 +57,7 @@ import tools.jackson.databind.json.JsonMapper;
 @Tag("sql-golden")
 @SpringBootTest(properties = {"antlab.single-member.email=phase0@example.invalid", "antlab.single-member.name=연습 감독"})
 @AutoConfigureMockMvc
+@Import({TestTokens.class, DefaultBearerConfig.class})
 @ActiveProfiles({"test", "local"})
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @EnabledIf("sampleAvailable")
@@ -87,6 +91,8 @@ class ReconciliationGoldenTest {
 
     @Autowired
     MockMvcTester mvc;
+    @Autowired
+    TestTokens tokens;
     @Autowired
     DeferredPathSource deferred;
     @Autowired
@@ -184,6 +190,7 @@ class ReconciliationGoldenTest {
     void 개발_엔드포인트의_기록과_SQL_수동_대사의_기록이_한_번호_공간에서_행까지_같다() throws Exception {
         int before = maxAttempt();
         MockHttpServletResponse r = mvc.post().uri("/api/v1/dev/seasons/" + apiSeason + "/reconciliation")
+                .header("Authorization", "Bearer " + tokens.admin(TestTokens.DEFAULT_SUBJECT))
                 .header(antlab.api.dev.DevReconciliationController.DEV_HEADER, antlab.api.dev.DevReconciliationController.DEV_HEADER_VALUE)
                 .exchange().getResponse();
         assertThat(r.getStatus()).isEqualTo(200);

@@ -204,6 +204,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/StartSeasonRequest'
+      security:
+        - bearerAuth: []
       responses:
         '201':
           description: The season that was started / 시작한 시즌
@@ -224,6 +226,8 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
         '409':
           description: |-
             A season cannot be started now — POOL_NOT_LOADED, POOL_NOT_JUDGED, SEASON_LIMIT (3 in progress)
@@ -255,6 +259,8 @@ paths:
       operationId: listSeasons
       summary: My seasons / 내 시즌 목록
       description: Returns all seasons of the current member, newest season number first. / 현재 회원의 시즌 전부를 시즌 번호 내림차순으로 준다.
+      security:
+        - bearerAuth: []
       responses:
         '200':
           description: Season list / 시즌 목록
@@ -262,6 +268,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SeasonListDto'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
         '503':
           description: The current member is unknown — MEMBER_UNAVAILABLE / 현재 회원을 알 수 없다 — MEMBER_UNAVAILABLE
           x-error-codes: [MEMBER_UNAVAILABLE]
@@ -284,6 +292,8 @@ paths:
           schema:
             type: integer
             format: int64
+      security:
+        - bearerAuth: []
       responses:
         '200':
           description: Season / 시즌
@@ -298,6 +308,8 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
         '404':
           description: The season does not exist — NOT_FOUND / 시즌이 없다 — NOT_FOUND
           x-error-codes: [NOT_FOUND]
@@ -337,6 +349,8 @@ paths:
             type: integer
             format: int32
             minimum: 0
+      security:
+        - bearerAuth: []
       responses:
         '200':
           description: Prices of that turn / 그 턴의 가격
@@ -351,6 +365,8 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
         '404':
           description: The season does not exist — NOT_FOUND / 시즌이 없다 — NOT_FOUND
           x-error-codes: [NOT_FOUND]
@@ -396,6 +412,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/PlaceOrderRequest'
+      security:
+        - bearerAuth: []
       responses:
         '201':
           description: Fill result / 체결 결과
@@ -410,6 +428,8 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
         '404':
           description: The season does not exist — NOT_FOUND / 시즌이 없다 — NOT_FOUND
           x-error-codes: [NOT_FOUND]
@@ -468,6 +488,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/ChangeFormationRequest'
+      security:
+        - bearerAuth: []
       responses:
         '201':
           description: Change result (turn, before, after, reason) / 변경 결과(턴·이전·이후·사유)
@@ -485,6 +507,8 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
         '404':
           description: The season does not exist — NOT_FOUND / 시즌이 없다 — NOT_FOUND
           x-error-codes: [NOT_FOUND]
@@ -533,6 +557,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/AdvanceTurnRequest'
+      security:
+        - bearerAuth: []
       responses:
         '201':
           description: Turn result / 턴 결과
@@ -547,6 +573,8 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
         '404':
           description: The season does not exist — NOT_FOUND / 시즌이 없다 — NOT_FOUND
           x-error-codes: [NOT_FOUND]
@@ -593,6 +621,8 @@ paths:
             type: integer
             format: int32
             minimum: 1
+      security:
+        - bearerAuth: []
       responses:
         '200':
           description: Turn result / 턴 결과
@@ -607,6 +637,8 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
         '404':
           description: The season does not exist — NOT_FOUND / 시즌이 없다 — NOT_FOUND
           x-error-codes: [NOT_FOUND]
@@ -649,6 +681,8 @@ paths:
           schema:
             type: integer
             format: int64
+      security:
+        - bearerAuth: []
       responses:
         '200':
           description: Current team / 현재 팀
@@ -663,6 +697,8 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
         '404':
           description: The season does not exist — NOT_FOUND / 시즌이 없다 — NOT_FOUND
           x-error-codes: [NOT_FOUND]
@@ -723,6 +759,8 @@ paths:
           schema:
             type: integer
             format: int64
+      security:
+        - bearerAuth: []
       responses:
         '200':
           description: Season report / 시즌 성적표
@@ -737,6 +775,8 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
         '404':
           description: The season does not exist — NOT_FOUND / 시즌이 없다 — NOT_FOUND
           x-error-codes: [NOT_FOUND]
@@ -790,6 +830,8 @@ paths:
           schema:
             type: integer
             format: int64
+      security:
+        - bearerAuth: []
       responses:
         '200':
           description: Season review / 시즌 복기
@@ -804,6 +846,8 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
         '404':
           description: The season does not exist — NOT_FOUND / 시즌이 없다 — NOT_FOUND
           x-error-codes: [NOT_FOUND]
@@ -828,7 +872,26 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |-
+        The access token from POST /api/v1/auth/login or /api/v1/auth/refresh, sent as Authorization: Bearer <token>. It lasts 15 minutes.
+
+        POST /api/v1/auth/login이나 /api/v1/auth/refresh가 준 접근 토큰을 Authorization: Bearer <토큰>으로 보낸다. 15분 동안 쓴다.
   responses:
+    Unauthenticated:
+      description: |-
+        The request has no valid bearer token: missing, expired or wrongly signed — UNAUTHENTICATED
+
+        유효한 Bearer 토큰이 없다: 없거나 만료됐거나 서명이 틀렸다 — UNAUTHENTICATED
+      x-error-codes: [UNAUTHENTICATED]
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
     InternalError:
       description: |-
         An unexpected server error — INTERNAL_ERROR. The message is a fixed sentence that carries no exception content (the content goes to the server log only)
