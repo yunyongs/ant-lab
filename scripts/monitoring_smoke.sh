@@ -156,7 +156,7 @@ dc up -d --wait --wait-timeout 300 || fail "stack did not become healthy"
 helper wait-query "$prom_url" 'up{job="antlab-api"}' == 1 90 up-first || fail "Prometheus never saw the api target up"
 
 echo "== play one season"
-# compose.play.yaml goes away with SEC-05.
+# compose.play.yaml goes away with SEC-06.
 python3 tools/play/play_season.py --base "$api_url" --turns 12 > "$work/play.log" 2>&1 || fail "play script failed"
 # The play script signed the member up; log in again with its constants (the token is never printed).
 token="$(PYTHONPATH=tools/play python3 -c 'import sys, play_season as p; a = p.Api(sys.argv[1]); print(p.need(*a.call("POST", "/api/v1/auth/login", {"email": p.PLAY_EMAIL, "password": p.PLAY_PASSWORD}))["accessToken"])' "$api_url")" || fail "login failed"

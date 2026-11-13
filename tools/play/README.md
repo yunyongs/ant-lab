@@ -37,8 +37,8 @@ done
 
 ## 4. Start the API and play / API를 띄우고 한 판 돌리기
 
-The script signs up `play@example.test` (an existing account is fine) and logs in; every season call carries the token. For its reconciliation step, make that member ADMIN once, after the first run created it, then run the script again: `psql -X -h localhost -p 55433 -d antlab_api -c "UPDATE member SET role = 'ADMIN' WHERE lower(email) = 'play@example.test'"` (it should print `UPDATE 1`). Without it that step is skipped (403). Until SEC-05 every logged-in member plays the same fixed member's seasons.
-스크립트는 `play@example.test`로 가입(이미 있으면 그대로)하고 로그인하며, 시즌 호출마다 토큰을 보낸다. 대사 단계를 위해 첫 실행으로 회원이 생긴 뒤 그 회원을 한 번 ADMIN으로 바꾸고(위 psql 명령, `UPDATE 1`이 나와야 한다) 스크립트를 다시 돌린다. 바꾸지 않으면 그 단계는 403으로 건너뛴다. SEC-05 전까지는 로그인한 회원 누구나 같은 고정 회원의 시즌을 쓴다.
+The script signs up `play@example.test` (an existing account is fine) and logs in; every season call carries the token. For its reconciliation step, make that member ADMIN once, after the first run created it, then run the script again: `psql -X -h localhost -p 55433 -d antlab_api -c "UPDATE member SET role = 'ADMIN' WHERE lower(email) = 'play@example.test'"` (it should print `UPDATE 1`). Without it that step is skipped (403).
+스크립트는 `play@example.test`로 가입(이미 있으면 그대로)하고 로그인하며, 시즌 호출마다 토큰을 보낸다. 대사 단계를 위해 첫 실행으로 회원이 생긴 뒤 그 회원을 한 번 ADMIN으로 바꾸고(위 psql 명령, `UPDATE 1`이 나와야 한다) 스크립트를 다시 돌린다. 바꾸지 않으면 그 단계는 403으로 건너뛴다.
 
 ```bash
 ./gradlew bootRun --args='--server.port=18080 --management.server.port=18081'          # keep this terminal / 이 터미널은 그대로 둔다
