@@ -65,6 +65,7 @@ export function TeamBuild({
           assets={poolAssets}
           holdings={holdings.data.holdings}
           prices={prices.data}
+          pricesFailed={prices.isError}
           seasonId={season.id}
           turnNo={season.currentTurnNo}
           cashBalance={holdings.data.cashBalance}

@@ -475,8 +475,12 @@ describe('OrderSheet', () => {
     const { user, dialog } = await openSheet();
     await user.click(within(dialog).getByRole('button', { name: '1주 매수' }));
     expect(await within(dialog).findByRole('alert')).toHaveTextContent(
-      'API에 연결할 수 없습니다.',
+      '결과를 확인하지 못했습니다. 서버의 현재 상태를 다시 불러왔습니다.',
     );
+    // The server may have committed: state is asked again, the order is not.
+    await waitFor(() => {
+      expect(spy.holdingsCalls).toBe(2);
+    });
     await new Promise((resolve) => setTimeout(resolve, 30));
     expect(spy.bodies).toHaveLength(1);
   });
