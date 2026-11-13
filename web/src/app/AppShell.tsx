@@ -53,6 +53,10 @@ function navTarget(
     const to = `/seasons/${String(seasonId)}/report`;
     return { to, active: pathname === to };
   }
+  if (item.key === 'review' && seasonId !== null) {
+    const to = `/seasons/${String(seasonId)}/review`;
+    return { to, active: pathname === to };
+  }
   return null;
 }
 

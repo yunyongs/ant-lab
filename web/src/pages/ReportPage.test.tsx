@@ -156,13 +156,13 @@ describe('ReportPage', () => {
     );
   });
 
-  it('opens the review entry as a disabled item until the review exists and links back to the turn', async () => {
+  it('links the review entry and links back to the turn', async () => {
     serveReport();
     renderRoute('/seasons/7/report');
     await screen.findByRole('heading', { name: /성적표 \(/ });
-    expect(screen.getByText('복기 보기 (준비 중)')).toHaveAttribute(
-      'aria-disabled',
-      'true',
+    expect(screen.getByRole('link', { name: '복기 보기' })).toHaveAttribute(
+      'href',
+      '/seasons/7/review',
     );
     expect(
       screen.getAllByRole('link', { name: '턴으로 돌아가기' })[0],

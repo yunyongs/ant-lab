@@ -6,6 +6,7 @@ import { renderRoute } from '../test/renderWithProviders.tsx';
 import { seasonFixture } from '../test/fixtures/seasons.ts';
 import { server } from '../test/server.ts';
 import { serveReport } from '../test/serveReport.ts';
+import { serveReview } from '../test/serveReview.ts';
 import { failWithProblem, serveTurnWorld } from '../test/serveTurns.ts';
 import { APP_NAME } from './appName.ts';
 
@@ -179,6 +180,30 @@ describe('AppShell', () => {
       'aria-current',
     );
     await screen.findByRole('heading', { name: '시즌 7 성적표 (확정)' });
+  });
+
+  it('links the review item inside a season and marks it active only on the review page', async () => {
+    serveReview();
+    const first = renderRoute('/seasons/7/trade');
+    let nav = screen.getByRole('navigation', { name: '주 메뉴' });
+    expect(within(nav).getByRole('link', { name: '복기' })).toHaveAttribute(
+      'href',
+      '/seasons/7/review',
+    );
+    expect(within(nav).getByRole('link', { name: '복기' })).not.toHaveAttribute(
+      'aria-current',
+    );
+    first.unmount();
+    renderRoute('/seasons/7/review');
+    nav = screen.getByRole('navigation', { name: '주 메뉴' });
+    expect(within(nav).getByRole('link', { name: '복기' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+    expect(
+      within(nav).getByRole('link', { name: '성적표' }),
+    ).not.toHaveAttribute('aria-current');
+    await screen.findByRole('heading', { name: '시즌 7 복기' });
   });
 
   it('drops a page notice when the player moves to another season', async () => {

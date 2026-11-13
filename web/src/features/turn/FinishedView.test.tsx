@@ -5,7 +5,7 @@ import { renderRoute } from '../../test/renderWithProviders.tsx';
 import { serveTurnWorld } from '../../test/serveTurns.ts';
 
 describe('FinishedView', () => {
-  it('shows the status box, the last result, the report link and a disabled review entry', async () => {
+  it('shows the status box, the last result, the report and review links', async () => {
     const world = serveTurnWorld({ current: 12 });
     world.status = 'FINISHED';
     const { container } = renderRoute('/seasons/7');
@@ -24,9 +24,10 @@ describe('FinishedView', () => {
       'href',
       '/seasons/7/report',
     );
-    const review = screen.getByText('복기 보기 (준비 중)');
-    expect(review).toHaveAttribute('aria-disabled', 'true');
-    expect(review.closest('a')).toBeNull();
+    expect(screen.getByRole('link', { name: '복기 보기' })).toHaveAttribute(
+      'href',
+      '/seasons/7/review',
+    );
     expect(screen.queryByRole('button', { name: /턴/ })).toBeNull();
     expect(world.turnGets).toEqual([12]);
     expectNoDatePattern(container);
