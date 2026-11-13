@@ -19,7 +19,7 @@ import org.junit.jupiter.api.Test;
  */
 class EntitySourceRulesTest {
 
-    private static final List<String> PACKAGES = List.of("season", "account", "member", "scoring", "common/persistence");
+    private static final List<String> PACKAGES = List.of("season", "account", "member", "auth", "scoring", "common/persistence");
     private static final Pattern FORBIDDEN = Pattern.compile(
             "@OneToMany|@OneToOne|@ManyToMany|@Setter|@Data\\b|@Builder|@AllArgsConstructor|setScale|RoundingMode");
     private static final Pattern MANY_TO_ONE = Pattern.compile("@ManyToOne(\\([^)]*\\))?");

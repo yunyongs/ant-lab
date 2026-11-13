@@ -36,7 +36,7 @@ src/main/java/antlab/
 
 | 항목 | 결정 | 이유 |
 |---|---|---|
-| 마이그레이션 | **Flyway**. `db/`의 DDL을 `src/main/resources/db/migration/V1__schema.sql`부터 번호 순으로 둔다. **Phase 0 API(P0-23)에서는** `V1__schema_history.sql`·`V2__schema_season.sql`·`V3__schema_account.sql`이 `db/01`–`03`의 `-- [스키마]` … `-- [/스키마]` 구간과 글자 단위로 같고(동일성 시험이 둘을 묶는다), 이 시점부터 Flyway가 스키마 정본이다. 이후 변경은 `V4__…`부터이고 `db/01`–`03`은 Phase 0 SQL 실습본으로 고정한다 | 스키마 변경을 코드처럼 버전 관리하고, 앱 시작 때 자동 적용. 테스트 DB도 같은 파일로 만들어 "DDL ↔ 엔티티" 불일치를 시작 시점에 잡는다 |
+| 마이그레이션 | **Flyway**. `db/`의 DDL을 `src/main/resources/db/migration/V1__schema.sql`부터 번호 순으로 둔다. **Phase 0 API(P0-23)에서는** `V1__schema_history.sql`·`V2__schema_season.sql`·`V3__schema_account.sql`이 `db/01`–`03`의 `-- [스키마]` … `-- [/스키마]` 구간과 글자 단위로 같고(동일성 시험이 둘을 묶는다), 이 시점부터 Flyway가 스키마 정본이다. 이후 변경은 `V4__…`부터이고 `db/01`–`03`은 Phase 0 SQL 실습본으로 고정한다. SEC-01 adds `V4__auth.sql` (no `db/` twin; pinned by `SchemaParityTest`). / SEC-01이 `V4__auth.sql`을 더한다(`db/` 짝 없음, `SchemaParityTest`가 고정) | 스키마 변경을 코드처럼 버전 관리하고, 앱 시작 때 자동 적용. 테스트 DB도 같은 파일로 만들어 "DDL ↔ 엔티티" 불일치를 시작 시점에 잡는다 |
 | `spring.jpa.hibernate.ddl-auto` | **`validate`** 고정. `update`·`create`는 어떤 프로필에서도 쓰지 않는다 | Hibernate(JPA 구현체)가 테이블을 만들면 CHECK·인덱스 이름 규칙(`ck_`, `idx_`)이 사라진다. `validate`는 엔티티와 테이블이 다르면 **시작을 거부**해 경계면 버그를 가장 일찍 드러낸다 |
 | 시드 데이터 | Flyway `R__seed_*.sql`(반복 가능) — 종목 풀, 월 블록 표본. **Phase 0 API에서는 쓰지 않는다:** 가격 파생 CSV가 git 무시라 저장소에 넣을 수 없으므로 API 전용 DB `antlab_api`에 Flyway가 스키마를 만든 뒤 `psql`로 `db/10`–`13`을 적재한다(`db/README.md`) | 역사 데이터는 JPA로 넣지 않는다(§7) |
 | 데이터베이스 | **PostgreSQL 17, Phase 0부터**(PLAN §10·§13, 2026-11-05). Flyway 파일은 처음부터 PostgreSQL 문법(`GENERATED … AS IDENTITY`, `NUMERIC`, `TIMESTAMPTZ`/`TIMESTAMP` 선택은 `erd.md` v2). 다른 DB를 동시에 지원하는 `{vendor}` 분기는 두지 않는다 | 이전(M1)이 없어져 DDL·CHECK·테스트를 한 번만 쓴다. 로컬 실습 DB는 Docker Compose `db` 서비스(`db/README.md`, 배포 구조는 [DEPLOY.md](DEPLOY.md)), 검증은 임시 소켓 인스턴스(`initdb` + `pg_ctl`, 저장소 밖 datadir) |
@@ -96,14 +96,16 @@ Flyway는 Spring 챕터의 범위를 조금 넘는 도구다. 처음에는 `V1__
 | `season_path`, `turn`, `turn_price`, `formation_change`, `reconciliation_log`, `turn_feed` | 이력·턴 스냅샷·정본 가격·"사용자가 본 그대로"의 피드(PLAN §4.13) | 같음 |
 | `asset_group`, `asset`, `month_block`, `asset_month_return`, `fx_month`, `month_event`, `asset_position`, `asset_month_attention` | 읽기 전용 역사·종목 풀 데이터(적재 스크립트가 쓴다 — Phase 0는 SQL, 이후 Java 배치. Python은 읽기만, PLAN §10) | `@Immutable` + 리포지토리는 조회 메서드만(`save` 없음 — `Repository<T, ID>`를 직접 상속해 `findBy…`만 선언) |
 
-추가 전용 엔티티의 리포지토리는 `AppendOnlyRepository<T, ID>`(`antlab.common.persistence`, `Repository`를 상속한 `save`·`findById`만)를 상속해서 `delete*`·`saveAll`이 컴파일되지 않는다. 가변 엔티티의 리포지토리도 `Repository`를 직접 상속하고 필요한 메서드만 선언하며, `JpaRepository`는 쓰지 않는다(`RepositoryShapeTest`가 패키지를 가리지 않고 확인). 불변 엔티티는 모든 컬럼을 받는 공개 생성자 하나와 보호된 기본 생성자만 갖고, 가변 엔티티는 setter 대신 이름 있는 상태 변경 메서드(`Season.advanceTurn`·`changeFormation`, `CashAccount.applyLedgerAmount`, `Holding.applyBuy`·`applySell`, `Lineup.close`)만 갖는다. JPQL 일괄 `UPDATE`는 불변 엔티티에 대해 거부된다(Hibernate 7.4 기본, `InterpretationException`). 네이티브 SQL `UPDATE`는 막지 못한다 — 그 길은 DB 권한(MVP)이 막는다.
+`RefreshToken` (SEC-01) is a mutable entity whose only state change is the named method `revoke(RevokeReason, Instant)`; it has no repository until SEC-03. / `RefreshToken`(SEC-01)은 가변 엔티티이고 상태 변경은 이름 있는 메서드 `revoke(RevokeReason, Instant)` 하나뿐이며, 리포지토리는 SEC-03까지 없다.
+
+추가 전용 엔티티의 리포지토리는 `AppendOnlyRepository<T, ID>`(`antlab.common.persistence`, `Repository`를 상속한 `save`·`findById`만)를 상속해서 `delete*`·`saveAll`이 컴파일되지 않는다. 가변 엔티티의 리포지토리도 `Repository`를 직접 상속하고 필요한 메서드만 선언하며, `JpaRepository`는 쓰지 않는다(`RepositoryShapeTest`가 패키지를 가리지 않고 확인). 불변 엔티티는 모든 컬럼을 받는 공개 생성자 하나와 보호된 기본 생성자만 갖고, 가변 엔티티는 setter 대신 이름 있는 상태 변경 메서드(`Season.advanceTurn`·`changeFormation`, `CashAccount.applyLedgerAmount`, `Holding.applyBuy`·`applySell`, `Lineup.close`, `RefreshToken.revoke`)만 갖는다. JPQL 일괄 `UPDATE`는 불변 엔티티에 대해 거부된다(Hibernate 7.4 기본, `InterpretationException`). 네이티브 SQL `UPDATE`는 막지 못한다 — 그 길은 DB 권한(MVP)이 막는다.
 
 Hibernate의 `@Immutable`은 "이 엔티티는 바뀌지 않는다"는 선언이다. 변경 감지(dirty checking: 트랜잭션 끝에 엔티티가 바뀌었는지 비교해 UPDATE를 만드는 것)를 건너뛰어 읽기 성능도 좋아진다.
 
 ### 4.5 감사 컬럼
 
 - `created_at TIMESTAMPTZ NOT NULL DEFAULT now()`를 모든 테이블에 둔다. DB 기본값은 적재 스크립트나 직접 SQL이 넣는 행에 사용하고, JPA가 넣는 행에는 Auditing 값을 우선한다(DB 기본값 `now()`는 트랜잭션 시작 시각이라 한 트랜잭션의 행이 같은 값을 갖는다 — 행 사이 순서가 필요한 곳은 erd 7.5 규칙 16). Spring Data JPA Auditing(`@CreatedDate`, `@EnableJpaAuditing`)으로 값을 채운다. 단, 주문·전술 변경의 생성 시각은 서비스가 잠금 뒤 확정해 생성 시 전달한다. 그 밖의 감사 시각에는 기존 Auditing을 사용한다(P0-37: 두 엔티티는 감사 리스너를 끄고 전달받은 시각을 그대로 저장한다 — 검사한 시각과 저장한 시각이 같아야 한다).
-- `updated_at`은 가변 엔티티(`member`, `season`, `lineup`, `cash_account`, `holding`)에만.
+- `updated_at`은 가변 엔티티(`member`, `season`, `lineup`, `cash_account`, `holding`, `refresh_token`)에만.
 - 시각은 앱 서버의 `Clock` 빈에서 받는다(시각의 출처를 한 곳에 두기 위해 — 시험은 흐르는 시계만 쓰고 `Clock.fixed`는 쓰지 않는다, erd §9 Phase 0 API ⑤). JPA가 넣는 행의 `created_at`은 `persist` 순간의 `Instant.now(clock)`이라, 서비스가 락을 얻은 뒤의 시각이다(규칙 16의 전제).
 
 ### 4.6 비공개 컬럼

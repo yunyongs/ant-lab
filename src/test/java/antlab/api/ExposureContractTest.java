@@ -101,7 +101,7 @@ class ExposureContractTest {
                 .filter(e -> e.getValue() == null).map(Map.Entry::getKey).toList();
         assertThat(untagged).as("태그 없는 열").isEmpty();
         long tables = catalog.tags().keySet().stream().map(k -> k.substring(0, k.indexOf('.'))).distinct().count();
-        assertThat(tables).as("표 수").isEqualTo(22);
+        assertThat(tables).as("표 수").isEqualTo(23);
     }
 
     @Test

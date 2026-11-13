@@ -38,21 +38,32 @@ class SchemaParityTest {
         }
     }
 
-    /** 적용된 버전은 고치지 않는다 — 바꾸려면 V4부터 새로 만든다. */
+    /** An applied version is never edited; change it with a new file. V4 onward has no db/ counterpart. */
     private static final Map<String, String> PINNED_SHA256 = Map.of(
             "V1__schema_history.sql", "b0cb1398ec6d7ab1d3e387fbb3359eafc5d6faefd71db3a0f30b55261566d9cf",
             "V2__schema_season.sql", "b7ccc19afbcd81525711a424454d64895c6f6a41c0669aa9d44e9f780874ef8d",
-            "V3__schema_account.sql", "3fe8c700cd613bc0b3f5eba6e4a9524e8a9839da48da64cc580f851d5b55aa05");
+            "V3__schema_account.sql", "3fe8c700cd613bc0b3f5eba6e4a9524e8a9839da48da64cc580f851d5b55aa05",
+            "V4__auth.sql", "3b1552c91557615f39cb4037fc4b19995fd79ac03fe4b8d63155a72bc43ec1f8");
+
+    private static final Path MIGRATION_DIR = Path.of("src/main/resources/db/migration");
 
     @Test
-    void V1부터_V3까지_내용이_고정되어_있다() throws Exception {
-        for (SchemaFile file : FILES) {
-            String name = file.migration().getFileName().toString();
-            byte[] bytes = Files.readAllBytes(file.migration());
+    void 모든_마이그레이션_내용이_고정되어_있다() throws Exception {
+        for (Map.Entry<String, String> pin : PINNED_SHA256.entrySet()) {
+            byte[] bytes = Files.readAllBytes(MIGRATION_DIR.resolve(pin.getKey()));
             String actual = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes));
-            assertThat(actual.equals(PINNED_SHA256.get(name)))
-                    .as("%s: 적용된 버전은 고치지 않는다 — 변경은 V4부터 새 파일로 한다", name)
+            assertThat(actual.equals(pin.getValue()))
+                    .as("%s: 적용된 버전은 고치지 않는다 — 변경은 다음 번호의 새 파일로 한다", pin.getKey())
                     .isTrue();
+        }
+    }
+
+    @Test
+    void 마이그레이션_파일마다_고정값이_있다() throws IOException {
+        try (var files = Files.list(MIGRATION_DIR)) {
+            assertThat(files.map(f -> f.getFileName().toString()).toList())
+                    .as("고정값 없는 마이그레이션이 있으면 안 된다 — 새 파일은 PINNED_SHA256 에 함께 넣는다")
+                    .containsExactlyInAnyOrderElementsOf(PINNED_SHA256.keySet());
         }
     }
 

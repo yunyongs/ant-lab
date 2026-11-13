@@ -3,6 +3,8 @@ package antlab.member;
 import antlab.common.persistence.AuditedEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -32,9 +34,14 @@ public class Member extends AuditedEntity {
     @Column(name = "password", length = 255, nullable = false)
     private String password;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "role", length = 5, nullable = false)
+    private MemberRole role;
+
     public Member(String email, String name, String password) {
         this.email = email;
         this.name = name;
         this.password = password;
+        this.role = MemberRole.USER;
     }
 }
