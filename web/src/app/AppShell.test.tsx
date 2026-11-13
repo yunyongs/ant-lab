@@ -145,6 +145,17 @@ describe('AppShell', () => {
     await screen.findByRole('heading', { name: '5턴 매매' });
   });
 
+  it('keeps the trade item active on the formation page', async () => {
+    serveTurnWorld({ current: 5 });
+    renderRoute('/seasons/7/formation');
+    const nav = screen.getByRole('navigation', { name: '주 메뉴' });
+    expect(within(nav).getByRole('link', { name: '매매' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+    await screen.findByRole('heading', { name: '5턴 전술 변경' });
+  });
+
   it('drops a page notice when the player moves to another season', async () => {
     const world = serveTurnWorld({ current: 4 });
     world.failWith = failWithProblem(409, 'TURN_MISMATCH');

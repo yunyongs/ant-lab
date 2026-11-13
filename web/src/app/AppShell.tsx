@@ -42,7 +42,12 @@ function navTarget(
   }
   if (item.key === 'trade' && seasonId !== null) {
     const to = `/seasons/${String(seasonId)}/trade`;
-    return { to, active: pathname === to };
+    return {
+      to,
+      active:
+        pathname === to ||
+        pathname === `/seasons/${String(seasonId)}/formation`,
+    };
   }
   return null;
 }
