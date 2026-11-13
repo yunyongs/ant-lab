@@ -42,14 +42,4 @@ public class FxMonth {
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
-
-    @Override
-    public boolean equals(Object o) {
-        return this == o || (o instanceof FxMonth other && id != null && id.equals(other.id));
-    }
-
-    @Override
-    public int hashCode() {
-        return FxMonth.class.hashCode();
-    }
 }

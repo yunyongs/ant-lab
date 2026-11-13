@@ -5,10 +5,15 @@ import antlab.auth.AccessTokenDto;
 import antlab.auth.IssuedTokens;
 import antlab.auth.LoginRequest;
 import antlab.auth.LoginService;
+import antlab.auth.RefreshResult;
+import antlab.auth.TokenRotationService;
+import antlab.common.error.DomainException;
+import antlab.common.error.ErrorCode;
 import antlab.member.MemberDto;
 import antlab.member.SignupRequest;
 import antlab.member.SignupService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.headers.Header;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -20,6 +25,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -35,10 +41,12 @@ public class AuthController {
 
     private final SignupService signups;
     private final LoginService logins;
+    private final TokenRotationService rotation;
 
-    public AuthController(SignupService signups, LoginService logins) {
+    public AuthController(SignupService signups, LoginService logins, TokenRotationService rotation) {
         this.signups = signups;
         this.logins = logins;
+        this.rotation = rotation;
     }
 
     @PostMapping(value = "/api/v1/auth/signup", consumes = MediaType.APPLICATION_JSON_VALUE,
@@ -80,7 +88,50 @@ public class AuthController {
             + "email — INVALID_CREDENTIALS / 이메일이나 비밀번호가 맞지 않다. 없는 이메일도 같은 답이다 — INVALID_CREDENTIALS",
             content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ApiProblem.class)))
     public ResponseEntity<AccessTokenDto> login(@Valid @RequestBody LoginRequest request) {
-        IssuedTokens tokens = logins.login(request.email(), request.password());
+        return issued(logins.login(request.email(), request.password()));
+    }
+
+    @PostMapping(value = "/api/v1/auth/refresh", produces = MediaType.APPLICATION_JSON_VALUE)
+    @Operation(operationId = "refresh", summary = "Refresh the access token / 접근 토큰 갱신",
+            description = "Rotates the refresh token from the antlab_refresh cookie: the presented token is retired, a "
+                    + "new cookie and a new access token are returned. Presenting an already rotated token again ends that "
+                    + "login on every device that shares it.\n"
+                    + "\n"
+                    + "antlab_refresh 쿠키의 갱신 토큰을 회전한다: 제시한 토큰은 폐기하고 새 쿠키와 새 접근 토큰을 돌려준다. "
+                    + "이미 회전한 토큰을 다시 제시하면 그 로그인이 모든 기기에서 끝난다.")
+    @ApiResponse(responseCode = "200", description = "Refreshed / 갱신함",
+            headers = @Header(name = "Set-Cookie", description = "The rotated refresh token cookie (antlab_refresh) / "
+                    + "회전한 갱신 토큰 쿠키(antlab_refresh)", schema = @Schema(type = "string")))
+    @ApiResponse(responseCode = "401", description = "The refresh token is missing, unknown, expired or revoked — "
+            + "UNAUTHENTICATED / 갱신 토큰이 없거나 모르거나 만료·폐기되었다 — UNAUTHENTICATED",
+            content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ApiProblem.class)))
+    public ResponseEntity<AccessTokenDto> refresh(@Parameter(description = "The refresh token cookie set by login / "
+            + "로그인이 설정한 갱신 토큰 쿠키") @CookieValue(name = RefreshCookie.NAME, required = false) String cookie) {
+        // The service has committed when it returns, so a reuse revoke survives the 401 below.
+        if (rotation.refresh(cookie) instanceof RefreshResult.Issued ok) {
+            return issued(ok.tokens());
+        }
+        throw new DomainException(ErrorCode.UNAUTHENTICATED, "다시 로그인해야 한다");
+    }
+
+    @PostMapping(value = "/api/v1/auth/logout", produces = MediaType.APPLICATION_JSON_VALUE)
+    @Operation(operationId = "logout", summary = "Log out / 로그아웃",
+            description = "Ends the login of the antlab_refresh cookie and clears the cookie. Always answers 204, also "
+                    + "without a cookie.\n"
+                    + "\n"
+                    + "antlab_refresh 쿠키의 로그인을 끝내고 쿠키를 지운다. 쿠키가 없어도 언제나 204로 답한다.")
+    @ApiResponse(responseCode = "204", description = "Logged out / 로그아웃함",
+            headers = @Header(name = "Set-Cookie", description = "Clears the refresh token cookie / 갱신 토큰 쿠키를 지운다",
+                    schema = @Schema(type = "string")))
+    public ResponseEntity<Void> logout(@Parameter(description = "The refresh token cookie set by login / "
+            + "로그인이 설정한 갱신 토큰 쿠키") @CookieValue(name = RefreshCookie.NAME, required = false) String cookie) {
+        rotation.logout(cookie);
+        return ResponseEntity.noContent()
+                .header(HttpHeaders.SET_COOKIE, RefreshCookie.clear().toString())
+                .build();
+    }
+
+    private static ResponseEntity<AccessTokenDto> issued(IssuedTokens tokens) {
         return ResponseEntity.ok()
                 .cacheControl(CacheControl.noStore())
                 .header(HttpHeaders.SET_COOKIE, RefreshCookie.issue(tokens.refreshValue(), tokens.refreshTtl()).toString())
