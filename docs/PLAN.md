@@ -1051,6 +1051,7 @@ ant-lab/
 │   ├── DEPLOY.md    배포 구조·규칙(Docker Compose·이미지·비밀값·호스팅)
 │   └── CONVENTION.md Git 컨벤션
 ├── compose.yaml     로컬 실행(Phase 0: db) — 운영 덮어쓰기 compose.prod.yaml과 deploy/는 OPS
+├── web/             One-season web app (TypeScript React, Vite), from WEB / 한 판 웹 앱(TypeScript React, Vite) — WEB부터
 ├── db/              DDL, 역사 데이터 표본(사건 태그 표본 포함), 실습 SQL
 ├── cases/           케이스 훈련 데이터(전환기별 후보 기업의 당시 재무·서사, 출처) — EXT부터
 ├── events/          월 블록 사건 태그(범주·결과·강도·실제 이름·출처) — Phase 0 표본부터, EXT에서 전체
@@ -1060,7 +1061,8 @@ ant-lab/
 └── trackers/        거장 추적 대상(13F 기관·대량 보유자·공개 발언 트레이더, 출처) — R1부터
 ```
 
-Spring Boot 프로젝트는 Phase 0 API(P0-22)에서 저장소 루트에 추가한다. 웹 앱(WEB부터 — 폴더 이름은 WEB 시작 때 정한다), Python 엔진(M2부터), 앱(APP부터: 모바일 앱, 데스크탑 앱·웹 페이지(같은 React 코드), 공용 패키지 — 폴더 구성은 APP 시작 때 정한다)은 각각 최상위 폴더에 추가한다.
+Spring Boot 프로젝트는 Phase 0 API(P0-22)에서 저장소 루트에 추가한다. 웹 앱(WEB부터 `web/` — 2026-11-13 Q5, APP에서 워크스페이스로 옮긴다), Python 엔진(M2부터), 앱(APP부터: 모바일 앱, 데스크탑 앱·웹 페이지(같은 React 코드), 공용 패키지 — 폴더 구성은 APP 시작 때 정한다)은 각각 최상위 폴더에 추가한다.
+The web app lives in `web/` from WEB-01 (owner, 2026-11-13 Q5); APP moves it into a workspace.
 
 ## 16. 학습 로그
 
