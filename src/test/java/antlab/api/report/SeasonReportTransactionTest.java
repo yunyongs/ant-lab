@@ -6,6 +6,7 @@ import static org.mockito.Mockito.doAnswer;
 import antlab.member.CurrentMember;
 import antlab.scoring.SeasonReportQuery;
 import antlab.scoring.SeasonReportService;
+import antlab.season.FormationCostQuery;
 import antlab.support.IntegrationTest;
 import antlab.support.SqlRecorder;
 import java.lang.reflect.Method;
@@ -61,50 +62,71 @@ class SeasonReportTransactionTest {
         assertThat(seen).as("서비스 안에서 읽은 격리 수준과 읽기 전용").containsExactly("repeatable read", "on");
     }
 
-    private List<String> measure(long season) {
+    private SqlRecorder.Recorded measure(long season) {
         SqlRecorder.start();
         MockHttpServletResponse r = ReportApiSupport.getReport(mvc, season);
-        List<String> sqls = SqlRecorder.stop();
+        SqlRecorder.Recorded recorded = SqlRecorder.stopAll();
         assertThat(r.getStatus()).isEqualTo(200);
-        return sqls;
+        return recorded;
     }
 
-    /** SqlRecorder 는 Hibernate 문장만 본다. 원천 조회(JdbcClient) 문장은 상수 텍스트 블록이라 읽기 전용인지 원문으로 확인한다. */
-    @Test
-    void 원천_조회_문장은_읽기_전용이다() throws Exception {
-        int statements = 0;
-        for (var field : SeasonReportQuery.class.getDeclaredFields()) {
+    /** Text of every {@code static final String} select/with statement constant a query class declares. */
+    private static List<String> declaredStatements(Class<?> type) throws Exception {
+        List<String> out = new ArrayList<>();
+        for (var field : type.getDeclaredFields()) {
             if (java.lang.reflect.Modifier.isStatic(field.getModifiers()) && field.getType() == String.class) {
                 field.setAccessible(true);
-                String sql = ((String) field.get(null)).toLowerCase(Locale.ROOT).strip();
-                if (sql.startsWith("with") || sql.startsWith("select")) {
-                    statements++;
-                    assertThat(sql).doesNotContain("insert ").doesNotContain("update ").doesNotContain("delete ")
-                            .doesNotContain("for update").doesNotContain("for share").doesNotContain("for no key update");
+                String sql = ((String) field.get(null)).strip();
+                String lower = sql.toLowerCase(Locale.ROOT);
+                if (lower.startsWith("with") || lower.startsWith("select")) {
+                    out.add(((String) field.get(null)));
                 }
             }
         }
-        assertThat(statements).as("원천 조회 문장 수").isEqualTo(5);
+        return out;
+    }
+
+    private static void assertReadOnly(String text) {
+        String sql = text.toLowerCase(Locale.ROOT);
+        assertThat(sql).doesNotContain("insert ").doesNotContain("update ").doesNotContain("delete ")
+                .doesNotContain("for update").doesNotContain("for share").doesNotContain("for no key update");
+    }
+
+    /** The report's JdbcClient statements are the declared text blocks of the two query classes, including the change-cost query. */
+    @Test
+    void 원천_조회_문장은_읽기_전용이다() throws Exception {
+        List<String> declared = new ArrayList<>(declaredStatements(SeasonReportQuery.class));
+        declared.addAll(declaredStatements(FormationCostQuery.class));
+        declared.forEach(SeasonReportTransactionTest::assertReadOnly);
+        long season = ReportApiSupport.finishedSeason(mvc, jdbc);
+        SqlRecorder.Recorded recorded = measure(season);
+        assertThat(recorded.jdbcClient()).as("recorded JdbcClient statements").isNotEmpty()
+                .containsExactlyInAnyOrderElementsOf(declared);
+        recorded.jdbcClient().forEach(SeasonReportTransactionTest::assertReadOnly);
     }
 
     @Test
-    void 쓰기와_잠금이_없고_JPA_문장_수가_보유_종목_수와_무관하다() throws Exception {
+    void 쓰기와_잠금이_없고_문장_수가_보유_종목_수와_무관하다() throws Exception {
         long full = ReportApiSupport.finishedSeason(mvc, jdbc);
         long small = antlab.api.turn.TurnApiSupport.startSeason(mvc);
         antlab.api.turn.TurnApiSupport.buy(mvc, jdbc, small, 0, "000660", 10, "FORWARD_BREAKOUT");
         for (int t = 0; t < 12; t++) {
             assertThat(antlab.api.turn.TurnApiSupport.advance(mvc, small, t).getStatus()).isEqualTo(201);
         }
-        List<String> a = measure(full);
-        List<String> b = measure(small);
-        // 총 문장 수 = Hibernate 문장(회원·시즌·턴·전술 변경·라인업·경로 수익률·종목) + 네이티브 6(정합·주문·보유·기준선 가격·대사 + 변경 비용)
-        System.out.println("[M6] 성적표 Hibernate 문장 수 (보유 4종목) = " + a.size() + ", (보유 1종목) = " + b.size());
-        assertThat(a).hasSameSizeAs(b).hasSize(7);
-        for (List<String> sqls : List.of(a, b)) {
-            sqls.forEach(q -> {
-                String s = q.toLowerCase(Locale.ROOT);
+        SqlRecorder.Recorded a = measure(full);
+        SqlRecorder.Recorded b = measure(small);
+        int declaredJdbc = declaredStatements(SeasonReportQuery.class).size() + declaredStatements(FormationCostQuery.class).size();
+        System.out.println("[M6] 성적표 문장 수 (보유 4종목) = Hibernate " + a.hibernate().size() + " + JdbcClient "
+                + a.jdbcClient().size() + ", (보유 1종목) = " + b.hibernate().size() + " + " + b.jdbcClient().size());
+        // Hibernate: member, season, turn, formation change, lineup, path returns, asset. JdbcClient: every declared statement once.
+        assertThat(a.hibernate()).hasSameSizeAs(b.hibernate()).hasSize(7);
+        assertThat(a.jdbcClient()).hasSameSizeAs(b.jdbcClient()).hasSize(declaredJdbc);
+        assertThat(a.total()).isEqualTo(b.total()).isEqualTo(7 + declaredJdbc);
+        for (SqlRecorder.Recorded recorded : List.of(a, b)) {
+            recorded.all().forEach(q -> {
+                String s = q.toLowerCase(Locale.ROOT).strip();
                 assertThat(s).doesNotStartWith("insert").doesNotStartWith("update").doesNotStartWith("delete");
-                assertThat(s).doesNotContain("for update").doesNotContain("for share").doesNotContain("for no key update");
+                assertReadOnly(q);
             });
         }
     }
