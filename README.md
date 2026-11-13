@@ -38,7 +38,7 @@ Releases are four: **v0.1** backend dashboard and web, **v1** web-based simulati
 | Phase 0 — SQL(PostgreSQL 17) → API | 새 도메인의 ERD·DDL과 역사 데이터 표본을 준비한다. SQL 트랜잭션으로 시즌 1판을 실행해 대사·집계 쿼리를 확인한 뒤, **시즌 한 판 REST API**를 Spring Boot·JPA·Flyway로 구현한다. 표본 데이터를 기준으로 SQL 결과를 골든으로 삼는다 | Done (2026-11-13) — the SQL part P0-03–P0-21 (final verdict `p0_21_check`) and the one-season API P0-22–P0-40: one season plays end to end over HTTP and every turn reconciles. Feature table: P0-03–P0-40 ([PLAN §11.1](docs/PLAN.md#111-phase-0-체크리스트-sql-postgresql-17)); the PLAN v1 DDL (P0-02) was superseded. / 완료 (2026-11-13) — SQL 구간 P0-03–P0-21(최종 판정 `p0_21_check`)과 시즌 한 판 API P0-22–P0-40: HTTP로 한 판을 끝까지 두고 모든 턴의 대사가 맞는다. 기능 표 P0-03–P0-40([PLAN §11.1](docs/PLAN.md#111-phase-0-체크리스트-sql-postgresql-17)), PLAN v1 DDL(P0-02)은 대체됨 |
 | Phase 1 — JDBC | 콘솔 앱(시즌·팀·턴·매매·성적표), 단순 부트스트랩 | **건너뜀** (2026-11-09, Phase 0 API에 흡수) |
 | MON — 모니터링(Grafana) | Actuator·Micrometer → Prometheus → Grafana 대시보드(API 응답 시간·오류율, JVM·DB, 게임 지표)를 구축한다 | 시작 전 (2026-11-10 추가) |
-| SEC — 인증(JWT) | Spring Security + JWT — 가입·로그인, 토큰 발급·검증·갱신을 구현하고 고정 회원을 실제 회원으로 교체한다(M4에서 앞당겼다) | 시작 전 (2026-11-10 추가) |
+| SEC — 인증(JWT) | Spring Security + JWT — 가입·로그인, 토큰 발급·검증·갱신을 구현하고 고정 회원을 실제 회원으로 교체한다(M4에서 앞당겼다) | In progress — SEC-01 authentication schema (2026-11-13). / 진행 중 — SEC-01 인증 스키마 (2026-11-13) |
 | WEB — 한 판 웹(React) | 시즌 시작·팀 구성·턴 진행·매매·전술 변경·성적표 화면, 모바일 폭 우선 반응형 | 시작 전 |
 | MVP — Spring Boot + JPA | 전체 역사 데이터 적재, 예상 분포, 피드·랭킹·알림, 점수·레이팅 | 시작 전 |
 | M1–M3 | 수집기·CI, Python 엔진, 점수 백테스트 | 계획됨 |
@@ -65,7 +65,7 @@ Java 21 · Spring Boot 4.1 · PostgreSQL 17 · JPA (리포트 쿼리에 MyBatis 
 - P0-31 매수 주문 시험만: `./gradlew test --tests 'antlab.api.order.*' -PexcludeSqlGolden` — 합성 고정 데이터(실제 표본 아님)로 정상·음성·1턴 이후 매수·무결성 가드·동시성·잠금 순서·노출을 확인한다. 실제 표본 골든(SQL 팀 구성 ↔ API 주문 재생, 대사 규칙 15개)은 `-PonlySqlGolden --tests '*BuyOrderGoldenTest*'`(표본 CSV 필요).
 - `./gradlew bootTestRun` — 일회용 PostgreSQL 17로 앱을 띄운다. 소유자 DB가 필요 없어 가장 안전하다. 8080이 쓰이고 있으면 `./gradlew bootTestRun --args='--server.port=18080'`.
 - `./gradlew bootRun` — 로컬 compose `db`의 `antlab_api` DB로 띄운다. 처음 한 번은 빈 `antlab_api`를 만들고(인코딩·시간대 포함) 앱을 띄워 Flyway V1–V3를 적용한 뒤 표본을 적재한다. 명령은 [db/README.md「API DB와 실습 DB」](db/README.md#api-db와-실습-db)에 있다. 접속 정보는 환경 변수 `ANTLAB_DB_URL`·`ANTLAB_DB_USER`·`ANTLAB_DB_PASSWORD`이고, 없으면 `jdbc:postgresql://localhost:5432/antlab_api`·OS 사용자·비밀번호 없음이다.
-- 매핑·잠금 시험만: `./gradlew test --tests 'antlab.mapping.*' --tests 'antlab.persistence.*'` — 엔티티 22개의 열·enum·불변 대조, 가변 엔티티와 두 스레드 잠금(`FOR NO KEY UPDATE`)·낙관적 락 시험이 돈다. 일회용 컨테이너만 쓴다.
+- 매핑·잠금 시험만: `./gradlew test --tests 'antlab.mapping.*' --tests 'antlab.persistence.*'` — 엔티티 23개의 열·enum·불변 대조, 가변 엔티티와 두 스레드 잠금(`FOR NO KEY UPDATE`)·낙관적 락 시험이 돈다. 일회용 컨테이너만 쓴다.
 - 컨테이너로 실행(P0-24) — `db`와 `api`를 한 번에 올린다. `api`는 compose profile `api`라서 `--profile api`를 붙여야 켜진다(붙이지 않은 `docker compose up -d`는 지금처럼 `db`만 켠다). 늘 같이 켜고 싶으면 루트 `.env`에 `COMPOSE_PROFILES=api`를 둔다(선택, 기본은 끔). `bootRun`과 달리 `prod` 프로필이라 Swagger·명세가 꺼져 있고, 같은 이미지가 후속 CI·서버 배포에서도 쓰인다.
   1. Docker Desktop을 켜고 준비 완료(고래 아이콘 안정)를 확인한다. VS Code로 저장소 루트를 열고 통합 터미널(`` Ctrl+` ``)에서 실행한다.
   2. 새 볼륨(처음): `docker compose --profile api up -d --build --wait --wait-timeout 240` — 이미지를 빌드하고, `db`가 빈 `antlab_api`를 만들고, `api`가 Flyway V1–V3를 적용한 뒤 두 서비스가 `healthy`가 되면 끝난다. 첫 빌드는 Gradle 배포판과 의존성을 내려받아 몇 분 걸린다.
