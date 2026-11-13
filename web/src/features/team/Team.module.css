@@ -83,51 +83,6 @@
   gap: var(--space-2);
 }
 
-.weights {
-  display: flex;
-  margin: 0;
-  padding: 0;
-  flex-direction: column;
-  gap: var(--space-2);
-  list-style: none;
-}
-
-.weightRow {
-  display: grid;
-  grid-template-columns: 5rem minmax(0, 1fr);
-  align-items: center;
-  gap: var(--space-1) var(--space-3);
-}
-
-.weightText {
-  grid-column: 1 / -1;
-  color: var(--color-text-muted);
-  font-size: 0.875rem;
-}
-
-.bar {
-  position: relative;
-  display: block;
-  height: 0.75rem;
-  border-radius: 999px;
-  background: var(--color-border);
-  overflow: hidden;
-}
-
-.fill {
-  display: block;
-  height: 100%;
-  background: var(--color-primary);
-}
-
-.target {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 2px;
-  background: var(--color-text);
-}
-
 .cardTitle {
   display: flex;
   flex-wrap: wrap;
@@ -152,13 +107,13 @@
 
 /* Forward kinds differ in lightness as well as hue. */
 .pillTarget {
-  background: #1e3a8a;
+  background: var(--color-primary-strong);
   color: #ffffff;
 }
 
 .pillBreakout {
-  background: #bfdbfe;
-  color: #1e3a8a;
+  background: var(--color-primary-soft);
+  color: var(--color-primary-strong);
 }
 
 .pillDefensive {

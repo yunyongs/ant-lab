@@ -47,3 +47,9 @@ export function ratioToCssPercent(value: string): string {
   if (shifted === null) return value;
   return `${join(shifted, shifted.fraction)}%`;
 }
+
+// "0.15880000" -> "15.88%p": a gap or headroom in percentage points.
+export function ratioToPoints(value: string): string {
+  const percent = ratioToPercent(value);
+  return percent === value ? value : `${percent.slice(0, -1)}%p`;
+}

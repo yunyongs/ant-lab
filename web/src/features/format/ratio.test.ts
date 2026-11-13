@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   ratioToCssPercent,
   ratioToPercent,
+  ratioToPoints,
   ratioWithPercent,
 } from './ratio.ts';
 
@@ -45,5 +46,18 @@ describe('ratioToCssPercent', () => {
 
   it('passes a malformed value through', () => {
     expect(ratioToCssPercent('x')).toBe('x');
+  });
+});
+
+describe('ratioToPoints', () => {
+  it('prints percentage points', () => {
+    expect(ratioToPoints('0.15880000')).toBe('15.88%p');
+    expect(ratioToPoints('-0.03100000')).toBe('-3.1%p');
+    expect(ratioToPoints('0.00000000')).toBe('0%p');
+    expect(ratioToPoints('-0.00000001')).toBe('-0.000001%p');
+  });
+
+  it('passes a malformed value through', () => {
+    expect(ratioToPoints('abc')).toBe('abc');
   });
 });
