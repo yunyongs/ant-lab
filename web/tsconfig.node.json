@@ -4,6 +4,7 @@
     "target": "es2023",
     "lib": ["ES2023"],
     "types": ["node"],
+    "allowJs": true,
     "skipLibCheck": true,
 
     /* Bundler mode */
@@ -26,6 +27,10 @@
     "vite.config.ts",
     "vite.proxy.ts",
     "vite.proxy*.test.ts",
-    "scripts/**/*.ts"
+    "scripts/**/*.ts",
+    "eslint.restrictions.js",
+    "src/test/apiSchema.test.ts",
+    "src/test/lintRestrictions.test.ts",
+    "src/test/packagePins.test.ts"
   ]
 }
