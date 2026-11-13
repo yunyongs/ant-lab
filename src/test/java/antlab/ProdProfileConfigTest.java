@@ -16,11 +16,13 @@ import org.springframework.core.env.MapPropertySource;
 import org.springframework.core.env.StandardEnvironment;
 import org.springframework.core.env.SystemEnvironmentPropertySource;
 import org.springframework.core.io.DefaultResourceLoader;
+import org.springframework.util.StringUtils;
 
 /**
  * prod 프로필의 설정 경계를 앱을 띄우지 않고 확인한다.
  * 실행 기기의 실제 환경 변수·시스템 속성은 환경에서 지우고, 환경 변수 자리에는 시험용 속성원을 넣는다
  * (ANTLAB_DB_URL 등을 export한 셸에서도 같은 결과).
+ * External config files (./config, ./) are not read, so a personal key never reaches an assertion.
  */
 class ProdProfileConfigTest {
 
@@ -29,6 +31,9 @@ class ProdProfileConfigTest {
         StandardEnvironment env = new StandardEnvironment();
         env.getPropertySources().remove(StandardEnvironment.SYSTEM_ENVIRONMENT_PROPERTY_SOURCE_NAME);
         env.getPropertySources().remove(StandardEnvironment.SYSTEM_PROPERTIES_PROPERTY_SOURCE_NAME);
+        // Pin config lookup to tracked classpath files; ./config and ./ are not searched.
+        env.getPropertySources()
+                .addFirst(new MapPropertySource("trackedConfigOnly", Map.of("spring.config.location", "optional:classpath:/")));
         return env;
     }
 
@@ -94,5 +99,45 @@ class ProdProfileConfigTest {
                         "envLike", Map.of("SPRING_DATASOURCE_PASSWORD", "from-env")));
         ConfigDataEnvironmentPostProcessor.applyTo(both, new DefaultResourceLoader(), null);
         assertThat(both.getProperty("spring.datasource.password")).isEqualTo("from-env");
+    }
+
+    @Test
+    void 서명_키는_어느_프로필에도_기본값이_없다() {
+        for (String profile : new String[] {"", "local", "prod"}) {
+            StandardEnvironment env = isolatedEnvironment();
+            env.getPropertySources().addFirst(new SystemEnvironmentPropertySource("envLike",
+                    Map.of("ANTLAB_DB_URL", "jdbc:postgresql://db:5432/x")));
+            if (profile.isEmpty()) {
+                ConfigDataEnvironmentPostProcessor.applyTo(env, new DefaultResourceLoader(), null);
+            } else {
+                ConfigDataEnvironmentPostProcessor.applyTo(env, new DefaultResourceLoader(), null, profile);
+            }
+            // Boolean only: a failure must not echo the property value.
+            assertThat(StringUtils.hasLength(env.getProperty("antlab.auth.jwt-secret")))
+                    .as("profile '%s' has a key in tracked config", profile)
+                    .isFalse();
+        }
+    }
+
+    @Test
+    void 서명_키는_환경_변수로_받는다() {
+        // Throwaway value, never a real key.
+        ConfigurableEnvironment env = prodEnvironment(
+                Map.of("ANTLAB_DB_URL", "jdbc:postgresql://db:5432/x", "ANTLAB_JWT_SECRET", "from-env"));
+        assertThat(env.getProperty("antlab.auth.jwt-secret")).isEqualTo("from-env");
+        assertThat(env.getProperty("antlab.auth.access-token-ttl")).isEqualTo("PT15M");
+        assertThat(env.getProperty("antlab.auth.refresh-token-ttl")).isEqualTo("P14D");
+    }
+
+    @Test
+    void 서명_키_파일은_환경_변수_자리표시자보다_먼저_읽힌다(@TempDir Path secrets) throws IOException {
+        Files.writeString(secrets.resolve("antlab.auth.jwt-secret"), "from-file");
+        String importValue = "optional:configtree:" + secrets + "/";
+        StandardEnvironment both = isolatedEnvironment();
+        both.getPropertySources().addFirst(new MapPropertySource("importOnly", Map.of("spring.config.import", importValue)));
+        both.getPropertySources().addFirst(new SystemEnvironmentPropertySource("envLike", Map.of("ANTLAB_JWT_SECRET", "from-env")));
+        ConfigDataEnvironmentPostProcessor.applyTo(both, new DefaultResourceLoader(), null);
+        // The env name is only a placeholder inside application.yml, which the imported file overrides.
+        assertThat(both.getProperty("antlab.auth.jwt-secret")).isEqualTo("from-file");
     }
 }

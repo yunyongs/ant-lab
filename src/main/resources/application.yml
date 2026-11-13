@@ -49,6 +49,12 @@ antlab:
     fee-rate-us: 0.0025
     fx-spread-rate: 0.0040
     data-snapshot-date: 2026-11-07
+  # Tokens (SEC-03). The signing key has no default in any profile: without it the app does not start.
+  # Base64 of at least 32 bytes (openssl rand -base64 32). In prod the file /run/secrets/antlab.auth.jwt-secret also works.
+  auth:
+    jwt-secret: ${ANTLAB_JWT_SECRET:}
+    access-token-ttl: PT15M
+    refresh-token-ttl: P14D
   # 인증(SEC) 전 임시 고정 회원. 이메일은 RFC 2606 예약 도메인(실제 주소 금지). prod 문서는 꺼 둔다.
   single-member:
     enabled: true

@@ -43,6 +43,7 @@ public final class ErrorHttpMapping {
             case FORBIDDEN -> HttpStatus.FORBIDDEN;
             case EMAIL_TAKEN -> HttpStatus.CONFLICT;
             case UNAUTHENTICATED -> HttpStatus.UNAUTHORIZED;
+            case INVALID_CREDENTIALS -> HttpStatus.UNAUTHORIZED;
         };
     }
 

@@ -23,6 +23,15 @@ Content-Type: application/json
   "password": "correct-horse-battery"
 }
 
+### 0b. Log in (optional; no season call needs the token yet) / 로그인(선택, 아직 시즌 호출은 토큰이 필요 없다)
+POST {{base}}/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "player@example.test",
+  "password": "correct-horse-battery"
+}
+
 ### 1. Start a season (12 turns, risk limit -20%, formation 10/30/30/30) / 시즌 시작
 # @name start
 POST {{base}}/api/v1/seasons

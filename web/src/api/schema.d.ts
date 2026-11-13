@@ -22,6 +22,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/signup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sign up / 가입
+         * @description Creates a member with the USER role from an email, a display name and a password. Open self-signup without email verification (v0.1). The password is stored only as a BCrypt hash.
+         *
+         *     이메일·표시 이름·비밀번호로 USER 역할의 회원을 만든다. 이메일 확인 없는 자유 가입이다(v0.1). 비밀번호는 BCrypt 해시로만 저장한다.
+         */
+        post: operations["signup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Log in / 로그인
+         * @description Checks the email (in any letter case) and password and starts a login. The access token (JWT, 15 minutes) is in the body; keep it in memory only. The refresh token is set as an HttpOnly cookie for /api/v1/auth and is never in a body.
+         *
+         *     이메일(대소문자 무시)과 비밀번호를 확인하고 로그인을 시작한다. 접근 토큰(JWT, 15분)은 본문에 있으며 메모리에만 둔다. 갱신 토큰은 /api/v1/auth 경로의 HttpOnly 쿠키로 설정되고 본문에는 없다.
+         */
+        post: operations["login"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/seasons": {
         parameters: {
             query?: never;
@@ -351,6 +395,63 @@ export interface components {
              * @default 12
              */
             pathLength: number;
+        };
+        /**
+         * @description Email, display name and password. The role is never taken from the request.
+         *
+         *     이메일·표시 이름·비밀번호. 역할은 요청에서 받지 않는다
+         */
+        SignupRequest: {
+            /**
+             * Format: email
+             * @description Login email, unique in any letter case (at most 255) / 로그인 이메일, 대소문자 무시 유일(최대 255자)
+             */
+            email: string;
+            /** @description Display name (1–50) / 표시 이름(1–50자) */
+            name: string;
+            /** @description 12–64 characters and at most 72 UTF-8 bytes; no composition rules / 12–64자, UTF-8 72바이트 이하; 문자 조합 규칙 없음 */
+            password: string;
+        };
+        /**
+         * @description Email and password
+         *
+         *     이메일과 비밀번호
+         */
+        LoginRequest: {
+            /** @description Login email, any letter case (at most 255) / 로그인 이메일, 대소문자 무시(최대 255자) */
+            email: string;
+            /** @description At most 64 characters and 72 UTF-8 bytes / 최대 64자, UTF-8 72바이트 */
+            password: string;
+        };
+        /**
+         * @description A short-lived access token
+         *
+         *     짧게 쓰는 접근 토큰
+         */
+        AccessTokenDto: {
+            /** @description Signed JWT (HS256); send it as a Bearer token / 서명된 JWT(HS256). Bearer 토큰으로 보낸다 */
+            accessToken: string;
+            /** @description Always Bearer / 항상 Bearer */
+            tokenType: string;
+            /**
+             * Format: int64
+             * @description Seconds until the access token expires / 접근 토큰이 만료될 때까지 남은 초
+             */
+            expiresIn: number;
+        };
+        /**
+         * @description The member who just signed up. Email, role, password and times are not included
+         *
+         *     방금 가입한 회원. 이메일·역할·비밀번호·시각은 싣지 않는다
+         */
+        MemberDto: {
+            /**
+             * Format: int64
+             * @description Member id / 회원 번호
+             */
+            id: number;
+            /** @description Display name / 표시 이름 */
+            name: string;
         };
         /**
          * @description Share per position (integer percent). Sum 100, goalkeeper at least 1. Request and response are the same
@@ -1188,7 +1289,7 @@ export interface components {
             reason: string;
         };
         /** @enum {string} */
-        ErrorCode: "INVALID_ARGUMENT" | "NOT_FOUND" | "METHOD_NOT_ALLOWED" | "NOT_ACCEPTABLE" | "UNSUPPORTED_MEDIA_TYPE" | "INTERNAL_ERROR" | "POOL_NOT_LOADED" | "POOL_NOT_JUDGED" | "PATH_TOO_LONG" | "SEASON_LIMIT" | "TURN_NOT_REACHED" | "SEASON_NOT_FINISHED" | "SEASON_NOT_ACTIVE" | "TURN_MISMATCH" | "LEDGER_MISMATCH" | "LINEUP_MISMATCH" | "ASSET_NOT_IN_POOL" | "INSUFFICIENT_CASH" | "INSUFFICIENT_HOLDING" | "POSITION_CONFLICT" | "POSITION_REQUIRED" | "INVALID_FORMATION" | "EVENT_TIME_CONFLICT" | "MEMBER_UNAVAILABLE" | "RECONCILIATION_FAILED" | "FORBIDDEN";
+        ErrorCode: "INVALID_ARGUMENT" | "NOT_FOUND" | "METHOD_NOT_ALLOWED" | "NOT_ACCEPTABLE" | "UNSUPPORTED_MEDIA_TYPE" | "INTERNAL_ERROR" | "POOL_NOT_LOADED" | "POOL_NOT_JUDGED" | "PATH_TOO_LONG" | "SEASON_LIMIT" | "TURN_NOT_REACHED" | "SEASON_NOT_FINISHED" | "SEASON_NOT_ACTIVE" | "TURN_MISMATCH" | "LEDGER_MISMATCH" | "LINEUP_MISMATCH" | "ASSET_NOT_IN_POOL" | "INSUFFICIENT_CASH" | "INSUFFICIENT_HOLDING" | "POSITION_CONFLICT" | "POSITION_REQUIRED" | "INVALID_FORMATION" | "EVENT_TIME_CONFLICT" | "MEMBER_UNAVAILABLE" | "RECONCILIATION_FAILED" | "FORBIDDEN" | "EMAIL_TAKEN" | "UNAUTHENTICATED" | "INVALID_CREDENTIALS";
     };
     responses: {
         /**
@@ -1236,6 +1337,94 @@ export interface operations {
              *     풀이 준비되지 않았다 — POOL_NOT_LOADED(행 없음), POOL_NOT_JUDGED(판정 빈 종목 있음)
              */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    signup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SignupRequest"];
+            };
+        };
+        responses: {
+            /** @description The new member / 새 회원 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemberDto"];
+                };
+            };
+            /** @description The input is invalid — INVALID_ARGUMENT / 입력이 틀렸다 — INVALID_ARGUMENT */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The email is already registered (in any letter case) — EMAIL_TAKEN / 이미 가입한 이메일이다(대소문자 무시) — EMAIL_TAKEN */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    login: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LoginRequest"];
+            };
+        };
+        responses: {
+            /** @description Logged in / 로그인함 */
+            200: {
+                headers: {
+                    /** @description The refresh token cookie (antlab_refresh) / 갱신 토큰 쿠키(antlab_refresh) */
+                    "Set-Cookie"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccessTokenDto"];
+                };
+            };
+            /** @description The input is invalid — INVALID_ARGUMENT / 입력이 틀렸다 — INVALID_ARGUMENT */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The email or password is wrong; the same answer for an unknown email — INVALID_CREDENTIALS / 이메일이나 비밀번호가 맞지 않다. 없는 이메일도 같은 답이다 — INVALID_CREDENTIALS */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };
