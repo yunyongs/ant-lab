@@ -51,14 +51,4 @@ public class AssetMonthAttention {
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
-
-    @Override
-    public boolean equals(Object o) {
-        return this == o || (o instanceof AssetMonthAttention other && id != null && id.equals(other.id));
-    }
-
-    @Override
-    public int hashCode() {
-        return AssetMonthAttention.class.hashCode();
-    }
 }
