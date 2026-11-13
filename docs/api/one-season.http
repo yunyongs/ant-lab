@@ -13,6 +13,16 @@
 @base = http://127.0.0.1:8080
 @qty = 2
 
+### 0. Sign up (optional; the single-member play below does not need it) / 가입(선택, 아래 한 판은 필요 없다)
+POST {{base}}/api/v1/auth/signup
+Content-Type: application/json
+
+{
+  "email": "player@example.test",
+  "name": "player",
+  "password": "correct-horse-battery"
+}
+
 ### 1. Start a season (12 turns, risk limit -20%, formation 10/30/30/30) / 시즌 시작
 # @name start
 POST {{base}}/api/v1/seasons

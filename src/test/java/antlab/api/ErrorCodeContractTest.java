@@ -59,7 +59,7 @@ class ErrorCodeContractTest {
     @Test
     void 계약의_모든_비_2xx_응답에_코드가_적혀_있다() throws IOException {
         var perOperation = ContractErrorCodes.perOperation(contract());
-        assertThat(perOperation).hasSize(12);
+        assertThat(perOperation).hasSize(13);
         perOperation.forEach((op, byStatus) -> {
             assertThat(byStatus).as(op).containsKey(500);
             byStatus.forEach((status, codes) -> assertThat(codes).as(op + " " + status).isNotEmpty());

@@ -44,6 +44,44 @@ paths:
                 $ref: '#/components/schemas/Problem'
         '500':
           $ref: '#/components/responses/InternalError'
+  /api/v1/auth/signup:
+    post:
+      tags: [auth]
+      operationId: signup
+      summary: Sign up / 가입
+      description: |-
+        Creates a member with the USER role from an email, a display name and a password. Open self-signup without email verification (v0.1). The password is stored only as a BCrypt hash.
+
+        이메일·표시 이름·비밀번호로 USER 역할의 회원을 만든다. 이메일 확인 없는 자유 가입이다(v0.1). 비밀번호는 BCrypt 해시로만 저장한다.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SignupRequest'
+      responses:
+        '201':
+          description: The new member / 새 회원
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemberDto'
+        '400':
+          description: The input is invalid — INVALID_ARGUMENT / 입력이 틀렸다 — INVALID_ARGUMENT
+          x-error-codes: [INVALID_ARGUMENT]
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: The email is already registered (in any letter case) — EMAIL_TAKEN / 이미 가입한 이메일이다(대소문자 무시) — EMAIL_TAKEN
+          x-error-codes: [EMAIL_TAKEN]
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /api/v1/seasons:
     post:
       tags: [season]
@@ -771,6 +809,45 @@ components:
           format: int32
           default: 12
           description: 'Path length (number of turns): 12, 24 or 60. 12 when omitted / 경로 길이(턴 수) 12, 24, 60. 생략하면 12'
+    SignupRequest:
+      type: object
+      description: |-
+        Email, display name and password. The role is never taken from the request.
+
+        이메일·표시 이름·비밀번호. 역할은 요청에서 받지 않는다
+      required: [email, name, password]
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 255
+          minLength: 0
+          description: Login email, unique in any letter case (at most 255) / 로그인 이메일, 대소문자 무시 유일(최대 255자)
+        name:
+          type: string
+          maxLength: 50
+          minLength: 0
+          description: Display name (1–50) / 표시 이름(1–50자)
+        password:
+          type: string
+          maxLength: 64
+          minLength: 12
+          description: 12–64 characters and at most 72 UTF-8 bytes; no composition rules / 12–64자, UTF-8 72바이트 이하; 문자 조합 규칙 없음
+    MemberDto:
+      type: object
+      description: |-
+        The member who just signed up. Email, role, password and times are not included
+
+        방금 가입한 회원. 이메일·역할·비밀번호·시각은 싣지 않는다
+      required: [id, name]
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: Member id / 회원 번호
+        name:
+          type: string
+          description: Display name / 표시 이름
     FormationDto:
       type: object
       description: |-
@@ -1624,4 +1701,5 @@ components:
              UNSUPPORTED_MEDIA_TYPE, INTERNAL_ERROR, POOL_NOT_LOADED, POOL_NOT_JUDGED, PATH_TOO_LONG,
              SEASON_LIMIT, TURN_NOT_REACHED, SEASON_NOT_FINISHED, SEASON_NOT_ACTIVE, TURN_MISMATCH, LEDGER_MISMATCH,
              LINEUP_MISMATCH, ASSET_NOT_IN_POOL, INSUFFICIENT_CASH, INSUFFICIENT_HOLDING, POSITION_CONFLICT, POSITION_REQUIRED,
-             INVALID_FORMATION, EVENT_TIME_CONFLICT, MEMBER_UNAVAILABLE, RECONCILIATION_FAILED, FORBIDDEN]
+             INVALID_FORMATION, EVENT_TIME_CONFLICT, MEMBER_UNAVAILABLE, RECONCILIATION_FAILED, FORBIDDEN, EMAIL_TAKEN,
+             UNAUTHENTICATED]
