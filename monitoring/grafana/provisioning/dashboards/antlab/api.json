@@ -1,0 +1,509 @@
+{
+  "uid": "antlab-api",
+  "title": "ant-lab · API",
+  "tags": [
+    "antlab"
+  ],
+  "editable": false,
+  "graphTooltip": 1,
+  "timezone": "browser",
+  "schemaVersion": 42,
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "refresh": "30s",
+  "templating": {
+    "list": [
+      {
+        "name": "application",
+        "label": "Application",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "antlab-prometheus"
+        },
+        "query": {
+          "qryType": 1,
+          "query": "label_values(jvm_info, application)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "definition": "label_values(jvm_info, application)",
+        "refresh": 1,
+        "sort": 1,
+        "multi": false,
+        "includeAll": false,
+        "current": {
+          "text": "antlab-api",
+          "value": "antlab-api"
+        }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Request rate",
+      "description": "Requests per second to the API, without health probes and actuator paths. / 상태 확인과 actuator 경로를 뺀 API 초당 요청 수.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "antlab-prometheus"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "noValue": "0"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "antlab-prometheus"
+          },
+          "refId": "A",
+          "expr": "sum(rate(http_server_requests_seconds_count{application=~\"$application\",uri!~\"/readyz|/livez|/actuator/.*\"}[$__rate_interval]))",
+          "range": true
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "5xx ratio",
+      "description": "Share of requests answered with a 5xx status (red above 1%). The first response with a new status code is not counted (rate needs an earlier sample). / 5xx 상태로 답한 요청의 비율(1% 초과면 빨강). 새 상태 코드의 첫 응답은 세지 않는다(rate는 앞선 표본이 있어야 센다).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "antlab-prometheus"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 0.01
+              }
+            ]
+          },
+          "noValue": "0"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "antlab-prometheus"
+          },
+          "refId": "A",
+          "expr": "sum(rate(http_server_requests_seconds_count{application=~\"$application\",uri!~\"/readyz|/livez|/actuator/.*\",status=~\"5..\"}[$__rate_interval])) / sum(rate(http_server_requests_seconds_count{application=~\"$application\",uri!~\"/readyz|/livez|/actuator/.*\"}[$__rate_interval]))",
+          "range": true
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Requests by endpoint",
+      "description": "Request rate per HTTP method and URI template. / HTTP 메서드와 URI 템플릿별 초당 요청 수.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "antlab-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 4
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "antlab-prometheus"
+          },
+          "refId": "A",
+          "expr": "sum by (method, uri) (rate(http_server_requests_seconds_count{application=~\"$application\",uri!~\"/readyz|/livez|/actuator/.*\"}[$__rate_interval]))",
+          "legendFormat": "{{method}} {{uri}}",
+          "range": true
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Errors by status",
+      "description": "Rate of 4xx and 5xx responses per status code. The first response with a new status code is not counted (rate needs an earlier sample). / 상태 코드별 4xx·5xx 응답 초당 수. 새 상태 코드의 첫 응답은 세지 않는다(rate는 앞선 표본이 있어야 센다).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "antlab-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 4
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "min": 0,
+          "noValue": "0"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "antlab-prometheus"
+          },
+          "refId": "A",
+          "expr": "sum by (status) (rate(http_server_requests_seconds_count{application=~\"$application\",uri!~\"/readyz|/livez|/actuator/.*\",status=~\"4..|5..\"}[$__rate_interval]))",
+          "legendFormat": "{{status}}",
+          "range": true
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Error ratio 4xx / 5xx",
+      "description": "Share of requests answered with a 4xx or 5xx status. The first response with a new status code is not counted (rate needs an earlier sample). / 4xx 또는 5xx 상태로 답한 요청의 비율. 새 상태 코드의 첫 응답은 세지 않는다(rate는 앞선 표본이 있어야 센다).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "antlab-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 12
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "min": 0,
+          "noValue": "0"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "antlab-prometheus"
+          },
+          "refId": "A",
+          "expr": "sum(rate(http_server_requests_seconds_count{application=~\"$application\",uri!~\"/readyz|/livez|/actuator/.*\",status=~\"4..\"}[$__rate_interval])) / sum(rate(http_server_requests_seconds_count{application=~\"$application\",uri!~\"/readyz|/livez|/actuator/.*\"}[$__rate_interval]))",
+          "legendFormat": "4xx",
+          "range": true
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "antlab-prometheus"
+          },
+          "refId": "B",
+          "expr": "sum(rate(http_server_requests_seconds_count{application=~\"$application\",uri!~\"/readyz|/livez|/actuator/.*\",status=~\"5..\"}[$__rate_interval])) / sum(rate(http_server_requests_seconds_count{application=~\"$application\",uri!~\"/readyz|/livez|/actuator/.*\"}[$__rate_interval]))",
+          "legendFormat": "5xx",
+          "range": true
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Latency p50 / p95 / p99",
+      "description": "Request latency quantiles from the histogram buckets (5 ms to 10 s). / 히스토그램 버킷(5ms~10s)으로 계산한 요청 지연 분위수.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "antlab-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 12
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "antlab-prometheus"
+          },
+          "refId": "A",
+          "expr": "histogram_quantile(0.5, sum by (le) (rate(http_server_requests_seconds_bucket{application=~\"$application\",uri!~\"/readyz|/livez|/actuator/.*\"}[$__rate_interval])))",
+          "legendFormat": "p50",
+          "range": true
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "antlab-prometheus"
+          },
+          "refId": "B",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(http_server_requests_seconds_bucket{application=~\"$application\",uri!~\"/readyz|/livez|/actuator/.*\"}[$__rate_interval])))",
+          "legendFormat": "p95",
+          "range": true
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "antlab-prometheus"
+          },
+          "refId": "C",
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(http_server_requests_seconds_bucket{application=~\"$application\",uri!~\"/readyz|/livez|/actuator/.*\"}[$__rate_interval])))",
+          "legendFormat": "p99",
+          "range": true
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "p95 by endpoint",
+      "description": "95th percentile latency per URI template. / URI 템플릿별 95번째 백분위 지연.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "antlab-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 20
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "antlab-prometheus"
+          },
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (le, uri) (rate(http_server_requests_seconds_bucket{application=~\"$application\",uri!~\"/readyz|/livez|/actuator/.*\"}[$__rate_interval])))",
+          "legendFormat": "{{uri}}",
+          "range": true
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Max latency by endpoint",
+      "description": "Slowest request per URI template over Micrometer's rolling window (about the last 2 minutes). / Micrometer 이동 구간(약 최근 2분)에서 URI 템플릿별 가장 느린 요청.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "antlab-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 20
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "antlab-prometheus"
+          },
+          "refId": "A",
+          "expr": "max by (uri) (http_server_requests_seconds_max{application=~\"$application\",uri!~\"/readyz|/livez|/actuator/.*\"})",
+          "legendFormat": "{{uri}}",
+          "range": true
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    }
+  ]
+}
