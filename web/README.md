@@ -1,7 +1,7 @@
 # web — one-season web app / 한 판 웹 앱
 
-TypeScript React app built with Vite. It has the app shell, router, API status line and dev proxy (WEB-01), the typed API client (WEB-02), and signup, login and session handling (WEB-03).
-Vite로 빌드하는 TypeScript React 앱이다. 앱 틀·라우터·API 상태 한 줄·개발 프록시(WEB-01), 타입 있는 API 클라이언트(WEB-02), 가입·로그인·세션 처리(WEB-03)가 들어 있다.
+TypeScript React app built with Vite. It has the app shell, router, API status line and dev proxy (WEB-01), the typed API client (WEB-02), signup, login and session handling (WEB-03), and the season list and season start (WEB-04).
+Vite로 빌드하는 TypeScript React 앱이다. 앱 틀·라우터·API 상태 한 줄·개발 프록시(WEB-01), 타입 있는 API 클라이언트(WEB-02), 가입·로그인·세션 처리(WEB-03), 시즌 목록·시즌 시작(WEB-04)이 들어 있다.
 
 ## Prerequisites / 준비
 
@@ -67,6 +67,13 @@ Only `/api` is forwarded, unchanged, to `http://127.0.0.1:8080`. For an API on a
 - 한 탭에서 로그아웃하면 열린 탭이 모두 로그아웃된다.
 - Until the API checks bearer tokens (SEC-04) and uses the logged-in member (SEC-05), season calls work with or without a login and act as the fixed member.
 - API가 Bearer 토큰을 검사하고(SEC-04) 로그인한 회원을 쓰기(SEC-05) 전까지 시즌 호출은 로그인과 상관없이 동작하며 고정 회원으로 처리된다.
+
+## Play / 플레이
+
+- The home page lists your seasons with their status and current turn. **새 시즌 시작** opens the start form: pick a risk limit (−10 to −40 %), set the four formation shares (whole numbers, sum 100, goalkeeper at least 1) and a length of 12, 24 or 60 turns.
+- 홈 화면에 내 시즌이 상태·현재 턴과 함께 나온다. **새 시즌 시작**을 누르면 시작 폼이 열린다. 위험 선언(−10~−40%)을 고르고, 포메이션 네 칸(정수, 합 100, 골키퍼 1 이상)과 길이(12·24·60턴)를 정한다.
+- Money and ratios are shown exactly as the API sends them (decimal strings); the app only adds thousands separators and percent signs.
+- 금액과 비율은 API가 보낸 문자열 그대로 보여 준다. 앱은 천 단위 구분 기호와 퍼센트 표시만 더한다.
 
 ## Folder layout / 폴더 구조
 
