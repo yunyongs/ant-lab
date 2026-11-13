@@ -22,8 +22,8 @@ export ANTLAB_DB_URL=jdbc:postgresql://localhost:55433/antlab_api
 ## 2. Create the schema (first start) / 스키마 만들기 (첫 실행)
 
 ```bash
-./gradlew bootRun --args='--server.port=18080'
-# when curl -fsS http://127.0.0.1:18080/actuator/health/readiness prints {"status":"UP"}, stop with Ctrl+C
+./gradlew bootRun --args='--server.port=18080 --management.server.port=18081'
+# when curl -fsS http://127.0.0.1:18080/readyz prints {"status":"UP"}, stop with Ctrl+C
 ```
 
 ## 3. Load the sample / 표본 적재 (앱을 끈 상태)
@@ -38,7 +38,7 @@ done
 ## 4. Start the API and play / API를 띄우고 한 판 돌리기
 
 ```bash
-./gradlew bootRun --args='--server.port=18080'          # keep this terminal / 이 터미널은 그대로 둔다
+./gradlew bootRun --args='--server.port=18080 --management.server.port=18081'          # keep this terminal / 이 터미널은 그대로 둔다
 python3 tools/play/play_season.py --base http://127.0.0.1:18080     # in a second terminal / 두 번째 터미널
 ```
 
