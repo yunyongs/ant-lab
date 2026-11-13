@@ -53,3 +53,9 @@ export function ratioToPoints(value: string): string {
   const percent = ratioToPercent(value);
   return percent === value ? value : `${percent.slice(0, -1)}%p`;
 }
+
+// "0.05120000" -> "0.05120000 (5.12%p)": the same text trick, labelled as a gap.
+export function ratioWithPoints(value: string): string {
+  const points = ratioToPoints(value);
+  return points === value ? value : `${value} (${points})`;
+}

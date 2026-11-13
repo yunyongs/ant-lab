@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canChangeFormation, canTrade } from './seasonGate.ts';
+import { canChangeFormation, canTrade, isFinished } from './seasonGate.ts';
 
 describe('seasonGate', () => {
   it.each([
@@ -8,6 +8,7 @@ describe('seasonGate', () => {
     ['FINISHED', 12, false, false],
     ['ABANDONING', 3, false, false],
   ] as const)('%s at turn %i', (status, currentTurnNo, trade, formation) => {
+    expect(isFinished({ status })).toBe(status === 'FINISHED');
     expect(canTrade({ status })).toBe(trade);
     expect(canChangeFormation({ status, currentTurnNo })).toBe(formation);
   });

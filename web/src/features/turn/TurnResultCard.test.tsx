@@ -22,7 +22,7 @@ describe('TurnResultCard', () => {
     expect(within(risk).getByText('-0.20000000 (-20%)')).toBeInTheDocument();
     expect(within(risk).getByText('0.15880000 (15.88%p)')).toBeInTheDocument();
     expect(risk).toHaveAttribute('data-breached', 'false');
-    expect(screen.getByText('0.59864000')).toBeInTheDocument();
+    expect(screen.getByText('0.59864000 (59.864%p)')).toBeInTheDocument();
     // The weights add to 0.99999998 and are printed as sent.
     expect(
       screen.getByText('21.771998% / 목표 10% (11.771998%p) · 22,820,000원'),
