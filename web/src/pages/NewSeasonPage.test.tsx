@@ -352,9 +352,9 @@ describe('NewSeasonPage', () => {
     });
     await user.click(screen.getByRole('radio', { name: '-30%' }));
     await user.click(startButton());
-    // The heading comes from the route; the placeholder needs season data.
+    // The heading comes from the route; the team build needs season data.
     expect(
-      await screen.findByText(/팀 구성 화면이 이 자리에 들어옵니다/),
+      await screen.findByRole('heading', { name: '0턴 팀 구성' }),
     ).toBeInTheDocument();
     expect(screen.queryByText('시즌을 불러오는 중입니다…')).toBeNull();
     releaseGet();

@@ -4,18 +4,11 @@ import { describe, expect, it } from 'vitest';
 import { problem } from '../test/authHandlers.ts';
 import { seasonFixture } from '../test/fixtures/seasons.ts';
 import { renderRoute } from '../test/renderWithProviders.tsx';
+import { serveSeason } from '../test/serve.ts';
 import { server } from '../test/server.ts';
 
-function serveSeason(overrides: Parameters<typeof seasonFixture>[0]) {
-  server.use(
-    http.get('*/api/v1/seasons/7', () =>
-      HttpResponse.json(seasonFixture({ id: 7, ...overrides })),
-    ),
-  );
-}
-
 describe('SeasonPage', () => {
-  it('shows the summary and the turn-0 placeholder', async () => {
+  it('shows the summary and the team build at turn 0', async () => {
     serveSeason({});
     renderRoute('/seasons/7');
     const summary = await screen.findByRole('region', { name: '시즌 요약' });
@@ -29,7 +22,7 @@ describe('SeasonPage', () => {
       ),
     ).toBeInTheDocument();
     expect(
-      screen.getByText('0턴 팀 구성 화면이 이 자리에 들어옵니다.'),
+      await screen.findByRole('heading', { name: '0턴 팀 구성' }),
     ).toBeInTheDocument();
   });
 
