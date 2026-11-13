@@ -36,8 +36,8 @@ public class SecurityConfig {
                     a.dispatcherTypeMatchers(DispatcherType.ERROR).permitAll();
                     // Actuator is gated by the exposure list and the unpublished management port, not by this chain.
                     a.requestMatchers("/error", "/livez", "/readyz", "/actuator/**").permitAll();
-                    // Auth endpoints are listed one by one; SEC-03 adds login and refresh.
-                    a.requestMatchers("/api/v1/auth/signup", "/api/v1/pool").permitAll();
+                    // Auth endpoints are listed one by one (signup, login; refresh and logout follow).
+                    a.requestMatchers("/api/v1/auth/signup", "/api/v1/auth/login", "/api/v1/pool").permitAll();
                     // Until SEC-04: the fixed member serves these without a token.
                     a.requestMatchers("/api/v1/seasons", "/api/v1/seasons/**", "/api/v1/dev/**").permitAll();
                     if (apiDocs) {

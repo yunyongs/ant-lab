@@ -15,3 +15,7 @@ spring:
 springdoc:
   api-docs:
     enabled: true
+# Test-only signing key: Base64 of a visibly fake phrase over 32 bytes. Never a real key.
+antlab:
+  auth:
+    jwt-secret: dGVzdC1vbmx5LWp3dC1rZXktbmV2ZXItdXNlLWluLXByb2QhIQ==

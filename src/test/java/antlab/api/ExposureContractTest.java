@@ -2,6 +2,7 @@ package antlab.api;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import antlab.auth.AccessTokenDto;
 import antlab.common.exposure.FinishedSeasonOnly;
 import antlab.common.exposure.ReviewReveal;
 import antlab.member.CurrentMember;
@@ -49,6 +50,12 @@ class ExposureContractTest {
             "windowEnd", "monthsUsed", "marketCapRank", "baseFxRate", "basePrice", "createdAt");
 
     static final String DEV_PATH_PREFIX = "/api/v1/dev/";
+
+    /**
+     * Endpoints whose response is a freshly issued credential, not data read from a table column. They are exempt from the
+     * column rule and must answer exactly {@link AccessTokenDto}.
+     */
+    static final Set<String> CREDENTIAL_PATHS = Set.of("/api/v1/auth/login");
 
     @Autowired
     @Qualifier("requestMappingHandlerMapping")
@@ -111,6 +118,10 @@ class ExposureContractTest {
         assertThat(endpoints).as("검사한 /api/v1 운영").isNotEmpty();
         for (Endpoint ep : endpoints) {
             assertThat(ep.responseType().isRecord()).as(ep.path() + " 응답은 record").isTrue();
+            if (CREDENTIAL_PATHS.contains(ep.path())) {
+                assertThat(ep.responseType()).as(ep.path() + " 발급 자격 응답").isEqualTo(AccessTokenDto.class);
+                continue;
+            }
             assertThat(ExposureRules.check(ep.responseType(), catalog, ep.finishedSeasonOnly(), ep.reviewReveal()))
                     .as(ep.path()).isEmpty();
         }
@@ -153,7 +164,7 @@ class ExposureContractTest {
     void 확장_허용_원천은_표지_없는_핸들러의_응답에서는_쓰이지_않는다() {
         ExposureCatalog catalog = ExposureCatalog.load(jdbc);
         for (Endpoint ep : apiEndpoints()) {
-            if (!ep.finishedSeasonOnly()) {
+            if (!ep.finishedSeasonOnly() && !CREDENTIAL_PATHS.contains(ep.path())) {
                 assertThat(ExposureRules.check(ep.responseType(), catalog, false)).as(ep.path()).isEmpty();
             }
         }

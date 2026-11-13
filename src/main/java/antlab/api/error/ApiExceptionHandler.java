@@ -39,7 +39,11 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
             // 5xx 는 응답에 내용을 싣지 않으므로 로그에 남긴다.
             log.error("도메인 예외(5xx)", ex);
         }
-        return handleExceptionInternal(ex, null, new HttpHeaders(), status, request);
+        HttpHeaders headers = new HttpHeaders();
+        if (status == HttpStatus.UNAUTHORIZED) {
+            headers.set(HttpHeaders.WWW_AUTHENTICATE, "Bearer");
+        }
+        return handleExceptionInternal(ex, null, headers, status, request);
     }
 
     /** Reached from the security entry point through HandlerExceptionResolver; no stack trace for a 401. */
@@ -100,7 +104,7 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
             case POOL_NOT_LOADED, POOL_NOT_JUDGED, PATH_TOO_LONG, SEASON_LIMIT, TURN_NOT_REACHED,
                     SEASON_NOT_ACTIVE, SEASON_NOT_FINISHED, TURN_MISMATCH, LEDGER_MISMATCH, LINEUP_MISMATCH, ASSET_NOT_IN_POOL,
                     INSUFFICIENT_CASH, INSUFFICIENT_HOLDING, POSITION_CONFLICT, POSITION_REQUIRED, RECONCILIATION_FAILED,
-                    INVALID_FORMATION, EVENT_TIME_CONFLICT, EMAIL_TAKEN -> "요청을 처리할 수 없는 상태다";
+                    INVALID_FORMATION, EVENT_TIME_CONFLICT, EMAIL_TAKEN, INVALID_CREDENTIALS -> "요청을 처리할 수 없는 상태다";
             case UNAUTHENTICATED -> "인증이 필요하다";
             case FORBIDDEN -> "권한이 없다";
             // 5xx 는 언제나 이 고정 문장이다(내용은 로그에만).

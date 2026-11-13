@@ -94,6 +94,9 @@ class ApiErrorSweepTest {
                 return "{\"expectedTurnNo\": 1, \"formation\": {\"goalkeeper\": 10, \"defender\": 20,"
                         + " \"midfielder\": 30, \"forward\": 40}}";
             }
+            if (template.endsWith("/auth/login")) {
+                return "{\"email\":\"sweep@example.test\",\"password\":\"correct-horse-battery\"}";
+            }
             if (template.endsWith("/turns")) {
                 return "{\"expectedTurnNo\": 0}";
             }
@@ -150,6 +153,9 @@ class ApiErrorSweepTest {
             probes.add(new Probe("malformed JSON", 400, ErrorCode.INVALID_ARGUMENT));
             probes.add(new Probe("empty object body", 400, ErrorCode.INVALID_ARGUMENT));
         }
+        if (op.template.equals("/api/v1/auth/login")) {
+            probes.add(new Probe("unknown credentials", 401, ErrorCode.INVALID_CREDENTIALS));
+        }
         if (op.onSeason()) {
             probes.add(new Probe("non-numeric season id", 400, ErrorCode.INVALID_ARGUMENT));
             probes.add(new Probe("unknown season", 404, ErrorCode.NOT_FOUND));
@@ -182,6 +188,8 @@ class ApiErrorSweepTest {
                 return http.send(method, op.path(UNKNOWN_SEASON), "{", json, json);
             case "empty object body":
                 return http.send(method, op.path(UNKNOWN_SEASON), "{}", json, json);
+            case "unknown credentials":
+                return http.send(method, op.path(UNKNOWN_SEASON), op.validBody(), json, json);
             case "non-numeric season id":
                 return http.send(method, op.path("abc"), op.writes() ? op.validBody() : null, op.writes() ? json : null, json);
             case "non-numeric turn number":
@@ -214,7 +222,7 @@ class ApiErrorSweepTest {
 
         // vacuity guard: the handlers are exactly the contract's operations
         assertThat(operations.stream().map(Operation::key).toList()).containsExactlyElementsOf(documented);
-        assertThat(operations).hasSize(13);
+        assertThat(operations).hasSize(14);
 
         List<DynamicTest> tests = new ArrayList<>();
         Set<String> exercised = new TreeSet<>();
@@ -240,7 +248,7 @@ class ApiErrorSweepTest {
         assertThat(exercised).containsExactlyInAnyOrderElementsOf(
                 Arrays.asList("wrong method", "Accept: application/xml", "text/plain body", "malformed JSON",
                         "empty object body", "non-numeric season id", "non-numeric turn number", "non-numeric query turnNo",
-                        "unknown season", "unknown member"));
+                        "unknown season", "unknown member", "unknown credentials"));
         return tests.stream();
     }
 }
