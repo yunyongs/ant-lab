@@ -1,6 +1,8 @@
 package antlab.api.season;
 
 import antlab.api.error.ApiProblem;
+import antlab.common.error.DomainException;
+import antlab.observability.GameMetrics;
 import antlab.season.SeasonDto;
 import antlab.season.SeasonListDto;
 import antlab.season.SeasonQueryService;
@@ -34,10 +36,12 @@ public class SeasonController {
 
     private final SeasonStartService starts;
     private final SeasonQueryService queries;
+    private final GameMetrics metrics;
 
-    public SeasonController(SeasonStartService starts, SeasonQueryService queries) {
+    public SeasonController(SeasonStartService starts, SeasonQueryService queries, GameMetrics metrics) {
         this.starts = starts;
         this.queries = queries;
+        this.metrics = metrics;
     }
 
     @PostMapping(value = "/api/v1/seasons", consumes = MediaType.APPLICATION_JSON_VALUE,
@@ -67,7 +71,14 @@ public class SeasonController {
             + "(production, before sign-in) / 현재 회원을 알 수 없다 — MEMBER_UNAVAILABLE(운영, 인증 전)",
             content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ApiProblem.class)))
     public ResponseEntity<SeasonDto> start(@Valid @RequestBody StartSeasonRequest request) {
-        SeasonDto season = starts.start(request);
+        SeasonDto season;
+        try {
+            season = starts.start(request);
+        } catch (DomainException rejected) {
+            metrics.seasonRejected(rejected.getCode());
+            throw rejected;
+        }
+        metrics.seasonStarted();
         URI location = ServletUriComponentsBuilder.fromCurrentRequestUri().path("/{id}")
                 .buildAndExpand(season.id()).toUri();
         return ResponseEntity.created(location).body(season);

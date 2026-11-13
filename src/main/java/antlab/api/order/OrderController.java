@@ -4,6 +4,8 @@ import antlab.account.OrderResultDto;
 import antlab.account.OrderService;
 import antlab.account.PlaceOrderRequest;
 import antlab.api.error.ApiProblem;
+import antlab.common.error.DomainException;
+import antlab.observability.GameMetrics;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -25,9 +27,11 @@ public class OrderController {
     private static final String PROBLEM = "application/problem+json";
 
     private final OrderService orders;
+    private final GameMetrics metrics;
 
-    public OrderController(OrderService orders) {
+    public OrderController(OrderService orders, GameMetrics metrics) {
         this.orders = orders;
+        this.metrics = metrics;
     }
 
     @PostMapping(value = "/api/v1/seasons/{seasonId}/orders", consumes = MediaType.APPLICATION_JSON_VALUE,
@@ -64,6 +68,11 @@ public class OrderController {
             content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ApiProblem.class)))
     public ResponseEntity<OrderResultDto> place(@PathVariable Long seasonId,
             @Valid @RequestBody PlaceOrderRequest request) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(orders.place(seasonId, request));
+        try {
+            return ResponseEntity.status(HttpStatus.CREATED).body(orders.place(seasonId, request));
+        } catch (DomainException rejected) {
+            metrics.orderRejected(rejected.getCode());
+            throw rejected;
+        }
     }
 }
