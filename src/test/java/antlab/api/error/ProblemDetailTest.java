@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import antlab.common.error.DomainException;
 import antlab.common.error.ErrorCode;
 import antlab.support.IntegrationTest;
+import antlab.support.ProbeSecurityConfig;
 import antlab.support.OpenApiNormalizer;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
@@ -26,7 +27,7 @@ import org.springframework.web.bind.annotation.RestController;
 import tools.jackson.databind.JsonNode;
 
 @IntegrationTest
-@Import(ProblemDetailTest.ProbeController.class)
+@Import({ProblemDetailTest.ProbeController.class, ProbeSecurityConfig.class})
 class ProblemDetailTest {
 
     private static final String PROBLEM = "application/problem+json";
@@ -77,7 +78,7 @@ class ProblemDetailTest {
 
     @Test
     void 없는_경로는_404_NOT_FOUND() {
-        assertThat(mvc.get().uri("/no/such/path")).hasStatus(404)
+        assertThat(mvc.get().uri("/probe/no-such-path")).hasStatus(404)
                 .hasContentType(MediaType.parseMediaType(PROBLEM))
                 .bodyJson()
                 .extractingPath("$.code").isEqualTo("NOT_FOUND");
@@ -197,6 +198,9 @@ class ProblemDetailTest {
     void MVC_예외_상태는_일반_코드로_접힌다() {
         assertThat(ErrorHttpMapping.code(HttpStatus.BAD_REQUEST)).isEqualTo(ErrorCode.INVALID_ARGUMENT);
         assertThat(ErrorHttpMapping.code(HttpStatus.PAYLOAD_TOO_LARGE)).isEqualTo(ErrorCode.INVALID_ARGUMENT);
+        assertThat(ErrorHttpMapping.code(HttpStatus.UNAUTHORIZED)).isEqualTo(ErrorCode.UNAUTHENTICATED);
+        assertThat(ErrorHttpMapping.status(ErrorCode.UNAUTHENTICATED)).isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertThat(ErrorHttpMapping.status(ErrorCode.EMAIL_TAKEN)).isEqualTo(HttpStatus.CONFLICT);
         assertThat(ErrorHttpMapping.code(HttpStatus.NOT_FOUND)).isEqualTo(ErrorCode.NOT_FOUND);
         assertThat(ErrorHttpMapping.code(HttpStatus.METHOD_NOT_ALLOWED)).isEqualTo(ErrorCode.METHOD_NOT_ALLOWED);
         assertThat(ErrorHttpMapping.code(HttpStatus.NOT_ACCEPTABLE)).isEqualTo(ErrorCode.NOT_ACCEPTABLE);

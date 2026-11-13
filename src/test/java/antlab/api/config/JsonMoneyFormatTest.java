@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import antlab.support.IntegrationTest;
+import antlab.support.ProbeSecurityConfig;
 import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
@@ -25,7 +26,7 @@ import tools.jackson.databind.json.JsonMapper;
 
 @IntegrationTest
 @ExtendWith(OutputCaptureExtension.class)
-@Import(JsonMoneyFormatTest.MoneyProbeController.class)
+@Import({JsonMoneyFormatTest.MoneyProbeController.class, ProbeSecurityConfig.class})
 class JsonMoneyFormatTest {
 
     @Autowired

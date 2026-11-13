@@ -13,6 +13,8 @@ import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotWritableException;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -38,6 +40,19 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
             log.error("도메인 예외(5xx)", ex);
         }
         return handleExceptionInternal(ex, null, new HttpHeaders(), status, request);
+    }
+
+    /** Reached from the security entry point through HandlerExceptionResolver; no stack trace for a 401. */
+    @ExceptionHandler(AuthenticationException.class)
+    public ResponseEntity<Object> handleUnauthenticated(AuthenticationException ex, WebRequest request) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.set(HttpHeaders.WWW_AUTHENTICATE, "Bearer");
+        return handleExceptionInternal(ex, null, headers, HttpStatus.UNAUTHORIZED, request);
+    }
+
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<Object> handleAccessDenied(AccessDeniedException ex, WebRequest request) {
+        return handleExceptionInternal(ex, null, new HttpHeaders(), HttpStatus.FORBIDDEN, request);
     }
 
     @ExceptionHandler(Exception.class)
@@ -84,8 +99,10 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
             // 4xx 도메인 코드는 던진 쪽 문장을 쓰므로 여기에 오지 않는다(위 분기). 기본 분기를 두지 않아 코드 추가 시 컴파일이 막는다.
             case POOL_NOT_LOADED, POOL_NOT_JUDGED, PATH_TOO_LONG, SEASON_LIMIT, TURN_NOT_REACHED,
                     SEASON_NOT_ACTIVE, SEASON_NOT_FINISHED, TURN_MISMATCH, LEDGER_MISMATCH, LINEUP_MISMATCH, ASSET_NOT_IN_POOL,
-                    INSUFFICIENT_CASH, INSUFFICIENT_HOLDING, POSITION_CONFLICT, POSITION_REQUIRED, RECONCILIATION_FAILED, FORBIDDEN,
-                    INVALID_FORMATION, EVENT_TIME_CONFLICT -> "요청을 처리할 수 없는 상태다";
+                    INSUFFICIENT_CASH, INSUFFICIENT_HOLDING, POSITION_CONFLICT, POSITION_REQUIRED, RECONCILIATION_FAILED,
+                    INVALID_FORMATION, EVENT_TIME_CONFLICT, EMAIL_TAKEN -> "요청을 처리할 수 없는 상태다";
+            case UNAUTHENTICATED -> "인증이 필요하다";
+            case FORBIDDEN -> "권한이 없다";
             // 5xx 는 언제나 이 고정 문장이다(내용은 로그에만).
             case MEMBER_UNAVAILABLE -> "지금은 이 기능을 쓸 수 없다";
         };
