@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { renderRoute } from '../test/renderWithProviders.tsx';
 import { seasonFixture } from '../test/fixtures/seasons.ts';
 import { server } from '../test/server.ts';
+import { serveReport } from '../test/serveReport.ts';
 import { failWithProblem, serveTurnWorld } from '../test/serveTurns.ts';
 import { APP_NAME } from './appName.ts';
 
@@ -154,6 +155,30 @@ describe('AppShell', () => {
       'page',
     );
     await screen.findByRole('heading', { name: '5턴 전술 변경' });
+  });
+
+  it('links the report item inside a season and marks it active only on the report page', async () => {
+    serveReport();
+    const first = renderRoute('/seasons/7/trade');
+    let nav = screen.getByRole('navigation', { name: '주 메뉴' });
+    expect(within(nav).getByRole('link', { name: '성적표' })).toHaveAttribute(
+      'href',
+      '/seasons/7/report',
+    );
+    expect(
+      within(nav).getByRole('link', { name: '성적표' }),
+    ).not.toHaveAttribute('aria-current');
+    first.unmount();
+    renderRoute('/seasons/7/report');
+    nav = screen.getByRole('navigation', { name: '주 메뉴' });
+    expect(within(nav).getByRole('link', { name: '성적표' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+    expect(within(nav).getByRole('link', { name: '턴' })).not.toHaveAttribute(
+      'aria-current',
+    );
+    await screen.findByRole('heading', { name: '시즌 7 성적표 (확정)' });
   });
 
   it('drops a page notice when the player moves to another season', async () => {

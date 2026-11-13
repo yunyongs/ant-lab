@@ -5,6 +5,7 @@ import { RequireAuth } from '../features/auth/RequireAuth.tsx';
 import { FormationChangePage } from '../pages/FormationChangePage.tsx';
 import { LoginPage } from '../pages/LoginPage.tsx';
 import { NewSeasonPage } from '../pages/NewSeasonPage.tsx';
+import { ReportPage } from '../pages/ReportPage.tsx';
 import { NotFoundPage } from '../pages/NotFoundPage.tsx';
 import { SeasonPage } from '../pages/SeasonPage.tsx';
 import { TradePage } from '../pages/TradePage.tsx';
@@ -69,6 +70,14 @@ export const routes: RouteObject[] = [
             element: (
               <KeyedBySeason>
                 <FormationChangePage />
+              </KeyedBySeason>
+            ),
+          },
+          {
+            path: 'seasons/:seasonId/report',
+            element: (
+              <KeyedBySeason>
+                <ReportPage />
               </KeyedBySeason>
             ),
           },
