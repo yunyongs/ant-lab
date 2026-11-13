@@ -7,7 +7,15 @@ import tseslint from 'typescript-eslint';
 import { restrictionRules } from './eslint.restrictions.js';
 
 export default tseslint.config(
-  { ignores: ['dist', 'coverage', 'src/api/schema.d.ts'] },
+  {
+    ignores: [
+      'dist',
+      'coverage',
+      'test-results',
+      'playwright-report',
+      'src/api/schema.d.ts',
+    ],
+  },
   {
     files: ['**/*.{ts,tsx}'],
     extends: [

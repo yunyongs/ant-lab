@@ -17,7 +17,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "verify": "npm run lint && npm run format:check && npm run typecheck && npm run test && npm run build",
-    "gen:api": "node scripts/gen-api.ts"
+    "gen:api": "node scripts/gen-api.ts",
+    "e2e": "playwright test"
   },
   "dependencies": {
     "@tanstack/react-query": "5.107.1",
@@ -27,7 +28,9 @@
     "react-router": "8.5.1"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.14.0",
     "@eslint/js": "10.0.1",
+    "@playwright/test": "1.65.0",
     "@testing-library/dom": "10.4.2",
     "@testing-library/jest-dom": "7.0.1",
     "@testing-library/react": "16.3.3",

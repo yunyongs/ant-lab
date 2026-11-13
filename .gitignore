@@ -157,6 +157,9 @@ node_modules/
 !.yarn/releases
 coverage/
 *.tsbuildinfo
+# Playwright output (WEB-10)
+web/test-results/
+web/playwright-report/
 .eslintcache
 .stylelintcache
 npm-debug.log*
