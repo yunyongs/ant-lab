@@ -44,6 +44,7 @@ python3 tools/play/play_season.py --base http://127.0.0.1:18080     # in a secon
 
 Options / 옵션: `--turns 12|24|60`, `--risk -0.10|-0.20|-0.30|-0.40`. Each run creates a new season; at most 3 seasons may be in progress.
 실행할 때마다 새 시즌이 만들어지고, 진행 중 시즌은 최대 3개다.
+To watch the same play in Grafana (containers, monitoring profile), see the README section «Watch one season in Grafana». / 같은 한 판을 Grafana로 보려면(컨테이너, monitoring 프로필) README의 «모니터링으로 한 판 보기»를 본다.
 
 ## 5. Try it by hand / 직접 눌러 보기
 
