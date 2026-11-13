@@ -225,7 +225,7 @@ docker compose --profile api -p antlab-qa down -v --rmi local            # 이 �
 | MVP | DB 역할 3개(초안, §7), 구조화 로그(configtree는 P0-24에서 이름·우선순위를 시험으로 확인했고 실제 사용은 OPS — §9.1) |
 | M1 | CI Gradle + Testcontainers PG17(SPRING_JPA §9) — Phase 0 API 시험을 합성 표본 픽스처로 CI에서, api 이미지 **빌드만**(푸시 없음, SPRING_JPA §10.1-8), 수집기 외부 호출은 `egress`만 |
 | M2 | engine Dockerfile·`/healthz`·읽기 전용 역할·`backend` 전용 네트워크, 서비스 토큰 |
-| WEB · APP | proxy 이미지(웹 정적 + Caddy)는 APP·OPS, 로컬은 Vite 개발 서버를 호스트에서(컨테이너 아님 — WEB부터, `/api` 프록시) |
+| WEB · APP | proxy image (web static files + Caddy) is APP/OPS; locally the Vite dev server runs on the host, not in a container (from WEB-01: `web/`, `localhost:5173`, `/api` → `127.0.0.1:8080`, port via `ANTLAB_API_PORT`) / proxy 이미지(웹 정적 + Caddy)는 APP·OPS, 로컬은 Vite 개발 서버를 호스트에서 실행한다(컨테이너 아님 — WEB-01부터 `web/`, `localhost:5173`, `/api` → `127.0.0.1:8080`, 포트는 `ANTLAB_API_PORT`) |
 | AG-02 | agent-runner(profile `agents`), OpenRouter만 자동, 구독 경로 어댑터 꺼짐(§9.3) |
 | AI | db 이미지를 pgvector판으로 교체(덤프·복원 절차 §6) |
 | OPS | 아래 "OPS로 미루는 것" 전부, 복원 시험, 공개 데모 |
