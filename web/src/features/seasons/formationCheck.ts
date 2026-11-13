@@ -57,3 +57,8 @@ export function checkFormation(texts: ShareTexts): FormationCheck {
   }
   return { formation, sum, problem: null, invalid: [] };
 }
+
+// True when both formations hold the same four integers.
+export function sameFormation(a: Formation, b: Formation): boolean {
+  return SHARE_KEYS.every((key) => a[key] === b[key]);
+}

@@ -190,3 +190,121 @@
   align-items: center;
   color: var(--color-primary);
 }
+
+.entry {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.entryButton,
+.entryDisabled,
+.secondaryLink {
+  display: inline-flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 var(--space-4);
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-primary);
+  font-weight: 700;
+}
+
+.entryDisabled {
+  border-color: var(--color-border);
+  color: var(--color-text-muted);
+}
+
+.rows {
+  display: flex;
+  margin: 0;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.rows dd {
+  margin: 0;
+}
+
+.reasonLine {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.shareGrid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.shareRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 1.5rem minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.nowBox {
+  padding: var(--space-2);
+  border-radius: var(--radius);
+  background: var(--color-border);
+  text-align: center;
+}
+
+/* 16px keeps iOS from zooming into the field */
+.numberInput,
+.textInput {
+  width: 100%;
+  min-width: 0;
+  min-height: 48px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-input-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 1rem;
+}
+
+.numberInput {
+  text-align: right;
+}
+
+.numberInput[aria-invalid='true'],
+.textInput[aria-invalid='true'] {
+  border-color: var(--color-error);
+}
+
+.sumOk,
+.sumBad {
+  margin: 0;
+  font-weight: 700;
+}
+
+.sumOk {
+  color: var(--color-ok);
+}
+
+.sumBad {
+  color: var(--color-error);
+}
+
+.fieldError {
+  margin: 0;
+  color: var(--color-error);
+  font-size: 0.875rem;
+}
+
+.formActions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  gap: var(--space-2);
+}
