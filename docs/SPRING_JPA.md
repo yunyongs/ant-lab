@@ -80,7 +80,8 @@ Flyway는 Spring 챕터의 범위를 조금 넘는 도구다. 처음에는 `V1__
 
 - 모든 테이블은 대리 키 `id BIGINT GENERATED ALWAYS AS IDENTITY`. 예외는 `cash_account`: PK = `season_id`(식별 1:1, `erd.md` D6 — 시즌당 계좌 하나를 DB가 보장). `IDENTITY` 전략은 INSERT마다 DB가 번호를 주므로 Hibernate가 INSERT를 모아서 보내지 못한다(배치 불가). 도메인 테이블은 한 요청에 수십 행이라 문제없고, 수만 행을 넣는 역사 데이터는 JPA를 쓰지 않는다(§7).
 - 자연 키(회원 이메일, 종목 코드, 시즌 × 턴 번호)는 `UNIQUE` 제약으로만 지키고 PK로 쓰지 않는다.
-- `equals`/`hashCode`는 **시즌·계좌 쪽 엔티티(P0-28)에서는 재정의하지 않는다.** `Set`·`@OneToMany`가 없어 비교할 일이 없고, 한 영속성 컨텍스트 안의 같은 행은 JPA가 같은 인스턴스로 돌려주며, id 비교는 프록시 클래스 비교를 잘못 짜는 흔한 버그가 있다. 비교가 필요해지는 기능이 그때 규칙과 시험을 더한다(P0-27의 읽기 전용 엔티티는 id 비교를 이미 갖고 있다). 컬렉션이 필요하면 `List`.
+- No entity overrides `equals`/`hashCode`, read-only or season/account alike (`EntityIdentityRuleTest` enforces it). There is no `Set` or `@OneToMany` to compare in, JPA returns the same instance for the same row within one persistence context, and id comparison has a common proxy-class bug. A feature that needs comparison adds the rule and its test then. Use `List` for collections.
+  엔티티는 읽기 전용이든 시즌·계좌든 `equals`/`hashCode`를 재정의하지 않는다(`EntityIdentityRuleTest`가 지킨다). 비교할 `Set`·`@OneToMany`가 없고, 한 영속성 컨텍스트 안의 같은 행은 JPA가 같은 인스턴스로 돌려주며, id 비교는 프록시 클래스 비교를 잘못 짜는 흔한 버그가 있다. 비교가 필요해지는 기능이 그때 규칙과 시험을 더한다. 컬렉션이 필요하면 `List`.
 
 ### 4.3 연관 관계
 

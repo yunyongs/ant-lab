@@ -77,14 +77,4 @@ public class MonthEvent {
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
-
-    @Override
-    public boolean equals(Object o) {
-        return this == o || (o instanceof MonthEvent other && id != null && id.equals(other.id));
-    }
-
-    @Override
-    public int hashCode() {
-        return MonthEvent.class.hashCode();
-    }
 }
