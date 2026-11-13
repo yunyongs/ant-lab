@@ -53,12 +53,14 @@ tasks.named('test') {
             includeTags 'sql-golden'
         }
     }
-    // Rerun when files the tests read at run time change (SQL, events, feed, contract, compose.yaml, sample dir), so test is never UP-TO-DATE by mistake.
+    // Rerun when files the tests read at run time change (SQL, events, feed, contract, compose.yaml, monitoring config, .env.example, sample dir), so test is never UP-TO-DATE by mistake.
     inputs.dir('db').withPropertyName('sqlScripts').withPathSensitivity(PathSensitivity.RELATIVE)
     inputs.dir('events').withPropertyName('eventFiles').withPathSensitivity(PathSensitivity.RELATIVE)
     inputs.dir('feed').withPropertyName('feedFiles').withPathSensitivity(PathSensitivity.RELATIVE)
     inputs.file('docs/api/openapi.yaml').withPropertyName('openApiContract').withPathSensitivity(PathSensitivity.RELATIVE)
     inputs.file('compose.yaml').withPropertyName('composeFile').withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.dir('monitoring').withPropertyName('monitoringFiles').withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.file('.env.example').withPropertyName('envExample').withPathSensitivity(PathSensitivity.RELATIVE)
     def sampleDir = System.getenv('ANTLAB_GOLDEN_SAMPLE_DIR')
     inputs.property('goldenSampleDir', sampleDir ?: '')
     if (sampleDir) {
