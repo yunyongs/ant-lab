@@ -44,7 +44,9 @@ class SettingsAssertionTest {
     @Test
     void 액추에이터와_셧다운_설정() {
         assertThat(env.getProperty("management.endpoint.health.probes.enabled")).isEqualTo("true");
-        assertThat(env.getProperty("management.endpoints.web.exposure.include")).isEqualTo("health");
+        assertThat(env.getProperty("management.endpoints.web.exposure.include")).isEqualTo("health,prometheus");
+        assertThat(env.getProperty("management.endpoint.health.probes.add-additional-paths")).isEqualTo("true");
+        assertThat(env.getProperty("management.metrics.tags.application")).isEqualTo("antlab-api");
         assertThat(env.getProperty("management.endpoint.health.group.readiness.include")).contains("db");
         assertThat(env.getProperty("spring.lifecycle.timeout-per-shutdown-phase")).isEqualTo("20s");
         assertThat(env.getProperty("server.shutdown")).isEqualTo("graceful");

@@ -18,7 +18,7 @@ PASS로 기록하지 않는다.
 ```bash
 createdb -E UTF8 -T template0 antlab_api
 psql -X -d postgres -c "ALTER DATABASE antlab_api SET timezone TO 'Asia/Seoul'"
-./gradlew bootRun        # Flyway가 V1–V3 적용. /actuator/health/readiness 가 UP이면 Ctrl+C로 종료
+./gradlew bootRun        # Flyway가 V1–V3 적용. /readyz 가 UP이면 Ctrl+C로 종료
 psql -X -d antlab_api -c "SELECT version, script, success FROM flyway_schema_history ORDER BY installed_rank"
                          # 1·2·3 세 줄, success = t
 ```
@@ -71,7 +71,7 @@ docker compose --profile api up -d --build --wait --wait-timeout 240
 
 `$USER`가 기존 DB 역할 이름과 다르면 그 역할 이름을 쓰고 `ANTLAB_DB_USER`에도 같은 값을 준다(OS 사용자 이름을 바꿔도 DB 역할은 바뀌지 않는다). 이 변수는 기존 볼륨의 역할 이름이 다를 때만 지정한다 — 새 볼륨의 역할은 항상 `${USER:-antlab}`로 만들어지므로 다른 이름을 주면 역할이 없어 api가 접속에 실패한다. api 컨테이너가 `Restarting`이면 먼저 `antlab_api` DB가 있는지(위 확인 명령) 확인한다. 소유자 프로젝트의 `db` 컨테이너는 `compose.yaml`이 바뀌면 다음 `up`에서 같은 볼륨으로 다시 만들어진다(데이터는 그대로).
 
-컨테이너 `api`는 `prod` 프로필이라 Swagger가 꺼져 있고 Actuator에서는 `health`만 연다. 표본을 적재할 때는 `docker compose stop api` → 적재 → `docker compose start api` 순서로 실행한다.
+The container `api` runs the `prod` profile: Swagger is off, and the Actuator opens only `health` and `prometheus` on the management port 8081 (not published). To load the sample: `docker compose stop api` → load → `docker compose start api`. / 컨테이너 `api`는 `prod` 프로필이라 Swagger가 꺼져 있고 Actuator는 관리 포트 8081에서 `health`와 `prometheus`만 연다(게시하지 않음). 표본을 적재할 때는 `docker compose stop api` → 적재 → `docker compose start api` 순서로 실행한다.
 
 시험은 소유자의 `antlab`·`antlab_api`에 접속하지 않는다. 시험 실행마다 새 PostgreSQL 17
 Testcontainers DB를 시작하고 Flyway를 적용한다. 시험 DB에서 `clean`으로 공유 데이터를 지우지
