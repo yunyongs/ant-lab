@@ -12,8 +12,14 @@
 
 @base = http://127.0.0.1:8080
 @qty = 2
+@token = {{login.response.body.$.accessToken}}
 
-### 0. Sign up (optional; the single-member play below does not need it) / 가입(선택, 아래 한 판은 필요 없다)
+# Every /api/v1/seasons and /api/v1/dev call below needs the token of block 0b. The token lasts 15 minutes: when a call answers 401, send block 0b again.
+# Until SEC-05 the local profile serves one fixed member to any logged-in member.
+# 아래 /api/v1/seasons·/api/v1/dev 호출은 모두 0b 블록의 토큰이 필요하다. 토큰은 15분이다: 401이 오면 0b 블록을 다시 보낸다.
+# SEC-05 전까지 local 프로필은 로그인한 회원 누구에게나 고정 회원 하나를 쓴다.
+
+### 0. Sign up (once; "409 EMAIL_TAKEN" means it exists already) / 가입(한 번. 409 EMAIL_TAKEN 이면 이미 있다)
 POST {{base}}/api/v1/auth/signup
 Content-Type: application/json
 
@@ -23,7 +29,8 @@ Content-Type: application/json
   "password": "correct-horse-battery"
 }
 
-### 0b. Log in (optional; no season call needs the token yet) / 로그인(선택, 아직 시즌 호출은 토큰이 필요 없다)
+### 0b. Log in — every call below needs the token; log in again when a call answers 401 (the token lasts 15 minutes) / 로그인 — 아래 호출은 모두 토큰이 필요하다. 401이 오면 다시 로그인한다(토큰은 15분)
+# @name login
 POST {{base}}/api/v1/auth/login
 Content-Type: application/json
 
@@ -41,6 +48,7 @@ POST {{base}}/api/v1/auth/logout
 ### 1. Start a season (12 turns, risk limit -20%, formation 10/30/30/30) / 시즌 시작
 # @name start
 POST {{base}}/api/v1/seasons
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {
@@ -58,91 +66,109 @@ GET {{base}}/api/v1/pool
 
 ### 3. Turn-0 prices / 0턴 가격
 GET {{base}}/api/v1/seasons/{{season}}/prices?turnNo=0
+Authorization: Bearer {{token}}
 
 ### 4. Buy the team at turn 0: the first eight pool assets, each declared as its system position
 # 0턴 팀 매수: 풀의 앞 여덟 종목, 선언 포지션은 시스템 포지션
 # @name buy1
 POST {{base}}/api/v1/seasons/{{season}}/orders
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 { "expectedTurnNo": 0, "side": "BUY", "assetId": {{pool.response.body.$.assets[0].assetId}}, "quantity": {{qty}}, "declaredPosition": "{{pool.response.body.$.assets[0].systemPosition}}" }
 
 ###
 POST {{base}}/api/v1/seasons/{{season}}/orders
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 { "expectedTurnNo": 0, "side": "BUY", "assetId": {{pool.response.body.$.assets[1].assetId}}, "quantity": {{qty}}, "declaredPosition": "{{pool.response.body.$.assets[1].systemPosition}}" }
 
 ###
 POST {{base}}/api/v1/seasons/{{season}}/orders
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 { "expectedTurnNo": 0, "side": "BUY", "assetId": {{pool.response.body.$.assets[2].assetId}}, "quantity": {{qty}}, "declaredPosition": "{{pool.response.body.$.assets[2].systemPosition}}" }
 
 ###
 POST {{base}}/api/v1/seasons/{{season}}/orders
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 { "expectedTurnNo": 0, "side": "BUY", "assetId": {{pool.response.body.$.assets[3].assetId}}, "quantity": {{qty}}, "declaredPosition": "{{pool.response.body.$.assets[3].systemPosition}}" }
 
 ###
 POST {{base}}/api/v1/seasons/{{season}}/orders
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 { "expectedTurnNo": 0, "side": "BUY", "assetId": {{pool.response.body.$.assets[4].assetId}}, "quantity": {{qty}}, "declaredPosition": "{{pool.response.body.$.assets[4].systemPosition}}" }
 
 ###
 POST {{base}}/api/v1/seasons/{{season}}/orders
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 { "expectedTurnNo": 0, "side": "BUY", "assetId": {{pool.response.body.$.assets[5].assetId}}, "quantity": {{qty}}, "declaredPosition": "{{pool.response.body.$.assets[5].systemPosition}}" }
 
 ###
 POST {{base}}/api/v1/seasons/{{season}}/orders
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 { "expectedTurnNo": 0, "side": "BUY", "assetId": {{pool.response.body.$.assets[6].assetId}}, "quantity": {{qty}}, "declaredPosition": "{{pool.response.body.$.assets[6].systemPosition}}" }
 
 ###
 POST {{base}}/api/v1/seasons/{{season}}/orders
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 { "expectedTurnNo": 0, "side": "BUY", "assetId": {{pool.response.body.$.assets[7].assetId}}, "quantity": {{qty}}, "declaredPosition": "{{pool.response.body.$.assets[7].systemPosition}}" }
 
 ### 5. What you hold, and the weights / 보유와 비중
 GET {{base}}/api/v1/seasons/{{season}}/holdings
+Authorization: Bearer {{token}}
 
 ### 6. Optional: the development reconciliation check (local profile only, outside the contract). It writes a 15-rule check to the log.
+# Needs role ADMIN: run UPDATE member SET role = 'ADMIN' WHERE lower(email) = lower('<email>') once in psql, then log in again.
 # 선택: 개발용 수동 대사(local 프로필 전용, 계약 밖). 15개 규칙 대사를 로그에 남긴다.
+# ADMIN 역할이 필요하다: psql에서 UPDATE member SET role = 'ADMIN' WHERE lower(email) = lower('<이메일>')을 한 번 실행하고 다시 로그인한다.
 POST {{base}}/api/v1/dev/seasons/{{season}}/reconciliation
+Authorization: Bearer {{token}}
 X-Antlab-Dev: true
 
 ### 7. Advance turns: the body carries the turn you are leaving (so a repeated click cannot advance twice) / 턴 넘기기
 POST {{base}}/api/v1/seasons/{{season}}/turns
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 { "expectedTurnNo": 0 }
 
 ###
 POST {{base}}/api/v1/seasons/{{season}}/turns
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 { "expectedTurnNo": 1 }
 
 ###
 POST {{base}}/api/v1/seasons/{{season}}/turns
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 { "expectedTurnNo": 2 }
 
 ###
 POST {{base}}/api/v1/seasons/{{season}}/turns
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 { "expectedTurnNo": 3 }
 
 ###
 POST {{base}}/api/v1/seasons/{{season}}/turns
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 { "expectedTurnNo": 4 }
@@ -150,15 +176,18 @@ Content-Type: application/json
 ### 8. Turn 5: sell one unit, change the formation, buy a pool asset not held yet (bound to the change), read the turn / 5턴: 한 주 매도, 전술 변경, 안 가진 풀 종목 매수(변경에 묶임), 턴 조회
 # @name holdings5
 GET {{base}}/api/v1/seasons/{{season}}/holdings
+Authorization: Bearer {{token}}
 
 ###
 POST {{base}}/api/v1/seasons/{{season}}/orders
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 { "expectedTurnNo": 5, "side": "SELL", "assetId": {{holdings5.response.body.$.holdings[0].assetId}}, "quantity": 1 }
 
 ###
 POST {{base}}/api/v1/seasons/{{season}}/formation-changes
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 { "expectedTurnNo": 5, "formation": { "goalkeeper": 10, "defender": 20, "midfielder": 30, "forward": 40 }, "reason": "Less defence, more attack / 방어를 줄이고 공격을 늘린다" }
@@ -167,27 +196,32 @@ Content-Type: application/json
 # The ninth pool asset was not bought at turn 0; this buy comes after the change, so the server binds it to the change.
 # 풀의 아홉 번째 종목은 0턴에 사지 않았다. 이 매수는 전술 변경 뒤라서 서버가 변경에 묶는다.
 POST {{base}}/api/v1/seasons/{{season}}/orders
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 { "expectedTurnNo": 5, "side": "BUY", "assetId": {{pool.response.body.$.assets[8].assetId}}, "quantity": {{qty}}, "declaredPosition": "{{pool.response.body.$.assets[8].systemPosition}}" }
 
 ###
 GET {{base}}/api/v1/seasons/{{season}}/turns/5
+Authorization: Bearer {{token}}
 
 ### 9. Keep advancing to turn 8 / 8턴까지 넘기기
 POST {{base}}/api/v1/seasons/{{season}}/turns
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 { "expectedTurnNo": 5 }
 
 ###
 POST {{base}}/api/v1/seasons/{{season}}/turns
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 { "expectedTurnNo": 6 }
 
 ###
 POST {{base}}/api/v1/seasons/{{season}}/turns
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 { "expectedTurnNo": 7 }
@@ -195,33 +229,39 @@ Content-Type: application/json
 ### 10. Turn 8: sell the whole first holding (the line closes) / 8턴: 첫 보유 종목 전량 매도(라인이 닫힌다)
 # @name holdings8
 GET {{base}}/api/v1/seasons/{{season}}/holdings
+Authorization: Bearer {{token}}
 
 ###
 POST {{base}}/api/v1/seasons/{{season}}/orders
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 { "expectedTurnNo": 8, "side": "SELL", "assetId": {{holdings8.response.body.$.holdings[0].assetId}}, "quantity": {{holdings8.response.body.$.holdings[0].quantity}} }
 
 ### 11. Keep advancing to the end / 끝까지 넘기기
 POST {{base}}/api/v1/seasons/{{season}}/turns
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 { "expectedTurnNo": 8 }
 
 ###
 POST {{base}}/api/v1/seasons/{{season}}/turns
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 { "expectedTurnNo": 9 }
 
 ###
 POST {{base}}/api/v1/seasons/{{season}}/turns
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 { "expectedTurnNo": 10 }
 
 ###
 POST {{base}}/api/v1/seasons/{{season}}/turns
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 { "expectedTurnNo": 11 }
@@ -229,12 +269,16 @@ Content-Type: application/json
 ### 12. The season is FINISHED now. Check it, then read the report and the review (only a finished season shows real dates)
 # 시즌이 끝났다. 확인한 뒤 성적표와 복기를 본다(끝난 시즌만 실제 날짜를 보여 준다)
 GET {{base}}/api/v1/seasons/{{season}}
+Authorization: Bearer {{token}}
 
 ###
 GET {{base}}/api/v1/seasons/{{season}}/report
+Authorization: Bearer {{token}}
 
 ###
 GET {{base}}/api/v1/seasons/{{season}}/review
+Authorization: Bearer {{token}}
 
 ###
 GET {{base}}/api/v1/seasons
+Authorization: Bearer {{token}}
