@@ -1,7 +1,7 @@
 # web — one-season web app / 한 판 웹 앱
 
-TypeScript React app built with Vite. It has the app shell, router, API status line and dev proxy (WEB-01), the typed API client (WEB-02), signup, login and session handling (WEB-03), the season list and season start (WEB-04), team building at turn 0 (WEB-05), turn advance with the turn result (WEB-06), between-turn trading and formation change (WEB-07), and the report card of a finished season (WEB-08).
-Vite로 빌드하는 TypeScript React 앱이다. 앱 틀·라우터·API 상태 한 줄·개발 프록시(WEB-01), 타입 있는 API 클라이언트(WEB-02), 가입·로그인·세션 처리(WEB-03), 시즌 목록·시즌 시작(WEB-04), 0턴 팀 구성(WEB-05), 턴 넘기기와 턴 결과(WEB-06), 턴 사이 매매·전술 변경(WEB-07), 끝난 시즌의 성적표(WEB-08)가 들어 있다.
+TypeScript React app built with Vite. It has the app shell, router, API status line and dev proxy (WEB-01), the typed API client (WEB-02), signup, login and session handling (WEB-03), the season list and season start (WEB-04), team building at turn 0 (WEB-05), turn advance with the turn result (WEB-06), between-turn trading and formation change (WEB-07), the report card of a finished season (WEB-08), and the season review (WEB-09).
+Vite로 빌드하는 TypeScript React 앱이다. 앱 틀·라우터·API 상태 한 줄·개발 프록시(WEB-01), 타입 있는 API 클라이언트(WEB-02), 가입·로그인·세션 처리(WEB-03), 시즌 목록·시즌 시작(WEB-04), 0턴 팀 구성(WEB-05), 턴 넘기기와 턴 결과(WEB-06), 턴 사이 매매·전술 변경(WEB-07), 끝난 시즌의 성적표(WEB-08), 시즌 복기(WEB-09)가 들어 있다.
 
 ## Prerequisites / 준비
 
@@ -82,6 +82,8 @@ Only `/api` is forwarded, unchanged, to `http://127.0.0.1:8080`. For an API on a
 - **매매**에는 이번 턴 가격 기준의 보유와 현금이 바로 나온다. 보유 종목마다 더 사거나 팔 수 있고(보유한 수량까지만), 종목 풀에서 새 종목을 살 수 있다. 1턴부터는 **전술 변경**으로 새 포메이션(정수, 합 100, 골키퍼 1 이상)과 선택 사유 한 줄을 정한다. 같은 턴에 이어서 낸 주문은 그 변경에 묶이고 체결 결과에 그렇게 표시된다. 매도 결과에는 실현 손익이 나오고, 전량을 팔면 그 종목의 보유가 닫힌다. 비중 맞추기는 직접 한다. 앱이 대신 주문하지 않는다.
 - **성적표** opens after the last turn: results against the benchmark, risk compliance, process (turnover, formation deviation, role fit, encouraged trades, formation changes), costs and the reconciliation record, all as the server computed them. A cell that cannot be computed says why. Before the season ends the screen only says how far the season is.
 - **성적표**는 마지막 턴 뒤에 열린다. 기준선 대비 결과, 위험 준수, 과정(회전율·포메이션 이탈·역할 수행·독려 매매·전술 변경), 비용, 대사 기록을 서버가 계산한 값 그대로 보여 준다. 계산할 수 없는 칸에는 이유가 나온다. 시즌이 끝나기 전에는 시즌이 어디까지 왔는지만 알려 준다.
+- **복기** opens after the last turn and is the only screen with real dates: the year-month behind each turn, that month's summary and events with sources, the value at each turn, your formation changes with their reasons, and the seed, engine version and data date that reproduce the path. Before the season ends it stays closed, because knowing the months would change your decisions.
+- **복기**는 마지막 턴 뒤에 열리며 실제 날짜가 나오는 유일한 화면이다. 각 턴의 실제 연월, 그 달의 요약과 사건(출처 포함), 턴마다의 평가액, 전술 변경과 그 사유, 경로를 다시 만드는 시드·엔진 버전·데이터 기준일이 나온다. 달을 알면 판단이 달라지므로 시즌이 끝나기 전에는 닫혀 있다.
 
 ## Folder layout / 폴더 구조
 
