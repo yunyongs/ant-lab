@@ -51,5 +51,9 @@ public enum ErrorCode {
     /** 턴 전환 대사가 하나라도 어긋나 아무것도 바꾸지 않았다(P0-33). */
     RECONCILIATION_FAILED,
     /** 개발용 엔드포인트를 고정 헤더 없이 불렀다(로컬 개발 전용 관문). */
-    FORBIDDEN
+    FORBIDDEN,
+    /** The email is already registered, in any letter case (signup). */
+    EMAIL_TAKEN,
+    /** The request has no valid credentials; answered by the security layer. */
+    UNAUTHENTICATED
 }
