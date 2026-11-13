@@ -9,8 +9,10 @@ import antlab.api.error.ErrorHttpMapping;
 import antlab.common.error.DomainException;
 import antlab.common.error.ErrorCode;
 import antlab.member.CurrentMember;
+import antlab.support.ContractErrorCodes;
 import antlab.support.E2eHttp;
 import antlab.support.E2eHttp.Reply;
+import antlab.support.OpenApiNormalizer;
 import antlab.support.PostgresTestcontainersConfig;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -18,7 +20,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Stream;
@@ -39,7 +40,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.servlet.mvc.method.RequestMappingInfo;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
-import org.yaml.snakeyaml.Yaml;
+import tools.jackson.databind.JsonNode;
 
 /**
  * Every error any {@code /api/v1} operation can answer is a ProblemDetail with a {@code code} the contract knows, over a real
@@ -47,8 +48,9 @@ import org.yaml.snakeyaml.Yaml;
  *
  * <p>The operation list is read from the handler mapping, never typed here, and must equal the operations in
  * {@code docs/api/openapi.yaml}. Statuses the yaml documents per operation (400, 404, 503) must be listed for the probed
- * operation. 405, 406 and 415 come from the framework for every path and are not listed per operation in the yaml; they
- * are checked for shape and code only. The dev endpoint is outside the contract and not probed.
+ * operation. 405, 406 and 415 come from the framework for every path and are listed once, in {@code x-framework-errors}.
+ * Every observed (operation, status, code) must be listed by the contract's {@code x-error-codes}. The dev endpoint is
+ * outside the contract and not probed.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
@@ -56,7 +58,6 @@ import org.yaml.snakeyaml.Yaml;
 class ApiErrorSweepTest {
 
     private static final String UNKNOWN_SEASON = "987654321";
-    private static final Set<Integer> FRAMEWORK_STATUSES = Set.of(405, 406, 415);
 
     record Operation(String method, String template) {
         String key() {
@@ -136,21 +137,8 @@ class ApiErrorSweepTest {
         return out;
     }
 
-    /** {@code "METHOD template" -> documented status codes} read from the contract file. */
-    @SuppressWarnings("unchecked")
-    static Map<String, Set<Integer>> yamlOperations() throws IOException {
-        Map<String, Object> doc = new Yaml().load(Files.readString(Path.of("docs/api/openapi.yaml")));
-        Map<String, Object> paths = (Map<String, Object>) doc.get("paths");
-        Map<String, Set<Integer>> out = new java.util.TreeMap<>();
-        for (var path : paths.entrySet()) {
-            for (var op : ((Map<String, Object>) path.getValue()).entrySet()) {
-                Map<String, Object> responses = (Map<String, Object>) ((Map<String, Object>) op.getValue()).get("responses");
-                Set<Integer> statuses = new TreeSet<>();
-                responses.keySet().forEach(k -> statuses.add(Integer.parseInt(k)));
-                out.put(op.getKey().toUpperCase() + " " + path.getKey(), statuses);
-            }
-        }
-        return out;
+    static JsonNode contract() throws IOException {
+        return OpenApiNormalizer.fromYaml(Files.readString(Path.of("docs/api/openapi.yaml")));
     }
 
     List<Probe> probesFor(Operation op) {
@@ -220,11 +208,12 @@ class ApiErrorSweepTest {
     @TestFactory
     Stream<DynamicTest> 모든_연산의_오류_응답은_계약에_있는_코드의_문제_본문이다() throws IOException {
         List<Operation> operations = handlerOperations();
-        Map<String, Set<Integer>> documented = yamlOperations();
+        JsonNode contract = contract();
+        Set<String> documented = ContractErrorCodes.perOperation(contract).keySet();
         E2eHttp http = new E2eHttp(port);
 
         // vacuity guard: the handlers are exactly the contract's operations
-        assertThat(operations.stream().map(Operation::key).toList()).containsExactlyElementsOf(documented.keySet());
+        assertThat(operations.stream().map(Operation::key).toList()).containsExactlyElementsOf(documented);
         assertThat(operations).hasSize(12);
 
         List<DynamicTest> tests = new ArrayList<>();
@@ -242,10 +231,8 @@ class ApiErrorSweepTest {
                     assertThat(reply.json().get("status").asInt()).as(reply + " body status").isEqualTo(reply.status());
                     assertThat(reply.json().get("detail").asString()).as(reply + " detail").isNotBlank();
                     assertThat(reply.json().get("instance").asString()).as(reply + " instance").isNotBlank();
-                    if (!FRAMEWORK_STATUSES.contains(reply.status())) {
-                        assertThat(documented.get(op.key())).as(op.key() + " documents " + reply.status())
-                                .contains(reply.status());
-                    }
+                    assertThat(ContractErrorCodes.isListed(contract, op.key(), reply.status(), code.name()))
+                            .as(op.key() + " lists " + code + " under " + reply.status()).isTrue();
                 }));
             }
         }

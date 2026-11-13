@@ -61,6 +61,18 @@ class OpenApiNormalizerTest {
     }
 
     @Test
+    void x_error_codes와_x_framework_errors는_구조_비교를_바꾸지_않는다() {
+        String annotated = swap(BASE, "paths:\n", "x-framework-errors:\n  '405': [METHOD_NOT_ALLOWED]\npaths:\n");
+        annotated = swap(annotated, "        '200':\n          description: ok\n          content:",
+                "        '409':\n          description: 충돌\n          x-error-codes: [TURN_MISMATCH]\n"
+                        + "        '200':\n          description: ok\n          content:");
+        String plain = swap(BASE, "        '200':\n          description: ok\n          content:",
+                "        '409':\n          description: 충돌\n        '200':\n          description: ok\n          content:");
+        assertThat(diff(annotated, plain)).isEmpty();
+        assertThat(diff(plain, annotated)).isEmpty();
+    }
+
+    @Test
     void 같은_문서는_차이가_없다() {
         assertThat(diff(BASE, BASE)).isEmpty();
     }

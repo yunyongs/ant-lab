@@ -11,6 +11,7 @@ import java.math.BigDecimal;
  * 체결 결과 한 건(매수·매도). 금액은 원 단위 정수 문자열, 평균단가는 소수 4자리 문자열이다 — scale 은 {@link #of} 한 곳에서 정한다.
  * 기록 시각·출발점·유형·상태·피드 번호·시드·경로·연월은 싣지 않는다.
  */
+@Schema(description = "기록 시각·출발점·유형·상태·피드 번호·시드·경로·연월은 싣지 않는다")
 public record OrderResultDto(
         @ExposedFrom("orders.id")
         @Schema(requiredMode = RequiredMode.REQUIRED, description = "주문 식별자")

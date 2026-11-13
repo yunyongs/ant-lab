@@ -6,6 +6,12 @@ info:
     시즌 한 판 REST API(Phase 0). 금액·비율은 지수 없는 문자열(소수 자릿수 유지),
     수량·턴 번호·포메이션 비중은 정수다. 오류는 application/problem+json(Problem).
     시즌 중 응답에는 실제 날짜·사건 이름·경로가 나가지 않는다.
+# Errors raised by the framework for any operation (wrong method, unsupported Accept or Content-Type). They are not
+# repeated per operation. / 프레임워크가 모든 연산에 공통으로 내는 오류(메서드·Accept·Content-Type). 연산마다 적지 않는다.
+x-framework-errors:
+  '405': [METHOD_NOT_ALLOWED]
+  '406': [NOT_ACCEPTABLE]
+  '415': [UNSUPPORTED_MEDIA_TYPE]
 paths:
   /api/v1/pool:
     get:
@@ -24,6 +30,7 @@ paths:
                 $ref: '#/components/schemas/PoolDto'
         '409':
           description: 풀이 준비되지 않았다 — POOL_NOT_LOADED(행 없음), POOL_NOT_JUDGED(판정 빈 종목 있음)
+          x-error-codes: [POOL_NOT_LOADED, POOL_NOT_JUDGED]
           content:
             application/problem+json:
               schema:
@@ -59,24 +66,28 @@ paths:
                 $ref: '#/components/schemas/SeasonDto'
         '400':
           description: 입력이 틀렸다 — INVALID_ARGUMENT
+          x-error-codes: [INVALID_ARGUMENT]
           content:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
         '409':
           description: 지금은 시작할 수 없다 — POOL_NOT_LOADED, POOL_NOT_JUDGED, SEASON_LIMIT(진행 중 3개)
+          x-error-codes: [POOL_NOT_LOADED, POOL_NOT_JUDGED, SEASON_LIMIT]
           content:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
         '422':
           description: 요청한 길이의 경로를 만들 수 없다 — PATH_TOO_LONG
+          x-error-codes: [PATH_TOO_LONG]
           content:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
         '503':
           description: 현재 회원을 알 수 없다 — MEMBER_UNAVAILABLE(운영, 인증 전)
+          x-error-codes: [MEMBER_UNAVAILABLE]
           content:
             application/problem+json:
               schema:
@@ -97,6 +108,7 @@ paths:
                 $ref: '#/components/schemas/SeasonListDto'
         '503':
           description: 현재 회원을 알 수 없다 — MEMBER_UNAVAILABLE
+          x-error-codes: [MEMBER_UNAVAILABLE]
           content:
             application/problem+json:
               schema:
@@ -125,18 +137,21 @@ paths:
                 $ref: '#/components/schemas/SeasonDto'
         '400':
           description: 시즌 번호가 숫자가 아니다 — INVALID_ARGUMENT
+          x-error-codes: [INVALID_ARGUMENT]
           content:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
         '404':
           description: 시즌이 없다 — NOT_FOUND
+          x-error-codes: [NOT_FOUND]
           content:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
         '503':
           description: 현재 회원을 알 수 없다 — MEMBER_UNAVAILABLE
+          x-error-codes: [MEMBER_UNAVAILABLE]
           content:
             application/problem+json:
               schema:
@@ -172,24 +187,28 @@ paths:
                 $ref: '#/components/schemas/TurnPricesDto'
         '400':
           description: turnNo 또는 시즌 번호가 틀렸다 — INVALID_ARGUMENT
+          x-error-codes: [INVALID_ARGUMENT]
           content:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
         '404':
           description: 시즌이 없다 — NOT_FOUND
+          x-error-codes: [NOT_FOUND]
           content:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
         '409':
           description: 아직 진행하지 않은 턴이다 — TURN_NOT_REACHED
+          x-error-codes: [TURN_NOT_REACHED]
           content:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
         '503':
           description: 현재 회원을 알 수 없다 — MEMBER_UNAVAILABLE
+          x-error-codes: [MEMBER_UNAVAILABLE]
           content:
             application/problem+json:
               schema:
@@ -224,30 +243,35 @@ paths:
                 $ref: '#/components/schemas/OrderResultDto'
         '400':
           description: 입력이 틀렸다(수량 0 이하, 매도에 선언 포지션) — INVALID_ARGUMENT
+          x-error-codes: [INVALID_ARGUMENT]
           content:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
         '404':
           description: 시즌이 없다 — NOT_FOUND
+          x-error-codes: [NOT_FOUND]
           content:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
         '409':
-          description: 지금은 주문할 수 없다 — SEASON_NOT_ACTIVE, TURN_MISMATCH, LEDGER_MISMATCH, LINEUP_MISMATCH
+          description: 지금은 주문할 수 없다 — SEASON_NOT_ACTIVE, TURN_MISMATCH, LEDGER_MISMATCH, LINEUP_MISMATCH, EVENT_TIME_CONFLICT
+          x-error-codes: [SEASON_NOT_ACTIVE, TURN_MISMATCH, LEDGER_MISMATCH, LINEUP_MISMATCH, EVENT_TIME_CONFLICT]
           content:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
         '422':
           description: 주문 내용을 받을 수 없다 — ASSET_NOT_IN_POOL, INSUFFICIENT_CASH, INSUFFICIENT_HOLDING, POSITION_CONFLICT, POSITION_REQUIRED
+          x-error-codes: [ASSET_NOT_IN_POOL, INSUFFICIENT_CASH, INSUFFICIENT_HOLDING, POSITION_CONFLICT, POSITION_REQUIRED]
           content:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
         '503':
           description: 현재 회원을 알 수 없다 — MEMBER_UNAVAILABLE(운영, 인증 전)
+          x-error-codes: [MEMBER_UNAVAILABLE]
           content:
             application/problem+json:
               schema:
@@ -282,24 +306,28 @@ paths:
                 $ref: '#/components/schemas/FormationChangeDto'
         '400':
           description: 입력이 틀렸다(합 ≠ 100, 골키퍼 0, 범위 밖, 필수값 누락, 사유 200자 초과, 현재와 같은 포메이션) — INVALID_ARGUMENT
+          x-error-codes: [INVALID_ARGUMENT]
           content:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
         '404':
           description: 시즌이 없다 — NOT_FOUND
+          x-error-codes: [NOT_FOUND]
           content:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
         '409':
           description: 지금은 바꿀 수 없다 — SEASON_NOT_ACTIVE, TURN_MISMATCH(0턴 포함), INVALID_FORMATION, EVENT_TIME_CONFLICT
+          x-error-codes: [SEASON_NOT_ACTIVE, TURN_MISMATCH, INVALID_FORMATION, EVENT_TIME_CONFLICT]
           content:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
         '503':
           description: 현재 회원을 알 수 없다 — MEMBER_UNAVAILABLE(운영, 인증 전)
+          x-error-codes: [MEMBER_UNAVAILABLE]
           content:
             application/problem+json:
               schema:
@@ -334,24 +362,28 @@ paths:
                 $ref: '#/components/schemas/TurnResultDto'
         '400':
           description: 입력이 틀렸다 — INVALID_ARGUMENT
+          x-error-codes: [INVALID_ARGUMENT]
           content:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
         '404':
           description: 시즌이 없다 — NOT_FOUND
+          x-error-codes: [NOT_FOUND]
           content:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
         '409':
           description: 지금은 넘길 수 없다 — SEASON_NOT_ACTIVE, TURN_MISMATCH, RECONCILIATION_FAILED
+          x-error-codes: [SEASON_NOT_ACTIVE, TURN_MISMATCH, RECONCILIATION_FAILED]
           content:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
         '503':
           description: 현재 회원을 알 수 없다 — MEMBER_UNAVAILABLE(운영, 인증 전)
+          x-error-codes: [MEMBER_UNAVAILABLE]
           content:
             application/problem+json:
               schema:
@@ -387,24 +419,28 @@ paths:
                 $ref: '#/components/schemas/TurnResultDto'
         '400':
           description: turnNo 가 1 미만이거나 시즌·턴 번호가 숫자가 아니다 — INVALID_ARGUMENT
+          x-error-codes: [INVALID_ARGUMENT]
           content:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
         '404':
           description: 시즌이 없다 — NOT_FOUND
+          x-error-codes: [NOT_FOUND]
           content:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
         '409':
           description: 아직 진행하지 않은 턴이다 — TURN_NOT_REACHED(현재 턴보다 큰 번호 전부. 경로 길이를 넘는 번호는 끝난 시즌에서도 이 코드이므로 클라이언트는 pathLength 로 범위를 먼저 거른다)
+          x-error-codes: [TURN_NOT_REACHED]
           content:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
         '503':
           description: 현재 회원을 알 수 없다 — MEMBER_UNAVAILABLE(운영, 인증 전)
+          x-error-codes: [MEMBER_UNAVAILABLE]
           content:
             application/problem+json:
               schema:
@@ -433,18 +469,21 @@ paths:
                 $ref: '#/components/schemas/HoldingsDto'
         '400':
           description: 시즌 번호가 숫자가 아니다 — INVALID_ARGUMENT
+          x-error-codes: [INVALID_ARGUMENT]
           content:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
         '404':
           description: 시즌이 없다 — NOT_FOUND
+          x-error-codes: [NOT_FOUND]
           content:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
         '503':
           description: 현재 회원을 알 수 없다 — MEMBER_UNAVAILABLE(운영, 인증 전)
+          x-error-codes: [MEMBER_UNAVAILABLE]
           content:
             application/problem+json:
               schema:
@@ -488,24 +527,28 @@ paths:
                 $ref: '#/components/schemas/SeasonReportDto'
         '400':
           description: 시즌 번호가 숫자가 아니다 — INVALID_ARGUMENT
+          x-error-codes: [INVALID_ARGUMENT]
           content:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
         '404':
           description: 시즌이 없다 — NOT_FOUND
+          x-error-codes: [NOT_FOUND]
           content:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
         '409':
           description: 끝나지 않은 시즌이다 — SEASON_NOT_FINISHED
+          x-error-codes: [SEASON_NOT_FINISHED]
           content:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
         '503':
           description: 현재 회원을 알 수 없다 — MEMBER_UNAVAILABLE(운영, 인증 전)
+          x-error-codes: [MEMBER_UNAVAILABLE]
           content:
             application/problem+json:
               schema:
@@ -542,24 +585,28 @@ paths:
                 $ref: '#/components/schemas/SeasonReviewDto'
         '400':
           description: 시즌 번호가 숫자가 아니다 — INVALID_ARGUMENT
+          x-error-codes: [INVALID_ARGUMENT]
           content:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
         '404':
           description: 시즌이 없다 — NOT_FOUND
+          x-error-codes: [NOT_FOUND]
           content:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
         '409':
           description: 끝나지 않은 시즌이다 — SEASON_NOT_FINISHED
+          x-error-codes: [SEASON_NOT_FINISHED]
           content:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
         '503':
           description: 현재 회원을 알 수 없다 — MEMBER_UNAVAILABLE(운영, 인증 전)
+          x-error-codes: [MEMBER_UNAVAILABLE]
           content:
             application/problem+json:
               schema:
@@ -570,6 +617,7 @@ components:
   responses:
     InternalError:
       description: 예상하지 못한 서버 오류 — INTERNAL_ERROR. 예외 내용은 싣지 않는 고정 문장이다(내용은 서버 로그에만)
+      x-error-codes: [INTERNAL_ERROR]
       content:
         application/problem+json:
           schema:

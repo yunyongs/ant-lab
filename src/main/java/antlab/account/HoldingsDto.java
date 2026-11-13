@@ -12,6 +12,7 @@ import java.util.List;
  * 비율은 소수 8자리 문자열이다. 매매가 없는 턴이면 총액·보유 평가액·포지션별 평가액이 그 턴의 턴 결과와 같다.
  * {@code currentFormation} 은 지금 적용 중인 포메이션이라 이번 턴의 전술 변경이 바로 보인다. 비중 4개의 합은 각각 한 번 반올림해 1과 최대 2e-8 다를 수 있다. 시드·경로·월 블록·연월·수익률 종류는 싣지 않는다.
  */
+@Schema(description = "현재 턴의 보유 × 그 턴 가격(이번 턴의 매매가 바로 반영되는 실시간 값). 매매가 없는 턴이면 총액·보유 평가액·포지션별 평가액이 그 턴의 턴 결과와 같다. currentFormation 은 지금 적용 중인 포메이션이다. 비중 4개의 합은 1과 최대 2e-8 다를 수 있다. 시드·경로·월 블록·연월·수익률 종류는 싣지 않는다")
 public record HoldingsDto(
         @ExposedFrom("season.id")
         @Schema(requiredMode = RequiredMode.REQUIRED, description = "시즌 식별자")

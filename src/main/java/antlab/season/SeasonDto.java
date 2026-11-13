@@ -10,6 +10,7 @@ import java.math.BigDecimal;
  * 시즌 한 개. 금액은 원 단위 정수 문자열, 비율은 소수 8자리 문자열로 나간다 — scale 은 {@link #from} 한 곳에서 정한다.
  * 시드·엔진 버전·기준일·스냅샷 날짜·회원 번호·버전·시각은 싣지 않는다.
  */
+@Schema(description = "시드·엔진 버전·기준일·스냅샷 날짜·회원 번호·버전·시각은 싣지 않는다")
 public record SeasonDto(
         @ExposedFrom("season.id")
         @Schema(requiredMode = RequiredMode.REQUIRED, description = "시즌 식별자")

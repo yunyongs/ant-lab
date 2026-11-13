@@ -12,6 +12,7 @@ import tools.jackson.databind.annotation.JsonDeserialize;
  * 전술 변경 요청. 변경 전 포메이션은 서버가 시즌의 현재 값으로 채우고, 같은 턴 주문과의 연결도 서버가 한다 —
  * 요청에서 변경 번호나 이전 비중을 받지 않는다. 사유는 있는 그대로 저장한다(공백을 지우지 않는다).
  */
+@Schema(description = "전술 변경 요청. 변경 전 포메이션과 같은 턴 주문과의 연결은 서버가 정한다")
 public record ChangeFormationRequest(
         @Schema(requiredMode = RequiredMode.REQUIRED,
                 description = "변경이 보는 턴. 시즌의 현재 턴과 다르면 409. 0턴(팀 구성 중)에는 전술을 바꿀 수 없어 409")
