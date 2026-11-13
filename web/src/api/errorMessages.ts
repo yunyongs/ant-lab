@@ -36,6 +36,9 @@ export const errorMessages = {
     '이메일이나 비밀번호가 맞지 않습니다. 다시 확인해 주세요.',
 } as const satisfies Record<ErrorCode, string>;
 
+export const UNREACHABLE_TEXT =
+  'API에 연결할 수 없습니다. 잠시 뒤 다시 시도해 주세요.';
+
 const UNKNOWN_MESSAGE = '알 수 없는 오류가 생겼습니다.';
 
 export function messageFor(code: ErrorCode | 'UNKNOWN'): string {

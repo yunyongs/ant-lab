@@ -33,7 +33,7 @@ describe('router', () => {
     async (path) => {
       renderRoute(path);
       expect(
-        await screen.findByRole('heading', { name: '홈' }),
+        await screen.findByRole('heading', { name: '내 시즌' }),
       ).toBeInTheDocument();
     },
   );
@@ -64,7 +64,7 @@ describe('router', () => {
       await delay(20);
       expect(c.pool).toBe(0);
       expect(
-        await screen.findByRole('heading', { name: '홈' }),
+        await screen.findByRole('heading', { name: '내 시즌' }),
       ).toBeInTheDocument();
       expect(c.refresh).toBe(1);
     });
@@ -73,7 +73,7 @@ describe('router', () => {
       const c = restoreCounters();
       renderRoute('/', { session: 'restoring', strict: true });
       expect(
-        await screen.findByRole('heading', { name: '홈' }),
+        await screen.findByRole('heading', { name: '내 시즌' }),
       ).toBeInTheDocument();
       expect(c.refresh).toBe(1);
     });
@@ -115,7 +115,7 @@ describe('router', () => {
 
   it('logs out when another tab announces a logout', async () => {
     renderRoute('/');
-    await screen.findByRole('heading', { name: '홈' });
+    await screen.findByRole('heading', { name: '내 시즌' });
     const other = new BroadcastChannel('antlab-auth');
     other.postMessage({ type: 'logout' });
     other.close();

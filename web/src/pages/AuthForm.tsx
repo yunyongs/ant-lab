@@ -1,10 +1,7 @@
 import type { InputHTMLAttributes, Ref } from 'react';
-import { messageFor } from '../api/errorMessages.ts';
+import { messageFor, UNREACHABLE_TEXT } from '../api/errorMessages.ts';
 import type { AuthFailure } from '../features/auth/authApi.ts';
 import styles from './AuthPage.module.css';
-
-export const UNREACHABLE_TEXT =
-  'API에 연결할 수 없습니다. 잠시 뒤 다시 시도해 주세요.';
 
 export function AuthAlert({
   title,
