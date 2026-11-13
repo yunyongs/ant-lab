@@ -15,6 +15,24 @@
   width: 100%;
 }
 
+.headerRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.logout {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 var(--space-2);
+  border: 0;
+  background: none;
+  color: var(--color-accent);
+  cursor: pointer;
+  font: inherit;
+}
+
 .title {
   font-size: var(--font-lg);
   font-weight: 700;
