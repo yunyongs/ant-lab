@@ -55,5 +55,7 @@ public enum ErrorCode {
     /** The email is already registered, in any letter case (signup). */
     EMAIL_TAKEN,
     /** The request has no valid credentials; answered by the security layer. */
-    UNAUTHENTICATED
+    UNAUTHENTICATED,
+    /** Login: the email or password does not match; the same answer whichever is wrong. */
+    INVALID_CREDENTIALS
 }

@@ -70,6 +70,11 @@ class ProblemDetailTest {
             return "<a/>";
         }
 
+        @GetMapping("/probe/domain401")
+        String domain401() {
+            throw new DomainException(ErrorCode.INVALID_CREDENTIALS, "맞지 않다");
+        }
+
         @GetMapping("/probe/domain")
         String domain() {
             throw new DomainException(ErrorCode.INVALID_ARGUMENT, "도메인 규칙 위반");
@@ -147,6 +152,14 @@ class ProblemDetailTest {
     }
 
     @Test
+    void 도메인_401은_WWW_Authenticate를_싣고_다른_상태는_싣지_않는다() {
+        var result = mvc.get().uri("/probe/domain401").exchange();
+        assertThat(result).hasStatus(401).bodyJson().extractingPath("$.code").isEqualTo("INVALID_CREDENTIALS");
+        assertThat(result.getResponse().getHeader("WWW-Authenticate")).isEqualTo("Bearer");
+        assertThat(mvc.get().uri("/probe/domain").exchange().getResponse().getHeader("WWW-Authenticate")).isNull();
+    }
+
+    @Test
     void 도메인_예외라도_5xx는_고정_문장이고_내용이_새지_않는다() {
         var result = mvc.get().uri("/probe/domain500");
         assertThat(result).hasStatus(500).hasContentType(MediaType.parseMediaType(PROBLEM));
@@ -201,6 +214,7 @@ class ProblemDetailTest {
         assertThat(ErrorHttpMapping.code(HttpStatus.UNAUTHORIZED)).isEqualTo(ErrorCode.UNAUTHENTICATED);
         assertThat(ErrorHttpMapping.status(ErrorCode.UNAUTHENTICATED)).isEqualTo(HttpStatus.UNAUTHORIZED);
         assertThat(ErrorHttpMapping.status(ErrorCode.EMAIL_TAKEN)).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(ErrorHttpMapping.status(ErrorCode.INVALID_CREDENTIALS)).isEqualTo(HttpStatus.UNAUTHORIZED);
         assertThat(ErrorHttpMapping.code(HttpStatus.NOT_FOUND)).isEqualTo(ErrorCode.NOT_FOUND);
         assertThat(ErrorHttpMapping.code(HttpStatus.METHOD_NOT_ALLOWED)).isEqualTo(ErrorCode.METHOD_NOT_ALLOWED);
         assertThat(ErrorHttpMapping.code(HttpStatus.NOT_ACCEPTABLE)).isEqualTo(ErrorCode.NOT_ACCEPTABLE);
