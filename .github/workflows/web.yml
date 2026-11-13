@@ -1,0 +1,46 @@
+name: web
+
+# Only the pull_request event: fork code runs without secrets or a write token.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths: ['web/**', 'docs/api/openapi.yaml', '.github/workflows/web.yml']
+  push:
+    branches: [main]
+    paths: ['web/**', 'docs/api/openapi.yaml', '.github/workflows/web.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: web-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Nothing in this job pushes, so the token is not left in .git/config.
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: web/.nvmrc
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - name: Generated API types match the contract
+        run: |
+          npm run gen:api
+          git diff --exit-code -- src/api/schema.d.ts || { echo '::error::src/api/schema.d.ts is stale: run npm run gen:api in web/ and commit it'; exit 1; }
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
