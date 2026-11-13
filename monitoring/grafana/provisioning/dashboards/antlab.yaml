@@ -1,0 +1,17 @@
+apiVersion: 1
+
+# Three read-only dashboards (MON-04), loaded from the JSON files in ./antlab. The repo is the only source: edits in the UI cannot be saved.
+providers:
+  - name: antlab
+    orgId: 1
+    type: file
+    folder: ant-lab
+    # Fixed folder uid: the dashboards never land in General.
+    folderUid: antlab
+    disableDeletion: true
+    allowUiUpdates: false
+    updateIntervalSeconds: 30
+    options:
+      # Container path of ./monitoring/grafana/provisioning/dashboards/antlab (compose mounts the parent read-only).
+      path: /etc/grafana/provisioning/dashboards/antlab
+      foldersFromFilesStructure: false
