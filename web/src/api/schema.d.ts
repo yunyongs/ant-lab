@@ -1,0 +1,1903 @@
+export interface paths {
+    "/api/v1/pool": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Asset pool on the reference date / 기준일 종목 풀
+         * @description Returns the whole pool of the server-configured reference date, ordered by market and asset code. Each asset carries its system-judged position and the judgment basis (participation rates, volatility, maximum drawdown; KRW, monthly, 8 decimal places).
+         *
+         *     서버 설정의 기준일 풀 전체를 시장·종목코드 순서로 준다. 시스템 판정 포지션과
+         *     판정 근거(참여율·변동성·최대 낙폭, 원화·월 단위·소수 8자리)를 함께 준다.
+         */
+        get: operations["getPool"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/seasons": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * My seasons / 내 시즌 목록
+         * @description Returns all seasons of the current member, newest season number first. / 현재 회원의 시즌 전부를 시즌 번호 내림차순으로 준다.
+         */
+        get: operations["listSeasons"];
+        put?: never;
+        /**
+         * Start a season / 시즌 시작
+         * @description Starts a new season from a risk limit, a formation and a path length. Initial capital and rates come from the server configuration. The season, path, cash account, deposit and turn-0 prices are created in one transaction.
+         *
+         *     위험 선언·포메이션·경로 길이로 새 시즌을 시작한다. 초기 자금·요율은 서버 설정이 정한다.
+         *     시즌·경로·현금 계좌·입금·0턴 가격이 한 트랜잭션으로 만들어진다.
+         */
+        post: operations["startSeason"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/seasons/{seasonId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One season / 시즌 한 개
+         * @description One season of the current member. 404 if it does not exist or belongs to another member. / 현재 회원의 시즌 한 개. 없거나 다른 회원의 시즌이면 404.
+         */
+        get: operations["getSeason"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/seasons/{seasonId}/prices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Turn prices / 턴 가격
+         * @description Returns the prices of the whole pool for one turn, ordered by asset number. If turnNo is omitted, returns prices for the current turn.
+         *
+         *     한 턴의 풀 전체 가격을 종목 번호 순으로 준다. turnNo 를 생략하면 현재 턴.
+         */
+        get: operations["getTurnPrices"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/seasons/{seasonId}/orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Order (market buy or sell) / 주문(시장가 매수·매도)
+         * @description Fills one order immediately at the current turn price. Turn-0 team setup and buys from turn 1 onward use the same path. A buy takes the amount and fee out of cash and changes holdings and lineup together. A sell adds the amount to cash, deducts the fee, records the realized P&L, and closes the position span when everything is sold.
+         *
+         *     현재 턴 가격으로 한 건을 바로 체결한다. 0턴 팀 구성과 1턴 이후 매수가 같은 경로다. 매수는 대금과 수수료가 현금에서 빠지고 보유·라인업이 함께 바뀐다. 매도는 대금이 현금에 더해지고 수수료가 빠지며 실현 손익이 기록되고, 전량 매도면 구간이 닫힌다.
+         */
+        post: operations["placeOrder"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/seasons/{seasonId}/formation-changes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Formation change / 전술 변경
+         * @description Changes the current formation to a new value and keeps the change history. It can be changed several times in the same turn and every change is recorded. Orders placed after a change in the same turn are tied to the latest change. It cannot be changed at turn 0 while the team is being built.
+         *
+         *     현재 포메이션을 새 값으로 바꾸고 변경 이력을 남긴다. 같은 턴에 여러 번 바꿀 수 있고 모두 기록된다. 변경 뒤 같은 턴의 주문은 가장 마지막 변경에 묶인다. 팀 구성 중인 0턴에는 바꿀 수 없다.
+         */
+        post: operations["changeFormation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/seasons/{seasonId}/turns": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Advance the turn (next month) / 턴 전환(다음 달)
+         * @description Applies the next month block. In one transaction it builds the next-turn prices of the whole pool and the turn snapshot; if all 17 reconciliation checks match, it records them and advances the current turn. After the last turn the season ends. If any check mismatches, only the reconciliation log is kept and the answer is 409.
+         *
+         *     다음 달 블록을 적용한다. 한 트랜잭션에서 풀 전체의 다음 턴 가격과 턴 스냅샷을 만들고 대사 17개가 모두 일치하면 기록하고 현재 턴을 올린다. 마지막 턴이면 시즌이 끝난다. 대사가 하나라도 어긋나면 대사 기록만 남기고 409다.
+         */
+        post: operations["advanceTurn"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/seasons/{seasonId}/turns/{turnNo}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Turn result lookup / 턴 결과 조회
+         * @description Returns the result of one turn (valuation, change, cash, cumulative drawdown, comparison with the risk limit, valuation and share per position, formation deviation). It has the same shape as the advance-turn response. status and pathLength are the season's values now, and the sum of the four shares can differ from 1 by at most 2e-8. It is the same for a season in progress and a finished one.
+         *
+         *     한 턴의 결과(평가액·변화·현금·누적 낙폭·위험 선언 대비·포지션별 평가액과 비중·포메이션 차이)를 준다. 턴 전환 응답과 같은 형이다. status·pathLength 는 시즌의 지금 값이고, 비중 4개의 합은 1과 최대 2e-8 다를 수 있다. 진행 중이든 끝난 시즌이든 같다.
+         */
+        get: operations["getTurn"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/seasons/{seasonId}/holdings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Current team (holdings) lookup / 현재 팀(보유) 조회
+         * @description Returns the holdings of the current turn × that turn's prices, the total including cash, valuation and share per position, and the difference from the current formation. It is a live value that reflects this turn's trades immediately. The sum of the four shares can differ from 1 by at most 2e-8.
+         *
+         *     현재 턴의 보유 × 그 턴 가격, 현금 포함 총액, 포지션별 평가액과 비중, 현재 포메이션 대비 차이를 준다. 이번 턴의 매매가 바로 반영되는 실시간 값이다. 비중 4개의 합은 1과 최대 2e-8 다를 수 있다.
+         */
+        get: operations["getHoldings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/seasons/{seasonId}/report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Season report lookup / 시즌 성적표 조회
+         * @description Computes the season report of a finished season (results, benchmark, process, cost and reconciliation status, 37 items) on read, without storing it. A season that is in progress or being abandoned returns 409 SEASON_NOT_FINISHED. Money is a whole-won integer string; ratios are strings with 8 decimal places (−0.2 = −20%); a cell that cannot be computed is null (the key is never omitted). The benchmark buys and holds proxy ETFs (069500 and SPY, 50/50) and is biased because price returns and adjusted closes are mixed. Dates, month blocks, seeds, assets and change numbers are not included.
+         *
+         *     Excluded (outside the Phase 0 scope):
+         *     - X1 Compound annual growth rate (CAGR): needs fractional powers (ln·exp) that Java BigDecimal has no exact counterpart for, so the golden 8-decimal match cannot be guaranteed. The value is inflated on short seasons. → MVP (with the M3 score)
+         *     - X2 Sharpe: meaningless on a 10-turn sample, and the risk-free rate (cash earns no interest) must be defined with it. → MVP
+         *     - X3 Path percentile and consistency: needs an expected distribution (thousands of paths). → M2
+         *     - X4 60/40, my-formation (follows) and start-formation (fixed) benchmarks, the three-way split into player selection, formation change and structure effect, the 6-turn effect after a change, band rebalancing simulation and the representative-ETF table per position are needed (PLAN §6.1 "decided at MVP implementation"). → MVP (Java)
+         *     - X5 Trading discipline (panic, chasing) and formation change right after a fall: the definitions are missing. There is no threshold for "right after a rise", and the documents do not say whether the −8% basis is the asset, the team or the market. It differs from the feature table §3.4 "include if it is on the path". → MVP
+         *     - X6 Number of asset classes and average correlation under diversification: not in the feature table row P0-20, and correlation is unstable over 10 turns. → MVP
+         *     - X7 Reaction to noise (direction): needs a rule that judges the feed direction. → MVP
+         *     - X8 Following attention, defender goals, bench goals and signal discrimination: these are review items, so they are not part of the score (PLAN §6.2). Signal discrimination is EXT. → MVP/EXT
+         *     - X9 Tax, after-tax value on liquidation and deferred tax: tax is EXT (PLAN §4.6). The verification asserts that execution.tax is always 0. → EXT
+         *     - X10 Currency-exchange portion of the fee: splitting out the displayed portion adds a new rounding point in whole won. PLAN §4.6 describes this item as "display only." → MVP
+         *     - X11 Season score 0–100 and rating: PLAN §6.3 is a draft. → M3
+         *     - X12 Storing the report (season_score): an MVP sketch (PLAN §5.1, SPRING_JPA §12-1). → MVP
+         *
+         *     끝난 시즌의 성적표(결과·기준선·과정·비용·대사 상태 37항목)를 저장 없이 조회로 계산해 준다. 진행 중이거나 포기 중인 시즌은 409 SEASON_NOT_FINISHED 다. 금액은 원 단위 정수 문자열, 비율은 소수 8자리 문자열(−0.2 = −20%)이고 값을 만들 수 없는 칸은 null 이다(키는 생략하지 않는다). 기준선은 대용 ETF(069500·SPY 50/50) 매수 후 보유이며 가격 수익률과 수정 종가가 섞인 편향이 있다. 날짜·월 블록·시드·종목·변경 번호는 싣지 않는다.
+         *
+         *     제외(Phase 0 범위 밖):
+         *     - X1 연평균 성장률(CAGR) 분수 거듭제곱(ln·exp)이 필요한데 Java BigDecimal 에 정확한 짝이 없어 골든 8자리 일치를 보장할 수 없다. 짧은 시즌에서는 값이 부풀려진다. → MVP(M3 점수와 함께)
+         *     - X2 Sharpe 10턴 표본으로는 의미가 없고, 무위험 수익률(현금 무이자) 정의도 함께 정해야 한다. → MVP
+         *     - X3 경로 백분위·일관성 예상 분포(수천 경로)가 필요하다. → M2
+         *     - X4 60/40·내 포메이션(따라감)·시작 포메이션(고정) 기준선, 선수 선택·전술 변경·구조 효과 3분해, 변경 뒤 6턴 효과 밴드 리밸런싱 시뮬레이션과 포지션별 대표 ETF 표가 필요하다 (PLAN §6.1 "MVP 구현 때 정한다"). → MVP(Java)
+         *     - X5 매매 규율(패닉·추격)·하락 직후 전술 변경 정의가 비어 있다: "상승 직후" 문턱이 없고 −8% 의 기준이 종목·팀·시장 중 무엇인지 문서에 없다. 기능 표 §3.4 의 "경로에 있으면 포함"과 다르다. → MVP
+         *     - X6 분산 중 자산군 수·평균 상관 기능 표 P0-20 행에 없고 상관은 10턴으로는 불안정하다. → MVP
+         *     - X7 소음 반응(방향) 피드 방향을 판정하는 규칙이 필요하다. → MVP
+         *     - X8 관심 추종·수비수 득점·벤치 득점·신호 판별 복기 항목이라 점수에 넣지 않는다 (PLAN §6.2). 신호 판별은 EXT. → MVP/EXT
+         *     - X9 세금·청산 시 세후·이연 세금 세금은 EXT 다 (PLAN §4.6). execution.tax 가 항상 0 인지는 검증이 단언한다. → EXT
+         *     - X10 수수료 중 환전 몫 표시 몫을 나누면 원 단위 반올림 지점이 새로 생긴다. PLAN §4.6 이 "표시만"이라 한 항목이다. → MVP
+         *     - X11 시즌 점수 0–100·레이팅 PLAN §6.3 은 초안이다. → M3
+         *     - X12 성적표 저장(season_score) MVP 스케치다 (PLAN §5.1, SPRING_JPA §12-1). → MVP
+         */
+        get: operations["getSeasonReport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/seasons/{seasonId}/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Season review lookup / 시즌 복기 조회
+         * @description Returns which real month each turn of a finished season was (year-month), the one-line summary and event tags of that month (real name, hindsight assessment, source), the formation-change history, and the reproducibility metadata (seed, engine version, data snapshot date). A season that is in progress or being abandoned returns 409 SEASON_NOT_FINISHED and the body carries no year-month or event name. The seed is a 64-bit integer, so it is sent as a string. Month block numbers, event numbers and event keys are not included.
+         *
+         *     Excluded (outside the Phase 0 scope):
+         *     - Regime path and axis direction → M2/MVP
+         *     - Feed reveal (which item was a real event), following attention, defender/bench goals and platform revenue → MVP
+         *     - Event card figures (result, direction, strength, reaction change rate) → MVP
+         *     - Per-asset holdings of past turns and the per-turn valuation list → MVP/WEB
+         *     - Event explanation (RAG) → AI
+         *
+         *     끝난 시즌의 각 턴이 실제로 어느 달이었는지(연월), 그 달의 한 줄 요약과 사건 태그(실제 이름·사후 평가·출처), 전술 변경 기록, 재현 정보(시드·엔진 버전·데이터 스냅샷 날짜)를 준다. 진행 중이거나 포기 중인 시즌은 409 SEASON_NOT_FINISHED 이고 본문에 연월·사건 이름이 없다. 시드는 64비트 정수라 문자열로 보낸다. 월 블록 번호·사건 번호·사건 키는 싣지 않는다.
+         *
+         *     제외(Phase 0 범위 밖):
+         *     - 국면 경로·축 방향 → M2/MVP
+         *     - 피드 공개(어느 항목이 실제 사건이었나)·관심 추종·수비수/벤치 득점·플랫폼 수익 → MVP
+         *     - 사건 카드 수치(결과·방향·강도·반응 변화율) → MVP
+         *     - 과거 턴 종목별 보유·턴별 평가액 목록 → MVP/WEB
+         *     - 사건 설명(RAG) → AI
+         */
+        get: operations["getSeasonReview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+}
+export type webhooks = Record<string, never>;
+export interface components {
+    schemas: {
+        PoolDto: {
+            assets: components["schemas"]["PoolAssetDto"][];
+        };
+        PoolAssetDto: {
+            /**
+             * Format: int64
+             * @description Asset identifier (used in order requests). Not shown to the player / 종목 식별자(주문 요청에 쓴다). 표시하지 않는다
+             */
+            assetId: number;
+            market: components["schemas"]["Market"];
+            ticker: string;
+            name: string;
+            assetType: components["schemas"]["AssetType"];
+            returnBasis: components["schemas"]["ReturnBasis"];
+            /** @description Name of the tracked index used for the period before listing (ETFs only) / 상장 전 구간에 쓰는 추종 지수 이름(ETF만) */
+            proxyIndexName: string | null;
+            /** Format: int64 */
+            groupId: number;
+            groupName: string;
+            groupKind: components["schemas"]["AssetGroupKind"];
+            systemPosition: components["schemas"]["Position"];
+            /**
+             * Format: decimal
+             * @description Up-market participation rate (months the market rose 1% or more, in KRW) / 상승장 참여율(시장이 1% 이상 오른 달, 원화)
+             */
+            upParticipation: string;
+            /**
+             * Format: decimal
+             * @description Down-market participation rate (months the market fell 1% or more, in KRW) / 하락장 참여율(시장이 1% 이상 빠진 달, 원화)
+             */
+            downParticipation: string;
+            /**
+             * Format: decimal
+             * @description Sample standard deviation of monthly returns (not annualized) / 월 수익률 표본 표준편차(연율화 안 함)
+             */
+            volatility: string;
+            /**
+             * Format: decimal
+             * @description Maximum drawdown, 0 or less (−0.35 = −35%) / 최대 낙폭, 0 이하(−0.35 = −35%)
+             */
+            maxDrawdown: string;
+        };
+        /**
+         * @description Initial capital, rates and the seed are not taken from the request (server configuration). The 12/24/60 check on pathLength is a server rule
+         *
+         *     초기 자금·요율·시드는 요청에서 받지 않는다(서버 설정). pathLength 의 12·24·60 판정은 서버 규칙이다
+         */
+        StartSeasonRequest: {
+            /**
+             * Format: decimal
+             * @description Risk limit (the maximum drawdown the player accepts): one of -0.10, -0.20, -0.30, -0.40 / 위험 선언(감수할 최대 낙폭): -0.10, -0.20, -0.30, -0.40 중 하나
+             */
+            riskLimit: string;
+            formation: components["schemas"]["FormationDto"];
+            /**
+             * Format: int32
+             * @description Path length (number of turns): 12, 24 or 60. 12 when omitted / 경로 길이(턴 수) 12, 24, 60. 생략하면 12
+             * @default 12
+             */
+            pathLength: number;
+        };
+        /**
+         * @description Share per position (integer percent). Sum 100, goalkeeper at least 1. Request and response are the same
+         *
+         *     포지션별 비중(정수 퍼센트). 합 100, 골키퍼 1 이상. 요청과 응답이 같다
+         */
+        FormationDto: {
+            /**
+             * Format: int32
+             * @description Goalkeeper share (1–100) / 골키퍼 비중(1–100)
+             */
+            goalkeeper: number;
+            /**
+             * Format: int32
+             * @description Defender share (0–100) / 수비수 비중(0–100)
+             */
+            defender: number;
+            /**
+             * Format: int32
+             * @description Midfielder share (0–100) / 미드필더 비중(0–100)
+             */
+            midfielder: number;
+            /**
+             * Format: int32
+             * @description Attacker share (0–100) / 공격수 비중(0–100)
+             */
+            forward: number;
+        };
+        /**
+         * @description Formation change request. The server decides how the previous formation and the orders of the same turn are linked
+         *
+         *     전술 변경 요청. 변경 전 포메이션과 같은 턴 주문과의 연결은 서버가 정한다
+         */
+        ChangeFormationRequest: {
+            /**
+             * Format: int32
+             * @description The turn the change applies to. 409 if it differs from the season's current turn. At turn 0 (team being built) the formation cannot be changed, so 409
+             *
+             *     변경이 보는 턴. 시즌의 현재 턴과 다르면 409. 0턴(팀 구성 중)에는 전술을 바꿀 수 없어 409
+             */
+            expectedTurnNo: number;
+            /** @description The new formation. 400 if it equals the current one / 새 포메이션. 현재와 같으면 400 */
+            formation: components["schemas"]["FormationDto"];
+            /**
+             * @description Optional one-line reason (up to 200 characters, counted in Unicode characters). Omitted and null are the same
+             *
+             *     선택 한 줄 사유(최대 200자, 유니코드 문자 수 기준). 생략과 null 은 같다
+             */
+            reason?: string | null;
+        };
+        /**
+         * @description Formation change result. Change number, season number, recorded time and cost are not included
+         *
+         *     전술 변경 결과. 변경 번호·시즌 번호·기록 시각·비용은 싣지 않는다
+         */
+        FormationChangeDto: {
+            /**
+             * Format: int32
+             * @description The turn that was changed / 변경한 턴
+             */
+            turnNo: number;
+            /** @description Formation before the change (the current value just before it) / 변경 전 포메이션(변경 직전의 현재 값) */
+            before: components["schemas"]["FormationDto"];
+            /** @description Formation after the change (the requested value) / 변경 후 포메이션(요청한 값) */
+            after: components["schemas"]["FormationDto"];
+            /** @description Reason. null if there is none / 사유. 없으면 null */
+            reason: string | null;
+        };
+        /**
+         * @description Seed, engine version, reference date, snapshot date, member number, version and times are not included
+         *
+         *     시드·엔진 버전·기준일·스냅샷 날짜·회원 번호·버전·시각은 싣지 않는다
+         */
+        SeasonDto: {
+            /**
+             * Format: int64
+             * @description Season identifier / 시즌 식별자
+             */
+            id: number;
+            status: components["schemas"]["SeasonStatus"];
+            /**
+             * Format: int32
+             * @description Current turn (0 = start) / 현재 턴(0 = 시작)
+             */
+            currentTurnNo: number;
+            /**
+             * Format: int32
+             * @description Path length (number of turns) / 경로 길이(턴 수)
+             */
+            pathLength: number;
+            /**
+             * Format: decimal
+             * @description Risk limit, 8 decimal places (-0.20000000 = -20%) / 위험 선언, 소수 8자리(-0.20000000 = -20%)
+             */
+            riskLimit: string;
+            startFormation: components["schemas"]["FormationDto"];
+            currentFormation: components["schemas"]["FormationDto"];
+            /**
+             * Format: decimal
+             * @description Initial capital, whole KRW / 초기 자금, 원 단위 정수
+             */
+            initialCash: string;
+            /**
+             * Format: decimal
+             * @description Cash balance, whole KRW / 현금 잔액, 원 단위 정수
+             */
+            cashBalance: string;
+            /**
+             * Format: decimal
+             * @description Domestic fee rate, 8 decimal places / 국내 수수료율, 소수 8자리
+             */
+            feeRateKr: string;
+            /**
+             * Format: decimal
+             * @description US fee rate, 8 decimal places / 미국 수수료율, 소수 8자리
+             */
+            feeRateUs: string;
+            /**
+             * Format: decimal
+             * @description Currency exchange cost rate, 8 decimal places / 환전 비용률, 소수 8자리
+             */
+            fxSpreadRate: string;
+        };
+        /** @description All seasons of the current member (newest season number first). No paging / 현재 회원의 시즌 전부(시즌 번호 내림차순). 쪽 나누기 없음 */
+        SeasonListDto: {
+            items: components["schemas"]["SeasonDto"][];
+        };
+        /** @description Prices of the whole pool for one turn (ascending asset number) / 한 턴의 풀 전체 가격(종목 번호 오름차순) */
+        TurnPricesDto: {
+            /** Format: int32 */
+            turnNo: number;
+            prices: components["schemas"]["TurnPriceDto"][];
+        };
+        TurnPriceDto: {
+            /**
+             * Format: int64
+             * @description Asset identifier (the same as assetId in the pool response) / 종목 식별자(풀 응답의 assetId 와 같다)
+             */
+            assetId: number;
+            /**
+             * Format: decimal
+             * @description Price, whole KRW / 가격, 원 단위 정수
+             */
+            price: string;
+        };
+        /**
+         * @description One market buy or sell. The server decides the fill price, fee and rates, and fixes the origin to DIRECT
+         *
+         *     시장가 매수·매도 한 건. 체결가·수수료·요율은 서버가 정하고 출발점은 서버가 DIRECT 로 고정한다
+         */
+        PlaceOrderRequest: {
+            /**
+             * Format: int32
+             * @description The turn the order applies to. 409 if it differs from the season's current turn / 주문이 보는 턴. 시즌의 현재 턴과 다르면 409
+             */
+            expectedTurnNo: number;
+            /** @description BUY or SELL (market order) / BUY 또는 SELL(시장가) */
+            side: components["schemas"]["OrderSide"];
+            /**
+             * Format: int64
+             * @description Asset identifier (the same as assetId in the pool response) / 종목 식별자(풀 응답의 assetId 와 같다)
+             */
+            assetId: number;
+            /**
+             * Format: int32
+             * @description Whole shares (1 or more) / 정수 주(1 이상)
+             */
+            quantity: number;
+            /**
+             * @description Declared position (buys only). Required for an asset with no open span (first purchase, or after selling everything), optional otherwise. 400 if sent with a sell
+             *
+             *     선언 포지션(매수 전용). 열린 구간이 없는 종목(처음 사거나 전량 매도 뒤)이면 필수, 있으면 생략할 수 있다. 매도에 보내면 400
+             */
+            declaredPosition?: components["schemas"]["Position"];
+        };
+        /**
+         * @description Recorded time, origin, kind, status, feed number, seed, path and year-month are not included
+         *
+         *     기록 시각·출발점·유형·상태·피드 번호·시드·경로·연월은 싣지 않는다
+         */
+        OrderResultDto: {
+            /**
+             * Format: int64
+             * @description Order identifier / 주문 식별자
+             */
+            orderId: number;
+            /**
+             * Format: int32
+             * @description The turn of the order / 주문한 턴
+             */
+            turnNo: number;
+            side: components["schemas"]["OrderSide"];
+            /**
+             * Format: int64
+             * @description Asset identifier (the same as assetId in the pool response) / 종목 식별자(풀 응답의 assetId 와 같다)
+             */
+            assetId: number;
+            /**
+             * Format: int32
+             * @description Filled quantity / 체결 수량
+             */
+            quantity: number;
+            /**
+             * Format: decimal
+             * @description Fill price (that turn's price), whole KRW / 체결가(그 턴 가격), 원 단위 정수
+             */
+            fillPrice: string;
+            /**
+             * Format: decimal
+             * @description Amount (fill price × quantity), whole KRW / 대금(체결가 × 수량), 원 단위 정수
+             */
+            notional: string;
+            /**
+             * Format: decimal
+             * @description Fee, whole KRW / 수수료, 원 단위 정수
+             */
+            fee: string;
+            /**
+             * Format: decimal
+             * @description Cash balance after the fill, whole KRW / 체결 뒤 현금 잔액, 원 단위 정수
+             */
+            cashBalance: string;
+            /**
+             * Format: int32
+             * @description Quantity held after the fill / 체결 뒤 보유 수량
+             */
+            holdingQuantity: number;
+            /**
+             * Format: decimal
+             * @description Average cost after the fill (fee excluded), 4 decimal places / 체결 뒤 평균단가(수수료 제외), 소수 4자리
+             */
+            avgPrice: string;
+            /**
+             * Format: decimal
+             * @description Realized P&L (fill price − average cost just before the fill) × quantity, a string with 4 decimal places, can be negative. null for a buy
+             *
+             *     실현 손익(체결가 − 체결 직전 평균단가) × 수량, 소수 4자리 문자열, 음수 가능. 매수는 null
+             */
+            realizedPnl: string | null;
+            /** @description Declared position of this asset's span (the span just closed if everything was sold) / 이 종목의 구간 선언 포지션(전량 매도면 방금 닫은 구간) */
+            declaredPosition: components["schemas"]["Position"];
+            /**
+             * Format: int64
+             * @description Identifier of the last formation change of that turn. null if there was no change / 그 턴의 마지막 전술 변경 식별자. 변경이 없으면 null
+             */
+            formationChangeId: number | null;
+        };
+        /** @description The current turn before the advance is the idempotency key / 전환 전의 현재 턴이 멱등성 열쇠다 */
+        AdvanceTurnRequest: {
+            /**
+             * Format: int32
+             * @description The current turn before the advance. 409 if it differs from the season's current turn / 전환 전의 현재 턴. 시즌의 현재 턴과 다르면 409
+             */
+            expectedTurnNo: number;
+        };
+        /**
+         * @description Values of the stored turn row and the ratios computed from them. The advance-turn response and the turn lookup have the same shape. The sum of the four shares can differ from 1 by at most 2e-8, and status and pathLength are the season's values now. targetFormation is the target at the start of that turn. Reconciliation attempt number, status, seed, path, month block, year-month and return kind are not included.
+         *
+         *     저장한 턴 행의 값과 거기서 계산한 비율. 턴 전환 응답과 턴 조회가 같은 형이다. 비중 4개의 합은 1과 최대 2e-8 다를 수 있고, status·pathLength 는 시즌의 지금 값이다. targetFormation 은 그 턴 시작 시점의 목표다. 대사 시도 번호·상태·시드·경로·월 블록·연월·수익률 종류는 싣지 않는다
+         */
+        TurnResultDto: {
+            /**
+             * Format: int64
+             * @description Season identifier / 시즌 식별자
+             */
+            seasonId: number;
+            /**
+             * Format: int32
+             * @description The turn of this result (in the advance response, the turn just applied = the new current turn)
+             *
+             *     이 결과의 턴(전환 응답에서는 방금 적용된 턴 = 새 현재 턴)
+             */
+            turnNo: number;
+            /** @description FINISHED if it was the last turn / 마지막 턴이면 FINISHED */
+            status: components["schemas"]["SeasonStatus"];
+            /**
+             * Format: int32
+             * @description Path length (number of turns) / 경로 길이(턴 수)
+             */
+            pathLength: number;
+            /**
+             * Format: decimal
+             * @description Cash balance, whole KRW / 현금 잔액, 원 단위 정수
+             */
+            cashBalance: string;
+            /**
+             * Format: decimal
+             * @description Holdings valuation, whole KRW / 보유 평가액, 원 단위 정수
+             */
+            holdingsValue: string;
+            /**
+             * Format: decimal
+             * @description Total valuation, whole KRW / 총 평가액, 원 단위 정수
+             */
+            totalValue: string;
+            /**
+             * Format: decimal
+             * @description Goalkeeper valuation (cash included), whole KRW / 골키퍼 평가액(현금 포함), 원 단위 정수
+             */
+            goalkeeperValue: string;
+            /**
+             * Format: decimal
+             * @description Defender valuation, whole KRW / 수비수 평가액, 원 단위 정수
+             */
+            defenderValue: string;
+            /**
+             * Format: decimal
+             * @description Midfielder valuation, whole KRW / 미드필더 평가액, 원 단위 정수
+             */
+            midfielderValue: string;
+            /**
+             * Format: decimal
+             * @description Attacker valuation, whole KRW / 공격수 평가액, 원 단위 정수
+             */
+            forwardValue: string;
+            /**
+             * Format: decimal
+             * @description Cumulative drawdown (0 or less), 8 decimal places / 누적 낙폭(0 이하), 소수 8자리
+             */
+            drawdown: string;
+            /**
+             * Format: decimal
+             * @description Total valuation of the previous turn (initial capital at turn 1), whole KRW / 직전 턴의 총 평가액(1턴이면 초기 자금), 원 단위 정수
+             */
+            previousTotalValue: string;
+            /**
+             * Format: decimal
+             * @description Total valuation − previous total valuation (can be negative), whole KRW / 총 평가액 − 직전 총 평가액(음수 가능), 원 단위 정수
+             */
+            valueChange: string;
+            /**
+             * Format: decimal
+             * @description Period return = change ÷ previous total valuation, 8 decimal places / 기간 수익률 = 변화 ÷ 직전 총 평가액, 소수 8자리
+             */
+            periodReturn: string;
+            /**
+             * Format: decimal
+             * @description Risk limit (0 or less), 8 decimal places / 위험 선언(0 이하), 소수 8자리
+             */
+            riskLimit: string;
+            /**
+             * Format: decimal
+             * @description Room to the risk limit = drawdown − limit, 8 decimal places. 0 or more means inside the limit, negative means it was crossed
+             *
+             *     위험 선언까지의 여유 = 낙폭 − 선언, 소수 8자리. 0 이상이면 선언 안, 음수면 넘었다
+             */
+            riskHeadroom: string;
+            /** @description Whether the drawdown crossed the risk limit (drawdown < limit) / 낙폭이 위험 선언을 넘었는가(낙폭 < 선언) */
+            riskBreached: boolean;
+            /**
+             * Format: decimal
+             * @description Goalkeeper share = valuation ÷ total valuation, 8 decimal places / 골키퍼 비중 = 평가액 ÷ 총 평가액, 소수 8자리
+             */
+            goalkeeperWeight: string;
+            /**
+             * Format: decimal
+             * @description Defender share, 8 decimal places / 수비수 비중, 소수 8자리
+             */
+            defenderWeight: string;
+            /**
+             * Format: decimal
+             * @description Midfielder share, 8 decimal places / 미드필더 비중, 소수 8자리
+             */
+            midfielderWeight: string;
+            /**
+             * Format: decimal
+             * @description Attacker share, 8 decimal places / 공격수 비중, 소수 8자리
+             */
+            forwardWeight: string;
+            targetFormation: components["schemas"]["FormationDto"];
+            /**
+             * Format: decimal
+             * @description Goalkeeper share − target (positive = more than the target), 8 decimal places / 골키퍼 비중 − 목표(양수 = 목표보다 많음), 소수 8자리
+             */
+            goalkeeperGap: string;
+            /**
+             * Format: decimal
+             * @description Defender share − target, 8 decimal places / 수비수 비중 − 목표, 소수 8자리
+             */
+            defenderGap: string;
+            /**
+             * Format: decimal
+             * @description Midfielder share − target, 8 decimal places / 미드필더 비중 − 목표, 소수 8자리
+             */
+            midfielderGap: string;
+            /**
+             * Format: decimal
+             * @description Attacker share − target, 8 decimal places / 공격수 비중 − 목표, 소수 8자리
+             */
+            forwardGap: string;
+            /**
+             * Format: decimal
+             * @description Formation deviation = sum of |share − target| over the positions, 8 decimal places / 포메이션 이탈 = 포지션별 |비중 − 목표|의 합, 소수 8자리
+             */
+            formationDeviation: string;
+        };
+        /** @description Season report / 시즌 성적표 */
+        SeasonReportDto: {
+            /** @description Season status (FINISHED, because only a finished season has a report) / 시즌 상태(끝난 시즌만 성적표를 내므로 FINISHED) */
+            seasonStatus: components["schemas"]["SeasonStatus"];
+            /**
+             * @description Whether the report is final (true for a finished season; an interim report during play comes after the MVP)
+             *
+             *     확정 여부(끝난 시즌이면 true, 진행 중 잠정 성적표는 MVP 이후)
+             */
+            isFinal: boolean;
+            /**
+             * Format: int32
+             * @description Number of reported turns = the last snapshot turn / 보고 턴 수 = 마지막 스냅샷 턴
+             */
+            reportTurns: number;
+            /**
+             * Format: int32
+             * @description Path length (number of turns) / 경로 길이(턴 수)
+             */
+            pathLength: number;
+            /**
+             * Format: int32
+             * @description Pending orders of the reported turn (0 for a finished season) / 보고 턴의 보류 주문 수(끝난 시즌은 0)
+             */
+            pendingOrders: number;
+            /**
+             * Format: int32
+             * @description Pending formation changes of the reported turn (0 for a finished season) / 보고 턴의 보류 전술 변경 수(끝난 시즌은 0)
+             */
+            pendingChanges: number;
+            /**
+             * Format: decimal
+             * @description Initial capital, whole KRW / 초기 자금, 원 단위 정수
+             */
+            initialCash: string;
+            /**
+             * Format: decimal
+             * @description Final total valuation, whole KRW / 최종 총 평가액, 원 단위 정수
+             */
+            finalValue: string;
+            /**
+             * Format: decimal
+             * @description Total return = (final − initial) ÷ initial, 8 decimal places / 총 수익률 = (최종 − 초기) ÷ 초기, 소수 8자리
+             */
+            totalReturn: string;
+            /**
+             * Format: decimal
+             * @description Monthly volatility = sample standard deviation of monthly returns (n − 1), not annualized, 8 decimal places. null for one turn
+             *
+             *     월 변동성 = 월 수익률의 표본 표준편차(n − 1), 연율화하지 않음, 소수 8자리. 한 턴이면 null
+             */
+            monthlyVolatility: string | null;
+            /**
+             * Format: decimal
+             * @description Maximum drawdown (0 or less), 8 decimal places / 최대 낙폭(0 이하), 소수 8자리
+             */
+            maxDrawdown: string;
+            /**
+             * Format: decimal
+             * @description Final valuation of the benchmark (buy and hold of a proxy ETF for the market index), whole KRW
+             *
+             *     기준선(시장 지수 대용 ETF 매수 후 보유)의 최종 평가액, 원 단위 정수
+             */
+            baselineFinalValue: string;
+            /**
+             * Format: decimal
+             * @description Benchmark return, 8 decimal places / 기준선 수익률, 소수 8자리
+             */
+            baselineReturn: string;
+            /**
+             * Format: decimal
+             * @description Excess return = (final − benchmark final) ÷ initial, divided once — not the difference of two returns. 8 decimal places
+             *
+             *     초과 수익률 = (최종 − 기준선 최종) ÷ 초기, 한 번 나눔 — 두 수익률의 차가 아니다. 소수 8자리
+             */
+            excessReturn: string;
+            /**
+             * Format: decimal
+             * @description Risk limit (0 or less), 8 decimal places / 위험 선언(0 이하), 소수 8자리
+             */
+            riskLimit: string;
+            /**
+             * Format: int32
+             * @description Number of turns where the drawdown crossed the risk limit / 낙폭이 위험 선언을 넘은 턴 수
+             */
+            riskBreachTurns: number;
+            /**
+             * Format: decimal
+             * @description Deepest excess beyond the risk limit (0 or less, 0 if never crossed), 8 decimal places / 위험 선언을 넘은 가장 깊은 정도(0 이하, 넘은 적 없으면 0), 소수 8자리
+             */
+            riskBreachDepth: string;
+            /**
+             * Format: decimal
+             * @description Maximum single-asset share = the maximum over turns of (largest asset value ÷ total valuation) (0 without holdings), 8 decimal places
+             *
+             *     최대 단일 종목 비중 = 턴마다 (가장 큰 종목 가치 ÷ 총 평가액)의 최댓값(보유가 없으면 0), 소수 8자리
+             */
+            maxSingleWeight: string;
+            /**
+             * Format: decimal
+             * @description Total traded amount (fill price × quantity, turn-0 team setup excluded), whole KRW / 매매 대금 합(체결가 × 수량, 0턴 팀 구성 제외), 원 단위 정수
+             */
+            tradeNotional: string;
+            /**
+             * Format: decimal
+             * @description Annualized turnover = 12 × traded amount ÷ sum of per-turn total valuations, 8 decimal places
+             *
+             *     연 환산 회전율 = 12 × 매매 대금 ÷ 턴별 총 평가액 합, 소수 8자리
+             */
+            turnoverAnnual: string;
+            /**
+             * Format: decimal
+             * @description Average formation deviation = exact average over turns of Σ|actual share − target share| (divided once by the common denominator), 8 decimal places
+             *
+             *     포메이션 이탈 평균 = 턴마다 Σ|실제 비중 − 목표 비중|의 정확한 평균(공통 분모로 한 번 나눔), 소수 8자리
+             */
+            formationDeviation: string;
+            /**
+             * Format: decimal
+             * @description Role fit = the exposed value of players whose declared and measured season positions match ÷ the exposed value of measured players, 8 decimal places. null if there is no measured exposure.
+             *
+             *     역할 수행 = 선언과 시즌 실측 포지션이 같은 선수의 노출 가치 ÷ 실측된 선수의 노출 가치, 소수 8자리. 실측된 노출이 없으면 null
+             */
+            roleFit: string | null;
+            /**
+             * Format: int32
+             * @description Number of exposed assets whose position was measured / 실측 포지션이 나온 노출 종목 수
+             */
+            rolePlayersJudged: number;
+            /**
+             * Format: int32
+             * @description Number of exposed assets that could not be measured for lack of samples / 표본 부족으로 실측하지 못한 노출 종목 수
+             */
+            rolePlayersUnjudged: number;
+            /**
+             * Format: decimal
+             * @description Encouragement share = traded amount from trades initiated through rankings, feed and alerts ÷ traded amount, 8 decimal places. null if the traded amount is 0.
+             *
+             *     독려 비중 = 랭킹·피드·알림에서 시작된 매매 대금 ÷ 매매 대금, 소수 8자리. 매매 대금이 0이면 null
+             */
+            nudgeShare: string | null;
+            /**
+             * Format: decimal
+             * @description Same-turn encouragement share = encouraged traded amount whose ranking or feed turn equals the order turn ÷ traded amount, 8 decimal places. null if the traded amount is 0
+             *
+             *     같은 턴 독려 비중 = 랭킹 또는 피드 턴과 주문 턴이 같은 독려 매매 대금 ÷ 매매 대금, 소수 8자리. 매매 대금이 0이면 null
+             */
+            nudgeSameTurnShare: string | null;
+            /**
+             * Format: decimal
+             * @description Total fees (turn-0 team setup included), whole KRW / 수수료 합(0턴 팀 구성 포함), 원 단위 정수
+             */
+            totalFee: string;
+            /**
+             * Format: decimal
+             * @description Turn-0 team setup fees (buys and sells), whole KRW / 0턴 팀 구성 수수료(매수·매도 모두), 원 단위 정수
+             */
+            teamFee: string;
+            /**
+             * Format: decimal
+             * @description Total fees of fills linked to a formation change, whole KRW / 전술 변경에 연결된 체결의 수수료 합, 원 단위 정수
+             */
+            formationChangeFee: string;
+            /**
+             * Format: decimal
+             * @description Encouragement portion of platform revenue = fees from trades initiated through rankings and alerts, whole KRW.
+             *
+             *     플랫폼 수익 중 독려 몫 = 랭킹·알림에서 시작된 매매의 수수료, 원 단위 정수
+             */
+            platformNudgeFee: string;
+            /**
+             * Format: int32
+             * @description Number of formation changes (in the report range) / 전술 변경 수(보고 범위)
+             */
+            formationChanges: number;
+            /**
+             * Format: int32
+             * @description Number of orders linked to a formation change / 전술 변경에 연결된 주문 수
+             */
+            formationChangeOrders: number;
+            /**
+             * Format: int32
+             * @description Number of formation changes with no linked order / 연결된 주문이 없는 전술 변경 수
+             */
+            changesWithoutOrders: number;
+            /**
+             * Format: int32
+             * @description Number of recorded reconciliation mismatch rows (recovered attempts included) / 기록된 대사 불일치 행 수(복구된 시도 포함)
+             */
+            reconMismatchRows: number;
+            /**
+             * Format: int32
+             * @description Number of turn-advance reconciliation bundles (17 rows per turn and attempt) / 턴 전환 대사 묶음 수(턴·시도마다 17행)
+             */
+            reconTurnBundles: number;
+            /**
+             * Format: int32
+             * @description Number of manual reconciliation bundles (15 rows per turn and attempt) / 수동 대사 묶음 수(턴·시도마다 15행)
+             */
+            reconManualBundles: number;
+            /**
+             * Format: int32
+             * @description Number of reconciliation rows for turns beyond the path length / 경로 길이를 넘는 턴의 대사 행 수
+             */
+            reconOutOfRangeRows: number;
+        };
+        /**
+         * @description Season review for a finished season. Month block number, event number, event key, reference date, member number and times are not included
+         *
+         *     끝난 시즌의 복기. 월 블록 번호·사건 번호·사건 키·기준일·회원 번호·시각은 싣지 않는다
+         */
+        SeasonReviewDto: {
+            /** @description Season status (FINISHED, because only a finished season has a season review) / 시즌 상태(끝난 시즌만 복기를 내므로 FINISHED) */
+            seasonStatus: components["schemas"]["SeasonStatus"];
+            /**
+             * Format: int32
+             * @description Path length (number of turns) / 경로 길이(턴 수)
+             */
+            pathLength: number;
+            /**
+             * Format: int32
+             * @description The turn that was given up. null if the season was not given up / 포기한 턴. 포기하지 않았으면 null
+             */
+            abandonedTurnNo: number | null;
+            /** @description Path seed (decimal string of a 64-bit integer) / 경로 시드(64비트 정수의 10진 문자열) */
+            seed: string;
+            /** @description Engine version that built the path / 경로를 만든 엔진 버전 */
+            engineVersion: string;
+            /**
+             * Format: date
+             * @description Data snapshot date (yyyy-MM-dd) / 데이터 스냅샷 날짜(yyyy-MM-dd)
+             */
+            dataSnapshotDate: string;
+            /** @description In turn-number order (1..path length) / 턴 번호 순서(1..경로 길이) */
+            turns: components["schemas"]["ReviewTurnDto"][];
+            /** @description Formation-change history (in change order). An empty list if there is none / 전술 변경 기록(변경 순서). 없으면 빈 목록 */
+            formationChanges: components["schemas"]["FormationChangeDto"][];
+        };
+        ReviewTurnDto: {
+            /**
+             * Format: int32
+             * @description Turn number (from 1) / 턴 번호(1부터)
+             */
+            turnNo: number;
+            /** @description The real year-month used in this turn (yyyy-MM) / 이 턴에 쓰인 실제 연월(yyyy-MM) */
+            yearMonth: string;
+            /** @description One-line summary of that month. null if there is none / 그 달의 한 줄 요약. 없으면 null */
+            eventSummary: string | null;
+            /** @description Event tags of that month (in event key order). An empty list if there are none / 그 달의 사건 태그(사건 키 순서). 없으면 빈 목록 */
+            events: components["schemas"]["ReviewEventDto"][];
+        };
+        ReviewEventDto: {
+            category: components["schemas"]["EventCategory"];
+            /** @description Event kind / 사건 유형 */
+            eventType: string;
+            phase: components["schemas"]["EventPhase"];
+            /** @description Real name / 실제 이름 */
+            title: string;
+            /** @description Name given later and hindsight assessment. null if there is none / 나중에 붙은 이름·사후 평가. 없으면 null */
+            hindsight: string | null;
+            /** @description URL or bibliography / URL 또는 서지 */
+            source: string;
+        };
+        /**
+         * @description Holdings of the current turn × that turn's prices (a live value that reflects this turn's trades immediately). In a turn without trades, the total, holdings valuation and valuation per position equal the turn result of that turn. currentFormation is the formation applied now. The sum of the four shares can differ from 1 by at most 2e-8. Seed, path, month block, year-month and return kind are not included.
+         *
+         *     현재 턴의 보유 × 그 턴 가격(이번 턴의 매매가 바로 반영되는 실시간 값). 매매가 없는 턴이면 총액·보유 평가액·포지션별 평가액이 그 턴의 턴 결과와 같다. currentFormation 은 지금 적용 중인 포메이션이다. 비중 4개의 합은 1과 최대 2e-8 다를 수 있다. 시드·경로·월 블록·연월·수익률 종류는 싣지 않는다
+         */
+        HoldingsDto: {
+            /**
+             * Format: int64
+             * @description Season identifier / 시즌 식별자
+             */
+            seasonId: number;
+            /**
+             * Format: int32
+             * @description The season's current turn (the turn the prices are based on) / 시즌의 현재 턴(가격 기준 턴)
+             */
+            turnNo: number;
+            /**
+             * Format: decimal
+             * @description Cash balance (now), whole KRW / 현금 잔액(지금), 원 단위 정수
+             */
+            cashBalance: string;
+            /**
+             * Format: decimal
+             * @description Holdings valuation = Σ quantity × current turn price, whole KRW / 보유 평가액 = Σ 수량 × 현재 턴 가격, 원 단위 정수
+             */
+            holdingsValue: string;
+            /**
+             * Format: decimal
+             * @description Total valuation = cash + holdings valuation, whole KRW / 총 평가액 = 현금 + 보유 평가액, 원 단위 정수
+             */
+            totalValue: string;
+            /**
+             * Format: decimal
+             * @description Goalkeeper valuation (cash included, total − the other three), whole KRW / 골키퍼 평가액(현금 포함, 총액 − 나머지 셋), 원 단위 정수
+             */
+            goalkeeperValue: string;
+            /**
+             * Format: decimal
+             * @description Defender valuation, whole KRW / 수비수 평가액, 원 단위 정수
+             */
+            defenderValue: string;
+            /**
+             * Format: decimal
+             * @description Midfielder valuation, whole KRW / 미드필더 평가액, 원 단위 정수
+             */
+            midfielderValue: string;
+            /**
+             * Format: decimal
+             * @description Attacker valuation, whole KRW / 공격수 평가액, 원 단위 정수
+             */
+            forwardValue: string;
+            /**
+             * Format: decimal
+             * @description Goalkeeper share = valuation ÷ total valuation, 8 decimal places / 골키퍼 비중 = 평가액 ÷ 총 평가액, 소수 8자리
+             */
+            goalkeeperWeight: string;
+            /**
+             * Format: decimal
+             * @description Defender share, 8 decimal places / 수비수 비중, 소수 8자리
+             */
+            defenderWeight: string;
+            /**
+             * Format: decimal
+             * @description Midfielder share, 8 decimal places / 미드필더 비중, 소수 8자리
+             */
+            midfielderWeight: string;
+            /**
+             * Format: decimal
+             * @description Attacker share, 8 decimal places / 공격수 비중, 소수 8자리
+             */
+            forwardWeight: string;
+            currentFormation: components["schemas"]["FormationDto"];
+            /**
+             * Format: decimal
+             * @description Goalkeeper share − current formation (positive = more than the target), 8 decimal places / 골키퍼 비중 − 현재 포메이션(양수 = 목표보다 많음), 소수 8자리
+             */
+            goalkeeperGap: string;
+            /**
+             * Format: decimal
+             * @description Defender share − current formation, 8 decimal places / 수비수 비중 − 현재 포메이션, 소수 8자리
+             */
+            defenderGap: string;
+            /**
+             * Format: decimal
+             * @description Midfielder share − current formation, 8 decimal places / 미드필더 비중 − 현재 포메이션, 소수 8자리
+             */
+            midfielderGap: string;
+            /**
+             * Format: decimal
+             * @description Attacker share − current formation, 8 decimal places / 공격수 비중 − 현재 포메이션, 소수 8자리
+             */
+            forwardGap: string;
+            /**
+             * Format: decimal
+             * @description Formation deviation = sum of |share − current formation| over the positions, 8 decimal places
+             *
+             *     포메이션 이탈 = 포지션별 |비중 − 현재 포메이션|의 합, 소수 8자리
+             */
+            formationDeviation: string;
+            /** @description Holdings with quantity 1 or more (ascending asset number) / 수량 1 이상인 보유(종목 번호 오름차순) */
+            holdings: components["schemas"]["HoldingDto"][];
+        };
+        /**
+         * @description One held asset. The asset name is not included — link it by assetId from the pool response
+         *
+         *     보유 한 종목. 종목 이름은 싣지 않는다 — 풀 응답의 assetId 로 잇는다
+         */
+        HoldingDto: {
+            /**
+             * Format: int64
+             * @description Asset identifier (the same as assetId in the pool response) / 종목 식별자(풀 응답의 assetId 와 같다)
+             */
+            assetId: number;
+            /**
+             * Format: int32
+             * @description Quantity held (1 or more) / 보유 수량(1 이상)
+             */
+            quantity: number;
+            /**
+             * Format: decimal
+             * @description Average cost (fee excluded), 4 decimal places / 평균단가(수수료 제외), 소수 4자리
+             */
+            avgPrice: string;
+            /** @description Declared position of the open span / 열린 구간의 선언 포지션 */
+            declaredPosition: components["schemas"]["Position"];
+            /**
+             * Format: decimal
+             * @description Current turn price, whole KRW / 현재 턴 가격, 원 단위 정수
+             */
+            price: string;
+            /**
+             * Format: decimal
+             * @description Valuation = quantity × current turn price, whole KRW / 평가액 = 수량 × 현재 턴 가격, 원 단위 정수
+             */
+            value: string;
+            /**
+             * Format: decimal
+             * @description Asset share = valuation ÷ total valuation (cash included), 8 decimal places / 종목 비중 = 평가액 ÷ 총 평가액(현금 포함), 소수 8자리
+             */
+            weight: string;
+        };
+        /** @enum {string} */
+        OrderSide: "BUY" | "SELL";
+        /** @enum {string} */
+        SeasonStatus: "IN_PROGRESS" | "ABANDONING" | "FINISHED";
+        /** @enum {string} */
+        EventCategory: "GEOPOLITICS" | "TRADE" | "POLITICS" | "SUPPLY_SHOCK" | "FINANCIAL" | "POLICY" | "HEALTH";
+        /** @enum {string} */
+        EventPhase: "START" | "ONGOING" | "END";
+        /** @enum {string} */
+        Market: "KR" | "US";
+        /** @enum {string} */
+        AssetType: "STOCK" | "ETF";
+        /** @enum {string} */
+        ReturnBasis: "PRICE" | "TOTAL";
+        /** @enum {string} */
+        AssetGroupKind: "SECTOR" | "ASSET_CLASS";
+        /** @enum {string} */
+        Position: "GOALKEEPER" | "DEFENDER" | "MIDFIELDER" | "FORWARD_TARGET" | "FORWARD_BREAKOUT" | "FORWARD_DEFENSIVE";
+        /** @description RFC 9457 problem details + a top-level code. type is omitted because it is about:blank / RFC 9457 문제 상세 + 최상위 code. type은 about:blank라 생략된다 */
+        Problem: {
+            type?: string;
+            title: string;
+            /** Format: int32 */
+            status: number;
+            /** @description Fixed Korean sentence. It never carries the rejected value or amount / 고정 한국어 문장. 거부된 값·금액을 싣지 않는다 */
+            detail: string;
+            instance: string;
+            code: components["schemas"]["ErrorCode"];
+            /** @description Only for @Valid violations / @Valid 위반일 때만 */
+            errors?: components["schemas"]["FieldViolation"][];
+        };
+        FieldViolation: {
+            field: string;
+            /** @description Simple name of the constraint annotation (for example Min) / 제약 애너테이션 단순 이름(예 Min) */
+            reason: string;
+        };
+        /** @enum {string} */
+        ErrorCode: "INVALID_ARGUMENT" | "NOT_FOUND" | "METHOD_NOT_ALLOWED" | "NOT_ACCEPTABLE" | "UNSUPPORTED_MEDIA_TYPE" | "INTERNAL_ERROR" | "POOL_NOT_LOADED" | "POOL_NOT_JUDGED" | "PATH_TOO_LONG" | "SEASON_LIMIT" | "TURN_NOT_REACHED" | "SEASON_NOT_FINISHED" | "SEASON_NOT_ACTIVE" | "TURN_MISMATCH" | "LEDGER_MISMATCH" | "LINEUP_MISMATCH" | "ASSET_NOT_IN_POOL" | "INSUFFICIENT_CASH" | "INSUFFICIENT_HOLDING" | "POSITION_CONFLICT" | "POSITION_REQUIRED" | "INVALID_FORMATION" | "EVENT_TIME_CONFLICT" | "MEMBER_UNAVAILABLE" | "RECONCILIATION_FAILED" | "FORBIDDEN";
+    };
+    responses: {
+        /**
+         * @description An unexpected server error — INTERNAL_ERROR. The message is a fixed sentence that carries no exception content (the content goes to the server log only)
+         *
+         *     예상하지 못한 서버 오류 — INTERNAL_ERROR. 예외 내용은 싣지 않는 고정 문장이다(내용은 서버 로그에만)
+         */
+        InternalError: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
+    };
+    parameters: never;
+    requestBodies: never;
+    headers: never;
+    pathItems: never;
+}
+export type $defs = Record<string, never>;
+export interface operations {
+    getPool: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Pool on the reference date / 기준일 풀 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PoolDto"];
+                };
+            };
+            /**
+             * @description The pool is not ready — POOL_NOT_LOADED (no rows), POOL_NOT_JUDGED (some assets have no judgment)
+             *
+             *     풀이 준비되지 않았다 — POOL_NOT_LOADED(행 없음), POOL_NOT_JUDGED(판정 빈 종목 있음)
+             */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listSeasons: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Season list / 시즌 목록 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeasonListDto"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+            /** @description The current member is unknown — MEMBER_UNAVAILABLE / 현재 회원을 알 수 없다 — MEMBER_UNAVAILABLE */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    startSeason: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StartSeasonRequest"];
+            };
+        };
+        responses: {
+            /** @description The season that was started / 시작한 시즌 */
+            201: {
+                headers: {
+                    /** @description Address of the new season / 새 시즌의 주소 */
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeasonDto"];
+                };
+            };
+            /** @description The input is invalid — INVALID_ARGUMENT / 입력이 틀렸다 — INVALID_ARGUMENT */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /**
+             * @description A season cannot be started now — POOL_NOT_LOADED, POOL_NOT_JUDGED, SEASON_LIMIT (3 in progress)
+             *
+             *     지금은 시작할 수 없다 — POOL_NOT_LOADED, POOL_NOT_JUDGED, SEASON_LIMIT(진행 중 3개)
+             */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description A path of the requested length cannot be built — PATH_TOO_LONG / 요청한 길이의 경로를 만들 수 없다 — PATH_TOO_LONG */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+            /** @description The current member is unknown — MEMBER_UNAVAILABLE (production, before sign-in) / 현재 회원을 알 수 없다 — MEMBER_UNAVAILABLE(운영, 인증 전) */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    getSeason: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                seasonId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Season / 시즌 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeasonDto"];
+                };
+            };
+            /** @description The season number is not a number — INVALID_ARGUMENT / 시즌 번호가 숫자가 아니다 — INVALID_ARGUMENT */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The season does not exist — NOT_FOUND / 시즌이 없다 — NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+            /** @description The current member is unknown — MEMBER_UNAVAILABLE / 현재 회원을 알 수 없다 — MEMBER_UNAVAILABLE */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    getTurnPrices: {
+        parameters: {
+            query?: {
+                turnNo?: number;
+            };
+            header?: never;
+            path: {
+                seasonId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Prices of that turn / 그 턴의 가격 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TurnPricesDto"];
+                };
+            };
+            /** @description turnNo or the season number is wrong — INVALID_ARGUMENT / turnNo 또는 시즌 번호가 틀렸다 — INVALID_ARGUMENT */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The season does not exist — NOT_FOUND / 시즌이 없다 — NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description That turn has not been played yet — TURN_NOT_REACHED / 아직 진행하지 않은 턴이다 — TURN_NOT_REACHED */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+            /** @description The current member is unknown — MEMBER_UNAVAILABLE / 현재 회원을 알 수 없다 — MEMBER_UNAVAILABLE */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    placeOrder: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                seasonId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlaceOrderRequest"];
+            };
+        };
+        responses: {
+            /** @description Fill result / 체결 결과 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderResultDto"];
+                };
+            };
+            /** @description The input is invalid (quantity 0 or less, declared position on a sell) — INVALID_ARGUMENT / 입력이 틀렸다(수량 0 이하, 매도에 선언 포지션) — INVALID_ARGUMENT */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The season does not exist — NOT_FOUND / 시즌이 없다 — NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /**
+             * @description An order cannot be placed now — SEASON_NOT_ACTIVE, TURN_MISMATCH, LEDGER_MISMATCH, LINEUP_MISMATCH, EVENT_TIME_CONFLICT
+             *
+             *     지금은 주문할 수 없다 — SEASON_NOT_ACTIVE, TURN_MISMATCH, LEDGER_MISMATCH, LINEUP_MISMATCH, EVENT_TIME_CONFLICT
+             */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /**
+             * @description The order content is not acceptable — ASSET_NOT_IN_POOL, INSUFFICIENT_CASH, INSUFFICIENT_HOLDING, POSITION_CONFLICT, POSITION_REQUIRED
+             *
+             *     주문 내용을 받을 수 없다 — ASSET_NOT_IN_POOL, INSUFFICIENT_CASH, INSUFFICIENT_HOLDING, POSITION_CONFLICT, POSITION_REQUIRED
+             */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+            /** @description The current member is unknown — MEMBER_UNAVAILABLE (production, before sign-in) / 현재 회원을 알 수 없다 — MEMBER_UNAVAILABLE(운영, 인증 전) */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    changeFormation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                seasonId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChangeFormationRequest"];
+            };
+        };
+        responses: {
+            /** @description Change result (turn, before, after, reason) / 변경 결과(턴·이전·이후·사유) */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FormationChangeDto"];
+                };
+            };
+            /**
+             * @description The input is invalid (sum ≠ 100, goalkeeper 0, out of range, missing required value, reason over 200 characters, same formation as now) — INVALID_ARGUMENT
+             *
+             *     입력이 틀렸다(합 ≠ 100, 골키퍼 0, 범위 밖, 필수값 누락, 사유 200자 초과, 현재와 같은 포메이션) — INVALID_ARGUMENT
+             */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The season does not exist — NOT_FOUND / 시즌이 없다 — NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /**
+             * @description It cannot be changed now — SEASON_NOT_ACTIVE, TURN_MISMATCH (including turn 0), INVALID_FORMATION, EVENT_TIME_CONFLICT
+             *
+             *     지금은 바꿀 수 없다 — SEASON_NOT_ACTIVE, TURN_MISMATCH(0턴 포함), INVALID_FORMATION, EVENT_TIME_CONFLICT
+             */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+            /** @description The current member is unknown — MEMBER_UNAVAILABLE (production, before sign-in) / 현재 회원을 알 수 없다 — MEMBER_UNAVAILABLE(운영, 인증 전) */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    advanceTurn: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                seasonId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdvanceTurnRequest"];
+            };
+        };
+        responses: {
+            /** @description Turn result / 턴 결과 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TurnResultDto"];
+                };
+            };
+            /** @description The input is invalid — INVALID_ARGUMENT / 입력이 틀렸다 — INVALID_ARGUMENT */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The season does not exist — NOT_FOUND / 시즌이 없다 — NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The turn cannot be advanced now — SEASON_NOT_ACTIVE, TURN_MISMATCH, RECONCILIATION_FAILED / 지금은 넘길 수 없다 — SEASON_NOT_ACTIVE, TURN_MISMATCH, RECONCILIATION_FAILED */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+            /** @description The current member is unknown — MEMBER_UNAVAILABLE (production, before sign-in) / 현재 회원을 알 수 없다 — MEMBER_UNAVAILABLE(운영, 인증 전) */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    getTurn: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                seasonId: number;
+                turnNo: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Turn result / 턴 결과 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TurnResultDto"];
+                };
+            };
+            /** @description turnNo is below 1, or the season or turn number is not a number — INVALID_ARGUMENT / turnNo 가 1 미만이거나 시즌·턴 번호가 숫자가 아니다 — INVALID_ARGUMENT */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The season does not exist — NOT_FOUND / 시즌이 없다 — NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /**
+             * @description That turn has not been played yet — TURN_NOT_REACHED (every number above the current turn; a number beyond the path length gets this code even in a finished season, so clients first check the range against pathLength)
+             *
+             *     아직 진행하지 않은 턴이다 — TURN_NOT_REACHED(현재 턴보다 큰 번호 전부. 경로 길이를 넘는 번호는 끝난 시즌에서도 이 코드이므로 클라이언트는 pathLength 로 범위를 먼저 거른다)
+             */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+            /** @description The current member is unknown — MEMBER_UNAVAILABLE (production, before sign-in) / 현재 회원을 알 수 없다 — MEMBER_UNAVAILABLE(운영, 인증 전) */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    getHoldings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                seasonId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current team / 현재 팀 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HoldingsDto"];
+                };
+            };
+            /** @description The season number is not a number — INVALID_ARGUMENT / 시즌 번호가 숫자가 아니다 — INVALID_ARGUMENT */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The season does not exist — NOT_FOUND / 시즌이 없다 — NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+            /** @description The current member is unknown — MEMBER_UNAVAILABLE (production, before sign-in) / 현재 회원을 알 수 없다 — MEMBER_UNAVAILABLE(운영, 인증 전) */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    getSeasonReport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                seasonId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Season report / 시즌 성적표 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeasonReportDto"];
+                };
+            };
+            /** @description The season number is not a number — INVALID_ARGUMENT / 시즌 번호가 숫자가 아니다 — INVALID_ARGUMENT */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The season does not exist — NOT_FOUND / 시즌이 없다 — NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The season is not finished — SEASON_NOT_FINISHED / 끝나지 않은 시즌이다 — SEASON_NOT_FINISHED */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+            /** @description The current member is unknown — MEMBER_UNAVAILABLE (production, before sign-in) / 현재 회원을 알 수 없다 — MEMBER_UNAVAILABLE(운영, 인증 전) */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    getSeasonReview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                seasonId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Season review / 시즌 복기 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeasonReviewDto"];
+                };
+            };
+            /** @description The season number is not a number — INVALID_ARGUMENT / 시즌 번호가 숫자가 아니다 — INVALID_ARGUMENT */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The season does not exist — NOT_FOUND / 시즌이 없다 — NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The season is not finished — SEASON_NOT_FINISHED / 끝나지 않은 시즌이다 — SEASON_NOT_FINISHED */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+            /** @description The current member is unknown — MEMBER_UNAVAILABLE (production, before sign-in) / 현재 회원을 알 수 없다 — MEMBER_UNAVAILABLE(운영, 인증 전) */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+}
