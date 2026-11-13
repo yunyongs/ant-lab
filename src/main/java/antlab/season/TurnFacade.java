@@ -1,5 +1,7 @@
 package antlab.season;
 
+import antlab.common.error.DomainException;
+import antlab.observability.GameMetrics;
 import antlab.scoring.ReconciliationFailedException;
 import antlab.scoring.ReconciliationLogWriter;
 import antlab.scoring.ReconciliationStatus;
@@ -40,22 +42,33 @@ public class TurnFacade {
 
     private final TurnService turns;
     private final ReconciliationLogWriter logWriter;
+    private final GameMetrics metrics;
 
-    public TurnFacade(TurnService turns, ReconciliationLogWriter logWriter) {
+    public TurnFacade(TurnService turns, ReconciliationLogWriter logWriter, GameMetrics metrics) {
         this.turns = turns;
         this.logWriter = logWriter;
+        this.metrics = metrics;
     }
 
     public TurnResultDto advance(long seasonId, int expectedTurnNo) {
         if (TransactionSynchronizationManager.isActualTransactionActive()) {
             throw new IllegalStateException("턴 전환 퍼사드는 트랜잭션 밖에서만 부른다 — 안에서 부르면 롤백 뒤 기록이 바깥 롤백과 함께 사라진다");
         }
+        TurnResultDto result;
         try {
-            return turns.advance(seasonId, expectedTurnNo);
+            result = turns.advance(seasonId, expectedTurnNo);
         } catch (ReconciliationFailedException failed) {
+            metrics.turnRejected(failed.getCode());
+            metrics.mismatchRules((int) failed.getResults().stream()
+                    .filter(r -> r.status() == ReconciliationStatus.MISMATCH).count());
             recordAfterRollback(failed);
             throw failed;
+        } catch (DomainException rejected) {
+            metrics.turnRejected(rejected.getCode());
+            throw rejected;
         }
+        metrics.turnCommitted();
+        return result;
     }
 
     private void recordAfterRollback(ReconciliationFailedException failed) {
