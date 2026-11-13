@@ -32,3 +32,16 @@ export function openButtonLabel(
   if (season.status === 'ABANDONING') return '시즌 보기';
   return season.currentTurnNo === 0 ? '팀 구성하러 가기' : '이어하기';
 }
+
+export type Position = components['schemas']['Position'];
+
+export const positionLabel = {
+  GOALKEEPER: '골키퍼',
+  DEFENDER: '수비수',
+  MIDFIELDER: '미드필더',
+  FORWARD_TARGET: '공격수·타겟형',
+  FORWARD_BREAKOUT: '공격수·돌파형',
+  FORWARD_DEFENSIVE: '공격수·수비적',
+} as const satisfies Record<Position, string>;
+
+export const POSITIONS = Object.keys(positionLabel) as Position[];
