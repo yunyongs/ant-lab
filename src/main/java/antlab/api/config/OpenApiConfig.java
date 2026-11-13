@@ -102,9 +102,9 @@ public class OpenApiConfig {
                             + "POST /api/v1/auth/login이나 /api/v1/auth/refresh가 준 접근 토큰을 "
                             + "Authorization: Bearer <토큰>으로 보낸다. 15분 동안 쓴다."));
             components.addResponses(UNAUTHENTICATED_RESPONSE, new ApiResponse()
-                    .description("The request has no valid bearer token: missing, expired or wrongly signed — "
+                    .description("The request has no valid bearer token: missing, expired, wrongly signed, or naming no member — "
                             + "UNAUTHENTICATED\n\n"
-                            + "유효한 Bearer 토큰이 없다: 없거나 만료됐거나 서명이 틀렸다 — UNAUTHENTICATED")
+                            + "유효한 Bearer 토큰이 없다: 없거나 만료됐거나 서명이 틀렸거나 없는 회원의 토큰이다 — UNAUTHENTICATED")
                     .content(new Content().addMediaType("application/problem+json",
                             new MediaType().schema(new Schema<>().$ref("#/components/schemas/Problem")))));
             if (openApi.getPaths() == null) {
