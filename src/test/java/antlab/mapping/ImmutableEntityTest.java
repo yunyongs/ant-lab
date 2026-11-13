@@ -38,8 +38,9 @@ class ImmutableEntityTest {
     static final Set<String> APPEND_ONLY = Set.of("SeasonPath", "Turn", "TurnPrice", "FormationChange", "TurnFeed",
             "ReconciliationLog", "Order", "Execution", "CashLedger");
 
-    /** 가변 5개: 상태 변경은 이름 있는 메서드만 한다(setter 없음). 분류를 바꾸려면 이 목록을 고쳐 리뷰에 드러낸다. */
-    static final Set<String> MUTABLE = Set.of("Member", "Season", "Lineup", "CashAccount", "Holding");
+    /** 가변 6개: 상태 변경은 이름 있는 메서드만 한다(setter 없음). 분류를 바꾸려면 이 목록을 고쳐 리뷰에 드러낸다. */
+    static final Set<String> MUTABLE = Set.of("Member", "Season", "Lineup", "CashAccount", "Holding",
+            "RefreshToken");
 
     private List<Class<?>> immutableEntities() {
         return MappingModel.entities(em).stream().filter(c -> c.isAnnotationPresent(Immutable.class)).toList();
@@ -50,7 +51,7 @@ class ImmutableEntityTest {
     }
 
     @Test
-    void 엔티티_분류는_읽기_전용_8_추가_전용_9_가변_5다() {
+    void 엔티티_분류는_읽기_전용_8_추가_전용_9_가변_6이다() {
         assertThat(immutableEntities().stream().map(Class::getSimpleName))
                 .containsExactlyInAnyOrderElementsOf(
                         java.util.stream.Stream.concat(READ_ONLY.stream(), APPEND_ONLY.stream()).toList());

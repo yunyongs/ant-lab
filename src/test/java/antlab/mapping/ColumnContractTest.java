@@ -16,6 +16,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -89,6 +90,8 @@ class ColumnContractTest {
             expect(out, "boolean", db.dataType());
         } else if (t == LocalDate.class) {
             expect(out, "date", db.dataType());
+        } else if (t == UUID.class) {
+            expect(out, "uuid", db.dataType());
         } else if (t == Instant.class) {
             expect(out, "timestamp with time zone", db.dataType());
         } else {
@@ -136,7 +139,7 @@ class ColumnContractTest {
                 .sorted()
                 .toList();
         assertThat(missing).as("엔티티에 빠진 열").isEmpty();
-        assertThat(tables).as("매핑한 표").hasSizeGreaterThanOrEqualTo(22);
+        assertThat(tables).as("매핑한 표").hasSizeGreaterThanOrEqualTo(23);
     }
 
     @Test
