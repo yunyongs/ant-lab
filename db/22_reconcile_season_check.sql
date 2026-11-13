@@ -22,7 +22,7 @@
 -- 이 파일이 INSERT 없이 시험하지 못하는 것 (README 실습 (h)와 격리 DB 의 합성 시즌에서 확인한다): 원장 행 추가, 매도 체결·세금, 전술 변경 사슬·묶기·동시각,
 --       겹친 라인업 구간, 1턴 이후 가격, recon_log 의 시도 번호. 연습 DB 에는 매도·전술 변경 데이터가 없어 규칙 8 매도·15 사슬·16 묶기의 양성은 빈 집합 일치다.
 -- 출력: 건수와 판정만. 가격·수량·금액은 내지 않는다 (04절 단위 사례는 합성 값이라 시세가 아니다). 사례의 diff 값은 일부러 넣은 ±1 이다.
--- 판정 계약 (21 판정 계약에서 복사): ① zz_verdict ② 결과 표 zz_check_result ④ check_eq ⑤ 0절 뒤 멈춤과 판정(표식 2 또는 1) ⑥ 07절 흔적 확인(표식 0)과 마지막 CASE.
+-- 판정 계약 (21 판정 계약에서 복사): ① pg_temp.zz_verdict ② 결과 표 zz_check_result ④ check_eq ⑤ 0절 뒤 멈춤과 판정(표식 2 또는 1) ⑥ 07절 흔적 확인(표식 0)과 마지막 CASE.
 -- 새 문법: 서브트랜잭션으로 "바꿔 보고 되돌리기", 임시 표 LIKE … INCLUDING CONSTRAINTS, jsonb_path_exists 로 JSON 안의 종류 찾기, 함수 정의 바꿔치기(변이) 시험.
 -- 명령줄(psql)이 기준이다. VS Code 에서는 통합 터미널에서 실행한다.
 -- =====================================================================
@@ -31,7 +31,10 @@
 
 -- 판정 표식: 트랜잭션이 되돌아가도 남는 임시 시퀀스 (1 = 미완료 또는 실패, 2 = 00–06절 통과·흔적 확인 대기, 0 = 최종 통과)
 CREATE TEMP SEQUENCE IF NOT EXISTS zz_verdict MINVALUE 0 START 1;
-DO $$ BEGIN PERFORM setval('zz_verdict', 1); END $$;
+DO $$ BEGIN
+    IF to_regclass('pg_temp.zz_verdict') IS NULL THEN RAISE EXCEPTION 'zz_verdict is not a temp sequence'; END IF;
+    PERFORM setval('pg_temp.zz_verdict', 1);
+END $$;
 
 -- 흔적 확인용 스냅샷: 읽거나 일부러 바꿔 보는 표들의 행 수와 identity 마지막 값. 트랜잭션 밖(BEGIN 앞)에서 찍어 ROLLBACK 뒤에도 남는다
 CREATE OR REPLACE FUNCTION pg_temp.zz_snap() RETURNS text
@@ -592,7 +595,7 @@ DECLARE
     v_total integer;
 BEGIN
     SELECT count(*) FILTER (WHERE NOT ok), count(*) INTO v_fail, v_total FROM zz_check_result;
-    PERFORM setval('zz_verdict', CASE WHEN v_fail = 0 AND v_total > 0 THEN 2 ELSE 1 END);
+    PERFORM setval('pg_temp.zz_verdict', CASE WHEN v_fail = 0 AND v_total > 0 THEN 2 ELSE 1 END);
     IF v_fail > 0 THEN
         RAISE EXCEPTION 'P0-16 검증 실패: FAIL % 건 (위의 FAIL 행 목록을 본다)', v_fail;
     END IF;
@@ -616,13 +619,13 @@ BEGIN
          + (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.proname LIKE 'zz\_%') INTO v_zz;
     SELECT count(*) INTO v_fk FROM pg_constraint WHERE conname = 'fk_orders_formation_change' AND conrelid = 'public.orders'::regclass;
     IF v_before IS DISTINCT FROM v_after OR v_zz <> 0 OR v_fk <> 1 THEN
-        PERFORM setval('zz_verdict', 1);
+        PERFORM setval('pg_temp.zz_verdict', 1);
         RAISE EXCEPTION E'P0-16 흔적 확인 실패: 실행 전 [%]\n실행 후 [%], public 의 zz_ 객체 % (기대 0), fk_orders_formation_change % (기대 1)', v_before, v_after, v_zz, v_fk;
     END IF;
     -- 단언을 모두 통과했고 00–06절도 통과(2)였을 때만 최종 통과(0)로 바꾼다.
-    IF (SELECT last_value FROM zz_verdict) = 2 THEN
-        PERFORM setval('zz_verdict', 0);
+    IF (SELECT last_value FROM pg_temp.zz_verdict) = 2 THEN
+        PERFORM setval('pg_temp.zz_verdict', 0);
     END IF;
 END $$;
 
-SELECT CASE WHEN (SELECT last_value FROM zz_verdict) = 0 THEN 'PASS' ELSE 'FAIL' END AS p0_16_check;
+SELECT CASE WHEN (SELECT last_value FROM pg_temp.zz_verdict) = 0 THEN 'PASS' ELSE 'FAIL' END AS p0_16_check;
