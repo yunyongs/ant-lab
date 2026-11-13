@@ -273,10 +273,17 @@ spring:
   lifecycle:
     timeout-per-shutdown-phase: 20s
 management:
-  endpoints.web.exposure.include: health
+  server.port: ${ANTLAB_MANAGEMENT_PORT:8081}   # metrics and Actuator only here; local binds 127.0.0.1
+  endpoints.web.exposure.include: health,prometheus
   endpoint.health:
     probes.enabled: true
+    probes.add-additional-paths: true   # /livez, /readyz on the API port
     group.readiness.include: readinessState,db   # liveness 는 기본(DB 가 죽어도 재시작하지 않는다)
+  metrics:
+    tags.application: antlab-api
+    distribution.percentiles-histogram."[http.server.requests]": true
+    distribution.minimum-expected-value."[http.server.requests]": 5ms
+    distribution.maximum-expected-value."[http.server.requests]": 10s
 springdoc:                                         # 공통은 끔, local 에서만 켠다
   api-docs.enabled: false
   swagger-ui.enabled: false
@@ -313,7 +320,7 @@ Spring 프로젝트를 만들 때(Phase 0 API, P0-22·P0-24) 아래를 지킨다
 
 1. `application.yml`은 `${ANTLAB_…:기본값}` 자리표시자와 로컬 기본값만 두고, 운영 값은 환경 변수·configtree(`prod`의 `spring.config.import=optional:configtree:/run/secrets/`, 파일 이름이 속성 이름 — 위 §10, P0-24에서 임시 파일로 매핑·우선순위를 확인)로 준다. `application-prod.yml`에는 비밀값을 쓰지 않는다.
 2. 프로필은 위의 `local`·`test`·`prod` 셋이고, 컨테이너에서는 `SPRING_PROFILES_ACTIVE=prod`다. `prod`는 SQL 로그를 끄고 `open-in-view: false`를 유지한다.
-3. Actuator는 `health`만 노출하고 probes(liveness·readiness)를 `management.endpoint.health.probes.enabled=true`로 **명시해** 켠다(3.x는 Kubernetes 밖에서 자동으로 켜지지 않는다 — [DEPLOY.md](DEPLOY.md) §8. 4.1.2 문서는 자동으로 켜진다고 설명하지만, 이 설정을 명시해 동작을 고정한다 — 명시했기 때문에 자동 켜짐 여부를 독립적으로 확인하지는 못했고, `ActuatorProbesTest`가 liveness·readiness 200을 확인한다). `info`는 HTTP로 열지 않고, git SHA는 OPS의 이미지 태그(SHA)·metadata로 추적한다([DEPLOY.md](DEPLOY.md) §8).
+3. The Actuator exposes `health` and `prometheus` on the management port `8081` only (`management.server.port`, MON-01); the API port keeps `/livez` and `/readyz` (`probes.add-additional-paths=true`). MockMvc tests cannot reach the management port; Actuator tests use real ports (`ActuatorProbesTest`). Probes stay enabled explicitly with `management.endpoint.health.probes.enabled=true` (3.x does not enable them outside Kubernetes — [DEPLOY.md](DEPLOY.md) §8; the 4.1.2 docs say they are on by default, but the setting pins the behaviour, so auto-enable was not checked separately; `ActuatorProbesTest` checks liveness and readiness 200). `info` is not exposed over HTTP; the git SHA is tracked by the OPS image tag and metadata ([DEPLOY.md](DEPLOY.md) §8). When Spring Security is added (SEC-02/SEC-04), `/livez` and `/readyz` on the API port stay public, and the management port stays scrapeable without a token and exposes only `health,prometheus`; `ActuatorProbesTest` and `PrometheusEndpointTest` must stay green. / Actuator는 관리 포트 `8081`에만 `health`와 `prometheus`를 노출한다(`management.server.port`, MON-01). API 포트에는 `/livez`·`/readyz`만 남긴다(`probes.add-additional-paths=true`). MockMvc 시험은 관리 포트에 닿지 못하므로 Actuator 시험은 실제 포트로 한다(`ActuatorProbesTest`). probes(liveness·readiness)를 `management.endpoint.health.probes.enabled=true`로 **명시해** 켠다(3.x는 Kubernetes 밖에서 자동으로 켜지지 않는다 — [DEPLOY.md](DEPLOY.md) §8. 4.1.2 문서는 자동으로 켜진다고 설명하지만, 이 설정을 명시해 동작을 고정한다 — 명시했기 때문에 자동 켜짐 여부를 독립적으로 확인하지는 못했고, `ActuatorProbesTest`가 liveness·readiness 200을 확인한다). `info`는 HTTP로 열지 않고, git SHA는 OPS의 이미지 태그(SHA)·metadata로 추적한다([DEPLOY.md](DEPLOY.md) §8). Spring Security를 더할 때(SEC-02·SEC-04) API 포트의 `/livez`·`/readyz`는 공개로 두고, 관리 포트는 토큰 없이 수집할 수 있게 두되 `health,prometheus`만 노출한다. `ActuatorProbesTest`·`PrometheusEndpointTest`는 계속 통과해야 한다.
 4. 그레이스풀 셧다운: 4.1.2는 기본 `graceful`이고(설정 메타데이터 확인, `server.shutdown: graceful`도 명시) `spring.lifecycle.timeout-per-shutdown-phase=20s`로 둔다(`SettingsAssertionTest`).
 5. 프록시 뒤: `server.forward-headers-strategy=framework`(Caddy의 `X-Forwarded-*`로 HTTPS·원래 IP 인식 — 속성 이름은 4.1.2 설정 메타데이터로 확인했고 `prod` 문서에 있다).
 6. Flyway는 시작 때 적용하고 `ddl-auto: validate`를 유지한다.

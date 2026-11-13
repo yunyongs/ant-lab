@@ -63,18 +63,33 @@ springdoc:
     enabled: false
 
 management:
+  server:
+    # Actuator and metrics live on this port only; compose never publishes it (docs/DEPLOY.md §5).
+    port: ${ANTLAB_MANAGEMENT_PORT:8081}
   endpoints:
     web:
       exposure:
-        include: health
+        include: health,prometheus
   endpoint:
     health:
       probes:
         enabled: true
+        # /livez and /readyz on the API port, so the container healthcheck needs no management port.
+        add-additional-paths: true
       group:
         # liveness 는 기본(DB 가 죽어도 재시작하지 않음), readiness 는 DB 가 없으면 트래픽을 받지 않음
         readiness:
           include: readinessState,db
+  metrics:
+    tags:
+      application: antlab-api
+    distribution:
+      percentiles-histogram:
+        "[http.server.requests]": true
+      minimum-expected-value:
+        "[http.server.requests]": 5ms
+      maximum-expected-value:
+        "[http.server.requests]": 10s
 
 ---
 spring:
@@ -84,6 +99,10 @@ spring:
 # 개발 엔드포인트는 이 컴퓨터에서만 부른다(고정 헤더 관문과 함께 이중 제한).
 server:
   address: 127.0.0.1
+management:
+  server:
+    # Boot does not inherit server.address for the management port.
+    address: 127.0.0.1
 logging:
   level:
     org.hibernate.SQL: debug

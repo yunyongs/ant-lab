@@ -63,6 +63,7 @@ services:
       - egress
     healthcheck:
       # readiness: 앱이 요청을 받을 수 있고 DB 가 붙어 있는가. 표본 적재 완료를 뜻하지 않는다.
+      # /readyz = readiness group on the API port (probes.add-additional-paths); Actuator and metrics are on 8081, never published.
       test:
         - CMD
         - curl
@@ -73,7 +74,7 @@ services:
         - "2"
         - --max-time
         - "35"
-        - http://127.0.0.1:8080/actuator/health/readiness
+        - http://127.0.0.1:8080/readyz
       interval: 10s
       timeout: 40s
       retries: 3
