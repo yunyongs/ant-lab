@@ -12,19 +12,20 @@ public record ReviewEventDto(
         @Schema(requiredMode = RequiredMode.REQUIRED)
         EventCategory category,
         @ExposedFrom("month_event.event_type")
-        @Schema(requiredMode = RequiredMode.REQUIRED, description = "사건 유형")
+        @Schema(requiredMode = RequiredMode.REQUIRED, description = "Event kind / 사건 유형")
         String eventType,
         @ExposedFrom("month_event.phase")
         @Schema(requiredMode = RequiredMode.REQUIRED)
         EventPhase phase,
         @ExposedFrom("month_event.title")
-        @Schema(requiredMode = RequiredMode.REQUIRED, description = "실제 이름")
+        @Schema(requiredMode = RequiredMode.REQUIRED, description = "Real name / 실제 이름")
         String title,
         @ExposedFrom("month_event.hindsight")
-        @Schema(requiredMode = RequiredMode.REQUIRED, types = {"string", "null"}, description = "나중에 붙은 이름·사후 평가. 없으면 null")
+        @Schema(requiredMode = RequiredMode.REQUIRED, types = {"string", "null"}, description = "Name given later and "
+                + "hindsight assessment. null if there is none / 나중에 붙은 이름·사후 평가. 없으면 null")
         String hindsight,
         @ExposedFrom("month_event.source")
-        @Schema(requiredMode = RequiredMode.REQUIRED, description = "URL 또는 서지")
+        @Schema(requiredMode = RequiredMode.REQUIRED, description = "URL or bibliography / URL 또는 서지")
         String source) {
 
     static ReviewEventDto from(RevealedEventRow r) {

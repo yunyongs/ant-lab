@@ -13,93 +13,128 @@ import java.math.BigDecimal;
  * {@code targetFormation} 은 그 턴 <b>시작 시점</b>의 목표(그 턴 이전의 마지막 전술 변경의 이후 값, 없으면 시작 포메이션)다.
  * 대사 시도 번호·상태·시드·경로·월 블록·연월·수익률 종류는 싣지 않는다.
  */
-@Schema(description = "저장한 턴 행의 값과 거기서 계산한 비율. 턴 전환 응답과 턴 조회가 같은 형이다. 비중 4개의 합은 1과 최대 2e-8 다를 수 있고, status·pathLength 는 시즌의 지금 값이다. targetFormation 은 그 턴 시작 시점의 목표다. 대사 시도 번호·상태·시드·경로·월 블록·연월·수익률 종류는 싣지 않는다")
+@Schema(description = "Values of the stored turn row and the ratios computed from them. The advance-turn "
+        + "response and the turn lookup have the same shape. The sum of the four shares can differ from 1 by at "
+        + "most 2e-8, and status and pathLength are the season's values now. targetFormation is the "
+        + "target at the start of that turn. Reconciliation attempt number, status, seed, path, "
+        + "month block, year-month and return kind are not included.\n"
+        + "\n"
+        + "저장한 턴 행의 값과 거기서 계산한 비율. 턴 전환 응답과 턴 조회가 같은 형이다. 비중 4개의 합은 1과 최대 2e-8 다를 수 있고, "
+        + "status·pathLength 는 시즌의 지금 값이다. targetFormation 은 그 턴 시작 시점의 목표다. 대사 시도 번호·상태·시드·경로·월 "
+        + "블록·연월·수익률 종류는 싣지 않는다")
 public record TurnResultDto(
         @ExposedFrom("season.id")
-        @Schema(requiredMode = RequiredMode.REQUIRED, description = "시즌 식별자")
+        @Schema(requiredMode = RequiredMode.REQUIRED, description = "Season identifier / 시즌 식별자")
         Long seasonId,
         @ExposedFrom("turn.turn_no")
-        @Schema(requiredMode = RequiredMode.REQUIRED, description = "이 결과의 턴(전환 응답에서는 방금 적용된 턴 = 새 현재 턴)")
+        @Schema(requiredMode = RequiredMode.REQUIRED, description = "The turn of this result (in the advance "
+                + "response, the turn just applied = the new current turn)\n"
+                + "\n"
+                + "이 결과의 턴(전환 응답에서는 방금 적용된 턴 = 새 현재 턴)")
         Integer turnNo,
         @ExposedFrom("season.status")
-        @Schema(requiredMode = RequiredMode.REQUIRED, description = "마지막 턴이면 FINISHED")
+        @Schema(requiredMode = RequiredMode.REQUIRED, description = "FINISHED if it was the last turn / 마지막 턴이면 "
+                + "FINISHED")
         SeasonStatus status,
         @ExposedFrom("season.path_length")
-        @Schema(requiredMode = RequiredMode.REQUIRED, description = "경로 길이(턴 수)")
+        @Schema(requiredMode = RequiredMode.REQUIRED, description = "Path length (number of turns) / 경로 길이(턴 수)")
         Integer pathLength,
         @ExposedFrom("turn.cash_balance")
-        @Schema(requiredMode = RequiredMode.REQUIRED, description = "현금 잔액, 원 단위 정수")
+        @Schema(requiredMode = RequiredMode.REQUIRED, description = "Cash balance, whole KRW / 현금 잔액, 원 단위 정수")
         BigDecimal cashBalance,
         @ExposedFrom("turn.holdings_value")
-        @Schema(requiredMode = RequiredMode.REQUIRED, description = "보유 평가액, 원 단위 정수")
+        @Schema(requiredMode = RequiredMode.REQUIRED, description = "Holdings valuation, whole KRW / 보유 평가액, 원 "
+                + "단위 정수")
         BigDecimal holdingsValue,
         @ExposedFrom("turn.total_value")
-        @Schema(requiredMode = RequiredMode.REQUIRED, description = "총 평가액, 원 단위 정수")
+        @Schema(requiredMode = RequiredMode.REQUIRED, description = "Total valuation, whole KRW / 총 평가액, 원 단위 정수")
         BigDecimal totalValue,
         @ExposedFrom("turn.goalkeeper_value")
-        @Schema(requiredMode = RequiredMode.REQUIRED, description = "골키퍼 평가액(현금 포함), 원 단위 정수")
+        @Schema(requiredMode = RequiredMode.REQUIRED, description = "Goalkeeper valuation (cash included), whole "
+                + "KRW / 골키퍼 평가액(현금 포함), 원 단위 정수")
         BigDecimal goalkeeperValue,
         @ExposedFrom("turn.defender_value")
-        @Schema(requiredMode = RequiredMode.REQUIRED, description = "수비수 평가액, 원 단위 정수")
+        @Schema(requiredMode = RequiredMode.REQUIRED, description = "Defender valuation, whole KRW / 수비수 평가액, 원 "
+                + "단위 정수")
         BigDecimal defenderValue,
         @ExposedFrom("turn.midfielder_value")
-        @Schema(requiredMode = RequiredMode.REQUIRED, description = "미드필더 평가액, 원 단위 정수")
+        @Schema(requiredMode = RequiredMode.REQUIRED, description = "Midfielder valuation, whole KRW / 미드필더 평가액, "
+                + "원 단위 정수")
         BigDecimal midfielderValue,
         @ExposedFrom("turn.forward_value")
-        @Schema(requiredMode = RequiredMode.REQUIRED, description = "공격수 평가액, 원 단위 정수")
+        @Schema(requiredMode = RequiredMode.REQUIRED, description = "Attacker valuation, whole KRW / 공격수 평가액, 원 "
+                + "단위 정수")
         BigDecimal forwardValue,
         @ExposedFrom("turn.drawdown")
-        @Schema(requiredMode = RequiredMode.REQUIRED, description = "누적 낙폭(0 이하), 소수 8자리")
+        @Schema(requiredMode = RequiredMode.REQUIRED, description = "Cumulative drawdown (0 or less), 8 decimal "
+                + "places / 누적 낙폭(0 이하), 소수 8자리")
         BigDecimal drawdown,
         @ExposedFrom({"turn.total_value", "season.initial_cash"})
-        @Schema(requiredMode = RequiredMode.REQUIRED, description = "직전 턴의 총 평가액(1턴이면 초기 자금), 원 단위 정수")
+        @Schema(requiredMode = RequiredMode.REQUIRED, description = "Total valuation of the previous turn "
+                + "(initial capital at turn 1), whole KRW / 직전 턴의 총 평가액(1턴이면 초기 자금), 원 단위 정수")
         BigDecimal previousTotalValue,
         @ExposedFrom({"turn.total_value", "season.initial_cash"})
-        @Schema(requiredMode = RequiredMode.REQUIRED, description = "총 평가액 − 직전 총 평가액(음수 가능), 원 단위 정수")
+        @Schema(requiredMode = RequiredMode.REQUIRED, description = "Total valuation − previous total valuation "
+                + "(can be negative), whole KRW / 총 평가액 − 직전 총 평가액(음수 가능), 원 단위 정수")
         BigDecimal valueChange,
         @ExposedFrom({"turn.total_value", "season.initial_cash"})
-        @Schema(requiredMode = RequiredMode.REQUIRED, description = "기간 수익률 = 변화 ÷ 직전 총 평가액, 소수 8자리")
+        @Schema(requiredMode = RequiredMode.REQUIRED, description = "Period return = change ÷ previous total "
+                + "valuation, 8 decimal places / 기간 수익률 = 변화 ÷ 직전 총 평가액, 소수 8자리")
         BigDecimal periodReturn,
         @ExposedFrom("season.risk_limit")
-        @Schema(requiredMode = RequiredMode.REQUIRED, description = "위험 선언(0 이하), 소수 8자리")
+        @Schema(requiredMode = RequiredMode.REQUIRED, description = "Risk limit (0 or less), 8 decimal places / "
+                + "위험 선언(0 이하), 소수 8자리")
         BigDecimal riskLimit,
         @ExposedFrom({"turn.drawdown", "season.risk_limit"})
         @Schema(requiredMode = RequiredMode.REQUIRED,
-                description = "위험 선언까지의 여유 = 낙폭 − 선언, 소수 8자리. 0 이상이면 선언 안, 음수면 넘었다")
+                description = "Room to the risk limit = drawdown − limit, 8 decimal places. 0 or more means "
+                        + "inside the limit, negative means it was crossed\n"
+                        + "\n"
+                        + "위험 선언까지의 여유 = 낙폭 − 선언, 소수 8자리. 0 이상이면 선언 안, 음수면 넘었다")
         BigDecimal riskHeadroom,
         @ExposedFrom({"turn.drawdown", "season.risk_limit"})
-        @Schema(requiredMode = RequiredMode.REQUIRED, description = "낙폭이 위험 선언을 넘었는가(낙폭 < 선언)")
+        @Schema(requiredMode = RequiredMode.REQUIRED, description = "Whether the drawdown crossed the risk limit "
+                + "(drawdown < limit) / 낙폭이 위험 선언을 넘었는가(낙폭 < 선언)")
         Boolean riskBreached,
         @ExposedFrom({"turn.goalkeeper_value", "turn.total_value"})
-        @Schema(requiredMode = RequiredMode.REQUIRED, description = "골키퍼 비중 = 평가액 ÷ 총 평가액, 소수 8자리")
+        @Schema(requiredMode = RequiredMode.REQUIRED, description = "Goalkeeper share = valuation ÷ total "
+                + "valuation, 8 decimal places / 골키퍼 비중 = 평가액 ÷ 총 평가액, 소수 8자리")
         BigDecimal goalkeeperWeight,
         @ExposedFrom({"turn.defender_value", "turn.total_value"})
-        @Schema(requiredMode = RequiredMode.REQUIRED, description = "수비수 비중, 소수 8자리")
+        @Schema(requiredMode = RequiredMode.REQUIRED, description = "Defender share, 8 decimal places / 수비수 비중, "
+                + "소수 8자리")
         BigDecimal defenderWeight,
         @ExposedFrom({"turn.midfielder_value", "turn.total_value"})
-        @Schema(requiredMode = RequiredMode.REQUIRED, description = "미드필더 비중, 소수 8자리")
+        @Schema(requiredMode = RequiredMode.REQUIRED, description = "Midfielder share, 8 decimal places / 미드필더 "
+                + "비중, 소수 8자리")
         BigDecimal midfielderWeight,
         @ExposedFrom({"turn.forward_value", "turn.total_value"})
-        @Schema(requiredMode = RequiredMode.REQUIRED, description = "공격수 비중, 소수 8자리")
+        @Schema(requiredMode = RequiredMode.REQUIRED, description = "Attacker share, 8 decimal places / 공격수 비중, "
+                + "소수 8자리")
         BigDecimal forwardWeight,
         @Schema(requiredMode = RequiredMode.REQUIRED)
         FormationDto targetFormation,
         @ExposedFrom({"turn.goalkeeper_value", "turn.total_value", "season.start_goalkeeper", "season.current_goalkeeper","formation_change.after_goalkeeper"})
-        @Schema(requiredMode = RequiredMode.REQUIRED, description = "골키퍼 비중 − 목표(양수 = 목표보다 많음), 소수 8자리")
+        @Schema(requiredMode = RequiredMode.REQUIRED, description = "Goalkeeper share − target (positive = more "
+                + "than the target), 8 decimal places / 골키퍼 비중 − 목표(양수 = 목표보다 많음), 소수 8자리")
         BigDecimal goalkeeperGap,
         @ExposedFrom({"turn.defender_value", "turn.total_value", "season.start_defender", "season.current_defender", "formation_change.after_defender"})
-        @Schema(requiredMode = RequiredMode.REQUIRED, description = "수비수 비중 − 목표, 소수 8자리")
+        @Schema(requiredMode = RequiredMode.REQUIRED, description = "Defender share − target, 8 decimal places / "
+                + "수비수 비중 − 목표, 소수 8자리")
         BigDecimal defenderGap,
         @ExposedFrom({"turn.midfielder_value", "turn.total_value", "season.start_midfielder", "season.current_midfielder", "formation_change.after_midfielder"})
-        @Schema(requiredMode = RequiredMode.REQUIRED, description = "미드필더 비중 − 목표, 소수 8자리")
+        @Schema(requiredMode = RequiredMode.REQUIRED, description = "Midfielder share − target, 8 decimal places "
+                + "/ 미드필더 비중 − 목표, 소수 8자리")
         BigDecimal midfielderGap,
         @ExposedFrom({"turn.forward_value", "turn.total_value", "season.start_forward", "season.current_forward", "formation_change.after_forward"})
-        @Schema(requiredMode = RequiredMode.REQUIRED, description = "공격수 비중 − 목표, 소수 8자리")
+        @Schema(requiredMode = RequiredMode.REQUIRED, description = "Attacker share − target, 8 decimal places / "
+                + "공격수 비중 − 목표, 소수 8자리")
         BigDecimal forwardGap,
         @ExposedFrom({"turn.goalkeeper_value", "turn.defender_value", "turn.midfielder_value", "turn.forward_value",
                 "turn.total_value", "season.start_goalkeeper", "season.start_defender", "season.start_midfielder", "season.start_forward",
                 "season.current_goalkeeper", "season.current_defender", "season.current_midfielder", "season.current_forward",
                 "formation_change.after_goalkeeper", "formation_change.after_defender", "formation_change.after_midfielder", "formation_change.after_forward"})
-        @Schema(requiredMode = RequiredMode.REQUIRED, description = "포메이션 이탈 = 포지션별 |비중 − 목표|의 합, 소수 8자리")
+        @Schema(requiredMode = RequiredMode.REQUIRED, description = "Formation deviation = sum of |share − "
+                + "target| over the positions, 8 decimal places / 포메이션 이탈 = 포지션별 |비중 − 목표|의 합, 소수 8자리")
         BigDecimal formationDeviation) {
 }

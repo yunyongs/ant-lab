@@ -10,9 +10,14 @@ import tools.jackson.databind.JsonNode;
 /**
  * Operation summary/description, response descriptions ({@code $ref} responses are skipped; the shared
  * {@code InternalError} is compared on its own) and schema/property descriptions of the contract against the generated
- * document. Texts are compared with every whitespace run collapsed to one space (block scalars fold lines). The
- * comparison is one-sided: a text only the code has is not compared yet (PR C makes it two-sided). Scope:
- * {@code /api/v1/} operations and the component schemas the yaml declares.
+ * document, in both directions: a text only one side has is reported as {@code (absent)}. Scope: {@code /api/v1/}
+ * operations and the component schemas the yaml declares.
+ *
+ * <p>Paragraph rule (bilingual strings): a text is a list of paragraphs separated by a blank line. Inside a paragraph
+ * every whitespace run is one space and a line break folds to a space, except that a line starting with {@code "- "}
+ * starts a list item on its own line. So re-wrapping a block scalar or a split Java literal never matters, but moving
+ * a paragraph or list-item boundary does. A short text is one line {@code English / 한국어}; a long one is an English
+ * paragraph, a blank line, then the Korean paragraph.
  */
 public final class DescriptionParity {
 
@@ -70,8 +75,43 @@ public final class DescriptionParity {
         }
     }
 
-    private static String squash(String text) {
-        return text.strip().replaceAll("\\s+", " ");
+    /** Paragraphs split at blank lines; inside one, lines fold to a space unless they start a {@code "- "} item. */
+    static String normalize(String text) {
+        List<String> paragraphs = new ArrayList<>();
+        for (String paragraph : text.strip().split("\\n[ \\t]*\\n")) {
+            List<String> lines = new ArrayList<>();
+            for (String raw : paragraph.strip().split("\\n")) {
+                String line = raw.strip().replaceAll("\\s+", " ");
+                if (lines.isEmpty() || line.startsWith("- ")) {
+                    lines.add(line);
+                } else {
+                    lines.set(lines.size() - 1, lines.get(lines.size() - 1) + " " + line);
+                }
+            }
+            paragraphs.add(String.join("\n", lines));
+        }
+        return String.join("\n\n", paragraphs);
+    }
+
+    private static final java.util.regex.Pattern HANGUL = java.util.regex.Pattern.compile("[\\uAC00-\\uD7A3]");
+    /** A plain English word: letters only, lower case after the first, so {@code turnNo} and {@code NOT_FOUND} do not count. */
+    private static final java.util.regex.Pattern ENGLISH_WORD = java.util.regex.Pattern.compile("\\b[A-Za-z][a-z]{2,}\\b");
+
+    /**
+     * One line per text that is not English first and Korean after: the part before the first Hangul syllable must
+     * hold an English word, and the text must hold Korean.
+     */
+    public static List<String> languageIssues(Map<String, String> texts) {
+        List<String> out = new ArrayList<>();
+        for (Map.Entry<String, String> e : new TreeMap<>(texts).entrySet()) {
+            java.util.regex.Matcher hangul = HANGUL.matcher(e.getValue());
+            if (!hangul.find()) {
+                out.add(e.getKey() + " — no Korean");
+            } else if (!ENGLISH_WORD.matcher(e.getValue().substring(0, hangul.start())).find()) {
+                out.add(e.getKey() + " — no English before the Korean");
+            }
+        }
+        return out;
     }
 
     /** One line per difference: {@code pointer — yaml: … / code: …}. Empty when the texts match. */
@@ -79,11 +119,13 @@ public final class DescriptionParity {
         Map<String, String> yaml = texts(yamlDoc, false, yamlDoc);
         Map<String, String> code = texts(codeDoc, true, yamlDoc);
         List<String> out = new ArrayList<>();
-        for (String pointer : new TreeSet<>(yaml.keySet())) {
-            String y = squash(yaml.get(pointer));
-            String c = code.containsKey(pointer) ? squash(code.get(pointer)) : null;
-            if (!y.equals(c)) {
-                out.add(pointer + " — yaml: " + y + " / code: " + (c == null ? "(absent)" : c));
+        TreeSet<String> pointers = new TreeSet<>(yaml.keySet());
+        pointers.addAll(code.keySet());
+        for (String pointer : pointers) {
+            String y = yaml.containsKey(pointer) ? normalize(yaml.get(pointer)) : null;
+            String c = code.containsKey(pointer) ? normalize(code.get(pointer)) : null;
+            if (!java.util.Objects.equals(y, c)) {
+                out.add(pointer + " — yaml: " + (y == null ? "(absent)" : y) + " / code: " + (c == null ? "(absent)" : c));
             }
         }
         return out;
