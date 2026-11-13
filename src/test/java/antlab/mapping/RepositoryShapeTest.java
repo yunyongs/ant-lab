@@ -68,7 +68,7 @@ class RepositoryShapeTest {
 
     @Test
     void 저장소는_스물한_개다() throws Exception {
-        // 읽기 전용 8 + 추가 전용 8(turn_feed 는 MVP) + 가변 5
+        // read-only 8 + append-only 8 (turn_feed is MVP) + mutable 5 (RefreshToken has no repository until SEC-03)
         assertThat(repositories()).hasSize(21);
         assertThat(repositories().stream().map(RepositoryShapeTest::domainType).filter(RepositoryShapeTest::isReadOnly))
                 .hasSize(8);

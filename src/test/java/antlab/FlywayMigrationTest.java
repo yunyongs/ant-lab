@@ -32,7 +32,7 @@ class FlywayMigrationTest {
     Flyway flyway;
 
     @Test
-    void V1부터_V3까지_업무_테이블과_성공_이력이_생긴다() {
+    void V1부터_V4까지_업무_테이블과_성공_이력이_생긴다() {
         Integer tableCount = jdbc.queryForObject("""
                 SELECT count(*)
                 FROM information_schema.tables
@@ -41,15 +41,15 @@ class FlywayMigrationTest {
                   AND table_name <> 'flyway_schema_history'
                 """, Integer.class);
 
-        assertThat(tableCount).isEqualTo(22);
+        assertThat(tableCount).isEqualTo(23);
         assertThat(jdbc.queryForObject("""
                 SELECT count(*) FROM public.flyway_schema_history
-                WHERE success AND version IN ('1', '2', '3')
-                """, Integer.class)).isEqualTo(3);
+                WHERE success AND version IN ('1', '2', '3', '4')
+                """, Integer.class)).isEqualTo(4);
         assertThat(jdbc.queryForObject("""
                 SELECT count(*) FROM public.flyway_schema_history
-                WHERE version IN ('1', '2', '3') AND checksum IS NOT NULL
-                """, Integer.class)).isEqualTo(3);
+                WHERE version IN ('1', '2', '3', '4') AND checksum IS NOT NULL
+                """, Integer.class)).isEqualTo(4);
     }
 
     @Test
@@ -63,14 +63,14 @@ class FlywayMigrationTest {
     }
 
     @Test
-    void 업무_테이블은_비어_있고_이력은_세_건이다() {
+    void 업무_테이블은_비어_있고_이력은_네_건이다() {
         assertThat(jdbc.queryForObject(
                 "SELECT count(*) FROM public.member", Integer.class)).isZero();
         assertThat(jdbc.queryForObject(
                 "SELECT count(*) FROM public.cash_account", Integer.class)).isZero();
         assertThat(jdbc.queryForObject(
                 "SELECT count(*) FROM public.flyway_schema_history WHERE installed_by IS NOT NULL", Integer.class))
-                .isEqualTo(3);
+                .isEqualTo(4);
     }
 
     @Test
