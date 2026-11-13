@@ -1,7 +1,7 @@
 # web — one-season web app / 한 판 웹 앱
 
-TypeScript React app built with Vite. It has the app shell, router, API status line and dev proxy (WEB-01), the typed API client (WEB-02), signup, login and session handling (WEB-03), the season list and season start (WEB-04), team building at turn 0 (WEB-05), and turn advance with the turn result (WEB-06).
-Vite로 빌드하는 TypeScript React 앱이다. 앱 틀·라우터·API 상태 한 줄·개발 프록시(WEB-01), 타입 있는 API 클라이언트(WEB-02), 가입·로그인·세션 처리(WEB-03), 시즌 목록·시즌 시작(WEB-04), 0턴 팀 구성(WEB-05), 턴 넘기기와 턴 결과(WEB-06)가 들어 있다.
+TypeScript React app built with Vite. It has the app shell, router, API status line and dev proxy (WEB-01), the typed API client (WEB-02), signup, login and session handling (WEB-03), the season list and season start (WEB-04), team building at turn 0 (WEB-05), turn advance with the turn result (WEB-06), and between-turn trading (WEB-07).
+Vite로 빌드하는 TypeScript React 앱이다. 앱 틀·라우터·API 상태 한 줄·개발 프록시(WEB-01), 타입 있는 API 클라이언트(WEB-02), 가입·로그인·세션 처리(WEB-03), 시즌 목록·시즌 시작(WEB-04), 0턴 팀 구성(WEB-05), 턴 넘기기와 턴 결과(WEB-06), 턴 사이 매매(WEB-07)가 들어 있다.
 
 ## Prerequisites / 준비
 
@@ -78,6 +78,8 @@ Only `/api` is forwarded, unchanged, to `http://127.0.0.1:8080`. For an API on a
 - 0턴의 시즌 화면에는 종목 풀이 종목마다 시스템 판정 포지션과 그 근거와 함께 나온다. **선택**을 눌러 산다. 새로 사는 종목은 선언 포지션을 정하고 수량은 정수로 적는다. 살 때마다 서버의 체결 결과(가격·대금·수수료·현금)와 다시 받은 포메이션 대비 비중을 보여 준다. 브라우저에서 미리 계산하는 값은 없다.
 - **다음 턴** sends the current turn number once; the server applies the next month and checks the books before it moves on. The result card shows total value, change, turn return, drawdown and the room left to your risk limit (over the limit is marked, and the season goes on), plus weights against the formation. If the books do not match, nothing changes and you can try again. Earlier turns open from **지난 턴 보기**. After the last turn the season is finished; report and review come next.
 - **다음 턴**은 지금 턴 번호를 한 번만 보낸다. 서버가 다음 달을 적용하고 장부를 맞춰 본 뒤에 턴을 넘긴다. 결과 카드에는 총 평가액·변화·턴 수익률·낙폭·위험 선언까지 남은 여유(넘으면 표시되고 시즌은 계속된다)와 포메이션 대비 비중이 나온다. 장부가 맞지 않으면 아무것도 바뀌지 않고 다시 시도할 수 있다. 지난 턴은 **지난 턴 보기**로 연다. 마지막 턴을 넘기면 시즌이 끝나고 성적표·복기로 이어진다.
+- **매매** shows your live holdings and cash at this turn's prices. Buy more or sell from each holding (never more than you hold), or buy a new asset from the pool. A sell shows the realized profit or loss, and selling everything closes that holding. Rebalancing is up to you: the app never places orders for you.
+- **매매**에는 이번 턴 가격 기준의 보유와 현금이 바로 나온다. 보유 종목마다 더 사거나 팔 수 있고(보유한 수량까지만), 종목 풀에서 새 종목을 살 수 있다. 매도 결과에는 실현 손익이 나오고, 전량을 팔면 그 종목의 보유가 닫힌다. 비중 맞추기는 직접 한다. 앱이 대신 주문하지 않는다.
 
 ## Folder layout / 폴더 구조
 
