@@ -6,6 +6,7 @@ import { LoginPage } from '../pages/LoginPage.tsx';
 import { NewSeasonPage } from '../pages/NewSeasonPage.tsx';
 import { NotFoundPage } from '../pages/NotFoundPage.tsx';
 import { SeasonPage } from '../pages/SeasonPage.tsx';
+import { TradePage } from '../pages/TradePage.tsx';
 import { TurnPage } from '../pages/TurnPage.tsx';
 import { SeasonsPage } from '../pages/SeasonsPage.tsx';
 import { SignupPage } from '../pages/SignupPage.tsx';
@@ -51,6 +52,14 @@ export const routes: RouteObject[] = [
             element: (
               <KeyedBySeason>
                 <TurnPage />
+              </KeyedBySeason>
+            ),
+          },
+          {
+            path: 'seasons/:seasonId/trade',
+            element: (
+              <KeyedBySeason>
+                <TradePage />
               </KeyedBySeason>
             ),
           },
