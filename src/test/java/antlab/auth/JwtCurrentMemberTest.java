@@ -17,17 +17,16 @@ import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
-import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.annotation.Transactional;
 
-/** The token's member with the fixed member off: what each call returns, and the lock it takes. */
+/** The token's member, the only current member: what each call returns, and the lock it takes. */
 @IntegrationTest
 @Transactional
-@TestPropertySource(properties = "antlab.single-member.enabled=false")
 class JwtCurrentMemberTest {
 
     private static final long NO_SUCH_MEMBER = 999_999_999L;
@@ -48,6 +47,13 @@ class JwtCurrentMemberTest {
         SecurityContextHolder.getContext().setAuthentication(new JwtAuthenticationToken(jwt));
     }
 
+    @Autowired
+    JdbcTemplate jdbc;
+
+    private long members() {
+        return jdbc.queryForObject("SELECT count(*) FROM member", Long.class);
+    }
+
     private Member newMember() {
         return members.save(new Member("jwt-" + UUID.randomUUID() + "@example.test", "가짜 회원", "hash"));
     }
@@ -57,16 +63,16 @@ class JwtCurrentMemberTest {
     }
 
     @Test
-    void 인증이_없으면_두_메서드가_MEMBER_UNAVAILABLE이다() {
-        assertThatThrownBy(currentMember::existingId).satisfies(e -> assertCode(e, ErrorCode.MEMBER_UNAVAILABLE));
-        assertThatThrownBy(currentMember::ensureId).satisfies(e -> assertCode(e, ErrorCode.MEMBER_UNAVAILABLE));
+    void 인증이_없으면_두_메서드가_UNAUTHENTICATED이다() {
+        assertThatThrownBy(currentMember::existingId).satisfies(e -> assertCode(e, ErrorCode.UNAUTHENTICATED));
+        assertThatThrownBy(currentMember::ensureId).satisfies(e -> assertCode(e, ErrorCode.UNAUTHENTICATED));
     }
 
     @Test
-    void JWT가_아닌_인증도_MEMBER_UNAVAILABLE이다() {
+    void JWT가_아닌_인증도_UNAUTHENTICATED이다() {
         SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken("1", "x", List.of()));
-        assertThatThrownBy(currentMember::existingId).satisfies(e -> assertCode(e, ErrorCode.MEMBER_UNAVAILABLE));
-        assertThatThrownBy(currentMember::ensureId).satisfies(e -> assertCode(e, ErrorCode.MEMBER_UNAVAILABLE));
+        assertThatThrownBy(currentMember::existingId).satisfies(e -> assertCode(e, ErrorCode.UNAUTHENTICATED));
+        assertThatThrownBy(currentMember::ensureId).satisfies(e -> assertCode(e, ErrorCode.UNAUTHENTICATED));
     }
 
     @Test
@@ -80,15 +86,17 @@ class JwtCurrentMemberTest {
     @Test
     void 없는_회원의_sub는_두_메서드가_UNAUTHENTICATED이다() {
         authenticateAs(NO_SUCH_MEMBER);
+        long rows = members();
         assertThatThrownBy(currentMember::existingId).satisfies(e -> assertCode(e, ErrorCode.UNAUTHENTICATED));
         assertThatThrownBy(currentMember::ensureId).satisfies(e -> assertCode(e, ErrorCode.UNAUTHENTICATED));
+        assertThat(members()).as("no member row is created").isEqualTo(rows);
     }
 
     @Test
     void 쓰기_조회는_회원_행을_FOR_NO_KEY_UPDATE로_잠그고_회원을_만들지_않는다() {
         long id = newMember().getId();
         authenticateAs(id);
-        long before = members.findByEmail("player@example.invalid").map(Member::getId).orElse(-1L);
+        long rows = members();
 
         SqlRecorder.start();
         currentMember.ensureId();
@@ -97,8 +105,7 @@ class JwtCurrentMemberTest {
         assertThat(sqls).hasSize(1);
         String sql = sqls.get(0).toLowerCase(Locale.ROOT);
         assertThat(sql).contains("from member").contains("for no key update");
-        assertThat(members.findByEmail("player@example.invalid").map(Member::getId).orElse(-1L))
-                .as("the fixed member is not created").isEqualTo(before);
+        assertThat(members()).as("no member row is created").isEqualTo(rows);
     }
 
     @Test

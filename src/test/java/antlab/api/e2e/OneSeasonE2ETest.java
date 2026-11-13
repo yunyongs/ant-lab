@@ -10,6 +10,7 @@ import antlab.support.SqlGoldenHarness;
 import antlab.support.SqlGoldenHarness.DatabaseHandle;
 import antlab.support.SqlGoldenScenario;
 import antlab.support.TeamBuyGoldenSeason;
+import antlab.support.TestMembers;
 import antlab.support.TestTokens;
 import antlab.scoring.SeasonReportDto;
 import antlab.season.SeedGenerator;
@@ -57,9 +58,9 @@ import tools.jackson.databind.JsonNode;
  */
 @Tag("sql-golden")
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-        properties = {"antlab.single-member.email=phase0@example.invalid", "antlab.single-member.name=연습 감독"})
+        properties = {"antlab.test.default-member.email=phase0@example.invalid", "antlab.test.default-member.name=연습 감독"})
 @ActiveProfiles({"test", "local"})
-@Import(TestTokens.class)
+@Import({TestTokens.class, TestMembers.class})
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @EnabledIf("sampleAvailable")
@@ -102,9 +103,12 @@ class OneSeasonE2ETest {
     @Autowired
     TestTokens tokens;
 
+    @Autowired
+    TestMembers members;
+
     /** The dev gate header plus an ADMIN token (replaces the default user token for the call). */
     private Map<String, String> dev() {
-        return Map.of("X-Antlab-Dev", "true", "Authorization", "Bearer " + tokens.admin(TestTokens.DEFAULT_SUBJECT));
+        return Map.of("X-Antlab-Dev", "true", "Authorization", "Bearer " + tokens.admin(members.defaultId()));
     }
 
     private E2eHttp http;
@@ -118,7 +122,7 @@ class OneSeasonE2ETest {
         harness = golden.harness();
         apiDb = golden.apiDb();
         harness.execute(apiDb, SqlGoldenScenario.apiDbFullLoad());
-        http = new E2eHttp(port, Map.of("Authorization", "Bearer " + tokens.user(TestTokens.DEFAULT_SUBJECT)));
+        http = new E2eHttp(port, Map.of("Authorization", "Bearer " + tokens.user(members.defaultId())));
     }
 
     @AfterAll

@@ -19,6 +19,7 @@ import antlab.support.SqlGoldenScenario;
 import antlab.support.SqlGoldenScenario.Kind;
 import antlab.support.SqlGoldenScenario.ScriptStep;
 import antlab.support.TeamBuyGoldenSeason;
+import antlab.support.TestMembers;
 import antlab.support.TestTokens;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -55,9 +56,9 @@ import tools.jackson.databind.json.JsonMapper;
  * ③ 그 DB 에서 db/22 검증이 통과한다.
  */
 @Tag("sql-golden")
-@SpringBootTest(properties = {"antlab.single-member.email=phase0@example.invalid", "antlab.single-member.name=연습 감독"})
+@SpringBootTest(properties = {"antlab.test.default-member.email=phase0@example.invalid", "antlab.test.default-member.name=연습 감독"})
 @AutoConfigureMockMvc
-@Import({TestTokens.class, DefaultBearerConfig.class})
+@Import({TestTokens.class, DefaultBearerConfig.class, TestMembers.class})
 @ActiveProfiles({"test", "local"})
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @EnabledIf("sampleAvailable")
@@ -93,6 +94,9 @@ class ReconciliationGoldenTest {
     MockMvcTester mvc;
     @Autowired
     TestTokens tokens;
+
+    @Autowired
+    TestMembers members;
     @Autowired
     DeferredPathSource deferred;
     @Autowired
@@ -190,7 +194,7 @@ class ReconciliationGoldenTest {
     void 개발_엔드포인트의_기록과_SQL_수동_대사의_기록이_한_번호_공간에서_행까지_같다() throws Exception {
         int before = maxAttempt();
         MockHttpServletResponse r = mvc.post().uri("/api/v1/dev/seasons/" + apiSeason + "/reconciliation")
-                .header("Authorization", "Bearer " + tokens.admin(TestTokens.DEFAULT_SUBJECT))
+                .header("Authorization", "Bearer " + tokens.admin(members.defaultId()))
                 .header(antlab.api.dev.DevReconciliationController.DEV_HEADER, antlab.api.dev.DevReconciliationController.DEV_HEADER_VALUE)
                 .exchange().getResponse();
         assertThat(r.getStatus()).isEqualTo(200);

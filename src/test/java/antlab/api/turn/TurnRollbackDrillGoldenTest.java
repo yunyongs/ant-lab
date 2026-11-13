@@ -20,6 +20,7 @@ import antlab.support.SqlGoldenHarness;
 import antlab.support.SqlGoldenHarness.DatabaseHandle;
 import antlab.support.SqlGoldenScenario;
 import antlab.support.TeamBuyGoldenSeason;
+import antlab.support.TestMembers;
 import antlab.support.TestTokens;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -52,9 +53,9 @@ import org.springframework.test.web.servlet.assertj.MockMvcTester;
  * (종목은 자연 키, 나머지 번호는 표지). 실패 보고에는 표 이름·키·열 이름·건수만 나온다.
  */
 @Tag("sql-golden")
-@SpringBootTest(properties = {"antlab.single-member.email=phase0@example.invalid", "antlab.single-member.name=연습 감독"})
+@SpringBootTest(properties = {"antlab.test.default-member.email=phase0@example.invalid", "antlab.test.default-member.name=연습 감독"})
 @AutoConfigureMockMvc
-@Import({TestTokens.class, DefaultBearerConfig.class})
+@Import({TestTokens.class, DefaultBearerConfig.class, TestMembers.class})
 @ActiveProfiles({"test", "local"})
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @EnabledIf("sampleAvailable")

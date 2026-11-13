@@ -57,9 +57,6 @@ public class FormationChangeController {
                     + "지금은 바꿀 수 없다 — SEASON_NOT_ACTIVE, TURN_MISMATCH(0턴 포함), INVALID_FORMATION, "
                     + "EVENT_TIME_CONFLICT",
             content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ApiProblem.class)))
-    @ApiResponse(responseCode = "503", description = "The current member is unknown — MEMBER_UNAVAILABLE "
-            + "/ 현재 회원을 알 수 없다 — MEMBER_UNAVAILABLE",
-            content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ApiProblem.class)))
     public ResponseEntity<FormationChangeDto> change(@PathVariable Long seasonId,
             @Valid @RequestBody ChangeFormationRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(formationChanges.change(seasonId, request));

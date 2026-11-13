@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import antlab.support.DefaultBearerConfig;
 import antlab.support.PostgresTestcontainersConfig;
+import antlab.support.TestMembers;
 import antlab.support.TestTokens;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,7 +22,7 @@ import org.springframework.test.web.servlet.assertj.MockMvcTester;
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles({"test", "local"})
-@Import({PostgresTestcontainersConfig.class, TestTokens.class, DefaultBearerConfig.class})
+@Import({PostgresTestcontainersConfig.class, TestTokens.class, DefaultBearerConfig.class, TestMembers.class})
 class DevEndpointAuthorizationTest {
 
     private static final String PATH = "/api/v1/dev/seasons/987654321/reconciliation";
@@ -30,6 +31,9 @@ class DevEndpointAuthorizationTest {
     MockMvcTester mvc;
     @Autowired
     TestTokens tokens;
+
+    @Autowired
+    TestMembers members;
 
     private String bearer(String token) {
         return "Bearer " + token;
@@ -59,7 +63,7 @@ class DevEndpointAuthorizationTest {
 
     @Test
     void ADMIN과_헤더가_있으면_보안을_통과해_없는_시즌은_404이다() {
-        assertThat(mvc.post().uri(PATH).header("Authorization", bearer(tokens.admin(7)))
+        assertThat(mvc.post().uri(PATH).header("Authorization", bearer(tokens.admin(members.defaultId())))
                 .header(DevReconciliationController.DEV_HEADER, DevReconciliationController.DEV_HEADER_VALUE))
                 .hasStatus(404);
     }

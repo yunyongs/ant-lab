@@ -17,6 +17,7 @@ import org.springframework.test.context.ActiveProfiles;
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
-@Import({PostgresTestcontainersConfig.class, ContractErrorCheck.class, TestTokens.class, DefaultBearerConfig.class})
+@Import({PostgresTestcontainersConfig.class, ContractErrorCheck.class, TestTokens.class, TestMembers.class,
+        DefaultBearerConfig.class})
 public @interface IntegrationTest {
 }

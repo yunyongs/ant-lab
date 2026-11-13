@@ -23,9 +23,6 @@ public class TestTokens {
     public static final Instant ISSUED = Instant.parse("2000-01-01T00:00:00Z");
     public static final Instant EXPIRES = Instant.parse("2100-01-01T00:00:00Z");
 
-    /** The member of the default test token. The fixed member ignores it; a real member never has this id. */
-    public static final long DEFAULT_SUBJECT = Long.MAX_VALUE;
-
     private static final Base64.Encoder B64 = Base64.getUrlEncoder().withoutPadding();
 
     private final byte[] key;

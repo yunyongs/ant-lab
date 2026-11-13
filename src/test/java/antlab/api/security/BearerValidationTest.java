@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import antlab.api.auth.ScriptedClockConfig;
 import antlab.support.IntegrationTest;
 import antlab.support.ScriptedClock;
+import antlab.support.TestMembers;
 import antlab.support.TestTokens;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -39,6 +40,8 @@ class BearerValidationTest {
     MockMvcTester mvc;
     @Autowired
     TestTokens tokens;
+    @Autowired
+    TestMembers members;
     @Autowired
     ScriptedClock clock;
 
@@ -200,7 +203,7 @@ class BearerValidationTest {
         var anonymous = mvc.get().uri("/api/v1/seasons").requestAttr(ANONYMOUS, true).exchange();
         assertThat(anonymous.getResponse().getStatus()).isEqualTo(401);
         assertThat(body(anonymous)).contains("UNAUTHENTICATED");
-        var valid = mvc.get().uri("/api/v1/seasons").header("Authorization", "Bearer " + tokens.user(7)).exchange();
+        var valid = mvc.get().uri("/api/v1/seasons").header("Authorization", "Bearer " + tokens.user(members.defaultId())).exchange();
         assertThat(valid.getResponse().getStatus()).isEqualTo(200);
         var garbage = mvc.get().uri("/api/v1/seasons").header("Authorization", "Bearer garbage").exchange();
         assertThat(garbage.getResponse().getStatus()).isEqualTo(401);
