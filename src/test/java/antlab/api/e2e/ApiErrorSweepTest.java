@@ -37,6 +37,7 @@ import org.springframework.http.HttpMethod;
 import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.servlet.mvc.method.RequestMappingInfo;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
@@ -59,13 +60,9 @@ class ApiErrorSweepTest {
 
     private static final String UNKNOWN_SEASON = "987654321";
 
-    record Operation(String method, String template) {
+    record Operation(String method, String template, boolean hasBody) {
         String key() {
             return method + " " + template;
-        }
-
-        boolean writes() {
-            return !method.equals("GET");
         }
 
         boolean onSeason() {
@@ -126,13 +123,16 @@ class ApiErrorSweepTest {
     /** {@code /api/v1} operations from the mapping (the dev endpoint is {@code @Hidden}, local-only and outside the contract). */
     List<Operation> handlerOperations() {
         List<Operation> out = new ArrayList<>();
-        for (RequestMappingInfo info : mapping.getHandlerMethods().keySet()) {
+        for (var entry : mapping.getHandlerMethods().entrySet()) {
+            RequestMappingInfo info = entry.getKey();
+            boolean hasBody = Arrays.stream(entry.getValue().getMethodParameters())
+                    .anyMatch(p -> p.hasParameterAnnotation(RequestBody.class));
             for (String pattern : info.getPathPatternsCondition().getPatternValues()) {
                 if (!pattern.startsWith("/api/v1/") || pattern.startsWith("/api/v1/dev/")) {
                     continue;
                 }
                 for (RequestMethod method : info.getMethodsCondition().getMethods()) {
-                    out.add(new Operation(method.name(), pattern));
+                    out.add(new Operation(method.name(), pattern, hasBody));
                 }
             }
         }
@@ -148,13 +148,16 @@ class ApiErrorSweepTest {
         List<Probe> probes = new ArrayList<>();
         probes.add(new Probe("wrong method", 405, ErrorCode.METHOD_NOT_ALLOWED));
         probes.add(new Probe("Accept: application/xml", 406, ErrorCode.NOT_ACCEPTABLE));
-        if (op.writes()) {
+        if (op.hasBody()) {
             probes.add(new Probe("text/plain body", 415, ErrorCode.UNSUPPORTED_MEDIA_TYPE));
             probes.add(new Probe("malformed JSON", 400, ErrorCode.INVALID_ARGUMENT));
             probes.add(new Probe("empty object body", 400, ErrorCode.INVALID_ARGUMENT));
         }
         if (op.template.equals("/api/v1/auth/login")) {
             probes.add(new Probe("unknown credentials", 401, ErrorCode.INVALID_CREDENTIALS));
+        }
+        if (op.template.equals("/api/v1/auth/refresh")) {
+            probes.add(new Probe("no refresh cookie", 401, ErrorCode.UNAUTHENTICATED));
         }
         if (op.onSeason()) {
             probes.add(new Probe("non-numeric season id", 400, ErrorCode.INVALID_ARGUMENT));
@@ -180,8 +183,8 @@ class ApiErrorSweepTest {
             case "wrong method":
                 return http.send(HttpMethod.DELETE, op.path(UNKNOWN_SEASON), null, null, json);
             case "Accept: application/xml":
-                return http.send(method, op.path(UNKNOWN_SEASON), op.writes() ? op.validBody() : null,
-                        op.writes() ? json : null, "application/xml");
+                return http.send(method, op.path(UNKNOWN_SEASON), op.hasBody() ? op.validBody() : null,
+                        op.hasBody() ? json : null, "application/xml");
             case "text/plain body":
                 return http.send(method, op.path(UNKNOWN_SEASON), "plain", "text/plain", json);
             case "malformed JSON":
@@ -190,21 +193,23 @@ class ApiErrorSweepTest {
                 return http.send(method, op.path(UNKNOWN_SEASON), "{}", json, json);
             case "unknown credentials":
                 return http.send(method, op.path(UNKNOWN_SEASON), op.validBody(), json, json);
+            case "no refresh cookie":
+                return http.send(method, op.path(UNKNOWN_SEASON), null, null, json);
             case "non-numeric season id":
-                return http.send(method, op.path("abc"), op.writes() ? op.validBody() : null, op.writes() ? json : null, json);
+                return http.send(method, op.path("abc"), op.hasBody() ? op.validBody() : null, op.hasBody() ? json : null, json);
             case "non-numeric turn number":
                 return http.send(method, op.path("1", "abc"), null, null, json);
             case "non-numeric query turnNo":
                 return http.send(method, op.path("1") + "?turnNo=abc", null, null, json);
             case "unknown season":
-                return http.send(method, op.path(UNKNOWN_SEASON), op.writes() ? op.validBody() : null,
-                        op.writes() ? json : null, json);
+                return http.send(method, op.path(UNKNOWN_SEASON), op.hasBody() ? op.validBody() : null,
+                        op.hasBody() ? json : null, json);
             case "unknown member":
                 DomainException unavailable = new DomainException(ErrorCode.MEMBER_UNAVAILABLE, "no current member");
                 doThrow(unavailable).when(currentMember).existingId();
                 doThrow(unavailable).when(currentMember).ensureId();
                 try {
-                    return http.send(method, op.path("1"), op.writes() ? op.validBody() : null, op.writes() ? json : null, json);
+                    return http.send(method, op.path("1"), op.hasBody() ? op.validBody() : null, op.hasBody() ? json : null, json);
                 } finally {
                     reset(currentMember);
                 }
@@ -222,7 +227,7 @@ class ApiErrorSweepTest {
 
         // vacuity guard: the handlers are exactly the contract's operations
         assertThat(operations.stream().map(Operation::key).toList()).containsExactlyElementsOf(documented);
-        assertThat(operations).hasSize(14);
+        assertThat(operations).hasSize(16);
 
         List<DynamicTest> tests = new ArrayList<>();
         Set<String> exercised = new TreeSet<>();
@@ -248,7 +253,7 @@ class ApiErrorSweepTest {
         assertThat(exercised).containsExactlyInAnyOrderElementsOf(
                 Arrays.asList("wrong method", "Accept: application/xml", "text/plain body", "malformed JSON",
                         "empty object body", "non-numeric season id", "non-numeric turn number", "non-numeric query turnNo",
-                        "unknown season", "unknown member", "unknown credentials"));
+                        "unknown season", "unknown member", "unknown credentials", "no refresh cookie"));
         return tests.stream();
     }
 }

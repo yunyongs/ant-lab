@@ -66,6 +66,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Refresh the access token / 접근 토큰 갱신
+         * @description Rotates the refresh token from the antlab_refresh cookie: the presented token is retired, a new cookie and a new access token are returned. Presenting an already rotated token again ends that login on every device that shares it.
+         *
+         *     antlab_refresh 쿠키의 갱신 토큰을 회전한다: 제시한 토큰은 폐기하고 새 쿠키와 새 접근 토큰을 돌려준다. 이미 회전한 토큰을 다시 제시하면 그 로그인이 모든 기기에서 끝난다.
+         */
+        post: operations["refresh"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Log out / 로그아웃
+         * @description Ends the login of the antlab_refresh cookie and clears the cookie. Always answers 204, also without a cookie.
+         *
+         *     antlab_refresh 쿠키의 로그인을 끝내고 쿠키를 지운다. 쿠키가 없어도 언제나 204로 답한다.
+         */
+        post: operations["logout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/seasons": {
         parameters: {
             query?: never;
@@ -1431,6 +1475,65 @@ export interface operations {
                 content: {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    refresh: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                /** @description The refresh token cookie set by login / 로그인이 설정한 갱신 토큰 쿠키 */
+                antlab_refresh?: string;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Refreshed / 갱신함 */
+            200: {
+                headers: {
+                    /** @description The rotated refresh token cookie (antlab_refresh) / 회전한 갱신 토큰 쿠키(antlab_refresh) */
+                    "Set-Cookie"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccessTokenDto"];
+                };
+            };
+            /** @description The refresh token is missing, unknown, expired or revoked — UNAUTHENTICATED / 갱신 토큰이 없거나 모르거나 만료·폐기되었다 — UNAUTHENTICATED */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    logout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                /** @description The refresh token cookie set by login / 로그인이 설정한 갱신 토큰 쿠키 */
+                antlab_refresh?: string;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Logged out / 로그아웃함 */
+            204: {
+                headers: {
+                    /** @description Clears the refresh token cookie / 갱신 토큰 쿠키를 지운다 */
+                    "Set-Cookie"?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             500: components["responses"]["InternalError"];
         };

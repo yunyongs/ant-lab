@@ -22,11 +22,8 @@ import tools.jackson.databind.JsonNode;
  */
 public final class ContractErrorCodes {
 
-    /**
-     * FORBIDDEN is answered only by the local dev endpoint, which is outside the contract. UNAUTHENTICATED is answered
-     * only by the security layer for paths outside the contract until SEC-04 lists 401 on secured operations.
-     */
-    public static final Set<ErrorCode> UNLISTED_ALLOWED = EnumSet.of(ErrorCode.FORBIDDEN, ErrorCode.UNAUTHENTICATED);
+    /** FORBIDDEN is answered only by the local dev endpoint, which is outside the contract. */
+    public static final Set<ErrorCode> UNLISTED_ALLOWED = EnumSet.of(ErrorCode.FORBIDDEN);
 
     private static final String RESPONSE_REF_PREFIX = "#/components/responses/";
 
