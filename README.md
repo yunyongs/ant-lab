@@ -39,7 +39,7 @@ Releases are four: **v0.1** backend dashboard and web, **v1** web-based simulati
 | Phase 1 — JDBC | 콘솔 앱(시즌·팀·턴·매매·성적표), 단순 부트스트랩 | **건너뜀** (2026-11-09, Phase 0 API에 흡수) |
 | MON — 모니터링(Grafana) | Actuator·Micrometer → Prometheus → Grafana 대시보드(API 응답 시간·오류율, JVM·DB, 게임 지표)를 구축한다 | In progress (2026-11-13) — MON-01: Prometheus endpoint on the internal management port 8081 / 진행 중 (2026-11-13) — MON-01: 내부 관리 포트 8081의 Prometheus 엔드포인트 |
 | SEC — 인증(JWT) | Spring Security + JWT — 가입·로그인, 토큰 발급·검증·갱신을 구현하고 고정 회원을 실제 회원으로 교체한다(M4에서 앞당겼다) | In progress — SEC-01 authentication schema (2026-11-13). / 진행 중 — SEC-01 인증 스키마 (2026-11-13) |
-| WEB — 한 판 웹(React) | 시즌 시작·팀 구성·턴 진행·매매·전술 변경·성적표 화면, 모바일 폭 우선 반응형 | In progress (2026-11-13) — WEB-01: Vite + TypeScript React skeleton in web/ / 진행 중 (2026-11-13) — WEB-01: web/의 Vite + TypeScript React 골격 |
+| WEB — 한 판 웹(React) | 시즌 시작·팀 구성·턴 진행·매매·전술 변경·성적표 화면, 모바일 폭 우선 반응형 | In progress (2026-11-13) — WEB-01: Vite + TypeScript React skeleton in web/; WEB-02: API types, client and error catalog from openapi.yaml / 진행 중 (2026-11-13) — WEB-01: web/의 Vite + TypeScript React 골격 · WEB-02: openapi.yaml에서 API 타입·클라이언트·오류 목록 생성 |
 | MVP — Spring Boot + JPA | 전체 역사 데이터 적재, 예상 분포, 피드·랭킹·알림, 점수·레이팅 | 시작 전 |
 | M1–M3 | 수집기·CI, Python 엔진, 점수 백테스트 | 계획됨 |
 | EXT · M4 · APP · AI · OPS | 비용·케이스 훈련·대가 라이브러리, 전망 모드·리그·전당 API, 모바일·데스크탑 앱과 웹의 나머지 화면, AI 복기, 배포 | 계획됨 ([로드맵](docs/PLAN.md#11-로드맵커리큘럼-순서-유지)) |

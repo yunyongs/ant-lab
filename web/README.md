@@ -26,18 +26,22 @@ Open <http://localhost:5173>. Always use `localhost`, not `127.0.0.1`: cookies a
 
 ## Scripts / 스크립트
 
-| Script                    | What it does / 하는 일                                                 |
-| ------------------------- | ---------------------------------------------------------------------- |
-| `dev` / `preview`         | Vite dev server / serve the built app, both with the API proxy         |
-| `build`                   | `tsc -b && vite build` into `dist/`                                    |
-| `lint`                    | `eslint .`                                                             |
-| `format` / `format:check` | Prettier write / check                                                 |
-| `typecheck`               | `tsc -b`                                                               |
-| `test` / `test:watch`     | `vitest run` / `vitest`                                                |
-| `verify`                  | lint → format:check → typecheck → test → build, stops on first failure |
+| Script                    | What it does / 하는 일                                                        |
+| ------------------------- | ----------------------------------------------------------------------------- |
+| `dev` / `preview`         | Vite dev server / serve the built app, both with the API proxy                |
+| `build`                   | `tsc -b && vite build` into `dist/`                                           |
+| `lint`                    | `eslint .`                                                                    |
+| `format` / `format:check` | Prettier write / check                                                        |
+| `typecheck`               | `tsc -b`                                                                      |
+| `test` / `test:watch`     | `vitest run` / `vitest`                                                       |
+| `verify`                  | lint → format:check → typecheck → test → build, stops on first failure        |
+| `gen:api`                 | regenerates `src/api/schema.d.ts` from `../docs/api/openapi.yaml` (see below) |
 
 `cd web && npm ci && npm run verify` needs no backend, no secrets and no fixed ports.
 `cd web && npm ci && npm run verify`는 백엔드·비밀값·고정 포트가 필요 없다.
+
+`gen:api` — regenerates `src/api/schema.d.ts` from `../docs/api/openapi.yaml`; commit the result. `npm test` fails when it is stale.
+`gen:api` — `../docs/api/openapi.yaml`에서 `src/api/schema.d.ts`를 다시 만든다. 결과를 커밋한다. 낡으면 `npm test`가 실패한다.
 
 ## Proxy / 프록시
 
@@ -59,12 +63,13 @@ src/pages/     route views / 경로별 화면
 src/features/  feature components, hooks, small fetchers / 기능별 코드 (health: 임시 상태 조회)
 src/styles/    tokens.css (design tokens), reset, global / 디자인 토큰·초기화
 src/test/      test setup, request mocks, render helpers / 시험 설정·요청 모의·렌더 도우미
-src/api/       reserved for WEB-02 (generated types, typed client) / WEB-02용 예약
+src/api/       generated API types, typed client, error catalog / 생성된 API 타입·클라이언트·오류 목록
 ```
 
 ## Rules / 규칙
 
 - Show server values as they are. Money is a decimal string: no `Number(…)`, `parseFloat` (lint error). 서버 값을 그대로 보여 준다. 금액은 십진 문자열이라 `Number(…)`·`parseFloat`을 쓰면 린트 오류다.
+- API types and the client come from `src/api/` (generated from the contract); do not hand-write DTO types. Error codes map to Korean text in `src/api/errorMessages.ts`; a missing code fails `npm run typecheck` (part of `verify`; `npm test` alone does not type-check). API 타입과 클라이언트는 `src/api/`(계약에서 생성)를 쓴다. DTO 타입을 손으로 쓰지 않는다. 오류 코드는 `src/api/errorMessages.ts`에서 한국어 문장으로 바뀌고, 빠진 코드는 `npm run typecheck`(`verify`에 포함, `npm test`만으로는 타입 검사를 하지 않는다)에서 실패한다.
 - Access tokens live in memory only: no `localStorage`, `sessionStorage` or `document.cookie` (lint error). 접근 토큰은 메모리에만 두며 위 저장소 접근은 린트 오류다.
 - No secrets in `web/` and no `VITE_*` values: everything there ships in the bundle. `web/`에 비밀값과 `VITE_*` 값을 두지 않는다. 번들에 그대로 실린다.
 - The root `.gitignore` ignores these names at any depth, so never create folders `env`, `bin`, `build`, `out`, `logs`, `tmp`, `temp`, `dist` (except Vite output), `secrets`, `.cache` or files `token_*.json`, `*.key`, `*.log`. Design tokens are `tokens.css`. 루트 `.gitignore`가 위 이름을 어느 깊이에서든 무시하므로 만들지 않는다. 디자인 토큰은 `tokens.css`다.
