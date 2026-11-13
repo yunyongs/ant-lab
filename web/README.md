@@ -1,7 +1,7 @@
 # web — one-season web app / 한 판 웹 앱
 
-TypeScript React app built with Vite. This is the WEB-01 skeleton: app shell, router, one API status line and the dev proxy.
-Vite로 빌드하는 TypeScript React 앱이다. WEB-01 골격으로, 앱 틀·라우터·API 상태 한 줄·개발 프록시가 들어 있다.
+TypeScript React app built with Vite. It has the app shell, router, API status line and dev proxy (WEB-01), the typed API client (WEB-02), and signup, login and session handling (WEB-03).
+Vite로 빌드하는 TypeScript React 앱이다. 앱 틀·라우터·API 상태 한 줄·개발 프록시(WEB-01), 타입 있는 API 클라이언트(WEB-02), 가입·로그인·세션 처리(WEB-03)가 들어 있다.
 
 ## Prerequisites / 준비
 
@@ -55,12 +55,25 @@ Only `/api` is forwarded, unchanged, to `http://127.0.0.1:8080`. For an API on a
 - The dev server binds `localhost:5173` only (`strictPort`); `/readyz` and Actuator are not proxied.
 - 개발 서버는 `localhost:5173`에만 붙고(`strictPort`) `/readyz`와 Actuator는 넘기지 않는다.
 
+## Login and session / 로그인과 세션
+
+- Sign up at `/signup` (the app logs you in right after) or log in at `/login`. Every other page needs a login.
+- `/signup`에서 가입하거나(가입하면 바로 로그인된다) `/login`에서 로그인한다. 다른 화면은 모두 로그인이 필요하다.
+- The access token lives only in memory. The refresh token is an HttpOnly cookie that the API sets for `/api/v1/auth`; scripts cannot read it. A reload asks `/api/v1/auth/refresh` once for a new access token.
+- 접근 토큰은 메모리에만 있다. 갱신 토큰은 API가 `/api/v1/auth` 경로로 설정하는 HttpOnly 쿠키라 스크립트가 읽을 수 없다. 새로 고치면 `/api/v1/auth/refresh`에 한 번 요청해 새 접근 토큰을 받는다.
+- When a call answers 401, the client refreshes once and repeats the call; a second 401 goes back to the login screen. Refresh, login and logout are serialised across tabs with the Web Locks API, because the server treats a second use of a rotated refresh token as theft and ends the login.
+- 호출이 401이면 클라이언트가 한 번 갱신하고 같은 호출을 다시 보낸다. 다시 401이면 로그인 화면으로 간다. 서버는 회전된 갱신 토큰을 두 번 쓰면 도난으로 보고 로그인을 끝내므로, 갱신·로그인·로그아웃은 Web Locks API로 탭 사이에서도 한 번에 하나씩 실행한다.
+- Logging out in one tab logs out every open tab.
+- 한 탭에서 로그아웃하면 열린 탭이 모두 로그아웃된다.
+- Until the API checks bearer tokens (SEC-04) and uses the logged-in member (SEC-05), season calls work with or without a login and act as the fixed member.
+- API가 Bearer 토큰을 검사하고(SEC-04) 로그인한 회원을 쓰기(SEC-05) 전까지 시즌 호출은 로그인과 상관없이 동작하며 고정 회원으로 처리된다.
+
 ## Folder layout / 폴더 구조
 
 ```text
 src/app/       providers, router, shell, queryClient / 공급자·라우터·틀
 src/pages/     route views / 경로별 화면
-src/features/  feature components, hooks, small fetchers / 기능별 코드 (health: 임시 상태 조회)
+src/features/  feature components, hooks, small fetchers / 기능별 코드 (health: 임시 상태 조회, auth: 세션·갱신·로그인)
 src/styles/    tokens.css (design tokens), reset, global / 디자인 토큰·초기화
 src/test/      test setup, request mocks, render helpers / 시험 설정·요청 모의·렌더 도우미
 src/api/       generated API types, typed client, error catalog / 생성된 API 타입·클라이언트·오류 목록
@@ -77,6 +90,6 @@ src/api/       generated API types, typed client, error catalog / 생성된 API 
 
 ## Tests / 시험
 
-- jsdom (Vitest, Testing Library, MSW): shell, navigation, not-found view, status line states. Requests without a handler fail the test. jsdom 시험: 앱 틀·이동·없는 경로·상태 줄. 핸들러 없는 요청은 시험을 실패시킨다.
+- jsdom (Vitest, Testing Library, MSW): shell, navigation, not-found view, status line states. Requests without a handler fail the test. Auth tests cover login, signup, restore, refresh-once-and-retry, tab serialisation, logout, and that no token reaches browser storage. jsdom 시험: 앱 틀·이동·없는 경로·상태 줄. 핸들러 없는 요청은 시험을 실패시킨다. 인증 시험은 로그인·가입·복원·한 번 갱신 후 재시도·탭 직렬화·로그아웃과 토큰이 브라우저 저장소에 들어가지 않음을 확인한다.
 - Node environment (`// @vitest-environment node`): proxy defaults and invalid ports, dev binding, a real Vite proxy against a stub HTTP backend on free ports, the lint restrictions, exact dependency pins. Node 환경 시험: 프록시 기본값·잘못된 포트, 개발 서버 바인딩, 빈 포트의 가짜 백엔드를 상대로 한 실제 Vite 프록시, 린트 금지 규칙, 의존성 정확 고정.
 - Real-browser end-to-end tests arrive in WEB-10. 실제 브라우저 종단 시험은 WEB-10에서 더한다.

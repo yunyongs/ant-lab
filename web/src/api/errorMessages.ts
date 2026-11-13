@@ -29,9 +29,11 @@ export const errorMessages = {
   RECONCILIATION_FAILED:
     '턴을 넘기는 중 계좌 검산이 맞지 않아 아무것도 바꾸지 않았습니다. 지금 턴 그대로입니다.',
   FORBIDDEN: '이 기능을 쓸 권한이 없습니다.',
-  EMAIL_TAKEN: '이미 가입한 이메일입니다.',
-  UNAUTHENTICATED: '로그인이 필요합니다.',
-  INVALID_CREDENTIALS: '이메일이나 비밀번호가 맞지 않습니다.',
+  EMAIL_TAKEN:
+    '이미 가입한 이메일입니다. 로그인하거나 다른 이메일을 써 주세요.',
+  UNAUTHENTICATED: '로그인이 끝났습니다. 다시 로그인해 주세요.',
+  INVALID_CREDENTIALS:
+    '이메일이나 비밀번호가 맞지 않습니다. 다시 확인해 주세요.',
 } as const satisfies Record<ErrorCode, string>;
 
 const UNKNOWN_MESSAGE = '알 수 없는 오류가 생겼습니다.';

@@ -43,6 +43,9 @@ describe('lint restrictions', () => {
     ['window.localStorage', /memory only/],
     ['window.sessionStorage', /memory only/],
     ['globalThis.localStorage', /memory only/],
+    ['indexedDB.open("db")', /memory only/],
+    ['window.indexedDB', /memory only/],
+    ['globalThis.indexedDB', /memory only/],
     ['document.cookie', /memory only/],
   ])('rejects %s with its reason', async (code, reason) => {
     const found = await messages(code);

@@ -11,9 +11,16 @@ interface Seen {
   url: string;
   host: string;
   body: string;
+  cookie: string;
 }
 
 const COOKIE = 'antlab_refresh=x; HttpOnly; SameSite=Strict; Path=/api/v1/auth';
+const ROTATED =
+  'antlab_refresh=rotated; Path=/api/v1/auth; Max-Age=1209600; Expires=Fri, 27 Nov 2026 12:00:00 GMT; Secure; HttpOnly; SameSite=Strict';
+const PROBLEM_401 =
+  '{"title":"Unauthorized","status":401,"detail":"로그인이 필요합니다.","instance":"/api/v1/pool","code":"UNAUTHENTICATED"}';
+const PROBLEM_409 =
+  '{"title":"Conflict","status":409,"detail":"이미 가입한 이메일입니다.","instance":"/api/v1/auth/signup","code":"EMAIL_TAKEN"}';
 
 /** Runs `fn` with the variable set, then restores the previous state even if `fn` throws. */
 async function withEnv<T>(
@@ -55,7 +62,21 @@ beforeAll(async () => {
         url: req.url ?? '',
         host: req.headers.host ?? '',
         body,
+        cookie: req.headers.cookie ?? '',
       });
+      if (req.url === '/api/v1/stub/401' || req.url === '/api/v1/stub/409') {
+        const unauthorized = req.url.endsWith('401');
+        res.statusCode = unauthorized ? 401 : 409;
+        res.setHeader('Content-Type', 'application/problem+json');
+        res.end(unauthorized ? PROBLEM_401 : PROBLEM_409);
+        return;
+      }
+      if (req.url === '/api/v1/auth/refresh') {
+        res.setHeader('Content-Type', 'application/json');
+        res.setHeader('Set-Cookie', ROTATED);
+        res.end('{"accessToken":"test-access-1","tokenType":"Bearer"}');
+        return;
+      }
       res.setHeader('Content-Type', 'application/json');
       res.setHeader('Set-Cookie', COOKIE);
       res.end(JSON.stringify({ ok: true }));
@@ -155,6 +176,27 @@ describe('dev proxy against a stub backend', () => {
     seen.length = 0;
     await fetch(new URL('/readyz', base));
     expect(seen).toHaveLength(0);
+  });
+
+  it.each([
+    [401, '/api/v1/stub/401', PROBLEM_401],
+    [409, '/api/v1/stub/409', PROBLEM_409],
+  ])('keeps a %i Problem answer byte for byte', async (status, path, text) => {
+    const res = await fetch(new URL(path, base));
+    expect(res.status).toBe(status);
+    expect(res.headers.get('content-type')).toBe('application/problem+json');
+    expect(await res.text()).toBe(text);
+  });
+
+  it('delivers the refresh cookie unchanged and returns the rotated one as is', async () => {
+    seen.length = 0;
+    const res = await fetch(new URL('/api/v1/auth/refresh', base), {
+      method: 'POST',
+      headers: { Cookie: 'antlab_refresh=abc' },
+    });
+    expect(seen[0]?.cookie).toBe('antlab_refresh=abc');
+    expect(res.headers.getSetCookie()).toEqual([ROTATED]);
+    expect(res.headers.getSetCookie().join()).not.toMatch(/Domain=/i);
   });
 
   it('answers a non-Problem failure once the backend is gone', async () => {

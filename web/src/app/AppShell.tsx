@@ -1,4 +1,5 @@
 import { NavLink, Outlet } from 'react-router';
+import { useAuth } from '../features/auth/useAuth.ts';
 import { APP_NAME } from './appName.ts';
 import styles from './AppShell.module.css';
 
@@ -10,11 +11,21 @@ export interface NavItem {
 const NAV_ITEMS: NavItem[] = [{ to: '/', label: '홈' }];
 
 export function AppShell({ navItems = NAV_ITEMS }: { navItems?: NavItem[] }) {
+  const { logout } = useAuth();
   return (
     <div className={styles.shell}>
       <header className={styles.header}>
-        <div className={styles.inner}>
+        <div className={`${styles.inner} ${styles.headerRow}`}>
           <span className={styles.title}>{APP_NAME}</span>
+          <button
+            type="button"
+            className={styles.logout}
+            onClick={() => {
+              void logout();
+            }}
+          >
+            로그아웃
+          </button>
         </div>
       </header>
       <main className={styles.main}>

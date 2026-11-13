@@ -10,6 +10,7 @@ export const restrictionRules = {
     { name: 'parseFloat', message: MONEY },
     { name: 'localStorage', message: TOKEN },
     { name: 'sessionStorage', message: TOKEN },
+    { name: 'indexedDB', message: TOKEN },
   ],
   'no-restricted-properties': [
     'error',
@@ -25,6 +26,8 @@ export const restrictionRules = {
     { object: 'window', property: 'sessionStorage', message: TOKEN },
     { object: 'globalThis', property: 'localStorage', message: TOKEN },
     { object: 'globalThis', property: 'sessionStorage', message: TOKEN },
+    { object: 'window', property: 'indexedDB', message: TOKEN },
+    { object: 'globalThis', property: 'indexedDB', message: TOKEN },
     { object: 'document', property: 'cookie', message: TOKEN },
   ],
   'no-restricted-syntax': [

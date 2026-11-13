@@ -869,7 +869,7 @@ The owner approved the tables below with the recommended defaults for Q1–Q7 (2
 |---|---|---|---|
 | WEB-01 | Vite + TypeScript React skeleton / Vite + TypeScript React 골격 | After P0-40 merges, alongside SEC / P0-40 머지 뒤, SEC와 병행 | P0-40 |
 | WEB-02 | API types, client and error catalog from openapi.yaml / openapi.yaml 기반 API 타입·클라이언트·오류 목록 | After WEB-01 and P0-40 PR B/C merge; regenerate after SEC-04 / WEB-01·P0-40 PR B/C 머지 뒤, SEC-04 뒤 재생성 | WEB-01, P0-40, SEC-04 |
-| WEB-03 | Login, signup and session handling / 로그인·가입·세션 처리 | After SEC-04 merges; real-season play needs SEC-05 / SEC-04 머지 뒤, 실제 시즌 진행은 SEC-05 필요 | WEB-02, SEC-04, SEC-05 |
+| WEB-03 | Login, signup and session handling / 로그인·가입·세션 처리 | After SEC-03 (refresh and logout merged); bearer checks are verified when SEC-04 lands (WEB-10) / SEC-03(갱신·로그아웃 머지) 뒤, Bearer 검사는 SEC-04가 들어오면 확인(WEB-10) | WEB-02, SEC-03 (SEC-04, SEC-05 for real-season play) / WEB-02, SEC-03(실제 시즌 진행은 SEC-04·SEC-05) |
 | WEB-04 | Season list and season start / 시즌 목록·시즌 시작 | After WEB-03 / WEB-03 뒤 | WEB-03 |
 | WEB-05 | Team build at turn 0 / 0턴 팀 구성 | After WEB-04 / WEB-04 뒤 | WEB-04 |
 | WEB-06 | Turn advance and turn result / 턴 전환·턴 결과 | After WEB-05 / WEB-05 뒤 | WEB-05 |
