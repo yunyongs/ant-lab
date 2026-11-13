@@ -23,8 +23,8 @@
 |---|---|---|---|---|---|---|---|
 | `db` | 로컬 `postgres:17`, 운영은 `postgres:17.x`로 고정. AI 단계에 pgvector 이미지(`pgvector/pgvector:pg17` 후보 — arm64 태그 **확인 필요**) | Phase 0(지금) | `backend` | 로컬 `127.0.0.1:${ANTLAB_DB_PORT:-5432}`, 운영 없음(`backend`가 internal이라 게시되지 않는다 — §5) | `db-data` | `pg_isready` | 항상 |
 | `api` | `ghcr.io/yunyongs/antlab-api` (Spring Boot 4.1.x, Java 21) | Phase 0 (P0-24) | `backend`, `edge`, `egress` | 로컬 `127.0.0.1:${ANTLAB_API_PORT:-8080}`, 운영 없음 | 없음(무상태) | `GET /readyz` (API port; Actuator on management port 8081, not published) / `GET /readyz`(API 포트. Actuator는 관리 포트 8081, 게시하지 않음) | 로컬: profile `api`(`--profile api`를 명시해야 켜짐) · 운영: 항상 |
-| `prometheus` | `prom/prometheus`(이미지 판은 MON에서 정한다, arm64 **확인 필요**) | MON | `backend` | 로컬 `127.0.0.1:${ANTLAB_PROMETHEUS_PORT:-9090}`(개발만), 운영 없음 | `prometheus-data` | `GET /-/ready` | profile `monitoring` |
-| `grafana` | `grafana/grafana`(이미지 판은 MON에서 정한다, arm64 **확인 필요**) | MON | `backend` | 로컬 `127.0.0.1:${ANTLAB_GRAFANA_PORT:-3000}`, 운영 없음(OPS에서 Caddy 경로 뒤에 두고 인증을 적용한다) | `grafana-data`(대시보드·데이터 원천은 저장소 provisioning 파일) | `GET /api/health` | profile `monitoring` |
+| `prometheus` | `prom/prometheus:v3.16.0` (pinned in MON-02, arm64 checked 2026-11-13) / `prom/prometheus:v3.16.0`(MON-02에서 고정, arm64 확인 2026-11-13) | MON | `backend` | 로컬 `127.0.0.1:${ANTLAB_PROMETHEUS_PORT:-9090}`(개발만), 운영 없음 | `prometheus-data` | `GET /-/ready` | profile `monitoring` |
+| `grafana` | `grafana/grafana:13.3.1` (OSS, pinned in MON-02, arm64 checked 2026-11-13) / `grafana/grafana:13.3.1`(OSS, MON-02에서 고정, arm64 확인 2026-11-13) | MON | `backend` | 로컬 `127.0.0.1:${ANTLAB_GRAFANA_PORT:-3000}`, 운영 없음(OPS에서 Caddy 경로 뒤에 두고 인증을 적용한다) | `grafana-data`(대시보드·데이터 원천은 저장소 provisioning 파일) | `GET /api/health` | profile `monitoring` |
 | `engine` | `ghcr.io/yunyongs/antlab-engine` (FastAPI, `python:3.13-slim` 기반) | M2 | `backend`만 | 로컬 `127.0.0.1:8000`(개발만), 운영 없음 | 없음 | `GET /healthz` | 항상(M2부터) |
 | `proxy` | `ghcr.io/yunyongs/antlab-proxy` (`caddy:2` + React 정적 빌드 `/srv`) | APP(로컬은 선택), OPS | `edge` | 운영 `80`, `443`(유일한 외부 포트) | `caddy-data`, `caddy-config` | Caddy 관리 API 또는 `GET /`(방법 **확인 필요**) | 항상(운영) |
 | `agent-runner` | AG-02에서 정함(언어 미정) | AG-02 | `egress`(api 호출 + OpenRouter) | 없음 | 없음(기록은 api가 DB에) | 프로세스 생존 | profile `agents` |
@@ -33,6 +33,7 @@
 
 - 모니터링(MON, 2026-11-10): `api`는 Actuator `prometheus` 끝점을 `backend` 네트워크 안에서만 제공하고(외부 포트로 열지 않는다), `prometheus`가 이를 수집한다. `grafana`의 관리자 비밀번호는 비밀값으로 다룬다(§9). 로그 수집(Loki)과 경보는 OPS에서 정한다.
   MON-01 (2026-11-13): the Actuator runs on a separate management port `8081` (`management.server.port`, env `ANTLAB_MANAGEMENT_PORT`) that compose never publishes; `prometheus` scrapes `api:8081/actuator/prometheus`. On the API port only `/livez` and `/readyz` remain; every `/actuator/**` path there is 404. / MON-01(2026-11-13): Actuator는 별도 관리 포트 `8081`(`management.server.port`, 환경 변수 `ANTLAB_MANAGEMENT_PORT`)에서 돌고 compose는 이 포트를 게시하지 않는다. `prometheus`는 `api:8081/actuator/prometheus`를 수집한다. API 포트에는 `/livez`·`/readyz`만 남고 그곳의 `/actuator/**`는 모두 404다. It is scraped over `backend`, but every network `api` joins can reach it (§5 item 6). / `backend`로 수집하지만 `api`가 붙은 다른 네트워크에서도 닿는다(§5 6번).
+  MON-02 (2026-11-13): `prometheus` scrapes job `antlab-api` (`api:8081/actuator/prometheus`, every 15 s, 15-day retention) and `grafana` gets the Prometheus data source (uid `antlab-prometheus`) from `monitoring/grafana/provisioning/`; both join `backend` only and publish on `127.0.0.1` only. Dashboards come in MON-04. / MON-02(2026-11-13): `prometheus`는 잡 `antlab-api`(`api:8081/actuator/prometheus`, 15초마다, 15일 보관)를 수집하고, `grafana`는 `monitoring/grafana/provisioning/`에서 Prometheus 데이터 원천(uid `antlab-prometheus`)을 받는다. 둘 다 `backend`에만 붙고 `127.0.0.1`에만 게시한다. 대시보드는 MON-04에서 더한다.
 - 웹(React)은 **별도 컨테이너를 두지 않는다.** CI에서 `vite build` → 결과를 Caddy 이미지 `/srv`에 굽고 Caddy가 `file_server`로 준다. 데스크탑(Tauri)·모바일(Expo)은 서버 배포 대상이 아니다(같은 REST API를 `https://{도메인}/api`로 부른다, PLAN §10). 대안 — 웹을 `nginx` 컨테이너로 따로: 컨테이너와 메모리가 늘고 TLS와 정적 파일을 Caddy 하나로 하는 이점이 없어 택하지 않았다.
 - Phase 0–M1의 Java 적재·수집기 잡은 `api` 프로세스 안의 `@Scheduled`로 둔다(MACRO_ETF §6.2·부록 A.3 "Airflow 과함" 유지). 별도 워커 컨테이너는 만들지 않는다.
 - `tools/fetch`(P0-08)는 **소유자 기기 전용 CLI**로 남는다 — 컨테이너로 만들지 않는다(KIS 실전 키를 서버에 두지 않음, M1 수집기는 Java, PLAN §11).
@@ -41,7 +42,7 @@
 
 | 파일 | 추적 | 내용 | 실행 |
 |---|---|---|---|
-| `compose.yaml`(루트) | 예 | **로컬 기준 + 공통 정의.** 지금은 `db`·`api`(`api`는 profile `api`)만 있다. 서비스가 생길 때마다 추가한다(`engine` M2). 선택 서비스는 `profiles:`로 관리한다. 운영은 `/opt/antlab/.env`의 `COMPOSE_PROFILES=api` 또는 `compose.prod.yaml`의 `profiles: !reset []`로 항상 켠다(`!reset`의 profiles 적용은 OPS에서 **확인 필요**) | `docker compose up -d` |
+| `compose.yaml`(루트) | 예 | **로컬 기준 + 공통 정의.** Now: `db`, `api` (profile `api`), `prometheus` and `grafana` (profile `monitoring`, MON-02). / 지금은 `db`·`api`(profile `api`)·`prometheus`·`grafana`(profile `monitoring`, MON-02)가 있다. 서비스가 생길 때마다 추가한다(`engine` M2). 선택 서비스는 `profiles:`로 관리한다. 운영은 `/opt/antlab/.env`의 `COMPOSE_PROFILES=api` 또는 `compose.prod.yaml`의 `profiles: !reset []`로 항상 켠다(`!reset`의 profiles 적용은 OPS에서 **확인 필요**) | `docker compose up -d` |
 | `compose.prod.yaml`(루트) | 예(OPS) | 운영 덮어쓰기: `image:`를 GHCR SHA 태그로, `build:` 제거, `db` 인증을 비밀번호(secrets)로 하고 `POSTGRES_HOST_AUTH_METHOD: scram-sha-256`을 **명시**(키를 빼면 공통 파일의 trust가 남는다 — 아래), `proxy` 추가, `restart: always`, `logging` 회전, `mem_limit`, 필요하면 `ports: !reset []` | `docker compose -f compose.yaml -f compose.prod.yaml up -d` |
 | `compose.override.yaml` | **아니오**(`.gitignore`에 이미 있음) | 개인 로컬 조정(포트 바꾸기 등) — Compose가 자동 병합 | 자동 |
 | `deploy/Caddyfile`, `deploy/backup/*.sh` | 예(OPS) | 프록시·백업 | — |
@@ -76,6 +77,7 @@ ANTLAB_DB_PORT=55432 ANTLAB_API_PORT=18080 docker compose --profile api -p antla
 docker compose --profile api -p antlab-qa down -v --rmi local            # 이 프로젝트의 볼륨·빌드 이미지만 지움
 ```
 
+- With monitoring: add `--profile monitoring` and `ANTLAB_PROMETHEUS_PORT=19090 ANTLAB_GRAFANA_PORT=13000` to both `up` and `down`, and set `GF_SECURITY_ADMIN_PASSWORD` for the run. / 모니터링까지 시험할 때는 `up`과 `down` 모두에 `--profile monitoring`과 `ANTLAB_PROMETHEUS_PORT=19090 ANTLAB_GRAFANA_PORT=13000`을 붙이고, 그 실행에 쓸 `GF_SECURITY_ADMIN_PASSWORD`를 정한다.
 - `down -v`는 **그 프로젝트의 볼륨을 지운다.** `-p antlab-qa` 없이 `-v`를 쓰면 소유자 데이터가 지워진다.
 - 소유자 컨테이너가 5432를 쓰는 중에 `ANTLAB_DB_PORT` 없이 시험용 프로젝트를 올리면 포트 충돌로 실패한다(시험하지 않고 경고만).
 - 비기본 포트로 띄운 프로젝트를 다시 `up`할 때도 같은 `ANTLAB_DB_PORT`를 붙인다(빠뜨리면 5432로 다시 계산돼 소유자 컨테이너와 충돌한다). 잠깐 멈출 때는 `stop`/`start`를 쓴다. 계속 다른 포트를 쓰려면 루트 `.env`에 `ANTLAB_DB_PORT`를 둔다(셸 변수가 `.env`보다 우선 — Compose 문서).
@@ -152,7 +154,7 @@ docker compose --profile api -p antlab-qa down -v --rmi local            # 이 �
 
 | 위치 | 무엇 | 규칙 |
 |---|---|---|
-| 로컬 `.env`(루트, git 무시 — 이미 `.gitignore`) | KIS 키, `OPENROUTER_API_KEY`, `OLLAMA_*`, 로컬 DB 포트 등 | `.env.example`에 **이름만**(P0-08 규칙). Compose는 루트 `.env`를 변수 치환에 읽는다 |
+| 로컬 `.env`(루트, git 무시 — 이미 `.gitignore`) | KIS 키, `OPENROUTER_API_KEY`, `OLLAMA_*`, 로컬 DB 포트 등. `GF_SECURITY_ADMIN_PASSWORD` (Grafana admin password for profile `monitoring`; required, no default — without it the `grafana` container exits with a message and keeps restarting until the variable is set (read it with `docker compose logs grafana`), while `docker compose up -d` without the profile is unaffected; applied only when the `grafana-data` volume is first created, change it later with `grafana cli admin reset-admin-password`) / `GF_SECURITY_ADMIN_PASSWORD`(profile `monitoring`의 Grafana 관리자 비밀번호. 필수이며 기본값 없음 — 없으면 `grafana` 컨테이너가 메시지를 남기고 종료하며 변수를 정할 때까지 재시작을 되풀이한다(메시지는 `docker compose logs grafana`로 본다). profile 없는 `docker compose up -d`는 영향이 없다. `grafana-data` 볼륨이 처음 만들어질 때만 적용되므로 나중에 바꿀 때는 `grafana cli admin reset-admin-password`를 쓴다) | `.env.example`에 **이름만**(P0-08 규칙). Compose는 루트 `.env`를 변수 치환에 읽는다 |
 | 운영 VM `/opt/antlab/.env`(권한 600, 저장소 밖) | 운영 값 | 소유자가 SSH로 직접 둔다 |
 | 운영 compose `secrets:`(파일 → `/run/secrets/<이름>`) | DB 비밀번호, JWT 키, 엔진 토큰 | postgres 이미지는 `POSTGRES_PASSWORD_FILE` 지원(Docker Hub 공식 이미지 문서 — `_FILE`은 `POSTGRES_PASSWORD`·`USER`·`DB`·`INITDB_ARGS`만). Spring은 `spring.config.import=optional:configtree:/run/secrets/`로 파일 내용을 속성으로 읽는다(파일 이름이 속성 이름이다: `/run/secrets/spring.datasource.password` → `spring.datasource.password`. P0-24에서 임시 파일로 매핑과 환경 변수 우선순위를 확인했고, compose `secrets:`로 실제 마운트하는 일은 OPS다). `POSTGRES_HOST_AUTH_METHOD`는 `_FILE`이 없어 값으로 직접 쓴다(§3 "trust는 로컬·CI 전용"). |
 | GitHub Actions secrets | 배포용 SSH 키·호스트(OPS), 필요하면 OpenRouter 시험 키 | GHCR 푸시는 `GITHUB_TOKEN`(비밀값 추가 불필요). 공개 저장소의 포크 PR에는 secrets가 전달되지 않는다(GitHub 문서 **확인 필요**) → CI 시험은 비밀값 없이 돌아야 한다 |
