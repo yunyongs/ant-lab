@@ -840,9 +840,9 @@ The release column shows the scope of §1.2. The public launch of release v1 (fo
 | AG-07 | 전망 모드 에이전트 참가(논제 출력, 실명)와 에이전트 명예 기록 — 전망 리더보드 점수(§6.9)와 명예 기록 기준값을 이 기능에서 정한다 | M4 뒤 | M4 전망 모드 |
 | AG-08 | 메모리 RAG(pgvector) — 대상은 필터를 통과한 자기 메모리, 시즌 시작 버전까지(§4.16) | AI 단계 | AI 단계(RAG) |
 
-The tables below are drafts pending owner approval; work proceeds with the recommended defaults for Q1–Q7 until approval. / 아래 표는 소유자 승인 전 초안이며, 승인 전에는 Q1–Q7의 추천 기본값으로 진행한다.
+The owner approved the tables below with the recommended defaults for Q1–Q7 (2026-11-13); numbers do not change from here on (CONVENTION §0). / 소유자가 아래 표를 Q1–Q7의 추천 기본값으로 승인했다(2026-11-13). 이제부터 번호는 바뀌지 않는다(CONVENTION §0).
 
-**MON feature table (draft) / MON 기능 표(초안)**
+**MON feature table / MON 기능 표**
 
 | Feature / 기능 | Name / 이름 | When / 시기 | Depends on / 선행 |
 |---|---|---|---|
@@ -852,7 +852,7 @@ The tables below are drafts pending owner approval; work proceeds with the recom
 | MON-04 | Grafana dashboards as code / 코드로 관리하는 Grafana 대시보드 | After MON-02 and MON-03 / MON-02·MON-03 뒤 | MON-02, MON-03 |
 | MON-05 | Monitoring smoke and run docs / 모니터링 스모크 시험·실행 문서 | After MON-04, before SEC-05 / MON-04 뒤, SEC-05 전 | MON-04 |
 
-**SEC feature table (draft) / SEC 기능 표(초안)**
+**SEC feature table / SEC 기능 표**
 
 | Feature / 기능 | Name / 이름 | When / 시기 | Depends on / 선행 |
 |---|---|---|---|
@@ -863,7 +863,7 @@ The tables below are drafts pending owner approval; work proceeds with the recom
 | SEC-05 | Replace the fixed member with the authenticated member / 고정 회원을 인증된 회원으로 교체 | After SEC-04 / SEC-04 뒤 | SEC-04 |
 | SEC-06 | Auth E2E, secrets and docs / 인증 E2E·비밀 설정·문서 | After SEC-05; update MON-05 smoke if merged / SEC-05 뒤, MON-05가 머지됐으면 스모크 갱신 | SEC-05, MON-05 |
 
-**WEB feature table (draft) / WEB 기능 표(초안)**
+**WEB feature table / WEB 기능 표**
 
 | Feature / 기능 | Name / 이름 | When / 시기 | Depends on / 선행 |
 |---|---|---|---|
@@ -1024,7 +1024,7 @@ ERD 확정 범위(Gate 0 결정 2): Phase 0 SQL이 쓰는 22개 테이블(역사
 
   **복기 API(소유자 상시 규칙에 따른 추천안 채택, 2026-11-12, P0-39 Q1·Q2).** Q1 "넣는다 (추천)" — 복기 응답에 전술 변경 기록(턴·이전/이후 포메이션·사유)을 함께 싣는다(PLAN §4.10). Q2 "바뀐 문장만 (추천)" — 기능 PR에서는 한국어 문서의 새 문장과 바뀐 문장을 영어로 먼저 쓰고 한국어를 잇는다. 문서 전체 영어판은 소유자가 일정을 잡는 별도 작업으로 미룬다. 끝난 시즌만 복기를 내고(그 밖의 상태는 409 `SEASON_NOT_FINISHED`), 시드는 문자열로 보낸다.
 
-- **v0.1 feature-table draft (2026-11-13). / v0.1 기능 표 초안(2026-11-13).** Scope: 22 features (MON-01–05, SEC-01–06, WEB-01–11), listed in §11. Estimated code completion: optimistic 2026-11-21 / conservative 2026-11-28, excluding the owner's merge wait. Status: awaiting owner confirmation (questions at 2026-11-13 07:00); the following recommended defaults apply pending approval. / 범위: §11의 기능 22개(MON-01–05, SEC-01–06, WEB-01–11). 코드 완료 예상: 낙관 2026-11-21 / 보수 2026-11-28, 소유자 머지 대기 제외. 상태: 소유자 확인 대기(2026-11-13 07:00 질문). 승인 전에는 다음 추천 기본값을 적용한다.
+- **v0.1 feature tables (2026-11-13). / v0.1 기능 표(2026-11-13).** Scope: 22 features (MON-01–05, SEC-01–06, WEB-01–11), listed in §11. Estimated code completion: optimistic 2026-11-21 / conservative 2026-11-28, excluding the owner's merge wait. Status: approved by the owner with the recommended defaults (2026-11-13). / 범위: §11의 기능 22개(MON-01–05, SEC-01–06, WEB-01–11). 코드 완료 예상: 낙관 2026-11-21 / 보수 2026-11-28, 소유자 머지 대기 제외. 상태: 소유자가 추천 기본값으로 승인(2026-11-13). 다음 결정을 적용한다.
   - **Q1 — WEB start vs React curriculum.** Start WEB-01/02 as soon as P0-40 merges, alongside SEC and ahead of the React classes; learning notes cover core logic only (auth flow, contract-to-types, money strings, turn state). / **Q1 — WEB 시작과 React 진도.** P0-40 머지 직후 React 수업보다 먼저 WEB-01/02를 SEC와 병행하고, 학습 설명은 핵심 로직(인증 흐름·계약에서 타입 생성·금액 문자열·턴 상태)에만 붙인다.
   - **Q2 — Token placement.** Access token in memory; refresh token in an HttpOnly, SameSite=Strict cookie; same origin. / **Q2 — 토큰 위치.** 접근 토큰은 메모리, 갱신 토큰은 HttpOnly·SameSite=Strict 쿠키에 두고 같은 출처를 쓴다.
   - **Q3 — JWT implementation.** Spring Security OAuth2 Resource Server, reducing custom security code. / **Q3 — JWT 구현.** Spring Security OAuth2 Resource Server로 직접 작성하는 보안 코드를 줄인다.
