@@ -20,7 +20,7 @@
 -- 판정 함수(pg_temp 프로시저): check_err(실패해야 정상) · check_ok(성공해야 정상) · check_eq(값 비교) + 값 질의 도우미 val().
 --       호출은 CALL pg_temp.check_err(...) 처럼 pg_temp. 접두가 필요하다. 02는 행 수 도우미 row_count()를 하나 더 둔다.
 -- 03 검증 파일(P0-07)은 이 02 파일을 복사한다 (일부만 복사하면 헛 PASS 길이 다시 열린다):
---       ① 맨 앞 CREATE TEMP SEQUENCE zz_verdict + setval(…, 1)   ② 결과 표 zz_check_result
+--       ① 맨 앞 CREATE TEMP SEQUENCE zz_verdict + pg_temp 존재 단언 + setval('pg_temp.zz_verdict', 1) (모든 참조는 pg_temp. 한정)   ② 결과 표 zz_check_result
 --       ③ 기대 목록 표 3개(zz_expect_*)의 모양 — 01과 달리 zz_expect_count에 `uqi`(유일 인덱스) 열이 있다
 --       ④ 프로시저 check_err·check_ok·check_eq + 함수 val(), row_count()
 --       ⑤ 0절 뒤 멈춤과 7.5 판정(→ 표식 2 또는 1, RAISE)   ⑥ 8절 흔적 확인(→ 표식 0)과 마지막 CASE
@@ -40,7 +40,10 @@
 
 -- 판정 표식: 트랜잭션이 되돌아가도 남는 임시 시퀀스 (1 = 미완료 또는 실패, 2 = 1–7절 통과·흔적 확인 대기, 0 = 최종 통과)
 CREATE TEMP SEQUENCE IF NOT EXISTS zz_verdict MINVALUE 0 START 1;
-DO $$ BEGIN PERFORM setval('zz_verdict', 1); END $$;
+DO $$ BEGIN
+    IF to_regclass('pg_temp.zz_verdict') IS NULL THEN RAISE EXCEPTION 'zz_verdict is not a temp sequence'; END IF;
+    PERFORM setval('pg_temp.zz_verdict', 1);
+END $$;
 
 BEGIN;
 
@@ -1343,7 +1346,7 @@ DECLARE
 BEGIN
     SELECT count(*) FILTER (WHERE NOT ok), count(*) INTO v_fail, v_total FROM zz_check_result;
     -- 2 = 1–7절 통과 (결과 표가 비어 있으면 통과로 치지 않는다), 1 = 실패. 최종 통과(0)는 8절 끝에서만 만든다.
-    PERFORM setval('zz_verdict', CASE WHEN v_fail = 0 AND v_total > 0 THEN 2 ELSE 1 END);
+    PERFORM setval('pg_temp.zz_verdict', CASE WHEN v_fail = 0 AND v_total > 0 THEN 2 ELSE 1 END);
     IF v_fail > 0 THEN
         RAISE EXCEPTION 'P0-06 검증 실패: FAIL % 건 (위의 FAIL 행 목록을 본다)', v_fail;
     END IF;
@@ -1378,13 +1381,13 @@ BEGIN
     SELECT count(*) INTO v_idx FROM pg_indexes
     WHERE schemaname = 'public' AND tablename IN ('member', 'season', 'season_path', 'turn', 'turn_price', 'lineup', 'formation_change', 'turn_feed', 'reconciliation_log');
     IF (v_rows, v_zz, v_con, v_idx) <> (0, 0, 90, 27) THEN
-        PERFORM setval('zz_verdict', 1);
+        PERFORM setval('pg_temp.zz_verdict', 1);
         RAISE EXCEPTION 'P0-06 흔적 확인 실패: 행 % (기대 0), zz_ 객체 % (기대 0), 제약 % (기대 90), 인덱스 % (기대 27)', v_rows, v_zz, v_con, v_idx;
     END IF;
     -- 단언을 모두 통과했고 1–7절도 통과(2)였을 때만 최종 통과(0)로 바꾼다.
-    IF (SELECT last_value FROM zz_verdict) = 2 THEN
-        PERFORM setval('zz_verdict', 0);
+    IF (SELECT last_value FROM pg_temp.zz_verdict) = 2 THEN
+        PERFORM setval('pg_temp.zz_verdict', 0);
     END IF;
 END $$;
 
-SELECT CASE WHEN (SELECT last_value FROM zz_verdict) = 0 THEN 'PASS' ELSE 'FAIL' END AS p0_06_check;
+SELECT CASE WHEN (SELECT last_value FROM pg_temp.zz_verdict) = 0 THEN 'PASS' ELSE 'FAIL' END AS p0_06_check;
