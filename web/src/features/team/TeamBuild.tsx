@@ -1,5 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { messageFor } from '../../api/errorMessages.ts';
+import { AdvanceTurnButton } from '../turn/AdvanceTurnButton.tsx';
 import { QueryError } from '../seasons/QueryError.tsx';
 import { invalidateSeasonState } from '../seasons/queries.ts';
 import type { Season } from '../seasons/labels.ts';
@@ -13,9 +14,11 @@ import styles from './Team.module.css';
 export function TeamBuild({
   season,
   onNotice,
+  onAdvanced,
 }: {
   season: Season;
-  onNotice: (text: string) => void;
+  onNotice: (text: string | null) => void;
+  onAdvanced: (turnNo: number) => void;
 }) {
   const queryClient = useQueryClient();
   const pool = usePool();
@@ -72,7 +75,16 @@ export function TeamBuild({
         />
       )}
       {holdings.data && (
-        <NextStepCard holdingCount={holdings.data.holdings.length} />
+        <NextStepCard
+          holdingCount={holdings.data.holdings.length}
+          action={
+            <AdvanceTurnButton
+              season={season}
+              onNotice={onNotice}
+              onAdvanced={onAdvanced}
+            />
+          }
+        />
       )}
     </div>
   );

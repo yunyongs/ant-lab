@@ -26,29 +26,27 @@ describe('SeasonPage', () => {
     ).toBeInTheDocument();
   });
 
-  it('shows the placeholder for turn 1 or later', async () => {
+  it('shows the turn result for turn 1 or later', async () => {
     serveSeason({ currentTurnNo: 2 });
     renderRoute('/seasons/7');
     expect(
-      await screen.findByText('턴 화면이 이 자리에 들어옵니다.'),
+      await screen.findByRole('heading', { name: '2턴 결과' }),
     ).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: '0턴 팀 구성' })).toBeNull();
   });
 
   it('shows the finished text', async () => {
     serveSeason({ status: 'FINISHED', currentTurnNo: 12 });
     renderRoute('/seasons/7');
-    expect(
-      await screen.findByText(
-        '시즌이 끝났습니다. 성적표와 복기는 준비 중입니다.',
-      ),
-    ).toBeInTheDocument();
+    expect(await screen.findByText('시즌이 끝났습니다')).toBeInTheDocument();
   });
 
   it('shows a summary only for an abandoning season', async () => {
     serveSeason({ status: 'ABANDONING', currentTurnNo: 1 });
     renderRoute('/seasons/7');
     expect(await screen.findAllByText('정리 중')).not.toHaveLength(0);
-    expect(screen.queryByText(/들어옵니다/)).toBeNull();
+    expect(screen.getByText('시즌을 정리하는 중입니다.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /턴/ })).toBeNull();
   });
 
   it('shows a not-found message with a link back for a 404', async () => {

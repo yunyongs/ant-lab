@@ -427,7 +427,7 @@ describe('OrderSheet', () => {
     );
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(
-      await screen.findByText('턴 화면이 이 자리에 들어옵니다.'),
+      await screen.findByRole('heading', { name: '1턴 결과' }),
     ).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: '0턴 팀 구성' })).toBeNull();
     expect(seasonCalls).toBeGreaterThanOrEqual(2);

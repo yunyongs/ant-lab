@@ -1,10 +1,11 @@
-import { screen, waitFor, within } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { describe, expect, it } from 'vitest';
 import { renderRoute } from '../test/renderWithProviders.tsx';
 import { seasonFixture } from '../test/fixtures/seasons.ts';
 import { server } from '../test/server.ts';
+import { failWithProblem, serveTurnWorld } from '../test/serveTurns.ts';
 import { APP_NAME } from './appName.ts';
 
 describe('AppShell', () => {
@@ -117,5 +118,39 @@ describe('AppShell', () => {
     expect(
       screen.getByRole('button', { name: '로그아웃' }),
     ).toBeInTheDocument();
+  });
+
+  it('keeps the turn item active on a past turn', async () => {
+    serveTurnWorld({ current: 5 });
+    renderRoute('/seasons/7/turns/3');
+    const nav = screen.getByRole('navigation', { name: '주 메뉴' });
+    expect(within(nav).getByRole('link', { name: '턴' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+    await screen.findByRole('heading', { name: '3턴 결과' });
+  });
+
+  it('drops a page notice when the player moves to another season', async () => {
+    const world = serveTurnWorld({ current: 4 });
+    world.failWith = failWithProblem(409, 'TURN_MISMATCH');
+    server.use(
+      http.get('*/api/v1/seasons/8', () =>
+        HttpResponse.json(seasonFixture({ id: 8, currentTurnNo: 1 })),
+      ),
+    );
+    const user = userEvent.setup();
+    const { router } = renderRoute('/seasons/7');
+    await user.click(
+      await screen.findByRole('button', { name: '다음 턴 (5턴으로)' }),
+    );
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      '화면의 턴이 지난 턴입니다.',
+    );
+    await act(async () => {
+      await router.navigate('/seasons/8');
+    });
+    await screen.findByRole('heading', { name: '1턴 결과' });
+    expect(screen.queryByRole('alert')).toBeNull();
   });
 });

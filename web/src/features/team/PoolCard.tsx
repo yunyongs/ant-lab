@@ -19,10 +19,12 @@ export function PoolCard({
   asset,
   holding,
   onSelect,
+  disabled,
 }: {
   asset: PoolAsset;
   holding: Holding | undefined;
   onSelect: (asset: PoolAsset, opener: HTMLButtonElement) => void;
+  disabled: boolean;
 }) {
   return (
     <li className={styles.card}>
@@ -62,6 +64,7 @@ export function PoolCard({
         type="button"
         className={styles.secondary}
         aria-label={`${asset.name} 선택`}
+        disabled={disabled}
         onClick={(event) => {
           onSelect(asset, event.currentTarget);
         }}

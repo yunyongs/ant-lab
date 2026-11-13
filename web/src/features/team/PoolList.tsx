@@ -1,4 +1,6 @@
+import { useIsMutating } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
+import { advanceKey } from '../turn/queries.ts';
 import { OrderSheet } from './OrderSheet.tsx';
 import { PoolCard } from './PoolCard.tsx';
 import type { Holding, PoolAsset } from './queries.ts';
@@ -21,6 +23,7 @@ export function PoolList({
   cashBalance: string;
   onStale: (code: 'TURN_MISMATCH' | 'SEASON_NOT_ACTIVE') => void;
 }) {
+  const advancing = useIsMutating({ mutationKey: advanceKey(seasonId) }) > 0;
   const [selected, setSelected] = useState<PoolAsset | null>(null);
   const opener = useRef<HTMLButtonElement | null>(null);
   return (
@@ -35,6 +38,7 @@ export function PoolList({
             key={asset.assetId}
             asset={asset}
             holding={holdings.find((h) => h.assetId === asset.assetId)}
+            disabled={advancing}
             onSelect={(picked, button) => {
               opener.current = button;
               setSelected(picked);

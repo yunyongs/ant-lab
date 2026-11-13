@@ -1,4 +1,4 @@
-import { screen, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { describe, expect, it } from 'vitest';
@@ -7,6 +7,8 @@ import { expectNoDatePattern } from '../../test/expectNoDatePattern.ts';
 import { renderRoute } from '../../test/renderWithProviders.tsx';
 import { serveSeason } from '../../test/serve.ts';
 import { server } from '../../test/server.ts';
+import { turnResultFixture } from '../../test/fixtures/turns.ts';
+import { gate } from '../../test/serveTurns.ts';
 
 describe('TeamBuild', () => {
   it('shows the team build only at turn 0 of an open season', async () => {
@@ -20,18 +22,14 @@ describe('TeamBuild', () => {
     serveSeason({ currentTurnNo: 1 });
     const second = renderRoute('/seasons/7');
     expect(
-      await screen.findByText('턴 화면이 이 자리에 들어옵니다.'),
+      await screen.findByRole('heading', { name: '1턴 결과' }),
     ).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: '0턴 팀 구성' })).toBeNull();
     second.unmount();
 
     serveSeason({ status: 'FINISHED', currentTurnNo: 12 });
     renderRoute('/seasons/7');
-    expect(
-      await screen.findByText(
-        '시즌이 끝났습니다. 성적표와 복기는 준비 중입니다.',
-      ),
-    ).toBeInTheDocument();
+    expect(await screen.findByText('시즌이 끝났습니다')).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: '0턴 팀 구성' })).toBeNull();
   });
 
@@ -84,7 +82,9 @@ describe('TeamBuild', () => {
     expect(card).toHaveTextContent(
       '아직 산 종목이 없습니다. 이대로 넘기면 전부 현금(골키퍼)으로 시작합니다.',
     );
-    expect(within(card).queryByRole('button')).toBeNull();
+    expect(
+      within(card).getByRole('button', { name: '다음 턴 (1턴으로)' }),
+    ).toBeInTheDocument();
     first.unmount();
 
     server.use(
@@ -98,7 +98,35 @@ describe('TeamBuild', () => {
     expect(second).toHaveTextContent(
       '넘긴 뒤에는 턴 사이에만 매매할 수 있습니다.',
     );
-    expect(within(second).queryByRole('button')).toBeNull();
+    expect(
+      within(second).getByRole('button', { name: '다음 턴 (1턴으로)' }),
+    ).toBeInTheDocument();
+  });
+
+  it('disables every pool selection while a turn advance is pending', async () => {
+    serveSeason({});
+    const hold = gate();
+    server.use(
+      http.post('*/api/v1/seasons/7/turns', async () => {
+        await hold.promise;
+        return HttpResponse.json(turnResultFixture({ turnNo: 1 }), {
+          status: 201,
+        });
+      }),
+    );
+    const user = userEvent.setup();
+    renderRoute('/seasons/7');
+    const card = await screen.findByRole('region', { name: '다음 단계' });
+    await screen.findByRole('button', { name: '종목 가 선택' });
+    await user.click(
+      within(card).getByRole('button', { name: '다음 턴 (1턴으로)' }),
+    );
+    await waitFor(() => {
+      for (const button of screen.getAllByRole('button', { name: /선택$/ })) {
+        expect(button).toBeDisabled();
+      }
+    });
+    hold.release();
   });
 
   it('shows no real date anywhere, even with the order sheet open', async () => {
