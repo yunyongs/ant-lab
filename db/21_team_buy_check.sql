@@ -7,6 +7,8 @@
 --       21 을 실행한 DB 에서 한다. INSERT 를 하지 않으므로 identity(번호표)를 소비하지 않아 실습 DB(antlab)에서도 돌릴 수 있다.
 --       정의 파일을 \ir 로 읽으므로 같은 폴더의 21_team_buy_def.sql 이 있어야 한다.
 --       P0-19 이후: 음성 사례의 대상(보유 수량 > 0 인 보유·열린 라인업)이 없는 포트폴리오(초기 팀 전부 매도·교체)는 "적용 불가" 정보 행이고, 함수 사례는 열린 구간이 있는 첫 종목(없으면 풀의 첫 종목)으로 돈다.
+--       Not applicable is the zz_check_result.applicable column (false), written only by pg_temp.na_row and tallied only by the zz_tally view.
+--       Right after the team is built (canonical state) 12.1b asserts that the not-applicable count is 0.
 -- 판정: 마지막 줄 `p0_15_check` 가 `PASS` 이고 종료 코드가 0이면 통과다. 0절 전제가 FAIL 이면 결과를 보여 준 뒤 멈추고,
 --       그 밖에 하나라도 어긋나면 12절이 FAIL 행을 보여 주고 오류로 끝난다 (종료 코드 3).
 --       ON_ERROR_STOP 없이 돌리면 종료 코드가 0일 수 있으니 종료 코드가 아니라 마지막 줄을 본다.
@@ -80,8 +82,20 @@ CREATE TEMP TABLE zz_check_result (
     item     text    NOT NULL,   -- 사례 설명 또는 대조 항목
     expected text,               -- 기대값
     actual   text,               -- 실제값
-    ok       boolean NOT NULL
+    ok       boolean NOT NULL,
+    applicable boolean NOT NULL DEFAULT true   -- false = the case has no target in this portfolio (informational row, never counted as a pass)
 );
+
+-- Shared tally: one place decides what counts. Only rows with applicable = true count toward totals and passes.
+CREATE TEMP VIEW zz_tally AS
+SELECT section,
+       count(*) AS n_rows,
+       count(*) FILTER (WHERE applicable) AS total,
+       count(*) FILTER (WHERE ok AND applicable) AS pass,
+       count(*) FILTER (WHERE NOT ok) AS fail,
+       count(*) FILTER (WHERE NOT applicable) AS na
+FROM zz_check_result
+GROUP BY section;
 
 -- 연습 시즌 찾기: 20 파일과 같은 이메일 (문서 P0-14 W4)
 CREATE TEMP VIEW zz_cur AS
@@ -110,6 +124,14 @@ BEGIN
     VALUES (p_section, p_item, p_expected, p_actual, p_expected IS NOT DISTINCT FROM p_actual);
 END $$;
 
+-- Informational row for a case that has no target in this portfolio. The only place that writes applicable = false.
+CREATE PROCEDURE pg_temp.na_row(p_section text, p_item text)
+LANGUAGE plpgsql AS $$
+BEGIN
+    INSERT INTO zz_check_result (section, item, expected, actual, ok, applicable)
+    VALUES (p_section, p_item, '(정보)', '적용 불가', true, false);
+END $$;
+
 -- 위반 개수를 돌려주는 쿼리 한 개를 실행해 bigint 로 돌려준다
 CREATE FUNCTION pg_temp.cnt(p_sql text) RETURNS bigint
 LANGUAGE plpgsql AS $$
@@ -136,10 +158,9 @@ DECLARE
     v_sql text := (SELECT sql FROM zz_q WHERE code = p_code);
     v_n   text;
 BEGIN
-    -- p_when(참이어야 하는 쿼리)이 거짓이면 대상이 없는 포트폴리오다(P0-19 매매 뒤 전액 현금 등): "적용 불가" 정보 행을 남기고 그 사례는 통과 사례 수에도 요구에도 세지 않는다.
+    -- p_when (a query that must be true) false = no target in this portfolio (e.g. all cash after trading): leave a not-applicable row.
     IF p_when IS NOT NULL AND pg_temp.cnt(p_when) = 0 THEN
-        INSERT INTO zz_check_result (section, item, expected, actual, ok)
-        VALUES (pg_temp.sec(p_code), '음성 [' || p_code || '] ' || p_label || ' — 적용 불가 (이 포트폴리오에 대상이 없다) (정보)', '(정보)', '적용 불가', true);
+        CALL pg_temp.na_row(pg_temp.sec(p_code), '음성 [' || p_code || '] ' || p_label || ' — 적용 불가 (이 포트폴리오에 대상이 없다) (정보)');
         RETURN;
     END IF;
     BEGIN
@@ -510,7 +531,7 @@ BEGIN
                    v_big, v_season, v_big, v_season),
             format('SELECT pg_temp.order_buy(%s, %s::smallint, %s, 1, %L)', v_season, v_turn, v_asset, v_other), 'POSITION_CONFLICT');
     ELSE
-        INSERT INTO zz_check_result VALUES (DEFAULT, '09 함수', '열린 라인업이 없어 선언 포지션 충돌 사례는 적용 불가 (정보)', '(정보)', '적용 불가', true);
+        CALL pg_temp.na_row('09 함수', '열린 라인업이 없어 선언 포지션 충돌 사례는 적용 불가 (정보)');
     END IF;
     CALL pg_temp.neg_fn('FN_POOL_QTY_POS', '선언 포지션이 여섯 가지 안에 없으면',
         NULL, format('SELECT pg_temp.order_buy(%s, %s::smallint, %s, 1, %L)', v_season, v_turn, v_asset, 'FORWARD'), 'INVALID_ARGUMENT');
@@ -634,24 +655,37 @@ SELECT '11 정보', '팀 직후 상태다 (보유 수량 = 팀 수량 · 열린 
 -- 12 판정 ---------------------------------------------------------------------
 -- 12.1 규칙 커버리지: 음성 사례가 통과한 규칙 코드 수 / 요구 코드 수. 요구 = 이 DB 에서 적용 가능한 사례가 하나라도 있는 코드
 --       (매매 뒤 대상이 없는 포트폴리오 — 예: 전액 현금 — 의 "적용 불가" 사례만 있는 코드는 요구에서 빠진다. 적용 불가 코드는 항목 이름에 적는다).
+-- applicable is read from the column, never from the item text.
 INSERT INTO zz_check_result (section, item, expected, actual, ok)
-SELECT '12 판정', '규칙 커버리지 (적용 가능한 음성 사례가 통과한 규칙 코드 / 적용 가능한 규칙 코드 — 적용 불가 코드: ' || COALESCE(na.list, '없음') || ')',
-       req.n || '/' || req.n, cov.n || '/' || req.n, req.n > 0 AND cov.n = req.n
-FROM (SELECT count(*) AS n FROM zz_q q
-      WHERE NOT (EXISTS (SELECT 1 FROM zz_check_result r WHERE r.item LIKE '음성 [' || q.code || ']%적용 불가%')
-                 AND NOT EXISTS (SELECT 1 FROM zz_check_result r WHERE r.item LIKE '음성 [' || q.code || ']%' AND r.item NOT LIKE '%적용 불가%'))) req,
-     (SELECT count(*) AS n FROM zz_q q
-      WHERE EXISTS (SELECT 1 FROM zz_check_result r WHERE r.item LIKE '음성 [' || q.code || ']%' AND r.item NOT LIKE '%적용 불가%' AND r.ok)
-        AND NOT EXISTS (SELECT 1 FROM zz_check_result r WHERE r.item LIKE '음성 [' || q.code || ']%' AND r.item NOT LIKE '%적용 불가%' AND NOT r.ok)) cov,
-     (SELECT string_agg(q.code, ',' ORDER BY q.code) AS list FROM zz_q q
-      WHERE EXISTS (SELECT 1 FROM zz_check_result r WHERE r.item LIKE '음성 [' || q.code || ']%적용 불가%')
-        AND NOT EXISTS (SELECT 1 FROM zz_check_result r WHERE r.item LIKE '음성 [' || q.code || ']%' AND r.item NOT LIKE '%적용 불가%')) na;
+SELECT '12 판정', '규칙 커버리지 (적용 가능한 음성 사례가 통과한 규칙 코드 / 적용 가능한 규칙 코드 — 적용 불가 코드: '
+       || COALESCE(string_agg(c.code, ',' ORDER BY c.code) FILTER (WHERE c.n_app = 0 AND c.n_na > 0), '없음') || ')',
+       count(*) FILTER (WHERE c.n_app > 0 OR c.n_na = 0) || '/' || count(*) FILTER (WHERE c.n_app > 0 OR c.n_na = 0),
+       count(*) FILTER (WHERE c.n_app > 0 AND c.n_bad = 0) || '/' || count(*) FILTER (WHERE c.n_app > 0 OR c.n_na = 0),
+       count(*) FILTER (WHERE c.n_app > 0 OR c.n_na = 0) > 0
+       AND count(*) FILTER (WHERE c.n_app > 0 AND c.n_bad = 0) = count(*) FILTER (WHERE c.n_app > 0 OR c.n_na = 0)
+FROM (SELECT q.code,
+             count(*) FILTER (WHERE r.applicable) AS n_app,
+             count(*) FILTER (WHERE r.applicable AND NOT r.ok) AS n_bad,
+             count(*) FILTER (WHERE NOT r.applicable) AS n_na
+      FROM zz_q q LEFT JOIN zz_check_result r ON r.item LIKE '음성 [' || q.code || ']%'
+      GROUP BY q.code) c;
 
--- 12.2 절별 집계 (total / pass / fail)
-SELECT section, count(*) AS total, count(*) FILTER (WHERE ok AND actual IS DISTINCT FROM '적용 불가') AS pass, count(*) FILTER (WHERE NOT ok) AS fail,
-       count(*) FILTER (WHERE actual = '적용 불가') AS na
-FROM zz_check_result
-GROUP BY section
+-- 12.1b Canonical state: right after the team is built (turn 0, every team line still open) every negative case has a target,
+--       so no row may be not applicable. Otherwise a silently skipped case would still pass. Elsewhere the check is informational.
+INSERT INTO zz_check_result (section, item, expected, actual, ok)
+SELECT '12 판정',
+       CASE WHEN s.canon THEN '정본 상태(팀 직후: 현재 턴 0 · 열린 라인업 = 명단 줄 수)에서 적용 불가 행 수'
+            ELSE '정본 상태(팀 직후)가 아니라 적용 불가 단언은 건너뜀 (정보)' END,
+       CASE WHEN s.canon THEN '0' ELSE '(정보)' END,
+       CASE WHEN s.canon THEN s.na::text ELSE '건너뜀' END,
+       NOT s.canon OR s.na = 0
+FROM (SELECT (SELECT current_turn_no FROM zz_cur) = 0
+             AND (SELECT count(*) FROM lineup lu JOIN zz_cur c ON c.id = lu.season_id WHERE lu.end_turn IS NULL) = (SELECT count(*) FROM zz_team) AS canon,
+             (SELECT count(*) FROM zz_check_result WHERE NOT applicable) AS na) s;
+
+-- 12.2 절별 집계 (total / pass / fail / na)
+SELECT section, n_rows AS total, pass, fail, na
+FROM zz_tally
 ORDER BY section;
 
 -- 12.3 FAIL 행 목록 (0행이어야 정상)
@@ -665,10 +699,9 @@ SELECT item, expected, actual FROM zz_check_result WHERE section = '12 판정' O
 
 -- 12.4 판정 행
 -- 적용 불가 정보 행은 통과 사례 수에 세지 않는다 (P0-19: 대상이 없는 포트폴리오의 음성 사례)
-SELECT CASE WHEN count(*) FILTER (WHERE actual IS DISTINCT FROM '적용 불가') > 0 AND count(*) FILTER (WHERE NOT ok) = 0 THEN 'PASS' ELSE 'FAIL' END AS verdict,
-       count(*) FILTER (WHERE actual IS DISTINCT FROM '적용 불가') AS total, count(*) FILTER (WHERE ok AND actual IS DISTINCT FROM '적용 불가') AS pass,
-       count(*) FILTER (WHERE NOT ok) AS fail, count(*) FILTER (WHERE actual = '적용 불가') AS not_applicable
-FROM zz_check_result;
+SELECT CASE WHEN sum(total) > 0 AND sum(fail) = 0 THEN 'PASS' ELSE 'FAIL' END AS verdict,
+       sum(total) AS total, sum(pass) AS pass, sum(fail) AS fail, sum(na) AS not_applicable
+FROM zz_tally;
 
 -- 12.5 판정을 종료 코드로: FAIL 이 있으면 오류로 끝낸다 (ON_ERROR_STOP=1 이면 종료 코드 3).
 --      판정 표식은 트랜잭션이 되돌아가도 남는다. 통과해도 2(흔적 확인 대기)까지만 올린다.
@@ -677,7 +710,7 @@ DECLARE
     v_fail  integer;
     v_total integer;
 BEGIN
-    SELECT count(*) FILTER (WHERE NOT ok), count(*) INTO v_fail, v_total FROM zz_check_result;
+    SELECT COALESCE(sum(fail), 0), COALESCE(sum(total), 0) INTO v_fail, v_total FROM zz_tally;
     PERFORM setval('pg_temp.zz_verdict', CASE WHEN v_fail = 0 AND v_total > 0 THEN 2 ELSE 1 END);
     IF v_fail > 0 THEN
         RAISE EXCEPTION 'P0-15 검증 실패: FAIL % 건 (위의 FAIL 행 목록을 본다)', v_fail;
