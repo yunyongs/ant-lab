@@ -55,11 +55,6 @@ antlab:
     jwt-secret: ${ANTLAB_JWT_SECRET:}
     access-token-ttl: PT15M
     refresh-token-ttl: P14D
-  # 인증(SEC) 전 임시 고정 회원. 이메일은 RFC 2606 예약 도메인(실제 주소 금지). prod 문서는 꺼 둔다.
-  single-member:
-    enabled: true
-    email: ${ANTLAB_SINGLE_MEMBER_EMAIL:player@example.invalid}
-    name: 감독
 
 # springdoc 은 설정이 없으면 켜진다(matchIfMissing). 공통에서 끄고 local 에서만 켠다.
 springdoc:
@@ -131,10 +126,6 @@ spring:
     url: ${ANTLAB_DB_URL}
 server:
   forward-headers-strategy: framework
-antlab:
-  single-member:
-    # 운영은 고정 회원을 쓰지 않는다. 켜면 기동 실패. 꺼진 동안 시즌 API 는 503(인증 SEC 전).
-    enabled: false
 springdoc:
   api-docs:
     enabled: false

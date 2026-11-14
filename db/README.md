@@ -844,6 +844,9 @@ ANTLAB_GOLDEN_SAMPLE_DIR=<db/sample 경로> ./gradlew test -PonlySqlGolden
 
 **마지막 판정 계약.** 검증 단계는 `psql -X -q -A -P footer=off -v ON_ERROR_STOP=1`로 실행한다. 종료 코드가 0이고 출력 끝 두 줄이 등록한 판정 열 이름(`p0_05_check` … `p0_21_check`)과 정확히 `PASS`일 때만 통과다. 앞쪽의 PASS나 종료 코드만으로는 성공으로 처리하지 않는다. 다른 검사 이름이 나오거나 판정 뒤에 결과가 추가되어도 통과시키지 않는다. 제한 시간(단계당 5분)을 넘기면 실패이며 다시 실행하지 않는다.
 
+**Verdict marker (copied bundle).** Every `_check` file creates its verdict marker as `CREATE TEMP SEQUENCE zz_verdict`, asserts it exists in `pg_temp`, and reads and writes it only as `pg_temp.zz_verdict`, so a permanent `public.zz_verdict` or a missing TEMP privilege can never be touched or mistaken for it; a file that copies the bundle must keep the qualified name.
+**판정 표식(복사한 묶음).** 모든 `_check` 파일은 판정 표식을 `CREATE TEMP SEQUENCE zz_verdict`로 만들고 `pg_temp`에 있는지 단언하며, 읽고 쓸 때는 항상 `pg_temp.zz_verdict`로 한정한다. 같은 이름의 영구 시퀀스(`public.zz_verdict`)가 있거나 TEMP 권한이 없어도 영구 시퀀스를 건드리거나 혼동하지 않는다. 묶음을 복사하는 파일은 한정한 이름을 그대로 유지한다.
+
 **DB 분리.** 하네스가 띄우는 일회용 컨테이너(또는 같은 컨테이너의 별도 DB)에서 역할마다 다른 DB를 쓴다. Flyway를 적용한 API 시험 DB, `01–03`부터 실행하는 SQL 기준 DB, 같은 입력을 적용하는 재생 DB(각각 새로 만든 빈 DB), 드릴 DB(기본 회귀 밖)를 따로 둔다. SQL 기준 DB에는 Flyway를 실행하지 않고, API DB에는 01–03을 실행하지 않는다. 각 SQL DB에는 연습 시즌이 하나뿐이다.
 
 **골든 파일.** 어느 SQL 파일을 어느 Java 시험이 지금 읽고, 앞으로 어느 기능이 읽을지의 표다. SQL 파일을 바꾸면 같은 PR에서 이 표의 Java 쪽도 확인한다(행이 바뀌면 골든이 바뀐다). 새 기능이 SQL 파일을 더하면 이 표에도 줄을 더한다.
@@ -874,7 +877,7 @@ ANTLAB_GOLDEN_SAMPLE_DIR=<db/sample 경로> ./gradlew test -PonlySqlGolden
 
 **정규화.** 대리 키·시즌·회원 식별자는 자연 키(시장·종목 코드, 턴 번호, 재생 행동 키)로 바꿔 비교한다. 제외 열은 이름과 이유를 명세에 적는다(전역으로 넓히지 않는다). NUMERIC은 `BigDecimal.compareTo`로 정확히 비교하며 자릿수 차이만 허용한다. NULL은 빈 값·0과 구분한다. 중복 키는 합치지 않고 보고한다. 같은 키의 한 행이 여러 열에서 달라도 `CHANGED` 한 건으로 처리한다. 보고에는 테이블·행 키·다른 열 이름·건수만 나온다. 가격·금액·원문 출력은 실패 메시지와 시험 보고서에 싣지 않는다. 로컬에서 원문을 봐야 하면 `ANTLAB_GOLDEN_RAW_DIR`에 저장소 밖 경로를 지정한다(저장소 아래 경로는 거부하고, 그 디렉터리에만 쓰며 커밋하지 않는다).
 
-**API로 수동 대사 돌리기(P0-32).** 로컬 `antlab_api`에서는 `22_reconcile_season.sql` 대신 `local` 프로필의 개발 엔드포인트 `POST /api/v1/dev/seasons/{seasonId}/reconciliation`을 쓸 수 있다(본문은 없고 고정 헤더 `X-Antlab-Dev: true`가 있어야 하며(없으면 403 `FORBIDDEN`), 호출할 때마다 새 시도 번호로 15행을 기록하며 일치해도 남긴다). 응답에는 규칙 번호·코드·상태·건수·시도 번호에 더해 기대·실제·차이·`detail`이 `reconciliation_log` 행 그대로 담긴다(소유자 결정 2026-11-11 — 22는 값을 출력하지 않지만 이 개발 엔드포인트는 값까지 보여 준다). `local` 프로필은 `127.0.0.1`로만 열린다. 호출 예: `curl -fsS -X POST -H 'X-Antlab-Dev: true' http://127.0.0.1:8080/api/v1/dev/seasons/1/reconciliation`. SQL 수동 대사와 같은 번호 공간을 사용하므로 둘을 섞어 실행해도 시도 번호가 이어진다. `./gradlew bootRun`은 `SPRING_PROFILES_ACTIVE`가 없으면 `local`로 실행되므로 이 경로가 열린다(컨테이너는 compose가 `prod`를 준다).
+**API로 수동 대사 돌리기(P0-32).** 로컬 `antlab_api`에서는 `22_reconcile_season.sql` 대신 `local` 프로필의 개발 엔드포인트 `POST /api/v1/dev/seasons/{seasonId}/reconciliation`을 쓸 수 있다(본문은 없고 고정 헤더 `X-Antlab-Dev: true`가 있어야 하며(없으면 403 `FORBIDDEN`) SEC-04부터는 `ADMIN` 역할의 토큰도 필요하다(없으면 401, `USER`면 403, ADMIN은 erd §9의 SQL로 만든다). / From SEC-04 it also needs a token with role `ADMIN` (none → 401, `USER` → 403; make ADMIN with the SQL in erd §9)., 호출할 때마다 새 시도 번호로 15행을 기록하며 일치해도 남긴다). 응답에는 규칙 번호·코드·상태·건수·시도 번호에 더해 기대·실제·차이·`detail`이 `reconciliation_log` 행 그대로 담긴다(소유자 결정 2026-11-11 — 22는 값을 출력하지 않지만 이 개발 엔드포인트는 값까지 보여 준다). `local` 프로필은 `127.0.0.1`로만 열린다. 호출 예: `curl -fsS -X POST -H 'X-Antlab-Dev: true' http://127.0.0.1:8080/api/v1/dev/seasons/1/reconciliation`. SQL 수동 대사와 같은 번호 공간을 사용하므로 둘을 섞어 실행해도 시도 번호가 이어진다. `./gradlew bootRun`은 `SPRING_PROFILES_ACTIVE`가 없으면 `local`로 실행되므로 이 경로가 열린다(컨테이너는 compose가 `prod`를 준다).
 
 **이 하네스가 보장하는 것과 아닌 것.** 같은 입력으로 SQL을 두 번 실행하면 같은 행이 나오는지(재현성)를 확인한다. 정규화·비교가 오류를 지우지 않는지도 확인한다. 업무 공식이 옳은지는 `_check`의 독립 계산이 따로 본다. Java와 SQL의 동등성은 P0-32·33·36·38의 시험이 따로 본다.
 

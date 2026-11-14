@@ -30,6 +30,7 @@
     "scripts/**/*.ts",
     "eslint.restrictions.js",
     "src/test/apiSchema.test.ts",
+    "src/test/ciWorkflow.test.ts",
     "src/test/e2eScript.test.ts",
     "src/test/lintRestrictions.test.ts",
     "src/test/packagePins.test.ts"

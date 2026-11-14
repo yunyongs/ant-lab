@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import antlab.auth.AccessTokenDto;
 import antlab.common.exposure.FinishedSeasonOnly;
 import antlab.common.exposure.ReviewReveal;
-import antlab.member.CurrentMember;
 import antlab.member.MemberRepository;
 import antlab.season.SeasonRepository;
 import antlab.season.SeasonReviewDto;
@@ -14,6 +13,7 @@ import antlab.support.ExposureCatalog;
 import antlab.support.SeasonAccountFixture;
 import antlab.support.ExposureRules;
 import antlab.support.IntegrationTest;
+import antlab.support.TestMembers;
 import java.lang.reflect.RecordComponent;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -68,7 +68,7 @@ class ExposureContractTest {
     MockMvcTester mvc;
 
     @Autowired
-    CurrentMember currentMember;
+    TestMembers testMembers;
 
     @Autowired
     MemberRepository members;
@@ -154,7 +154,7 @@ class ExposureContractTest {
         List<Endpoint> restricted = apiEndpoints().stream().filter(Endpoint::finishedSeasonOnly).toList();
         assertThat(restricted).as("@FinishedSeasonOnly 핸들러").isNotEmpty();
         SeasonAccountFixture fixture = new SeasonAccountFixture(jdbc, members, seasons, accounts);
-        long seasonId = fixture.newSeason(members.findById(currentMember.ensureId()).orElseThrow()).getId();
+        long seasonId = fixture.newSeason(members.findById(testMembers.defaultId()).orElseThrow()).getId();
         for (Endpoint ep : restricted) {
             var response = mvc.get().uri(ep.path().replace("{seasonId}", Long.toString(seasonId))).exchange().getResponse();
             assertThat(response.getStatus()).as(ep.path()).isEqualTo(409);

@@ -5,28 +5,55 @@ import java.util.List;
 import org.hibernate.resource.jdbc.spi.StatementInspector;
 
 /**
- * Hibernate 가 DB 로 보내는 SQL 을 스레드별로 기록한다(시험 프로필에서 {@code statement_inspector} 로 등록).
- * {@link #start()} 를 부른 스레드만 기록하고, {@link #stop()} 이 그때까지의 SQL 을 돌려준다.
+ * Records the SQL Hibernate sends, per thread (registered as {@code statement_inspector} in the test profile).
+ * Only the thread that called {@link #start()} records; {@link #stop()} returns its Hibernate statements.
+ * JdbcClient statements arrive from {@link JdbcClientRecording} through {@link #recordJdbcClient(String)},
+ * and {@link #stopAll()} returns both kinds separately. Per-kind statement-count assertions use these values.
  */
 public class SqlRecorder implements StatementInspector {
 
-    private static final ThreadLocal<List<String>> CURRENT = new ThreadLocal<>();
+    /** Statements seen between {@link #start()} and {@link #stopAll()}, split by the path that sent them. */
+    public record Recorded(List<String> hibernate, List<String> jdbcClient) {
+        public int total() {
+            return hibernate.size() + jdbcClient.size();
+        }
 
-    public static void start() {
-        CURRENT.set(new ArrayList<>());
+        public List<String> all() {
+            List<String> out = new ArrayList<>(hibernate);
+            out.addAll(jdbcClient);
+            return out;
+        }
     }
 
+    private static final ThreadLocal<Recorded> CURRENT = new ThreadLocal<>();
+
+    public static void start() {
+        CURRENT.set(new Recorded(new ArrayList<>(), new ArrayList<>()));
+    }
+
+    /** Hibernate statements only (the original contract; JdbcClient statements are not part of this list). */
     public static List<String> stop() {
-        List<String> recorded = CURRENT.get();
+        return stopAll().hibernate();
+    }
+
+    public static Recorded stopAll() {
+        Recorded recorded = CURRENT.get();
         CURRENT.remove();
-        return recorded == null ? List.of() : recorded;
+        return recorded == null ? new Recorded(List.of(), List.of()) : recorded;
+    }
+
+    static void recordJdbcClient(String sql) {
+        Recorded recorded = CURRENT.get();
+        if (recorded != null) {
+            recorded.jdbcClient().add(sql);
+        }
     }
 
     @Override
     public String inspect(String sql) {
-        List<String> recorded = CURRENT.get();
+        Recorded recorded = CURRENT.get();
         if (recorded != null) {
-            recorded.add(sql);
+            recorded.hibernate().add(sql);
         }
         return sql;
     }

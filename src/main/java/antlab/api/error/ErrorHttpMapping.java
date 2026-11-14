@@ -38,7 +38,6 @@ public final class ErrorHttpMapping {
             case POSITION_REQUIRED -> HttpStatus.UNPROCESSABLE_ENTITY;
             case INVALID_FORMATION -> HttpStatus.CONFLICT;
             case EVENT_TIME_CONFLICT -> HttpStatus.CONFLICT;
-            case MEMBER_UNAVAILABLE -> HttpStatus.SERVICE_UNAVAILABLE;
             case RECONCILIATION_FAILED -> HttpStatus.CONFLICT;
             case FORBIDDEN -> HttpStatus.FORBIDDEN;
             case EMAIL_TAKEN -> HttpStatus.CONFLICT;
