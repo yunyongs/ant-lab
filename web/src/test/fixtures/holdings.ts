@@ -75,3 +75,52 @@ export const holdingsAfterBuy: HoldingsDto = holdingsFixture({
     },
   ],
 });
+
+// A holding big enough for partial and full sells; neutral invented numbers.
+export const heldMidfielder: HoldingDto = {
+  assetId: 101,
+  quantity: 120,
+  avgPrice: '71350.0000',
+  declaredPosition: 'MIDFIELDER',
+  price: '74200',
+  value: '8904000',
+  weight: '0.08904000',
+};
+
+export const holdingsWithMidfielder: HoldingsDto = holdingsFixture({
+  turnNo: 1,
+  cashBalance: '91096000',
+  holdingsValue: '8904000',
+  totalValue: '100000000',
+  goalkeeperValue: '91096000',
+  midfielderValue: '8904000',
+  goalkeeperWeight: '0.91096000',
+  midfielderWeight: '0.08904000',
+  goalkeeperGap: '0.51096000',
+  midfielderGap: '-0.11096000',
+  holdings: [heldMidfielder],
+});
+
+// What the server reports after 20 shares of the holding above were sold:
+// numbers unrelated to anything one order could derive in the browser.
+export const holdingsAfterPartSell: HoldingsDto = holdingsFixture({
+  ...holdingsWithMidfielder,
+  cashBalance: '92557777',
+  holdingsValue: '7442223',
+  totalValue: '100000000',
+  goalkeeperWeight: '0.92557777',
+  midfielderWeight: '0.07442223',
+  holdings: [
+    {
+      ...heldMidfielder,
+      quantity: 100,
+      value: '7442223',
+      weight: '0.07442223',
+    },
+  ],
+});
+
+export const holdingsAllSold: HoldingsDto = holdingsFixture({
+  turnNo: 1,
+  holdings: [],
+});

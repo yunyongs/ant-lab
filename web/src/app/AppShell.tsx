@@ -40,6 +40,10 @@ function navTarget(
       active: pathname === to || pathname.startsWith(`${to}/turns/`),
     };
   }
+  if (item.key === 'trade' && seasonId !== null) {
+    const to = `/seasons/${String(seasonId)}/trade`;
+    return { to, active: pathname === to };
+  }
   return null;
 }
 

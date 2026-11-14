@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../../api/client.ts';
-import { UnreachableError } from '../../api/problem.ts';
+import { ProblemError, UnreachableError } from '../../api/problem.ts';
 import type { components } from '../../api/schema';
 import { invalidateSeasonState } from '../seasons/queries.ts';
 
@@ -83,6 +83,18 @@ export function usePlaceOrder(id: number) {
     },
     onSuccess: () => {
       void invalidateSeasonState(queryClient, id);
+    },
+    onError: (error) => {
+      if (!(error instanceof ProblemError)) {
+        // No readable answer: the server may have committed the order.
+        void invalidateSeasonState(queryClient, id);
+      } else if (
+        error.code === 'INSUFFICIENT_HOLDING' ||
+        error.code === 'POSITION_CONFLICT'
+      ) {
+        // The list the player acted on was stale.
+        void queryClient.invalidateQueries({ queryKey: holdingsKey(id) });
+      }
     },
   });
 }

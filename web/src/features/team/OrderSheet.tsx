@@ -1,12 +1,11 @@
-import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { messageFor, UNREACHABLE_TEXT } from '../../api/errorMessages.ts';
+import { messageFor } from '../../api/errorMessages.ts';
 import { ProblemError } from '../../api/problem.ts';
 import { formatWon } from '../format/money.ts';
+import { UNKNOWN_OUTCOME_TEXT } from '../turn/turnMessages.ts';
 import { parseWholeNumber } from '../format/integer.ts';
 import { POSITIONS, positionLabel, type Position } from '../seasons/labels.ts';
 import {
-  holdingsKey,
   usePlaceOrder,
   type Holding,
   type OrderRequest,
@@ -17,6 +16,8 @@ import styles from './Team.module.css';
 
 const MAX_QUANTITY = 999_999_999;
 const QUANTITY_TEXT = '수량은 1 이상의 정수로 적어 주세요';
+const PRICES_FAILED_TEXT =
+  '가격을 불러오지 못했습니다. 체결가는 서버가 정합니다.';
 const FIELD_TEXT = {
   quantity: QUANTITY_TEXT,
   declaredPosition: '선언 포지션을 확인해 주세요.',
@@ -29,7 +30,8 @@ interface Failure {
 
 function failureOf(error: unknown): Failure {
   if (!(error instanceof ProblemError)) {
-    return { alert: UNREACHABLE_TEXT, fields: {} };
+    // No readable answer: the hook has already asked the server again.
+    return { alert: UNKNOWN_OUTCOME_TEXT, fields: {} };
   }
   if (error.code === 'UNAUTHENTICATED') return { alert: null, fields: {} };
   if (error.status === 400 && error.code === 'INVALID_ARGUMENT') {
@@ -48,60 +50,89 @@ function failureOf(error: unknown): Failure {
 
 function ResultRows({ result }: { result: OrderResult }) {
   return (
-    <dl className={styles.rows}>
-      <div className={styles.rowBetween}>
-        <dt>체결가</dt>
-        <dd>{formatWon(result.fillPrice)}</dd>
-      </div>
-      <div className={styles.rowBetween}>
-        <dt>대금</dt>
-        <dd>{formatWon(result.notional)}</dd>
-      </div>
-      <div className={styles.rowBetween}>
-        <dt>수수료</dt>
-        <dd>{formatWon(result.fee)}</dd>
-      </div>
-      <div className={styles.rowBetween}>
-        <dt>현금 잔액</dt>
-        <dd>{formatWon(result.cashBalance)}</dd>
-      </div>
-      <div className={styles.rowBetween}>
-        <dt>보유</dt>
-        <dd>{`${String(result.holdingQuantity)}주`}</dd>
-      </div>
-      <div className={styles.rowBetween}>
-        <dt>선언</dt>
-        <dd>{positionLabel[result.declaredPosition]}</dd>
-      </div>
-    </dl>
+    <>
+      <dl className={styles.rows}>
+        <div className={styles.rowBetween}>
+          <dt>체결가</dt>
+          <dd>{formatWon(result.fillPrice)}</dd>
+        </div>
+        <div className={styles.rowBetween}>
+          <dt>대금</dt>
+          <dd>{formatWon(result.notional)}</dd>
+        </div>
+        <div className={styles.rowBetween}>
+          <dt>수수료</dt>
+          <dd>{formatWon(result.fee)}</dd>
+        </div>
+        <div className={styles.rowBetween}>
+          <dt>현금 잔액</dt>
+          <dd>{formatWon(result.cashBalance)}</dd>
+        </div>
+        <div className={styles.rowBetween}>
+          <dt>평균단가</dt>
+          <dd>{formatWon(result.avgPrice)}</dd>
+        </div>
+        {result.realizedPnl !== null && (
+          <div className={styles.rowBetween}>
+            <dt>실현 손익</dt>
+            <dd>{formatWon(result.realizedPnl)}</dd>
+          </div>
+        )}
+        <div className={styles.rowBetween}>
+          <dt>보유</dt>
+          <dd>
+            {result.side === 'SELL' && result.holdingQuantity === 0
+              ? '보유 0주 · 이 종목의 구간이 닫혔습니다'
+              : `${String(result.holdingQuantity)}주`}
+          </dd>
+        </div>
+        <div className={styles.rowBetween}>
+          <dt>선언</dt>
+          <dd>{positionLabel[result.declaredPosition]}</dd>
+        </div>
+      </dl>
+      {result.formationChangeId !== null && (
+        <p className={styles.noMargin}>
+          {`이번 턴 전술 변경에 묶인 주문입니다 (변경 번호 ${String(result.formationChangeId)})`}
+        </p>
+      )}
+    </>
   );
 }
 
 export function OrderSheet({
+  side,
   asset,
   holding,
   price,
+  pricesFailed,
   seasonId,
   turnNo,
   cashBalance,
   onClose,
   onStale,
 }: {
-  asset: PoolAsset;
+  side: 'BUY' | 'SELL';
+  // A held asset opens a sell sheet by name only; a new buy comes from the pool.
+  asset: Pick<PoolAsset, 'assetId' | 'name'> & {
+    systemPosition?: PoolAsset['systemPosition'];
+  };
   holding: Holding | undefined;
   price: string | undefined;
+  pricesFailed: boolean;
   seasonId: number;
   turnNo: number;
   cashBalance: string;
   onClose: () => void;
   onStale: (code: 'TURN_MISMATCH' | 'SEASON_NOT_ACTIVE') => void;
 }) {
-  const queryClient = useQueryClient();
   const dialog = useRef<HTMLDialogElement>(null);
   const alertBox = useRef<HTMLDivElement>(null);
   const order = usePlaceOrder(seasonId);
   // The system's judgement is preselected; the player may write otherwise.
-  const [position, setPosition] = useState<Position>(asset.systemPosition);
+  const [position, setPosition] = useState<Position>(
+    asset.systemPosition ?? 'MIDFIELDER',
+  );
   const [quantityText, setQuantityText] = useState('1');
   const [result, setResult] = useState<OrderResult | null>(null);
   const [error, setError] = useState<unknown>(null);
@@ -113,7 +144,13 @@ export function OrderSheet({
     if (element !== null && !element.open) element.showModal();
   }, []);
 
-  const quantity = parseWholeNumber(quantityText, MAX_QUANTITY);
+  const selling = side === 'SELL';
+  // The held quantity is a server integer; the server judges a stale one.
+  const limit = selling ? (holding?.quantity ?? 0) : MAX_QUANTITY;
+  const quantityHint = selling
+    ? `보유 수량(${String(limit)}주) 이하의 정수로 적어 주세요`
+    : QUANTITY_TEXT;
+  const quantity = parseWholeNumber(quantityText, limit);
   const quantityOk = quantity !== null && quantity >= 1;
   const failure = error === null ? null : failureOf(error);
   const alertText = failure?.alert ?? null;
@@ -132,7 +169,7 @@ export function OrderSheet({
 
   function step(delta: number) {
     const current = quantity ?? 0;
-    const next = Math.max(1, Math.min(MAX_QUANTITY, current + delta));
+    const next = Math.max(1, Math.min(limit, current + delta));
     setQuantityText(String(next));
   }
 
@@ -141,11 +178,13 @@ export function OrderSheet({
     if (!quantityOk || order.isPending) return;
     const body: OrderRequest = {
       expectedTurnNo: turnNo,
-      side: 'BUY',
+      side,
       assetId: asset.assetId,
       quantity,
       // An asset already held keeps its declared position: it is not sent.
-      ...(holding === undefined ? { declaredPosition: position } : {}),
+      ...(!selling && holding === undefined
+        ? { declaredPosition: position }
+        : {}),
     };
     setError(null);
     order.mutate(body, {
@@ -160,14 +199,6 @@ export function OrderSheet({
         ) {
           onStale(caught.code);
           return;
-        }
-        if (
-          caught instanceof ProblemError &&
-          caught.code === 'POSITION_CONFLICT'
-        ) {
-          void queryClient.invalidateQueries({
-            queryKey: holdingsKey(seasonId),
-          });
         }
         setError(caught);
       },
@@ -187,17 +218,28 @@ export function OrderSheet({
     >
       <div className={styles.sheetBody}>
         <h3 id="order-sheet-title" className={styles.cardHeading}>
-          {asset.name}
+          {selling ? `${asset.name} 매도` : asset.name}
         </h3>
         {result === null ? (
           <form className={styles.form} onSubmit={submit} noValidate>
-            <p className={styles.noMargin}>
-              {`시스템 판정: ${positionLabel[asset.systemPosition]}`}
-            </p>
+            {!selling && asset.systemPosition !== undefined && (
+              <p className={styles.noMargin}>
+                {`시스템 판정: ${positionLabel[asset.systemPosition]}`}
+              </p>
+            )}
             <div className={styles.rowBetween}>
               <span className={styles.muted}>이번 턴 가격</span>
               <span>{price === undefined ? '–' : formatWon(price)}</span>
             </div>
+            {pricesFailed && price === undefined && (
+              <p className={styles.hint}>{PRICES_FAILED_TEXT}</p>
+            )}
+            {selling && (
+              <div className={styles.rowBetween}>
+                <span className={styles.muted}>보유</span>
+                <span>{`보유 ${String(limit)}주`}</span>
+              </div>
+            )}
             <div className={styles.rowBetween}>
               <span className={styles.muted}>현금 잔액</span>
               <span>{formatWon(cashBalance)}</span>
@@ -214,7 +256,7 @@ export function OrderSheet({
               </div>
             )}
 
-            {holding === undefined ? (
+            {selling ? null : holding === undefined ? (
               <label className={styles.field}>
                 <span>선언 포지션</span>
                 <select
@@ -299,9 +341,20 @@ export function OrderSheet({
                   +
                 </button>
               </div>
+              {selling && (
+                <button
+                  type="button"
+                  className={styles.secondary}
+                  onClick={() => {
+                    setQuantityText(String(limit));
+                  }}
+                >
+                  {`전량 (${String(limit)}주)`}
+                </button>
+              )}
               {!quantityOk && (
                 <span id="order-quantity-error" className={styles.fieldError}>
-                  {QUANTITY_TEXT}
+                  {quantityHint}
                 </span>
               )}
               {quantityOk && failure?.fields.quantity && (
@@ -322,12 +375,12 @@ export function OrderSheet({
               </button>
               <button
                 type="submit"
-                className={styles.primary}
+                className={selling ? styles.danger : styles.primary}
                 disabled={!quantityOk || order.isPending}
               >
                 {order.isPending
-                  ? '매수 중…'
-                  : `${quantityOk ? String(quantity) : '–'}주 매수`}
+                  ? `${selling ? '매도' : '매수'} 중…`
+                  : `${quantityOk ? String(quantity) : '–'}주 ${selling ? '매도' : '매수'}`}
               </button>
             </div>
           </form>
@@ -342,17 +395,19 @@ export function OrderSheet({
               >
                 닫기
               </button>
-              <button
-                type="button"
-                className={styles.primary}
-                onClick={() => {
-                  setResult(null);
-                  setQuantityText('1');
-                  order.reset();
-                }}
-              >
-                이 종목 더 사기
-              </button>
+              {(!selling || result.holdingQuantity > 0) && (
+                <button
+                  type="button"
+                  className={styles.primary}
+                  onClick={() => {
+                    setResult(null);
+                    setQuantityText('1');
+                    order.reset();
+                  }}
+                >
+                  {selling ? '이 종목 더 팔기' : '이 종목 더 사기'}
+                </button>
+              )}
             </div>
           </div>
         )}

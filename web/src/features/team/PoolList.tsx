@@ -10,6 +10,7 @@ export function PoolList({
   assets,
   holdings,
   prices,
+  pricesFailed,
   seasonId,
   turnNo,
   cashBalance,
@@ -18,6 +19,7 @@ export function PoolList({
   assets: PoolAsset[];
   holdings: Holding[];
   prices: Map<number, string> | undefined;
+  pricesFailed: boolean;
   seasonId: number;
   turnNo: number;
   cashBalance: string;
@@ -49,9 +51,11 @@ export function PoolList({
       {selected && (
         <OrderSheet
           key={selected.assetId}
+          side="BUY"
           asset={selected}
           holding={holdings.find((h) => h.assetId === selected.assetId)}
           price={prices?.get(selected.assetId)}
+          pricesFailed={pricesFailed}
           seasonId={seasonId}
           turnNo={turnNo}
           cashBalance={cashBalance}

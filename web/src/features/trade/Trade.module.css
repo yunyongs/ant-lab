@@ -1,0 +1,192 @@
+.page,
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.sectionTitle,
+.cardHeading {
+  margin: 0;
+  font-size: var(--font-base);
+}
+
+.muted {
+  color: var(--color-text-muted);
+}
+
+.hint {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+}
+
+.list {
+  display: flex;
+  margin: 0;
+  padding: 0;
+  flex-direction: column;
+  gap: var(--space-3);
+  list-style: none;
+}
+
+.cash {
+  display: flex;
+  flex-direction: column;
+}
+
+.cashValue {
+  font-size: var(--font-xl);
+  overflow-wrap: anywhere;
+}
+
+.rowBetween {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.rowBetween > :last-child {
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.cardTitle {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.pill {
+  padding: 0 var(--space-3);
+  border-radius: 999px;
+  background: var(--color-border);
+  color: var(--color-text);
+  font-size: 0.875rem;
+}
+
+.facts {
+  display: grid;
+  margin: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.facts dt {
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+}
+
+.facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+@media (min-width: 768px) {
+  .facts {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+.buttons {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.primary,
+.sell {
+  display: inline-flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+}
+
+.primary {
+  border: 0;
+  background: var(--color-primary);
+  color: #ffffff;
+}
+
+/* The word 매도 carries the meaning; the colour only supports it. */
+.sell {
+  border: 1px solid var(--color-error);
+  background: var(--color-surface);
+  color: var(--color-error);
+}
+
+.primary:disabled,
+.sell:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.empty {
+  padding: var(--space-4);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+}
+
+.empty p {
+  margin: 0;
+}
+
+.emptyTitle {
+  font-weight: 700;
+}
+
+.pool summary {
+  display: flex;
+  min-height: 48px;
+  align-items: center;
+  padding: 0 var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.pool[open] summary {
+  margin-bottom: var(--space-3);
+}
+
+.alert {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--color-error);
+  border-radius: var(--radius);
+  background: var(--color-error-bg);
+  color: var(--color-error);
+}
+
+.alert p {
+  margin: 0;
+}
+
+.link {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  color: var(--color-primary);
+}

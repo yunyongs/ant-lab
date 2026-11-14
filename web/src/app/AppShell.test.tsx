@@ -131,6 +131,20 @@ describe('AppShell', () => {
     await screen.findByRole('heading', { name: '3턴 결과' });
   });
 
+  it('opens the trade item inside a season and marks it active there', async () => {
+    serveTurnWorld({ current: 5 });
+    renderRoute('/seasons/7/trade');
+    const nav = screen.getByRole('navigation', { name: '주 메뉴' });
+    expect(within(nav).getByRole('link', { name: '매매' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+    expect(within(nav).getByRole('link', { name: '턴' })).not.toHaveAttribute(
+      'aria-current',
+    );
+    await screen.findByRole('heading', { name: '5턴 매매' });
+  });
+
   it('drops a page notice when the player moves to another season', async () => {
     const world = serveTurnWorld({ current: 4 });
     world.failWith = failWithProblem(409, 'TURN_MISMATCH');
