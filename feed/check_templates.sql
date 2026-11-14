@@ -52,6 +52,13 @@ CREATE TEMP TABLE zz_var   (name text, type text, source text, turn_offset integ
 CREATE TEMP TABLE zz_tpl   (template_id text, kind text, status text, target text, direction text, strength smallint,
                             event_category text, event_type text, outcome text, category_hidden boolean, text text);
 CREATE TEMP TABLE zz_deny  (word text, reason text, note text);
+-- Fixture-only banned words. Fixtures never read denylist.csv, so editing it cannot make them fail. Section 5 checks that denylist.csv still contains these.
+CREATE TEMP TABLE zz_deny_fx (word text PRIMARY KEY, reason text NOT NULL);
+INSERT INTO zz_deny_fx VALUES
+    ('작년', 'DATE'), ('연말', 'DATE'), ('유월', 'DATE'),
+    ('다음 달', 'FUTURE'), ('다음 주', 'FUTURE'), ('향후', 'FUTURE'), ('예정', 'FUTURE'),
+    ('앞두', 'FUTURE'), ('앞둘', 'FUTURE'), ('앞뒀', 'FUTURE'), ('다가오', 'FUTURE'), ('다가온', 'FUTURE'),
+    ('연준', 'PROPER'), ('매수하세요', 'ADVICE'), ('인수', 'FACT');
 
 -- 규칙 검사용 합본: 실제 파일('real')과 7절 픽스처 묶음이 같은 규칙 함수를 지난다
 CREATE TEMP TABLE zz_all (
@@ -87,7 +94,7 @@ INSERT INTO zz_rule VALUES
     ('VAR_UNKNOWN', '5 문장', '자리 이름이 variables.csv에 있다'),
     ('VAR_KIND',    '5 문장', '자리의 kinds에 템플릿 종류가 있다'),
     ('VAR_TARGET',  '5 문장', 'asset_name은 target ASSET, group_name은 target GROUP'),
-    ('PARTICLE',    '5 문장', '자리 바로 뒤에 받침에 따라 바뀌는 조사(이·가·을·를·은·는·과·와·으로·로·이나·나) 없음'),
+    ('PARTICLE',    '5 문장', '자리 바로 뒤에 붙은 한글은 허용 목록(의·에·에서·도·만·까지·부터·달·위·건·턴·번째·째로)으로 시작할 때만 허용'),
     ('DENY_DATE',   '5 문장', '금지어 DATE 0건'),
     ('DENY_FUTURE', '5 문장', '금지어 FUTURE 0건'),
     ('DENY_PROPER', '5 문장', '금지어 PROPER 0건'),
@@ -162,7 +169,7 @@ WITH t AS (
     SELECT t.rid, t.src, t.template_id, t.kind, t.target, m[1] AS var, v.name AS v_name, v.kinds AS v_kinds, v.max_len
     FROM t
     CROSS JOIN LATERAL regexp_matches(t.text, '\{([a-z][a-z0-9_]*)\}', 'g') AS m
-    LEFT JOIN vref v ON v.scope = CASE WHEN t.src IN ('real', 'cov_fx') THEN 'real' ELSE 'fx' END AND v.name = m[1]
+    LEFT JOIN vref v ON v.scope = CASE WHEN t.src = 'real' THEN 'real' ELSE 'fx' END AND v.name = m[1]
 ), tshape AS (   -- 문장 전체 틀: 자리를 {타입}으로 바꾼다 ({rank}의 "3"과 {reaction}의 "+3%"는 렌더 모양이 다르다). 모르는 변수는 {?} (VAR_UNKNOWN이 따로 잡는다)
     SELECT t.rid, t.src, sc.scope,
            (SELECT string_agg(p.piece || CASE WHEN m.name IS NULL THEN '' ELSE '{' || coalesce(v.type, '?') || '}' END, '' ORDER BY p.n)
@@ -170,7 +177,7 @@ WITH t AS (
               LEFT JOIN (SELECT mm.m[1] AS name, mm.k
                            FROM regexp_matches(t.text, '\{([a-z][a-z0-9_]*)\}', 'g') WITH ORDINALITY AS mm(m, k)) m ON m.k = p.n
               LEFT JOIN vref v ON v.scope = sc.scope AND v.name = m.name) AS whole
-    FROM t CROSS JOIN LATERAL (SELECT CASE WHEN t.src IN ('real', 'cov_fx') THEN 'real' ELSE 'fx' END AS scope) sc
+    FROM t CROSS JOIN LATERAL (SELECT CASE WHEN t.src = 'real' THEN 'real' ELSE 'fx' END AS scope) sc
 ), noise_ref AS (   -- "같은 옷" 기준: 소음(ACTIVE RISE…FADE)이 쓰는 문장 전체 틀과 방향. 실제 파일은 templates.csv에서, 픽스처는 아래 고정 상수
     SELECT 'real' AS scope, ts.whole AS val, t.direction
     FROM tshape ts JOIN t ON t.rid = ts.rid
@@ -184,7 +191,9 @@ WITH t AS (
                  ('주요 교역국 통상 소식 — 이달 반응 {name}', 'UP'), ('주요 교역국 통상 소식 — 이달 반응 {name}', 'DOWN'),
                  ('주요국 정치 이슈 부각 — 이달 관련 반응 {pct_signed}', 'UP'), ('주요국 정치 이슈 부각 — 이달 관련 반응 {pct_signed}', 'DOWN'),
                  ('시장 전반 급변 — 이달 순위 {int}', 'UP'), ('시장 전반 급변 — 이달 순위 {int}', 'DOWN'),
-                 ('원자재 가격 관련 소식 — 이달 반응 {pct_signed}', 'UP')) AS c(val, direction)   -- 마지막 틀은 UP 한 방향뿐 (방향 짝 없음 사례용)
+                 ('원자재 가격 관련 소식 — 이달 반응 {pct_signed}', 'UP'),                                   -- UP only
+                 ('금융권 신용 이슈 부각 — 이달 반응 {pct_signed}', 'DOWN'),                                  -- DOWN only
+                 ('경제 정책 관련 소식 — 이달 관련 반응 {pct_signed}', 'UP'), ('경제 정책 관련 소식 — 이달 관련 반응 {pct_signed}', 'UP')) AS c(val, direction)   -- UP twice
 ), need (label, kind, target, direction, hidden, cat) AS (   -- 필수 조합 표
     VALUES ('RISE ASSET UP',    'RISE',   'ASSET', 'UP',   false, NULL),
            ('RISE GROUP UP',    'RISE',   'GROUP', 'UP',   false, NULL),
@@ -224,8 +233,10 @@ UNION ALL SELECT src, template_id, 'VAR_KIND' FROM tvj
 UNION ALL SELECT src, template_id, 'VAR_TARGET' FROM tvj                              -- 종류가 맞을 때만 대상을 본다 (VAR_KIND와 겹치지 않게)
  WHERE v_name IS NOT NULL AND kind = ANY (string_to_array(v_kinds, ';'))
    AND ((var = 'asset_name' AND target <> 'ASSET') OR (var = 'group_name' AND target <> 'GROUP'))
-UNION ALL SELECT src, template_id, 'PARTICLE' FROM t WHERE text ~ '\}(이나|으로|이|가|을|를|은|는|과|와|로|나)([^가-힣]|$)'
-UNION ALL SELECT t.src, t.template_id, 'DENY_' || d.reason FROM t JOIN zz_deny d ON position(d.word in t.lit) > 0
+UNION ALL SELECT src, template_id, 'PARTICLE' FROM t WHERE text ~ '\}(?!(의|에|에서|도|만|까지|부터|달|위|건|턴|번째|째로))[가-힣]'   -- allow list: Hangul glued to a slot must start with one of these
+UNION ALL SELECT t.src, t.template_id, 'DENY_' || d.reason FROM t
+  JOIN (SELECT 'real' AS scope, word, reason FROM zz_deny UNION ALL SELECT 'fx', word, reason FROM zz_deny_fx) d
+    ON d.scope = CASE WHEN t.src = 'real' THEN 'real' ELSE 'fx' END AND position(d.word in t.lit) > 0
 UNION ALL SELECT src, template_id, 'SHAPE' FROM t WHERE status = 'ACTIVE' AND char_length(lit) NOT BETWEEN 12 AND 60
 UNION ALL SELECT t.src, t.template_id, 'SHAPE' FROM t JOIN tshape ts ON ts.rid = t.rid     -- 사건 카드의 문장 전체 틀(자리는 타입)을 오른 달 소음과 내린 달 소음이 각각 하나 이상 쓴다
  WHERE t.kind = 'EVENT' AND t.status = 'ACTIVE'
@@ -403,6 +414,9 @@ CALL pg_temp.check_eq('5 문장', 'denylist word는 한글(NFC)·공백뿐, 앞�
     pg_temp.val($q$SELECT (count(*) FILTER (WHERE word IS NULL OR word !~ '^[가-힣]([가-힣 ]*[가-힣])?$' OR NOT (word IS NFC NORMALIZED))
                          + (count(*) - count(DISTINCT word)))::text FROM zz_deny$q$));
 
+CALL pg_temp.check_eq('5 문장', 'denylist.csv가 픽스처용 고정 금지어(단어·이유)를 모두 담는다', '0',
+    pg_temp.val($q$SELECT count(*)::text FROM zz_deny_fx f WHERE NOT EXISTS (SELECT 1 FROM zz_deny d WHERE d.word = f.word AND d.reason = f.reason)$q$));
+
 -- 규칙별 위반 0행 (KINDS_ERD는 2절에서 이미 봤다). 위반이 있으면 실제값에 개수와 대상 id를 적는다.
 INSERT INTO zz_check_result (section, item, expected, actual, ok)
 SELECT r.sect, r.code || ': ' || r.descr, '0',
@@ -426,7 +440,7 @@ SELECT '6 범위', '범주 비공개 ACTIVE 사건 카드 수 (>= 1)', '>= 1', c
 FROM zz_tpl WHERE status = 'ACTIVE' AND kind = 'EVENT' AND category_hidden;
 
 -- 7 음성 픽스처 (실패해야 정상) ------------------------------------------------
--- 사례마다 정확히 그 규칙 코드 하나만 걸려야 한다 (한 사례에 조건 하나). 묶음(grp)이 같은 행은 한 묶음으로 규칙 함수를 지난다.
+-- 사례마다 정확히 그 규칙 코드 하나만 걸려야 한다 (한 사례에 조건 하나). 예외: 자리 바로 뒤에 붙은 단위(원·포인트)는 허용 목록 밖이라 PARTICLE도 함께 걸린다(기대값 'PARTICLE,UNIT'). 묶음(grp)이 같은 행은 한 묶음으로 규칙 함수를 지난다.
 -- 기본 행은 모든 규칙을 통과하는 RISE·ASSET·UP 템플릿이고, 사례는 바꿀 열만 적는다.
 CREATE TEMP TABLE zz_fixture (
     fx_seq integer GENERATED ALWAYS AS IDENTITY,
@@ -456,13 +470,16 @@ INSERT INTO zz_fixture (grp, expect, descr, text) VALUES
     ('s06', 'CHARSET', '전각 문자',                    '{asset_name} 이달 {ret} — 자금 몰려' || U&'\FF01'),
     ('s07', 'NFC',     'NFD 한글 (풀어 쓴 자모)',       normalize('{asset_name} 이달 {ret} — 자금 몰려', NFD)),
     ('s08', 'PERCENT', '{ret}% (렌더러가 붙이는 %)',    '{asset_name} 이달 {ret}% 급등, 자금 몰려'),
-    ('s09', 'UNIT',    '{ret}원 (자리 뒤 단위)',        '{asset_name} 이달 {ret}원 급등 — 자금 몰려'),
-    ('s10', 'UNIT',    '{rank}포인트 (자리 뒤 단위)',   '상승률 {rank}포인트 {asset_name}, 추가 상승 기대'),
+    ('s09', 'PARTICLE,UNIT',    '{ret}원 (자리 뒤 단위)',        '{asset_name} 이달 {ret}원 급등 — 자금 몰려'),
+    ('s10', 'PARTICLE,UNIT',    '{rank}포인트 (자리 뒤 단위)',   '상승률 {rank}포인트 {asset_name}, 추가 상승 기대'),
     ('s11', 'BRACE',   '{종목} (한글 이름의 자리)',      '{종목} 이달 {ret} — 자금 몰려'),
     ('s11b', 'BRACE',  '{ (여는 괄호만 남음)',          '{asset_name} 이달 { {ret} — 자금 몰려'),
     ('s12', 'VAR_UNKNOWN', '{price} (없는 변수)',       '{asset_name} 이달 {price} — 자금 몰려'),
     ('s13', 'PARTICLE', '{asset_name}이 (받침 의존 조사)', '{asset_name}이 급등 소식에 시장 술렁 — 이달 {ret}'),
     ('s14', 'PARTICLE', '{asset_name}을 (받침 의존 조사)', '{asset_name}을 향한 시선 — 이달 {ret} 강세'),
+    ('s39', 'PARTICLE', '{asset_name}이다 (목록 밖: 서술격 조사)',  '{asset_name}이다 — 이달 {ret} 강세, 자금 몰려'),
+    ('s40', 'PARTICLE', '{asset_name}이며 (목록 밖: 연결 어미)',    '{asset_name}이며 이달 {ret} 강세 — 자금 몰려'),
+    ('s41', 'PARTICLE', '{asset_name}과의 (목록 밖: 받침 의존 조사 + 의)', '{asset_name}과의 격차 확대 — 이달 {ret} 강세'),
     ('s16', 'DENY_DATE',   '작년',                     '작년 대비 {asset_name} 이달 {ret} — 자금 몰려'),
     ('s17', 'DENY_FUTURE', '다음 달',                  '{asset_name} 이달 {ret} — 다음 달에도 자금 몰려'),
     ('s18', 'DENY_FUTURE', '향후',                     '{asset_name} 이달 {ret} — 향후 흐름도 밝다'),
@@ -476,16 +493,22 @@ INSERT INTO zz_fixture (grp, expect, descr, text) VALUES
     ('s31', 'UNIT',        '이천팔년 (한글 수사 + 년)',       '{asset_name} 이달 {ret} — 이천팔년 이후 최대'),
     ('s32', 'UNIT',        '십만원 (한글 수사 + 원)',         '{asset_name} 이달 {ret} — 십만원 돌파'),
     ('s33', 'UNIT',        '{rank} 포인트 (공백 건넌 단위)',   '상승률 {rank} 포인트 {asset_name}, 추가 상승 기대'),
-    ('s34', 'UNIT',        '{rank}원까지 (단위 뒤에 한글)',    '상승률 {rank}원까지 {asset_name}, 추가 상승 기대');
+    ('s34', 'PARTICLE,UNIT',        '{rank}원까지 (단위 뒤에 한글)',    '상승률 {rank}원까지 {asset_name}, 추가 상승 기대'),
+    ('s42', 'DENY_FUTURE', '앞두며 (줄기 앞두)',             '{asset_name} 이달 {ret} — 발표를 앞두며 자금 몰려'),
+    ('s43', 'DENY_FUTURE', '앞두고 (줄기 앞두)',             '{asset_name} 이달 {ret} — 발표를 앞두고 자금 몰려'),
+    ('s44', 'DENY_FUTURE', '앞뒀다 (줄기 앞뒀)',             '{asset_name} 이달 {ret} — 발표를 앞뒀다는 소식'),
+    ('s45', 'DENY_FUTURE', '앞둘 (줄기 앞둘)',               '{asset_name} 이달 {ret} — 발표를 앞둘 때까지 강세'),
+    ('s46', 'DENY_FUTURE', '다가오는 (줄기 다가오)',          '{asset_name} 이달 {ret} — 다가오는 장세에 자금 몰려'),
+    ('s47', 'DENY_FUTURE', '다가온다 (줄기 다가온)',          '{asset_name} 이달 {ret} — 반등이 다가온다는 기대');
 INSERT INTO zz_fixture (grp, expect, descr, text, status) VALUES
     ('s23', 'SHAPE', '7자 문장 (너무 짧음)',  '{asset_name} 급등', 'ACTIVE');
 INSERT INTO zz_fixture (grp, expect, descr, text) VALUES
     ('s24', 'LENGTH', '이름 자리 4개 (4 × 100 + 8 > 300)', '{asset_name} {asset_name} {asset_name} {asset_name} 이달 {ret} 급등 소식에 자금 몰려');
 INSERT INTO zz_fixture (grp, expect, descr, template_id, kind, direction, text) VALUES
     ('s15', 'PARTICLE', '{focus_name}로 (받침 의존 조사)', 'fade.zz.v1', 'FADE', NULL, '관심 식어 거래 한산 — 시선은 {focus_name}로 이동');
--- 사건 카드만 가진 문장 부호: 소음에 없는 ~ 가 들어가면 문장 전체 틀이 소음과 달라진다
+-- the only difference from the fixed whole-sentence shape is one '~'
 INSERT INTO zz_fixture (grp, expect, descr, template_id, kind, target, direction, event_category, text) VALUES
-    ('s25', 'SHAPE', 'EVENT만 가진 문장 부호 (물결표 때문에 전체 틀이 소음에 없음)', 'event.zz.v1', 'EVENT', 'NONE', NULL, 'TRADE', '주요 교역국 사이 관세 갈등 격화~ 이달 관련 시장 {reaction}');
+    ('s25', 'SHAPE', '고정 틀과 물결표 하나만 다른 EVENT (전체 틀 불일치)', 'event.zz.v1', 'EVENT', 'NONE', NULL, 'TRADE', '주요 교역국 통상 소식 — 이달 반응~ {reaction}');
 
 INSERT INTO zz_fixture (grp, expect, descr, template_id, kind, target, direction, event_category, text) VALUES
     ('s26', 'SHAPE', '전체 틀이 소음에 없는 공개 EVENT (꼬리가 다름)', 'event.zz.v1', 'EVENT', 'NONE', NULL, 'TRADE', '주요 교역국 통상 소식 — 시장은 {reaction}');
@@ -493,7 +516,9 @@ INSERT INTO zz_fixture (grp, expect, descr, template_id, kind, target, direction
     ('s27', 'SHAPE', '꼬리는 소음과 같아도 전체 틀이 소음에 없는 범주 비공개 EVENT', 'event.zz.v1', 'EVENT', 'NONE', NULL, true, '시장 전반 급변 — 이달 관련 반응 {reaction}');
 INSERT INTO zz_fixture (grp, expect, descr, template_id, kind, target, direction, event_category, text) VALUES
     ('s35', 'SHAPE', '문장 전체 틀을 UP 소음만 쓰는 공개 EVENT (방향 짝 없음)', 'event.zz.v1', 'EVENT', 'NONE', NULL, 'SUPPLY_SHOCK', '원자재 가격 관련 소식 — 이달 반응 {reaction}'),
-    ('s36', 'SHAPE', '글자는 같아도 자리 타입이 다른 EVENT ({reaction}의 +3% 대 {int}의 3)', 'event.zz.v1', 'EVENT', 'NONE', NULL, 'TRADE', '시장 전반 급변 — 이달 순위 {reaction}');
+    ('s36', 'SHAPE', '글자는 같아도 자리 타입이 다른 EVENT ({reaction}의 +3% 대 {int}의 3)', 'event.zz.v1', 'EVENT', 'NONE', NULL, 'TRADE', '시장 전반 급변 — 이달 순위 {reaction}'),
+    ('s37', 'SHAPE', '문장 전체 틀을 DOWN 소음만 쓰는 공개 EVENT (UP 짝 없음)', 'event.zz.v1', 'EVENT', 'NONE', NULL, 'FINANCIAL', '금융권 신용 이슈 부각 — 이달 반응 {reaction}'),
+    ('s38', 'SHAPE', '문장 전체 틀을 UP 소음 두 개가 쓰는 공개 EVENT (같은 방향 두 행)', 'event.zz.v1', 'EVENT', 'NONE', NULL, 'POLICY', '경제 정책 관련 소식 — 이달 관련 반응 {reaction}');
 
 -- 7.2 속성 규칙
 INSERT INTO zz_fixture (grp, expect, descr, template_id) VALUES
@@ -569,6 +594,16 @@ INSERT INTO zz_fixture (grp, expect, descr, text) VALUES
     ('p14', '(위반 없음)', '구원·일원 (한 음절 수사 + 원은 일반 낱말이라 허용)', '{asset_name} 이달 {ret} — 구원 투수 기대, 일원 체제'),
     ('p15', '(위반 없음)', '곧바로 (결정 D3: 곧은 금지하지 않는다)',         '{asset_name} 이달 {ret} — 곧바로 자금 몰려'),
     ('p16', '(위반 없음)', '{ret} 원자재 (공백 뒤 단위가 아니라 낱말의 앞 글자)', '{asset_name} {ret} — 원자재 가격 부담에도 강세');
+INSERT INTO zz_fixture (grp, expect, descr, text) VALUES
+    ('p17', '(위반 없음)', '{asset_name}에서 (허용 목록)',  '{asset_name}에서 이달 {ret} 강세 — 자금 몰려'),
+    ('p18', '(위반 없음)', '{asset_name}만 (허용 목록)',    '{asset_name}만 이달 {ret} 강세 — 자금 몰려'),
+    ('p19', '(위반 없음)', '{ret}까지 (허용 목록)',         '{asset_name} 이달 {ret}까지 급등 — 자금 몰려'),
+    ('p20', '(위반 없음)', '{ret}부터 (허용 목록)',         '{asset_name} 이달 {ret}부터 강세 — 자금 몰려'),
+    ('p21', '(위반 없음)', '{rank}위 (허용 목록)',          '상승률 {rank}위 {asset_name}, 추가 상승 기대'),
+    ('p22', '(위반 없음)', '{rank}건 (허용 목록)',          '{asset_name} 이달 {ret} — 거래 {rank}건 자금 몰려'),
+    ('p23', '(위반 없음)', '{rank}턴 (허용 목록)',          '{asset_name} 이달 {ret} — {rank}턴 연속 자금 몰려'),
+    ('p24', '(위반 없음)', '{rank}번째 (허용 목록)',        '{asset_name} 이달 {ret} — 상승 {rank}번째 이어져'),
+    ('p25', '(위반 없음)', '{rank}째로 (허용 목록)',        '{asset_name} 이달 {ret} — {rank}째로 자금 몰려');
 
 -- 픽스처를 합본에 넣는다
 INSERT INTO zz_all (src, template_id, kind, status, target, direction, strength, event_category, event_type, outcome, category_hidden, text)
@@ -576,12 +611,38 @@ SELECT grp, template_id, kind, status, target, direction, strength, event_catego
 FROM zz_fixture ORDER BY fx_seq;
 INSERT INTO zz_var_all (src, name, type, turn_offset, kinds, max_len)
 SELECT grp, name, type, turn_offset, kinds, max_len FROM zz_var_fixture;
--- COVERAGE 픽스처: 실제 템플릿에서 필수 조합 하나(SPREAD·GROUP·DOWN)를 뺀 집합
-INSERT INTO zz_all (src, template_id, kind, status, target, direction, strength, event_category, event_type, outcome, category_hidden, text)
-SELECT 'cov_fx', template_id, kind, status, target, direction, strength, event_category, event_type, outcome, category_hidden, text
-FROM zz_tpl WHERE NOT (kind = 'SPREAD' AND direction = 'DOWN')
-  AND template_id NOT IN (SELECT target_id FROM zz_viol_real);   -- 실제 파일이 더러워도 이 픽스처는 COVERAGE 하나만 보이게 한다
--- COVERAGE 픽스처 2: 사건 카드 범주 비공개를 뺀 집합은 같은 방식이라 생략하고, 종류별 3개 미만은 위 집합이 함께 보인다 (SPREAD 2개).
+-- COVERAGE fixture: a fixed sample (not templates.csv) that has every required combination except SPREAD·GROUP·DOWN.
+-- Only the attributes matter here; event texts repeat shapes the fixed noise list already pairs UP and DOWN.
+INSERT INTO zz_all (src, template_id, kind, status, target, direction, category_hidden, event_category, text)
+SELECT 'cov_fx', c.id, c.kind, 'ACTIVE', c.target, c.direction, c.hidden, c.cat, c.text
+FROM (VALUES
+    ('rise.c1.v1', 'RISE', 'ASSET', 'UP', false, NULL, '{asset_name} 이달 {ret} — 자금 몰려'),
+    ('rise.c2.v1', 'RISE', 'ASSET', 'UP', false, NULL, '{asset_name} 이달 {ret} — 매수세 뚜렷'),
+    ('rise.c3.v1', 'RISE', 'GROUP', 'UP', false, NULL, '{group_name} 관련주 동반 상승, 평균 {group_ret}'),
+    ('fall.c1.v1', 'FALL', 'ASSET', 'DOWN', false, NULL, '{asset_name} 이달 {ret} 급락, 공포 확산'),
+    ('fall.c2.v1', 'FALL', 'ASSET', 'DOWN', false, NULL, '{asset_name} 이달 {ret} — 매물 쏟아져'),
+    ('fall.c3.v1', 'FALL', 'GROUP', 'DOWN', false, NULL, '{group_name} 전반 약세 — 평균 {group_ret}, 투자 심리 위축'),
+    ('echo.c1.v1', 'ECHO', 'ASSET', 'UP', false, NULL, '{asset_name} 또 올랐다 — 지난달 {prev_ret}에 이어 이달 {ret}'),
+    ('echo.c2.v1', 'ECHO', 'ASSET', 'DOWN', false, NULL, '{asset_name} 또 내렸다 — 지난달 {prev_ret}에 이어 이달 {ret}'),
+    ('echo.c3.v1', 'ECHO', 'ASSET', 'UP', false, NULL, '{asset_name} 이달 {ret}, 상승 소식 {repeat}번째 이어져'),
+    ('spread.c1.v1', 'SPREAD', 'GROUP', 'UP', false, NULL, '{group_name} 전반으로 매수세 번져, 평균 {group_ret}'),
+    ('spread.c2.v1', 'SPREAD', 'GROUP', 'UP', false, NULL, '{group_name} 업종 전체 관심 집중 — 평균 {group_ret}'),
+    ('fade.c1.v1', 'FADE', 'ASSET', NULL, false, NULL, '{asset_name} 관심 식어 거래 한산 — 시선은 {focus_name} 쪽으로'),
+    ('fade.c2.v1', 'FADE', 'ASSET', NULL, false, NULL, '{asset_name} 주목도 하락 — 관심은 {focus_name} 쪽으로 이동'),
+    ('fade.c3.v1', 'FADE', 'ASSET', NULL, false, NULL, '{asset_name} 열기 가라앉아, 관심 순위 {attention_rank}위로 밀려'),
+    ('event.c1.v1', 'EVENT', 'NONE', NULL, false, 'GEOPOLITICS', '주요 교역국 통상 소식 — 이달 반응 {reaction}'),
+    ('event.c2.v1', 'EVENT', 'NONE', NULL, false, 'TRADE', '주요 교역국 통상 소식 — 이달 반응 {reaction}'),
+    ('event.c3.v1', 'EVENT', 'NONE', NULL, false, 'POLITICS', '주요국 정치 이슈 부각 — 이달 관련 반응 {reaction}'),
+    ('event.c4.v1', 'EVENT', 'NONE', NULL, false, 'SUPPLY_SHOCK', '주요 교역국 통상 소식 — 이달 반응 {reaction}'),
+    ('event.c5.v1', 'EVENT', 'NONE', NULL, false, 'FINANCIAL', '주요국 정치 이슈 부각 — 이달 관련 반응 {reaction}'),
+    ('event.c6.v1', 'EVENT', 'NONE', NULL, false, 'POLICY', '주요 교역국 통상 소식 — 이달 반응 {reaction}'),
+    ('event.c7.v1', 'EVENT', 'NONE', NULL, false, 'HEALTH', '주요국 정치 이슈 부각 — 이달 관련 반응 {reaction}'),
+    ('event.c8.v1', 'EVENT', 'NONE', NULL, true, NULL, '시장 전반 급변 — 이달 반응 {reaction}'),
+    ('event.c9.v1', 'EVENT', 'NONE', NULL, true, NULL, '시장 전체가 크게 흔들렸다 — 이달 관련 반응 {reaction}'),
+    ('nudge.c1.v1', 'NUDGE', 'ASSET', NULL, false, NULL, '{asset_name} 이달 {ret}, 변동 상위 {rank}위 — 지금 보기'),
+    ('nudge.c2.v1', 'NUDGE', 'NONE', NULL, false, NULL, '현금 비중 {cash_weight} — 기회를 놓치고 있지 않나요'),
+    ('nudge.c3.v1', 'NUDGE', 'NONE', NULL, false, NULL, '{idle_turns}번째 쉬는 턴 — 지켜만 보고 계신가요')
+) AS c(id, kind, target, direction, hidden, cat, text);
 
 CREATE TEMP TABLE zz_viol_fx AS SELECT * FROM pg_temp.zz_violations();
 
@@ -592,7 +653,7 @@ SELECT '7 음성', c.expect || ': ' || c.descr, c.expect,
        COALESCE((SELECT string_agg(DISTINCT v.rule, ',' ORDER BY v.rule) FROM zz_viol_fx v WHERE v.src = c.grp), '(위반 없음)') = c.expect
 FROM (SELECT DISTINCT grp, expect, descr FROM zz_fixture
       UNION SELECT DISTINCT grp, expect, descr FROM zz_var_fixture
-      UNION SELECT 'cov_fx', 'COVERAGE', '필수 조합 하나(SPREAD GROUP DOWN)를 뺀 집합') AS c(grp, expect, descr)
+      UNION SELECT 'cov_fx', 'COVERAGE', '고정 표본에서 필수 조합 하나(SPREAD GROUP DOWN)를 뺀 집합') AS c(grp, expect, descr)
 ORDER BY c.grp;
 
 -- 코드 목록 픽스처 (KINDS_ERD): 실제 kinds.csv는 건드리지 않고 배열로 대조 함수를 시험한다
