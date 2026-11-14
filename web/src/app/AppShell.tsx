@@ -49,6 +49,10 @@ function navTarget(
         pathname === `/seasons/${String(seasonId)}/formation`,
     };
   }
+  if (item.key === 'report' && seasonId !== null) {
+    const to = `/seasons/${String(seasonId)}/report`;
+    return { to, active: pathname === to };
+  }
   return null;
 }
 

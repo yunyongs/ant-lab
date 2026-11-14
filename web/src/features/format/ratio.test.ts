@@ -4,6 +4,7 @@ import {
   ratioToPercent,
   ratioToPoints,
   ratioWithPercent,
+  ratioWithPoints,
 } from './ratio.ts';
 
 describe('ratioToPercent', () => {
@@ -59,5 +60,20 @@ describe('ratioToPoints', () => {
 
   it('passes a malformed value through', () => {
     expect(ratioToPoints('abc')).toBe('abc');
+  });
+});
+
+describe('ratioWithPoints', () => {
+  it.each([
+    ['0.05120000', '0.05120000 (5.12%p)'],
+    ['-0.02000000', '-0.02000000 (-2%p)'],
+    ['0.00000000', '0.00000000 (0%p)'],
+    ['0.59864000', '0.59864000 (59.864%p)'],
+  ])('shows %s as %s', (input, expected) => {
+    expect(ratioWithPoints(input)).toBe(expected);
+  });
+
+  it('passes a malformed value through unchanged', () => {
+    expect(ratioWithPoints('abc')).toBe('abc');
   });
 });

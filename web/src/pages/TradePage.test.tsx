@@ -101,7 +101,7 @@ describe('TradePage', () => {
         '골키퍼 40 · 수비수 30 · 미드필더 20 · 공격수 10',
       ),
     ).toBeInTheDocument();
-    expect(within(summary).getByText('1.20000000')).toBeInTheDocument();
+    expect(within(summary).getByText('1.20000000 (120%p)')).toBeInTheDocument();
     const list = screen.getByRole('region', { name: '보유 종목' });
     expect(within(list).getByText('보유 종목 (1)')).toBeInTheDocument();
     expect(within(list).getByText('종목 가')).toBeInTheDocument();

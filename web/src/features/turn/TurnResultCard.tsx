@@ -1,5 +1,9 @@
 import { formatWon } from '../format/money.ts';
-import { ratioToPoints, ratioWithPercent } from '../format/ratio.ts';
+import {
+  ratioToPoints,
+  ratioWithPercent,
+  ratioWithPoints,
+} from '../format/ratio.ts';
 import { WeightBars } from '../seasons/WeightBars.tsx';
 import { weightRowsOf } from '../seasons/weightRows.ts';
 import type { TurnResult } from './queries.ts';
@@ -84,7 +88,7 @@ export function TurnResultCard({ turn }: { turn: TurnResult }) {
         <dl className={styles.rows}>
           <div className={styles.row}>
             <dt>포메이션 이탈</dt>
-            <dd>{turn.formationDeviation}</dd>
+            <dd>{ratioWithPoints(turn.formationDeviation)}</dd>
           </div>
         </dl>
       </section>

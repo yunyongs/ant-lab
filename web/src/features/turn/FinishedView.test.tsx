@@ -5,7 +5,7 @@ import { renderRoute } from '../../test/renderWithProviders.tsx';
 import { serveTurnWorld } from '../../test/serveTurns.ts';
 
 describe('FinishedView', () => {
-  it('shows the status box, the last result and disabled entries', async () => {
+  it('shows the status box, the last result, the report link and a disabled review entry', async () => {
     const world = serveTurnWorld({ current: 12 });
     world.status = 'FINISHED';
     const { container } = renderRoute('/seasons/7');
@@ -20,11 +20,13 @@ describe('FinishedView', () => {
       await screen.findByRole('heading', { name: '12턴 결과 (마지막)' }),
     ).toBeInTheDocument();
     await screen.findByText('104,820,000원');
-    for (const name of ['성적표 보기 (준비 중)', '복기 보기 (준비 중)']) {
-      const entry = screen.getByText(name);
-      expect(entry).toHaveAttribute('aria-disabled', 'true');
-      expect(entry.closest('a')).toBeNull();
-    }
+    expect(screen.getByRole('link', { name: '성적표 보기' })).toHaveAttribute(
+      'href',
+      '/seasons/7/report',
+    );
+    const review = screen.getByText('복기 보기 (준비 중)');
+    expect(review).toHaveAttribute('aria-disabled', 'true');
+    expect(review.closest('a')).toBeNull();
     expect(screen.queryByRole('button', { name: /턴/ })).toBeNull();
     expect(world.turnGets).toEqual([12]);
     expectNoDatePattern(container);

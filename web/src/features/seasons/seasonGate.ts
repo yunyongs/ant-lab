@@ -11,3 +11,8 @@ export function canChangeFormation(
 ): boolean {
   return canTrade(season) && season.currentTurnNo >= 1;
 }
+
+// Report and review open only after the season ended.
+export function isFinished(season: Pick<Season, 'status'>): boolean {
+  return season.status === 'FINISHED';
+}

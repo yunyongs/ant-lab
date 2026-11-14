@@ -1,4 +1,5 @@
 import { formatWon } from '../format/money.ts';
+import { ratioWithPoints } from '../format/ratio.ts';
 import { formationText } from '../seasons/labels.ts';
 import { WeightBars } from '../seasons/WeightBars.tsx';
 import { weightRowsOf } from '../seasons/weightRows.ts';
@@ -27,7 +28,7 @@ export function TradeSummary({ holdings }: { holdings: Holdings }) {
       </div>
       <div className={styles.rowBetween}>
         <span className={styles.muted}>포메이션 이탈</span>
-        <span>{holdings.formationDeviation}</span>
+        <span>{ratioWithPoints(holdings.formationDeviation)}</span>
       </div>
       <WeightBars rows={weightRowsOf(holdings, holdings.currentFormation)} />
     </section>

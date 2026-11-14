@@ -1,15 +1,11 @@
 import { useEffect, useRef } from 'react';
 import { Link } from 'react-router';
-import { NAV_CONFIG } from '../../app/navItems.ts';
+import { isNavEnabled } from '../../app/navItems.ts';
 import { QueryError } from '../seasons/QueryError.tsx';
 import type { Season } from '../seasons/labels.ts';
 import { useTurn } from './queries.ts';
 import { TurnResultCard } from './TurnResultCard.tsx';
 import styles from './Turn.module.css';
-
-function isEnabled(key: 'report' | 'review'): boolean {
-  return NAV_CONFIG.some((item) => item.key === key && item.enabled);
-}
 
 function Entry({
   enabled,
@@ -84,13 +80,13 @@ export function FinishedView({
       {turn.data && <TurnResultCard turn={turn.data} />}
       <div className={styles.entries}>
         <Entry
-          enabled={isEnabled('report')}
+          enabled={isNavEnabled('report')}
           to={`${base}/report`}
           label="성적표 보기"
           primary
         />
         <Entry
-          enabled={isEnabled('review')}
+          enabled={isNavEnabled('review')}
           to={`${base}/review`}
           label="복기 보기"
           primary={false}
