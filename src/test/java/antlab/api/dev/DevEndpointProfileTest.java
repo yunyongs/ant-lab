@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import antlab.scoring.ManualReconciliationService;
 import antlab.support.IntegrationTest;
+import antlab.support.TestTokens;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
@@ -26,14 +27,20 @@ class DevEndpointProfileTest {
 
     @Autowired
     MockMvcTester mvc;
+    @Autowired
+    TestTokens tokens;
 
     @Test
     void test_프로필_문맥에는_dev_경로의_핸들러가_없고_요청은_404다() {
         Set<String> patterns = handlerMapping.getHandlerMethods().keySet().stream()
                 .flatMap(info -> patternsOf(info).stream()).collect(Collectors.toSet());
         assertThat(patterns).isNotEmpty().noneMatch(p -> p.startsWith("/api/v1/dev"));
-        MockHttpServletResponse r = mvc.post().uri("/api/v1/dev/seasons/1/reconciliation").exchange().getResponse();
+        MockHttpServletResponse r = mvc.post().uri("/api/v1/dev/seasons/1/reconciliation")
+                .header("Authorization", "Bearer " + tokens.admin(TestTokens.DEFAULT_SUBJECT)).exchange().getResponse();
         assertThat(r.getStatus()).isEqualTo(404);
+        // the URL rule applies even where no controller exists: a plain user is refused before routing
+        assertThat(mvc.post().uri("/api/v1/dev/seasons/1/reconciliation").exchange().getResponse().getStatus())
+                .isEqualTo(403);
     }
 
     private static Set<String> patternsOf(RequestMappingInfo info) {

@@ -2,7 +2,9 @@ package antlab.api.dev;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import antlab.support.DefaultBearerConfig;
 import antlab.support.PostgresTestcontainersConfig;
+import antlab.support.TestTokens;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -17,7 +19,7 @@ import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandl
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles({"test", "local"})
-@Import(PostgresTestcontainersConfig.class)
+@Import({PostgresTestcontainersConfig.class, TestTokens.class, DefaultBearerConfig.class})
 class DevEndpointLocalProfileTest {
 
     @Autowired

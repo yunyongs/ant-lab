@@ -68,6 +68,26 @@ class MonitoringSmokeScriptTest {
     }
 
     @Test
+    void 거절_주문_탐침은_토큰을_붙이고_토큰을_출력하지_않는다() throws IOException {
+        List<String> lines = codeLines();
+        int probe = -1;
+        for (int i = 0; i < lines.size(); i++) {
+            if (lines.get(i).contains("/api/v1/seasons/999999999/orders")) {
+                probe = i;
+            }
+        }
+        assertThat(probe).as("reject probe present").isPositive();
+        // The curl command may continue over several lines; look at the continuation chain ending at the probe URL.
+        int start = probe;
+        while (start > 0 && lines.get(start - 1).stripTrailing().endsWith("\\")) {
+            start--;
+        }
+        String command = String.join("\n", lines.subList(start, probe + 1));
+        assertThat(command).contains("Authorization: Bearer $token");
+        assertThat(lines).noneMatch(l -> l.matches(".*\\b(echo|printf)\\b.*\\$\\{?token\\b.*"));
+    }
+
+    @Test
     void bash_문법() throws Exception {
         assertThat(run(Map.of(), null, "bash", "-n", SCRIPT.toString()).exit()).isZero();
     }

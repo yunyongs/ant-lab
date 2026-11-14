@@ -1,6 +1,8 @@
 package antlab.support;
 
 import antlab.member.CurrentMember;
+import java.util.Map;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalManagementPort;
 import org.springframework.boot.test.web.server.LocalServerPort;
@@ -14,7 +16,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
-@Import(PostgresTestcontainersConfig.class)
+@Import({PostgresTestcontainersConfig.class, TestTokens.class})
 public abstract class RealPortTest {
 
     @LocalServerPort
@@ -27,7 +29,16 @@ public abstract class RealPortTest {
     @MockitoSpyBean
     CurrentMember currentMember;
 
+    @Autowired
+    protected TestTokens tokens;
+
+    /** The API port with the default user token on every call. */
     protected E2eHttp api() {
+        return new E2eHttp(port, Map.of("Authorization", "Bearer " + tokens.user(TestTokens.DEFAULT_SUBJECT)));
+    }
+
+    /** The API port without any token. */
+    protected E2eHttp anonymousApi() {
         return new E2eHttp(port);
     }
 

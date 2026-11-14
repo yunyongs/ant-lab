@@ -43,13 +43,13 @@ public class SecurityConfig {
                         .jwt(j -> j.decoder(decoder).jwtAuthenticationConverter(converter)))
                 .authorizeHttpRequests(a -> {
                     a.dispatcherTypeMatchers(DispatcherType.ERROR).permitAll();
-                    a.requestMatchers("/error").permitAll();
                     // Actuator is gated by the exposure list and the unpublished management port, not by this chain.
                     a.requestMatchers(PublicPaths.OPERATIONS.toArray(String[]::new)).permitAll();
                     // Listed one by one: they are reached without an access token.
                     a.requestMatchers(PublicPaths.CONTRACT_PUBLIC.toArray(String[]::new)).permitAll();
-                    // Until SEC-04: the fixed member serves these without a token.
-                    a.requestMatchers("/api/v1/seasons", "/api/v1/seasons/**", "/api/v1/dev/**").permitAll();
+                    a.requestMatchers("/api/v1/seasons", "/api/v1/seasons/**").authenticated();
+                    // The controller keeps its own dev-header gate and exists only in the local profile.
+                    a.requestMatchers("/api/v1/dev/**").hasRole("ADMIN");
                     if (apiDocs) {
                         a.requestMatchers(PublicPaths.API_DOCS.toArray(String[]::new)).permitAll();
                     }

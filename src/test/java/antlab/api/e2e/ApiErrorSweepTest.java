@@ -6,6 +6,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.reset;
 
 import antlab.api.error.ErrorHttpMapping;
+import antlab.api.security.PublicPaths;
 import antlab.common.error.DomainException;
 import antlab.common.error.ErrorCode;
 import antlab.member.CurrentMember;
@@ -14,12 +15,14 @@ import antlab.support.E2eHttp;
 import antlab.support.E2eHttp.Reply;
 import antlab.support.OpenApiNormalizer;
 import antlab.support.PostgresTestcontainersConfig;
+import antlab.support.TestTokens;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Stream;
@@ -51,11 +54,12 @@ import tools.jackson.databind.JsonNode;
  * {@code docs/api/openapi.yaml}. Statuses the yaml documents per operation (400, 404, 503) must be listed for the probed
  * operation. 405, 406 and 415 come from the framework for every path and are listed once, in {@code x-framework-errors}.
  * Every observed (operation, status, code) must be listed by the contract's {@code x-error-codes}. The dev endpoint is
- * outside the contract and not probed.
+ * outside the contract and not probed. Calls carry a valid user token; the two 401 probes (no token, a token signed by
+ * another key) run on every operation that is not public.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
-@Import(PostgresTestcontainersConfig.class)
+@Import({PostgresTestcontainersConfig.class, TestTokens.class})
 class ApiErrorSweepTest {
 
     private static final String UNKNOWN_SEASON = "987654321";
@@ -114,6 +118,8 @@ class ApiErrorSweepTest {
     DataSource dataSource;
     @MockitoSpyBean
     CurrentMember currentMember;
+    @Autowired
+    TestTokens tokens;
 
     @AfterEach
     void cleanup() {
@@ -159,6 +165,10 @@ class ApiErrorSweepTest {
         if (op.template.equals("/api/v1/auth/refresh")) {
             probes.add(new Probe("no refresh cookie", 401, ErrorCode.UNAUTHENTICATED));
         }
+        if (!PublicPaths.CONTRACT_PUBLIC.contains(op.template)) {
+            probes.add(new Probe("no bearer token", 401, ErrorCode.UNAUTHENTICATED));
+            probes.add(new Probe("forged bearer token", 401, ErrorCode.UNAUTHENTICATED));
+        }
         if (op.onSeason()) {
             probes.add(new Probe("non-numeric season id", 400, ErrorCode.INVALID_ARGUMENT));
             probes.add(new Probe("unknown season", 404, ErrorCode.NOT_FOUND));
@@ -176,7 +186,7 @@ class ApiErrorSweepTest {
         return probes;
     }
 
-    private Reply send(E2eHttp http, Operation op, Probe probe) {
+    private Reply send(E2eHttp http, E2eHttp anonymous, E2eHttp forged, Operation op, Probe probe) {
         HttpMethod method = HttpMethod.valueOf(op.method());
         String json = "application/json";
         switch (probe.name()) {
@@ -191,6 +201,12 @@ class ApiErrorSweepTest {
                 return http.send(method, op.path(UNKNOWN_SEASON), "{", json, json);
             case "empty object body":
                 return http.send(method, op.path(UNKNOWN_SEASON), "{}", json, json);
+            case "no bearer token":
+                return anonymous.send(method, op.path("1"), op.hasBody() ? op.validBody() : null,
+                        op.hasBody() ? json : null, json);
+            case "forged bearer token":
+                return forged.send(method, op.path("1"), op.hasBody() ? op.validBody() : null,
+                        op.hasBody() ? json : null, json);
             case "unknown credentials":
                 return http.send(method, op.path(UNKNOWN_SEASON), op.validBody(), json, json);
             case "no refresh cookie":
@@ -223,7 +239,10 @@ class ApiErrorSweepTest {
         List<Operation> operations = handlerOperations();
         JsonNode contract = contract();
         Set<String> documented = ContractErrorCodes.perOperation(contract).keySet();
-        E2eHttp http = new E2eHttp(port);
+        E2eHttp http = new E2eHttp(port, Map.of("Authorization", "Bearer " + tokens.user(TestTokens.DEFAULT_SUBJECT)));
+        E2eHttp anonymous = new E2eHttp(port);
+        E2eHttp forged = new E2eHttp(port, Map.of("Authorization",
+                "Bearer " + tokens.signedByOtherKey(tokens.header(), tokens.claims(1, "USER"))));
 
         // vacuity guard: the handlers are exactly the contract's operations
         assertThat(operations.stream().map(Operation::key).toList()).containsExactlyElementsOf(documented);
@@ -235,7 +254,7 @@ class ApiErrorSweepTest {
             for (Probe probe : probesFor(op)) {
                 exercised.add(probe.name());
                 tests.add(dynamicTest(op.key() + " — " + probe.name(), () -> {
-                    Reply reply = send(http, op, probe);
+                    Reply reply = send(http, anonymous, forged, op, probe);
                     assertThat(reply.status()).as(reply + " " + reply.body()).isEqualTo(probe.status());
                     assertThat(reply.isProblem()).as(reply + " content type " + reply.contentType()).isTrue();
                     ErrorCode code = ErrorCode.valueOf(reply.code());
@@ -253,7 +272,8 @@ class ApiErrorSweepTest {
         assertThat(exercised).containsExactlyInAnyOrderElementsOf(
                 Arrays.asList("wrong method", "Accept: application/xml", "text/plain body", "malformed JSON",
                         "empty object body", "non-numeric season id", "non-numeric turn number", "non-numeric query turnNo",
-                        "unknown season", "unknown member", "unknown credentials", "no refresh cookie"));
+                        "unknown season", "unknown member", "unknown credentials", "no refresh cookie", "no bearer token",
+                        "forged bearer token"));
         return tests.stream();
     }
 }

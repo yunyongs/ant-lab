@@ -156,9 +156,11 @@ dc up -d --wait --wait-timeout 300 || fail "stack did not become healthy"
 helper wait-query "$prom_url" 'up{job="antlab-api"}' == 1 90 up-first || fail "Prometheus never saw the api target up"
 
 echo "== play one season"
-# SEC-04/05: sign up and log in here once /api/v1/seasons/** needs a token; compose.play.yaml goes away with SEC-05.
+# compose.play.yaml goes away with SEC-05.
 python3 tools/play/play_season.py --base "$api_url" --turns 12 > "$work/play.log" 2>&1 || fail "play script failed"
-reject_status="$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: application/json' \
+# The play script signed the member up; log in again with its constants (the token is never printed).
+token="$(PYTHONPATH=tools/play python3 -c 'import sys, play_season as p; a = p.Api(sys.argv[1]); print(p.need(*a.call("POST", "/api/v1/auth/login", {"email": p.PLAY_EMAIL, "password": p.PLAY_PASSWORD}))["accessToken"])' "$api_url")" || fail "login failed"
+reject_status="$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: application/json' -H "Authorization: Bearer $token" \
   -d '{"expectedTurnNo":0,"side":"BUY","assetId":1,"quantity":1}' "$api_url/api/v1/seasons/999999999/orders" || true)"
 [ "$reject_status" = 404 ] || fail "rejected-order probe answered $reject_status, wanted 404"
 

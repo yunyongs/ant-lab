@@ -7,6 +7,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import antlab.engine.PathRules;
 import antlab.history.MonthBlockRepository;
 import antlab.season.SeedGenerator;
+import antlab.support.DefaultBearerConfig;
 import antlab.support.DeferredPathSource;
 import antlab.support.FixedPathSource;
 import antlab.support.GoldenCleanup;
@@ -21,6 +22,7 @@ import antlab.support.RowSetDiff;
 import antlab.support.SqlGoldenHarness;
 import antlab.support.SqlGoldenHarness.DatabaseHandle;
 import antlab.support.SqlGoldenScenario;
+import antlab.support.TestTokens;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -40,6 +42,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.context.ActiveProfiles;
@@ -63,6 +66,7 @@ import tools.jackson.databind.json.JsonMapper;
 @SpringBootTest(properties = {"antlab.single-member.email=phase0@example.invalid",
         "antlab.single-member.name=연습 감독"})
 @AutoConfigureMockMvc
+@Import({TestTokens.class, DefaultBearerConfig.class})
 @ActiveProfiles("test")
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @EnabledIf("sampleAvailable")

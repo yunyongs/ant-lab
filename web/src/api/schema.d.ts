@@ -1337,6 +1337,19 @@ export interface components {
     };
     responses: {
         /**
+         * @description The request has no valid bearer token: missing, expired or wrongly signed — UNAUTHENTICATED
+         *
+         *     유효한 Bearer 토큰이 없다: 없거나 만료됐거나 서명이 틀렸다 — UNAUTHENTICATED
+         */
+        Unauthenticated: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
+        /**
          * @description An unexpected server error — INTERNAL_ERROR. The message is a fixed sentence that carries no exception content (the content goes to the server log only)
          *
          *     예상하지 못한 서버 오류 — INTERNAL_ERROR. 예외 내용은 싣지 않는 고정 문장이다(내용은 서버 로그에만)
@@ -1556,6 +1569,7 @@ export interface operations {
                     "application/json": components["schemas"]["SeasonListDto"];
                 };
             };
+            401: components["responses"]["Unauthenticated"];
             500: components["responses"]["InternalError"];
             /** @description The current member is unknown — MEMBER_UNAVAILABLE / 현재 회원을 알 수 없다 — MEMBER_UNAVAILABLE */
             503: {
@@ -1601,6 +1615,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
+            401: components["responses"]["Unauthenticated"];
             /**
              * @description A season cannot be started now — POOL_NOT_LOADED, POOL_NOT_JUDGED, SEASON_LIMIT (3 in progress)
              *
@@ -1664,6 +1679,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
+            401: components["responses"]["Unauthenticated"];
             /** @description The season does not exist — NOT_FOUND / 시즌이 없다 — NOT_FOUND */
             404: {
                 headers: {
@@ -1716,6 +1732,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
+            401: components["responses"]["Unauthenticated"];
             /** @description The season does not exist — NOT_FOUND / 시즌이 없다 — NOT_FOUND */
             404: {
                 headers: {
@@ -1779,6 +1796,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
+            401: components["responses"]["Unauthenticated"];
             /** @description The season does not exist — NOT_FOUND / 시즌이 없다 — NOT_FOUND */
             404: {
                 headers: {
@@ -1863,6 +1881,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
+            401: components["responses"]["Unauthenticated"];
             /** @description The season does not exist — NOT_FOUND / 시즌이 없다 — NOT_FOUND */
             404: {
                 headers: {
@@ -1930,6 +1949,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
+            401: components["responses"]["Unauthenticated"];
             /** @description The season does not exist — NOT_FOUND / 시즌이 없다 — NOT_FOUND */
             404: {
                 headers: {
@@ -1990,6 +2010,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
+            401: components["responses"]["Unauthenticated"];
             /** @description The season does not exist — NOT_FOUND / 시즌이 없다 — NOT_FOUND */
             404: {
                 headers: {
@@ -2053,6 +2074,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
+            401: components["responses"]["Unauthenticated"];
             /** @description The season does not exist — NOT_FOUND / 시즌이 없다 — NOT_FOUND */
             404: {
                 headers: {
@@ -2103,6 +2125,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
+            401: components["responses"]["Unauthenticated"];
             /** @description The season does not exist — NOT_FOUND / 시즌이 없다 — NOT_FOUND */
             404: {
                 headers: {
@@ -2162,6 +2185,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
+            401: components["responses"]["Unauthenticated"];
             /** @description The season does not exist — NOT_FOUND / 시즌이 없다 — NOT_FOUND */
             404: {
                 headers: {
