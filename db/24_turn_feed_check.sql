@@ -9,6 +9,10 @@
 -- =====================================================================
 \ir 24_turn_feed_def.sql
 
+DO $$ BEGIN IF to_regclass('pg_temp.tf_denylist') IS NOT NULL THEN DROP TABLE pg_temp.tf_denylist; END IF; END $$;
+CREATE TEMP TABLE tf_denylist (word text NOT NULL, reason text NOT NULL, note text) ON COMMIT PRESERVE ROWS;
+\copy tf_denylist FROM 'feed/denylist.csv' WITH (FORMAT csv, HEADER MATCH, ENCODING 'UTF8')
+
 BEGIN;
 CREATE TEMP TABLE tf_check (item text NOT NULL, ok boolean NOT NULL);
 
@@ -76,6 +80,74 @@ CREATE FUNCTION pg_temp.zz_gen(p_input jsonb) RETURNS jsonb LANGUAGE sql STABLE 
     SELECT coalesce(jsonb_agg(to_jsonb(g) ORDER BY g.seq), '[]'::jsonb) FROM pg_temp.tf_generate(p_input) g
 $$;
 
+-- Sentence checks (#76). The "masked" sentence is the template rendered with every name-type variable replaced by a placeholder,
+-- so only the fixed wording is left for the denylist and pool-name scans. NULL when the row cannot be rendered.
+CREATE FUNCTION pg_temp.zz_masked(p_text text, p_vars jsonb) RETURNS text LANGUAGE plpgsql STABLE AS $$
+BEGIN
+    RETURN pg_temp.tf_render(p_text, coalesce((SELECT jsonb_object_agg(k, CASE WHEN v.type = 'name' THEN to_jsonb('¤'::text) ELSE p_vars -> k END)
+                                               FROM jsonb_object_keys(p_vars) k LEFT JOIN tf_variables v ON v.name = k), '{}'::jsonb));
+EXCEPTION WHEN OTHERS THEN RETURN NULL;
+END $$;
+-- Stored rows of a season that break a sentence rule. Zero rows (a 0-row turn, an event-only turn) produce no defect. Group names are
+-- ordinary words ("금" inside "금리"), so they are only checked as variable values, never scanned in the wording.
+CREATE FUNCTION pg_temp.zz_sentence_defects(p_sid bigint) RETURNS TABLE (turn_no smallint, seq smallint, defect text) LANGUAGE sql STABLE AS $$
+    WITH f AS (
+        SELECT x.turn_no, x.seq, x.body, x.template_vars, pg_temp.zz_masked(t.text, x.template_vars) AS masked
+        FROM turn_feed x LEFT JOIN tf_templates t ON t.template_id = x.template_id WHERE x.season_id = p_sid
+    ), pool AS (
+        SELECT DISTINCT tp.asset_id FROM turn_price tp WHERE tp.season_id = p_sid
+    ), nm AS (
+        SELECT f.turn_no, f.seq, v.value AS val
+        FROM f CROSS JOIN LATERAL jsonb_each_text(f.template_vars) v JOIN tf_variables tv ON tv.name = v.key AND tv.type = 'name'
+    )
+    SELECT f.turn_no, f.seq, 'MASK' FROM f WHERE f.masked IS NULL
+    UNION ALL SELECT f.turn_no, f.seq, 'DENY_' || d.reason FROM f JOIN tf_denylist d ON position(d.word IN f.masked) > 0
+    UNION ALL SELECT f.turn_no, f.seq, 'NAME_IN_WORDING' FROM f JOIN asset a ON position(a.name IN f.masked) > 0
+    UNION ALL SELECT f.turn_no, f.seq, CASE WHEN a.id IN (SELECT asset_id FROM pool) THEN 'NAME_NOT_VAR' ELSE 'NAME_OUT_OF_POOL' END
+        FROM f JOIN asset a ON position(a.name IN f.body) > 0
+        WHERE NOT EXISTS (SELECT 1 FROM nm WHERE nm.turn_no = f.turn_no AND nm.seq = f.seq AND position(a.name IN nm.val) > 0)
+    UNION ALL SELECT nm.turn_no, nm.seq, 'VAR_NOT_POOL' FROM nm
+        WHERE NOT EXISTS (SELECT 1 FROM asset a WHERE a.id IN (SELECT asset_id FROM pool) AND a.name = nm.val)
+          AND NOT EXISTS (SELECT 1 FROM asset a JOIN asset_group g ON g.id = a.asset_group_id WHERE a.id IN (SELECT asset_id FROM pool) AND g.name = nm.val)
+$$;
+-- Stored rows whose template (any status) no longer renders to the stored body
+CREATE FUNCTION pg_temp.zz_render_bad(p_sid bigint) RETURNS bigint LANGUAGE sql STABLE AS $$
+    SELECT count(*) FROM turn_feed f LEFT JOIN tf_templates t ON t.template_id = f.template_id
+    WHERE f.season_id = p_sid AND (t.template_id IS NULL OR pg_temp.tf_render(t.text, f.template_vars) IS DISTINCT FROM f.body)
+$$;
+-- Run the given statements, collect the defect labels, and roll everything back. NULL on error.
+CREATE FUNCTION pg_temp.zz_probe(p_sid bigint, p_sql text[]) RETURNS text[] LANGUAGE plpgsql AS $$
+DECLARE v_labels text[] := NULL; v_stmt text;
+BEGIN
+    BEGIN
+        FOREACH v_stmt IN ARRAY p_sql LOOP EXECUTE v_stmt; END LOOP;
+        v_labels := (SELECT coalesce(array_agg(DISTINCT x.defect ORDER BY x.defect), '{}') FROM pg_temp.zz_sentence_defects(p_sid) x)
+                    || CASE WHEN pg_temp.zz_render_bad(p_sid) > 0 THEN ARRAY['RENDER'] ELSE '{}'::text[] END;
+        RAISE EXCEPTION 'probe' USING ERRCODE = 'ZZ999';
+    EXCEPTION WHEN SQLSTATE 'ZZ999' THEN NULL;
+              WHEN OTHERS THEN v_labels := NULL;
+    END;
+    RETURN v_labels;
+END $$;
+-- Surrogate keys mirrored (id -> pivot - id) in an assembled input, and mirrored back in a generated feed
+CREATE FUNCTION pg_temp.zz_mirror_input(p_input jsonb, p_pivot bigint) RETURNS jsonb LANGUAGE sql IMMUTABLE AS $$
+    SELECT p_input || jsonb_build_object(
+        'assets', coalesce((SELECT jsonb_agg(a || jsonb_build_object('asset_id', p_pivot - (a ->> 'asset_id')::bigint, 'group_id', p_pivot - (a ->> 'group_id')::bigint) ORDER BY o)
+                            FROM jsonb_array_elements(p_input -> 'assets') WITH ORDINALITY t(a, o)), '[]'::jsonb),
+        'groups', coalesce((SELECT jsonb_agg(g || jsonb_build_object('group_id', p_pivot - (g ->> 'group_id')::bigint) ORDER BY o)
+                            FROM jsonb_array_elements(p_input -> 'groups') WITH ORDINALITY t(g, o)), '[]'::jsonb),
+        'events', coalesce((SELECT jsonb_agg(e || jsonb_build_object('event_id', p_pivot - (e ->> 'event_id')::bigint) ORDER BY o)
+                            FROM jsonb_array_elements(p_input -> 'events') WITH ORDINALITY t(e, o)), '[]'::jsonb))
+$$;
+CREATE FUNCTION pg_temp.zz_mirror_back(p_rows jsonb, p_pivot bigint) RETURNS jsonb LANGUAGE sql IMMUTABLE AS $$
+    SELECT coalesce(jsonb_agg(r || jsonb_build_object(
+        'asset_id', CASE WHEN r -> 'asset_id' = 'null'::jsonb THEN 'null'::jsonb ELSE to_jsonb(p_pivot - (r ->> 'asset_id')::bigint) END,
+        'asset_group_id', CASE WHEN r -> 'asset_group_id' = 'null'::jsonb THEN 'null'::jsonb ELSE to_jsonb(p_pivot - (r ->> 'asset_group_id')::bigint) END,
+        'month_event_id', CASE WHEN r -> 'month_event_id' = 'null'::jsonb THEN 'null'::jsonb ELSE to_jsonb(p_pivot - (r ->> 'month_event_id')::bigint) END) ORDER BY o),
+        '[]'::jsonb)
+    FROM jsonb_array_elements(p_rows) WITH ORDINALITY t(r, o)
+$$;
+
 DO $$
 DECLARE
     v_sid bigint;
@@ -98,6 +170,15 @@ DECLARE
     v_eligible bigint;
     v_input jsonb;
     v_out jsonb;
+    v_tpl text;          -- template of the first stored row, used by the tamper probes
+    v_row_turn smallint; -- turn and seq of that row
+    v_row_seq smallint;
+    v_labels text[];
+    v_reason text;
+    v_word text;
+    v_miss text;
+    v_fake text := '허구종목';
+    v_pivot bigint := 1000000;
 BEGIN
     SELECT s.id, s.current_turn_no INTO v_sid, v_cur
     FROM season s JOIN member m ON m.id = s.member_id
@@ -211,10 +292,7 @@ BEGIN
            OR (round(x.ret * 100, 0) = 0
                AND pg_temp.tf_shape(t.text) NOT IN (SELECT pg_temp.tf_shape(e.text) FROM tf_templates e WHERE e.kind = 'EVENT' AND e.status = 'ACTIVE')));
     INSERT INTO tf_check VALUES ('방향·수익률 변수 = turn_price 독립 계산, 0% 렌더는 사건 틀 소음만', v_bad = 0);
-    SELECT count(*) INTO v_bad
-    FROM turn_feed f LEFT JOIN tf_templates t ON t.template_id=f.template_id
-    WHERE f.season_id=v_sid AND (t.template_id IS NULL OR pg_temp.tf_render(t.text, f.template_vars) IS DISTINCT FROM f.body);
-    INSERT INTO tf_check VALUES ('템플릿 등록·정확한 변수 재렌더', v_bad = 0);
+    INSERT INTO tf_check VALUES ('템플릿 등록·정확한 변수 재렌더', pg_temp.zz_render_bad(v_sid) = 0);
 
     -- 6 중복 선택: 같은 (종류, 대상)이 겹치는 수는 후보 수가 모자랄 때만 나온다.
     --   후보 수의 하한 = 사건 수 + 렌더 %가 0이 아닌 종목 수 (종목마다 RISE·FALL 후보가 하나씩은 있다)
@@ -406,6 +484,91 @@ BEGIN
     EXCEPTION WHEN OTHERS THEN v_err := true; END;
     INSERT INTO tf_check VALUES ('생성기 단독 ⑤ 사건만 있고 소음 후보가 없으면 그 사건 1행(kind EVENT, seq 1)',
         NOT v_err AND jsonb_array_length(coalesce(v_out, '[]')) = 1 AND v_out -> 0 ->> 'kind' = 'EVENT' AND v_out -> 0 ->> 'seq' = '1');
+    -- 12 Sentence checks (#76): fixed wording vs denylist and pool names, retirement, mirrored surrogate keys.
+    --   A turn with no rows or only events has nothing to scan, so the live checks pass; the probes below prove they are not hollow.
+    INSERT INTO tf_check VALUES ('문장 검사 ⓪ 금칙어 목록(feed/denylist.csv)을 읽었다', (SELECT count(*) FROM tf_denylist) > 0);
+    INSERT INTO tf_check VALUES ('문장 검사 ① 변수 부분을 뺀 문장에 금칙어가 없다 (피드 0행·사건만 있는 턴 포함)', NOT EXISTS (
+        SELECT 1 FROM pg_temp.zz_sentence_defects(v_sid) WHERE defect LIKE 'DENY\_%' OR defect = 'MASK'));
+    INSERT INTO tf_check VALUES ('문장 검사 ② 풀 종목 이름은 변수로만 나오고 고정 문장에 없다', NOT EXISTS (
+        SELECT 1 FROM pg_temp.zz_sentence_defects(v_sid) WHERE defect IN ('NAME_IN_WORDING', 'NAME_NOT_VAR')));
+    INSERT INTO tf_check VALUES ('문장 검사 ③ 풀 밖 종목 이름이 body에 없고, 이름 변수는 풀 종목·그룹 이름이다', NOT EXISTS (
+        SELECT 1 FROM pg_temp.zz_sentence_defects(v_sid) WHERE defect IN ('NAME_OUT_OF_POOL', 'VAR_NOT_POOL')));
+
+    SELECT f.template_id, f.turn_no, f.seq INTO v_tpl, v_row_turn, v_row_seq
+    FROM turn_feed f WHERE f.season_id = v_sid ORDER BY f.turn_no, f.seq LIMIT 1;
+    IF v_tpl IS NULL THEN
+        INSERT INTO tf_check VALUES ('문장 검사 ④–⑦ 건너뜀: 저장된 피드 행 없음', v_cur < 1);
+    ELSE
+        -- ④ positive control: one denylist word of every reason appended to the wording of a stored row's template must be reported under that reason
+        v_miss := '';
+        FOR v_reason IN SELECT DISTINCT reason FROM tf_denylist ORDER BY 1 LOOP
+            SELECT min(word COLLATE "C") INTO v_word FROM tf_denylist WHERE reason = v_reason;
+            v_labels := pg_temp.zz_probe(v_sid, ARRAY[format('UPDATE tf_templates SET text = text || %L WHERE template_id = %L', ' ' || v_word, v_tpl)]);
+            IF v_labels IS NULL OR NOT ('DENY_' || v_reason = ANY (v_labels)) THEN v_miss := v_miss || v_reason || ' '; END IF;
+        END LOOP;
+        INSERT INTO tf_check VALUES ('문장 검사 ④ 양성 대조군: 이유별 금칙어를 고정 문장에 넣으면 그 이유로 잡힌다', v_miss = '' AND EXISTS (SELECT 1 FROM tf_denylist));
+        -- ⑤ positive control: a pool asset name written into the wording
+        v_labels := pg_temp.zz_probe(v_sid, ARRAY[format('UPDATE tf_templates SET text = text || %L WHERE template_id = %L',
+                                                         ' ' || (SELECT a.name FROM asset a ORDER BY a.id LIMIT 1), v_tpl)]);
+        INSERT INTO tf_check VALUES ('문장 검사 ⑤ 양성 대조군: 풀 종목 이름을 고정 문장에 직접 쓰면 잡힌다', coalesce('NAME_IN_WORDING' = ANY (v_labels), false));
+        -- ⑥ positive control: a name outside the season pool in a stored body, and a non-pool name used as a name variable
+        v_labels := pg_temp.zz_probe(v_sid, ARRAY[
+            format('INSERT INTO asset (market, ticker, name, asset_type, currency, asset_group_id, listed_on, return_basis)
+                    SELECT ''KR'', ''ZZ0076'', %L, ''STOCK'', ''KRW'', min(asset_group_id), DATE ''2000-01-03'', ''PRICE'' FROM asset', v_fake),
+            format('UPDATE turn_feed SET body = body || %L WHERE season_id = %s AND turn_no = %s AND seq = %s', ' ' || v_fake, v_sid, v_row_turn, v_row_seq)]);
+        INSERT INTO tf_check VALUES ('문장 검사 ⑥ 양성 대조군: 풀 밖 종목 이름을 body에 넣으면 잡힌다', coalesce('NAME_OUT_OF_POOL' = ANY (v_labels), false));
+        v_labels := NULL;
+        SELECT pg_temp.zz_probe(v_sid, ARRAY[format('UPDATE turn_feed SET template_vars = jsonb_set(template_vars, %L, to_jsonb(%L::text)) WHERE id = %s',
+                                                     '{' || n.key || '}', v_fake, n.id)])
+          INTO v_labels
+        FROM (SELECT f.id, k.key FROM turn_feed f CROSS JOIN LATERAL jsonb_object_keys(f.template_vars) k(key)
+              JOIN tf_variables tv ON tv.name = k.key AND tv.type = 'name' WHERE f.season_id = v_sid ORDER BY f.turn_no, f.seq LIMIT 1) n;
+        INSERT INTO tf_check VALUES ('문장 검사 ⑥b 양성 대조군: 풀 종목·그룹이 아닌 이름을 이름 변수에 넣으면 잡힌다',
+            (v_labels IS NULL AND NOT EXISTS (SELECT 1 FROM turn_feed f CROSS JOIN LATERAL jsonb_object_keys(f.template_vars) k(key)
+                                              JOIN tf_variables tv ON tv.name = k.key AND tv.type = 'name' WHERE f.season_id = v_sid))
+            OR coalesce('VAR_NOT_POOL' = ANY (v_labels), false));
+
+        -- ⑦ Retirement: every template a stored row uses is retired. The stored rows must still re-render to the same body and pass the sentence rules;
+        --   editing a retired template's wording in place, or a stored body, must be reported.
+        v_miss := NULL; v_out := NULL; v_labels := NULL;
+        BEGIN
+            v_miss := (SELECT md5(string_agg(f.turn_no || ':' || f.seq || ':' || f.template_id || ':' || f.body, '|' ORDER BY f.turn_no, f.seq)) FROM turn_feed f WHERE f.season_id = v_sid);
+            UPDATE tf_templates SET status = 'RETIRED' WHERE template_id IN (SELECT template_id FROM turn_feed WHERE season_id = v_sid);
+            v_out := jsonb_build_object(
+                'same', v_miss IS NOT DISTINCT FROM (SELECT md5(string_agg(f.turn_no || ':' || f.seq || ':' || f.template_id || ':' || f.body, '|' ORDER BY f.turn_no, f.seq)) FROM turn_feed f WHERE f.season_id = v_sid),
+                'active_used', (SELECT count(*) FROM tf_templates t WHERE t.status = 'ACTIVE' AND t.template_id IN (SELECT template_id FROM turn_feed WHERE season_id = v_sid)),
+                'render_bad', pg_temp.zz_render_bad(v_sid),
+                'defects', (SELECT count(*) FROM pg_temp.zz_sentence_defects(v_sid)));
+            RAISE EXCEPTION 'probe' USING ERRCODE = 'ZZ999';
+        EXCEPTION WHEN SQLSTATE 'ZZ999' THEN NULL;
+                  WHEN OTHERS THEN v_out := NULL;
+        END;
+        INSERT INTO tf_check VALUES ('문장 검사 ⑦ 템플릿 은퇴 뒤에도 저장된 body가 그대로이고 다시 렌더하면 같고 문장 규칙을 지킨다',
+            coalesce((v_out ->> 'same')::boolean AND (v_out ->> 'active_used')::int = 0 AND (v_out ->> 'render_bad')::int = 0 AND (v_out ->> 'defects')::int = 0, false));
+        v_labels := pg_temp.zz_probe(v_sid, ARRAY[
+            format('UPDATE tf_templates SET status = ''RETIRED'' WHERE template_id = %L', v_tpl),
+            format('UPDATE tf_templates SET text = text || %L WHERE template_id = %L', ' 그리고', v_tpl)]);
+        INSERT INTO tf_check VALUES ('문장 검사 ⑦b 양성 대조군: 은퇴한 템플릿 문장을 제자리에서 고치면 저장 body와 어긋나 잡힌다', coalesce('RENDER' = ANY (v_labels), false));
+        v_labels := pg_temp.zz_probe(v_sid, ARRAY[
+            format('UPDATE tf_templates SET status = ''RETIRED'' WHERE template_id = %L', v_tpl),
+            format('UPDATE turn_feed SET body = body || %L WHERE season_id = %s AND turn_no = %s AND seq = %s', '!', v_sid, v_row_turn, v_row_seq)]);
+        INSERT INTO tf_check VALUES ('문장 검사 ⑦c 양성 대조군: 은퇴한 템플릿 행의 저장 body를 바꾸면 잡힌다', coalesce('RENDER' = ANY (v_labels), false));
+    END IF;
+
+    -- ⑧ Surrogate keys mirrored (id -> pivot - id, which also reverses id order): the stored feed is reproduced from the same natural content
+    SELECT count(*) INTO v_bad
+    FROM generate_series(1, v_cur) t(turn_no)
+    WHERE pg_temp.zz_stored(v_sid, t.turn_no::smallint)
+          IS DISTINCT FROM pg_temp.zz_mirror_back(pg_temp.zz_gen(pg_temp.zz_mirror_input(pg_temp.tf_input(v_sid, t.turn_no::smallint), v_pivot)), v_pivot);
+    INSERT INTO tf_check VALUES ('문장 검사 ⑧ 대리 키를 뒤집은 입력으로 다시 생성해도 저장 피드와 같다 (완료 턴 전부)', v_bad = 0);
+    SELECT t.turn_no INTO v_t FROM generate_series(1, v_cur) t(turn_no)
+    WHERE jsonb_array_length(pg_temp.zz_stored(v_sid, t.turn_no::smallint)) > 0 ORDER BY t.turn_no DESC LIMIT 1;
+    IF v_t IS NULL THEN
+        INSERT INTO tf_check VALUES ('문장 검사 ⑧b 건너뜀: 비어 있지 않은 완료 턴 없음', v_cur < 1);
+    ELSE
+        INSERT INTO tf_check VALUES ('문장 검사 ⑧b 양성 대조군: 뒤집은 키를 되돌리지 않으면 저장 피드와 다르다 (대리 키가 실제로 출력에 닿는다)',
+            pg_temp.zz_stored(v_sid, v_t) IS DISTINCT FROM pg_temp.zz_gen(pg_temp.zz_mirror_input(pg_temp.tf_input(v_sid, v_t), v_pivot)));
+    END IF;
     -- Retirement guard: no loaded function body may still raise the retired no-candidate code (a half retirement would fail here)
     INSERT INTO tf_check VALUES ('은퇴한 후보 없음 오류 코드가 로드된 정의 어디에도 없다', NOT EXISTS (
         SELECT 1 FROM pg_proc WHERE pronamespace = pg_my_temp_schema() AND prosrc LIKE '%FEED\_NO\_CANDIDATE%'));

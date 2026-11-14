@@ -50,7 +50,7 @@ class GoldenFixtureSourceTest {
         var paths = bundle.files().stream().map(GoldenFixtureSource.StagedFile::relativePath).toList();
 
         assertThat(paths).contains("db/10_load_sample.sql", "db/23_turn_advance_def.sql", "db/sample/hand_check.csv",
-                "db/sample/asset.csv", "events/types.csv", "feed/templates.csv", "feed/variables.csv");
+                "db/sample/asset.csv", "events/types.csv", "feed/templates.csv", "feed/variables.csv", "feed/denylist.csv");
         assertThat(paths).noneMatch(p -> p.endsWith("_drill.sql"))
                 .noneMatch(p -> p.contains(".env")).noneMatch(p -> p.contains("data/raw"))
                 .allMatch(p -> p.startsWith("db/") || p.startsWith("events/") || p.startsWith("feed/"));
