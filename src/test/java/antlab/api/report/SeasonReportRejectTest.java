@@ -6,10 +6,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import antlab.account.CashAccountRepository;
 import antlab.api.error.ErrorHttpMapping;
+import antlab.auth.JwtCurrentMember;
 import antlab.common.error.DomainException;
 import antlab.common.error.ErrorCode;
 import antlab.member.MemberRepository;
-import antlab.member.UnavailableCurrentMember;
 import antlab.scoring.SeasonReportService;
 import antlab.season.SeasonRepository;
 import antlab.support.IntegrationTest;
@@ -26,7 +26,7 @@ import org.springframework.test.web.servlet.assertj.MockMvcTester;
 
 /**
  * 성적표 음성 경로: 끝나지 않은 시즌(0턴·중간·포기 중)은 409 SEASON_NOT_FINISHED, 없는 시즌·남의 시즌은 404 같은 본문, 숫자가 아닌 id 는 400,
- * 회원 불명은 503, 저장 상태가 모순이면 500 고정 문장(원인·금액 비노출).
+ * 회원 불명은 401, 저장 상태가 모순이면 500 고정 문장(원인·금액 비노출).
  */
 @IntegrationTest
 @Sql(scripts = {"/fixtures/cleanup_season_start.sql", "/fixtures/history_pool.sql", "/fixtures/replay_months.sql",
@@ -104,12 +104,11 @@ class SeasonReportRejectTest {
     }
 
     @Test
-    void 회원을_알_수_없으면_503이다() {
-        SeasonReportService service = new SeasonReportService(new UnavailableCurrentMember(), null, null, null, null, null,
+    void 보안_문맥에_토큰이_없으면_401_UNAUTHENTICATED이다() {
+        SeasonReportService service = new SeasonReportService(new JwtCurrentMember(null), null, null, null, null, null,
                 null, null, null);
         assertThatThrownBy(() -> service.get(1L)).isInstanceOfSatisfying(DomainException.class,
-                e -> assertThat(ErrorHttpMapping.status(e.getCode())).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE));
-        assertThat(ErrorHttpMapping.status(ErrorCode.MEMBER_UNAVAILABLE)).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+                e -> assertThat(ErrorHttpMapping.status(e.getCode())).isEqualTo(HttpStatus.UNAUTHORIZED));
     }
 
     @Test

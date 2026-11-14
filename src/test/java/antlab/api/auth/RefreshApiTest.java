@@ -127,7 +127,7 @@ class RefreshApiTest {
         byte[] key = Base64.getDecoder().decode(env.getProperty("antlab.auth.jwt-secret"));
         Jwt jwt = NimbusJwtDecoder.withSecretKey(new SecretKeySpec(key, "HmacSHA256")).macAlgorithm(MacAlgorithm.HS256)
                 .build().decode(token);
-        assertThat(jwt.getSubject()).isEqualTo(String.valueOf(jdbc.queryForObject("select id from member", Long.class)));
+        assertThat(jwt.getSubject()).isEqualTo(String.valueOf(jdbc.queryForObject("select id from member where email = ?", Long.class, EMAIL)));
         assertThat(jwt.getClaimAsString("role")).isEqualTo("USER");
         assertThat(jwt.getIssuedAt()).isEqualTo(BASE.plusSeconds(60).truncatedTo(java.time.temporal.ChronoUnit.SECONDS));
     }
