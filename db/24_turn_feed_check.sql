@@ -4,7 +4,8 @@
 -- 실행: 저장소 루트에서  psql -X -q -v ON_ERROR_STOP=1 -d <DB이름> -f db/24_turn_feed_check.sql   (feed/*.csv 를 상대 경로로 읽는다)
 --       23 을 한 번 이상 실행한 연습 시즌이 대상이다. 변조 시험은 하위 블록(EXCEPTION)에서 하고 반드시 되돌린다. 마지막은 ROLLBACK 이다.
 -- 판정: 마지막 줄 p0_18_check 가 PASS 이고 종료 코드 0.
--- 변조 시험 규칙: 두 호출이 모두 성공할 때만 비교한다 (오류를 "변화"로 세지 않는다). 양성 대조군이 DIFF 가 아니면 음성(SAME) 시험도 무효로 FAIL 이다.
+-- 변조 시험 규칙: 두 호출이 모두 성공할 때만 비교한다 (오류를 "변화"로 세지 않는다). 미래 불변성(SAME)은 행 수와 무관하게 보되, 양성 대조군(DIFF)은 비어 있지 않은 합성 입력과 비어 있지 않은 실제 턴에서 따로 확인한다.
+--   Future invariance holds for any row count; the positive controls run on a non-empty synthetic input and on a non-empty live turn, and a skipped control is a visible row that fails on a played season.
 -- =====================================================================
 \ir 24_turn_feed_def.sql
 
@@ -22,6 +23,59 @@ CREATE FUNCTION pg_temp.zz_stored(p_sid bigint, p_turn smallint) RETURNS jsonb L
           FROM turn_feed f WHERE f.season_id = p_sid AND f.turn_no = p_turn) s
 $$;
 
+-- Future-only blocks tampered (attention negated, event reaction shifted, returns halved): true when the regenerated feed is unchanged. NULL on error.
+CREATE FUNCTION pg_temp.zz_future_same(p_sid bigint, p_turn smallint) RETURNS boolean LANGUAGE plpgsql AS $$
+DECLARE
+    v_base jsonb := pg_temp.zz_regen(p_sid, p_turn);
+    v_same boolean := NULL;
+BEGIN
+    BEGIN
+        UPDATE asset_month_attention SET attention_index = -attention_index
+         WHERE month_block_id IN (SELECT month_block_id FROM season_path WHERE season_id = p_sid GROUP BY month_block_id HAVING min(turn_no) > p_turn);
+        UPDATE month_event SET reaction_change = reaction_change + 0.25
+         WHERE month_block_id IN (SELECT month_block_id FROM season_path WHERE season_id = p_sid GROUP BY month_block_id HAVING min(turn_no) > p_turn);
+        UPDATE asset_month_return SET local_return = round(local_return * 0.5, 8)
+         WHERE month_block_id IN (SELECT month_block_id FROM season_path WHERE season_id = p_sid GROUP BY month_block_id HAVING min(turn_no) > p_turn);
+        v_same := pg_temp.zz_regen(p_sid, p_turn) IS NOT DISTINCT FROM v_base;
+        RAISE EXCEPTION 'probe' USING ERRCODE = 'ZZ999';
+    EXCEPTION WHEN SQLSTATE 'ZZ999' THEN NULL;
+              WHEN OTHERS THEN v_same := NULL;
+    END;
+    RETURN v_same;
+END $$;
+-- Current block attention negated: true when the regenerated feed changes. NULL on error.
+CREATE FUNCTION pg_temp.zz_attention_flips(p_sid bigint, p_turn smallint) RETURNS boolean LANGUAGE plpgsql AS $$
+DECLARE
+    v_base jsonb := pg_temp.zz_regen(p_sid, p_turn);
+    v_diff boolean := NULL;
+BEGIN
+    BEGIN
+        UPDATE asset_month_attention SET attention_index = -attention_index
+         WHERE month_block_id = (SELECT month_block_id FROM season_path WHERE season_id = p_sid AND turn_no = p_turn);
+        v_diff := pg_temp.zz_regen(p_sid, p_turn) IS DISTINCT FROM v_base;
+        RAISE EXCEPTION 'probe' USING ERRCODE = 'ZZ999';
+    EXCEPTION WHEN SQLSTATE 'ZZ999' THEN NULL;
+              WHEN OTHERS THEN v_diff := NULL;
+    END;
+    RETURN v_diff;
+END $$;
+-- Hand input with a real attention signal: group 1 gains (SPREAD), asset 102 falls from the top (FADE). p_sign = -1 negates every attention value.
+CREATE FUNCTION pg_temp.zz_syn(p_sign numeric) RETURNS jsonb LANGUAGE sql IMMUTABLE AS $$
+    SELECT format('{"season_id":1,"turn_no":4,"seed":"7","events":[],
+        "assets":[{"asset_id":101,"asset_name":"가나","group_id":1,"group_code":"G1","group_name":"갑","market":"KR","ticker":"A","ret":0.05,"prev_ret":0.03,"streak":1,
+                   "attention_index":%1$s,"attention_rank":1,"attention_n":2,"prev_attention":%2$s,"prev_attention_rank":2,
+                   "prev_story_direction":null,"prev_echo_repeat":1,"focus_name":"가나"},
+                  {"asset_id":102,"asset_name":"다라","group_id":2,"group_code":"G2","group_name":"을","market":"KR","ticker":"B","ret":-0.04,"prev_ret":-0.02,"streak":1,
+                   "attention_index":%2$s,"attention_rank":2,"attention_n":2,"prev_attention":%1$s,"prev_attention_rank":1,
+                   "prev_story_direction":null,"prev_echo_repeat":1,"focus_name":"가나"}],
+        "groups":[{"group_id":1,"group_code":"G1","group_name":"갑","group_ret":0.05,"attention_index":%1$s,"prev_attention":%2$s},
+                  {"group_id":2,"group_code":"G2","group_name":"을","group_ret":-0.04,"attention_index":%2$s,"prev_attention":%1$s}]}',
+        (2 * p_sign)::text, (1 * p_sign)::text)::jsonb
+$$;
+CREATE FUNCTION pg_temp.zz_gen(p_input jsonb) RETURNS jsonb LANGUAGE sql STABLE AS $$
+    SELECT coalesce(jsonb_agg(to_jsonb(g) ORDER BY g.seq), '[]'::jsonb) FROM pg_temp.tf_generate(p_input) g
+$$;
+
 DO $$
 DECLARE
     v_sid bigint;
@@ -30,13 +84,17 @@ DECLARE
     v_k smallint;        -- 미래 전용 블록이 남은 가장 큰 완료 턴
     v_ke smallint;       -- 사건이 있는 가장 큰 완료 턴
     v_base jsonb;
-    v_base_rows integer;
+    v_kn smallint;       -- largest completed turn with a future-only block and a non-empty feed
+    v_ka smallint;       -- largest completed turn with an attention index and a non-empty feed
+    v_t smallint;
+    v_pos jsonb;
+    v_neg jsonb;
     v_after jsonb;
     v_err boolean;
     v_hint text;
-    v_diff_attention boolean;
+    v_kz smallint;       -- 사건이 없는 가장 큰 완료 턴 (the largest completed turn whose block has no events)
+    v_nz integer;
     v_diff_event boolean;
-    v_same_future boolean;
     v_eligible bigint;
     v_input jsonb;
     v_out jsonb;
@@ -48,14 +106,13 @@ BEGIN
 
     -- 1 행 수 ---------------------------------------------------------------
     INSERT INTO tf_check
-    SELECT '완료 턴마다 5–15행·seq 연속', count(*) = 0
+    SELECT '완료 턴마다 0–15행·seq 연속', count(*) = 0
     FROM (SELECT completed.turn_no
           FROM generate_series(1, v_cur) AS completed(turn_no)
           LEFT JOIN turn_feed f ON f.season_id = v_sid AND f.turn_no = completed.turn_no
           GROUP BY completed.turn_no
-          HAVING count(f.id) NOT BETWEEN 5 AND 15
-              OR min(f.seq) IS DISTINCT FROM 1
-              OR max(f.seq) IS DISTINCT FROM count(f.id)) x;
+          HAVING count(f.id) > 15
+              OR (count(f.id) > 0 AND (min(f.seq) IS DISTINCT FROM 1 OR max(f.seq) IS DISTINCT FROM count(f.id)))) x;
     INSERT INTO tf_check VALUES ('0턴 피드 없음', NOT EXISTS (SELECT 1 FROM turn_feed WHERE season_id = v_sid AND turn_no < 1));
     INSERT INTO tf_check VALUES ('미래 피드 없음', NOT EXISTS (SELECT 1 FROM turn_feed WHERE season_id = v_sid AND turn_no > v_cur));
     INSERT INTO tf_check VALUES ('NUDGE 제외', NOT EXISTS (SELECT 1 FROM turn_feed WHERE season_id = v_sid AND kind = 'NUDGE'));
@@ -204,55 +261,65 @@ BEGIN
     SELECT max(sp.turn_no) INTO v_ke
     FROM season_path sp
     WHERE sp.season_id = v_sid AND sp.turn_no BETWEEN 1 AND v_cur AND EXISTS (SELECT 1 FROM month_event e WHERE e.month_block_id = sp.month_block_id);
+    -- ① Future invariance holds for any row count, so a valid 0-row feed (#77) is checked too. It cannot be hollow here: ①b repeats it on a non-empty feed.
     IF v_k IS NULL THEN
-        INSERT INTO tf_check VALUES ('사후 정보 차단: 미래 전용 블록 변조 후에도 같다 (양성 대조군 포함)', v_cur < 1);
+        INSERT INTO tf_check VALUES ('사후 정보 차단 ① 건너뜀: 미래 전용 블록이 남은 턴 없음', v_cur < 1);
     ELSE
-        v_base := pg_temp.zz_regen(v_sid, v_k);
-        v_base_rows := jsonb_array_length(v_base);
-        v_same_future := false; v_err := false;
-        BEGIN
-            UPDATE asset_month_attention SET attention_index = -attention_index
-             WHERE month_block_id IN (SELECT month_block_id FROM season_path WHERE season_id = v_sid GROUP BY month_block_id HAVING min(turn_no) > v_k);
-            UPDATE month_event SET reaction_change = reaction_change + 0.25
-             WHERE month_block_id IN (SELECT month_block_id FROM season_path WHERE season_id = v_sid GROUP BY month_block_id HAVING min(turn_no) > v_k);
-            UPDATE asset_month_return SET local_return = round(local_return * 0.5, 8)
-             WHERE month_block_id IN (SELECT month_block_id FROM season_path WHERE season_id = v_sid GROUP BY month_block_id HAVING min(turn_no) > v_k);
-            v_after := pg_temp.zz_regen(v_sid, v_k);
-            v_same_future := v_after IS NOT DISTINCT FROM v_base;
-            RAISE EXCEPTION 'probe' USING ERRCODE = 'ZZ999';
-        EXCEPTION WHEN SQLSTATE 'ZZ999' THEN NULL;
-                  WHEN OTHERS THEN v_err := true;
-        END;
-        -- 양성 대조군 ① 현재 블록 관심 지수를 뒤집으면 달라져야 한다
-        v_diff_attention := false;
-        BEGIN
-            UPDATE asset_month_attention SET attention_index = -attention_index
-             WHERE month_block_id = (SELECT month_block_id FROM season_path WHERE season_id = v_sid AND turn_no = v_k);
-            v_after := pg_temp.zz_regen(v_sid, v_k);
-            v_diff_attention := v_after IS DISTINCT FROM v_base;
-            RAISE EXCEPTION 'probe' USING ERRCODE = 'ZZ999';
-        EXCEPTION WHEN SQLSTATE 'ZZ999' THEN NULL;
-                  WHEN OTHERS THEN v_err := true;
-        END;
-        -- 양성 대조군 ② 현재 블록 사건의 반응값을 바꾸면 달라져야 한다 (사건이 있는 턴)
-        v_diff_event := (v_ke IS NULL);
-        IF v_ke IS NOT NULL THEN
-            v_base := pg_temp.zz_regen(v_sid, v_ke);
-            BEGIN
-                UPDATE month_event SET reaction_change = reaction_change + 0.25
-                 WHERE month_block_id = (SELECT month_block_id FROM season_path WHERE season_id = v_sid AND turn_no = v_ke);
-                v_after := pg_temp.zz_regen(v_sid, v_ke);
-                v_diff_event := v_after IS DISTINCT FROM v_base;
-                RAISE EXCEPTION 'probe' USING ERRCODE = 'ZZ999';
-            EXCEPTION WHEN SQLSTATE 'ZZ999' THEN NULL;
-                      WHEN OTHERS THEN v_err := true;
-            END;
-        END IF;
-        INSERT INTO tf_check VALUES ('사후 정보 차단 ① 미래 전용 블록의 관심·사건 반응·수익률을 바꿔도 현재 턴 피드가 같다',
-            NOT v_err AND v_base_rows > 0 AND v_same_future AND v_diff_attention AND v_diff_event);
-        INSERT INTO tf_check VALUES ('사후 정보 차단 ② 양성 대조군: 현재 블록 관심 변조는 DIFF', NOT v_err AND v_diff_attention);
-        INSERT INTO tf_check VALUES ('사후 정보 차단 ③ 양성 대조군: 현재 블록 사건 반응 변조는 DIFF', NOT v_err AND v_diff_event);
+        INSERT INTO tf_check VALUES ('사후 정보 차단 ① 미래 전용 블록의 관심·사건 반응·수익률을 바꿔도 현재 턴 피드가 같다 (행 수와 무관, 0행 포함)',
+            pg_temp.zz_future_same(v_sid, v_k) IS TRUE);
     END IF;
+    -- ①b Same tamper, same compare, on the largest completed turn that still has a future-only block and a non-empty feed
+    v_kn := NULL;
+    FOR v_t IN SELECT k.turn_no FROM season_path k
+               WHERE k.season_id = v_sid AND k.turn_no BETWEEN 1 AND v_cur
+                 AND EXISTS (SELECT 1 FROM season_path f WHERE f.season_id = v_sid
+                               AND f.month_block_id NOT IN (SELECT b.month_block_id FROM season_path b WHERE b.season_id = v_sid AND b.turn_no <= k.turn_no))
+               ORDER BY k.turn_no DESC
+    LOOP
+        IF jsonb_array_length(pg_temp.zz_regen(v_sid, v_t)) > 0 THEN v_kn := v_t; EXIT; END IF;
+    END LOOP;
+    IF v_kn IS NULL THEN
+        INSERT INTO tf_check VALUES ('사후 정보 차단 ①b 건너뜀: 비어 있지 않은 턴 없음', v_cur < 1);
+    ELSE
+        INSERT INTO tf_check VALUES ('사후 정보 차단 ①b 비어 있지 않은 피드에서 미래 전용 블록을 바꿔도 현재 턴 피드가 같다',
+            pg_temp.zz_future_same(v_sid, v_kn) IS TRUE);
+    END IF;
+    -- ② Positive control on a synthetic non-empty hand input: negating the attention index must change the output
+    v_pos := pg_temp.zz_gen(pg_temp.zz_syn(1));
+    v_neg := pg_temp.zz_gen(pg_temp.zz_syn(-1));
+    INSERT INTO tf_check VALUES ('사후 정보 차단 ② 양성 대조군(합성 입력): 비어 있지 않은 손 입력에서 관심 지수 부호를 뒤집으면 DIFF',
+        jsonb_array_length(v_pos) > 0 AND v_pos IS DISTINCT FROM v_neg);
+    -- ②b Same control on live data: largest completed turn whose block has an attention index and whose feed is non-empty
+    v_ka := NULL;
+    FOR v_t IN SELECT k.turn_no FROM season_path k
+               WHERE k.season_id = v_sid AND k.turn_no BETWEEN 1 AND v_cur
+                 AND EXISTS (SELECT 1 FROM asset_month_attention ama WHERE ama.month_block_id = k.month_block_id AND ama.attention_index IS NOT NULL)
+               ORDER BY k.turn_no DESC
+    LOOP
+        IF jsonb_array_length(pg_temp.zz_regen(v_sid, v_t)) > 0 THEN v_ka := v_t; EXIT; END IF;
+    END LOOP;
+    IF v_ka IS NULL THEN
+        INSERT INTO tf_check VALUES ('사후 정보 차단 ②b 건너뜀: 관심 지수가 있고 피드가 비어 있지 않은 턴 없음', v_cur < 1);
+    ELSE
+        INSERT INTO tf_check VALUES ('사후 정보 차단 ②b 양성 대조군(실제 데이터): 현재 블록 관심 변조는 DIFF', pg_temp.zz_attention_flips(v_sid, v_ka) IS TRUE);
+    END IF;
+    -- ③ Positive control: changing the current block's event reaction must change the feed (a turn with events)
+    v_diff_event := (v_ke IS NULL);
+    IF v_ke IS NOT NULL THEN
+        v_base := pg_temp.zz_regen(v_sid, v_ke);
+        v_err := false;
+        BEGIN
+            UPDATE month_event SET reaction_change = reaction_change + 0.25
+             WHERE month_block_id = (SELECT month_block_id FROM season_path WHERE season_id = v_sid AND turn_no = v_ke);
+            v_after := pg_temp.zz_regen(v_sid, v_ke);
+            v_diff_event := v_after IS DISTINCT FROM v_base;
+            RAISE EXCEPTION 'probe' USING ERRCODE = 'ZZ999';
+        EXCEPTION WHEN SQLSTATE 'ZZ999' THEN NULL;
+                  WHEN OTHERS THEN v_err := true;
+        END;
+        v_diff_event := v_diff_event AND NOT v_err;
+    END IF;
+    INSERT INTO tf_check VALUES ('사후 정보 차단 ③ 양성 대조군: 현재 블록 사건 반응 변조는 DIFF', v_diff_event);
 
     -- 10 입력 오류는 명시적 오류다 (미편집 블록, 반응값 NULL). 기대하는 HINT 가 나와야 PASS.
     IF v_cur >= 1 THEN
@@ -279,6 +346,30 @@ BEGIN
         END IF;
     END IF;
 
+    -- 10b Flat turn through the real input assembler (#77): no candidate is 0 rows, not an error. Rolled back below.
+    SELECT max(sp.turn_no) INTO v_kz
+    FROM season_path sp
+    WHERE sp.season_id = v_sid AND sp.turn_no BETWEEN 1 AND v_cur
+      AND NOT EXISTS (SELECT 1 FROM month_event e WHERE e.month_block_id = sp.month_block_id);
+    IF v_kz IS NOT NULL THEN
+        v_nz := NULL; v_err := false;
+        BEGIN
+            UPDATE turn_price a SET price = b.price
+            FROM turn_price b
+            WHERE a.season_id = v_sid AND a.turn_no = v_kz
+              AND b.season_id = a.season_id AND b.asset_id = a.asset_id AND b.turn_no = v_kz - 1;
+            UPDATE asset_month_attention SET attention_index = NULL
+            WHERE month_block_id = (SELECT month_block_id FROM season_path WHERE season_id = v_sid AND turn_no = v_kz);
+            v_nz := (SELECT count(*) FROM pg_temp.tf_generate(pg_temp.tf_input(v_sid, v_kz)));
+            RAISE EXCEPTION 'probe' USING ERRCODE = 'ZZ999';
+        EXCEPTION WHEN SQLSTATE 'ZZ999' THEN NULL;
+                  WHEN OTHERS THEN v_err := true;
+        END;
+        INSERT INTO tf_check VALUES ('생성기 ⑥ 보합 턴(수익률·관심 없음, 사건 없음)을 실제 입력 조립으로 넣으면 오류 없이 0행', NOT v_err AND v_nz = 0);
+    ELSE
+        INSERT INTO tf_check VALUES ('생성기 ⑥ 건너뜀: 사건이 없는 완료 턴 없음', v_cur < 1);
+    END IF;
+
     -- 11 생성기 단독 (손으로 만든 작은 입력)
     -- 종목 A: 직전 UP 이야기 + 이번 UP, 반복 2번째 → ECHO(repeat_count = 2). 종목 B: 렌더 0% → 방향 문장 없음. 관심 전부 NULL → SPREAD 없음.
     v_input := '{"season_id":1,"turn_no":4,"seed":"7","events":[],
@@ -299,10 +390,25 @@ BEGIN
         NOT v_err AND NOT EXISTS (SELECT 1 FROM jsonb_array_elements(coalesce(v_out, '[]')) x WHERE (x ->> 'asset_id')::bigint = 102));
     INSERT INTO tf_check VALUES ('생성기 단독 ③ 관심 지수가 전부 NULL 이면 SPREAD·FADE·강도가 없다',
         NOT v_err AND NOT EXISTS (SELECT 1 FROM jsonb_array_elements(coalesce(v_out, '[]')) x WHERE x ->> 'kind' IN ('SPREAD', 'FADE') OR x ->> 'strength' IS NOT NULL));
-    v_hint := NULL;
-    BEGIN PERFORM 1 FROM pg_temp.tf_generate('{"season_id":1,"turn_no":4,"seed":"7","events":[],"assets":[],"groups":[]}'::jsonb);
-    EXCEPTION WHEN OTHERS THEN GET STACKED DIAGNOSTICS v_hint = PG_EXCEPTION_HINT; END;
-    INSERT INTO tf_check VALUES ('생성기 단독 ④ 후보가 하나도 없으면 FEED_NO_CANDIDATE', v_hint IS NOT DISTINCT FROM 'FEED_NO_CANDIDATE');
+    v_err := false; v_nz := NULL;
+    BEGIN v_nz := (SELECT count(*) FROM pg_temp.tf_generate('{"season_id":1,"turn_no":4,"seed":"7","events":[],"assets":[],"groups":[]}'::jsonb));
+    EXCEPTION WHEN OTHERS THEN v_err := true; END;
+    INSERT INTO tf_check VALUES ('생성기 단독 ④ 후보가 하나도 없으면 오류 없이 0행', NOT v_err AND v_nz = 0);
+    -- ⑤ one reviewed event and every asset and group flat: the feed is exactly that event
+    v_err := false; v_out := NULL;
+    BEGIN
+        v_out := (SELECT jsonb_agg(to_jsonb(g) ORDER BY g.seq) FROM pg_temp.tf_generate('{"season_id":1,"turn_no":4,"seed":"7",
+            "events":[{"event_id":1,"event_key":"EV1","category":"TRADE","reaction":0.02,"strength":2,"hidden":false}],
+            "assets":[{"asset_id":101,"asset_name":"가나","group_id":1,"group_code":"G1","group_name":"갑","market":"KR","ticker":"A","ret":0,"prev_ret":0,"streak":1,
+                       "attention_index":null,"attention_rank":null,"attention_n":0,"prev_attention":null,"prev_attention_rank":null,
+                       "prev_story_direction":null,"prev_echo_repeat":1,"focus_name":null}],
+            "groups":[{"group_id":1,"group_code":"G1","group_name":"갑","group_ret":0,"attention_index":null,"prev_attention":null}]}'::jsonb) g);
+    EXCEPTION WHEN OTHERS THEN v_err := true; END;
+    INSERT INTO tf_check VALUES ('생성기 단독 ⑤ 사건만 있고 소음 후보가 없으면 그 사건 1행(kind EVENT, seq 1)',
+        NOT v_err AND jsonb_array_length(coalesce(v_out, '[]')) = 1 AND v_out -> 0 ->> 'kind' = 'EVENT' AND v_out -> 0 ->> 'seq' = '1');
+    -- Retirement guard: no loaded function body may still raise the retired no-candidate code (a half retirement would fail here)
+    INSERT INTO tf_check VALUES ('은퇴한 후보 없음 오류 코드가 로드된 정의 어디에도 없다', NOT EXISTS (
+        SELECT 1 FROM pg_proc WHERE pronamespace = pg_my_temp_schema() AND prosrc LIKE '%FEED\_NO\_CANDIDATE%'));
 END $$;
 SELECT item, CASE WHEN ok THEN 'PASS' ELSE 'FAIL' END AS result FROM tf_check ORDER BY item;
 -- 집계 행. 판정 열(p0_18_check)은 다른 검증 파일처럼 맨 끝 두 줄에 한 열로 낸다 (README 「전체 순서」와 골든 하네스의 판정 계약)
