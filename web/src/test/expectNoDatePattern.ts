@@ -1,7 +1,7 @@
 import { expect } from 'vitest';
+import { DATE_PATTERN } from './datePattern.ts';
 
-// Before a season ends no real date may reach the screen (PLAN §2).
-export const DATE_PATTERN = /\b(19|20)\d{2}[-./년]\s?\d{1,2}/;
+export { DATE_PATTERN };
 
 export function expectNoDatePattern(container: HTMLElement): void {
   expect(container.textContent).not.toMatch(DATE_PATTERN);

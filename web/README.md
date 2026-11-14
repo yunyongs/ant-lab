@@ -1,7 +1,7 @@
 # web — one-season web app / 한 판 웹 앱
 
-TypeScript React app built with Vite. It has the app shell, router, API status line and dev proxy (WEB-01), the typed API client (WEB-02), signup, login and session handling (WEB-03), the season list and season start (WEB-04), team building at turn 0 (WEB-05), turn advance with the turn result (WEB-06), between-turn trading and formation change (WEB-07), the report card of a finished season (WEB-08), and the season review (WEB-09).
-Vite로 빌드하는 TypeScript React 앱이다. 앱 틀·라우터·API 상태 한 줄·개발 프록시(WEB-01), 타입 있는 API 클라이언트(WEB-02), 가입·로그인·세션 처리(WEB-03), 시즌 목록·시즌 시작(WEB-04), 0턴 팀 구성(WEB-05), 턴 넘기기와 턴 결과(WEB-06), 턴 사이 매매·전술 변경(WEB-07), 끝난 시즌의 성적표(WEB-08), 시즌 복기(WEB-09)가 들어 있다.
+TypeScript React app built with Vite. It has the app shell, router, API status line and dev proxy (WEB-01), the typed API client (WEB-02), signup, login and session handling (WEB-03), the season list and season start (WEB-04), team building at turn 0 (WEB-05), turn advance with the turn result (WEB-06), between-turn trading and formation change (WEB-07), the report card of a finished season (WEB-08), the season review (WEB-09), and the real-browser end-to-end play (WEB-10).
+Vite로 빌드하는 TypeScript React 앱이다. 앱 틀·라우터·API 상태 한 줄·개발 프록시(WEB-01), 타입 있는 API 클라이언트(WEB-02), 가입·로그인·세션 처리(WEB-03), 시즌 목록·시즌 시작(WEB-04), 0턴 팀 구성(WEB-05), 턴 넘기기와 턴 결과(WEB-06), 턴 사이 매매·전술 변경(WEB-07), 끝난 시즌의 성적표(WEB-08), 시즌 복기(WEB-09), 실제 브라우저 종단 플레이(WEB-10)가 들어 있다.
 
 ## Prerequisites / 준비
 
@@ -26,16 +26,17 @@ Open <http://localhost:5173>. Always use `localhost`, not `127.0.0.1`: cookies a
 
 ## Scripts / 스크립트
 
-| Script                    | What it does / 하는 일                                                        |
-| ------------------------- | ----------------------------------------------------------------------------- |
-| `dev` / `preview`         | Vite dev server / serve the built app, both with the API proxy                |
-| `build`                   | `tsc -b && vite build` into `dist/`                                           |
-| `lint`                    | `eslint .`                                                                    |
-| `format` / `format:check` | Prettier write / check                                                        |
-| `typecheck`               | `tsc -b`                                                                      |
-| `test` / `test:watch`     | `vitest run` / `vitest`                                                       |
-| `verify`                  | lint → format:check → typecheck → test → build, stops on first failure        |
-| `gen:api`                 | regenerates `src/api/schema.d.ts` from `../docs/api/openapi.yaml` (see below) |
+| Script                    | What it does / 하는 일                                                                                                                                                                                                                                        |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `dev` / `preview`         | Vite dev server / serve the built app, both with the API proxy                                                                                                                                                                                                |
+| `build`                   | `tsc -b && vite build` into `dist/`                                                                                                                                                                                                                           |
+| `lint`                    | `eslint .`                                                                                                                                                                                                                                                    |
+| `format` / `format:check` | Prettier write / check                                                                                                                                                                                                                                        |
+| `typecheck`               | `tsc -b`                                                                                                                                                                                                                                                      |
+| `test` / `test:watch`     | `vitest run` / `vitest`                                                                                                                                                                                                                                       |
+| `verify`                  | lint → format:check → typecheck → test → build, stops on first failure                                                                                                                                                                                        |
+| `gen:api`                 | regenerates `src/api/schema.d.ts` from `../docs/api/openapi.yaml` (see below)                                                                                                                                                                                 |
+| `e2e`                     | real-browser play of one season at 375×812 and 1280×800 against a running API (`ANTLAB_API_PORT` required); see «End-to-end check» / 실행 중인 API를 상대로 375×812와 1280×800에서 실제 브라우저로 한 시즌을 둔다(`ANTLAB_API_PORT` 필수). 「종단 확인」 참고 |
 
 `cd web && npm ci && npm run verify` needs no backend, no secrets and no fixed ports.
 `cd web && npm ci && npm run verify`는 백엔드·비밀값·고정 포트가 필요 없다.
@@ -87,6 +88,11 @@ Only `/api` is forwarded, unchanged, to `http://127.0.0.1:8080`. For an API on a
 - **복기** opens after the last turn and is the only screen with real dates: the year-month behind each turn, that month's summary and events with sources, the value at each turn, your formation changes with their reasons, and the seed, engine version and data date that reproduce the path. Before the season ends it stays closed, because knowing the months would change your decisions.
 - **복기**는 마지막 턴 뒤에 열리며 실제 날짜가 나오는 유일한 화면이다. 각 턴의 실제 연월, 그 달의 요약과 사건(출처 포함), 턴마다의 평가액, 전술 변경과 그 사유, 경로를 다시 만드는 시드·엔진 버전·데이터 기준일이 나온다. 달을 알면 판단이 달라지므로 시즌이 끝나기 전에는 닫혀 있다.
 
+## End-to-end check / 종단 확인
+
+`scripts/web_e2e.sh` (from the repository root) starts a throwaway database and API container in the project `antlab-e2e` (ports 55476 and 18096) with a random one-run signing key, loads the sample (`ANTLAB_GOLDEN_SAMPLE_DIR`, default `db/sample`), installs Chromium for the test runner if needed, and runs `npm run e2e`: sign up, start a 12-turn season, build the team, change the formation and sell once at turn 2, play to the end, open the report and the review, log out — once at phone width and once at desktop width. It fails on any console error, any critical accessibility violation, a date on screen before the season ends, horizontal scrolling, or a token in browser storage, and it removes the project afterwards (also on failure; `--keep` leaves it after a pass). Screenshots of every step go to `ANTLAB_E2E_OUT_DIR` (default `web/test-results/`, ignored by git). Needs Docker, `psql` 16 or later, Python 3 and the sample CSVs, so it runs locally, not in CI. To run it against an API you already started, set `ANTLAB_API_PORT` and run `npm run e2e` in `web/`; this adds a test member and a finished season to that database. A failed run also keeps a Playwright trace in `artifacts/` of that folder; it contains the run's short-lived tokens and the test member's password, so never attach it to an issue or PR (it is ignored by git). To build the API from another checkout, set `ANTLAB_E2E_API_DIR` to its root.
+`scripts/web_e2e.sh`(저장소 루트에서)는 프로젝트 `antlab-e2e`(포트 55476, 18096)에 일회용 DB와 API 컨테이너를, 실행 한 번에만 쓰는 임의 서명 키로 띄우고, 표본(`ANTLAB_GOLDEN_SAMPLE_DIR`, 기본 `db/sample`)을 적재하고, 필요하면 시험용 Chromium을 설치한 뒤 `npm run e2e`를 실행한다: 가입, 12턴 시즌 시작, 팀 구성, 2턴에 전술 변경과 매도 한 번, 끝까지 진행, 성적표와 복기 열기, 로그아웃 — 휴대폰 폭과 데스크톱 폭에서 한 번씩. 콘솔 오류, 치명적 접근성 위반, 시즌이 끝나기 전 화면의 날짜, 가로 스크롤, 브라우저 저장소의 토큰 중 하나라도 있으면 실패하고, 끝나면(실패해도) 프로젝트를 지운다(`--keep`이면 통과 뒤 남긴다). 단계마다 찍은 화면은 `ANTLAB_E2E_OUT_DIR`(기본 `web/test-results/`, git 무시)에 저장된다. Docker, `psql` 16 이상, Python 3, 표본 CSV가 필요해서 CI가 아니라 로컬에서만 돈다. 이미 띄운 API를 상대로 돌리려면 `ANTLAB_API_PORT`를 정하고 `web/`에서 `npm run e2e`를 실행한다. 그 DB에 시험용 회원과 끝난 시즌이 하나씩 더해진다. 실패한 실행은 그 폴더의 `artifacts/`에 Playwright trace도 남긴다. 그 실행의 짧은 수명 토큰과 시험 회원 비밀번호가 들어 있으므로 이슈나 PR에 첨부하지 않는다(git 무시). 다른 체크아웃의 API를 빌드하려면 `ANTLAB_E2E_API_DIR`에 그 루트를 준다.
+
 ## Folder layout / 폴더 구조
 
 ```text
@@ -111,4 +117,4 @@ src/api/       generated API types, typed client, error catalog / 생성된 API 
 
 - jsdom (Vitest, Testing Library, MSW): shell, navigation, not-found view, status line states. Requests without a handler fail the test. Auth tests cover login, signup, restore, refresh-once-and-retry, tab serialisation, logout, and that no token reaches browser storage. jsdom 시험: 앱 틀·이동·없는 경로·상태 줄. 핸들러 없는 요청은 시험을 실패시킨다. 인증 시험은 로그인·가입·복원·한 번 갱신 후 재시도·탭 직렬화·로그아웃과 토큰이 브라우저 저장소에 들어가지 않음을 확인한다.
 - Node environment (`// @vitest-environment node`): proxy defaults and invalid ports, dev binding, a real Vite proxy against a stub HTTP backend on free ports, the lint restrictions, exact dependency pins. Node 환경 시험: 프록시 기본값·잘못된 포트, 개발 서버 바인딩, 빈 포트의 가짜 백엔드를 상대로 한 실제 Vite 프록시, 린트 금지 규칙, 의존성 정확 고정.
-- Real-browser end-to-end tests arrive in WEB-10. 실제 브라우저 종단 시험은 WEB-10에서 더한다.
+- Real browser (Playwright, Chromium): the season play of «End-to-end check», local only. 실제 브라우저(Playwright, Chromium): 「종단 확인」의 한 시즌 플레이, 로컬 전용.
