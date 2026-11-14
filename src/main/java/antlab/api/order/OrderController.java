@@ -64,7 +64,7 @@ public class OrderController {
                     + "POSITION_CONFLICT, POSITION_REQUIRED",
             content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ApiProblem.class)))
     @ApiResponse(responseCode = "503", description = "The current member is unknown — MEMBER_UNAVAILABLE "
-            + "(production, before sign-in) / 현재 회원을 알 수 없다 — MEMBER_UNAVAILABLE(운영, 인증 전)",
+            + "/ 현재 회원을 알 수 없다 — MEMBER_UNAVAILABLE",
             content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ApiProblem.class)))
     public ResponseEntity<OrderResultDto> place(@PathVariable Long seasonId,
             @Valid @RequestBody PlaceOrderRequest request) {

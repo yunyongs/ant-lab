@@ -6,10 +6,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import antlab.account.CashAccountRepository;
 import antlab.api.error.ErrorHttpMapping;
+import antlab.auth.JwtCurrentMember;
 import antlab.common.error.DomainException;
 import antlab.common.error.ErrorCode;
 import antlab.member.MemberRepository;
-import antlab.member.UnavailableCurrentMember;
 import antlab.scoring.SeasonReportService;
 import antlab.season.SeasonRepository;
 import antlab.support.IntegrationTest;
@@ -105,7 +105,7 @@ class SeasonReportRejectTest {
 
     @Test
     void 회원을_알_수_없으면_503이다() {
-        SeasonReportService service = new SeasonReportService(new UnavailableCurrentMember(), null, null, null, null, null,
+        SeasonReportService service = new SeasonReportService(new JwtCurrentMember(null), null, null, null, null, null,
                 null, null, null);
         assertThatThrownBy(() -> service.get(1L)).isInstanceOfSatisfying(DomainException.class,
                 e -> assertThat(ErrorHttpMapping.status(e.getCode())).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE));

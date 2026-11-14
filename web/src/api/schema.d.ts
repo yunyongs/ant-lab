@@ -1337,9 +1337,9 @@ export interface components {
     };
     responses: {
         /**
-         * @description The request has no valid bearer token: missing, expired or wrongly signed — UNAUTHENTICATED
+         * @description The request has no valid bearer token: missing, expired, wrongly signed, or naming no member — UNAUTHENTICATED
          *
-         *     유효한 Bearer 토큰이 없다: 없거나 만료됐거나 서명이 틀렸다 — UNAUTHENTICATED
+         *     유효한 Bearer 토큰이 없다: 없거나 만료됐거나 서명이 틀렸거나 없는 회원의 토큰이다 — UNAUTHENTICATED
          */
         Unauthenticated: {
             headers: {
@@ -1639,7 +1639,7 @@ export interface operations {
                 };
             };
             500: components["responses"]["InternalError"];
-            /** @description The current member is unknown — MEMBER_UNAVAILABLE (production, before sign-in) / 현재 회원을 알 수 없다 — MEMBER_UNAVAILABLE(운영, 인증 전) */
+            /** @description The current member is unknown — MEMBER_UNAVAILABLE / 현재 회원을 알 수 없다 — MEMBER_UNAVAILABLE */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -1833,7 +1833,7 @@ export interface operations {
                 };
             };
             500: components["responses"]["InternalError"];
-            /** @description The current member is unknown — MEMBER_UNAVAILABLE (production, before sign-in) / 현재 회원을 알 수 없다 — MEMBER_UNAVAILABLE(운영, 인증 전) */
+            /** @description The current member is unknown — MEMBER_UNAVAILABLE / 현재 회원을 알 수 없다 — MEMBER_UNAVAILABLE */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -1905,7 +1905,7 @@ export interface operations {
                 };
             };
             500: components["responses"]["InternalError"];
-            /** @description The current member is unknown — MEMBER_UNAVAILABLE (production, before sign-in) / 현재 회원을 알 수 없다 — MEMBER_UNAVAILABLE(운영, 인증 전) */
+            /** @description The current member is unknown — MEMBER_UNAVAILABLE / 현재 회원을 알 수 없다 — MEMBER_UNAVAILABLE */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -1969,7 +1969,7 @@ export interface operations {
                 };
             };
             500: components["responses"]["InternalError"];
-            /** @description The current member is unknown — MEMBER_UNAVAILABLE (production, before sign-in) / 현재 회원을 알 수 없다 — MEMBER_UNAVAILABLE(운영, 인증 전) */
+            /** @description The current member is unknown — MEMBER_UNAVAILABLE / 현재 회원을 알 수 없다 — MEMBER_UNAVAILABLE */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -2034,7 +2034,7 @@ export interface operations {
                 };
             };
             500: components["responses"]["InternalError"];
-            /** @description The current member is unknown — MEMBER_UNAVAILABLE (production, before sign-in) / 현재 회원을 알 수 없다 — MEMBER_UNAVAILABLE(운영, 인증 전) */
+            /** @description The current member is unknown — MEMBER_UNAVAILABLE / 현재 회원을 알 수 없다 — MEMBER_UNAVAILABLE */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -2085,7 +2085,7 @@ export interface operations {
                 };
             };
             500: components["responses"]["InternalError"];
-            /** @description The current member is unknown — MEMBER_UNAVAILABLE (production, before sign-in) / 현재 회원을 알 수 없다 — MEMBER_UNAVAILABLE(운영, 인증 전) */
+            /** @description The current member is unknown — MEMBER_UNAVAILABLE / 현재 회원을 알 수 없다 — MEMBER_UNAVAILABLE */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -2145,7 +2145,7 @@ export interface operations {
                 };
             };
             500: components["responses"]["InternalError"];
-            /** @description The current member is unknown — MEMBER_UNAVAILABLE (production, before sign-in) / 현재 회원을 알 수 없다 — MEMBER_UNAVAILABLE(운영, 인증 전) */
+            /** @description The current member is unknown — MEMBER_UNAVAILABLE / 현재 회원을 알 수 없다 — MEMBER_UNAVAILABLE */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -2205,7 +2205,7 @@ export interface operations {
                 };
             };
             500: components["responses"]["InternalError"];
-            /** @description The current member is unknown — MEMBER_UNAVAILABLE (production, before sign-in) / 현재 회원을 알 수 없다 — MEMBER_UNAVAILABLE(운영, 인증 전) */
+            /** @description The current member is unknown — MEMBER_UNAVAILABLE / 현재 회원을 알 수 없다 — MEMBER_UNAVAILABLE */
             503: {
                 headers: {
                     [name: string]: unknown;

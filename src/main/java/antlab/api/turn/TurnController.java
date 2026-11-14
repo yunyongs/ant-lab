@@ -57,7 +57,7 @@ public class TurnController {
                     + "RECONCILIATION_FAILED",
             content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ApiProblem.class)))
     @ApiResponse(responseCode = "503", description = "The current member is unknown — MEMBER_UNAVAILABLE "
-            + "(production, before sign-in) / 현재 회원을 알 수 없다 — MEMBER_UNAVAILABLE(운영, 인증 전)",
+            + "/ 현재 회원을 알 수 없다 — MEMBER_UNAVAILABLE",
             content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ApiProblem.class)))
     public ResponseEntity<TurnResultDto> advance(@PathVariable Long seasonId,
             @Valid @RequestBody AdvanceTurnRequest request) {
@@ -88,7 +88,7 @@ public class TurnController {
             + "pathLength 로 범위를 먼저 거른다)",
             content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ApiProblem.class)))
     @ApiResponse(responseCode = "503", description = "The current member is unknown — MEMBER_UNAVAILABLE "
-            + "(production, before sign-in) / 현재 회원을 알 수 없다 — MEMBER_UNAVAILABLE(운영, 인증 전)",
+            + "/ 현재 회원을 알 수 없다 — MEMBER_UNAVAILABLE",
             content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ApiProblem.class)))
     public TurnResultDto get(@PathVariable Long seasonId, @PathVariable @Min(1) Integer turnNo) {
         return queries.get(seasonId, turnNo);

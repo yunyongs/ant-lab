@@ -133,7 +133,7 @@ server:
   forward-headers-strategy: framework
 antlab:
   single-member:
-    # 운영은 고정 회원을 쓰지 않는다. 켜면 기동 실패. 꺼진 동안 시즌 API 는 503(인증 SEC 전).
+    # Production does not use the fixed member (enabled=true fails startup); the token's member is used instead (SEC-04).
     enabled: false
 springdoc:
   api-docs:
