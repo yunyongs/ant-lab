@@ -18,7 +18,7 @@
 # monitoring profile (MON-02): prometheus + grafana, published on 127.0.0.1 only. Needs GF_SECURITY_ADMIN_PASSWORD in .env (no default; applied on the first start of grafana-data). Without it grafana restarts in a loop; read why with docker compose logs grafana.
 #   docker compose --profile api --profile monitoring up -d --wait
 #   isolated: add ANTLAB_PROMETHEUS_PORT=19090 ANTLAB_GRAFANA_PORT=13000 and -p antlab-qa (docs/DEPLOY.md §3.2).
-#   play a season in the api container until SEC-06: add -f compose.play.yaml; smoke: scripts/monitoring_smoke.sh (docs/DEPLOY.md §3.2).
+#   smoke: scripts/monitoring_smoke.sh (docs/DEPLOY.md §3.2).
 # 빈 볼륨으로 처음 시작할 때만 POSTGRES_DB(antlab_api)가 만들어진다. 이미 있는 볼륨에는 적용되지 않는다 — 절차는 db/README.md.
 # 데이터는 이름 붙은 볼륨 db-data(실제 이름 antlab_db-data)에 남는다.
 # 주의: docker compose down -v는 이 프로젝트의 볼륨을 지워 모든 데이터가 사라진다 — 꼭 필요할 때만 쓴다.

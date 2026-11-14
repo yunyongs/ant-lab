@@ -27,7 +27,6 @@ class MonitoringSmokeScriptTest {
 
     private static final Path SCRIPT = Path.of("scripts/monitoring_smoke.sh");
     private static final Path HELPER = Path.of("scripts/monitoring_smoke_checks.py");
-    private static final Path OVERRIDE = Path.of("compose.play.yaml");
     private static final Pattern SECRET_WORDS = Pattern.compile(
             "GF_SECURITY_ADMIN_PASSWORD|ANTLAB_JWT_SECRET|\\$\\{?gf_password|\\$\\{?jwt_key|SMOKE_GF_PASSWORD");
 
@@ -103,7 +102,7 @@ class MonitoringSmokeScriptTest {
         Run result = run(Map.of(), fake.toString(), "bash", SCRIPT.toString(), "--dry-run");
         assertThat(result.exit()).isZero();
         assertThat(result.output()).contains("project=antlab-smoke", "db_port=55472", "api_port=18094",
-                "prometheus_port=19104", "grafana_port=13014", "files=compose.yaml,compose.play.yaml");
+                "prometheus_port=19104", "grafana_port=13014", "files=compose.yaml");
         assertThat(marker).doesNotExist();
     }
 
@@ -140,7 +139,8 @@ class MonitoringSmokeScriptTest {
     void compose_진입점은_하나다() throws IOException {
         List<String> entries = codeLines().stream().filter(l -> l.contains("docker compose")).toList();
         assertThat(entries).hasSize(1);
-        assertThat(entries.get(0)).contains("-p \"$project\"", "--env-file", "-f compose.yaml -f compose.play.yaml");
+        assertThat(entries.get(0)).contains("-p \"$project\"", "--env-file", "-f compose.yaml")
+                .doesNotContain("-f compose.yaml -f");
     }
 
     @Test
@@ -177,24 +177,49 @@ class MonitoringSmokeScriptTest {
         List<String> code = codeLines();
         // The api container (prod guard on, SEC-03) refuses to start without a Base64 key of at least 32 bytes.
         assertThat(code).anyMatch(l -> l.contains("jwt_key=") && l.contains("secrets.token_bytes(32)") && l.contains("b64encode"));
-        assertThat(code).filteredOn(l -> l.contains("ANTLAB_JWT_SECRET")).hasSize(1)
-                .allMatch(l -> l.contains("$jwt_key") && l.contains(">> \"$env_file\""));
-        assertThat(code).filteredOn(l -> l.contains("$jwt_key")).hasSize(1);
+        assertThat(code).filteredOn(l -> l.contains("ANTLAB_JWT_SECRET") && !l.startsWith("case \"$image_env\""))
+                .hasSize(1).allMatch(l -> l.contains("$jwt_key") && l.contains(">> \"$env_file\""));
+        // One line writes the key to the env file; one line reads the api log for it (nothing is printed).
+        assertThat(code).filteredOn(l -> l.contains("$jwt_key")).hasSize(2)
+                .anyMatch(l -> l.contains("*\"$jwt_key\"*") && l.contains("case \"$api_log\""));
         assertThat(code).anyMatch(l -> l.strip().equals("umask 077"));
         assertThat(code).anyMatch(l -> l.contains("rm -rf \"$work\""));
         assertThat(Files.readString(Path.of("compose.yaml"))).contains("ANTLAB_JWT_SECRET: ${ANTLAB_JWT_SECRET:-}");
-        assertThat(Files.readString(OVERRIDE)).doesNotContain("JWT");
     }
 
     @Test
     @SuppressWarnings("unchecked")
-    void 덮어쓰기_파일은_프로필만_바꾼다() throws IOException {
+    void 컨테이너는_덮어쓰기_없이_prod로_뜬다() throws IOException {
+        // SEC-06: the play override is gone; every season call needs a login in every profile.
+        assertThat(Path.of("compose.play.yaml")).doesNotExist();
+        assertThat(String.join("\n", scriptLines())).doesNotContain("compose.play");
         Yaml yaml = new Yaml();
-        Object override = yaml.load(Files.readString(OVERRIDE));
-        assertThat(override).isEqualTo(Map.of("services", Map.of("api", Map.of("environment", Map.of("SPRING_PROFILES_ACTIVE", "default")))));
         Map<String, Object> base = yaml.load(Files.readString(Path.of("compose.yaml")));
         Map<String, Object> api = ((Map<String, Map<String, Object>>) base.get("services")).get("api");
         assertThat(((Map<String, Object>) api.get("environment")).get("SPRING_PROFILES_ACTIVE")).isEqualTo("prod");
+    }
+
+    @Test
+    void 이미지_검사는_빌드_뒤_환경에_서명_키_변수가_없음을_확인한다() throws IOException {
+        List<String> code = codeLines();
+        int build = indexOf(code, l -> l.contains("up -d --build --wait"));
+        int image = indexOf(code, l -> l.contains("docker image inspect --format '{{json .Config.Env}}'"));
+        int check = indexOf(code, l -> l.startsWith("case \"$image_env\" in *ANTLAB_JWT_SECRET*) fail "));
+        int play = indexOf(code, l -> l.contains("tools/play/play_season.py"));
+        assertThat(build).isLessThan(image);
+        assertThat(image).isLessThan(check);
+        assertThat(check).isLessThan(play);
+        // The inspected Env is compared, never printed.
+        assertThat(code).filteredOn(l -> l.contains("$image_env")).allMatch(l -> l.startsWith("case ") || l.startsWith("image_env="));
+    }
+
+    private static int indexOf(List<String> lines, java.util.function.Predicate<String> match) {
+        for (int i = 0; i < lines.size(); i++) {
+            if (match.test(lines.get(i))) {
+                return i;
+            }
+        }
+        throw new AssertionError("no matching line in the smoke script");
     }
 
     private static String helperSource() throws IOException {

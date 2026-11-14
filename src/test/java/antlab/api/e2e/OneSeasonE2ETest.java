@@ -10,8 +10,6 @@ import antlab.support.SqlGoldenHarness;
 import antlab.support.SqlGoldenHarness.DatabaseHandle;
 import antlab.support.SqlGoldenScenario;
 import antlab.support.TeamBuyGoldenSeason;
-import antlab.support.TestMembers;
-import antlab.support.TestTokens;
 import antlab.scoring.SeasonReportDto;
 import antlab.season.SeedGenerator;
 import java.math.BigDecimal;
@@ -39,7 +37,6 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
@@ -57,10 +54,8 @@ import tools.jackson.databind.JsonNode;
  * methods are ordered.
  */
 @Tag("sql-golden")
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-        properties = {"antlab.test.default-member.email=phase0@example.invalid", "antlab.test.default-member.name=연습 감독"})
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles({"test", "local"})
-@Import({TestTokens.class, TestMembers.class})
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @EnabledIf("sampleAvailable")
@@ -69,6 +64,8 @@ class OneSeasonE2ETest {
     /** Long enough that its digits cannot appear in a response by chance. */
     private static final long SEED = 4815162342L;
     private static final int TURNS = 12;
+    private static final String PLAYER_EMAIL = "phase0@example.invalid";
+    private static final String PLAYER_PASSWORD = "phase0-sample-pass";
     private static final String CHANGE_REASON = "방어를 줄이고 공격을 늘린다";
     private static final String CHANGE_BODY = "{\"expectedTurnNo\": 5, \"formation\": {\"goalkeeper\": 10,"
             + " \"defender\": 20, \"midfielder\": 30, \"forward\": 40}, \"reason\": \"" + CHANGE_REASON + "\"}";
@@ -100,15 +97,22 @@ class OneSeasonE2ETest {
 
     private SqlGoldenHarness harness;
     private DatabaseHandle apiDb;
-    @Autowired
-    TestTokens tokens;
+    private String adminToken;
 
-    @Autowired
-    TestMembers members;
-
-    /** The dev gate header plus an ADMIN token (replaces the default user token for the call). */
+    /** The dev gate header plus an ADMIN token: the role is set once by SQL (erd §9), then the member logs in again. */
     private Map<String, String> dev() {
-        return Map.of("X-Antlab-Dev", "true", "Authorization", "Bearer " + tokens.admin(members.defaultId()));
+        if (adminToken == null) {
+            jdbc.update("UPDATE member SET role = 'ADMIN' WHERE lower(email) = lower(?)", PLAYER_EMAIL);
+            adminToken = login();
+        }
+        return Map.of("X-Antlab-Dev", "true", "Authorization", "Bearer " + adminToken);
+    }
+
+    private String login() {
+        Reply login = new E2eHttp(port).post("/api/v1/auth/login",
+                "{\"email\": \"" + PLAYER_EMAIL + "\", \"password\": \"" + PLAYER_PASSWORD + "\"}");
+        assertThat(login.status()).as("login").isEqualTo(200);
+        return login.json().get("accessToken").asString();
     }
 
     private E2eHttp http;
@@ -122,7 +126,11 @@ class OneSeasonE2ETest {
         harness = golden.harness();
         apiDb = golden.apiDb();
         harness.execute(apiDb, SqlGoldenScenario.apiDbFullLoad());
-        http = new E2eHttp(port, Map.of("Authorization", "Bearer " + tokens.user(members.defaultId())));
+        // The member is a real signed-up row (db/90 finds it by email and name), and every call carries the token of a real login.
+        Reply signup = new E2eHttp(port).post("/api/v1/auth/signup", "{\"email\": \"" + PLAYER_EMAIL
+                + "\", \"name\": \"연습 감독\", \"password\": \"" + PLAYER_PASSWORD + "\"}");
+        assertThat(signup.status()).as(signup.body()).isEqualTo(201);
+        http = new E2eHttp(port, Map.of("Authorization", "Bearer " + login()));
     }
 
     @AfterAll

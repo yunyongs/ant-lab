@@ -21,8 +21,24 @@ import tools.jackson.databind.json.JsonMapper;
  */
 public final class E2eHttp {
 
-    /** One answer. {@code body} is the raw text (may be empty), {@code contentType} the raw header (may be null). */
-    public record Reply(String method, String path, int status, String contentType, String body) {
+    /**
+     * One answer. {@code body} is the raw text (may be empty), {@code contentType} the raw header (may be null), {@code headers}
+     * every response header (names compare case-insensitively).
+     */
+    public record Reply(String method, String path, int status, String contentType, String body,
+            Map<String, List<String>> headers) {
+
+        /** The first value of a response header, or null. */
+        public String header(String name) {
+            List<String> values = headers.get(name);
+            return values == null || values.isEmpty() ? null : values.get(0);
+        }
+
+        /** Every value of a response header (empty when absent). */
+        public List<String> headerValues(String name) {
+            List<String> values = headers.get(name);
+            return values == null ? List.of() : values;
+        }
 
         public JsonNode json() {
             return JsonMapper.shared().readTree(body);
@@ -98,7 +114,10 @@ public final class E2eHttp {
         Reply reply = spec.exchange((request, response) -> {
             String text = new String(response.getBody().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
             MediaType type = response.getHeaders().getContentType();
-            return new Reply(method.name(), path, response.getStatusCode().value(), type == null ? null : type.toString(), text);
+            Map<String, List<String>> replyHeaders = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+            response.getHeaders().forEach((name, values) -> replyHeaders.put(name, List.copyOf(values)));
+            return new Reply(method.name(), path, response.getStatusCode().value(), type == null ? null : type.toString(), text,
+                    Collections.unmodifiableMap(replyHeaders));
         });
         captured.add(reply);
         return reply;
