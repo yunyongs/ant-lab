@@ -37,6 +37,9 @@ done
 
 ## 4. Start the API and play / API를 띄우고 한 판 돌리기
 
+The script signs up `play@example.test` (an existing account is fine) and logs in; every season call carries the token. For its reconciliation step, make that member ADMIN once, after the first run created it, then run the script again: `psql -X -h localhost -p 55433 -d antlab_api -c "UPDATE member SET role = 'ADMIN' WHERE lower(email) = 'play@example.test'"` (it should print `UPDATE 1`). Without it that step is skipped (403).
+스크립트는 `play@example.test`로 가입(이미 있으면 그대로)하고 로그인하며, 시즌 호출마다 토큰을 보낸다. 대사 단계를 위해 첫 실행으로 회원이 생긴 뒤 그 회원을 한 번 ADMIN으로 바꾸고(위 psql 명령, `UPDATE 1`이 나와야 한다) 스크립트를 다시 돌린다. 바꾸지 않으면 그 단계는 403으로 건너뛴다.
+
 ```bash
 ./gradlew bootRun --args='--server.port=18080 --management.server.port=18081'          # keep this terminal / 이 터미널은 그대로 둔다
 python3 tools/play/play_season.py --base http://127.0.0.1:18080     # in a second terminal / 두 번째 터미널
@@ -49,10 +52,11 @@ To watch the same play in Grafana (containers, monitoring profile), see the READ
 ## 5. Try it by hand / 직접 눌러 보기
 
 - Swagger UI (local profile only): <http://127.0.0.1:18080/swagger-ui.html>
-- Pool / 풀: `curl -s http://127.0.0.1:18080/api/v1/pool`
-- Season / 시즌 조회: `curl -s http://127.0.0.1:18080/api/v1/seasons/1`
-- Manual reconciliation / 수동 대사: `curl -s -X POST -H 'X-Antlab-Dev: true' http://127.0.0.1:18080/api/v1/dev/seasons/1/reconciliation`
-- Review before the season ends is `409 SEASON_NOT_FINISHED` with no dates in the body / 시즌이 끝나기 전 복기는 날짜 없이 409다: `curl -i http://127.0.0.1:18080/api/v1/seasons/1/review`
+- Token / 토큰 (`TOKEN` = `accessToken` from `POST /api/v1/auth/login`, 15 minutes / 15분): `TOKEN=$(curl -s -X POST -H 'Content-Type: application/json' -d '{"email":"play@example.test","password":"correct-horse-battery"}' http://127.0.0.1:18080/api/v1/auth/login | python3 -c 'import json,sys; print(json.load(sys.stdin)["accessToken"])')`
+- Pool / 풀 (no token / 토큰 없음): `curl -s http://127.0.0.1:18080/api/v1/pool`
+- Season / 시즌 조회: `curl -s -H "Authorization: Bearer $TOKEN" http://127.0.0.1:18080/api/v1/seasons/1`
+- Manual reconciliation / 수동 대사 (ADMIN): `curl -s -X POST -H "Authorization: Bearer $TOKEN" -H 'X-Antlab-Dev: true' http://127.0.0.1:18080/api/v1/dev/seasons/1/reconciliation`
+- Review before the season ends is `409 SEASON_NOT_FINISHED` with no dates in the body / 시즌이 끝나기 전 복기는 날짜 없이 409다: `curl -i -H "Authorization: Bearer $TOKEN" http://127.0.0.1:18080/api/v1/seasons/1/review`
 
 Error bodies are `application/problem+json` with a top-level `code`. Order bodies need `expectedTurnNo` equal to the season's current turn, and a new buy needs `declaredPosition`.
 오류 응답은 최상위 `code`가 있는 `application/problem+json`이다. 주문 본문의 `expectedTurnNo`는 시즌의 현재 턴과 같아야 하고, 처음 사는 종목에는 `declaredPosition`이 필요하다.

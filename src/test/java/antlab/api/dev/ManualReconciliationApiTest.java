@@ -8,9 +8,12 @@ import antlab.scoring.ManualReconciliationDto;
 import antlab.scoring.RuleSummaryDto;
 import antlab.season.Season;
 import antlab.season.SeasonRepository;
+import antlab.support.DefaultBearerConfig;
 import antlab.support.PostgresTestcontainersConfig;
 import antlab.support.SeasonAccountFixture;
 import antlab.support.SqlRecorder;
+import antlab.support.TestMembers;
+import antlab.support.TestTokens;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
@@ -33,7 +36,7 @@ import tools.jackson.databind.json.JsonMapper;
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles({"test", "local"})
-@Import(PostgresTestcontainersConfig.class)
+@Import({PostgresTestcontainersConfig.class, TestTokens.class, DefaultBearerConfig.class, TestMembers.class})
 @Sql(scripts = {"/fixtures/cleanup_season_start.sql", "/fixtures/history_pool.sql",
         "/fixtures/replay_months.sql"})
 @Sql(scripts = {"/fixtures/cleanup_season_start.sql"},
@@ -42,6 +45,11 @@ class ManualReconciliationApiTest {
 
     @Autowired
     MockMvcTester mvc;
+    @Autowired
+    TestTokens tokens;
+
+    @Autowired
+    TestMembers testMembers;
     @Autowired
     JdbcTemplate jdbc;
     @Autowired
@@ -57,6 +65,7 @@ class ManualReconciliationApiTest {
 
     private MockHttpServletResponse reconcile(long seasonId) {
         return mvc.post().uri("/api/v1/dev/seasons/" + seasonId + "/reconciliation")
+                .header("Authorization", "Bearer " + tokens.admin(testMembers.defaultId()))
                 .header(DevReconciliationController.DEV_HEADER, DevReconciliationController.DEV_HEADER_VALUE).exchange().getResponse();
     }
 
@@ -104,10 +113,12 @@ class ManualReconciliationApiTest {
     @Test
     void 고정_헤더가_없으면_403_FORBIDDEN이고_기록이_없다() throws Exception {
         long season = seasonWithOrders();
-        MockHttpServletResponse none = mvc.post().uri("/api/v1/dev/seasons/" + season + "/reconciliation").exchange().getResponse();
+        MockHttpServletResponse none = mvc.post().uri("/api/v1/dev/seasons/" + season + "/reconciliation")
+                .header("Authorization", "Bearer " + tokens.admin(testMembers.defaultId())).exchange().getResponse();
         assertThat(none.getStatus()).isEqualTo(403);
         assertThat(JsonMapper.shared().readTree(none.getContentAsString()).get("code").asString()).isEqualTo("FORBIDDEN");
         MockHttpServletResponse wrong = mvc.post().uri("/api/v1/dev/seasons/" + season + "/reconciliation")
+                .header("Authorization", "Bearer " + tokens.admin(testMembers.defaultId()))
                 .header(DevReconciliationController.DEV_HEADER, "false").exchange().getResponse();
         assertThat(wrong.getStatus()).isEqualTo(403);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM reconciliation_log WHERE season_id = ?", Long.class, season)).isZero();

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Play one whole season against a locally running API (local profile) and print each step.
 
+Signs up the play member (an existing account is fine) and logs in; every season call carries the access token (15 minutes).
 Standard library only. Usage: python3 tools/play/play_season.py [--base URL] [--turns 12] [--risk -0.20]
 """
 import argparse
@@ -19,17 +20,20 @@ TEAM = {
 FORMATION = {"goalkeeper": 20, "defender": 30, "midfielder": 30, "forward": 20}
 CHANGED = {"goalkeeper": 20, "defender": 20, "midfielder": 30, "forward": 30}
 BUDGET_USE = 0.95  # leave room for fees and the FX spread
+PLAY_EMAIL = "play@example.test"
+PLAY_PASSWORD = "correct-horse-battery"  # a throwaway account on a throwaway database
 
 
 class Api:
     def __init__(self, base):
         self.base = base.rstrip("/")
+        self.token = None
 
     def call(self, method, path, body=None, headers=None):
         data = json.dumps(body).encode() if body is not None else None
         req = urllib.request.Request(
             self.base + path, data=data, method=method,
-            headers={"Content-Type": "application/json", **(headers or {})})
+            headers={"Content-Type": "application/json", **self.auth(), **(headers or {})})
         try:
             with urllib.request.urlopen(req) as resp:
                 raw = resp.read()
@@ -37,6 +41,10 @@ class Api:
         except urllib.error.HTTPError as err:
             raw = err.read()
             return err.code, json.loads(raw) if raw else None
+
+
+    def auth(self):
+        return {"Authorization": f"Bearer {self.token}"} if self.token else {}
 
 
 def step(title):
@@ -57,6 +65,15 @@ def main():
     args = ap.parse_args()
     api = Api(args.base)
     api_v1 = "/api/v1"
+
+    step("가입·로그인 (POST /auth/signup, /auth/login)")
+    status, body = api.call("POST", f"{api_v1}/auth/signup", {
+        "email": PLAY_EMAIL, "name": "play", "password": PLAY_PASSWORD})
+    print(f"  가입 {status}" + (" (이미 있는 계정)" if status == 409 else ""))
+    need(status, body, ok=(200, 201, 409))
+    api.token = need(*api.call("POST", f"{api_v1}/auth/login", {
+        "email": PLAY_EMAIL, "password": PLAY_PASSWORD}))["accessToken"]
+    print("  접근 토큰을 받았다(15분)")
 
     step("풀 조회 (GET /pool)")
     pool = {a["assetId"]: a for a in need(*api.call("GET", f"{api_v1}/pool"))["assets"]}
@@ -112,7 +129,7 @@ def main():
     if status == 200:
         print("  " + json.dumps(body, ensure_ascii=False)[:300] + " …")
     else:
-        print(f"  건너뜀 ({status}) — local 프로필·127.0.0.1에서만 열린다")
+        print(f"  건너뜀 ({status}) — local 프로필·127.0.0.1에서만 열리고 ADMIN 역할이 필요하다(tools/play/README.md)")
 
     step("성적표 (GET /report)")
     rep = need(*api.call("GET", f"{api_v1}/seasons/{sid}/report"))

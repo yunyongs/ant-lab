@@ -1,17 +1,20 @@
 package antlab.api.security;
 
 import jakarta.servlet.DispatcherType;
+import java.util.Map;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import java.util.Map;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.DelegatingPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.util.matcher.RequestMatcher;
 
 /**
  * One stateless chain, default deny. A path outside the allow list answers 401 as a Problem body. Rules match by
@@ -21,9 +24,11 @@ import org.springframework.security.web.SecurityFilterChain;
 public class SecurityConfig {
 
     @Bean
-    SecurityFilterChain apiChain(HttpSecurity http, SecurityProblemHandler problems,
+    SecurityFilterChain apiChain(HttpSecurity http, SecurityProblemHandler problems, JwtDecoder decoder,
+            JwtAuthenticationConverter converter,
             @Value("${springdoc.api-docs.enabled:false}") boolean apiDocs,
             @Value("${springdoc.swagger-ui.enabled:false}") boolean swaggerUi) {
+        RequestMatcher open = PublicPaths.matcher(apiDocs, swaggerUi);
         return http
                 .csrf(AbstractHttpConfigurer::disable)
                 .formLogin(AbstractHttpConfigurer::disable)
@@ -32,20 +37,24 @@ public class SecurityConfig {
                 .requestCache(AbstractHttpConfigurer::disable)
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .exceptionHandling(e -> e.authenticationEntryPoint(problems).accessDeniedHandler(problems))
+                .oauth2ResourceServer(o -> o
+                        .bearerTokenResolver(new AccessTokenResolver(open))
+                        .authenticationEntryPoint(problems).accessDeniedHandler(problems)
+                        .jwt(j -> j.decoder(decoder).jwtAuthenticationConverter(converter)))
                 .authorizeHttpRequests(a -> {
                     a.dispatcherTypeMatchers(DispatcherType.ERROR).permitAll();
                     // Actuator is gated by the exposure list and the unpublished management port, not by this chain.
-                    a.requestMatchers("/error", "/livez", "/readyz", "/actuator/**").permitAll();
-                    // Auth endpoints are listed one by one: they are reached without an access token.
-                    a.requestMatchers("/api/v1/auth/signup", "/api/v1/auth/login", "/api/v1/auth/refresh",
-                            "/api/v1/auth/logout", "/api/v1/pool").permitAll();
-                    // Until SEC-04: the fixed member serves these without a token.
-                    a.requestMatchers("/api/v1/seasons", "/api/v1/seasons/**", "/api/v1/dev/**").permitAll();
+                    a.requestMatchers(PublicPaths.OPERATIONS.toArray(String[]::new)).permitAll();
+                    // Listed one by one: they are reached without an access token.
+                    a.requestMatchers(PublicPaths.CONTRACT_PUBLIC.toArray(String[]::new)).permitAll();
+                    a.requestMatchers("/api/v1/seasons", "/api/v1/seasons/**").authenticated();
+                    // The controller keeps its own dev-header gate and exists only in the local profile.
+                    a.requestMatchers("/api/v1/dev/**").hasRole("ADMIN");
                     if (apiDocs) {
-                        a.requestMatchers("/v3/api-docs", "/v3/api-docs/**").permitAll();
+                        a.requestMatchers(PublicPaths.API_DOCS.toArray(String[]::new)).permitAll();
                     }
                     if (swaggerUi) {
-                        a.requestMatchers("/swagger-ui.html", "/swagger-ui/**").permitAll();
+                        a.requestMatchers(PublicPaths.SWAGGER_UI.toArray(String[]::new)).permitAll();
                     }
                     a.anyRequest().authenticated();
                 })
