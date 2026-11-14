@@ -1,6 +1,7 @@
 import { screen } from '@testing-library/react';
 import { http, HttpResponse, delay } from 'msw';
 import { describe, expect, it } from 'vitest';
+import { poolFixture } from '../../test/fixtures/pool.ts';
 import { server } from '../../test/server.ts';
 import { renderWithProviders } from '../../test/renderWithProviders.tsx';
 import { ApiStatus } from './ApiStatus.tsx';
@@ -20,7 +21,9 @@ describe('ApiStatus', () => {
 
   it('shows the asset count on success', async () => {
     renderWithProviders(<ApiStatus />);
-    await screen.findByText('API 연결됨 · 종목 2개');
+    await screen.findByText(
+      `API 연결됨 · 종목 ${String(poolFixture.assets.length)}개`,
+    );
     expect(screen.getByRole('status')).toBeInTheDocument();
   });
 

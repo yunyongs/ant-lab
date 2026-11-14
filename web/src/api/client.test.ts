@@ -1,5 +1,6 @@
 import { http, HttpResponse } from 'msw';
 import { describe, expect, it } from 'vitest';
+import { poolFixture } from '../test/fixtures/pool.ts';
 import { server } from '../test/server.ts';
 import { authClient } from './authClient.ts';
 import { apiClient } from './client.ts';
@@ -15,7 +16,7 @@ const problem = (status: number, body: object) =>
 describe('apiClient', () => {
   it('returns the JSON body of a 200 answer', async () => {
     const { data } = await apiClient.GET('/api/v1/pool');
-    expect(data?.assets).toHaveLength(2);
+    expect(data?.assets).toHaveLength(poolFixture.assets.length);
   });
 
   it('requests the same-origin path', async () => {
