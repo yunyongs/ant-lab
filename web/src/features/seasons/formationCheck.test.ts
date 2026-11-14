@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { checkFormation, type ShareTexts } from './formationCheck.ts';
+import {
+  checkFormation,
+  sameFormation,
+  type ShareTexts,
+} from './formationCheck.ts';
 
 const base: ShareTexts = {
   goalkeeper: '25',
@@ -51,4 +55,14 @@ describe('checkFormation', () => {
       expect(result.sum).toBeNull();
     },
   );
+});
+
+describe('sameFormation', () => {
+  const now = { goalkeeper: 40, defender: 30, midfielder: 20, forward: 10 };
+
+  it('is true only when all four shares match', () => {
+    expect(sameFormation(now, { ...now })).toBe(true);
+    expect(sameFormation(now, { ...now, forward: 11 })).toBe(false);
+    expect(sameFormation(now, { ...now, goalkeeper: 39 })).toBe(false);
+  });
 });

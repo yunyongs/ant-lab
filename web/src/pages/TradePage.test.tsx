@@ -228,10 +228,42 @@ describe('TradePage', () => {
       await screen.findByRole('button', { name: '종목 가 매수' }),
     ).toBeDisabled();
     expect(screen.getByRole('button', { name: '종목 가 매도' })).toBeDisabled();
+    expect(
+      screen.queryByRole('link', { name: '전술 변경' }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText('전술 변경')).toHaveAttribute(
+      'aria-disabled',
+      'true',
+    );
     await user.click(screen.getByText('종목 풀에서 새로 사기'));
     expect(
       await screen.findByRole('button', { name: '종목 나 선택' }),
     ).toBeDisabled();
+  });
+});
+
+describe('formation entry', () => {
+  it('links to the formation page from turn 1 on', async () => {
+    serveSeason({ currentTurnNo: 1 });
+    serveTrade();
+    renderRoute('/seasons/7/trade');
+    expect(
+      await screen.findByRole('link', { name: '전술 변경' }),
+    ).toHaveAttribute('href', '/seasons/7/formation');
+  });
+
+  it('is closed text at turn 0 with the reason, not a link', async () => {
+    serveSeason({ currentTurnNo: 0 });
+    serveTrade(holdingsFixture());
+    renderRoute('/seasons/7/trade');
+    const entry = await screen.findByText('전술 변경 (1턴부터)');
+    expect(entry).toHaveAttribute('aria-disabled', 'true');
+    expect(screen.queryByRole('link', { name: /전술 변경/ })).toBeNull();
+    expect(
+      screen.getByText(
+        '전술은 1턴부터 바꿀 수 있습니다. 0턴에는 팀 구성만 합니다.',
+      ),
+    ).toBeVisible();
   });
 });
 

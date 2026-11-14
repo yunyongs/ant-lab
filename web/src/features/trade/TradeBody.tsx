@@ -6,6 +6,7 @@ import type { Season } from '../seasons/labels.ts';
 import { invalidateSeasonState } from '../seasons/queries.ts';
 import { PoolList } from '../team/PoolList.tsx';
 import { useHoldings, usePool, usePrices } from '../team/queries.ts';
+import { FormationEntry } from './FormationEntry.tsx';
 import { HoldingList } from './HoldingList.tsx';
 import { TradeSummary } from './TradeSummary.tsx';
 import styles from './Trade.module.css';
@@ -69,6 +70,7 @@ export function TradeBody({
     <>
       {failed && <QueryError error={error} onRetry={retry} />}
       <TradeSummary holdings={holdings.data} />
+      <FormationEntry season={season} />
       <HoldingList holdings={held} names={names} {...common} />
       <details
         className={styles.pool}

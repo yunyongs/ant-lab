@@ -2,6 +2,7 @@ import { createBrowserRouter, createMemoryRouter } from 'react-router';
 import type { RouteObject } from 'react-router';
 import { PublicOnly } from '../features/auth/PublicOnly.tsx';
 import { RequireAuth } from '../features/auth/RequireAuth.tsx';
+import { FormationChangePage } from '../pages/FormationChangePage.tsx';
 import { LoginPage } from '../pages/LoginPage.tsx';
 import { NewSeasonPage } from '../pages/NewSeasonPage.tsx';
 import { NotFoundPage } from '../pages/NotFoundPage.tsx';
@@ -60,6 +61,14 @@ export const routes: RouteObject[] = [
             element: (
               <KeyedBySeason>
                 <TradePage />
+              </KeyedBySeason>
+            ),
+          },
+          {
+            path: 'seasons/:seasonId/formation',
+            element: (
+              <KeyedBySeason>
+                <FormationChangePage />
               </KeyedBySeason>
             ),
           },
