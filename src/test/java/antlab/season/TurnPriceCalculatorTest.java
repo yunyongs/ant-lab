@@ -1,6 +1,7 @@
 package antlab.season;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import antlab.common.money.MoneyMath;
 import antlab.common.money.MoneyMath.ReturnFactors;
@@ -84,6 +85,22 @@ class TurnPriceCalculatorTest {
             assertThat(row.getTurnNo()).isBetween(1, 2);
         }
         assertThat(compute(season, 2)).hasSize(4);
+    }
+
+    @Test
+    void 반올림하면_0이_되는_가격은_0_이하_가드가_거절한다() throws Exception {
+        long season = startSeason();
+        // price * 1e-8 is far below 0.5, so the single final rounding gives 0 although no return is -1: pins signum() <= 0
+        Long cheapest = jdbc.queryForObject("SELECT asset_id FROM turn_price WHERE season_id = ? AND turn_no = 0 ORDER BY price, asset_id LIMIT 1",
+                Long.class, season);
+        jdbc.update("""
+                UPDATE asset_month_return SET local_return = -0.99999999
+                WHERE asset_id = ? AND month_block_id = (SELECT month_block_id FROM season_path WHERE season_id = ? AND turn_no = 1)""",
+                cheapest, season);
+        Season current = seasons.findById(season).orElseThrow();
+        assertThatThrownBy(() -> calculator.compute(current, 1))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("계산된 턴 가격이 0 이하다");
     }
 
     @Test
