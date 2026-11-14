@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { describe, expect, it } from 'vitest';
 import { renderRoute } from '../test/renderWithProviders.tsx';
+import { seasonFixture } from '../test/fixtures/seasons.ts';
 import { server } from '../test/server.ts';
 import { APP_NAME } from './appName.ts';
 
@@ -14,11 +15,67 @@ describe('AppShell', () => {
     ).toBeInTheDocument();
     expect(screen.getAllByRole('main')).toHaveLength(1);
     const nav = screen.getByRole('navigation', { name: '주 메뉴' });
-    expect(within(nav).getByRole('link', { name: '홈' })).toHaveAttribute(
+    expect(within(nav).getByRole('link', { name: '시즌' })).toHaveAttribute(
       'aria-current',
       'page',
     );
     await screen.findByText(/API 연결됨/);
+  });
+
+  it('shows five menu items: season active, the rest disabled outside a season', () => {
+    renderRoute('/');
+    const nav = screen.getByRole('navigation', { name: '주 메뉴' });
+    expect(within(nav).getAllByRole('listitem')).toHaveLength(5);
+    expect(within(nav).getByRole('link', { name: '시즌' })).toHaveAttribute(
+      'href',
+      '/',
+    );
+    for (const label of ['턴', '매매', '성적표', '복기']) {
+      expect(within(nav).queryByRole('link', { name: label })).toBeNull();
+      expect(within(nav).getByText(label)).toHaveAttribute(
+        'aria-disabled',
+        'true',
+      );
+    }
+  });
+
+  it('keeps the season item active on the new-season form', () => {
+    renderRoute('/seasons/new');
+    const nav = screen.getByRole('navigation', { name: '주 메뉴' });
+    expect(within(nav).getByRole('link', { name: '시즌' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+  });
+
+  it('inside a season: turn item links and is active, header shows the season line from one request', async () => {
+    let calls = 0;
+    server.use(
+      http.get('*/api/v1/seasons/7', () => {
+        calls += 1;
+        return HttpResponse.json(seasonFixture({ id: 7, currentTurnNo: 3 }));
+      }),
+    );
+    renderRoute('/seasons/7');
+    const nav = screen.getByRole('navigation', { name: '주 메뉴' });
+    expect(within(nav).getByRole('link', { name: '턴' })).toHaveAttribute(
+      'href',
+      '/seasons/7',
+    );
+    expect(within(nav).getByRole('link', { name: '턴' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+    expect(within(nav).getByRole('link', { name: '시즌' })).not.toHaveAttribute(
+      'aria-current',
+    );
+    const header = screen.getByRole('banner');
+    expect(
+      await within(header).findByText('시즌 7 · 3/12턴 · 진행 중'),
+    ).toBeInTheDocument();
+    await screen.findByRole('heading', { name: '시즌 7' });
+    await screen.findByText(/API 연결됨/);
+    expect(calls).toBe(1);
   });
 
   it('logs out: calls the API, clears cached data and shows the login screen', async () => {

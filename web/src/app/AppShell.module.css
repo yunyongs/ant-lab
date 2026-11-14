@@ -22,13 +22,26 @@
   gap: var(--space-3);
 }
 
+.statusRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-3);
+  font-size: 0.75rem;
+}
+
+.seasonLine {
+  color: var(--color-text-muted);
+}
+
 .logout {
   min-width: 44px;
   min-height: 44px;
   padding: 0 var(--space-2);
   border: 0;
   background: none;
-  color: var(--color-accent);
+  color: var(--color-primary);
   cursor: pointer;
   font: inherit;
 }
@@ -71,8 +84,13 @@
   text-decoration: none;
 }
 
+.disabled {
+  color: var(--color-text-muted);
+  opacity: 0.55;
+}
+
 .active {
-  color: var(--color-accent);
+  color: var(--color-primary);
   font-weight: 700;
 }
 
