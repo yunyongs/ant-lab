@@ -98,7 +98,9 @@ beforeAll(async () => {
       logLevel: 'silent',
     });
     await vite.listen();
-    base = vite.resolvedUrls?.local[0] ?? '';
+    // 'localhost' may be bound as ::1 only (Linux); address the bound socket itself.
+    const bound = vite.httpServer?.address() as AddressInfo;
+    base = `http://${bound.family === 'IPv6' ? `[${bound.address}]` : bound.address}:${bound.port}/`;
   });
 });
 
