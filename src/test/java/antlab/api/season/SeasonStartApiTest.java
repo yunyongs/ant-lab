@@ -91,12 +91,12 @@ class SeasonStartApiTest {
     }
 
     @Test
-    void DB_행은_설정과_고정_회원으로_만들어진다() throws Exception {
+    void DB_행은_설정과_기본_시험_회원으로_만들어진다() throws Exception {
         Map<String, Long> before = counts(jdbc);
         JsonNode s = json(post(mvc, VALID_BODY));
         long id = s.get("id").asLong();
         Map<String, Long> after = counts(jdbc);
-        assertThat(after.get("member") - before.get("member")).isEqualTo(1);
+        assertThat(after.get("member") - before.get("member")).as("시작은 회원을 만들지 않는다").isZero();
         assertThat(after.get("season") - before.get("season")).isEqualTo(1);
         assertThat(after.get("season_path") - before.get("season_path")).isEqualTo(12);
         assertThat(after.get("cash_account") - before.get("cash_account")).isEqualTo(1);
@@ -171,11 +171,11 @@ class SeasonStartApiTest {
     }
 
     @Test
-    void 회원은_한_명을_재사용한다() throws Exception {
+    void 시작은_회원을_만들지_않고_토큰의_회원을_쓴다() throws Exception {
         long members = counts(jdbc).get("member");
         post(mvc, VALID_BODY);
         post(mvc, VALID_BODY);
-        assertThat(counts(jdbc).get("member") - members).isEqualTo(1);
+        assertThat(counts(jdbc).get("member") - members).isZero();
     }
 
     @Test

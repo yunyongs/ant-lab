@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import antlab.history.MonthBlockRepository;
 import antlab.season.SeedGenerator;
+import antlab.support.DefaultBearerConfig;
 import antlab.support.DeferredPathSource;
 import antlab.support.GoldenRowQueries;
 import antlab.support.GoldenRowQueries.GoldenTable;
@@ -16,6 +17,8 @@ import antlab.support.SqlGoldenHarness;
 import antlab.support.SqlGoldenHarness.DatabaseHandle;
 import antlab.support.SqlGoldenScenario;
 import antlab.support.TeamBuyGoldenSeason;
+import antlab.support.TestMembers;
+import antlab.support.TestTokens;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterAll;
@@ -30,6 +33,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -46,9 +50,10 @@ import org.springframework.test.web.servlet.assertj.MockMvcTester;
  * <p>하네스 컨테이너를 가리켜야 하므로 {@code @IntegrationTest}(공유 컨테이너)를 쓰지 않고 자체 문맥을 띄운다.
  */
 @Tag("sql-golden")
-@SpringBootTest(properties = {"antlab.single-member.email=phase0@example.invalid",
-        "antlab.single-member.name=연습 감독"})
+@SpringBootTest(properties = {"antlab.test.default-member.email=phase0@example.invalid",
+        "antlab.test.default-member.name=연습 감독"})
 @AutoConfigureMockMvc
+@Import({TestTokens.class, DefaultBearerConfig.class, TestMembers.class})
 @ActiveProfiles("test")
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @EnabledIf("sampleAvailable")

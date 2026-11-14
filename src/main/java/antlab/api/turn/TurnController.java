@@ -56,9 +56,6 @@ public class TurnController {
                     + "RECONCILIATION_FAILED / 지금은 넘길 수 없다 — SEASON_NOT_ACTIVE, TURN_MISMATCH, "
                     + "RECONCILIATION_FAILED",
             content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ApiProblem.class)))
-    @ApiResponse(responseCode = "503", description = "The current member is unknown — MEMBER_UNAVAILABLE "
-            + "(production, before sign-in) / 현재 회원을 알 수 없다 — MEMBER_UNAVAILABLE(운영, 인증 전)",
-            content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ApiProblem.class)))
     public ResponseEntity<TurnResultDto> advance(@PathVariable Long seasonId,
             @Valid @RequestBody AdvanceTurnRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(turns.advance(seasonId, request.expectedTurnNo()));
@@ -86,9 +83,6 @@ public class TurnController {
             + "\n"
             + "아직 진행하지 않은 턴이다 — TURN_NOT_REACHED(현재 턴보다 큰 번호 전부. 경로 길이를 넘는 번호는 끝난 시즌에서도 이 코드이므로 클라이언트는 "
             + "pathLength 로 범위를 먼저 거른다)",
-            content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ApiProblem.class)))
-    @ApiResponse(responseCode = "503", description = "The current member is unknown — MEMBER_UNAVAILABLE "
-            + "(production, before sign-in) / 현재 회원을 알 수 없다 — MEMBER_UNAVAILABLE(운영, 인증 전)",
             content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ApiProblem.class)))
     public TurnResultDto get(@PathVariable Long seasonId, @PathVariable @Min(1) Integer turnNo) {
         return queries.get(seasonId, turnNo);

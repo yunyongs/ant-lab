@@ -27,7 +27,7 @@ import org.springframework.test.web.servlet.assertj.MockMvcTester;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
 
 /**
- * Cases every {@code @FinishedSeasonOnly} handler must share (report and review): an unknown current member answers 503
+ * Cases every {@code @FinishedSeasonOnly} handler must share (report and review): an unknown current member answers 401
  * as a problem body, and a FINISHED season that carries an abandoned turn still answers 200.
  */
 @IntegrationTest
@@ -71,14 +71,14 @@ class FinishedSeasonHandlerTest {
     }
 
     @Test
-    void 회원을_알_수_없으면_두_핸들러_모두_503_문제_본문이다() throws Exception {
-        doThrow(new DomainException(ErrorCode.MEMBER_UNAVAILABLE, "현재 회원을 알 수 없다(인증 전)"))
+    void 회원을_알_수_없으면_두_핸들러_모두_401_문제_본문이다() throws Exception {
+        doThrow(new DomainException(ErrorCode.UNAUTHENTICATED, "인증이 필요하다"))
                 .when(currentMember).existingId();
         for (String suffix : finishedSeasonPaths()) {
             MockHttpServletResponse r = get(1L, suffix);
-            assertThat(r.getStatus()).as(suffix).isEqualTo(503);
+            assertThat(r.getStatus()).as(suffix).isEqualTo(401);
             assertThat(r.getContentType()).as(suffix).startsWith("application/problem+json");
-            assertThat(code(r)).as(suffix).isEqualTo("MEMBER_UNAVAILABLE");
+            assertThat(code(r)).as(suffix).isEqualTo("UNAUTHENTICATED");
         }
     }
 
