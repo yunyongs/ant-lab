@@ -61,13 +61,11 @@ class SeasonQueryApiTest {
     }
 
     @Test
-    void 회원이_아직_없으면_목록은_빈_배열이다() throws Exception {
+    void 시즌이_없으면_목록은_빈_배열이다() throws Exception {
         MockHttpServletResponse r = get(mvc, "/api/v1/seasons");
         assertThat(r.getStatus()).isEqualTo(200);
         assertThat(json(r).get("items").isArray()).isTrue();
         assertThat(json(r).get("items")).isEmpty();
-        assertThat(jdbc.queryForObject("SELECT count(*) FROM member WHERE lower(email) = 'player@example.invalid'",
-                Long.class)).as("조회는 회원을 만들지 않는다").isZero();
     }
 
     @Test

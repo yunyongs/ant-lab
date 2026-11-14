@@ -22,6 +22,7 @@ import antlab.support.RowSetDiff;
 import antlab.support.SqlGoldenHarness;
 import antlab.support.SqlGoldenHarness.DatabaseHandle;
 import antlab.support.SqlGoldenScenario;
+import antlab.support.TestMembers;
 import antlab.support.TestTokens;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -63,10 +64,10 @@ import tools.jackson.databind.json.JsonMapper;
  * 판정은 문맥을 띄우기 전에 한다(조건 메서드).
  */
 @Tag("sql-golden")
-@SpringBootTest(properties = {"antlab.single-member.email=phase0@example.invalid",
-        "antlab.single-member.name=연습 감독"})
+@SpringBootTest(properties = {"antlab.test.default-member.email=phase0@example.invalid",
+        "antlab.test.default-member.name=연습 감독"})
 @AutoConfigureMockMvc
-@Import({TestTokens.class, DefaultBearerConfig.class})
+@Import({TestTokens.class, DefaultBearerConfig.class, TestMembers.class})
 @ActiveProfiles("test")
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @EnabledIf("sampleAvailable")

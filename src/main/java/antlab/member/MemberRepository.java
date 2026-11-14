@@ -16,16 +16,11 @@ public interface MemberRepository extends Repository<Member, Long> {
 
     boolean existsById(Long id);
 
-    /** Locks the row by id ({@code FOR NO KEY UPDATE}), same lock order as the email variant. */
+    /** Locks the row by id ({@code FOR NO KEY UPDATE}). Lock order is member → season → cash_account. */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select m from Member m where m.id = :id")
     Optional<Member> findByIdForUpdate(@Param("id") Long id);
 
     @Query("select m from Member m where lower(m.email) = lower(:email)")
     Optional<Member> findByEmail(@Param("email") String email);
-
-    /** 같은 조건으로 행을 잠근다(PostgreSQL 은 {@code FOR NO KEY UPDATE}). 락 순서는 member → season → cash_account. */
-    @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("select m from Member m where lower(m.email) = lower(:email)")
-    Optional<Member> findByEmailForUpdate(@Param("email") String email);
 }

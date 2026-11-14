@@ -1,5 +1,5 @@
--- 가짜 데이터 정리 — 커밋하는 시즌·주문 시험이 자기가 만든 행만 지운다(자식 → 부모 순서).
--- 대상: 고정 회원(player@example.invalid)의 시즌, history_pool.sql·replay_months.sql 의 가짜 행.
+-- Fake data cleanup: committing season and order tests delete only the rows they made (children before parents).
+-- Targets: seasons of the default test member (player@example.invalid; the member row stays for the context) and the fake rows of history_pool.sql and replay_months.sql.
 DELETE FROM reconciliation_log WHERE season_id IN (SELECT s.id FROM season s JOIN member m ON m.id = s.member_id WHERE lower(m.email) = 'player@example.invalid');
 DELETE FROM turn        WHERE season_id IN (SELECT s.id FROM season s JOIN member m ON m.id = s.member_id WHERE lower(m.email) = 'player@example.invalid');
 DELETE FROM execution   WHERE order_id IN (SELECT id FROM orders WHERE season_id IN (SELECT s.id FROM season s JOIN member m ON m.id = s.member_id WHERE lower(m.email) = 'player@example.invalid'));
@@ -12,7 +12,6 @@ DELETE FROM turn_price  WHERE season_id IN (SELECT s.id FROM season s JOIN membe
 DELETE FROM season_path WHERE season_id IN (SELECT s.id FROM season s JOIN member m ON m.id = s.member_id WHERE lower(m.email) = 'player@example.invalid');
 DELETE FROM cash_account WHERE season_id IN (SELECT s.id FROM season s JOIN member m ON m.id = s.member_id WHERE lower(m.email) = 'player@example.invalid');
 DELETE FROM season WHERE member_id IN (SELECT id FROM member WHERE lower(email) = 'player@example.invalid');
-DELETE FROM member WHERE lower(email) = 'player@example.invalid';
 DELETE FROM asset_month_attention WHERE asset_id IN (SELECT id FROM asset WHERE name LIKE '가짜%');
 DELETE FROM asset_month_return WHERE asset_id IN (SELECT id FROM asset WHERE name LIKE '가짜%');
 DELETE FROM asset_position WHERE asset_id IN (SELECT id FROM asset WHERE name LIKE '가짜%');

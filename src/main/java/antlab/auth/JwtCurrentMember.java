@@ -5,18 +5,17 @@ import antlab.common.error.ErrorCode;
 import antlab.member.CurrentMember;
 import antlab.member.MemberRepository;
 import java.util.Optional;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.stereotype.Component;
 
 /**
- * The member named by the access token's {@code sub}, used when the fixed member is off. The validator guarantees
- * that {@code sub} is a positive decimal long, so parsing cannot fail. A subject without a member row answers 401
- * like any other bad token; a request with no JWT in the security context fails closed with 503.
+ * The member named by the access token's {@code sub}; the only {@link CurrentMember} in every profile. The validator
+ * guarantees that {@code sub} is a positive decimal long, so parsing cannot fail. A subject without a member row
+ * answers 401 like any other bad token; a call with no JWT in the security context (not reachable over HTTP, where
+ * season paths require authentication) fails closed with the same 401.
  */
 @Component
-@ConditionalOnProperty(prefix = "antlab.single-member", name = "enabled", havingValue = "false")
 public class JwtCurrentMember implements CurrentMember {
 
     private final MemberRepository members;
@@ -41,7 +40,7 @@ public class JwtCurrentMember implements CurrentMember {
 
     private static long subject() {
         if (!(SecurityContextHolder.getContext().getAuthentication() instanceof JwtAuthenticationToken token)) {
-            throw new DomainException(ErrorCode.MEMBER_UNAVAILABLE, "현재 회원을 알 수 없다");
+            throw unknownMember();
         }
         return Long.parseLong(token.getToken().getSubject());
     }

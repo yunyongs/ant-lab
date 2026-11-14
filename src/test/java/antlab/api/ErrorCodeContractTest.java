@@ -52,6 +52,13 @@ class ErrorCodeContractTest {
     }
 
     @Test
+    void 은퇴한_MEMBER_UNAVAILABLE이_계약_어디에도_없다() throws IOException {
+        assertThat(Files.readString(Path.of("docs/api/openapi.yaml"))).doesNotContain("MEMBER_UNAVAILABLE");
+        assertThat(java.util.Arrays.stream(antlab.common.error.ErrorCode.values()).map(Enum::name))
+                .doesNotContain("MEMBER_UNAVAILABLE");
+    }
+
+    @Test
     void 계약의_오류_코드는_상태_매핑과_맞고_FORBIDDEN_말고는_모두_적혀_있다() throws IOException {
         assertThat(ContractErrorCodes.violations(contract())).isEmpty();
     }

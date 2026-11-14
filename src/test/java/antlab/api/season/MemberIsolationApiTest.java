@@ -25,7 +25,6 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpServletResponse;
-import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.jdbc.Sql;
 import org.springframework.test.context.jdbc.Sql.ExecutionPhase;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
@@ -37,12 +36,11 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * Two members through the real chain with the fixed member off (the {@code prod} setting): each sees only their own
+ * Two members through the real chain (the shared test context, same wiring as every profile): each sees only their own
  * seasons, a stranger gets 404 on every {@code {seasonId}} operation without any write, and a token naming no member
  * is a 401. Rows are committed and removed after each test.
  */
 @IntegrationTest
-@TestPropertySource(properties = "antlab.single-member.enabled=false")
 @Sql(scripts = {"/fixtures/cleanup_season_start.sql", "/fixtures/history_pool.sql", "/fixtures/replay_months.sql",
         "/fixtures/turn_returns.sql"})
 @Sql(scripts = "/fixtures/cleanup_season_start.sql", executionPhase = ExecutionPhase.AFTER_TEST_METHOD)
@@ -218,6 +216,7 @@ class MemberIsolationApiTest {
     @Test
     void 알_수_없는_회원의_토큰은_목록_조회_시작이_모두_401이다() throws Exception {
         String ghost = tokens.user(999_999_999L);
+        long strangerSeasons = seasonsOfOthers();
         for (var call : List.of(
                 Map.entry(HttpMethod.GET, "/api/v1/seasons"),
                 Map.entry(HttpMethod.GET, "/api/v1/seasons/" + seasonA),
@@ -229,8 +228,11 @@ class MemberIsolationApiTest {
             assertThat(r.getHeader("WWW-Authenticate")).isEqualTo("Bearer");
             assertThat(r.getContentAsString()).as("same body as the security 401").isEqualTo(anonymous.getContentAsString());
         }
-        assertThat(jdbc.queryForObject("SELECT count(*) FROM season WHERE member_id NOT IN (?, ?)", Long.class, memberA, memberB))
-                .as("no season row for the unknown member").isZero();
+        assertThat(seasonsOfOthers()).as("no season row for the unknown member").isEqualTo(strangerSeasons);
+    }
+
+    private long seasonsOfOthers() {
+        return jdbc.queryForObject("SELECT count(*) FROM season WHERE member_id NOT IN (?, ?)", Long.class, memberA, memberB);
     }
 
     @Test

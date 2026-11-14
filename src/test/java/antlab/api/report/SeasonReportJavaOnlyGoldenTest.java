@@ -15,6 +15,7 @@ import antlab.support.SqlGoldenHarness;
 import antlab.support.SqlGoldenHarness.DatabaseHandle;
 import antlab.support.SqlGoldenScenario;
 import antlab.support.TeamBuyGoldenSeason;
+import antlab.support.TestMembers;
 import antlab.support.TestTokens;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -54,9 +55,9 @@ import tools.jackson.databind.json.JsonMapper;
  * {@code roleFit} 값 있음). 0턴 수수료·0턴 대금 분리(P0-36 Q1)는 원천 조회와 독립한 SQL 합으로 따로 확인한다. 값(금액·가격)은 출력하지 않는다.
  */
 @Tag("sql-golden")
-@SpringBootTest(properties = {"antlab.single-member.email=phase0@example.invalid", "antlab.single-member.name=연습 감독"})
+@SpringBootTest(properties = {"antlab.test.default-member.email=phase0@example.invalid", "antlab.test.default-member.name=연습 감독"})
 @AutoConfigureMockMvc
-@Import({TestTokens.class, DefaultBearerConfig.class})
+@Import({TestTokens.class, DefaultBearerConfig.class, TestMembers.class})
 @ActiveProfiles({"test", "local"})
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @EnabledIf("sampleAvailable")

@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.env.YamlPropertySourceLoader;
+import org.springframework.core.env.EnumerablePropertySource;
 import org.springframework.core.env.PropertySource;
 import org.springframework.core.io.ClassPathResource;
 
@@ -67,10 +68,9 @@ class ProfileDocumentTest {
     }
 
     @Test
-    void 고정_회원은_공통에서_켜고_prod에서_끈다() throws IOException {
-        assertThat(documents().get(0).getProperty("antlab.single-member.enabled")).isEqualTo(true);
-        assertThat(byProfile(documents(), "prod").getProperty("antlab.single-member.enabled")).isEqualTo(false);
-        assertThat(documents().get(0).getProperty("antlab.single-member.email"))
-                .asString().contains("@example.invalid");
+    void 어떤_문서에도_고정_회원_설정이_없다() throws IOException {
+        for (var document : documents()) {
+            assertThat(((EnumerablePropertySource<?>) document).getPropertyNames()).noneMatch(name -> name.startsWith("antlab.single-member"));
+        }
     }
 }

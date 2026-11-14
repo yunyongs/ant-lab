@@ -23,6 +23,7 @@ import antlab.support.SqlGoldenHarness;
 import antlab.support.SqlGoldenHarness.DatabaseHandle;
 import antlab.support.SqlGoldenScenario;
 import antlab.support.TeamBuyGoldenSeason;
+import antlab.support.TestMembers;
 import antlab.support.TestTokens;
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -65,9 +66,9 @@ import org.springframework.test.web.servlet.assertj.MockMvcTester;
  * 두 순서를 일부러 어긋나게 한 변조 데이터는 같은 시험이 규칙 16 으로 잡는다.
  */
 @Tag("sql-golden")
-@SpringBootTest(properties = {"antlab.single-member.email=phase0@example.invalid", "antlab.single-member.name=연습 감독"})
+@SpringBootTest(properties = {"antlab.test.default-member.email=phase0@example.invalid", "antlab.test.default-member.name=연습 감독"})
 @AutoConfigureMockMvc
-@Import({TestTokens.class, DefaultBearerConfig.class})
+@Import({TestTokens.class, DefaultBearerConfig.class, TestMembers.class})
 @ActiveProfiles({"test", "local"})
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)

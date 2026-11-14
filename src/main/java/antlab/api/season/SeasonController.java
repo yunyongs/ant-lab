@@ -67,9 +67,6 @@ public class SeasonController {
     @ApiResponse(responseCode = "422", description = "A path of the requested length cannot be built — "
             + "PATH_TOO_LONG / 요청한 길이의 경로를 만들 수 없다 — PATH_TOO_LONG",
             content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ApiProblem.class)))
-    @ApiResponse(responseCode = "503", description = "The current member is unknown — MEMBER_UNAVAILABLE "
-            + "/ 현재 회원을 알 수 없다 — MEMBER_UNAVAILABLE",
-            content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ApiProblem.class)))
     public ResponseEntity<SeasonDto> start(@Valid @RequestBody StartSeasonRequest request) {
         SeasonDto season;
         try {
@@ -89,9 +86,6 @@ public class SeasonController {
             description = "Returns all seasons of the current member, newest season number first. / 현재 회원의 시즌 "
                     + "전부를 시즌 번호 내림차순으로 준다.")
     @ApiResponse(responseCode = "200", description = "Season list / 시즌 목록")
-    @ApiResponse(responseCode = "503", description = "The current member is unknown — MEMBER_UNAVAILABLE / 현재 "
-            + "회원을 알 수 없다 — MEMBER_UNAVAILABLE",
-            content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ApiProblem.class)))
     public SeasonListDto list() {
         return queries.list();
     }
@@ -105,9 +99,6 @@ public class SeasonController {
             + "번호가 숫자가 아니다 — INVALID_ARGUMENT",
             content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ApiProblem.class)))
     @ApiResponse(responseCode = "404", description = "The season does not exist — NOT_FOUND / 시즌이 없다 — NOT_FOUND",
-            content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ApiProblem.class)))
-    @ApiResponse(responseCode = "503", description = "The current member is unknown — MEMBER_UNAVAILABLE / 현재 "
-            + "회원을 알 수 없다 — MEMBER_UNAVAILABLE",
             content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ApiProblem.class)))
     public SeasonDto get(@PathVariable Long seasonId) {
         return queries.get(seasonId);
@@ -127,9 +118,6 @@ public class SeasonController {
             content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ApiProblem.class)))
     @ApiResponse(responseCode = "409", description = "That turn has not been played yet — TURN_NOT_REACHED / 아직 "
             + "진행하지 않은 턴이다 — TURN_NOT_REACHED",
-            content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ApiProblem.class)))
-    @ApiResponse(responseCode = "503", description = "The current member is unknown — MEMBER_UNAVAILABLE / 현재 "
-            + "회원을 알 수 없다 — MEMBER_UNAVAILABLE",
             content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ApiProblem.class)))
     public TurnPricesDto prices(@PathVariable Long seasonId,
             @RequestParam(required = false) @Min(0) Integer turnNo) {

@@ -2,19 +2,16 @@ package antlab.api.e2e;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.DynamicTest.dynamicTest;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.reset;
 
 import antlab.api.error.ErrorHttpMapping;
 import antlab.api.security.PublicPaths;
-import antlab.common.error.DomainException;
 import antlab.common.error.ErrorCode;
-import antlab.member.CurrentMember;
 import antlab.support.ContractErrorCodes;
 import antlab.support.E2eHttp;
 import antlab.support.E2eHttp.Reply;
 import antlab.support.OpenApiNormalizer;
 import antlab.support.PostgresTestcontainersConfig;
+import antlab.support.TestMembers;
 import antlab.support.TestTokens;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -39,7 +36,6 @@ import org.springframework.core.io.ClassPathResource;
 import org.springframework.http.HttpMethod;
 import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.servlet.mvc.method.RequestMappingInfo;
@@ -51,18 +47,19 @@ import tools.jackson.databind.JsonNode;
  * port (so errors raised outside the DispatcherServlet's advice would show too). Always on: no sample needed.
  *
  * <p>The operation list is read from the handler mapping, never typed here, and must equal the operations in
- * {@code docs/api/openapi.yaml}. Statuses the yaml documents per operation (400, 404, 503) must be listed for the probed
+ * {@code docs/api/openapi.yaml}. Statuses the yaml documents per operation (400, 404) must be listed for the probed
  * operation. 405, 406 and 415 come from the framework for every path and are listed once, in {@code x-framework-errors}.
  * Every observed (operation, status, code) must be listed by the contract's {@code x-error-codes}. The dev endpoint is
- * outside the contract and not probed. Calls carry a valid user token; the two 401 probes (no token, a token signed by
- * another key) run on every operation that is not public.
+ * outside the contract and not probed. Calls carry a valid user token; the 401 probes (no token, a token signed by
+ * another key, a token of a member who does not exist) run on every operation that is not public.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
-@Import({PostgresTestcontainersConfig.class, TestTokens.class})
+@Import({PostgresTestcontainersConfig.class, TestTokens.class, TestMembers.class})
 class ApiErrorSweepTest {
 
     private static final String UNKNOWN_SEASON = "987654321";
+    private static final long UNKNOWN_MEMBER = 987_654_321L;
 
     record Operation(String method, String template, boolean hasBody) {
         String key() {
@@ -116,10 +113,11 @@ class ApiErrorSweepTest {
     RequestMappingHandlerMapping mapping;
     @Autowired
     DataSource dataSource;
-    @MockitoSpyBean
-    CurrentMember currentMember;
     @Autowired
     TestTokens tokens;
+
+    @Autowired
+    TestMembers members;
 
     @AfterEach
     void cleanup() {
@@ -172,7 +170,7 @@ class ApiErrorSweepTest {
         if (op.onSeason()) {
             probes.add(new Probe("non-numeric season id", 400, ErrorCode.INVALID_ARGUMENT));
             probes.add(new Probe("unknown season", 404, ErrorCode.NOT_FOUND));
-            probes.add(new Probe("unknown member", 503, ErrorCode.MEMBER_UNAVAILABLE));
+            probes.add(new Probe("unknown member token", 401, ErrorCode.UNAUTHENTICATED));
         }
         if (op.hasTurnNo()) {
             probes.add(new Probe("non-numeric turn number", 400, ErrorCode.INVALID_ARGUMENT));
@@ -181,12 +179,12 @@ class ApiErrorSweepTest {
             probes.add(new Probe("non-numeric query turnNo", 400, ErrorCode.INVALID_ARGUMENT));
         }
         if (op.template.equals("/api/v1/seasons")) {
-            probes.add(new Probe("unknown member", 503, ErrorCode.MEMBER_UNAVAILABLE));
+            probes.add(new Probe("unknown member token", 401, ErrorCode.UNAUTHENTICATED));
         }
         return probes;
     }
 
-    private Reply send(E2eHttp http, E2eHttp anonymous, E2eHttp forged, Operation op, Probe probe) {
+    private Reply send(E2eHttp http, E2eHttp anonymous, E2eHttp forged, E2eHttp strangers, Operation op, Probe probe) {
         HttpMethod method = HttpMethod.valueOf(op.method());
         String json = "application/json";
         switch (probe.name()) {
@@ -220,15 +218,9 @@ class ApiErrorSweepTest {
             case "unknown season":
                 return http.send(method, op.path(UNKNOWN_SEASON), op.hasBody() ? op.validBody() : null,
                         op.hasBody() ? json : null, json);
-            case "unknown member":
-                DomainException unavailable = new DomainException(ErrorCode.MEMBER_UNAVAILABLE, "no current member");
-                doThrow(unavailable).when(currentMember).existingId();
-                doThrow(unavailable).when(currentMember).ensureId();
-                try {
-                    return http.send(method, op.path("1"), op.hasBody() ? op.validBody() : null, op.hasBody() ? json : null, json);
-                } finally {
-                    reset(currentMember);
-                }
+            case "unknown member token":
+                return strangers.send(method, op.path("1"), op.hasBody() ? op.validBody() : null,
+                        op.hasBody() ? json : null, json);
             default:
                 throw new IllegalStateException(probe.name());
         }
@@ -239,10 +231,12 @@ class ApiErrorSweepTest {
         List<Operation> operations = handlerOperations();
         JsonNode contract = contract();
         Set<String> documented = ContractErrorCodes.perOperation(contract).keySet();
-        E2eHttp http = new E2eHttp(port, Map.of("Authorization", "Bearer " + tokens.user(TestTokens.DEFAULT_SUBJECT)));
+        E2eHttp http = new E2eHttp(port, Map.of("Authorization", "Bearer " + tokens.user(members.defaultId())));
         E2eHttp anonymous = new E2eHttp(port);
         E2eHttp forged = new E2eHttp(port, Map.of("Authorization",
                 "Bearer " + tokens.signedByOtherKey(tokens.header(), tokens.claims(1, "USER"))));
+        // a validly signed token whose member has no row: 401 like any other bad token
+        E2eHttp strangers = new E2eHttp(port, Map.of("Authorization", "Bearer " + tokens.user(UNKNOWN_MEMBER)));
 
         // vacuity guard: the handlers are exactly the contract's operations
         assertThat(operations.stream().map(Operation::key).toList()).containsExactlyElementsOf(documented);
@@ -254,7 +248,7 @@ class ApiErrorSweepTest {
             for (Probe probe : probesFor(op)) {
                 exercised.add(probe.name());
                 tests.add(dynamicTest(op.key() + " — " + probe.name(), () -> {
-                    Reply reply = send(http, anonymous, forged, op, probe);
+                    Reply reply = send(http, anonymous, forged, strangers, op, probe);
                     assertThat(reply.status()).as(reply + " " + reply.body()).isEqualTo(probe.status());
                     assertThat(reply.isProblem()).as(reply + " content type " + reply.contentType()).isTrue();
                     ErrorCode code = ErrorCode.valueOf(reply.code());
@@ -272,7 +266,7 @@ class ApiErrorSweepTest {
         assertThat(exercised).containsExactlyInAnyOrderElementsOf(
                 Arrays.asList("wrong method", "Accept: application/xml", "text/plain body", "malformed JSON",
                         "empty object body", "non-numeric season id", "non-numeric turn number", "non-numeric query turnNo",
-                        "unknown season", "unknown member", "unknown credentials", "no refresh cookie", "no bearer token",
+                        "unknown season", "unknown member token", "unknown credentials", "no refresh cookie", "no bearer token",
                         "forged bearer token"));
         return tests.stream();
     }

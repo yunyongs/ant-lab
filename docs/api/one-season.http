@@ -15,9 +15,7 @@
 @token = {{login.response.body.$.accessToken}}
 
 # Every /api/v1/seasons and /api/v1/dev call below needs the token of block 0b. The token lasts 15 minutes: when a call answers 401, send block 0b again.
-# Until SEC-05 the local profile serves one fixed member to any logged-in member.
 # 아래 /api/v1/seasons·/api/v1/dev 호출은 모두 0b 블록의 토큰이 필요하다. 토큰은 15분이다: 401이 오면 0b 블록을 다시 보낸다.
-# SEC-05 전까지 local 프로필은 로그인한 회원 누구에게나 고정 회원 하나를 쓴다.
 
 ### 0. Sign up (once; "409 EMAIL_TAKEN" means it exists already) / 가입(한 번. 409 EMAIL_TAKEN 이면 이미 있다)
 POST {{base}}/api/v1/auth/signup

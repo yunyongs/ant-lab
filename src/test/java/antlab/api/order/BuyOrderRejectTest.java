@@ -143,13 +143,12 @@ class BuyOrderRejectTest {
     }
 
     @Test
-    void 회원이_아직_없으면_404이고_회원을_만들지_않는다() throws Exception {
-        assertThat(jdbc.queryForObject("SELECT count(*) FROM member WHERE lower(email) = 'player@example.invalid'",
-                Long.class)).isZero();
+    void 없는_시즌_번호는_404이고_회원을_만들지_않는다() throws Exception {
+        long members = jdbc.queryForObject("SELECT count(*) FROM member", Long.class);
         MockHttpServletResponse r = place(mvc, 1L, body(0, "BUY", 1L, 1, "GOALKEEPER"));
         assertThat(r.getStatus()).isEqualTo(404);
-        assertThat(jdbc.queryForObject("SELECT count(*) FROM member WHERE lower(email) = 'player@example.invalid'",
-                Long.class)).as("주문은 회원을 만들지 않는다").isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM member", Long.class)).as("주문은 회원을 만들지 않는다")
+                .isEqualTo(members);
     }
 
     // ---- 종목·선언 ----
