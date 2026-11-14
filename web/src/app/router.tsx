@@ -6,6 +6,7 @@ import { FormationChangePage } from '../pages/FormationChangePage.tsx';
 import { LoginPage } from '../pages/LoginPage.tsx';
 import { NewSeasonPage } from '../pages/NewSeasonPage.tsx';
 import { ReportPage } from '../pages/ReportPage.tsx';
+import { ReviewPage } from '../pages/ReviewPage.tsx';
 import { NotFoundPage } from '../pages/NotFoundPage.tsx';
 import { SeasonPage } from '../pages/SeasonPage.tsx';
 import { TradePage } from '../pages/TradePage.tsx';
@@ -78,6 +79,14 @@ export const routes: RouteObject[] = [
             element: (
               <KeyedBySeason>
                 <ReportPage />
+              </KeyedBySeason>
+            ),
+          },
+          {
+            path: 'seasons/:seasonId/review',
+            element: (
+              <KeyedBySeason>
+                <ReviewPage />
               </KeyedBySeason>
             ),
           },

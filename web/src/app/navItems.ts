@@ -10,7 +10,7 @@ export const NAV_CONFIG: readonly NavConfig[] = [
   { key: 'turn', label: '턴', enabled: true },
   { key: 'trade', label: '매매', enabled: true },
   { key: 'report', label: '성적표', enabled: true },
-  { key: 'review', label: '복기', enabled: false },
+  { key: 'review', label: '복기', enabled: true },
 ];
 
 export function isNavEnabled(key: NavConfig['key']): boolean {
