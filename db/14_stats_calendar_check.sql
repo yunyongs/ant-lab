@@ -18,11 +18,15 @@
 --       관측 = 달력 전체(month_block)에 시리즈를 펼친 표(zz_dense)에서 윈도 함수 LEAD 로 m + j개월 연속 검사, 정점 = "나보다 지수가 큰 행 수 + 1",
 --       집계 = 정수 산술(합 × 10^24 를 div 로 나눠 0에서 먼 쪽 반올림)이라 소수 나눗셈의 반올림에 기대지 않는다. 상수(5, 10, 0.10, {1, 3})는 erd D34 에서 다시 옮겨 적었다.
 -- 변이 시험: 정의 파일의 글자를 replace 로 바꿔 이름만 zzm_ 으로 다시 만든다(zz_def 표 + mutate 프로시저). 바꾼 글자가 정의에 없으면 오류라 시험이 헛돌지 않는다.
+--       Rank lookup R lives in db/13_calc_attention_rank_def.sql (temp view attn_rank), which the definition reads with \ir. mutate() prepends that
+--       file's text and renames attn_rank to zzm_rank, so rank mutations (RANK, NULL filter, q, CEIL) are tested the same way as the rest.
 --       뷰 정의 텍스트(pg_get_viewdef)에 기대는 replace 는 쓰지 않는다. 변이는 서브트랜잭션 안에서만 만들고 되돌린다.
 -- 손 계산: 합성 수익률(시세 아님)을 한 종목에 UPDATE 로 덮어쓴 뒤 보드가 손으로 계산한 값을 돌려주는지 본다. 서브트랜잭션에서 되돌린다.
 -- 음성 사례는 UPDATE/DELETE 와 변이 뷰만 쓴다. INSERT 는 쓰지 않는다.
 -- P0-08·P0-09·P0-11 판정 계약에서 복사한 것: ① pg_temp.zz_verdict ② 결과 표 zz_check_result ④ check_eq + val()
 --       ⑤ 0절 뒤 멈춤과 판정(표식 2 또는 1) ⑥ 9절 흔적 확인(표식 0)과 마지막 CASE.
+-- Leak guard (5): the peak view and the board views are walked through pg_depend. Their table set is compared as OIDs (a same-named table in another
+--       schema fails) and the number of user (non-pg_catalog) functions they depend on must be 0.
 -- 새 문법: psql 백틱(\set x `cat …`)과 :'x' 인용, 프로시저(CALL), EXECUTE 로 만든 SQL, 재귀 카탈로그 질의(pg_depend), EXCEPT ALL,
 --       FULL JOIN … USING, div() 정수 나눗셈, make_date, 서브트랜잭션(PL/pgSQL 예외 블록)으로 "바꿔 보고 되돌리기".
 -- 명령줄(psql)이 기준이다. VS Code 에서는 통합 터미널에서 실행한다.
@@ -30,6 +34,7 @@
 
 -- 정의 파일 글자 그대로 (변이 시험용). 저장소 루트가 아니면 비어 있고 0절이 FAIL 한다
 \set def_text `cat db/14_stats_calendar_def.sql`
+\set rank_text `cat db/13_calc_attention_rank_def.sql`
 
 -- 판정 표식: 트랜잭션이 되돌아가도 남는 임시 시퀀스 (1 = 미완료 또는 실패, 2 = 1–8절 통과·흔적 확인 대기, 0 = 최종 통과)
 CREATE TEMP SEQUENCE IF NOT EXISTS zz_verdict MINVALUE 0 START 1;
@@ -104,14 +109,16 @@ EXCEPTION
 END $$;
 
 -- 정의 파일 글자 그대로를 담는다 (psql 이 :'def_text' 를 알맞게 인용한다)
-CREATE TEMP TABLE zz_def AS SELECT :'def_text'::text AS txt;
+-- txt drops the \ir line (EXECUTE cannot run a psql meta-command); rank_txt is the shared rank definition
+CREATE TEMP TABLE zz_def AS
+SELECT replace(:'def_text'::text, E'\\ir 13_calc_attention_rank_def.sql\n', '') AS txt, :'rank_text'::text AS rank_txt;
 
 -- 변이 프로시저: 정의 글자를 [바꿀 글자, 새 글자, …] 쌍으로 바꾸고 stat_ 을 zzm_ 으로 고쳐 다시 만든 뒤 시험 접두사를 zzm 으로 바꾼다.
 --   바꿀 글자가 정의에 없으면 오류 (변이가 헛돌지 않게). 새 글자도 stat_ 이름으로 적는다.
 CREATE PROCEDURE pg_temp.mutate(p_pairs text[])
 LANGUAGE plpgsql AS $$
 DECLARE
-    v_txt text := (SELECT txt FROM zz_def);
+    v_txt text := (SELECT rank_txt FROM zz_def) || E'\n' || (SELECT txt FROM zz_def);
     i     integer;
 BEGIN
     FOR i IN 1 .. array_length(p_pairs, 1) BY 2 LOOP
@@ -120,7 +127,7 @@ BEGIN
         END IF;
         v_txt := replace(v_txt, p_pairs[i], p_pairs[i + 1]);
     END LOOP;
-    EXECUTE replace(v_txt, 'stat_', 'zzm_');
+    EXECUTE replace(replace(v_txt, 'stat_', 'zzm_'), 'attn_rank', 'zzm_rank');
     UPDATE zz_cfg SET pfx = 'zzm';
 END $$;
 
@@ -129,6 +136,8 @@ END $$;
 
 -- 0절 대조용: cat 으로 읽은 글자를 이름만 zzi_ 로 바꿔 만든다 (\ir 로 읽은 정의와 같은 파일인지 본다)
 DO $$ BEGIN IF length((SELECT txt FROM zz_def)) > 1000 THEN EXECUTE replace((SELECT txt FROM zz_def), 'stat_', 'zzi_'); END IF; END $$;
+-- same for the rank definition (only the view name changes; zzi_ stat views above still read the real attn_rank)
+DO $$ BEGIN IF length((SELECT rank_txt FROM zz_def)) > 300 THEN EXECUTE replace((SELECT rank_txt FROM zz_def), 'attn_rank', 'zzi_rank'); END IF; END $$;
 
 -- 독립 계산 -----------------------------------------------------------------------
 -- 시리즈: 기준일 풀의 종목 + 환율 (정의와 다른 문자열 조립)
@@ -529,7 +538,12 @@ BEGIN
     RETURN v;
 END $$;
 
--- 정점 뷰가 읽는 표 집합과 지수·풀·종목·달 4개 표의 대칭차 크기 (P0-18 이 이 뷰를 피드 입력으로 쓰므로 같은 달 수익률 같은 지수 밖 입력을 막는다)
+-- Peak view dependencies. Walks pg_depend from the peak view through the views it uses (the shared rank view included) and returns
+--   (a) the symmetric difference between the tables it reads and the four tables it may read (asset, asset_position, asset_month_attention, month_block),
+--       compared as OIDs of public.<name>: a same-named table in another schema counts as one extra and one missing, and
+--   (b) the number of distinct functions outside pg_catalog that the walked views depend on (built-ins leave no pg_depend row, so a real definition has 0;
+--       a user function can read next month's data inside its body, which the table walk cannot see).
+-- P0-18 feeds from this view, so input from outside the attention index (for example next month's return) must stay blocked.
 CREATE FUNCTION pg_temp.peak_dep_diff() RETURNS bigint
 LANGUAGE sql AS $$
     WITH RECURSIVE walk(oid) AS (
@@ -541,17 +555,28 @@ LANGUAGE sql AS $$
         JOIN pg_depend d ON d.classid = 'pg_rewrite'::regclass AND d.objid = rw.oid AND d.refclassid = 'pg_class'::regclass
         WHERE d.refobjid <> w.oid
     ), tbl AS (
-        SELECT c.relname::text AS name
+        SELECT w.oid
         FROM walk w JOIN pg_class c ON c.oid = w.oid
         WHERE c.relkind IN ('r', 'p', 'm', 'f')
-    ), want(name) AS (
-        VALUES ('asset'), ('asset_position'), ('asset_month_attention'), ('month_block')
+    ), want AS (
+        SELECT to_regclass('public.' || n)::oid AS oid
+        FROM unnest(ARRAY['asset', 'asset_position', 'asset_month_attention', 'month_block']) AS n
+    ), fn AS (
+        SELECT DISTINCT d.refobjid
+        FROM walk w
+        JOIN pg_rewrite rw ON rw.ev_class = w.oid
+        JOIN pg_depend d ON d.classid = 'pg_rewrite'::regclass AND d.objid = rw.oid AND d.refclassid = 'pg_proc'::regclass
+        JOIN pg_proc p ON p.oid = d.refobjid
+        JOIN pg_namespace n ON n.oid = p.pronamespace
+        WHERE n.nspname <> 'pg_catalog'
     )
-    SELECT (SELECT count(*) FROM tbl WHERE name NOT IN (SELECT name FROM want))
-         + (SELECT count(*) FROM want WHERE name NOT IN (SELECT name FROM tbl))
+    SELECT (SELECT count(*) FROM (SELECT oid FROM tbl EXCEPT SELECT oid FROM want) a)
+         + (SELECT count(*) FROM (SELECT oid FROM want EXCEPT SELECT oid FROM tbl) b)
+         + (SELECT count(*) FROM fn)
 $$;
 
--- 뷰가 읽는 실제 표 집합과 기대 집합(역사 7개)의 대칭차 크기 (시즌·계좌 표를 읽으면 늘어난다). 뷰 → 뷰 → 표로 pg_depend 를 따라간다
+-- Same walk from all seven board views against the seven history tables (OID sets) plus the user-function count. Reading a season or account
+-- table, a same-named table in another schema, or a user function makes the result non-zero.
 CREATE FUNCTION pg_temp.dep_diff() RETURNS bigint
 LANGUAGE sql AS $$
     WITH RECURSIVE root AS (
@@ -566,15 +591,49 @@ LANGUAGE sql AS $$
         JOIN pg_depend d ON d.classid = 'pg_rewrite'::regclass AND d.objid = rw.oid AND d.refclassid = 'pg_class'::regclass
         WHERE d.refobjid <> w.oid
     ), tbl AS (
-        SELECT c.relname::text AS name
+        SELECT w.oid
         FROM walk w JOIN pg_class c ON c.oid = w.oid
         WHERE c.relkind IN ('r', 'p', 'm', 'f')
-    ), want(name) AS (
-        VALUES ('asset'), ('asset_position'), ('month_block'), ('asset_month_return'), ('fx_month'), ('month_event'), ('asset_month_attention')
+    ), want AS (
+        SELECT to_regclass('public.' || n)::oid AS oid
+        FROM unnest(ARRAY['asset', 'asset_position', 'month_block', 'asset_month_return', 'fx_month', 'month_event', 'asset_month_attention']) AS n
+    ), fn AS (
+        SELECT DISTINCT d.refobjid
+        FROM walk w
+        JOIN pg_rewrite rw ON rw.ev_class = w.oid
+        JOIN pg_depend d ON d.classid = 'pg_rewrite'::regclass AND d.objid = rw.oid AND d.refclassid = 'pg_proc'::regclass
+        JOIN pg_proc p ON p.oid = d.refobjid
+        JOIN pg_namespace n ON n.oid = p.pronamespace
+        WHERE n.nspname <> 'pg_catalog'
     )
-    SELECT (SELECT count(*) FROM tbl WHERE name NOT IN (SELECT name FROM want))
-         + (SELECT count(*) FROM want WHERE name NOT IN (SELECT name FROM tbl))
+    SELECT (SELECT count(*) FROM (SELECT oid FROM tbl EXCEPT SELECT oid FROM want) a)
+         + (SELECT count(*) FROM (SELECT oid FROM want EXCEPT SELECT oid FROM tbl) b)
+         + (SELECT count(*) FROM fn)
 $$;
+
+-- Leak-guard mutations (negative cases). Both keep every output row identical, so only the dependency check can catch them.
+-- (1) the rank view reads a table of the same name from another schema (a copy of public.asset)
+CREATE PROCEDURE pg_temp.mut_other_schema()
+LANGUAGE plpgsql AS $$
+BEGIN
+    CREATE SCHEMA zz_other;
+    CREATE TABLE zz_other.asset AS TABLE public.asset;
+    CALL pg_temp.mutate(ARRAY['JOIN asset s ON s.id = p.asset_id', 'JOIN zz_other.asset s ON s.id = p.asset_id']);
+END $$;
+
+-- (2) the rank ordering calls a pg_temp function that reads next month's return; multiplied by 0, so ranks do not change
+CREATE PROCEDURE pg_temp.mut_user_fn()
+LANGUAGE plpgsql AS $$
+BEGIN
+    CREATE FUNCTION pg_temp.zz_next_ret(p_asset bigint, p_month date) RETURNS numeric
+    LANGUAGE sql STABLE AS $f$
+        SELECT r2.local_return
+        FROM asset_month_return r2 JOIN month_block nb ON nb.id = r2.month_block_id
+        WHERE r2.asset_id = p_asset AND nb.month_start = (p_month + INTERVAL '1 month')::date
+    $f$;
+    CALL pg_temp.mutate(ARRAY['ORDER BY a.attention_index DESC) AS attention_rank',
+                              'ORDER BY a.attention_index + 0 * COALESCE(pg_temp.zz_next_ret(a.asset_id, mb.month_start), 0) DESC) AS attention_rank']);
+END $$;
 
 -- 0 전제 -------------------------------------------------------------------
 -- 하나라도 FAIL 이면 1절 이후 결과를 믿지 않는다.
@@ -594,7 +653,12 @@ FROM (VALUES
           WHERE n.nspname = 'public' AND c.relname LIKE 'zz\_%')
        + (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
           WHERE n.nspname = 'public' AND p.proname LIKE 'zz\_%'))::text),
-    ('정의 파일을 글자 그대로 읽었다 (저장소 루트에서 실행했다 — 변이 시험 재료)', 'true', (SELECT (length(txt) > 1000 AND position('CREATE TEMP VIEW stat_board' IN txt) > 0)::text FROM zz_def)),
+    ('정의 파일을 글자 그대로 읽었다 (저장소 루트에서 실행했다 — 변이 시험 재료)', 'true', (SELECT (length(txt) > 1000 AND position('CREATE TEMP VIEW stat_board' IN txt) > 0 AND position(E'\n\\ir ' IN E'\n' || txt) = 0)::text FROM zz_def)),
+    ('순위 정의 파일(13_calc_attention_rank_def.sql)을 글자 그대로 읽었고 \ir 로 임시 뷰 attn_rank 가 만들어졌다', 'true',
+        (SELECT (length(rank_txt) > 300 AND position('CREATE TEMP VIEW attn_rank' IN rank_txt) > 0 AND to_regclass('pg_temp.attn_rank') IS NOT NULL)::text FROM zz_def)),
+    ('cat 으로 읽은 순위 정의와 \ir 로 읽은 순위 정의가 같은 파일이다 (attn_rank 의 정의 글자가 같다)', 'true',
+        (SELECT (to_regclass('pg_temp.zzi_rank') IS NOT NULL AND to_regclass('pg_temp.attn_rank') IS NOT NULL
+                 AND pg_get_viewdef(to_regclass('pg_temp.zzi_rank'), true) = pg_get_viewdef(to_regclass('pg_temp.attn_rank'), true))::text)),
     ('정의 파일을 \ir 로 읽었다 (임시 뷰 stat_k · stat_series · stat_month · stat_peak · stat_fwd · stat_obs · stat_board 7개)', '7',
         (SELECT count(*)::text FROM unnest(ARRAY['stat_k', 'stat_series', 'stat_month', 'stat_peak', 'stat_fwd', 'stat_obs', 'stat_board']) AS v WHERE to_regclass('pg_temp.' || v) IS NOT NULL)),
     ('cat 으로 읽은 정의와 \ir 로 읽은 정의가 같은 파일이다 (뷰 7개의 정의 글자가 같다 — 다른 체크아웃에서 실행하면 어긋난다)', '7',
@@ -732,13 +796,13 @@ INSERT INTO zz_q (code, section, item, sql) VALUES
      $q$SELECT (SELECT count(*) FROM {pfx}_obs WHERE (anchor_month + make_interval(months => horizon::integer))::date >= make_date(EXTRACT(YEAR FROM base_date)::integer, 1, 1))
              + (SELECT count(*) FROM {pfx}_peak WHERE month_start >= make_date(EXTRACT(YEAR FROM base_date)::integer, 1, 1))
              + pg_temp.cutoff_count()$q$),
-    ('PEAK_NO_FUTURE', '5 누출', '기준 달 M 뒤 지수를 바꾸거나 지운 상태에서 정점 판정을 다시 했을 때 M 이하 행이 변이 전과 다르거나 한쪽에만 있는 수 (사례 7개 달 × 변이 3종의 합) + 정점 뷰가 지수·풀·종목·달 표 밖을 읽는 수',
+    ('PEAK_NO_FUTURE', '5 누출', '기준 달 M 뒤 지수를 바꾸거나 지운 상태에서 정점 판정을 다시 했을 때 M 이하 행이 변이 전과 다르거나 한쪽에만 있는 수 (사례 7개 달 × 변이 3종의 합) + 정점 뷰가 읽는 표 OID 집합과 지수·풀·종목·달 4개 표 OID 집합의 대칭차 + 정점 뷰가 의존하는 pg_catalog 밖 함수 수',
      $q$SELECT pg_temp.pk_count('cut') + pg_temp.peak_dep_diff()$q$),
     ('PEAK_MOVED', '5 누출', '기준 달 M 뒤 행이 하나도 달라지지 않은 사례 수 (시험이 헛돌지 않는다 — 변이가 M 뒤 행에 닿는다)',
      $q$SELECT pg_temp.pk_count('moved')$q$),
     ('PEAK_TEETH', '5 누출', '일부러 다음 달 지수를 섞어 순위를 매기는 정의(샌 변이)를 같은 시험이 잡지 못한 경우 (잡으면 0, 못 잡으면 1)',
      $q$SELECT pg_temp.peak_teeth()$q$),
-    ('SEASON_ISOLATION', '5 누출', '뷰가 (뷰를 따라가 최종적으로) 읽는 표 집합과 역사 7개 표(asset, asset_position, month_block, asset_month_return, fx_month, month_event, asset_month_attention)의 대칭차 크기 (시즌·계좌 표를 읽으면 늘어난다)',
+    ('SEASON_ISOLATION', '5 누출', '뷰가 (뷰를 따라가 최종적으로) 읽는 표 OID 집합과 역사 7개 표(public 의 asset, asset_position, month_block, asset_month_return, fx_month, month_event, asset_month_attention) OID 집합의 대칭차 크기 + 뷰가 의존하는 pg_catalog 밖 함수 수 (시즌·계좌 표, 다른 스키마의 동명 표, 사용자 함수를 읽으면 늘어난다)',
      $q$SELECT pg_temp.dep_diff()$q$),
     ('NO_PER_OBS', '5 누출', '보드 열이 기대한 10개(base_date·kind·cond_key·subject·horizon·n·n_up·mean_return·up_prob·sample_note)와 타입까지 다르면 1 — 날짜 열은 base_date 하나뿐이고 연도·개별 관측값 열이 없다',
      $q$SELECT ((SELECT string_agg(a.attname || ':' || format_type(a.atttypid, a.atttypmod), ',' ORDER BY a.attnum)
@@ -818,17 +882,25 @@ INSERT INTO zz_neg (q, label, mutate, expect, cmp, alt) VALUES
      $m$CALL pg_temp.mutate(ARRAY['SUM(o.ret)::numeric(60,40)', 'SUM(ROUND(o.ret, 8))::numeric(60,40)'])$m$, '1', 'ge', NULL),
     ('CUTOFF_YEAR', '정의가 기준일이 속한 해의 달까지 쓰면 (올해 제외를 1년 늦추면)',
      $m$CALL pg_temp.mutate(ARRAY['mb.month_start < date_trunc(''year'', s.base_date::timestamp)::date', 'mb.month_start < (date_trunc(''year'', s.base_date::timestamp) + INTERVAL ''1 year'')::date',
-                                  'mb.month_start < date_trunc(''year'', p.base_date::timestamp)::date', 'mb.month_start < (date_trunc(''year'', p.base_date::timestamp) + INTERVAL ''1 year'')::date'])$m$, '1', 'ge', NULL),
+                                  'r.month_start < date_trunc(''year'', r.base_date::timestamp)::date', 'r.month_start < (date_trunc(''year'', r.base_date::timestamp) + INTERVAL ''1 year'')::date'])$m$, '1', 'ge', NULL),
     ('PEAK_NO_FUTURE', '정점 순위가 다음 달 지수를 섞으면 (zz_leak: 다음 달 값을 읽는 변이)',
      $m$CALL pg_temp.mut_leak()$m$, '1', 'ge', NULL),
     ('PEAK_NO_FUTURE', '정점 순위가 다음 달 수익률을 섞으면 (지수 밖의 표를 읽는 정점 정의)',
      $m$CALL pg_temp.mutate(ARRAY['ORDER BY a.attention_index DESC) AS attention_rank', 'ORDER BY a.attention_index + COALESCE((SELECT r2.local_return FROM asset_month_return r2 JOIN month_block nb ON nb.id = r2.month_block_id WHERE r2.asset_id = a.asset_id AND nb.month_start = (mb.month_start + INTERVAL ''1 month'')::date), 0) DESC) AS attention_rank'])$m$, '1', 'ge', NULL),
+    ('PEAK_NO_FUTURE', '정점 정의가 다른 스키마의 동명 표(asset 의 복사본)를 읽으면 (결과 행은 같다 — 이름이 아니라 표 OID 로 잡는다)',
+     $m$CALL pg_temp.mut_other_schema()$m$, '2', 'eq', NULL),
+    ('PEAK_NO_FUTURE', '정점 정의가 다음 달 수익률을 읽는 pg_temp 함수를 부르면 (0 을 곱해 결과 행은 같다 — 표 집합은 그대로이고 함수 의존으로 잡는다)',
+     $m$CALL pg_temp.mut_user_fn()$m$, '1', 'eq', NULL),
     ('PEAK_MOVED', '기준 달 목록에 마지막 달을 더하면 (뒤에 바뀔 행이 없어 시험이 헛돈다 — 변이 3종 모두)',
      $m$INSERT INTO zz_pk_m SELECT max(month_start) FROM month_block$m$, '3', 'eq', NULL),
     ('PEAK_TEETH', '샌 변이가 다음 달 지수를 섞지 않게 하면 (시험이 잡을 것이 없다)',
      $m$UPDATE zz_cfg SET leak_scale = 0$m$, '1', 'eq', NULL),
     ('SEASON_ISOLATION', '정의가 season 표를 조인하면 (시즌에 연결된 보드)',
      $m$CALL pg_temp.mutate(ARRAY['JOIN asset a ON a.id = p.asset_id', 'JOIN asset a ON a.id = p.asset_id AND (SELECT count(*) FROM season) >= 0'])$m$, '1', 'ge', NULL),
+    ('SEASON_ISOLATION', '정점 정의가 다른 스키마의 동명 표(asset 의 복사본)를 읽으면 (보드의 다른 뷰는 public.asset 을 읽는다)',
+     $m$CALL pg_temp.mut_other_schema()$m$, '1', 'eq', NULL),
+    ('SEASON_ISOLATION', '정점 정의가 다음 달 수익률을 읽는 pg_temp 함수를 부르면',
+     $m$CALL pg_temp.mut_user_fn()$m$, '1', 'eq', NULL),
     ('NO_PER_OBS', '정의가 보드에 가장 이른 관측 달 열을 더하면',
      $m$CALL pg_temp.mutate(ARRAY['THEN ''일화'' END AS sample_note', 'THEN ''일화'' END AS sample_note, min(o.anchor_month) AS first_month'])$m$, '1', 'eq', NULL),
     ('PEAK_RULE', '정의의 RANK() 를 DENSE_RANK() 로 바꾸면 (동률 뒤 순위가 달라진다)',
@@ -836,9 +908,9 @@ INSERT INTO zz_neg (q, label, mutate, expect, cmp, alt) VALUES
     ('PEAK_RULE', '정의의 NULL 제외 조건을 빼면',
      $m$CALL pg_temp.mutate(ARRAY['WHERE a.attention_index IS NOT NULL', 'WHERE TRUE'])$m$, '1', 'ge', NULL),
     ('PEAK_RULE', '정의의 정점 상한을 FLOOR 로 바꾸면 (순위 대상 15개 달에서 정점이 줄어든다)',
-     $m$CALL pg_temp.mutate(ARRAY['CEIL(k.peak_q * t.n_ranked)', 'FLOOR(k.peak_q * t.n_ranked)'])$m$, '1', 'ge', NULL),
+     $m$CALL pg_temp.mutate(ARRAY['CEIL(k.top_q * t.n_ranked)', 'FLOOR(k.top_q * t.n_ranked)'])$m$, '1', 'ge', NULL),
     ('PEAK_RULE', '정의의 정점 비율을 0.20 으로 바꾸면',
-     $m$CALL pg_temp.mutate(ARRAY['0.10::numeric        AS peak_q', '0.20::numeric        AS peak_q'])$m$, '1', 'ge', NULL),
+     $m$CALL pg_temp.mutate(ARRAY['0.10::numeric AS top_q', '0.20::numeric AS top_q'])$m$, '1', 'ge', NULL),
     ('NO_FLOAT_NAN', '정의가 달 구하기에 date_part(double precision)를 쓰면 (값은 같고 타입만 다르다)',
      $m$CALL pg_temp.mutate(ARRAY['lpad(EXTRACT(MONTH FROM m.month_start)::text, 2, ''0'')', 'lpad(date_part(''month'', m.month_start)::text, 2, ''0'')'])$m$, '1', 'ge', NULL),
     ('NO_FLOAT_NAN', '정의가 평균을 float8 로 내면',

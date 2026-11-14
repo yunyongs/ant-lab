@@ -6,13 +6,14 @@
 --       출력과 검증이 같은 정의를 쓰므로 검증이 복사본이 아니라 실제 정의를 시험한다.
 -- 만드는 것: 세션 임시 뷰 7개. 트랜잭션 문 없음, 테이블 쓰기 없음, 읽기 전용 정의. 저장하지 않고 읽을 때 계산한다 (PLAN §5.1 "테이블 없음").
 --       읽는 표는 역사 7개뿐이다: asset, asset_position, month_block, asset_month_return, fx_month, month_event, asset_month_attention.
+--       Rank lookup R is not defined here: this file reads it with \ir from db/13_calc_attention_rank_def.sql (temp view attn_rank, one definition).
 --       시즌·계좌 표(erd 6·7절)는 읽지 않는다. 통계 보드는 시즌과 연결되지 않는다 (PLAN §4.11).
 -- 뷰 (의존 순서):
---   stat_k       상수 한 줄: 최소 n 5, 일화 상한 10, 정점 비율 q 0.10, 앞 창 {1, 3}개월
+--   stat_k       상수 한 줄: 최소 n 5, 일화 상한 10, 앞 창 {1, 3}개월 (정점 비율 q 는 attn_rank 한 곳)
 --   stat_series  (base_date, subject, series_kind, asset_id, market, currency)  기준일 풀의 종목 전부 + 환율 'FX:USD'
 --   stat_month   (base_date, subject, month_start, ret)  시리즈별 달 수익률 (현지 통화), 기준일이 속한 해 이전의 달만 (A1)
 --   stat_peak    (base_date, month_block_id, month_start, asset_id, market, attention_index, attention_rank, n_ranked, is_peak)
---                관심 정점 판정. 그 달 이하의 값만 읽는다 (미래 열 없음 — P0-18 이 \ir 로 재사용할 수 있다)
+--                attn_rank plus the year cut only (this base date's year and later are dropped). Reads the month's own values only (no future column).
 --   stat_fwd     (base_date, subject, anchor_month, horizon, ret)  기준 달 뒤 h개월 누적 수익률. 달이 하나라도 비면 관측 없음
 --   stat_obs     (base_date, kind, cond_key, subject, horizon, anchor_month, ret)  관측 하나가 한 줄. n 으로 거르지 않는다 [내부 — 화면·DTO 로 내지 않는다]
 --   stat_board   (base_date, kind, cond_key, subject, horizon, n, n_up, mean_return, up_prob, sample_note)  n >= 5 만, 반올림 한 번
@@ -45,11 +46,13 @@ DO $$ BEGIN
     IF to_regclass('pg_temp.stat_k')      IS NOT NULL THEN DROP VIEW pg_temp.stat_k;      END IF;
 END $$;
 
+-- Rank lookup R (temp view attn_rank). Read after the drops above: attn_rank is dropped and recreated there, and stat_peak depends on it.
+\ir 13_calc_attention_rank_def.sql
+
 -- 상수 (표본에서 정하지 않은 고정값. 바꾸면 erd D34 도 바꾼다). 검증 파일은 독립 확인용으로 따로 적었다
 CREATE TEMP VIEW stat_k AS
 SELECT 5                    AS min_n,        -- 이보다 작은 n 은 보드에 내지 않는다 (PLAN §4.11)
        10                   AS anecdote_n,   -- 이보다 작으면 '일화' 표시 (PLAN §13)
-       0.10::numeric        AS peak_q,       -- 관심 정점 = 상위 10% (erd 5.3 순위 조회 R)
        ARRAY[1, 3]          AS horizons;     -- 기준 달 뒤 몇 개월 (재귀 CTE 가 이 값으로 돈다)
 
 -- A2 시리즈: 기준일마다 그 기준일 풀의 종목 + 환율
@@ -79,22 +82,13 @@ JOIN month_block mb ON mb.id = f.month_block_id
 WHERE s.series_kind = 'FX'
   AND mb.month_start < date_trunc('year', s.base_date::timestamp)::date;
 
--- A10 관심 정점 판정 (erd 5.3 순위 조회 R 을 그대로): 기준일 풀 중 지수가 있는 행의 달별 RANK() 가 CEIL(q × 순위 대상 수) 이하이면 정점이다.
---   경계 동률은 모두 정점. 한 달의 순위는 그 달의 저장값만으로 정해진다 (m + 1 이후 값을 읽지 않는다).
+-- A10 peak = attn_rank.is_top_q (erd 5.3 rank lookup R) restricted by A1: months before the base date's year only.
+--   The rank of a month depends on that month's stored values only, so cutting months afterwards does not change any rank.
 CREATE TEMP VIEW stat_peak AS
-SELECT t.base_date, t.month_block_id, t.month_start, t.asset_id, t.market, t.attention_index,
-       t.attention_rank::integer AS attention_rank, t.n_ranked::integer AS n_ranked,
-       t.attention_rank <= CEIL(k.peak_q * t.n_ranked) AS is_peak
-FROM (SELECT p.base_date, a.month_block_id, mb.month_start, a.asset_id, s.market::text AS market, a.attention_index,
-             RANK() OVER (PARTITION BY p.base_date, a.month_block_id ORDER BY a.attention_index DESC) AS attention_rank,
-             COUNT(*) OVER (PARTITION BY p.base_date, a.month_block_id) AS n_ranked
-      FROM asset_position p
-      JOIN asset s ON s.id = p.asset_id
-      JOIN asset_month_attention a ON a.asset_id = p.asset_id
-      JOIN month_block mb ON mb.id = a.month_block_id
-      WHERE a.attention_index IS NOT NULL
-        AND mb.month_start < date_trunc('year', p.base_date::timestamp)::date) t
-CROSS JOIN stat_k k;
+SELECT r.base_date, r.month_block_id, r.month_start, r.asset_id, r.market, r.attention_index,
+       r.attention_rank, r.n_ranked, r.is_top_q AS is_peak
+FROM attn_rank r
+WHERE r.month_start < date_trunc('year', r.base_date::timestamp)::date;
 
 -- A4 앞 창: 기준 달 m 뒤 j개월까지의 누적 곱을 재귀로 쌓는다. 한 걸음마다 "m + j개월 달이 있는 행"에 내부 조인하므로
 --   중간 달이 하나라도 비면 사슬이 거기서 끊겨 그 뒤의 h 는 나오지 않는다 (부분 창 없음).
