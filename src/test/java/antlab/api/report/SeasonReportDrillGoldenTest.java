@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import antlab.history.MonthBlockRepository;
 import antlab.season.SeedGenerator;
+import antlab.support.DefaultBearerConfig;
 import antlab.support.DeferredPathSource;
 import antlab.support.RowSet;
 import antlab.support.RowSet.ColumnType;
@@ -14,6 +15,8 @@ import antlab.support.SqlGoldenHarness;
 import antlab.support.SqlGoldenHarness.DatabaseHandle;
 import antlab.support.SqlGoldenScenario;
 import antlab.support.TeamBuyGoldenSeason;
+import antlab.support.TestMembers;
+import antlab.support.TestTokens;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Set;
@@ -30,6 +33,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.context.ActiveProfiles;
@@ -45,8 +49,9 @@ import tools.jackson.databind.JsonNode;
  * 불일치 행 &gt; 0, 대사 묶음 = 경로 길이 + 실패 횟수(10 + 1), 두 DB 모두 턴 1..10 마다 17행 일치 묶음이 정확히 하나.
  */
 @Tag("sql-golden")
-@SpringBootTest(properties = {"antlab.single-member.email=phase0@example.invalid", "antlab.single-member.name=연습 감독"})
+@SpringBootTest(properties = {"antlab.test.default-member.email=phase0@example.invalid", "antlab.test.default-member.name=연습 감독"})
 @AutoConfigureMockMvc
+@Import({TestTokens.class, DefaultBearerConfig.class, TestMembers.class})
 @ActiveProfiles({"test", "local"})
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @EnabledIf("sampleAvailable")
