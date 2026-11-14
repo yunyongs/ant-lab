@@ -22,7 +22,9 @@ npm run dev
 ```
 
 Open <http://localhost:5173>. Always use `localhost`, not `127.0.0.1`: cookies are stored per host, so mixing the two loses the session later. In development React StrictMode runs effects twice, so the API log shows two `/api/v1/pool` calls; that is expected.
+The dev server uses port 5173 and refuses to start if it is taken; pick another with `npm run dev -- --port 5174` and open that port on `localhost` instead.
 <http://localhost:5173>을 연다. 항상 `localhost`로 열고 `127.0.0.1`은 쓰지 않는다. 쿠키가 호스트별로 저장되어 섞어 쓰면 나중에 로그인이 사라진다. 개발 모드에서는 React StrictMode가 효과를 두 번 실행하므로 API 로그에 `/api/v1/pool` 호출이 두 번 보이는 것이 정상이다.
+개발 서버는 5173 포트를 쓰고 이미 쓰이고 있으면 시작하지 않는다. `npm run dev -- --port 5174`처럼 다른 포트를 정하고 `localhost`의 그 포트를 연다.
 
 ## Scripts / 스크립트
 
@@ -68,13 +70,13 @@ Only `/api` is forwarded, unchanged, to `http://127.0.0.1:8080`. For an API on a
 - 호출이 401이면 클라이언트가 한 번 갱신하고 같은 호출을 다시 보낸다. 다시 401이면 로그인 화면으로 간다. 서버는 회전된 갱신 토큰을 두 번 쓰면 도난으로 보고 로그인을 끝내므로, 갱신·로그인·로그아웃은 Web Locks API로 탭 사이에서도 한 번에 하나씩 실행한다.
 - Logging out in one tab logs out every open tab.
 - 한 탭에서 로그아웃하면 열린 탭이 모두 로그아웃된다.
-- Until the API checks bearer tokens (SEC-04) and uses the logged-in member (SEC-05), season calls work with or without a login and act as the fixed member.
-- API가 Bearer 토큰을 검사하고(SEC-04) 로그인한 회원을 쓰기(SEC-05) 전까지 시즌 호출은 로그인과 상관없이 동작하며 고정 회원으로 처리된다.
+- Season calls need the login: the API checks the bearer token (SEC-04) and each member sees only their own seasons (SEC-05).
+- 시즌 호출에는 로그인이 필요하다. API가 Bearer 토큰을 검사하고(SEC-04) 회원마다 자기 시즌만 본다(SEC-05).
 
 ## Play / 플레이
 
-- The home page lists your seasons with their status and current turn. **새 시즌 시작** opens the start form: pick a risk limit (−10 to −40 %), set the four formation shares (whole numbers, sum 100, goalkeeper at least 1) and a length of 12, 24 or 60 turns.
-- 홈 화면에 내 시즌이 상태·현재 턴과 함께 나온다. **새 시즌 시작**을 누르면 시작 폼이 열린다. 위험 선언(−10~−40%)을 고르고, 포메이션 네 칸(정수, 합 100, 골키퍼 1 이상)과 길이(12·24·60턴)를 정한다.
+- The home page lists your seasons with their status and current turn. On your first login it shows the link **첫 시즌 시작** instead; once you have a season, the link **새 시즌 시작** is on the list. Either one opens the start form: pick a risk limit (−10 to −40 %), set the four formation shares (whole numbers, sum 100, goalkeeper at least 1) and a length of 12, 24 or 60 turns.
+- 홈 화면에 내 시즌이 상태·현재 턴과 함께 나온다. 처음 로그인하면 링크 **첫 시즌 시작**이 나오고, 시즌이 생긴 뒤에는 목록의 링크 **새 시즌 시작**을 쓴다. 어느 쪽이든 시작 폼이 열린다. 위험 선언(−10~−40%)을 고르고, 포메이션 네 칸(정수, 합 100, 골키퍼 1 이상)과 길이(12·24·60턴)를 정한다.
 - Money and ratios are shown exactly as the API sends them (decimal strings); the app only adds thousands separators and percent signs.
 - 금액과 비율은 API가 보낸 문자열 그대로 보여 준다. 앱은 천 단위 구분 기호와 퍼센트 표시만 더한다.
 - At turn 0 the season page shows the asset pool with each asset's system position and its basis. Tap **선택** to buy: choose a declared position for a new holding and a whole-number quantity. After each buy the page shows the server's fill (price, amount, fee, cash) and the refreshed weights against your formation; nothing is estimated in the browser.
