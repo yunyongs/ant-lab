@@ -1,7 +1,7 @@
 # web — one-season web app / 한 판 웹 앱
 
-TypeScript React app built with Vite. It has the app shell, router, API status line and dev proxy (WEB-01), the typed API client (WEB-02), and signup, login and session handling (WEB-03).
-Vite로 빌드하는 TypeScript React 앱이다. 앱 틀·라우터·API 상태 한 줄·개발 프록시(WEB-01), 타입 있는 API 클라이언트(WEB-02), 가입·로그인·세션 처리(WEB-03)가 들어 있다.
+TypeScript React app built with Vite. It has the app shell, router, API status line and dev proxy (WEB-01), the typed API client (WEB-02), signup, login and session handling (WEB-03), the season list and season start (WEB-04), team building at turn 0 (WEB-05), turn advance with the turn result (WEB-06), between-turn trading and formation change (WEB-07), the report card of a finished season (WEB-08), and the season review (WEB-09).
+Vite로 빌드하는 TypeScript React 앱이다. 앱 틀·라우터·API 상태 한 줄·개발 프록시(WEB-01), 타입 있는 API 클라이언트(WEB-02), 가입·로그인·세션 처리(WEB-03), 시즌 목록·시즌 시작(WEB-04), 0턴 팀 구성(WEB-05), 턴 넘기기와 턴 결과(WEB-06), 턴 사이 매매·전술 변경(WEB-07), 끝난 시즌의 성적표(WEB-08), 시즌 복기(WEB-09)가 들어 있다.
 
 ## Prerequisites / 준비
 
@@ -69,6 +69,23 @@ Only `/api` is forwarded, unchanged, to `http://127.0.0.1:8080`. For an API on a
 - 한 탭에서 로그아웃하면 열린 탭이 모두 로그아웃된다.
 - Until the API checks bearer tokens (SEC-04) and uses the logged-in member (SEC-05), season calls work with or without a login and act as the fixed member.
 - API가 Bearer 토큰을 검사하고(SEC-04) 로그인한 회원을 쓰기(SEC-05) 전까지 시즌 호출은 로그인과 상관없이 동작하며 고정 회원으로 처리된다.
+
+## Play / 플레이
+
+- The home page lists your seasons with their status and current turn. **새 시즌 시작** opens the start form: pick a risk limit (−10 to −40 %), set the four formation shares (whole numbers, sum 100, goalkeeper at least 1) and a length of 12, 24 or 60 turns.
+- 홈 화면에 내 시즌이 상태·현재 턴과 함께 나온다. **새 시즌 시작**을 누르면 시작 폼이 열린다. 위험 선언(−10~−40%)을 고르고, 포메이션 네 칸(정수, 합 100, 골키퍼 1 이상)과 길이(12·24·60턴)를 정한다.
+- Money and ratios are shown exactly as the API sends them (decimal strings); the app only adds thousands separators and percent signs.
+- 금액과 비율은 API가 보낸 문자열 그대로 보여 준다. 앱은 천 단위 구분 기호와 퍼센트 표시만 더한다.
+- At turn 0 the season page shows the asset pool with each asset's system position and its basis. Tap **선택** to buy: choose a declared position for a new holding and a whole-number quantity. After each buy the page shows the server's fill (price, amount, fee, cash) and the refreshed weights against your formation; nothing is estimated in the browser.
+- 0턴의 시즌 화면에는 종목 풀이 종목마다 시스템 판정 포지션과 그 근거와 함께 나온다. **선택**을 눌러 산다. 새로 사는 종목은 선언 포지션을 정하고 수량은 정수로 적는다. 살 때마다 서버의 체결 결과(가격·대금·수수료·현금)와 다시 받은 포메이션 대비 비중을 보여 준다. 브라우저에서 미리 계산하는 값은 없다.
+- **다음 턴** sends the current turn number once; the server applies the next month and checks the books before it moves on. The result card shows total value, change, turn return, drawdown and the room left to your risk limit (over the limit is marked, and the season goes on), plus weights against the formation. If the books do not match, nothing changes and you can try again. Earlier turns open from **지난 턴 보기**. After the last turn the season is finished; report and review come next.
+- **다음 턴**은 지금 턴 번호를 한 번만 보낸다. 서버가 다음 달을 적용하고 장부를 맞춰 본 뒤에 턴을 넘긴다. 결과 카드에는 총 평가액·변화·턴 수익률·낙폭·위험 선언까지 남은 여유(넘으면 표시되고 시즌은 계속된다)와 포메이션 대비 비중이 나온다. 장부가 맞지 않으면 아무것도 바뀌지 않고 다시 시도할 수 있다. 지난 턴은 **지난 턴 보기**로 연다. 마지막 턴을 넘기면 시즌이 끝나고 성적표·복기로 이어진다.
+- **매매** shows your live holdings and cash at this turn's prices. Buy more or sell from each holding (never more than you hold), or buy a new asset from the pool. From turn 1 on, **전술 변경** sets a new formation (whole numbers, sum 100, goalkeeper at least 1) with an optional one-line reason; orders placed later in the same turn are tied to that change and show it in their result. A sell shows the realized profit or loss, and selling everything closes that holding. Rebalancing is up to you: the app never places orders for you.
+- **매매**에는 이번 턴 가격 기준의 보유와 현금이 바로 나온다. 보유 종목마다 더 사거나 팔 수 있고(보유한 수량까지만), 종목 풀에서 새 종목을 살 수 있다. 1턴부터는 **전술 변경**으로 새 포메이션(정수, 합 100, 골키퍼 1 이상)과 선택 사유 한 줄을 정한다. 같은 턴에 이어서 낸 주문은 그 변경에 묶이고 체결 결과에 그렇게 표시된다. 매도 결과에는 실현 손익이 나오고, 전량을 팔면 그 종목의 보유가 닫힌다. 비중 맞추기는 직접 한다. 앱이 대신 주문하지 않는다.
+- **성적표** opens after the last turn: results against the benchmark, risk compliance, process (turnover, formation deviation, role fit, encouraged trades, formation changes), costs and the reconciliation record, all as the server computed them. A cell that cannot be computed says why. Before the season ends the screen only says how far the season is.
+- **성적표**는 마지막 턴 뒤에 열린다. 기준선 대비 결과, 위험 준수, 과정(회전율·포메이션 이탈·역할 수행·독려 매매·전술 변경), 비용, 대사 기록을 서버가 계산한 값 그대로 보여 준다. 계산할 수 없는 칸에는 이유가 나온다. 시즌이 끝나기 전에는 시즌이 어디까지 왔는지만 알려 준다.
+- **복기** opens after the last turn and is the only screen with real dates: the year-month behind each turn, that month's summary and events with sources, the value at each turn, your formation changes with their reasons, and the seed, engine version and data date that reproduce the path. Before the season ends it stays closed, because knowing the months would change your decisions.
+- **복기**는 마지막 턴 뒤에 열리며 실제 날짜가 나오는 유일한 화면이다. 각 턴의 실제 연월, 그 달의 요약과 사건(출처 포함), 턴마다의 평가액, 전술 변경과 그 사유, 경로를 다시 만드는 시드·엔진 버전·데이터 기준일이 나온다. 달을 알면 판단이 달라지므로 시즌이 끝나기 전에는 닫혀 있다.
 
 ## Folder layout / 폴더 구조
 

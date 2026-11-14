@@ -43,7 +43,7 @@ describe('SignupPage', () => {
     renderRoute('/signup', { session: 'anonymous' });
     await fill(INPUT);
     expect(
-      await screen.findByRole('heading', { name: '홈' }),
+      await screen.findByRole('heading', { name: '내 시즌' }),
     ).toBeInTheDocument();
     expect(order).toEqual(['signup', 'login']);
     expect(signupBody).toEqual(INPUT);

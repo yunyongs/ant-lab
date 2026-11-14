@@ -6,6 +6,7 @@ import antlab.support.E2eHttp.Reply;
 import antlab.support.RealPortTest;
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpMethod;
 
@@ -31,6 +32,13 @@ class PrometheusEndpointTest extends RealPortTest {
         for (String family : FAMILIES) {
             assertThat(samples(reply.body(), family)).as(family).isNotEmpty();
         }
+    }
+
+    @Test
+    void 엉터리_Authorization_헤더가_있어도_관리_포트_수집은_200이다() {
+        Reply reply = management().send(HttpMethod.GET, "/actuator/prometheus", null, null, "text/plain",
+                Map.of("Authorization", "Bearer garbage"));
+        assertThat(reply.status()).isEqualTo(200);
     }
 
     @Test

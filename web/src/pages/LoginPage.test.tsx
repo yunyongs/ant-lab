@@ -55,7 +55,7 @@ describe('LoginPage', () => {
     renderRoute('/login', { session: 'anonymous' });
     await fillAndSubmit();
     expect(
-      await screen.findByRole('heading', { name: '홈' }),
+      await screen.findByRole('heading', { name: '내 시즌' }),
     ).toBeInTheDocument();
   });
 
@@ -121,7 +121,7 @@ describe('LoginPage', () => {
     const button = screen.getByRole('button', { name: '로그인' });
     expect(button).toBeDisabled();
     await user.click(button);
-    await screen.findByRole('heading', { name: '홈' });
+    await screen.findByRole('heading', { name: '내 시즌' });
     expect(calls).toBe(1);
   });
 
