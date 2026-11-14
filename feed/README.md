@@ -11,7 +11,7 @@
 | `kinds.csv` | 종류 코드 7개 — `turn_feed.kind` CHECK와 글자 단위로 같다 | 7 |
 | `variables.csv` | 문장에 쓸 수 있는 변수(자리) — `turn_feed.template_vars`의 키 | 14 |
 | `templates.csv` | 템플릿(문장 + 선택 속성) | 53 |
-| `denylist.csv` | 금지어와 이유 코드 | 82 |
+| `denylist.csv` | 금지어와 이유 코드 | 86 |
 | `check_templates.sql` | 위 네 파일을 읽어 규칙을 판정하는 검사 | — |
 | `README.md` | 이 문서 | — |
 
@@ -135,7 +135,7 @@
 | `VAR_TARGET` | `asset_name`은 target `ASSET`, `group_name`은 target `GROUP` | 대상과 문장 일치 |
 | `VAR_FUTURE` | 변수의 오프셋 ≤ 0, 이름에 금지 패턴 없음 | 다음 블록 참조 차단 |
 | `VAR_TYPE` | 변수 타입이 네 개 안(빈 칸도 위반) | 절대 수치 타입 차단 |
-| `PARTICLE` | 자리 바로 뒤에 받침에 따라 바뀌는 조사(`이`·`가`·`을`·`를`·`은`·`는`·`과`·`와`·`으로`·`로`·`이나`·`나`)가 단어로 붙지 않음 | 아래 "조사" |
+| `PARTICLE` | Hangul glued directly after a slot must start with one of `의`·`에`(`에서`)·`도`·`만`·`까지`·`부터`·`달`·`위`·`건`·`턴`·`번째`·`째로`; anything else fails. 자리 바로 뒤에 붙은 한글은 이 허용 목록으로 시작할 때만 통과하고, 그 밖은 모두 위반이다 | 아래 "조사" |
 | `DENY_DATE`·`DENY_FUTURE`·`DENY_PROPER`·`DENY_ADVICE`·`DENY_FACT` | `denylist.csv` 단어 0건 | 아래 "금지어" |
 | `ID_FORMAT`·`ID_KIND`·`ID_DUP`·`ID_ACTIVE` | id 형식·길이, 앞 조각 = kind, 중복 0, 같은 slug의 ACTIVE ≤ 1 | |
 | `KIND` | `kind`가 `kinds.csv`에 있음 | |
@@ -154,14 +154,17 @@
 
 ### 조사 (`PARTICLE`)
 
-`{asset_name}이` / `{asset_name}가`처럼 받침에 따라 바뀌는 조사를 자리 뒤에 직접 붙이지 않는다. 종목 이름이 `KODEX 200`·`QQQ`처럼 숫자·라틴으로 끝나면 읽는 법을 몰라 받침을 알 수 없기 때문이다. 기사 제목 문체로 쓴다(`{asset_name} 이달 {ret} — 자금 몰려`). 받침과 무관한 `의`·`에`·`에서`·`도`·`만`·`까지`·`부터`는 쓸 수 있다.
+A slot may be followed directly only by an allow-listed syllable run: `의`, `에` (so `에서`), `도`, `만`, `까지`, `부터`, `달`, `위`, `건`, `턴`, `번째`, `째로`. Any other Hangul glued to a slot fails, so forms that depend on the final consonant (`{x}이`·`{x}가`·`{x}을`) and forms that slip past a deny list (`{x}이다`·`{x}이며`·`{x}과의`) are all caught. Put a space after the slot, or write the headline style. The check is a prefix test: it does not validate the whole word after the prefix.
+자리 바로 뒤에는 위 허용 목록으로 시작하는 한글만 붙일 수 있다. 목록 밖의 한글이 자리에 붙으면 모두 위반이라, 받침에 따라 바뀌는 조사(`{x}이`·`{x}가`·`{x}을`)뿐 아니라 `{x}이다`·`{x}이며`·`{x}과의`도 걸린다. 종목 이름이 `KODEX 200`·`QQQ`처럼 숫자·라틴으로 끝나면 읽는 법을 몰라 받침을 알 수 없기 때문이다. 기사 제목 문체로 쓴다(`{asset_name} 이달 {ret} — 자금 몰려`). 검사는 앞부분만 보며 그 뒤의 낱말 전체는 따지지 않는다.
+
+A unit written right after a slot (`{x}원`, `{x}포인트`) is also reported as `UNIT`, so those cases show both codes. 자리 바로 뒤의 단위(`{x}원`·`{x}포인트`)는 `UNIT`도 함께 보고하므로 두 코드가 같이 나온다.
 
 ### 금지어 (`denylist.csv`)
 
 | reason | 뜻 | 예 |
 |---|---|---|
 | `DATE` | 연도·달력 고유값 | 작년, 올해, 년대, 월요일 |
-| `FUTURE` | 다음 달·예정 같은 **구체 시점** | 다음 달, 내달, 향후, 예정 |
+| `FUTURE` | 다음 달·예정 같은 **구체 시점** (활용형은 줄기로 막는다) | 다음 달, 내달, 향후, 예정, 앞두(고·며·면), 다가오(는·며) |
 | `PROPER` | 종목 풀 밖의 고유명사 | 연준, 중국, 러시아, 삼성(이름은 변수로만) |
 | `ADVICE` | 직접 매수·매도 권유 | 매수하세요, 추천 |
 | `FACT` | 지어낸 구체 사건 | 실적 발표, 인수, 소송 |
@@ -172,6 +175,7 @@
 - **금지어 편집 규칙:** 비교는 글자 그대로의 부분 일치다. 여러 낱말로 된 시점어·사건어는 **띄어 쓴 형태와 붙여 쓴 형태를 둘 다** 올린다(`다음 달`/`다음달`, `다음 분기`/`다음분기`, `실적 발표`/`실적발표`, `공급 계약`/`공급계약`, `확정 발표`/`확정발표`). 공백을 지우고 비교하지는 않는다(`장중 국내` → `중국`, `한 은행` → `한은`처럼 낱말 경계를 넘는 오탐이 생긴다). 월 이름은 한글(`일월`…`시월`)로 올리고, `십일월`·`십이월`처럼 수사가 둘 이상인 것은 `UNIT`이 잡는다. `이월`(2월)은 자금 이월(`이월 자금`)도 막는다. 그 뜻이면 `넘어온 자금`처럼 다른 말로 쓴다. 부분 일치로는 두 뜻을 가를 수 없다.
 - **경계에 있는 말은 금지하지 않는다:** `곧`(한 음절이라 `곧바로`·`곧장` 오탐이 크다), `이후`(과거 기준 비교 "지난달 이후"에 쓴다). 날짜를 붙인 `…년 이후`는 `UNIT`이 잡는다.
 - 한 단어는 한 이유에만 둔다(`내년`은 `DATE`에 둔다).
+- **Conjugated future words are blocked by stem.** Matching is a plain substring, so list the stem, not each ending: `앞두` (covers `앞두고`·`앞두며`·`앞두면`·`앞두어`), `앞둘`, `앞뒀` (contracted past `앞뒀다`), `앞둔`, `다가오` (`다가오는`·`다가오며`), `다가온`, `다가올`. 미래 낱말의 활용형은 어미마다 올리지 않고 줄기로 올린다. 부분 일치라 줄기가 다른 낱말에 들어 있으면 오탐이 되므로 넣기 전에 오탐 후보를 본다. 위 줄기를 담은 표준 낱말은 `앞두다`·`다가오다`의 활용형뿐이라고 손으로 검토했다(`앞둘레` 같은 후보는 표준 낱말이 아니고, 지금 템플릿 적중은 0건이다).
 
 ### 문장 품질 기준
 
@@ -200,7 +204,8 @@ rm -rf "${D:?}"
 - 이어서 ① 절별 집계(`total`/`pass`/`fail`), ② 규칙 커버리지(`29/29`), ③ FAIL 행 목록(0행이어야 정상), ④ 판정 행이 나온다. 규칙 위반 행의 `actual`에는 위반 개수와 대상 id가 적힌다(예: `1 (rise.inflow.v1)`).
 - FAIL이 하나라도 있으면 오류 메시지와 함께 종료 코드 3으로 끝나고 `PASS`는 나오지 않는다. `-v ON_ERROR_STOP=1` 없이 돌리면 종료 코드가 0일 수 있으니 종료 코드가 아니라 마지막 줄을 본다(마지막 줄은 `FAIL`이다).
 - 검사는 임시 객체만 만들고 `ROLLBACK`한다. 어떤 DB에도 흔적을 남기지 않는다.
-- 7절은 규칙마다 일부러 어긋난 문장(픽스처)을 넣어 **정확히 그 규칙 코드 하나**가 걸리는지 본다. 규칙이 29개이고 모두 자기 코드로 한 번 이상 보고돼야 `29/29`다. `29/29`는 **코드별 대표 사례**가 걸린다는 뜻이지 분기·금지어 하나하나의 커버리지가 아니다(금지어 82개는 대표 몇 개만 시험한다). 허용해야 하는 문장(`{asset_name}의`, `미국`, `추가 상승 기대`, `구원`·`일원`, `곧바로` …)이 위반 0행인지도 함께 본다.
+- **Fixtures do not depend on the data files.** Section 7 uses its own fixed banned-word list, fixed same-clothes sentence shapes and a fixed COVERAGE sample inside `check_templates.sql`, so editing `denylist.csv` or `templates.csv` cannot make a fixture fail. The one link back is a section 5 row: `denylist.csv` must still contain every fixed fixture banned word, so deleting one of those words fails that row (and only that row). Add words freely; to remove one of them, edit the fixed list in the SQL file with it. 7절의 픽스처는 `check_templates.sql` 안의 고정 금지어·고정 문장 틀·고정 COVERAGE 표본만 쓰므로 `denylist.csv`·`templates.csv`를 고쳐도 픽스처가 흔들리지 않는다. 연결 고리는 5절의 한 행뿐이다: 고정 금지어를 `denylist.csv`가 모두 담아야 하며, 그 단어를 지우면 이 행만 FAIL이다. 단어를 더하는 편집은 자유이고, 고정 목록의 단어를 빼려면 SQL 파일의 고정 목록도 함께 고친다.
+- 7절은 규칙마다 일부러 어긋난 문장(픽스처)을 넣어 **정확히 그 규칙 코드 하나**가 걸리는지 본다. 규칙이 29개이고 모두 자기 코드로 한 번 이상 보고돼야 `29/29`다. `29/29`는 **코드별 대표 사례**가 걸린다는 뜻이지 분기·금지어 하나하나의 커버리지가 아니다(금지어 86개는 대표 몇 개만 시험한다). 허용해야 하는 문장(`{asset_name}의`, `미국`, `추가 상승 기대`, `구원`·`일원`, `곧바로` …)이 위반 0행인지도 함께 본다.
 
 ### 파일 형식 실측 (PostgreSQL 17.11, UTF8 DB)
 
