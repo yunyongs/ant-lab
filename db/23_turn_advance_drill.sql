@@ -16,6 +16,10 @@
 --   6 고치기(end_turn = NULL) → CALL → 성공: 현재 턴 + 1, 그 턴 시도 2 의 17개가 전부 MATCH, 시도 1 의 행은 그대로 (추가 전용)
 --   7 보고: PASS/FAIL 과 건수만. 실행 파일 db/23_turn_advance.sql 의 종료 코드 3 은 셸에서 따로 확인한다 (README 실습):
 --        psql -X -q -v ON_ERROR_STOP=1 -d antlab_drill -f db/23_turn_advance.sql ; echo "종료 코드 $?"   — 라인업을 닫은 채 돌리면 3
+-- 사례 -v drill_case=flat (#77, 선택): 다음 턴 블록을 보합(수익률·환율 변화 0, 관심 지수 NULL)으로 만들고 CALL 이 성공하는지 본다.
+--   Flat-turn case: the next block has no return, no FX change, no attention and no events, so the turn has no feed candidate.
+--   Expected: the turn advances with 0 turn_feed rows, 17/17 MATCH, prices equal to the previous turn, stored = regenerated.
+--   Throwaway DB only (it edits history rows); verdict column p0_17_drill_flat. Without drill_case this file runs the rollback drill above.
 -- 이 드릴이 남기는 것: 한 턴 진행과 불일치 시도 1회분 로그(17행). 시즌 끝까지 가려면 드릴 뒤에 23 을 더 돌린다. 그 DB 의 reconciliation_log 에는 일부러 남긴 불일치가 있다.
 -- 보고에 가격·평가액·낙폭·달을 내지 않는다 (건수와 코드뿐).
 -- 새 문법: psql \gset·\set·\if 와 LAST_ERROR_SQLSTATE 변수, 프로시저의 실제 ROLLBACK, 임시 표로 롤백 너머 값 나르기.
@@ -108,6 +112,66 @@ SELECT :dr_cur::smallint AS cur, :dr_ver::bigint AS ver,
        (SELECT count(*) FROM reconciliation_log WHERE season_id = :dr_sid AND turn_no = :dr_cur + 1) AS log_next_rows;
 CREATE TEMP TABLE dr_res (seq integer GENERATED ALWAYS AS IDENTITY, item text NOT NULL, expected text, actual text, ok boolean NOT NULL);
 
+-- 2b flat case (#77): ends with \q, so the rollback drill below never runs for it
+\if :{?drill_case}
+  SELECT (:'drill_case' = 'flat') AS dr_is_flat \gset
+  \if :dr_is_flat
+  \else
+    \echo 'P0-17 드릴: 알 수 없는 사례다 (flat 만 있다. 사례 없이 실행하면 롤백 드릴이다)'
+    \set ON_ERROR_STOP on
+    DO $$ BEGIN RAISE EXCEPTION 'P0-17 드릴: 실행하지 않았다 (위 안내 참고)' USING HINT = 'ON_ERROR_STOP'; END $$;
+  \endif
+\else
+  \set dr_is_flat false
+\endif
+\if :dr_is_flat
+  SELECT sp.month_block_id AS dr_fb FROM season_path sp WHERE sp.season_id = :dr_sid AND sp.turn_no = :dr_cur + 1
+  \gset
+  -- the block must have no events (otherwise the feed is the events) and must not be a past block of this season (its history rows are edited)
+  SELECT (NOT EXISTS (SELECT 1 FROM month_event WHERE month_block_id = :dr_fb)
+          AND NOT EXISTS (SELECT 1 FROM season_path WHERE season_id = :dr_sid AND turn_no <= :dr_cur AND month_block_id = :dr_fb)) AS dr_flat_ok
+  \gset
+  \if :dr_flat_ok
+  \else
+    \echo 'P0-17 드릴(flat): 다음 턴 블록에 사건이 있거나 이미 지난 블록이다. 사건이 없는 블록 앞의 턴에서 실행한다'
+    \set ON_ERROR_STOP on
+    DO $$ BEGIN RAISE EXCEPTION 'P0-17 드릴: 실행하지 않았다 (위 안내 참고)' USING HINT = 'ON_ERROR_STOP'; END $$;
+  \endif
+  UPDATE asset_month_return SET local_return = 0
+  WHERE month_block_id = :dr_fb AND asset_id IN (SELECT asset_id FROM turn_price WHERE season_id = :dr_sid AND turn_no = :dr_cur);
+  UPDATE fx_month SET fx_change = 0 WHERE month_block_id = :dr_fb;
+  UPDATE asset_month_attention SET attention_index = NULL WHERE month_block_id = :dr_fb;
+  CALL pg_temp.turn_advance(:dr_sid::bigint, :dr_cur::smallint);
+  INSERT INTO dr_res (item, expected, actual, ok)
+  SELECT x.item, x.expected, x.actual, x.expected IS NOT DISTINCT FROM x.actual
+  FROM (VALUES
+      ('flat: 현재 턴이 하나 올랐다', (SELECT (cur + 1)::text FROM dr_before), (SELECT current_turn_no::text FROM season WHERE id = :dr_sid)),
+      ('flat: 다음 턴의 turn 1행·turn_price 가 풀 크기만큼 생겼다', '1/' || (SELECT count(*) FROM asset_position ap JOIN season s ON s.base_date = ap.base_date WHERE s.id = :dr_sid),
+          (SELECT (SELECT count(*) FROM turn WHERE season_id = :dr_sid AND turn_no = :dr_cur + 1) || '/' || (SELECT count(*) FROM turn_price WHERE season_id = :dr_sid AND turn_no = :dr_cur + 1))),
+      ('flat: 새 턴 가격이 직전 턴과 다른 종목 수가 0 이다', '0',
+          (SELECT count(*)::text FROM turn_price a JOIN turn_price b ON b.season_id = a.season_id AND b.asset_id = a.asset_id AND b.turn_no = a.turn_no - 1
+           WHERE a.season_id = :dr_sid AND a.turn_no = :dr_cur + 1 AND a.price <> b.price)),
+      ('flat: 새 턴의 turn_feed 가 0 행이다', '0', (SELECT count(*)::text FROM turn_feed WHERE season_id = :dr_sid AND turn_no = :dr_cur + 1)),
+      ('flat: 그 턴의 대사 17개가 전부 MATCH 다', '17/17',
+          (SELECT count(*) || '/' || count(*) FILTER (WHERE l.status = 'MATCH') FROM reconciliation_log l WHERE l.season_id = :dr_sid AND l.turn_no = :dr_cur + 1)),
+      ('flat: 저장 = 재생성이다 (둘 다 빈 묶음)', 'true', pg_temp.tf_regen_matches(:dr_sid::bigint, (:dr_cur + 1)::smallint)::text)
+  ) AS x(item, expected, actual);
+  SELECT seq, item, expected, actual, CASE WHEN ok THEN 'PASS' ELSE 'FAIL' END AS result FROM dr_res ORDER BY seq;
+  DO $$
+  DECLARE
+      v_fail integer;
+  BEGIN
+      SELECT count(*) FILTER (WHERE NOT ok) INTO v_fail FROM dr_res;
+      IF v_fail > 0 OR NOT EXISTS (SELECT 1 FROM dr_res) THEN
+          RAISE EXCEPTION 'P0-17 드릴(flat) 실패: FAIL % 건 (위의 결과를 본다)', v_fail;
+      END IF;
+  END $$;
+  DROP TABLE pg_temp.dr_res;
+  DROP TABLE pg_temp.dr_before;
+  SELECT 'PASS' AS p0_17_drill_flat;
+  \q
+\endif
+
 -- 3 커밋된 상태 깨뜨리기: 보유 종목의 열린 라인업 구간 하나를 닫는다 (자동 커밋)
 SELECT lu.id AS dr_lid
 FROM lineup lu JOIN holding h ON h.season_id = lu.season_id AND h.asset_id = lu.asset_id
@@ -168,8 +232,8 @@ FROM (VALUES
     ('성공: season 버전이 하나 올랐다', (SELECT (ver + 1)::text FROM dr_before), (SELECT version::text FROM season WHERE id = :dr_sid)),
     ('성공: 다음 턴의 turn 1행·turn_price 가 풀 크기만큼 생겼다', '1/' || (SELECT count(*) FROM asset_position ap JOIN season s ON s.base_date = ap.base_date WHERE s.id = :dr_sid),
         (SELECT (SELECT count(*) FROM turn WHERE season_id = :dr_sid AND turn_no = :dr_cur + 1) || '/' || (SELECT count(*) FROM turn_price WHERE season_id = :dr_sid AND turn_no = :dr_cur + 1))),
-    ('성공: 복구 뒤 그 턴 피드가 한 묶음이다 (5–15행·seq 1부터 연속·저장 = 재생성)', 'true',
-        (SELECT (count(*) BETWEEN 5 AND 15 AND min(f.seq) = 1 AND max(f.seq) = count(*) AND pg_temp.tf_regen_matches(:dr_sid::bigint, (:dr_cur + 1)::smallint))::text
+    ('성공: 복구 뒤 그 턴 피드가 한 묶음이다 (0–15행·seq 1부터 연속·저장 = 재생성)', 'true',
+        (SELECT (count(*) <= 15 AND (count(*) = 0 OR (min(f.seq) = 1 AND max(f.seq) = count(*))) AND pg_temp.tf_regen_matches(:dr_sid::bigint, (:dr_cur + 1)::smallint))::text
          FROM turn_feed f WHERE f.season_id = :dr_sid AND f.turn_no = :dr_cur + 1)),
     ('성공: 그 턴의 시도 번호가 2 이고 17개가 전부 MATCH 다', '2/17',
         (SELECT max(l.attempt_no) || '/' || count(*) FILTER (WHERE l.status = 'MATCH') FROM reconciliation_log l

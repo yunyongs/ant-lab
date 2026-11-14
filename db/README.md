@@ -18,9 +18,9 @@ PASS로 기록하지 않는다.
 ```bash
 createdb -E UTF8 -T template0 antlab_api
 psql -X -d postgres -c "ALTER DATABASE antlab_api SET timezone TO 'Asia/Seoul'"
-./gradlew bootRun        # Flyway가 V1–V3 적용. /readyz 가 UP이면 Ctrl+C로 종료
+./gradlew bootRun        # Flyway가 V1–V4 적용. /readyz 가 UP이면 Ctrl+C로 종료
 psql -X -d antlab_api -c "SELECT version, script, success FROM flyway_schema_history ORDER BY installed_rank"
-                         # 1·2·3 세 줄, success = t
+                         # 1·2·3·4 네 줄, success = t
 ```
 
 표본 적재(앱을 끈 상태. `db/sample/README.md`의 무시 CSV 네 개가 있어야 한다):
@@ -34,12 +34,12 @@ psql -X -v ON_ERROR_STOP=1 -d antlab_api -f db/12_calc_position.sql
 psql -X -q -v ON_ERROR_STOP=1 -d antlab_api -f db/12_calc_position_check.sql
 psql -X -v ON_ERROR_STOP=1 -d antlab_api -f db/13_calc_attention.sql
 psql -X -q -v ON_ERROR_STOP=1 -d antlab_api -f db/13_calc_attention_check.sql
-./gradlew bootRun        # 다시 시작해도 Flyway는 V1–V3를 다시 적용하지 않는다(이력 3행 그대로)
+./gradlew bootRun        # 다시 시작해도 Flyway는 V1–V4를 다시 적용하지 않는다(이력 4행 그대로)
 ```
 
 적재한 뒤 앱을 띄워 `GET /api/v1/pool`이 200이고 20종목을 돌려주는지 확인한다(`local` 프로필 기본 포트 8080).
 
-시즌 시작 골든(`SeasonStartGoldenTest`, P0-30)은 하네스 컨테이너의 API DB(Flyway로 V1–V3이 적용된 DB)에 이 순서에서 **`10 → 12`만** 적재한다(`SqlGoldenScenario.apiDbLoad()`; 11·13은 시즌 시작에 사용하지 않는다). 시즌은 `POST /api/v1/seasons`로 만들고, 같은 DB에 `20_season_start_check.sql`을 그대로 실행해 `p0_14_check = PASS`인지 확인한다.
+시즌 시작 골든(`SeasonStartGoldenTest`, P0-30)은 하네스 컨테이너의 API DB(Flyway로 V1–V4가 적용된 DB)에 이 순서에서 **`10 → 12`만** 적재한다(`SqlGoldenScenario.apiDbLoad()`; 11·13은 시즌 시작에 사용하지 않는다). 시즌은 `POST /api/v1/seasons`로 만들고, 같은 DB에 `20_season_start_check.sql`을 그대로 실행해 `p0_14_check = PASS`인지 확인한다.
 `10`을 적재하기 전이면 409 `POOL_NOT_LOADED`, `12`를 계산하기 전이면 409 `POOL_NOT_JUDGED`다. 기준일은
 `antlab.pool.base-date` 설정(환경 변수 `ANTLAB_POOL_BASE_DATE`, 기본 2026-01-02)으로 정한다.
 
@@ -57,7 +57,7 @@ Flyway가 자동 baseline 없이 시작을 멈춘다. DB를 지우거나 새 이
 
 루트 `compose.yaml`의 `api` 서비스는 같은 `db`의 `antlab_api`에 연결된다(컨테이너 안 주소는 `jdbc:postgresql://db:5432/antlab_api`, 호스트 게시 포트 `ANTLAB_DB_PORT`와 무관). `antlab_api`를 만드는 방법은 두 가지다.
 
-- **새 볼륨(빈 데이터 디렉터리로 처음 시작)**: `db` 서비스의 `POSTGRES_DB=antlab_api`가 빈 DB를 만든다. `docker compose --profile api up -d --build --wait`를 한 번 실행하면 Flyway V1–V3까지 적용된다. 시간대 설정(`ALTER DATABASE … SET timezone`)은 필요 없다 — 앱이 세션마다 `Asia/Seoul`을 지정하고(`connection-init-sql`), 컨테이너 DB의 `TZ`도 `Asia/Seoul`이다. psql로 표본 SQL을 실행할 때만 위의 `ALTER DATABASE` 한 줄을 실행한다.
+- **새 볼륨(빈 데이터 디렉터리로 처음 시작)**: `db` 서비스의 `POSTGRES_DB=antlab_api`가 빈 DB를 만든다. `docker compose --profile api up -d --build --wait`를 한 번 실행하면 Flyway V1–V4까지 적용된다. 시간대 설정(`ALTER DATABASE … SET timezone`)은 필요 없다 — 앱이 세션마다 `Asia/Seoul`을 지정하고(`connection-init-sql`), 컨테이너 DB의 `TZ`도 `Asia/Seoul`이다. psql로 표본 SQL을 실행할 때만 위의 `ALTER DATABASE` 한 줄을 실행한다. When you load the sample into the container's database with host `psql`, export `PGHOST=127.0.0.1 PGPORT=<published DB port, default 5432> PGUSER=$USER` first and run from the repository root (the `\copy` paths are relative); without the exports psql uses its defaults and may reach another database. / 호스트 `psql`로 컨테이너 DB에 표본을 적재할 때는 먼저 `PGHOST=127.0.0.1 PGPORT=<게시된 DB 포트, 기본 5432> PGUSER=$USER`를 export하고 저장소 루트에서 실행한다(`\copy` 경로가 상대 경로다). export를 빼면 psql이 기본 접속으로 가서 다른 DB에 닿을 수 있다.
 - **기존 볼륨(이미 `antlab`이 들어 있는 `antlab_db-data` 등)**: `POSTGRES_*` 변수는 처음 시작할 때만 적용되므로 `antlab_api`가 자동으로 생기지 않는다. 자동 생성 서비스나 `CREATE DATABASE` 권한은 부여하지 않았다. 먼저 `db`만 올려 확인한다.
 
 ```bash
@@ -114,7 +114,7 @@ Testcontainers DB를 시작하고 Flyway를 적용한다. 시험 DB에서 `clean
 | `23_turn_advance.sql` | P0-17 | 연습 시즌을 **한 턴** 앞으로 보낸다. 다음 턴 `turn_price`(풀 전체)와 `turn` 스냅샷을 만든 뒤 대사 17개를 돌린다. 모두 일치하면 `reconciliation_log` 17행을 남기고 현재 턴을 올려 커밋한다(마지막 턴이면 `FINISHED`). 하나라도 불일치하면 **실제로 `ROLLBACK`** 한 뒤 새 트랜잭션에서 로그 17행만 남기고 종료 코드 3으로 끝난다. 10턴은 셸 반복으로 돌린다. 끝난 시즌에서는 "이미 끝났다"고 알리고 종료 코드 0으로 끝낸다. `-v ON_ERROR_STOP=1`이 필요하다 |
 | `23_turn_advance_check.sql` | P0-17 | 턴 진행을 검증한다. 진행 상태 계약(`turn`·`turn_price`·로그 17개 묶음), 가격 네 구현 대조(재귀 CTE · 창 함수 배열 · 절차형 반복 곱 · 저장값, "매달 반올림"과 다른 칸 수), 전 턴 스냅샷 재구성(체결 이력에서), 사후 정보 배제, 규칙 11·12·19 음성 사례(규칙 12는 `turn_price` 모든 행), 거부 사례(쓰기 전), 낙폭 합성 단위 사례를 단언한다. 0턴부터 `FINISHED`까지 어느 시점에서도 `PASS`한다. `INSERT`를 하지 않고 `ROLLBACK`하므로 `antlab`에서 돌릴 수 있다 |
 | `23_turn_advance_drill.sql` | P0-17 | 롤백 드릴이다. 커밋된 상태를 일부러 깨뜨려(보유 종목의 라인업 구간 닫기) 턴 전환이 실제 `ROLLBACK`으로 되돌려지고 `reconciliation_log`에만 17행(불일치 규칙 17·19)이 남는지 확인한다. 고치고 다시 실행하면 성공하고 시도 번호가 2인지도 확인한다. **버리는 DB 전용** — `-v drill=1`이 필요하고(다른 값은 멈춘다) DB 이름이 `antlab`·`antlab_test`면 멈춘다 |
-| `24_turn_feed_def.sql` | P0-18 | 턴 피드 생성의 유일한 정의(세션 임시 객체, 규칙 버전 `p0-18:v2`). 제한 입력(관심 지수·사건 태그·직전 턴의 이야기)만 받아 결정적으로 5–15행을 만든다. 정책값(관심 등급, 가중 비복원 추출, 재선택, ECHO·SPREAD·FADE)과 오류 힌트 코드는 파일 머리에 있다. `feed/*.csv`를 상대 경로로 읽으므로 저장소 루트에서 실행한다. 23 정의가 이 파일의 함수를 부르므로 23 실행 파일이 22 → 24 → 23 순서로 읽는다 |
+| `24_turn_feed_def.sql` | P0-18 | 턴 피드 생성의 유일한 정의(세션 임시 객체, 규칙 버전 `p0-18:v2`). 제한 입력(관심 지수·사건 태그·직전 턴의 이야기)만 받아 결정적으로 행을 만든다. A turn gets 0–15 rows: none when there is no candidate, only the events when there is no noise candidate (#77). / 한 턴은 0–15행이다. 후보가 없으면 0행, 사건만 있으면 사건만이다(#77). 정책값(관심 등급, 가중 비복원 추출, 재선택, ECHO·SPREAD·FADE)과 오류 힌트 코드는 파일 머리에 있다. `feed/*.csv`를 상대 경로로 읽으므로 저장소 루트에서 실행한다. 23 정의가 이 파일의 함수를 부르므로 23 실행 파일이 22 → 24 → 23 순서로 읽는다 |
 | `24_turn_feed.sql` | P0-18 | 연습 시즌의 현재 턴 피드가 몇 행이고 빈칸이 없는지, 저장 = 재생성인지를 건수로 낸다. 아무것도 쓰지 않는다. 피드는 이 파일이 아니라 23이 턴마다 만든다 |
 | `24_turn_feed_check.sql` | P0-18 | 피드 검증. 저장 행을 독립 계산과 대조하고, 생성기를 다시 돌려 저장 = 재생성과 사후 정보 차단을 확인한다. 변조 시험은 하위 블록에서 하고 되돌린다(양성 대조군이 달라지지 않으면 음성 시험도 무효로 FAIL). 쓰기 없이 `ROLLBACK`하므로 `antlab`에서 실행할 수 있다. 23을 한 번 이상 실행한 뒤 턴 중간에도 `PASS`다 |
 | `25_trade_formation_def.sql` | P0-19 | 턴 사이 매매·전술 변경을 세션 임시 함수로 정의한다. 공통 입구 `tr_open`은 격리 수준 확인 → `season` 잠금 → 상태·턴 확인 → `cash_account` 잠금 → 최신 원장 확인 순서로 처리한다. 이 파일은 출발점 검사 `tr_source`, 시각 확정 `tr_event_time`, 마지막 변경 확인 `tr_last_change`, 쓰기 함수 `trade_buy`·`trade_sell`·`formation_change`·`lineup_change`, 조회 함수 `formation_costs`를 제공한다. 21의 순수 계산(`buy_rate`·`buy_fee`·`buy_avg_price`·`buy_affordable`)을 재사용하므로 21 정의를 먼저 `\ir`한다. 호출자가 트랜잭션을 연다. 오류는 `P0001` + HINT(`INSUFFICIENT_HOLDING`·`INVALID_FEED_REFERENCE`·`INVALID_FORMATION`·`LINEUP_MISMATCH`·`EVENT_TIME_CONFLICT` 추가)로 알린다. 21·22·23 정의는 고치지 않는다 |
@@ -838,6 +838,8 @@ ANTLAB_GOLDEN_SAMPLE_DIR=<db/sample 경로> ./gradlew test -PonlySqlGolden
 | `TURN_GOLDEN` | 01–03 → 10–13 → 20 → 21 → 23 × 10 | P0-33이 쓴다. Java와 비교할 기준 시즌. **22를 실행하지 않는다**(시도 번호 보존, P0-17 리뷰 13절) |
 | 재생 | 별도 빈 DB 두 개에 같은 `TURN_GOLDEN` | SQL 재현성. 모든 테이블을 행 단위로 비교 |
 | `POSITION_BASE_DATE` | 01–03 → 10 → 12 | P0-38 `PositionMeter`를 기준일 풀 전 종목에서 `asset_position` 저장값과 대조 |
+| `FLAT_TURN_DRILL` | `TURN_GOLDEN` 9턴 지점 → 23 드릴 `flat`(`-v drill=1`, 하네스 `golden_*` DB 전용) → 23·24 검증 | #77 후보가 없는 마지막 턴은 피드 0행으로 진행(`SqlGoldenReplayTest`) |
+| `FLAT_TURN_DRILL_MID` | `TURN_GOLDEN` 4턴 지점 → 23 드릴 `flat`(5턴 블록을 보합으로) → 23·24 검증 → 23 × 5 → 23·24·26 검증 | #77 보합 턴이 시즌 중간에 있어도 24 검증이 통과하고 다음 턴(빈 직전 피드)과 성적표·복기가 이어진다(`SqlGoldenReplayTest`) |
 | `FORMATION_DRILL` | `TURN_GOLDEN` 5턴 지점 → 25 드릴 `rebuy`(`-v drill=1`, 하네스 `golden_*` DB 전용) → 23 × 5 | P0-38 같은 턴 여러 변경 재생 골든(`FormationChangeDrillGoldenTest`) |
 | 끝난 뒤 | 20 → 21 → 23 다시 실행 | 새 행이 없음(멱등) |
 
@@ -1043,9 +1045,9 @@ FAIL이 하나라도 있으면 오류 메시지와 함께 종료 코드 3으로 
 
 **검증 파일(`23_turn_advance_check.sql`).** 마지막 출력의 `p0_17_check` 열이 `PASS`이고 종료 코드가 0이면 통과다. 0절(전제) 표가 먼저 나오며 FAIL이면 거기서 멈춘다. 이어서 절별 집계(00 전제 · 01 진행 상태 · 02 가격 · 03 스냅샷 · 04 사후 정보 · 05 양성 · 06 음성 · 07 거부 · 08 단위 · 09 정보·판정), FAIL 행 목록(0행이어야 정상), 정보 행("매달 반올림"과 다른 칸 수, 17개 시도 수 등 — 건수만), 판정 행이 나온다. 규칙 커버리지는 `3/3`이다(12, 현재 턴 ≥ 1이면 11·19 포함 — 0턴에서는 `1/1`). 0절이 "범위"에서 FAIL이면 현재 턴에 주문이 있는 상태(턴 중간 매매 뒤)라는 신호다 — 헛 PASS가 아니라 멈춤이며 턴을 넘긴 뒤 다시 돌린다.
 
-**드릴(`23_turn_advance_drill.sql`).** 마지막 출력이 `p0_17_drill` 열의 `PASS`이면 통과다(21개 단언). 중간에 나오는 `ERROR: … RECONCILIATION_FAILED`는 드릴이 일부러 낸 불일치의 오류라 정상이다.
+**드릴(`23_turn_advance_drill.sql`).** 마지막 출력이 `p0_17_drill` 열의 `PASS`이면 통과다(23개 단언). 중간에 나오는 `ERROR: … RECONCILIATION_FAILED`는 드릴이 일부러 낸 불일치의 오류라 정상이다. With `-v drill_case=flat` (#77, throwaway DB only) the drill flattens the next block (no return, no FX change, no attention, no events) and checks that the turn advances with 0 feed rows, 17/17 `MATCH`, equal prices and stored = regenerated; the last output is `p0_17_drill_flat` = `PASS`. Run it before an eventless, not-yet-played block (the 24 check then still passes, also mid-season). / `-v drill_case=flat`(#77, 버리는 DB 전용)은 다음 블록을 보합(수익률·환율 변화·관심 지수·사건 없음)으로 만든 뒤 턴이 피드 0행·대사 17/17 `MATCH`·가격 동일·저장 = 재생성으로 진행하는지 본다. 마지막 출력은 `p0_17_drill_flat` 열의 `PASS`다. 사건이 없고 아직 지나지 않은 블록 앞에서 돌린다(그러면 24 검증도 시즌 중간에서 통과한다).
 
-**소음 피드(`24_turn_feed.sql`)·검증·23 연결(P0-18).** `23_turn_advance.sql`은 먼저 `24_turn_feed_def.sql`을 적재한 뒤, 가격·턴 스냅샷을 만들고 대사 전에 `pg_temp.tf_append`를 호출한다. 23은 사건 편집 상태(11)와 관심 지수(13)를 입력으로 읽는다. 따라서 01·02·03·10·11·12·13·20·21 뒤에 실행해야 하며, `feed/*.csv`를 상대 경로로 읽으므로 저장소 루트에서 실행해야 한다(14는 필요 없다). 피드는 같은 턴 트랜잭션에 들어가므로 생성 오류나 대사 불일치가 발생하면 함께 되돌아간다. 입력 조립부(`tf_input`)는 현재까지의 `turn_price`, 현재 경로 블록에서 편집이 끝난 사건, 현재·직전 시즌 턴 블록의 저장 관심 지수, 직전 시즌 턴 피드만 JSON으로 넘긴다. 생성기는 업무 표를 직접 조회하지 않는다. 성공한 턴에는 `seq`가 1부터 연속인 5–15행이 생기며 `NUDGE`는 생기지 않는다. 사건 카드와 같은 문장 틀의 소음 템플릿도 후보에 포함되므로, 문장만 보고는 사건인지 알 수 없다. 선택은 시드·턴·규칙 버전 `p0-18:v2`·자연 키(종목 `market:ticker`, 그룹 `code`, 사건 `event_key`)를 해시해 결정한다. 후보를 한 바퀴 모두 사용한 뒤에만 두 번째 바퀴로 넘어간다. 관심 지수는 등급(상위 10% = 3, 상위 절반 = 2, 나머지 = 1, 지수 없음 = 강도 NULL)에 따라 강도와 선택 가중치를 정한다. `db/24_turn_feed_check.sql`의 마지막 `p0_18_check`가 `PASS`여야 한다. 이 검증은 ① 행 수·`seq`·0턴·미래 피드 ② 저장 피드 = 재생성(완료 턴 전부) ③ 사후 정보 차단(미래 전용 블록의 관심·사건 반응·수익률을 바꿔도 현재 턴 피드가 같고, 현재 블록을 바꾸면 달라지는 양성 대조군 2개) ④ ECHO 자격·반복 횟수와 "안 비었음" ⑤ 희소 숨김·현재 블록 사건 전부 포함 ⑥ 같은 옷(정적·생성기 경로) ⑦ 중복 선택 ⑧ 방향·수익률 변수를 `turn_price`에서 독립 계산해 대조 ⑨ 입력 오류 HINT(`FEED_EVENTS_UNREVIEWED`·`FEED_REACTION_MISSING`) ⑩ 손으로 만든 입력의 생성기 단독 시험을 확인한다. 피드 행은 기존 17개 대사 규칙에 포함하지 않는다. `24_turn_feed.sql`은 현재 턴 피드의 행 수·`seq` 빈틈·저장 = 재생성 여부를 읽기 전용으로 낸다. 23 드릴은 불일치 롤백 직후 실패 턴의 피드가 0행인지 확인하고, 복구 뒤에는 그 턴 피드가 한 묶음(5–15행)인지도 확인한다. 23 검증 01절의 피드 항목은 있는 행만 확인하므로, 피드를 만들지 않는 Java 진행 시즌에서도 사용할 수 있다. 피드 누락은 24 검증이 잡는다.
+**소음 피드(`24_turn_feed.sql`)·검증·23 연결(P0-18).** `23_turn_advance.sql`은 먼저 `24_turn_feed_def.sql`을 적재한 뒤, 가격·턴 스냅샷을 만들고 대사 전에 `pg_temp.tf_append`를 호출한다. 23은 사건 편집 상태(11)와 관심 지수(13)를 입력으로 읽는다. 따라서 01·02·03·10·11·12·13·20·21 뒤에 실행해야 하며, `feed/*.csv`를 상대 경로로 읽으므로 저장소 루트에서 실행해야 한다(14는 필요 없다). 피드는 같은 턴 트랜잭션에 들어가므로 생성 오류나 대사 불일치가 발생하면 함께 되돌아간다. 입력 조립부(`tf_input`)는 현재까지의 `turn_price`, 현재 경로 블록에서 편집이 끝난 사건, 현재·직전 시즌 턴 블록의 저장 관심 지수, 직전 시즌 턴 피드만 JSON으로 넘긴다. 생성기는 업무 표를 직접 조회하지 않는다. 성공한 턴에는 `seq`가 1부터 연속인 행이 생기며 `NUDGE`는 생기지 않는다. A successful turn has 0–15 rows (usually 5–15); a turn with no candidate has 0. / 성공한 턴은 0–15행(보통 5–15행)이고 후보가 없으면 0행이다. 사건 카드와 같은 문장 틀의 소음 템플릿도 후보에 포함되므로, 문장만 보고는 사건인지 알 수 없다. 선택은 시드·턴·규칙 버전 `p0-18:v2`·자연 키(종목 `market:ticker`, 그룹 `code`, 사건 `event_key`)를 해시해 결정한다. 후보를 한 바퀴 모두 사용한 뒤에만 두 번째 바퀴로 넘어간다. 관심 지수는 등급(상위 10% = 3, 상위 절반 = 2, 나머지 = 1, 지수 없음 = 강도 NULL)에 따라 강도와 선택 가중치를 정한다. `db/24_turn_feed_check.sql`의 마지막 `p0_18_check`가 `PASS`여야 한다. 이 검증은 ① 행 수·`seq`·0턴·미래 피드 ② 저장 피드 = 재생성(완료 턴 전부) ③ 사후 정보 차단(미래 전용 블록의 관심·사건 반응·수익률을 바꿔도 현재 턴 피드가 같고, 현재 블록을 바꾸면 달라지는 양성 대조군) ④ ECHO 자격·반복 횟수와 "안 비었음" ⑤ 희소 숨김·현재 블록 사건 전부 포함 ⑥ 같은 옷(정적·생성기 경로) ⑦ 중복 선택 ⑧ 방향·수익률 변수를 `turn_price`에서 독립 계산해 대조 ⑨ 입력 오류 HINT(`FEED_EVENTS_UNREVIEWED`·`FEED_REACTION_MISSING`) ⑩ 손으로 만든 입력의 생성기 단독 시험을 확인한다. The post-information check (③) tampers the future-only blocks on a 0-row feed too and again on a non-empty feed; its positive controls run on a non-empty synthetic input, on live attention and on event reaction, and a skipped control is a visible row that fails on a played season. / ③ 사후 정보 차단은 0행 피드와 비어 있지 않은 피드 모두에서 미래 전용 블록을 바꿔 보고, 양성 대조군은 비어 있지 않은 합성 입력·실제 관심 지수·사건 반응에서 돌린다. 건너뛴 대조군은 눈에 보이는 행으로 남고 진행된 시즌에서는 FAIL이다. 피드 행은 기존 17개 대사 규칙에 포함하지 않는다. `24_turn_feed.sql`은 현재 턴 피드의 행 수·`seq` 빈틈·저장 = 재생성 여부를 읽기 전용으로 낸다. 23 드릴은 불일치 롤백 직후 실패 턴의 피드가 0행인지 확인하고, 복구 뒤에는 그 턴 피드가 한 묶음(0–15행, 저장 = 재생성)인지도 확인한다. 23 검증 01절의 피드 항목은 있는 행만 확인하므로, 피드를 만들지 않는 Java 진행 시즌에서도 사용할 수 있다. 피드 누락은 24 검증이 잡는다.
 
 - **로그 보기(값은 보지 않는다).** `SELECT attempt_no, turn_no, check_code, status, mismatch_count FROM reconciliation_log ORDER BY id DESC LIMIT 15;` 값 컬럼(`expected_value`·`actual_value`·`diff_value`)은 소유자가 자기 DB에서만 보고 PR·이슈에 붙이지 않는다. 스칼라 규칙 5개(`CASH_SUM`·`ORDER_LEDGER`·`HOLDING_QTY`·`RESERVED_ZERO`·`FEE_RULE`)만 세 값이 채워진다.
 - **`detail` 읽기.** `{"items": [{"kind": …, "order_id"|"execution_id"|"ledger_id"|"asset_id"|"lineup_id"|"other_lineup_id"|"formation_change_id": …, "turn_no"?: …, "kinds"?: […]}], "total": n, "truncated": bool}`. 항목은 최대 100개이고 `total`이 전체 불일치 수다. 규칙 4·7·8은 한 행에 종류가 여럿일 수 있어 `kinds` 배열이 있다. 종류 코드는 정의 파일의 규칙 절 머리 주석에 있다.
@@ -1070,6 +1072,8 @@ FAIL이 하나라도 있으면 오류 메시지와 함께 종료 코드 3으로 
 - **열:** 금액은 원 단위, 비율은 소수 8자리(−0.2 = −20%), 개수는 정수다. `monthly_volatility`는 월 단위이고 연율이 아니다. `role_fit`이 NULL이면 판정된 노출 종목이 없다는 뜻이다(10턴 손 경로는 빠진 달이 2개라 시즌 실측이 모두 판정 불능이다). `nudge_*`는 1턴 이후 매매가 없으면 NULL이다.
 - **값은 로컬에서만:** 성적은 시세에서 나온 값이라 PR·이슈에 붙이지 않는다.
 - **검증:** 마지막 출력의 `p0_20_check`가 `PASS`이고 종료 코드가 0이면 통과다. 절은 00 전제 · 01 계약 · 02 결과 · 03 기준선 · 04 변동성 · 05 위험·낙폭 · 06 최대 단일 종목 · 07 회전율·독려 · 08 포메이션 준수 · 09 역할 수행 · 10 비용 · 11 대사 집계 · 12 사후 정보 배제 · 13 거부 사례 · 14 합성 단위 · 15 정보다. 읽는 법은 25 검증과 같다. 변이 사례의 대상이 이 DB에 없으면 "적용 불가" 정보 행이 되고(예: 전술 변경이 없는 시점, T < 6), 통과 사례 수에 세지 않는다. 0턴이면 00절에서 멈춘다(종료 코드 3).
+- **Stored-state guards:** the report stops with `REPORT_INCONSISTENT` if the cumulative filled quantity of any asset is below zero at any turn, or if any turn has a total value of 0. Section 11 also prints an info row with the number of reconciliation bundles whose row count is neither 17 nor 15 (the report does not count them).
+  저장 상태 방어: 어느 턴에서든 종목의 체결 누적 수량이 0 미만이거나 평가액이 0인 턴이 있으면 성적표는 `REPORT_INCONSISTENT`로 멈춘다. 11절은 행 수가 17도 15도 아닌 대사 묶음 수를 정보 행으로 보여 준다(성적표는 그 묶음을 세지 않는다).
 - **12 어댑터:** 09절이 `pos_metrics`·`pos_max_drawdown`·`pos_block_mkt`가 12의 뷰와 모든 기준일 행에서 같은 값을 내는지 확인한다.
 
 **최종 판정(`90_full_run_check.sql`, P0-21).** 통과면 출력 끝 두 줄이 `p0_21_check`와 `PASS`이고 종료 코드가 0이다. 실패하면 `ON_ERROR_STOP=1`에서는 `P0-21 … 실패` 오류와 종료 코드 3으로 끝나 판정 줄이 없다(끝 두 줄이 `PASS`가 아니면 실패다). 전체 순서를 S34까지 끝낸 뒤(10턴이 끝나고 마지막 수동 대사 22를 돌린 뒤)에 실행한다. 읽기만 하며 `INSERT` 없이 `ROLLBACK`하므로 `antlab`에서도 돌린다.

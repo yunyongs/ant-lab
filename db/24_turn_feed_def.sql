@@ -4,12 +4,14 @@
 -- 규칙 버전 p0-18:v2 (tf_rule_version). 정책값은 이 버전의 것이다:
 --   관심 등급   관심 지수가 있는 대상 중 순위 상위 10% 이내(동률 포함) = 3, 상위 절반 이내 = 2, 나머지 = 1, 지수 NULL = 강도 NULL (tf_grade)
 --   선택 가중치 등급과 같은 정수(NULL = 1). 후보마다 w 장의 표를 만들어 가장 작은 해시가 그 후보의 키가 된다 (가중 비복원 추출)
---   재선택     후보를 한 바퀴 다 쓴 뒤에만 두 번째 바퀴 (round). 행 수는 5–15, 사건은 현재 블록 것을 모두 포함
+--   재선택     후보를 한 바퀴 다 쓴 뒤에만 두 번째 바퀴 (round). 행 수는 0–15 (후보가 없으면 0행, 사건만 있으면 그 사건들), 사건은 현재 블록 것을 모두 포함
 --   ECHO       직전 시즌 턴에 같은 종목의 같은 방향 이야기(RISE·FALL·ECHO)가 있고 관심이 꺾이지 않았을 때 (반복 횟수 = 직전 ECHO 반복 + 1, 없으면 1)
 --   SPREAD     그룹 관심 지수가 직전 시즌 턴보다 올랐을 때 (둘 다 있어야 한다)
 --   FADE       직전 시즌 턴 관심 순위 5위 이내였던 종목의 관심이 내려갔을 때, focus_name 은 현재 턴 관심 1위
 --   해시       md5 앞 64비트 & Long.MAX. 입력 문자열 = 시드:턴:규칙 버전:용도:자연 키(종목 market:ticker, 그룹 code, 사건 event_key):바퀴
---   오류       모두 P0001 + HINT 코드 (FEED_INPUT·FEED_EVENTS_UNREVIEWED·FEED_REACTION_MISSING·FEED_NO_CANDIDATE·FEED_RENDER·FEED_ALREADY_STORED)
+--   오류       모두 P0001 + HINT 코드 (FEED_INPUT·FEED_EVENTS_UNREVIEWED·FEED_REACTION_MISSING·FEED_RENDER·FEED_ALREADY_STORED)
+--             FEED_RENDER = render or generation-result contract violated (template missing, more than 15 rows, placeholder errors). The former no-candidate error code is retired (#77): no candidate is a valid 0-row result.
+--   규칙 버전 유지   입력 → 출력이 이전에 성공하던 경우는 바이트 단위로 같고, 예전에 오류이던 입력(후보 없음, 사건만 있음)만 0–3행을 돌려준다. 버전 문자열은 해시 입력이라 올리면 저장된 v2 피드의 "저장 = 재생성"이 깨진다.
 -- =====================================================================
 
 DO $$
@@ -349,13 +351,12 @@ BEGIN
     WHERE c.kind = 'EVENT' OR c.pool IS NOT NULL;  -- 쓸 수 있는 템플릿이 없는 소음 후보는 후보가 아니다
     SELECT count(*) FILTER (WHERE x ->> 'kind' = 'EVENT'), count(*) FILTER (WHERE x ->> 'kind' <> 'EVENT')
       INTO v_event_count, v_noise_count FROM jsonb_array_elements(coalesce(v_candidates, '[]')) x;
-    IF v_event_count + v_noise_count = 0 THEN RAISE EXCEPTION 'P0-18 피드: 유효한 후보가 없다' USING HINT = 'FEED_NO_CANDIDATE'; END IF;
-    IF v_noise_count = 0 AND v_event_count < v_n THEN RAISE EXCEPTION 'P0-18 피드: 사건 외 후보가 없다' USING HINT = 'FEED_NO_CANDIDATE'; END IF;
+    IF v_event_count + v_noise_count = 0 THEN RETURN; END IF;
     -- 사건: 현재 블록 사건을 모두 넣는다. 템플릿은 풀 안에서 시드로 고른다.
     FOR r IN SELECT x FROM jsonb_array_elements(v_candidates) x WHERE x ->> 'kind' = 'EVENT' ORDER BY x ->> 'ckey' COLLATE "C" LOOP
         v_slot := v_slot + 1;
         v_pool := r -> 'pool';
-        IF v_pool IS NULL THEN RAISE EXCEPTION 'P0-18 피드: 사건 카드 템플릿이 없다' USING HINT = 'FEED_NO_CANDIDATE'; END IF;
+        IF v_pool IS NULL THEN RAISE EXCEPTION 'P0-18 피드: 사건 카드 템플릿이 없다' USING HINT = 'FEED_RENDER'; END IF;
         v_key := (r ->> 'ckey') || ':1';
         v_template := v_pool ->> (pg_temp.tf_pick_hash(p_input, 'tpl', v_key) % jsonb_array_length(v_pool))::integer;
         v_text := (SELECT t.text FROM tf_templates t WHERE t.template_id = v_template AND t.status = 'ACTIVE');
@@ -399,7 +400,7 @@ BEGIN
         direction := r ->> 'direction'; strength := (r ->> 'strength')::smallint; repeat_count := (r ->> 'repeat_count')::smallint;
         template_id := r ->> 'template_id'; template_vars := r -> 'template_vars'; body := r ->> 'body'; RETURN NEXT;
     END LOOP;
-    IF v_slot < 5 THEN RAISE EXCEPTION 'P0-18 피드: 후보가 5행보다 적다' USING HINT = 'FEED_NO_CANDIDATE'; END IF;
+    IF v_slot > 15 THEN RAISE EXCEPTION 'P0-18 피드: 행 수가 15를 넘었다' USING HINT = 'FEED_RENDER'; END IF;
 END $$;
 
 CREATE OR REPLACE FUNCTION pg_temp.tf_append(p_season_id bigint, p_turn smallint)
@@ -416,7 +417,7 @@ BEGIN
            g.direction, g.strength, g.repeat_count, g.template_id, g.template_vars, g.body
     FROM pg_temp.tf_generate(v_input) g ORDER BY g.seq;
     GET DIAGNOSTICS v_count = ROW_COUNT;
-    IF v_count NOT BETWEEN 5 AND 15 THEN RAISE EXCEPTION 'P0-18 피드: 행 수가 5–15 범위를 벗어났다' USING HINT = 'FEED_NO_CANDIDATE'; END IF;
+    IF v_count > 15 THEN RAISE EXCEPTION 'P0-18 피드: 행 수가 15를 넘었다' USING HINT = 'FEED_RENDER'; END IF;
     RETURN v_count;
 END $$;
 
