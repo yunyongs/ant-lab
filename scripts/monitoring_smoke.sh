@@ -50,7 +50,7 @@ if [ "$keep" = 1 ] && [ -z "${GF_SECURITY_ADMIN_PASSWORD:-}" ]; then
 fi
 
 if [ "$dry_run" = 1 ]; then
-  printf 'project=%s db_port=%s api_port=%s prometheus_port=%s grafana_port=%s files=compose.yaml,compose.play.yaml profiles=api,monitoring sample_dir=%s\n' \
+  printf 'project=%s db_port=%s api_port=%s prometheus_port=%s grafana_port=%s files=compose.yaml profiles=api,monitoring sample_dir=%s\n' \
     "$project" "$db_port" "$api_port" "$prometheus_port" "$grafana_port" "$sample_dir"
   exit 0
 fi
@@ -69,7 +69,7 @@ cleanup() {
     if [ "$started" = 1 ]; then
       if [ "$keep" = 1 ] && [ "$rc" = 0 ]; then
         printf 'stack left running: Grafana http://127.0.0.1:%s (user admin), Prometheus http://127.0.0.1:%s\n' "$grafana_port" "$prometheus_port"
-        printf 'remove it with: docker %s -p %s -f compose.yaml -f compose.play.yaml --profile api --profile monitoring down -v --rmi local\n' compose "$project"
+        printf 'remove it with: docker %s -p %s -f compose.yaml --profile api --profile monitoring down -v --rmi local\n' compose "$project"
       else
         dc down -v --remove-orphans --rmi local >/dev/null 2>&1 || true
       fi
@@ -84,7 +84,7 @@ trap 'exit 130' INT TERM
 umask 077
 work="$(mktemp -d)"
 env_file="$work/compose.env"
-compose_cmd=(docker compose -p "$project" --env-file "$env_file" -f compose.yaml -f compose.play.yaml)
+compose_cmd=(docker compose -p "$project" --env-file "$env_file" -f compose.yaml)
 dc() { "${compose_cmd[@]}" "$@"; }
 
 gf_password="${GF_SECURITY_ADMIN_PASSWORD:-}"
@@ -140,6 +140,14 @@ dc down -v --remove-orphans >/dev/null 2>&1 || true
 echo "== start db and api (first build takes minutes)"
 dc up -d --build --wait --wait-timeout 300 db api || fail "db and api did not become healthy"
 
+echo "== check the built image"
+image_id="$(dc images -q api | head -n 1)"
+[ -n "$image_id" ] || fail "could not find the api image"
+image_env="$(docker image inspect --format '{{json .Config.Env}}' "$image_id")" || fail "docker image inspect failed"
+# The key is a run-time value only; the image must not carry it (the value is never printed).
+case "$image_env" in *ANTLAB_JWT_SECRET*) fail "the api image carries the signing key variable in its Env" ;; esac
+printf 'PASS image env carries no signing key\n' | tee -a "$work/checks.log"
+
 echo "== load sample"
 dc stop api || fail "could not stop api"
 (
@@ -156,11 +164,18 @@ dc up -d --wait --wait-timeout 300 || fail "stack did not become healthy"
 helper wait-query "$prom_url" 'up{job="antlab-api"}' == 1 90 up-first || fail "Prometheus never saw the api target up"
 
 echo "== play one season"
-# SEC-04/05: sign up and log in here once /api/v1/seasons/** needs a token; compose.play.yaml goes away with SEC-05.
+# The api container runs the prod profile: every season call needs a token.
 python3 tools/play/play_season.py --base "$api_url" --turns 12 > "$work/play.log" 2>&1 || fail "play script failed"
-reject_status="$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: application/json' \
+# The play script signed the member up; log in again with its constants (the token is never printed).
+token="$(PYTHONPATH=tools/play python3 -c 'import sys, play_season as p; a = p.Api(sys.argv[1]); print(p.need(*a.call("POST", "/api/v1/auth/login", {"email": p.PLAY_EMAIL, "password": p.PLAY_PASSWORD}))["accessToken"])' "$api_url")" || fail "login failed"
+reject_status="$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: application/json' -H "Authorization: Bearer $token" \
   -d '{"expectedTurnNo":0,"side":"BUY","assetId":1,"quantity":1}' "$api_url/api/v1/seasons/999999999/orders" || true)"
 [ "$reject_status" = 404 ] || fail "rejected-order probe answered $reject_status, wanted 404"
+
+# After signup, login and the rejected order: the api container log must not carry the signing key (nothing is printed).
+api_log="$(dc logs api 2>&1)" || fail "could not read the api log"
+case "$api_log" in *"$jwt_key"*) fail "api log carries the signing key" ;; esac
+printf 'PASS api log carries no signing key\n' | tee -a "$work/checks.log"
 
 echo "== check Prometheus and Grafana"
 helper prometheus "$prom_url" 90 || fail "Prometheus assertion failed (A1-A3)"
