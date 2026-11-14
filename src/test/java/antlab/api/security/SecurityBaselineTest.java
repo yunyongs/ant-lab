@@ -1,5 +1,6 @@
 package antlab.api.security;
 
+import static antlab.support.DefaultBearerConfig.ANONYMOUS;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import antlab.support.IntegrationTest;
@@ -33,7 +34,7 @@ class SecurityBaselineTest {
 
     @Test
     void 허용_목록_밖_경로는_자격_없이_401_UNAUTHENTICATED_문제_본문이다() {
-        var result = mvc.get().uri("/no/such/path").exchange();
+        var result = mvc.get().uri("/no/such/path").requestAttr(ANONYMOUS, true).exchange();
         assertThat(result).hasStatus(401).hasContentType(MediaType.parseMediaType(PROBLEM));
         assertThat(result).bodyJson().extractingPath("$.code").isEqualTo("UNAUTHENTICATED");
         assertThat(result).bodyJson().extractingPath("$.detail").isEqualTo("인증이 필요하다");
@@ -49,7 +50,7 @@ class SecurityBaselineTest {
             "GET,/API/v1/pool", "GET,/api/v1/pool/", "GET,/api/v1/seasonsX", "HEAD,/no/such/path",
             "OPTIONS,/no/such/path"})
     void 허용_목록_밖_경로_표는_모두_401이다(String method, String path) {
-        assertThat(mvc.method(org.springframework.http.HttpMethod.valueOf(method)).uri(path)).hasStatus(401);
+        assertThat(mvc.method(org.springframework.http.HttpMethod.valueOf(method)).uri(path).requestAttr(ANONYMOUS, true)).hasStatus(401);
     }
 
     @Test
@@ -65,7 +66,10 @@ class SecurityBaselineTest {
     }
 
     @Test
-    void 기존_API는_토큰도_CSRF_토큰도_없이_열려_있다() {
+    void 시즌_API는_토큰이_없으면_401이고_기본_토큰이면_CSRF_토큰_없이_열린다() {
+        assertThat(mvc.post().uri("/api/v1/seasons").contentType(MediaType.APPLICATION_JSON).content("{}")
+                .requestAttr(ANONYMOUS, true)).hasStatus(401)
+                .bodyJson().extractingPath("$.code").isEqualTo("UNAUTHENTICATED");
         assertThat(mvc.post().uri("/api/v1/seasons").contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .hasStatus(400)
                 .bodyJson().extractingPath("$.code").isEqualTo("INVALID_ARGUMENT");
@@ -75,8 +79,8 @@ class SecurityBaselineTest {
 
     @Test
     void 로그인_화면도_Basic_로그인도_없다() {
-        assertThat(mvc.get().uri("/login")).hasStatus(401);
-        assertThat(mvc.post().uri("/login")).hasStatus(401);
+        assertThat(mvc.get().uri("/login").requestAttr(ANONYMOUS, true)).hasStatus(401);
+        assertThat(mvc.post().uri("/login").requestAttr(ANONYMOUS, true)).hasStatus(401);
         var basic = mvc.get().uri("/no/such/path").header("Authorization", "Basic dXNlcjpwYXNz").exchange();
         assertThat(basic).hasStatus(401);
         assertThat(basic.getResponse().getHeader("WWW-Authenticate")).isEqualTo("Bearer");

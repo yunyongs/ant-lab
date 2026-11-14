@@ -63,9 +63,6 @@ public class OrderController {
                     + "주문 내용을 받을 수 없다 — ASSET_NOT_IN_POOL, INSUFFICIENT_CASH, INSUFFICIENT_HOLDING, "
                     + "POSITION_CONFLICT, POSITION_REQUIRED",
             content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ApiProblem.class)))
-    @ApiResponse(responseCode = "503", description = "The current member is unknown — MEMBER_UNAVAILABLE "
-            + "(production, before sign-in) / 현재 회원을 알 수 없다 — MEMBER_UNAVAILABLE(운영, 인증 전)",
-            content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ApiProblem.class)))
     public ResponseEntity<OrderResultDto> place(@PathVariable Long seasonId,
             @Valid @RequestBody PlaceOrderRequest request) {
         try {

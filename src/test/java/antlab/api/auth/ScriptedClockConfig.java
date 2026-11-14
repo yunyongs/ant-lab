@@ -7,7 +7,7 @@ import org.springframework.context.annotation.Primary;
 
 /** Scripted clock for the login tests: one scripted value is the request's "now". */
 @TestConfiguration(proxyBeanMethods = false)
-class ScriptedClockConfig {
+public class ScriptedClockConfig {
 
     @Bean
     @Primary
