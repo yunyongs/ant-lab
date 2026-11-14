@@ -1075,6 +1075,8 @@ FAIL이 하나라도 있으면 오류 메시지와 함께 종료 코드 3으로 
 - **열:** 금액은 원 단위, 비율은 소수 8자리(−0.2 = −20%), 개수는 정수다. `monthly_volatility`는 월 단위이고 연율이 아니다. `role_fit`이 NULL이면 판정된 노출 종목이 없다는 뜻이다(10턴 손 경로는 빠진 달이 2개라 시즌 실측이 모두 판정 불능이다). `nudge_*`는 1턴 이후 매매가 없으면 NULL이다.
 - **값은 로컬에서만:** 성적은 시세에서 나온 값이라 PR·이슈에 붙이지 않는다.
 - **검증:** 마지막 출력의 `p0_20_check`가 `PASS`이고 종료 코드가 0이면 통과다. 절은 00 전제 · 01 계약 · 02 결과 · 03 기준선 · 04 변동성 · 05 위험·낙폭 · 06 최대 단일 종목 · 07 회전율·독려 · 08 포메이션 준수 · 09 역할 수행 · 10 비용 · 11 대사 집계 · 12 사후 정보 배제 · 13 거부 사례 · 14 합성 단위 · 15 정보다. 읽는 법은 25 검증과 같다. 변이 사례의 대상이 이 DB에 없으면 "적용 불가" 정보 행이 되고(예: 전술 변경이 없는 시점, T < 6), 통과 사례 수에 세지 않는다. 0턴이면 00절에서 멈춘다(종료 코드 3).
+- **Stored-state guards:** the report stops with `REPORT_INCONSISTENT` if the cumulative filled quantity of any asset is below zero at any turn, or if any turn has a total value of 0. Section 11 also prints an info row with the number of reconciliation bundles whose row count is neither 17 nor 15 (the report does not count them).
+  저장 상태 방어: 어느 턴에서든 종목의 체결 누적 수량이 0 미만이거나 평가액이 0인 턴이 있으면 성적표는 `REPORT_INCONSISTENT`로 멈춘다. 11절은 행 수가 17도 15도 아닌 대사 묶음 수를 정보 행으로 보여 준다(성적표는 그 묶음을 세지 않는다).
 - **12 어댑터:** 09절이 `pos_metrics`·`pos_max_drawdown`·`pos_block_mkt`가 12의 뷰와 모든 기준일 행에서 같은 값을 내는지 확인한다.
 
 **최종 판정(`90_full_run_check.sql`, P0-21).** 통과면 출력 끝 두 줄이 `p0_21_check`와 `PASS`이고 종료 코드가 0이다. 실패하면 `ON_ERROR_STOP=1`에서는 `P0-21 … 실패` 오류와 종료 코드 3으로 끝나 판정 줄이 없다(끝 두 줄이 `PASS`가 아니면 실패다). 전체 순서를 S34까지 끝낸 뒤(10턴이 끝나고 마지막 수동 대사 22를 돌린 뒤)에 실행한다. 읽기만 하며 `INSERT` 없이 `ROLLBACK`하므로 `antlab`에서도 돌린다.

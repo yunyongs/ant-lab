@@ -802,6 +802,9 @@ CALL pg_temp.mut_chk('11 대사', '로그 한 행의 턴을 경로 길이 + 1 �
                AND r.recon_turn_bundles + r.recon_manual_bundles < (SELECT z.recon_turn_bundles + z.recon_manual_bundles FROM zz_rep z))::text
        FROM pg_temp.sr_report((SELECT id FROM zz_cur)) r CROSS JOIN pg_temp.zz_recon_indep((SELECT id FROM zz_cur)) z2$p$,
     $w$SELECT count(*) FROM reconciliation_log rl JOIN zz_cur c ON c.id = rl.season_id$w$);
+INSERT INTO zz_check_result (section, item, expected, actual, ok)
+SELECT '11 대사', '행 수가 17·15 가 아닌 대사 묶음 수 (정보 — 성적표가 세지 않는 묶음)', '(정보)',
+       (SELECT count(*) FROM (SELECT count(*) AS n FROM reconciliation_log rl JOIN zz_cur c ON c.id = rl.season_id GROUP BY rl.turn_no, rl.attempt_no) q WHERE q.n NOT IN (15, 17))::text, true;
 \o
 
 -- 12 사후 정보 배제 -------------------------------------------------------------------
@@ -868,6 +871,15 @@ CALL pg_temp.rej('풀 종목(대용이 아닌)의 0턴 가격 삭제',
                  'DELETE FROM turn_price WHERE season_id = (SELECT id FROM zz_cur) AND turn_no = 0
                     AND asset_id = (SELECT a.id FROM asset a JOIN asset_position ap ON ap.asset_id = a.id AND ap.base_date = (SELECT base_date FROM zz_cur)
                                     WHERE NOT ((a.market = ''KR'' AND a.ticker = ''069500'') OR (a.market = ''US'' AND a.ticker = ''SPY'')) ORDER BY a.id LIMIT 1)',
+                 'SELECT * FROM pg_temp.sr_report((SELECT id FROM zz_cur))', 'REPORT_INCONSISTENT');
+-- 누적 수량이 0 미만: 0턴의 BUY 주문 하나를 SELL 로 뒤집으면 그 종목의 누적 수량이 음수가 된다 (UPDATE 만 쓴다). 되돌리면(가드가 없으면) 조용히 빠져 오류 없음이 된다.
+CALL pg_temp.rej('체결 이력의 누적 수량이 0 미만 (0턴 BUY 주문 하나를 SELL 로 뒤집음)',
+                 'UPDATE orders SET side = ''SELL'' WHERE id = (SELECT min(o.id) FROM orders o JOIN zz_cur c ON c.id = o.season_id WHERE o.turn_no = 0 AND o.side = ''BUY'')',
+                 'SELECT * FROM pg_temp.sr_report((SELECT id FROM zz_cur))', 'REPORT_INCONSISTENT',
+                 'SELECT count(*) FROM orders o JOIN zz_cur c ON c.id = o.season_id WHERE o.turn_no = 0 AND o.side = ''BUY''');
+CALL pg_temp.rej('평가액이 0 인 턴 (1턴 스냅샷의 금액을 모두 0 으로)',
+                 'UPDATE turn SET total_value = 0, cash_balance = 0, holdings_value = 0, goalkeeper_value = 0, defender_value = 0, midfielder_value = 0, forward_value = 0
+                   WHERE season_id = (SELECT id FROM zz_cur) AND turn_no = 1',
                  'SELECT * FROM pg_temp.sr_report((SELECT id FROM zz_cur))', 'REPORT_INCONSISTENT');
 CALL pg_temp.rej('보유한 턴에 선언 구간이 없다 (lineup 행 삭제)',
                  'DELETE FROM lineup WHERE id = (SELECT lu.id FROM lineup lu JOIN zz_cur c ON c.id = lu.season_id ORDER BY lu.id LIMIT 1)',
@@ -942,6 +954,8 @@ SELECT pg_temp.check_eq('14 합성', 'sr_div8(4, 1000000000) = 0.00000000 (0.4e-
     (SELECT pg_temp.sr_div8(4, 1000000000)::text || '|' || pg_temp.sr_div8(5, 1000000000)::text));
 SELECT pg_temp.check_eq('14 합성', 'sr_div8(7, 1) = 7.00000000 (분모 1, 소수 8자리)', '7.00000000', (SELECT pg_temp.sr_div8(7, 1)::text));
 SELECT pg_temp.check_eq('14 합성', 'sr_div8(0, 5) = 0.00000000', '0.00000000', (SELECT pg_temp.sr_div8(0, 5)::text));
+SELECT pg_temp.check_eq('14 합성', 'sr_div8 는 몫이 아주 커도 소수 8자리를 그대로 둔다 (정확한 곱, 나눗셈 아님)', '3333333333333333333333333333333333333333.66666667|3333333333333333333333333333333333333333.33333333',
+    (SELECT pg_temp.sr_div8(10000000000000000000000000000000000000001, 3)::text || '|' || pg_temp.sr_div8(10000000000000000000000000000000000000000, 3)::text));
 -- 정수 아님·0 으로 나누기·NULL 은 거부
 SELECT pg_temp.check_eq('14 합성', 'sr_div8 거부: 소수 분자 · 0 분모 · NULL — 모두 INVALID_ARGUMENT', 'INVALID_ARGUMENT|INVALID_ARGUMENT|INVALID_ARGUMENT',
     (SELECT (SELECT h FROM (SELECT pg_temp.zz_hint('SELECT pg_temp.sr_div8(1.5, 3)') AS h) a) || '|' || pg_temp.zz_hint('SELECT pg_temp.sr_div8(1, 0)') || '|' || pg_temp.zz_hint('SELECT pg_temp.sr_div8(NULL, 3)')));
@@ -997,7 +1011,7 @@ WHERE NOT ok
 ORDER BY seq;
 
 -- 16.3 정보 행 (PASS 출력에서도 건수와 "적용 불가"가 보이게)
-SELECT section, item, actual FROM zz_check_result WHERE section = '15 정보' OR actual = '적용 불가' ORDER BY seq;
+SELECT section, item, actual FROM zz_check_result WHERE section = '15 정보' OR (section = '11 대사' AND expected = '(정보)') OR actual = '적용 불가' ORDER BY seq;
 
 -- 16.4 판정 행 (적용 불가 정보 행은 통과 사례 수에 세지 않는다)
 SELECT CASE WHEN count(*) FILTER (WHERE actual IS DISTINCT FROM '적용 불가') > 0 AND count(*) FILTER (WHERE NOT ok) = 0 THEN 'PASS' ELSE 'FAIL' END AS verdict,

@@ -61,6 +61,7 @@ $$;
 
 -- 정수 ÷ 정수 → 소수 8자리, 0 에서 먼 쪽 HALF_UP, 중간 반올림 없음. 정수가 아닌 입력·0 으로 나누기는 거부한다.
 --   2·|n|·10^8 + |d| 를 2·|d| 로 정수 나눗셈하면 round-half-up(|n|·10^8 ÷ |d|) 이다. Java 짝: new BigDecimal(n).divide(d, 8, RoundingMode.HALF_UP).
+--   The last step is an exact product, not a division: `/` can drop decimal digits when the quotient is huge.
 CREATE OR REPLACE FUNCTION pg_temp.sr_div8(n numeric, d numeric)
 RETURNS numeric
 LANGUAGE plpgsql IMMUTABLE AS $$
@@ -68,7 +69,7 @@ BEGIN
     IF n IS NULL OR d IS NULL OR d = 0 OR n <> trunc(n) OR d <> trunc(d) THEN
         RAISE EXCEPTION 'P0-20 성적표: 정수 ÷ 0 이 아닌 정수만 나눈다' USING HINT = 'INVALID_ARGUMENT';
     END IF;
-    RETURN ROUND(sign(n) * sign(d) * div(2 * abs(n) * 100000000 + abs(d), 2 * abs(d)) / 100000000, 8);
+    RETURN sign(n) * sign(d) * div(2 * abs(n) * 100000000 + abs(d), 2 * abs(d)) * 0.00000001;
 END $$;
 
 -- 공통 분모로 합친 정확한 평균: (1/n)·Σ a_i/b_i = Σ(a_i·Π_{j≠i} b_j) ÷ (n·Π b_j). 분수를 하나씩 더해 나눗셈을 마지막 sr_div8 한 번으로 미룬다.
@@ -124,6 +125,20 @@ BEGIN
             OR EXISTS (SELECT 1 FROM orders o WHERE o.season_id = p_season_id AND o.turn_no = s.current_turn_no)
             OR EXISTS (SELECT 1 FROM formation_change fc WHERE fc.season_id = p_season_id AND fc.turn_no = s.current_turn_no))) THEN
         RAISE EXCEPTION 'P0-20 성적표: 현재 턴 뒤의 주문이 있거나 끝난 시즌에 마지막 턴의 주문·전술 변경이 있다' USING HINT = 'REPORT_INCONSISTENT';
+    END IF;
+    -- a zero-value turn would divide by zero later; stop here with a clear hint
+    IF EXISTS (SELECT 1 FROM turn tn WHERE tn.season_id = p_season_id AND tn.total_value = 0) THEN
+        RAISE EXCEPTION 'P0-20 성적표: 평가액이 0 인 턴이 있다' USING HINT = 'REPORT_INCONSISTENT';
+    END IF;
+    -- cumulative filled quantity below zero at any turn (sr_hold keeps only quantity > 0 and would drop it silently)
+    IF EXISTS (SELECT 1
+               FROM (SELECT sum(x.dq) OVER (PARTITION BY x.asset_id ORDER BY x.turn_no) AS cum
+                     FROM (SELECT o.asset_id, o.turn_no, sum(CASE WHEN o.side = 'BUY' THEN e.quantity ELSE -e.quantity END) AS dq
+                           FROM orders o JOIN execution e ON e.order_id = o.id
+                           WHERE o.season_id = p_season_id AND o.turn_no < s.current_turn_no
+                           GROUP BY o.asset_id, o.turn_no) x) y
+               WHERE y.cum < 0) THEN
+        RAISE EXCEPTION 'P0-20 성적표: 체결 이력의 누적 수량이 0 미만인 턴이 있다' USING HINT = 'REPORT_INCONSISTENT';
     END IF;
     -- 기준선 대용 2종: 시즌 기준일 풀에 있고 0..T 의 가격이 모두 있다
     SELECT count(DISTINCT a.id), count(tp.id) INTO v_prox, v_px
