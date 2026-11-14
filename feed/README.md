@@ -232,7 +232,7 @@ SQL 생성기는 `db/24_turn_feed_def.sql`에서 `tf_input → tf_generate → t
 2. **선택:** (kind, target, direction, strength 일치 또는 빈 칸, EVENT면 `category_hidden`·범주) 후보를 `template_id` 오름차순으로 세우고 시즌 시드 + 턴 번호의 난수로 고른다. EVENT는 가장 구체적인 행이 이긴다(`event_type`+`outcome` > `event_category` > 범주 비공개). `category_hidden = TRUE` 카드는 비공개 템플릿만.
 3. `template_vars` 키 = 고른 템플릿의 자리 집합 정확히(`jsonb_object_keys`로 검사). 범주·유형·월 블록 키 금지(erd D27).
 4. `body` = 위 렌더 결과, 300자 이하. **다시 렌더 검사:** 모든 `turn_feed` 행에서 `render(template(template_id), template_vars) = body`.
-5. 생성된 `body`에서 변수 값 부분을 뺀 나머지가 위 문장 규칙을 통과하고, 변수로 들어오지 않은 풀 종목 이름이 `body`에 없다.
+5. 생성된 `body`에서 변수 값 부분을 뺀 나머지가 위 문장 규칙을 통과하고, 변수로 들어오지 않은 풀 종목 이름이 `body`에 없다. Implemented by `db/24_turn_feed_check.sql` (#76): the template is rendered with every name variable masked, and that fixed wording is scanned for `denylist.csv` words and for any `asset.name`; stored `body` text may contain an asset name only as a name-variable value, and name variables must hold names of the season pool (assets or their groups). Group names are not scanned in the wording because they are ordinary words (`금` in `금리`). The check passes on 0-row and events-only turns. 구현은 `db/24_turn_feed_check.sql`(#76)이다. 이름 변수를 가린 채 렌더한 고정 문장에서 `denylist.csv` 단어와 `asset.name`을 찾고, 저장된 `body`의 종목 이름은 이름 변수 값으로만 허용하며 이름 변수는 시즌 풀의 종목·그룹 이름이어야 한다. 그룹 이름은 `금리`의 `금`처럼 흔한 낱말이라 고정 문장에서는 찾지 않는다. 피드 0행·사건만 있는 턴에서도 통과한다.
 6. 변수는 오프셋 ≤ 0의 데이터만 채운다("다음 블록 차단 테스트"가 이것을 고정한다). `streak`은 시즌 `turn_price` 부호로 센다.
 7. **종류 코드 고리:** `kinds.csv` ↔ `pg_get_constraintdef(ck_turn_feed_kind)`에서 `'…'` 리터럴을 뽑아 직접 비교한다(erd 6.4와 DDL의 일치는 P0-06 검증이 보장한다).
 8. 결정성 테스트("같은 시드 → 같은 행")는 `feed/` 내용을 고정한 상태(커밋)에서 돌리고 그 사실을 적는다. 템플릿이 늘면 후보 목록이 바뀐다. 저장된 `turn_feed`는 스냅샷이라 영향이 없다.
