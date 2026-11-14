@@ -1,0 +1,284 @@
+.note {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+.list {
+  display: flex;
+  margin: 0;
+  padding: 0;
+  flex-direction: column;
+  gap: var(--space-3);
+  list-style: none;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+}
+
+.cardTitle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.cardHeading {
+  margin: 0;
+  font-size: var(--font-lg);
+}
+
+.pill,
+.pillMuted {
+  padding: var(--space-1) var(--space-3);
+  border-radius: 999px;
+  font-size: 0.875rem;
+}
+
+.pill {
+  background: var(--color-primary);
+  color: #ffffff;
+}
+
+.pillMuted {
+  background: var(--color-border);
+  color: var(--color-text);
+}
+
+.rows {
+  display: flex;
+  margin: 0;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.row dt {
+  color: var(--color-text-muted);
+}
+
+.row dd {
+  margin: 0;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.primary,
+.secondary {
+  display: inline-flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 var(--space-4);
+  border-radius: var(--radius);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  text-align: center;
+  text-decoration: none;
+}
+
+.primary {
+  border: 0;
+  background: var(--color-primary);
+  color: #ffffff;
+}
+
+.primary:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.secondary {
+  border: 1px solid var(--color-primary);
+  background: var(--color-surface);
+  color: var(--color-primary);
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-6) var(--space-4);
+  border: 1px dashed var(--color-input-border);
+  border-radius: var(--radius);
+}
+
+.empty p {
+  margin: 0;
+}
+
+.emptyTitle {
+  font-weight: 700;
+}
+
+.alert {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--color-error);
+  border-radius: var(--radius);
+  background: var(--color-error-bg);
+  color: var(--color-error);
+}
+
+.alert p {
+  margin: 0;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.fieldset {
+  display: flex;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  flex-direction: column;
+  gap: var(--space-2);
+  border: 0;
+}
+
+.legend {
+  padding: 0;
+  font-weight: 700;
+}
+
+.choices {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.four {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.choice {
+  position: relative;
+  display: flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--color-input-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  cursor: pointer;
+}
+
+/* The radio stays in the layout, visually hidden, so keyboard use works. */
+.choice input {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.choice:has(input:checked) {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.choice:has(input:focus-visible) {
+  outline: 3px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.shares {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.share {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+/* 16px keeps iOS from zooming into the field */
+.numberInput {
+  width: 100%;
+  min-width: 0;
+  min-height: 48px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-input-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 1rem;
+  text-align: right;
+}
+
+.numberInput[aria-invalid='true'] {
+  border-color: var(--color-error);
+}
+
+.sumOk,
+.sumBad {
+  margin: 0;
+  font-weight: 700;
+}
+
+.sumOk {
+  color: var(--color-ok);
+}
+
+.sumBad {
+  color: var(--color-error);
+}
+
+.hint {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+}
+
+.fieldError {
+  margin: 0;
+  color: var(--color-error);
+  font-size: 0.875rem;
+}
+
+.pending {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: 1px dashed var(--color-input-border);
+  border-radius: var(--radius);
+}
+
+.pending p {
+  margin: 0;
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}

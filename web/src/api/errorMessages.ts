@@ -25,7 +25,6 @@ export const errorMessages = {
   POSITION_REQUIRED: '새로 사는 종목은 포지션을 정해 주세요.',
   INVALID_FORMATION: '포메이션 기록이 맞지 않아 변경을 멈췄습니다.',
   EVENT_TIME_CONFLICT: '앞선 요청과 시각이 겹칩니다. 다시 시도해 주세요.',
-  MEMBER_UNAVAILABLE: '로그인 정보를 확인할 수 없습니다.',
   RECONCILIATION_FAILED:
     '턴을 넘기는 중 계좌 검산이 맞지 않아 아무것도 바꾸지 않았습니다. 지금 턴 그대로입니다.',
   FORBIDDEN: '이 기능을 쓸 권한이 없습니다.',
@@ -35,6 +34,9 @@ export const errorMessages = {
   INVALID_CREDENTIALS:
     '이메일이나 비밀번호가 맞지 않습니다. 다시 확인해 주세요.',
 } as const satisfies Record<ErrorCode, string>;
+
+export const UNREACHABLE_TEXT =
+  'API에 연결할 수 없습니다. 잠시 뒤 다시 시도해 주세요.';
 
 const UNKNOWN_MESSAGE = '알 수 없는 오류가 생겼습니다.';
 

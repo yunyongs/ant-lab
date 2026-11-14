@@ -11,14 +11,14 @@
   --color-text: #1b1f24;
   --color-text-muted: #4d5661;
   --color-border: #d0d5dc;
-  --color-accent: #1f4e79;
   --color-ok: #1a6b3a;
   --color-warn: #8a5a00;
-  --color-bad: #a12622;
   --color-error: #b42318;
   --color-error-bg: #fdecea;
   --color-input-border: #6b7280;
   --color-primary: #1d4ed8;
+  --color-primary-strong: #1e3a8a;
+  --color-primary-soft: #bfdbfe;
 
   --space-1: 0.25rem;
   --space-2: 0.5rem;

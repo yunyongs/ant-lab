@@ -7,7 +7,7 @@ body {
 }
 
 :focus-visible {
-  outline: 3px solid var(--color-accent);
+  outline: 3px solid var(--color-primary);
   outline-offset: 2px;
 }
 
