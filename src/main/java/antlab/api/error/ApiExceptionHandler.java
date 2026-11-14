@@ -107,8 +107,6 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
                     INVALID_FORMATION, EVENT_TIME_CONFLICT, EMAIL_TAKEN, INVALID_CREDENTIALS -> "요청을 처리할 수 없는 상태다";
             case UNAUTHENTICATED -> "인증이 필요하다";
             case FORBIDDEN -> "권한이 없다";
-            // 5xx 는 언제나 이 고정 문장이다(내용은 로그에만).
-            case MEMBER_UNAVAILABLE -> "지금은 이 기능을 쓸 수 없다";
         };
     }
 

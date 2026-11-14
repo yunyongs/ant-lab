@@ -92,6 +92,36 @@ class RunDocContractTest {
         assertThat(unplayed).as("every contract operation is played at least once").isEmpty();
     }
 
+    /** Request blocks (split at {@code ###}) whose request needs a token but has no {@code Authorization} line. */
+    static List<String> withoutToken(String httpFile) {
+        List<String> out = new ArrayList<>();
+        for (String block : httpFile.split("(?m)^###.*$")) {
+            Matcher m = Pattern.compile("(?m)^(GET|POST|PUT|PATCH|DELETE)\\s+\\{\\{base}}(/api/v1/(?:seasons|dev)\\S*)").matcher(block);
+            if (m.find() && !Pattern.compile("(?m)^Authorization:\\s*Bearer \\{\\{token}}\\s*$").matcher(block).find()) {
+                out.add(m.group(1) + " " + m.group(2));
+            }
+        }
+        return out;
+    }
+
+    @Test
+    void 시즌과_개발_요청에는_모두_Bearer_토큰_줄이_있다() throws IOException {
+        String file = Files.readString(HTTP_FILE);
+        assertThat(requests(file).stream().filter(r -> r.contains("/seasons")).count()).isGreaterThan(20);
+        assertThat(withoutToken(file)).isEmpty();
+        assertThat(withoutToken("""
+                ###
+                POST {{base}}/api/v1/seasons
+                Authorization: Bearer {{token}}
+
+                ###
+                GET {{base}}/api/v1/seasons/{{season}}/holdings
+
+                ###
+                GET {{base}}/api/v1/pool
+                """)).containsExactly("GET /api/v1/seasons/{{season}}/holdings");
+    }
+
     @Test
     void 계약에_없는_경로는_잡힌다() {
         Set<String> operations = Set.of("GET /api/v1/pool", "POST /api/v1/seasons/{seasonId}/turns");

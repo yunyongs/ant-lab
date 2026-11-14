@@ -1333,9 +1333,22 @@ export interface components {
             reason: string;
         };
         /** @enum {string} */
-        ErrorCode: "INVALID_ARGUMENT" | "NOT_FOUND" | "METHOD_NOT_ALLOWED" | "NOT_ACCEPTABLE" | "UNSUPPORTED_MEDIA_TYPE" | "INTERNAL_ERROR" | "POOL_NOT_LOADED" | "POOL_NOT_JUDGED" | "PATH_TOO_LONG" | "SEASON_LIMIT" | "TURN_NOT_REACHED" | "SEASON_NOT_FINISHED" | "SEASON_NOT_ACTIVE" | "TURN_MISMATCH" | "LEDGER_MISMATCH" | "LINEUP_MISMATCH" | "ASSET_NOT_IN_POOL" | "INSUFFICIENT_CASH" | "INSUFFICIENT_HOLDING" | "POSITION_CONFLICT" | "POSITION_REQUIRED" | "INVALID_FORMATION" | "EVENT_TIME_CONFLICT" | "MEMBER_UNAVAILABLE" | "RECONCILIATION_FAILED" | "FORBIDDEN" | "EMAIL_TAKEN" | "UNAUTHENTICATED" | "INVALID_CREDENTIALS";
+        ErrorCode: "INVALID_ARGUMENT" | "NOT_FOUND" | "METHOD_NOT_ALLOWED" | "NOT_ACCEPTABLE" | "UNSUPPORTED_MEDIA_TYPE" | "INTERNAL_ERROR" | "POOL_NOT_LOADED" | "POOL_NOT_JUDGED" | "PATH_TOO_LONG" | "SEASON_LIMIT" | "TURN_NOT_REACHED" | "SEASON_NOT_FINISHED" | "SEASON_NOT_ACTIVE" | "TURN_MISMATCH" | "LEDGER_MISMATCH" | "LINEUP_MISMATCH" | "ASSET_NOT_IN_POOL" | "INSUFFICIENT_CASH" | "INSUFFICIENT_HOLDING" | "POSITION_CONFLICT" | "POSITION_REQUIRED" | "INVALID_FORMATION" | "EVENT_TIME_CONFLICT" | "RECONCILIATION_FAILED" | "FORBIDDEN" | "EMAIL_TAKEN" | "UNAUTHENTICATED" | "INVALID_CREDENTIALS";
     };
     responses: {
+        /**
+         * @description The request has no valid bearer token: missing, expired, wrongly signed, or naming no member — UNAUTHENTICATED
+         *
+         *     유효한 Bearer 토큰이 없다: 없거나 만료됐거나 서명이 틀렸거나 없는 회원의 토큰이다 — UNAUTHENTICATED
+         */
+        Unauthenticated: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
         /**
          * @description An unexpected server error — INTERNAL_ERROR. The message is a fixed sentence that carries no exception content (the content goes to the server log only)
          *
@@ -1556,16 +1569,8 @@ export interface operations {
                     "application/json": components["schemas"]["SeasonListDto"];
                 };
             };
+            401: components["responses"]["Unauthenticated"];
             500: components["responses"]["InternalError"];
-            /** @description The current member is unknown — MEMBER_UNAVAILABLE / 현재 회원을 알 수 없다 — MEMBER_UNAVAILABLE */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Problem"];
-                };
-            };
         };
     };
     startSeason: {
@@ -1601,6 +1606,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
+            401: components["responses"]["Unauthenticated"];
             /**
              * @description A season cannot be started now — POOL_NOT_LOADED, POOL_NOT_JUDGED, SEASON_LIMIT (3 in progress)
              *
@@ -1624,15 +1630,6 @@ export interface operations {
                 };
             };
             500: components["responses"]["InternalError"];
-            /** @description The current member is unknown — MEMBER_UNAVAILABLE (production, before sign-in) / 현재 회원을 알 수 없다 — MEMBER_UNAVAILABLE(운영, 인증 전) */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Problem"];
-                };
-            };
         };
     };
     getSeason: {
@@ -1664,6 +1661,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
+            401: components["responses"]["Unauthenticated"];
             /** @description The season does not exist — NOT_FOUND / 시즌이 없다 — NOT_FOUND */
             404: {
                 headers: {
@@ -1674,15 +1672,6 @@ export interface operations {
                 };
             };
             500: components["responses"]["InternalError"];
-            /** @description The current member is unknown — MEMBER_UNAVAILABLE / 현재 회원을 알 수 없다 — MEMBER_UNAVAILABLE */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Problem"];
-                };
-            };
         };
     };
     getTurnPrices: {
@@ -1716,6 +1705,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
+            401: components["responses"]["Unauthenticated"];
             /** @description The season does not exist — NOT_FOUND / 시즌이 없다 — NOT_FOUND */
             404: {
                 headers: {
@@ -1735,15 +1725,6 @@ export interface operations {
                 };
             };
             500: components["responses"]["InternalError"];
-            /** @description The current member is unknown — MEMBER_UNAVAILABLE / 현재 회원을 알 수 없다 — MEMBER_UNAVAILABLE */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Problem"];
-                };
-            };
         };
     };
     placeOrder: {
@@ -1779,6 +1760,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
+            401: components["responses"]["Unauthenticated"];
             /** @description The season does not exist — NOT_FOUND / 시즌이 없다 — NOT_FOUND */
             404: {
                 headers: {
@@ -1815,15 +1797,6 @@ export interface operations {
                 };
             };
             500: components["responses"]["InternalError"];
-            /** @description The current member is unknown — MEMBER_UNAVAILABLE (production, before sign-in) / 현재 회원을 알 수 없다 — MEMBER_UNAVAILABLE(운영, 인증 전) */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Problem"];
-                };
-            };
         };
     };
     changeFormation: {
@@ -1863,6 +1836,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
+            401: components["responses"]["Unauthenticated"];
             /** @description The season does not exist — NOT_FOUND / 시즌이 없다 — NOT_FOUND */
             404: {
                 headers: {
@@ -1886,15 +1860,6 @@ export interface operations {
                 };
             };
             500: components["responses"]["InternalError"];
-            /** @description The current member is unknown — MEMBER_UNAVAILABLE (production, before sign-in) / 현재 회원을 알 수 없다 — MEMBER_UNAVAILABLE(운영, 인증 전) */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Problem"];
-                };
-            };
         };
     };
     advanceTurn: {
@@ -1930,6 +1895,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
+            401: components["responses"]["Unauthenticated"];
             /** @description The season does not exist — NOT_FOUND / 시즌이 없다 — NOT_FOUND */
             404: {
                 headers: {
@@ -1949,15 +1915,6 @@ export interface operations {
                 };
             };
             500: components["responses"]["InternalError"];
-            /** @description The current member is unknown — MEMBER_UNAVAILABLE (production, before sign-in) / 현재 회원을 알 수 없다 — MEMBER_UNAVAILABLE(운영, 인증 전) */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Problem"];
-                };
-            };
         };
     };
     getTurn: {
@@ -1990,6 +1947,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
+            401: components["responses"]["Unauthenticated"];
             /** @description The season does not exist — NOT_FOUND / 시즌이 없다 — NOT_FOUND */
             404: {
                 headers: {
@@ -2013,15 +1971,6 @@ export interface operations {
                 };
             };
             500: components["responses"]["InternalError"];
-            /** @description The current member is unknown — MEMBER_UNAVAILABLE (production, before sign-in) / 현재 회원을 알 수 없다 — MEMBER_UNAVAILABLE(운영, 인증 전) */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Problem"];
-                };
-            };
         };
     };
     getHoldings: {
@@ -2053,6 +2002,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
+            401: components["responses"]["Unauthenticated"];
             /** @description The season does not exist — NOT_FOUND / 시즌이 없다 — NOT_FOUND */
             404: {
                 headers: {
@@ -2063,15 +2013,6 @@ export interface operations {
                 };
             };
             500: components["responses"]["InternalError"];
-            /** @description The current member is unknown — MEMBER_UNAVAILABLE (production, before sign-in) / 현재 회원을 알 수 없다 — MEMBER_UNAVAILABLE(운영, 인증 전) */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Problem"];
-                };
-            };
         };
     };
     getSeasonReport: {
@@ -2103,6 +2044,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
+            401: components["responses"]["Unauthenticated"];
             /** @description The season does not exist — NOT_FOUND / 시즌이 없다 — NOT_FOUND */
             404: {
                 headers: {
@@ -2122,15 +2064,6 @@ export interface operations {
                 };
             };
             500: components["responses"]["InternalError"];
-            /** @description The current member is unknown — MEMBER_UNAVAILABLE (production, before sign-in) / 현재 회원을 알 수 없다 — MEMBER_UNAVAILABLE(운영, 인증 전) */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Problem"];
-                };
-            };
         };
     };
     getSeasonReview: {
@@ -2162,6 +2095,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
+            401: components["responses"]["Unauthenticated"];
             /** @description The season does not exist — NOT_FOUND / 시즌이 없다 — NOT_FOUND */
             404: {
                 headers: {
@@ -2181,15 +2115,6 @@ export interface operations {
                 };
             };
             500: components["responses"]["InternalError"];
-            /** @description The current member is unknown — MEMBER_UNAVAILABLE (production, before sign-in) / 현재 회원을 알 수 없다 — MEMBER_UNAVAILABLE(운영, 인증 전) */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Problem"];
-                };
-            };
         };
     };
 }

@@ -136,7 +136,7 @@ class LoginApiTest {
         assertThat(row.get("revoked_reason")).isNull();
         assertThat(row.get("token_hash")).isEqualTo(RefreshTokens.hash(raw));
         assertThat(((Timestamp) row.get("expires_at")).toInstant()).isEqualTo(now.plus(Duration.ofDays(14)));
-        assertThat(row.get("member_id")).isEqualTo(jdbc.queryForObject("select id from member", Long.class));
+        assertThat(row.get("member_id")).isEqualTo(jdbc.queryForObject("select id from member where email = ?", Long.class, EMAIL));
         assertThat(row.values().stream().map(String::valueOf)).doesNotContain(raw);
     }
 
@@ -160,7 +160,7 @@ class LoginApiTest {
         byte[] key = java.util.Base64.getDecoder().decode(env.getProperty("antlab.auth.jwt-secret"));
         Jwt jwt = NimbusJwtDecoder.withSecretKey(new SecretKeySpec(key, "HmacSHA256")).macAlgorithm(MacAlgorithm.HS256)
                 .build().decode(token);
-        Long id = jdbc.queryForObject("select id from member", Long.class);
+        Long id = jdbc.queryForObject("select id from member where email = ?", Long.class, EMAIL);
         assertThat(jwt.getSubject()).isEqualTo(String.valueOf(id));
         assertThat(jwt.getClaimAsString("role")).isEqualTo("USER");
     }

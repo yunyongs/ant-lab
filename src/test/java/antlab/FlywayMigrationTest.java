@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import antlab.support.IntegrationTest;
+import antlab.support.TestMembers;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -30,6 +31,9 @@ class FlywayMigrationTest {
 
     @Autowired
     Flyway flyway;
+
+    @Autowired
+    TestMembers testMembers;
 
     @Test
     void V1부터_V4까지_업무_테이블과_성공_이력이_생긴다() {
@@ -64,8 +68,9 @@ class FlywayMigrationTest {
 
     @Test
     void 업무_테이블은_비어_있고_이력은_네_건이다() {
+        // the committed default test member (TestMembers) is the only business row
         assertThat(jdbc.queryForObject(
-                "SELECT count(*) FROM public.member", Integer.class)).isZero();
+                "SELECT count(*) FROM public.member WHERE id <> ?", Integer.class, testMembers.defaultId())).isZero();
         assertThat(jdbc.queryForObject(
                 "SELECT count(*) FROM public.cash_account", Integer.class)).isZero();
         assertThat(jdbc.queryForObject(
