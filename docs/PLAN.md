@@ -365,7 +365,7 @@ Releases are bundles of scope, not dates (owner, 2026-11-07; redefined 2026-11-1
 
 **관심 지수(데이터).** 종목 × 달마다 "그 달 얼마나 주목받았나"를 과거 데이터로 계산한다(`asset_month_attention`). 초안: 그 달 수익률 절대값의 이동 z-score(직전 12개월) + 같은 방향 연속 달 수, (EXT, 데이터가 있으면) 거래량 z-score. 확정 공식은 erd 5.3·D33(P0-11)이다. 그룹(업종·테마·자산군, `asset_group`) 관심 지수는 소속 종목 평균. 상대값이라 날짜를 드러내지 않는다. 관심 지수가 높은 종목은 피드와 랭킹에 자주 등장하고, 정점을 지나면 "관심이 식었다"는 항목이 나오며 등장 횟수가 줄어든다 — **집중과 소모의 주기**가 피드에 저절로 생긴다.
 
-**소음 피드(시즌 중 표시).** 턴 결과 화면에 그달의 피드가 표시된다(초안 5–15항목). 항목의 종류:
+**소음 피드(시즌 중 표시).** 턴 결과 화면에 그달의 피드가 표시된다(초안 5–15항목). Only when the final feed is empty (no candidate and no event) the screen says 'No news this turn'; a turn with only events shows those events. / 최종 피드가 비었을 때(후보도 사건도 없을 때)만 화면은 '이번 턴은 소식이 없다'를 보여 주고, 사건만 있는 턴은 그 사건들을 보여 준다. 항목의 종류:
 - **상승 뉴스**: 오른 종목·그룹에 대한 낙관("○○ 이달 +18%, 자금 몰려", "○○ 랠리 — 추가 상승 기대"). 근거는 그 달 수익률뿐.
 - **하락 뉴스**: 내린 종목·그룹에 대한 비관("○○ 급락, 공포 확산", "○○ 바닥 논쟁").
 - **상승·하락 뉴스의 원인**: 상승·하락 뉴스에는 고유명사·숫자 없는 막연한 원인("금리 부담", "수요 둔화 우려")을 붙일 수 있다. 구체 사건(실적 발표·인수·소송 등)은 금지한다.
@@ -1032,6 +1032,8 @@ ERD 확정 범위(Gate 0 결정 2): Phase 0 SQL이 쓰는 22개 테이블(역사
   - **Q5 — Web folder.** One package in `web/`; APP later moves it into a workspace such as `apps/web` + `packages/api`. / **Q5 — 웹 폴더.** `web/` 단일 패키지로 시작하고 APP에서 `apps/web` + `packages/api` 같은 워크스페이스로 옮긴다.
   - **Q6 — Web CI in v0.1.** Include WEB-11 as a web-only Node workflow without secrets; Gradle CI stays in M1. This brings the web slice ahead of the existing M1 CI roadmap. / **Q6 — v0.1 웹 CI.** 비밀 값 없는 Node 전용 웹 워크플로 WEB-11을 포함하고 Gradle CI는 M1에 둔다. 기존 M1 CI 로드맵에서 웹 부분만 앞당긴다.
   - **Q7 — Signup policy.** Open self-signup without email verification or login rate limits for local-only v0.1; rate limits and lockout move to OPS with public deployment. / **Q7 — 가입 정책.** 로컬 전용 v0.1은 이메일 확인·로그인 요청 제한 없이 자유 가입을 허용하고, 요청 제한·잠금은 공개 배포와 함께 OPS에서 다룬다.
+- **Turn advance: next-turn price of 0 or less (owner, 2026-11-14, #70 A). / 턴 진행: 0 이하 다음 턴 가격(소유자, 2026-11-14, #70 A).** The next-turn price is refused before any write with `NO_RETURN` (count only), for a −100 % month and for a product that rounds to 0; validation counts past blocks only. No season-start whole-path check (option B not adopted). / 다음 턴 가격이 0 이하이면 쓰기 전에 `NO_RETURN`으로 거절하고(건수만), −100% 달과 반올림하면 0이 되는 곱을 모두 포함한다. 검증은 지난 블록만 센다. 시즌 시작 시 전체 경로 검사는 두지 않는다(B안 미채택).
+- **Turn feed without candidates (owner, 2026-11-14, #77 B). / 후보가 없는 턴의 피드(소유자, 2026-11-14, #77 B).** A turn with no feed candidate advances with a 0-row feed; if only events exist the feed is those events. `FEED_NO_CANDIDATE` is retired. The screen says 'No news this turn' only when the final feed is empty (no event either); a turn with only events shows those events (MVP). / 피드 후보가 없는 턴은 피드 0행으로 진행하고, 사건만 있으면 그 사건들이 피드다. `FEED_NO_CANDIDATE`는 퇴역한다. 화면은 최종 피드가 비었을 때(사건도 없을 때)만 '이번 턴은 소식이 없다'를 보여 주고, 사건만 있는 턴은 그 사건들을 보여 준다(MVP).
 
 ## 14. 빌더에게 맡기는 것
 

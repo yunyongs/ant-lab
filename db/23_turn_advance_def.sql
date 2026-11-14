@@ -32,12 +32,12 @@
 --   SEASON_NOT_ACTIVE      상태가 IN_PROGRESS·ABANDONING 이 아니다 (끝남 등) SeasonNotActive (409)
 --   TURN_MISMATCH          기대 턴 ≠ 시즌의 현재 턴                          TurnMismatch (409)
 --   NO_PATH                다음 턴의 season_path 행이 없다                   InconsistentSeason (500)
---   NO_RETURN              다음 턴 가격을 만들 수 없는 풀 종목이 있다 (수익률·환율·0턴 가격 없음) InconsistentSeason (500)
+--   NO_RETURN              다음 턴 가격을 만들 수 없거나 0 이하인 풀 종목이 있다 (수익률·환율·0턴 가격 없음, −100 % 달, 반올림하면 0)  IllegalStateException → 500 INTERNAL_ERROR (TurnPriceCalculator)
 --   ISOLATION_LEVEL        격리 수준이 READ COMMITTED 가 아니다              (환경 오류)
 --   INVALID_ARGUMENT       인자가 NULL·음수, 또는 17개 묶음이 완전하지 않다  IllegalArgument (400/500)
 --   RECONCILIATION_FAILED  대사 불일치 — 롤백한 뒤 로그를 남기고 이 오류로 끝난다  ReconciliationFailed (409)
 --   FEED_*                 소음 피드 생성(24_turn_feed_def.sql)이 같은 규약으로 낸다: FEED_INPUT(턴·경로 없음)·FEED_EVENTS_UNREVIEWED(사건 편집 미완료)·FEED_REACTION_MISSING(반응값 NULL)·
---                          FEED_NO_CANDIDATE(후보·템플릿 없음, 행 수 범위 밖)·FEED_RENDER(렌더 계약 위반)·FEED_ALREADY_STORED(같은 턴 재저장)   Java 짝: 피드를 Java 가 도입할 때 정한다 (Phase 0 API 는 피드를 만들지 않는다)
+--                          FEED_RENDER(렌더·생성 결과 계약 위반: 템플릿 없음, 15행 초과, 자리표시자 오류)·FEED_ALREADY_STORED(같은 턴 재저장)   Java 짝: 피드를 Java 가 도입할 때 정한다 (Phase 0 API 는 피드를 만들지 않는다)
 --   앞의 일곱 가지는 아무것도 쓰기 전에 나므로 로그를 남기지 않는다 (대사를 하지 않았다 — 기록할 결과가 없다). 대사 불일치만 롤백 뒤 reconciliation_log 에 남는다.
 -- 격리 수준: READ COMMITTED 를 전제로 한다 (21 과 같음). ta_snapshot·규칙 함수는 STABLE 이라 부른 문장의 스냅샷을 쓰고, 앞선 문장에서 같은 트랜잭션이 넣은 행을 본다.
 --   ta_precheck·ta_apply 는 잠금을 잡으므로 VOLATILE(기본값)이어야 한다.
@@ -260,7 +260,7 @@ END $$;
 --   돌려주는 값: 다음 턴 풀 전체의 가격 jsonb 배열 [{"a": 종목 번호, "p": 가격}, …] (종목 번호 순). 임시 표가 아니라 값으로 건네므로 호출 문장 사이에 상태가 없다.
 --   ABANDONING 도 진행을 받는다 (PLAN §4.1-7 — 남은 턴 자동 진행). FINISHED·그 밖은 SEASON_NOT_ACTIVE.
 --   잠금 순서는 season → cash_account (21 의 order_buy 와 같다). 계좌 행이 없어도 여기서 막지 않는다 — 스냅샷이 비고 대사가 NO_ACCOUNT 로 기록한다.
---   풀 크기 확인: 기준일 풀(asset_position.base_date = season.base_date)의 종목마다 다음 턴 가격이 나와야 한다. 하나라도 없으면 NO_RETURN (어느 종목인지는 메시지에 넣지 않는다).
+--   풀 크기 확인: 기준일 풀(asset_position.base_date = season.base_date)의 종목마다 다음 턴 가격이 나와야 한다. 하나라도 없거나 반올림한 가격이 0 이하면 NO_RETURN (건수 하나만 메시지에 넣고 어느 종목인지는 넣지 않는다).
 --   검증 파일이 이 함수만 불러 거부 사례를 INSERT 없이(identity 를 쓰지 않고) 시험한다.
 -- ---------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION pg_temp.ta_precheck(p_season_id bigint, p_expected_turn smallint)
@@ -273,6 +273,7 @@ DECLARE
     v_next    smallint;
     v_prices  jsonb;
     v_missing bigint;
+    v_nonpos  bigint;
 BEGIN
     IF p_season_id IS NULL OR p_expected_turn IS NULL OR p_expected_turn < 0 THEN
         RAISE EXCEPTION 'P0-17 턴 진행: 시즌 번호나 기대 턴이 없거나 음수다' USING HINT = 'INVALID_ARGUMENT';
@@ -310,8 +311,12 @@ BEGIN
     FROM asset_position ap
     WHERE ap.base_date = v_base
       AND NOT (COALESCE(v_prices, '[]'::jsonb) @> jsonb_build_array(jsonb_build_object('a', ap.asset_id)));
-    IF v_prices IS NULL OR v_missing > 0 THEN
-        RAISE EXCEPTION 'P0-17 턴 진행: 다음 턴 가격을 만들 수 없는 풀 종목이 % 개 있다 (수익률·환율·0턴 가격 확인)', v_missing USING HINT = 'NO_RETURN';
+    -- Rounded price <= 0 (a -100 % month, or a product that rounds to 0) would fail ck_turn_price_price_pos on INSERT; refuse it here with the same HINT.
+    SELECT count(*) INTO v_nonpos
+    FROM jsonb_to_recordset(COALESCE(v_prices, '[]'::jsonb)) AS x(a bigint, p numeric)
+    WHERE x.p <= 0;
+    IF v_prices IS NULL OR v_missing + v_nonpos > 0 THEN
+        RAISE EXCEPTION 'P0-17 턴 진행: 다음 턴 가격을 만들 수 없거나 0 이하인 풀 종목이 % 개 있다 (수익률·환율·0턴 가격 확인)', v_missing + v_nonpos USING HINT = 'NO_RETURN';
     END IF;
     RETURN v_prices;
 END $$;

@@ -464,9 +464,9 @@ SELECT pg_temp.check_eq('01 진행 상태', '로그 ⑦ 규칙 11·19 코드가 
 SELECT pg_temp.check_eq('01 진행 상태', '로그 ⑧ 17개 시도의 행 수 = 17 이고 MATCH 행은 분류가 NULL, MISMATCH 행은 INVESTIGATE 다 (어긋난 행 수)', '0',
     (SELECT count(*) FROM reconciliation_log l JOIN zz_cur c ON c.id = l.season_id JOIN zz_att17 a ON a.turn_no = l.turn_no AND a.attempt_no = l.attempt_no
      WHERE (l.status = 'MATCH') <> (l.classification IS NULL) OR (l.status = 'MISMATCH' AND l.classification <> 'INVESTIGATE'))::text);
-SELECT pg_temp.check_eq('01 진행 상태', '피드 ① 완료 턴마다 5–15행·seq 연속이다', '0',
+SELECT pg_temp.check_eq('01 진행 상태', '피드 ① 피드가 있는 턴마다 1–15행·seq 연속이다 (0행 턴은 이 질의에 보이지 않는다 — 피드 누락은 24 검증 ② 저장 = 재생성이 본다)', '0',
     (SELECT count(*) FROM (SELECT f.turn_no FROM turn_feed f JOIN zz_cur c ON c.id = f.season_id
-                           GROUP BY f.turn_no HAVING count(*) NOT BETWEEN 5 AND 15 OR min(f.seq) <> 1 OR max(f.seq) <> count(*)) x)::text);
+                           GROUP BY f.turn_no HAVING count(*) > 15 OR min(f.seq) <> 1 OR max(f.seq) <> count(*)) x)::text);
 SELECT pg_temp.check_eq('01 진행 상태', '피드 ② 0턴·현재 턴 이후 행이 없다', '0',
     (SELECT count(*) FROM turn_feed f JOIN zz_cur c ON c.id = f.season_id
       WHERE f.turn_no < 1 OR f.turn_no > c.current_turn_no)::text);
@@ -774,6 +774,21 @@ CALL pg_temp.reject_case('다음 블록의 풀 종목 수익률 한 행이 없�
                                                    JOIN season_path sp ON sp.month_block_id = amr.month_block_id AND sp.season_id = (SELECT season_id FROM zz_t) AND sp.turn_no = 1
                                                    JOIN asset_position ap ON ap.asset_id = amr.asset_id AND ap.base_date = (SELECT base_date FROM zz_cur)
                                                    ORDER BY amr.asset_id LIMIT 1)$m$,
+    'SELECT pg_temp.ta_precheck((SELECT season_id FROM zz_t), 0::smallint)', 'NO_RETURN');
+CALL pg_temp.reject_case('다음 블록의 풀 종목 현지 수익률이 -1 이면 (가격 0) NO_RETURN',
+    $m$UPDATE season SET status = 'IN_PROGRESS', abandoned_turn_no = NULL, current_turn_no = 0 WHERE id = (SELECT season_id FROM zz_t);
+       UPDATE asset_month_return SET local_return = -1 WHERE id = (SELECT amr.id FROM asset_month_return amr
+                                                   JOIN season_path sp ON sp.month_block_id = amr.month_block_id AND sp.season_id = (SELECT season_id FROM zz_t) AND sp.turn_no = 1
+                                                   JOIN asset_position ap ON ap.asset_id = amr.asset_id AND ap.base_date = (SELECT base_date FROM zz_cur)
+                                                   ORDER BY amr.asset_id LIMIT 1)$m$,
+    'SELECT pg_temp.ta_precheck((SELECT season_id FROM zz_t), 0::smallint)', 'NO_RETURN');
+-- The cheapest 0-turn price is far below 50,000,000, so price * 1e-8 < 0.5 and the single final ROUND gives 0 although no return is -1.
+CALL pg_temp.reject_case('반올림하면 0 이 되는 다음 턴 가격도 NO_RETURN (수익률 -0.99999999)',
+    $m$UPDATE season SET status = 'IN_PROGRESS', abandoned_turn_no = NULL, current_turn_no = 0 WHERE id = (SELECT season_id FROM zz_t);
+       UPDATE asset_month_return SET local_return = -0.99999999 WHERE id = (SELECT amr.id FROM asset_month_return amr
+                                                   JOIN season_path sp ON sp.month_block_id = amr.month_block_id AND sp.season_id = (SELECT season_id FROM zz_t) AND sp.turn_no = 1
+                                                   WHERE amr.asset_id = (SELECT tp.asset_id FROM turn_price tp WHERE tp.season_id = (SELECT season_id FROM zz_t) AND tp.turn_no = 0
+                                                                          ORDER BY tp.price, tp.asset_id LIMIT 1))$m$,
     'SELECT pg_temp.ta_precheck((SELECT season_id FROM zz_t), 0::smallint)', 'NO_RETURN');
 CALL pg_temp.reject_case('원화 아닌 풀 종목의 환율 행이 없으면 NO_RETURN',
     $m$UPDATE season SET status = 'IN_PROGRESS', abandoned_turn_no = NULL, current_turn_no = 0 WHERE id = (SELECT season_id FROM zz_t);

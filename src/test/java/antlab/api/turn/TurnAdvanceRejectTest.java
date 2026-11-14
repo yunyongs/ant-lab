@@ -188,4 +188,17 @@ class TurnAdvanceRejectTest {
         assertThat(json(r).get("detail").asString()).isEqualTo(FIXED_500);
         assertThat(state(jdbc, season)).isEqualTo(before);
     }
+
+    @Test
+    void 반올림하면_0이_되는_다음_턴_가격도_500이고_아무것도_쓰지_않는다() throws Exception {
+        long season = teamSeason();
+        // price * 1e-8 is far below 0.5 KRW, so the single final rounding gives 0 although no return is -1
+        jdbc.update("UPDATE asset_month_return SET local_return = -0.99999999 WHERE asset_id = ? AND month_block_id = "
+                + blockOfTurnOne(season), assetId(jdbc, "000660"));
+        Map<String, Object> before = state(jdbc, season);
+        MockHttpServletResponse r = advance(mvc, season, 0);
+        assertThat(r.getStatus()).isEqualTo(500);
+        assertThat(json(r).get("detail").asString()).isEqualTo(FIXED_500);
+        assertThat(state(jdbc, season)).isEqualTo(before);
+    }
 }

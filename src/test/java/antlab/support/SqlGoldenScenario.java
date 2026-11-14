@@ -149,6 +149,49 @@ public final class SqlGoldenScenario {
         return new ScenarioPlan("FORMATION_DRILL", List.copyOf(steps));
     }
 
+    /** Turn after which the flat-turn drill runs in {@link #flatTurnDrill()}: the last turn, whose block (turn 10) has no events in the sample. */
+    static final int FLAT_DRILL_TURN = PATH_LENGTH - 1;
+    /** Turn after which the flat-turn drill runs in {@link #flatTurnDrillMid()}: the block of turn 5 has no events in the sample. */
+    static final int FLAT_DRILL_MID_TURN = 4;
+
+    /**
+     * Flat-turn drill, last-turn case (#77): the turn golden up to turn 9, then {@code 23_turn_advance_drill.sql -v drill_case=flat} flattens the last block
+     * (no return, no FX change, no attention, no events) and advances the season with a 0-row feed. The 23 and 24 checks must still pass afterwards.
+     * This is one case; the mid-season case, where the flat turn is not the last one, is {@link #flatTurnDrillMid()}.
+     * Throwaway database only (the harness names its databases {@code golden_*}); the drill file is only in a {@link GoldenFixtureSource#withDrill()} bundle.
+     */
+    public static ScenarioPlan flatTurnDrill() {
+        List<ScriptStep> steps = new ArrayList<>(turnGoldenUntil(FLAT_DRILL_TURN, "FLAT_TURN_DRILL").steps());
+        steps.add(flatDrillStep());
+        steps.add(check("23_turn_advance", "p0_17_check"));
+        steps.add(check("24_turn_feed", "p0_18_check"));
+        return new ScenarioPlan("FLAT_TURN_DRILL", List.copyOf(steps));
+    }
+
+    /**
+     * Flat-turn drill, mid-season case (#77): the turn golden up to turn 4, the drill flattens the block of turn 5 (eventless, not a past block),
+     * the 23 and 24 checks run with the flat turn as the latest completed turn, then the season advances to turn 10 (the next turn starts
+     * from an empty previous feed) and the 23, 24 and 26 (report and review) checks run again.
+     * The only constraint on the drill turn is that its next block is eventless and not yet played.
+     */
+    public static ScenarioPlan flatTurnDrillMid() {
+        List<ScriptStep> steps = new ArrayList<>(turnGoldenUntil(FLAT_DRILL_MID_TURN, "FLAT_TURN_DRILL_MID").steps());
+        steps.add(flatDrillStep());
+        steps.add(check("23_turn_advance", "p0_17_check"));
+        steps.add(check("24_turn_feed", "p0_18_check"));
+        steps.addAll(advanceTurns(PATH_LENGTH - FLAT_DRILL_MID_TURN - 1).steps());
+        steps.add(check("23_turn_advance", "p0_17_check"));
+        steps.add(check("24_turn_feed", "p0_18_check"));
+        steps.add(run("26_season_report"));
+        steps.add(check("26_season_report", "p0_20_check"));
+        return new ScenarioPlan("FLAT_TURN_DRILL_MID", List.copyOf(steps));
+    }
+
+    private static ScriptStep flatDrillStep() {
+        return new ScriptStep("db/23_turn_advance_drill.sql", Kind.CHECK, "p0_17_drill_flat", STEP_TIMEOUT,
+                Map.of("drill", "1", "drill_case", "flat"));
+    }
+
     /** 이미 만들어진 SQL 시즌에서 23 을 {@code turns} 번 더 돌리는 토막(매도·전술 변경 골든이 5턴 뒤 10턴까지 잇는 데 쓴다). */
     public static ScenarioPlan advanceTurns(int turns) {
         if (turns < 1 || turns > PATH_LENGTH) {
