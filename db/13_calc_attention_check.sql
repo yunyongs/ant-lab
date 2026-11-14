@@ -21,7 +21,10 @@
 --       H8 은 그 달 뒤를 보는지만 시험한다. 그 달 자신을 창에 넣는 실수는 2절 독립 계산·4절 손 계산이 잡는다. 변이는 asset_month_return 만 바꾸므로
 --       계산식이 다른 표(fx_month, month_event 등)를 읽게 바뀌면 변이도 그 표로 넓힌다.
 --       시험이 헛돌지 않게 M 뒤 행은 하나 이상 달라져야 하고(H8_MOVED), 일부러 다음 달을 보는 뷰(zz_leak)에서는 시험이 위반을 잡아야 한다(H8_TEETH).
--- 순위·그룹(6절): 정본 쿼리 텍스트가 이 절의 zz_canon 에 있다 (순위는 RANK(), NULL 제외, 동률은 같은 순위, 표시 순서의 마지막 키는 market, ticker).
+-- Rank and group (section 6): rank lookup R is defined once in db/13_calc_attention_rank_def.sql (temp view attn_rank), which this file reads with \ir.
+--       Group lookup G and the display order (market, ticker) are query text in zz_canon of section 6; the rank columns come from attn_rank.
+--       Section 6 still checks rank, n_ranked and top-q against an independent count ("rows with a larger index + 1"), not against attn_rank itself.
+--       Rank mutations replace text of the rank definition file (read with cat, so run from the repository root) and rename attn_rank to zzm_rank.
 -- P0-08·P0-09 판정 계약에서 복사한 것: ① pg_temp.zz_verdict ② 결과 표 zz_check_result ④ check_eq + val()
 --       ⑤ 0절 뒤 멈춤과 판정(표식 2 또는 1) ⑥ 9절 흔적 확인(표식 0)과 마지막 CASE.
 --       갱신 규칙: val() 은 정확히 한 행, 기대값을 NULL 로 쓰지 않는다, NULL 안전 비교(IS NOT DISTINCT FROM), 사례 하나에 조건 하나.
@@ -31,6 +34,9 @@
 --       PL/pgSQL 예외 블록(서브트랜잭션)으로 "바꿔 보고 되돌리기", EXECUTE … USING, 쿼리 텍스트를 표에 담아 실행하기.
 -- 명령줄(psql)이 기준이다. VS Code 에서는 통합 터미널에서 실행한다.
 -- =====================================================================
+
+-- Rank definition text for the mutation cases (needs the repository root as working directory; section 0 checks it was read)
+\set rank_text `cat db/13_calc_attention_rank_def.sql`
 
 -- 판정 표식: 트랜잭션이 되돌아가도 남는 임시 시퀀스 (1 = 미완료 또는 실패, 2 = 1–8절 통과·흔적 확인 대기, 0 = 최종 통과)
 CREATE TEMP SEQUENCE IF NOT EXISTS zz_verdict MINVALUE 0 START 1;
@@ -100,6 +106,10 @@ END $$;
 
 -- 계산식 정의를 읽는다 (쓰기 파일과 같은 파일. 임시 뷰 attn_calc 가 만들어진다)
 \ir 13_calc_attention_def.sql
+
+-- Shared rank definition (temp view attn_rank). The same text is also kept in zz_rank_def for the rank mutation cases.
+\ir 13_calc_attention_rank_def.sql
+CREATE TEMP TABLE zz_rank_def AS SELECT :'rank_text'::text AS txt;
 
 -- 검증 도구 -----------------------------------------------------------------------
 
@@ -324,20 +334,18 @@ BEGIN
     RETURN v_bad;
 END $$;
 
--- 정본 쿼리 텍스트(6절): 순위 R 과 그룹 조회 G. $1 = 시즌 기준일(asset_position.base_date). 저장하지 않고 읽을 때 계산한다.
+-- Query text for section 6: rank lookup R (rank columns from the shared view attn_rank, plus display order) and group lookup G.
+-- $1 = season base date (asset_position.base_date). Computed on read, not stored.
 CREATE TEMP TABLE zz_canon (name text PRIMARY KEY, sql text NOT NULL);
 INSERT INTO zz_canon VALUES
     ('RANK', $c$
-SELECT t.*, t.attention_rank <= CEIL(0.10 * t.n_ranked) AS is_top
-FROM (SELECT $1::date AS base_date, a.month_block_id, a.asset_id, a.attention_index,
-             RANK() OVER (PARTITION BY a.month_block_id ORDER BY a.attention_index DESC) AS attention_rank,
-             COUNT(*) OVER (PARTITION BY a.month_block_id) AS n_ranked,
-             ROW_NUMBER() OVER (PARTITION BY a.month_block_id
-                                ORDER BY a.attention_index DESC, s.market COLLATE "C", s.ticker COLLATE "C") AS display_order
-      FROM asset_month_attention a
-      JOIN asset_position p ON p.asset_id = a.asset_id AND p.base_date = $1
-      JOIN asset s ON s.id = a.asset_id
-      WHERE a.attention_index IS NOT NULL) t
+SELECT r.base_date, r.month_block_id, r.asset_id, r.attention_index, r.attention_rank, r.n_ranked,
+       ROW_NUMBER() OVER (PARTITION BY r.base_date, r.month_block_id
+                          ORDER BY r.attention_index DESC, r.market COLLATE "C", s.ticker COLLATE "C") AS display_order,
+       r.is_top_q AS is_top
+FROM attn_rank r
+JOIN asset s ON s.id = r.asset_id
+WHERE r.base_date = $1
 $c$),
     ('GROUP', $c$
 SELECT $1::date AS base_date, m.id AS month_block_id, a.asset_group_id,
@@ -351,6 +359,19 @@ LEFT JOIN asset_month_attention t ON t.asset_id = a.id AND t.month_block_id = m.
 WHERE p.base_date = $1
 GROUP BY m.id, a.asset_group_id
 $c$);
+
+-- Rank mutation: replace text in the rank definition, create it as zzm_rank, and point the RANK query at it. Raises if the text is not there.
+CREATE PROCEDURE pg_temp.mut_rank(p_from text, p_to text)
+LANGUAGE plpgsql AS $$
+DECLARE
+    v_txt text := (SELECT txt FROM zz_rank_def);
+BEGIN
+    IF position(p_from IN v_txt) = 0 THEN
+        RAISE EXCEPTION 'zz_mut text not in the rank definition: %', p_from;
+    END IF;
+    EXECUTE replace(replace(v_txt, p_from, p_to), 'attn_rank', 'zzm_rank');
+    UPDATE zz_canon SET sql = replace(sql, 'attn_rank', 'zzm_rank') WHERE name = 'RANK';
+END $$;
 
 CREATE TEMP TABLE zz_rank_out (base_date date, month_block_id bigint, asset_id bigint, attention_index numeric,
                                attention_rank bigint, n_ranked bigint, display_order bigint, is_top boolean);
@@ -513,6 +534,8 @@ FROM (VALUES
        + (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
           WHERE n.nspname = 'public' AND p.proname LIKE 'zz\_%'))::text),
     ('계산식 정의 파일을 읽었다 (임시 뷰 attn_calc 가 있다)', 'true', (to_regclass('pg_temp.attn_calc') IS NOT NULL)::text),
+    ('순위 정의 파일을 \ir 로 읽었고 같은 글자를 cat 으로도 읽었다 (임시 뷰 attn_rank 가 있고 변이 시험 재료가 있다)', 'true',
+        (SELECT (to_regclass('pg_temp.attn_rank') IS NOT NULL AND length(txt) > 300 AND position('CREATE TEMP VIEW attn_rank' IN txt) > 0)::text FROM zz_rank_def)),
     ('10 적재가 끝나 있다 (asset_month_return 이 비어 있지 않다)', 'true', (SELECT (count(*) > 0)::text FROM asset_month_return)),
     ('13 계산이 끝나 있다 (asset_month_attention 이 비어 있지 않다 — 빈 표로 헛 PASS 하지 않는다)', 'true', (SELECT (count(*) > 0)::text FROM asset_month_attention)),
     ('H8 기준 달이 모두 month_block 에 있다', (SELECT count(*)::text FROM zz_h8_m),
@@ -602,7 +625,7 @@ INSERT INTO zz_q (code, section, item, sql) VALUES
      $q$SELECT pg_temp.h8_count((SELECT h8_view FROM zz_cfg), 'moved')$q$),
     ('H8_TEETH', '5 H8', '일부러 다음 달을 보는 뷰(zz_leak)를 같은 시험이 잡지 못한 경우 (잡으면 0, 못 잡으면 1)',
      $q$SELECT (pg_temp.h8_count('zz_leak', 'cut') = 0)::integer$q$),
-    ('RANK_RULE', '6 순위·그룹', '순위 R(zz_canon RANK)이 규칙과 다른 수: RANK() 독립 정의, 동률은 같은 순위, NULL 지수 제외, 표시 순서(market, ticker), 상위 q, 합성 동률',
+    ('RANK_RULE', '6 순위·그룹', '순위 R(공유 뷰 attn_rank + zz_canon RANK 의 표시 순서)이 규칙과 다른 수: RANK() 독립 정의, 동률은 같은 순위, NULL 지수 제외, 표시 순서(market, ticker), 상위 q, 합성 동률',
      $q$SELECT pg_temp.rank_count()$q$),
     ('GROUP_AVG', '6 순위·그룹', '그룹 조회 G(zz_canon GROUP)가 독립 계산(직접 SUM/COUNT)과 다른 수: 평균·n_members·n_pool, 지수 없는 그룹·달은 NULL',
      $q$SELECT pg_temp.group_count()$q$);
@@ -662,11 +685,13 @@ INSERT INTO zz_neg (q, label, mutate, expect, cmp, alt) VALUES
      $m$INSERT INTO zz_h8_m SELECT max(month_start) FROM month_block$m$, '3', 'eq', NULL),
     ('H8_TEETH', '샌 뷰가 다음 달 값을 섞지 않게 하면 (시험이 잡을 것이 없다)',
      $m$UPDATE zz_cfg SET leak_scale = 0$m$, '1', 'eq', NULL),
-    ('RANK_RULE', '정본 쿼리의 RANK() 를 DENSE_RANK() 로 바꾸면 (동률 뒤 순위가 달라진다)',
-     $m$UPDATE zz_canon SET sql = replace(sql, 'RANK() OVER', 'DENSE_RANK() OVER') WHERE name = 'RANK'$m$, '1', 'ge', NULL),
-    ('RANK_RULE', '정본 쿼리의 NULL 제외 조건을 빼면',
-     $m$UPDATE zz_canon SET sql = replace(sql, 'WHERE a.attention_index IS NOT NULL', 'WHERE TRUE') WHERE name = 'RANK'$m$, '1', 'ge', NULL),
-    ('RANK_RULE', '정본 쿼리의 표시 순서에서 ticker 를 내림차순으로 바꾸면 (합성 동률의 순서가 뒤집힌다)',
+    ('RANK_RULE', '공유 순위 정의의 RANK() 를 DENSE_RANK() 로 바꾸면 (동률 뒤 순위가 달라진다)',
+     $m$CALL pg_temp.mut_rank('RANK() OVER', 'DENSE_RANK() OVER')$m$, '1', 'ge', NULL),
+    ('RANK_RULE', '공유 순위 정의의 NULL 제외 조건을 빼면',
+     $m$CALL pg_temp.mut_rank('WHERE a.attention_index IS NOT NULL', 'WHERE TRUE')$m$, '1', 'ge', NULL),
+    ('RANK_RULE', '공유 순위 정의의 상위 비율 q 를 0.20 으로 바꾸면 (상위 표시가 독립 정의와 달라진다)',
+     $m$CALL pg_temp.mut_rank('0.10::numeric AS top_q', '0.20::numeric AS top_q')$m$, '1', 'ge', NULL),
+    ('RANK_RULE', '표시 순서에서 ticker 를 내림차순으로 바꾸면 (합성 동률의 순서가 뒤집힌다)',
      $m$UPDATE zz_canon SET sql = replace(sql, 's.ticker COLLATE "C") AS display_order', 's.ticker COLLATE "C" DESC) AS display_order') WHERE name = 'RANK'$m$, '1', 'ge', NULL),
     ('GROUP_AVG', '정본 쿼리가 NULL 지수를 0 으로 평균내면',
      $m$UPDATE zz_canon SET sql = replace(sql, 'AVG(t.attention_index)', 'AVG(COALESCE(t.attention_index, 0))') WHERE name = 'GROUP'$m$, '1', 'ge', NULL),
