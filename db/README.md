@@ -96,9 +96,10 @@ Testcontainers DB를 시작하고 Flyway를 적용한다. 시험 DB에서 `clean
 | `12_calc_position.sql` | P0-10 | `asset_position`의 판정 8컬럼(창·사용한 달 수·상승/하락 참여율·변동성·최대 낙폭·시스템 판정 포지션)을 **UPDATE 한 문장**으로 채운다. 판정이 비어 있는 행만 채우므로 다시 실행하면 바뀌는 행이 0이고, 이미 판정된 행이 계산값과 다르면(수익률·공식이 바뀜) 오류로 멈추고 전부 되돌린다(정정 없음). 최소 달 수(24, 오른 달 5, 빠진 달 5)에 못 미치면 8컬럼을 NULL로 두고 사유별 건수만 보고한다. 건수만 내고 값은 내지 않는다. 01 스키마와 10 적재를 먼저 실행한다 |
 | `12_calc_position_check.sql` | P0-10 | 계산 검증. 다른 방법의 독립 계산 대조(사용자 정의 곱 집계·자기 조인 최고점·합·제곱합 분산식·평균의 비), 합성 손 계산 13종목(밴드 경계·환율 결합·W0·표본 표준편차·최소 달 수 경계), 판정 함수 경계 바로 위·아래 표 25사례, 풀 순위(CEIL·경계 동률·N=1), 사후 정보 배제(H9: 기준일 달 이후·창 앞을 바꿔도 불변, 창 안을 바꾸면 변하고, 창 끝을 밀면 잡힌다), 타입, 규칙 30개마다 변이(음성) 사례와 커버리지 `30/30`. 합성 행은 번호를 직접 지정해 넣고 되돌리므로 번호표를 소비하지 않아 `antlab`에서도 돌린다 |
 | `13_calc_attention_def.sql` | P0-11 | 관심 지수 계산식의 유일한 정의(세션 임시 뷰 `attn_calc`). 단독 실행 대상이 아니라 13 두 파일이 `\ir`로 읽는다 — 쓰기와 검증이 같은 정의를 읽으므로 사후 정보 배제(H8) 시험이 복사본이 아니라 실제 계산식을 시험한다 |
+| `13_calc_attention_rank_def.sql` | P0-11·P0-12 | Attention rank lookup R, defined once (session temp view `attn_rank`; the constant q is only here). Not a standalone script: the 13 check and `14_stats_calendar_def.sql` read it with `\ir`, and P0-18 can read it alone for ranks and peaks. It reads only the month's own values and four tables. 관심 순위 조회 R의 유일한 정의(세션 임시 뷰 `attn_rank`, 상수 q는 이 파일에만 있다). 단독 실행 대상이 아니라 13 검증과 `14_stats_calendar_def.sql`이 `\ir`로 읽고, P0-18은 이 파일만 읽어 순위·정점을 쓸 수 있다. 그 달의 값과 표 4개만 읽는다 |
 | `13_calc_attention.sql` | P0-11 | `asset_month_return`에서 `asset_month_attention`을 계산해 채운다(종목 × 달, 수익률 행과 1:1). 없는 행만 INSERT하고 아무것도 지우거나 고치지 않으며, 다시 실행하면 새 행이 없다(멱등). 이미 있는 값이 계산값과 다르거나 DB에만 있는 행이 있으면 오류로 멈추고 전부 되돌린다. 건수만 보고하고 값은 출력하지 않는다. 01 스키마와 10 적재를 먼저 실행한다 |
-| `13_calc_attention_check.sql` | P0-11 | 계산 검증. 윈도 함수로 한 독립 계산 대조, 규칙(NULL·범위·지수 식·구간 시작·NaN), 합성 손 계산 12사례, 사후 정보 배제(기준 달 뒤 수익률을 바꾸거나 지워도 그 달까지의 행이 불변), 순위·그룹 정본 쿼리를 단언한다. 규칙 18개마다 음성 사례가 있고 커버리지 `18/18`을 확인한다. 아무것도 쓰지 않고 `ROLLBACK`하므로 `antlab`에서도 돌린다. 약 1분 반 걸린다 |
-| `14_stats_calendar_def.sql` | P0-12 | 통계 보드 정의(세션 임시 뷰 7개: `stat_k`·`stat_series`·`stat_month`·`stat_peak`·`stat_fwd`·`stat_obs`·`stat_board`). 단독 실행 대상이 아니라 14 두 파일이 `\ir`로 읽는다 — 출력과 검증이 같은 정의를 읽는다. 역사 7개 표만 읽고 시즌·계좌 표는 읽지 않으며 아무것도 쓰지 않는다 |
+| `13_calc_attention_check.sql` | P0-11 | Rank (the shared `attn_rank`, checked against an independent count) and group lookup are asserted. 계산 검증. 윈도 함수로 한 독립 계산 대조, 규칙(NULL·범위·지수 식·구간 시작·NaN), 합성 손 계산 12사례, 사후 정보 배제(기준 달 뒤 수익률을 바꾸거나 지워도 그 달까지의 행이 불변), 순위(공유 정의 `attn_rank`를 독립 계산으로 대조)·그룹 조회를 단언한다. 규칙 18개마다 음성 사례가 있고 커버리지 `18/18`을 확인한다. 아무것도 쓰지 않고 `ROLLBACK`하므로 `antlab`에서도 돌린다. 약 1분 반 걸린다 |
+| `14_stats_calendar_def.sql` | P0-12 | 통계 보드 정의(세션 임시 뷰 7개: `stat_k`·`stat_series`·`stat_month`·`stat_peak`·`stat_fwd`·`stat_obs`·`stat_board`). `stat_peak` is `attn_rank` plus the year cut only (this file reads `13_calc_attention_rank_def.sql` with `\ir`). `stat_peak`은 `attn_rank`에 올해 제외만 더한 것이다(순위 정의 파일을 이 파일이 `\ir`로 읽는다). 단독 실행 대상이 아니라 14 두 파일이 `\ir`로 읽는다 — 출력과 검증이 같은 정의를 읽는다. 역사 7개 표만 읽고 시즌·계좌 표는 읽지 않으며 아무것도 쓰지 않는다 |
 | `14_stats_calendar.sql` | P0-12 | 달력 월(1–12월)·사건 유형의 `START` 뒤 1·3개월·관심 정점 뒤 1·3개월의 평균 수익률·상승 확률·표본 수를 낸다(저장하지 않고 읽을 때 계산). 종류별 건수 표와 통계 보드(n ≥ 5인 조건만, 5 ≤ n < 10은 `일화`)를 출력하고 `ROLLBACK`하므로 `antlab`에서 몇 번이든 돌린다. 10 → 11 → 13을 먼저 실행한다 |
 | `14_stats_calendar_check.sql` | P0-12 | 통계 검증. 다른 방법의 독립 계산 대조(윈도 함수 `LEAD`·정수 산술), 합성 손 계산(달력 평균·0 수익률·누적 곱·반올림 한 번), 표본 수 경계(n = 4·5·9·10), 누출(기준일 해 제외·정점 판정에 미래 값 없음·시즌 표를 읽지 않음·관측값 열 없음), 타입(부동소수·NaN 없음)을 단언한다. 규칙 20개마다 정의를 일부러 바꾼 변이 사례가 있고 커버리지 `20/20`을 확인한다. 아무것도 쓰지 않고 `ROLLBACK`한다 |
 | `20_season_start.sql` | P0-14 | 연습 시즌을 한 트랜잭션으로 연다 — 연습 회원 → 시즌(D30 8컬럼·요율 3·위험 선언·시작 = 현재 포메이션을 모두 명시) → 손 경로 10턴 → 현금 계좌 + 개설 입금 `DEPOSIT` → 0턴 가격(기준일 풀 전체, 원 단위, 미국 종목은 원화 환산). 제약을 하나라도 어기면 앞에서 성공한 INSERT까지 전부 되돌아간다. 연습 회원이 이미 있으면 새 행 없이 끝나고(멱등), 이미 있는 시즌이 파일과 다르면 오류로 멈춘다. 기준일 풀에 판정이 비어 있으면 "12 계산을 먼저" 메시지로 멈춘다(종료 코드 3). 01·02·03 스키마, 10 적재, 12 판정을 먼저 실행한다. **이 파일은 손 경로의 실제 달을 담고 있다** — MVP 시즌의 경로는 저장소에 들어가지 않는다 |
@@ -157,7 +158,7 @@ Java `MoneyMathSqlParityTest`(P0-26)는 `21_team_buy_def.sql`의 순수 함수 5
 | S11 | `12_calc_position.sql` | S07 | 바뀌는 행 0 | 종료 0 | 12 정의(26이 읽음) |
 | S12 | `12_calc_position_check.sql` | S11 | 몇 번이든 | `p0_10_check` | — |
 | S13 | `13_calc_attention.sql` | S07, 루트 | 새 행 0 | 종료 0 | 23 입력 |
-| S14 | `13_calc_attention_check.sql` | S13 | 몇 번이든 (이 단계가 가장 오래 걸린다) | `p0_11_check` | — |
+| S14 | `13_calc_attention_check.sql` | S13, 루트 | 몇 번이든 (이 단계가 가장 오래 걸린다) | `p0_11_check` | — |
 | S15 | `14_stats_calendar.sql` | S07·S09·S13 | 쓰기 없음 | 종료 0 | — |
 | S16 | `14_stats_calendar_check.sql` | S15, 루트 | 몇 번이든 | `p0_12_check` | — |
 | S17 | `20_season_start.sql` | S05·S07·S11 | 새 행 0 | 종료 0 | P0-30 |
@@ -985,21 +986,17 @@ FAIL이 하나라도 있으면 오류 메시지와 함께 종료 코드 3으로 
   - **2절:** 윈도 함수(`LAG`, 누적 `SUM`, 프레임 `12 PRECEDING AND 1 PRECEDING`)와 합·제곱합 식으로 따로 계산한 창·z·streak·지수가 저장값과 전 행 같은지 본다. 계산 쓰기 쪽(자기 조인·상관 서브쿼리·`stddev_samp`)과 다른 방법이라 서로를 검증한다.
   - **4절:** 합성 수익률(시세 아님) 12사례를 한 구간에 덮어쓰고 손으로 계산한 기대값과 비교한다(정상 z, +3·−3 절단, 0 수익률, 표준편차 0·하한 바로 아래·정확히 하한·바로 위, 0 다음 달 재시작, 보너스 단계와 상한). 서브트랜잭션에서 되돌린다.
   - **5절(H8):** 기준 달 M 7개 × 변이 3종(M 뒤 수익률을 모두 바꿈 / 바로 다음 달만 바꿈 / M 뒤 행을 지움)에서 같은 계산식을 다시 돌려도 M까지의 행이 변이 전 같은 계산식의 결과(그리고 저장값)와 같아야 한다. 시험이 헛돌지 않게 M 뒤 행이 달라지는지(`H8_MOVED`)와, 일부러 다음 달을 보는 뷰를 시험이 잡는지(`H8_TEETH`)도 단언한다. H8은 그 달 **뒤**를 보는지만 시험한다. 창에 그 달 자신을 넣는 실수는 미래를 본 것이 아니므로 H8이 아니라 2절 독립 계산·4절 손 계산이 잡는다. 변이는 `asset_month_return`만 바꾸므로 계산식이 다른 표(예: `fx_month`, `month_event`)를 읽게 바뀌면 H8 변이도 그 표로 넓힌다.
-  - **6절:** 순위·그룹의 정본 쿼리 텍스트가 이 절(`zz_canon`)에 있다. 시즌 기준일 `:base_date`의 풀로 걸러 읽는 모양은 아래와 같고(저장하지 않는다), 독립 정의와 합성 동률으로 검증한다. 목록 순서가 필요한 소비자(P0-18 랭킹·피드)는 `display_order`로 정렬한다 — `ORDER BY` 없는 결과의 행 순서는 보장되지 않는다. `:'base_date'`는 `psql -v base_date=2026-01-02`처럼 넘긴다.
+  - **6절:** Rank lookup R is the shared view `attn_rank` (`13_calc_attention_rank_def.sql`); this section keeps the display order and group lookup G as query text (`zz_canon`) and checks the rank columns against an independent count. Rank mutations change a copy of that file's text, so run the check from the repository root. 순위 R은 공유 뷰 `attn_rank`(`13_calc_attention_rank_def.sql`)이고, 이 절(`zz_canon`)에는 표시 순서와 그룹 조회 G의 쿼리 텍스트가 있으며 순위 열은 독립 계산으로 대조한다. 순위 변이는 그 파일의 글자를 바꿔 시험하므로 **저장소 루트에서 실행한다**. 시즌 기준일 `:base_date`의 풀로 걸러 읽는 모양은 아래와 같고(저장하지 않는다), 독립 정의와 합성 동률으로 검증한다. 목록 순서가 필요한 소비자(P0-18 랭킹·피드)는 `display_order`로 정렬한다 — `ORDER BY` 없는 결과의 행 순서는 보장되지 않는다. `:'base_date'`는 `psql -v base_date=2026-01-02`처럼 넘긴다.
 
     ```sql
-    -- 순위: NULL 제외, 동률은 같은 순위, 표시 순서의 마지막 키는 market, ticker
-    SELECT t.*, t.attention_rank <= CEIL(0.10 * t.n_ranked) AS is_top
-    FROM (SELECT a.month_block_id, a.asset_id, a.attention_index,
-                 RANK() OVER (PARTITION BY a.month_block_id ORDER BY a.attention_index DESC) AS attention_rank,
-                 COUNT(*) OVER (PARTITION BY a.month_block_id) AS n_ranked,
-                 ROW_NUMBER() OVER (PARTITION BY a.month_block_id
-                                    ORDER BY a.attention_index DESC, s.market COLLATE "C", s.ticker COLLATE "C") AS display_order
-          FROM asset_month_attention a
-          JOIN asset_position p ON p.asset_id = a.asset_id AND p.base_date = :'base_date'
-          JOIN asset s ON s.id = a.asset_id
-          WHERE a.attention_index IS NOT NULL) t
-    ORDER BY t.month_block_id, t.display_order;
+    -- rank: NULL excluded, ties share a rank, last display-order keys are market, ticker
+    -- (run  \ir 13_calc_attention_rank_def.sql  first; it creates the temp view attn_rank)
+    SELECT r.month_block_id, r.asset_id, r.attention_index, r.attention_rank, r.n_ranked, r.is_top_q AS is_top,
+           ROW_NUMBER() OVER (PARTITION BY r.month_block_id
+                              ORDER BY r.attention_index DESC, r.market COLLATE "C", s.ticker COLLATE "C") AS display_order
+    FROM attn_rank r JOIN asset s ON s.id = r.asset_id
+    WHERE r.base_date = :'base_date'
+    ORDER BY r.month_block_id, display_order;
     -- 그룹 관심 지수: 지수 있는 소속 종목의 평균, n_members(평균에 들어간 수)·n_pool(풀 종목 수) 함께
     SELECT m.id AS month_block_id, a.asset_group_id, ROUND(AVG(t.attention_index), 8) AS group_attention,
            COUNT(t.attention_index) AS n_members, COUNT(*) AS n_pool
@@ -1022,8 +1019,8 @@ FAIL이 하나라도 있으면 오류 메시지와 함께 종료 코드 3으로 
   - **1·2·6절:** 관측·정점·집계를 윈도 함수(`LEAD`)와 "나보다 지수가 큰 행 수 + 1"과 정수 산술(합 × 10^24를 `div`로 나눠 0에서 먼 쪽 반올림)로 따로 계산해 정의와 전 행 같은지 본다. 정의(재귀 CTE·내부 조인·`GROUP BY`)와 다른 방법이라 서로를 검증한다.
   - **3절:** 보드에 n < 5가 없고 `일화` 표시가 5 ≤ n < 10과 일치하며, 합성 사건 유형으로 만든 경계 n = 4·5·9·10이 "없음·일화·일화·표시 없음"인지(달력은 n = 4·5) 본다. 실제 표본의 사건 행이 0개여도 "숨긴 조건 수 > 0"을 단언해 빈 결과가 통과로 끝나지 않는다.
   - **4절:** 합성 수익률(시세 아님)을 한 종목에 덮어쓰고 손 계산과 비교한다(달력 평균, 0 수익률은 상승 아님, 3개월 누적 곱, 관측값을 먼저 반올림하면 8자리째가 달라지는 사례에서 한 번 반올림한 값). 서브트랜잭션에서 되돌린다.
-  - **5절:** 기준일을 그 해 안으로 옮겨도 그 해의 달을 쓰지 않는지, 정점 판정이 기준 달 뒤 지수를 바꾸거나 지워도 불변인지(헛돌지 않는지, 다음 달 지수를 섞은 샌 정의를 잡는지), 뷰가 읽는 표가 역사 7개뿐인지(`pg_depend`), 보드에 연도·관측값 열이 없는지 본다.
-  - **음성 사례(변이):** 정의 파일의 글자를 `replace`로 바꿔 이름만 `zzm_`으로 다시 만들어 "규칙을 어기면 잡히는가"를 센다(예: 최소 n을 4로, 다음 달 지수를 섞은 순위, `season` 조인, `date_part` 사용). 바꿀 글자가 정의에 없으면 오류라 시험이 헛돌지 않는다.
+  - **5절:** 기준일을 그 해 안으로 옮겨도 그 해의 달을 쓰지 않는지, 정점 판정이 기준 달 뒤 지수를 바꾸거나 지워도 불변인지(헛돌지 않는지, 다음 달 지수를 섞은 샌 정의를 잡는지), 보드에 연도·관측값 열이 없는지 본다. The tables the views read are compared as table OIDs through `pg_depend` (the peak view: exactly the four tables; the board: the seven history tables), and the number of user functions (outside `pg_catalog`) they depend on must be 0; negative cases: a same-named table in another schema, and a `pg_temp` function that reads next month's return. 뷰가 읽는 표는 `pg_depend`를 따라가 표 OID 집합으로 비교하고(정점 뷰는 정확히 표 4개, 보드는 역사 7개), 뷰가 의존하는 `pg_catalog` 밖 사용자 함수는 0개여야 한다. 음성 사례는 다른 스키마의 동명 표를 읽는 정의와 다음 달 수익률을 읽는 `pg_temp` 함수를 부르는 정의다.
+  - **음성 사례(변이):** 정의 파일(순위 정의 파일 포함)의 글자를 `replace`로 바꿔 이름만 `zzm_`으로 다시 만들어 "규칙을 어기면 잡히는가"를 센다(예: 최소 n을 4로, 다음 달 지수를 섞은 순위, `season` 조인, `date_part` 사용). 바꿀 글자가 정의에 없으면 오류라 시험이 헛돌지 않는다.
 - 14 뒤에도 10·11·13 검증은 그대로 `PASS`다(14는 아무것도 쓰지 않는다).
 
 **연습 시즌 시작(`20_season_start.sql`)과 검증(`20_season_start_check.sql`).** 종료 코드가 0이고 `ERROR`가 없으면 성공이다. 결과 표 두 개가 나온다 — 첫째는 상태(`새로 만듦` 또는 `이미 같은 시즌 (새 행 없음)`)와 테이블별로 이번에 넣은 행 수(처음 실행: 회원 1·시즌 1·경로 10·계좌 1·원장 1·0턴 가격은 풀 크기만큼, 다시 실행하면 모두 0), 둘째는 풀 크기·경로 턴 수·블록 수·달력 위반 수(0이어야 한다)다. 경로의 달·가격은 출력하지 않는다.
