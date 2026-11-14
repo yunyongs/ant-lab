@@ -12,6 +12,7 @@
 --       음성 사례의 대상(현금·비골키퍼 포지션 평가액·가격 있는 보유 종목·열린 라인업)은 포트폴리오에 따라 없을 수 있다(P0-19: 초기 팀 전부 매도·전액 현금 등). 그 사례는 0절 FAIL 이 아니라
 --       "적용 불가" 정보 행이고 통과 사례 수에 세지 않으며, 적용 가능한 사례가 없는 규칙(예: 전액 현금의 POSITION_VALUE)은 커버리지 요구에서 빠진다. 양성 불변식 검사는 생략하지 않는다.
 --       규칙 12 전 행 사례는 turn_price 행마다 서브트랜잭션을 한 번씩 열어 시간이 걸린다 (10턴 뒤 220행 — 몇 초).
+--       Not applicable is the zz_check_result.applicable column (false), written only by pg_temp.na_rule and tallied only by the zz_tally view.
 -- 판정: 마지막 줄 `p0_17_check` 가 `PASS` 이고 종료 코드가 0이면 통과다. 0절 전제가 FAIL 이면 결과를 보여 준 뒤 멈추고,
 --       그 밖에 하나라도 어긋나면 09절이 FAIL 행을 보여 주고 오류로 끝난다 (종료 코드 3).
 --       ON_ERROR_STOP 없이 돌리면 종료 코드가 0일 수 있으니 종료 코드가 아니라 마지막 줄을 본다.
@@ -77,8 +78,20 @@ CREATE TEMP TABLE zz_check_result (
     item     text    NOT NULL,   -- 사례 설명 또는 대조 항목
     expected text,               -- 기대값
     actual   text,               -- 실제값
-    ok       boolean NOT NULL
+    ok       boolean NOT NULL,
+    applicable boolean NOT NULL DEFAULT true   -- false = the case has no target in this portfolio (informational row, never counted as a pass)
 );
+
+-- Shared tally: one place decides what counts. Only rows with applicable = true count toward totals and passes.
+CREATE TEMP VIEW zz_tally AS
+SELECT section,
+       count(*) AS n_rows,
+       count(*) FILTER (WHERE applicable) AS total,
+       count(*) FILTER (WHERE ok AND applicable) AS pass,
+       count(*) FILTER (WHERE NOT ok) AS fail,
+       count(*) FILTER (WHERE NOT applicable) AS na
+FROM zz_check_result
+GROUP BY section;
 
 -- 연습 시즌 찾기: 20·21·22 파일과 같은 이메일
 CREATE TEMP VIEW zz_cur AS
@@ -699,8 +712,8 @@ CALL pg_temp.neg_price_rows();
 CREATE PROCEDURE pg_temp.na_rule(p_code text, p_label text, p_why text)
 LANGUAGE plpgsql AS $$
 BEGIN
-    INSERT INTO zz_check_result (section, item, expected, actual, ok)
-    VALUES ('06 음성', '음성 [' || p_code || '] ' || p_label || ' — 적용 불가 (' || p_why || ') (정보)', '(정보)', '적용 불가', true);
+    INSERT INTO zz_check_result (section, item, expected, actual, ok, applicable)
+    VALUES ('06 음성', '음성 [' || p_code || '] ' || p_label || ' — 적용 불가 (' || p_why || ') (정보)', '(정보)', '적용 불가', true, false);
 END $$;
 
 DO $$
@@ -952,23 +965,21 @@ FROM (SELECT count(*) AS n FROM pg_temp.recon_code c
       WHERE c.check_code = 'TURN_PRICE'
          OR (c.check_code = 'VALUATION' AND (SELECT turn_no FROM zz_t) >= 1)
          OR (c.check_code = 'POSITION_VALUE' AND (SELECT turn_no FROM zz_t) >= 1
-             AND EXISTS (SELECT 1 FROM zz_check_result r WHERE r.item LIKE '음성 [POSITION_VALUE]%' AND r.actual IS DISTINCT FROM '적용 불가'))) req,
+             AND EXISTS (SELECT 1 FROM zz_check_result r WHERE r.item LIKE '음성 [POSITION_VALUE]%' AND r.applicable))) req,
      (SELECT count(*) AS n FROM pg_temp.recon_code c
       WHERE (c.check_code = 'TURN_PRICE'
          OR (c.check_code = 'VALUATION' AND (SELECT turn_no FROM zz_t) >= 1)
          OR (c.check_code = 'POSITION_VALUE' AND (SELECT turn_no FROM zz_t) >= 1))
-        AND EXISTS (SELECT 1 FROM zz_check_result r WHERE r.item LIKE '음성 [' || c.check_code || ']%' AND r.ok AND r.actual IS DISTINCT FROM '적용 불가')) cov,
+        AND EXISTS (SELECT 1 FROM zz_check_result r WHERE r.item LIKE '음성 [' || c.check_code || ']%' AND r.ok AND r.applicable)) cov,
      (SELECT string_agg(c.check_code, ',' ORDER BY c.check_code) AS list FROM pg_temp.recon_code c
       WHERE c.check_code IN ('VALUATION', 'POSITION_VALUE')
-        AND EXISTS (SELECT 1 FROM zz_check_result r WHERE r.item LIKE '음성 [' || c.check_code || ']%적용 불가%')
-        AND NOT EXISTS (SELECT 1 FROM zz_check_result r WHERE r.item LIKE '음성 [' || c.check_code || ']%' AND r.actual IS DISTINCT FROM '적용 불가')) na;
+        AND EXISTS (SELECT 1 FROM zz_check_result r WHERE r.item LIKE '음성 [' || c.check_code || ']%' AND NOT r.applicable)
+        AND NOT EXISTS (SELECT 1 FROM zz_check_result r WHERE r.item LIKE '음성 [' || c.check_code || ']%' AND r.applicable)) na;
 \o
 
--- 09.2 절별 집계 (total / pass / fail)
-SELECT section, count(*) AS total, count(*) FILTER (WHERE ok AND actual IS DISTINCT FROM '적용 불가') AS pass, count(*) FILTER (WHERE NOT ok) AS fail,
-       count(*) FILTER (WHERE actual = '적용 불가') AS na
-FROM zz_check_result
-GROUP BY section
+-- 09.2 절별 집계 (total / pass / fail / na)
+SELECT section, n_rows AS total, pass, fail, na
+FROM zz_tally
 ORDER BY section;
 
 -- 09.3 FAIL 행 목록 (0행이어야 정상)
@@ -982,10 +993,9 @@ SELECT section, item, expected, actual FROM zz_check_result WHERE section IN ('0
 
 -- 09.4 판정 행
 -- 적용 불가 정보 행은 통과 사례 수에 세지 않는다 (P0-19)
-SELECT CASE WHEN count(*) FILTER (WHERE actual IS DISTINCT FROM '적용 불가') > 0 AND count(*) FILTER (WHERE NOT ok) = 0 THEN 'PASS' ELSE 'FAIL' END AS verdict,
-       count(*) FILTER (WHERE actual IS DISTINCT FROM '적용 불가') AS total, count(*) FILTER (WHERE ok AND actual IS DISTINCT FROM '적용 불가') AS pass,
-       count(*) FILTER (WHERE NOT ok) AS fail, count(*) FILTER (WHERE actual = '적용 불가') AS not_applicable
-FROM zz_check_result;
+SELECT CASE WHEN sum(total) > 0 AND sum(fail) = 0 THEN 'PASS' ELSE 'FAIL' END AS verdict,
+       sum(total) AS total, sum(pass) AS pass, sum(fail) AS fail, sum(na) AS not_applicable
+FROM zz_tally;
 
 -- 09.5 판정을 종료 코드로: FAIL 이 있으면 오류로 끝낸다 (ON_ERROR_STOP=1 이면 종료 코드 3).
 --      판정 표식은 트랜잭션이 되돌아가도 남는다. 통과해도 2(흔적 확인 대기)까지만 올린다.
@@ -994,7 +1004,7 @@ DECLARE
     v_fail  integer;
     v_total integer;
 BEGIN
-    SELECT count(*) FILTER (WHERE NOT ok), count(*) INTO v_fail, v_total FROM zz_check_result;
+    SELECT COALESCE(sum(fail), 0), COALESCE(sum(total), 0) INTO v_fail, v_total FROM zz_tally;
     PERFORM setval('pg_temp.zz_verdict', CASE WHEN v_fail = 0 AND v_total > 0 THEN 2 ELSE 1 END);
     IF v_fail > 0 THEN
         RAISE EXCEPTION 'P0-17 검증 실패: FAIL % 건 (위의 FAIL 행 목록을 본다)', v_fail;

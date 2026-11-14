@@ -5,6 +5,9 @@
 -- 실행: 저장소 루트에서  psql -X -q -v ON_ERROR_STOP=1 -d <DB이름> -f db/25_trade_formation_check.sql
 --       25 시나리오(또는 다른 매매)를 실행한 DB 에서 한다. INSERT 를 하지 않으므로 identity(번호표)를 소비하지 않아 실습 DB 에서도 돌릴 수 있다. 정의 파일(21·22·25)을 \ir 로 읽는다.
 --       범위: 1턴 이후 주문이 하나 이상 있어야 한다 (없으면 0절 FAIL). 턴 중간(매매 직후)에도, 턴 전환 뒤·FINISHED 뒤에도 PASS 해야 한다 (규칙 11·19 는 보지 않는다 — 23 검증의 몫).
+--       Not applicable is the zz_check_result.applicable column (false), written only by pg_temp.na_row and tallied only by the zz_tally view.
+--       Right after the 25 scenario (canonical state) 13.1c asserts that the not-applicable count is 0, except the one legitimate section 10 NUDGE→ALERT row.
+--       The canonical-state discriminator is tied to the scenario values (5 turns, orders 4 / 3 / 1); if the scenario changes, update it, or the assertion silently degrades to "skipped".
 -- 판정: 마지막 줄 `p0_19_check` 가 `PASS` 이고 종료 코드가 0이면 통과다. 0절 전제가 FAIL 이면 결과를 보여 준 뒤 멈추고, 그 밖에 하나라도 어긋나면 13절이 FAIL 행을 보여 주고 오류로 끝난다 (종료 코드 3).
 -- 흔적: 파일 전체가 한 트랜잭션이고 13절 뒤에 ROLLBACK 한다. 14절이 행 수·identity 마지막 값이 실행 전과 같고 public 에 zz_ 객체가 없는지 확인한다.
 -- 절:   00 전제 → 01 주문·체결 모양 → 02 원장 → 03 이력 재생 → 04 라인업 → 05 전술 변경 → 06 출발점 → 07 변경 비용 → 08 대사 연동 → 09 거부 사례 → 10 함수 양성 → 11 정보 → 12 (예약) → 13 판정 → 14 흔적
@@ -65,8 +68,20 @@ CREATE TEMP TABLE zz_check_result (
     item     text    NOT NULL,
     expected text,
     actual   text,
-    ok       boolean NOT NULL
+    ok       boolean NOT NULL,
+    applicable boolean NOT NULL DEFAULT true   -- false = the case has no target in this portfolio (informational row, never counted as a pass)
 );
+
+-- Shared tally: one place decides what counts. Only rows with applicable = true count toward totals and passes.
+CREATE TEMP VIEW zz_tally AS
+SELECT section,
+       count(*) AS n_rows,
+       count(*) FILTER (WHERE applicable) AS total,
+       count(*) FILTER (WHERE ok AND applicable) AS pass,
+       count(*) FILTER (WHERE NOT ok) AS fail,
+       count(*) FILTER (WHERE NOT applicable) AS na
+FROM zz_check_result
+GROUP BY section;
 
 -- 연습 시즌 찾기: 20·21·22·23 파일과 같은 이메일
 CREATE TEMP VIEW zz_cur AS
@@ -83,6 +98,14 @@ DECLARE v bigint;
 BEGIN
     EXECUTE p_sql INTO v;
     RETURN v;
+END $$;
+
+-- Informational row for a case that has no target in this portfolio. The only place that writes applicable = false.
+CREATE PROCEDURE pg_temp.na_row(p_section text, p_item text)
+LANGUAGE plpgsql AS $$
+BEGIN
+    INSERT INTO zz_check_result (section, item, expected, actual, ok, applicable)
+    VALUES (p_section, p_item, '(정보)', '적용 불가', true, false);
 END $$;
 
 CREATE PROCEDURE pg_temp.check_eq(p_section text, p_item text, p_expected text, p_actual text)
@@ -146,8 +169,7 @@ DECLARE
     v_n   text;
 BEGIN
     IF p_when IS NOT NULL AND NOT (SELECT x FROM (SELECT pg_temp.cnt(p_when) > 0 AS x) y) THEN
-        INSERT INTO zz_check_result (section, item, expected, actual, ok)
-        VALUES (pg_temp.sec(p_code), '음성 [' || p_code || '] ' || p_label || ' — 적용 불가 (이 포트폴리오에 대상이 없다) (정보)', '(정보)', '적용 불가', true);
+        CALL pg_temp.na_row(pg_temp.sec(p_code), '음성 [' || p_code || '] ' || p_label || ' — 적용 불가 (이 포트폴리오에 대상이 없다) (정보)');
         RETURN;
     END IF;
     BEGIN
@@ -172,8 +194,7 @@ DECLARE
     v_err text;
 BEGIN
     IF p_when IS NOT NULL AND NOT (SELECT x FROM (SELECT pg_temp.cnt(p_when) > 0 AS x) y) THEN
-        INSERT INTO zz_check_result (section, item, expected, actual, ok)
-        VALUES ('08 대사', '음성 [RECON15] ' || p_label || ' — 적용 불가 (이 포트폴리오에 대상이 없다) (정보)', '(정보)', '적용 불가', true);
+        CALL pg_temp.na_row('08 대사', '음성 [RECON15] ' || p_label || ' — 적용 불가 (이 포트폴리오에 대상이 없다) (정보)');
         RETURN;
     END IF;
     BEGIN
@@ -232,7 +253,7 @@ DECLARE
     v_ok     boolean;
 BEGIN
     IF p_feed IS NULL THEN
-        INSERT INTO zz_check_result VALUES (DEFAULT, '10 양성', '적용 불가 (정보): 지난 턴에 ' || p_source || ' 용 피드가 없어 ' || p_label || ' 는 건너뜀', '(정보)', '적용 불가', true);
+        CALL pg_temp.na_row('10 양성', '적용 불가 (정보): 지난 턴에 ' || p_source || ' 용 피드가 없어 ' || p_label || ' 는 건너뜀');
         RETURN;
     END IF;
     BEGIN
@@ -606,7 +627,7 @@ BEGIN
         CALL pg_temp.neg_fn('보유 없는데 열린 구간이 있는 종목의 매수', v_live || '; ' || v_bigcash || '; ' || format('UPDATE holding SET quantity = 0, avg_price = 0 WHERE season_id = %s AND asset_id = %s', v_s, v_h),
             format('SELECT pg_temp.trade_buy(%s, %s::smallint, %s, 1, %L)', v_s, v_t, v_h, v_hp), 'LINEUP_MISMATCH');
     ELSE
-        INSERT INTO zz_check_result VALUES (DEFAULT, '09 거부', '보유 종목이 없어 초과 매도·선언 충돌·구간 불일치 거부 사례는 적용 불가 (정보)', '(정보)', '적용 불가', true);
+        CALL pg_temp.na_row('09 거부', '보유 종목이 없어 초과 매도·선언 충돌·구간 불일치 거부 사례는 적용 불가 (정보)');
     END IF;
     -- 피드 참조
     CALL pg_temp.neg_fn('없는 피드 번호', v_live, format('SELECT pg_temp.trade_buy(%s, %s::smallint, %s, 1, %L, %L, %s)', v_s, v_t, v_u, v_up, 'FEED', v_nofeed), 'INVALID_FEED_REFERENCE');
@@ -617,7 +638,7 @@ BEGIN
         CALL pg_temp.neg_fn('아직 노출되지 않은 피드 (턴을 현재 턴 + 1 로 바꾼 서브트랜잭션)', v_live || '; ' || v_bigcash || '; ' || format('UPDATE turn_feed SET turn_no = %s WHERE id = %s', v_t + 1, v_fcur),
             format('SELECT pg_temp.trade_buy(%s, %s::smallint, %s, 1, %L, %L, %s)', v_s, v_t, v_u, v_up, 'FEED', v_fcur), 'INVALID_FEED_REFERENCE');
     ELSE
-        INSERT INTO zz_check_result VALUES (DEFAULT, '09 거부', '현재 턴에 NUDGE 가 아닌 피드가 없어 피드 종류·미노출 거부 사례는 적용 불가 (정보)', '(정보)', '적용 불가', true);
+        CALL pg_temp.na_row('09 거부', '현재 턴에 NUDGE 가 아닌 피드가 없어 피드 종류·미노출 거부 사례는 적용 불가 (정보)');
     END IF;
     -- 소유자 결정(2026-11-10, 이슈 #94): 이미 노출된 지난 턴 피드로 현재 턴 주문을 시작할 수 있다 (양성 사례, 쓰기 없는 tr_source 호출).
     CALL pg_temp.pos_past_feed('지난 턴 FEED 피드는 현재 턴 출발점으로 받는다 (주문 턴 = 현재 턴, 피드는 원래 턴)', v_s, v_t, 'FEED', v_fpast);
@@ -632,7 +653,7 @@ BEGIN
         CALL pg_temp.neg_fn('앞선 주문의 시각이 지금보다 늦다 (전술 변경)', v_live || '; ' || format('UPDATE orders SET created_at = clock_timestamp() + interval ''1 hour'' WHERE id = (SELECT max(id) FROM orders WHERE season_id = %s AND turn_no = %s)', v_s, v_t),
             format('SELECT pg_temp.formation_change(%s, %s::smallint, %s::smallint, %s::smallint, %s::smallint, %s::smallint)', v_s, v_t, v_cur[1], v_cur[2] - 1, v_cur[3] + 1, v_cur[4]), 'EVENT_TIME_CONFLICT');
     ELSE
-        INSERT INTO zz_check_result VALUES (DEFAULT, '09 거부', '현재 턴에 주문이 없어 시각 순서 거부 사례는 적용 불가 (정보)', '(정보)', '적용 불가', true);
+        CALL pg_temp.na_row('09 거부', '현재 턴에 주문이 없어 시각 순서 거부 사례는 적용 불가 (정보)');
     END IF;
     -- 전술 변경
     CALL pg_temp.neg_fn('비중 합 ≠ 100', v_live, format('SELECT pg_temp.formation_change(%s, %s::smallint, 25::smallint, 25::smallint, 25::smallint, 24::smallint)', v_s, v_t), 'INVALID_FORMATION');
@@ -656,7 +677,7 @@ BEGIN
     SELECT c.id, c.current_turn_no INTO v_s, v_t FROM zz_cur c;
     SELECT lu.asset_id, lu.declared_position, lu.id INTO v_h, v_hp, v_open FROM lineup lu WHERE lu.season_id = v_s AND lu.end_turn IS NULL ORDER BY lu.asset_id LIMIT 1;
     IF v_h IS NULL OR v_t >= (SELECT path_length FROM zz_cur) OR (SELECT status FROM zz_cur) <> 'IN_PROGRESS' THEN
-        INSERT INTO zz_check_result VALUES (DEFAULT, '10 양성', '같은 포지션 요청은 새 구간 없이 열린 구간을 돌려준다 — 적용 불가 (보유 없음·진행 중이 아님) (정보)', '(정보)', '적용 불가', true);
+        CALL pg_temp.na_row('10 양성', '같은 포지션 요청은 새 구간 없이 열린 구간을 돌려준다 — 적용 불가 (보유 없음·진행 중이 아님) (정보)');
         RETURN;
     END IF;
     SELECT count(*) INTO v_n_before FROM lineup WHERE season_id = v_s;
@@ -694,19 +715,21 @@ FROM zz_o o JOIN execution e ON e.order_id = o.id WHERE o.side = 'SELL';
 
 -- 13 판정 ---------------------------------------------------------------------
 -- 13.1 규칙 커버리지: 요구 = 이 DB 에서 적용 가능한 음성 사례가 하나라도 있는 규칙 코드 (적용 불가 사례만 있는 코드는 요구에서 빠진다). 통과 = 적용 가능한 사례가 모두 통과.
+-- applicable is read from the column, never from the item text.
 \o /dev/null
 INSERT INTO zz_check_result (section, item, expected, actual, ok)
-SELECT '13 판정', '규칙 커버리지 (적용 가능한 음성 사례가 통과한 규칙 코드 / 적용 가능한 규칙 코드 — 적용 불가 코드: ' || COALESCE(na.list, '없음') || ')',
-       req.n || '/' || req.n, cov.n || '/' || req.n, req.n > 0 AND cov.n = req.n
-FROM (SELECT count(*) AS n FROM zz_q q
-      WHERE NOT (EXISTS (SELECT 1 FROM zz_check_result r WHERE r.item LIKE '음성 [' || q.code || ']%적용 불가%')
-                 AND NOT EXISTS (SELECT 1 FROM zz_check_result r WHERE r.item LIKE '음성 [' || q.code || ']%' AND r.item NOT LIKE '%적용 불가%'))) req,
-     (SELECT count(*) AS n FROM zz_q q
-      WHERE EXISTS (SELECT 1 FROM zz_check_result r WHERE r.item LIKE '음성 [' || q.code || ']%' AND r.item NOT LIKE '%적용 불가%' AND r.ok)
-        AND NOT EXISTS (SELECT 1 FROM zz_check_result r WHERE r.item LIKE '음성 [' || q.code || ']%' AND r.item NOT LIKE '%적용 불가%' AND NOT r.ok)) cov,
-     (SELECT string_agg(q.code, ',' ORDER BY q.code) AS list FROM zz_q q
-      WHERE EXISTS (SELECT 1 FROM zz_check_result r WHERE r.item LIKE '음성 [' || q.code || ']%적용 불가%')
-        AND NOT EXISTS (SELECT 1 FROM zz_check_result r WHERE r.item LIKE '음성 [' || q.code || ']%' AND r.item NOT LIKE '%적용 불가%')) na;
+SELECT '13 판정', '규칙 커버리지 (적용 가능한 음성 사례가 통과한 규칙 코드 / 적용 가능한 규칙 코드 — 적용 불가 코드: '
+       || COALESCE(string_agg(c.code, ',' ORDER BY c.code) FILTER (WHERE c.n_app = 0 AND c.n_na > 0), '없음') || ')',
+       count(*) FILTER (WHERE c.n_app > 0 OR c.n_na = 0) || '/' || count(*) FILTER (WHERE c.n_app > 0 OR c.n_na = 0),
+       count(*) FILTER (WHERE c.n_app > 0 AND c.n_bad = 0) || '/' || count(*) FILTER (WHERE c.n_app > 0 OR c.n_na = 0),
+       count(*) FILTER (WHERE c.n_app > 0 OR c.n_na = 0) > 0
+       AND count(*) FILTER (WHERE c.n_app > 0 AND c.n_bad = 0) = count(*) FILTER (WHERE c.n_app > 0 OR c.n_na = 0)
+FROM (SELECT q.code,
+             count(*) FILTER (WHERE r.applicable) AS n_app,
+             count(*) FILTER (WHERE r.applicable AND NOT r.ok) AS n_bad,
+             count(*) FILTER (WHERE NOT r.applicable) AS n_na
+      FROM zz_q q LEFT JOIN zz_check_result r ON r.item LIKE '음성 [' || q.code || ']%'
+      GROUP BY q.code) c;
 -- 13.1b 거부 사례 종류 커버리지: 함수가 낼 수 있는 HINT 중 이 파일이 한 번 이상 시험한 수
 INSERT INTO zz_check_result (section, item, expected, actual, ok)
 SELECT '13 판정', '거부 종류 커버리지 (통과한 거부 HINT / 요구 HINT — 시각 순서 EVENT_TIME_CONFLICT 는 현재 턴에 주문이 있을 때만, POSITION_CONFLICT·LINEUP_MISMATCH 는 보유 수량 > 0 이고 열린 구간이 있는 종목이 있을 때만 요구, ISOLATION_LEVEL 은 격리 수준을 바꿔야 하므로 드릴·README 몫)',
@@ -722,13 +745,30 @@ FROM (SELECT count(*) AS n FROM unnest(ARRAY['INVALID_QUANTITY', 'INVALID_ARGUME
       FROM unnest(ARRAY['INVALID_QUANTITY', 'INVALID_ARGUMENT', 'TURN_MISMATCH', 'SEASON_NOT_ACTIVE', 'ASSET_NOT_IN_POOL', 'INSUFFICIENT_CASH', 'LEDGER_MISMATCH',
                         'INSUFFICIENT_HOLDING', 'INVALID_FEED_REFERENCE', 'INVALID_FORMATION', 'EVENT_TIME_CONFLICT', 'USE_TRADE_BUY', 'POSITION_CONFLICT', 'LINEUP_MISMATCH']) AS h
       WHERE EXISTS (SELECT 1 FROM zz_check_result r WHERE r.section = '09 거부' AND r.ok AND r.item LIKE '거부 [' || h || ']%')) cov;
+-- 13.1c Canonical state: right after the db/25_trade_formation.sql scenario (turn 5 in progress; 4 orders this turn, 3 bound to the single
+--       formation change, 1 from a feed) every case has a target, so no row may be not applicable. Otherwise a silently skipped case would
+--       still pass. Exactly one row is excluded, by item: the scenario creates no NUDGE feed, so the section 10 past-feed ALERT positive control is legitimately
+--       not applicable. The other section 10 controls (past FEED, same-position lineup change) must still be applicable.
+--       The canonical discriminator is tied to the scenario values (5 turns, orders 4 / 3 / 1, 1 change); update it when the scenario changes, or it degrades to "skipped".
+--       Elsewhere (other turns, drills, FINISHED) not-applicable rows are legitimate and the check is informational.
+INSERT INTO zz_check_result (section, item, expected, actual, ok)
+SELECT '13 판정',
+       CASE WHEN s.canon THEN '정본 상태(25 시나리오 직후: 5턴 진행 중 · 현재 턴 주문 4 · 변경에 묶인 주문 3 · FEED 1 · 전술 변경 1)에서 음성·거부·대사 사례의 적용 불가 행 수 (10절의 NUDGE→ALERT 지난 피드 대조군 1건만 제외)'
+            ELSE '정본 상태(25 시나리오 직후)가 아니라 적용 불가 단언은 건너뜀 (정보)' END,
+       CASE WHEN s.canon THEN '0' ELSE '(정보)' END,
+       CASE WHEN s.canon THEN s.na::text ELSE '건너뜀' END,
+       NOT s.canon OR s.na = 0
+FROM (SELECT (SELECT status = 'IN_PROGRESS' AND current_turn_no = 5 FROM zz_cur)
+             AND (SELECT count(*) FROM zz_o o JOIN zz_cur c ON c.id = o.season_id WHERE o.turn_no = 5) = 4
+             AND (SELECT count(*) FROM zz_o o WHERE o.turn_no = 5 AND o.formation_change_id IS NOT NULL) = 3
+             AND (SELECT count(*) FROM zz_o o WHERE o.turn_no = 5 AND o.source = 'FEED') = 1
+             AND (SELECT count(*) FROM formation_change fc JOIN zz_cur c ON c.id = fc.season_id) = 1 AS canon,
+             (SELECT count(*) FROM zz_check_result WHERE NOT applicable AND NOT (section = '10 양성' AND item LIKE '%지난 턴에 ALERT 용 피드가 없어%')) AS na) s;
 \o
 
--- 13.2 절별 집계 (total / pass / fail)
-SELECT section, count(*) AS total, count(*) FILTER (WHERE ok AND actual IS DISTINCT FROM '적용 불가') AS pass, count(*) FILTER (WHERE NOT ok) AS fail,
-       count(*) FILTER (WHERE actual = '적용 불가') AS na
-FROM zz_check_result
-GROUP BY section
+-- 13.2 절별 집계 (total / pass / fail / na)
+SELECT section, n_rows AS total, pass, fail, na
+FROM zz_tally
 ORDER BY section;
 
 -- 13.3 FAIL 행 목록 (0행이어야 정상)
@@ -741,10 +781,9 @@ ORDER BY seq;
 SELECT section, item, expected, actual FROM zz_check_result WHERE section IN ('13 판정', '11 정보') ORDER BY seq;
 
 -- 13.4 판정 행 (적용 불가 정보 행은 통과 사례 수에 세지 않는다)
-SELECT CASE WHEN count(*) FILTER (WHERE actual IS DISTINCT FROM '적용 불가') > 0 AND count(*) FILTER (WHERE NOT ok) = 0 THEN 'PASS' ELSE 'FAIL' END AS verdict,
-       count(*) FILTER (WHERE actual IS DISTINCT FROM '적용 불가') AS total, count(*) FILTER (WHERE ok AND actual IS DISTINCT FROM '적용 불가') AS pass,
-       count(*) FILTER (WHERE NOT ok) AS fail, count(*) FILTER (WHERE actual = '적용 불가') AS not_applicable
-FROM zz_check_result;
+SELECT CASE WHEN sum(total) > 0 AND sum(fail) = 0 THEN 'PASS' ELSE 'FAIL' END AS verdict,
+       sum(total) AS total, sum(pass) AS pass, sum(fail) AS fail, sum(na) AS not_applicable
+FROM zz_tally;
 
 -- 13.5 판정을 종료 코드로: FAIL 이 있으면 오류로 끝낸다 (ON_ERROR_STOP=1 이면 종료 코드 3). 판정 표식은 트랜잭션이 되돌아가도 남는다.
 DO $$
@@ -752,7 +791,7 @@ DECLARE
     v_fail  integer;
     v_total integer;
 BEGIN
-    SELECT count(*) FILTER (WHERE NOT ok), count(*) FILTER (WHERE actual IS DISTINCT FROM '적용 불가') INTO v_fail, v_total FROM zz_check_result;
+    SELECT COALESCE(sum(fail), 0), COALESCE(sum(total), 0) INTO v_fail, v_total FROM zz_tally;
     PERFORM setval('pg_temp.zz_verdict', CASE WHEN v_fail = 0 AND v_total > 0 THEN 2 ELSE 1 END);
     IF v_fail > 0 THEN
         RAISE EXCEPTION 'P0-19 검증 실패: FAIL % 건 (위의 FAIL 행 목록을 본다)', v_fail;
