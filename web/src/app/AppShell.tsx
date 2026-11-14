@@ -35,7 +35,10 @@ function navTarget(
   }
   if (item.key === 'turn' && seasonId !== null) {
     const to = `/seasons/${String(seasonId)}`;
-    return { to, active: pathname === to };
+    return {
+      to,
+      active: pathname === to || pathname.startsWith(`${to}/turns/`),
+    };
   }
   return null;
 }

@@ -6,10 +6,12 @@ import { LoginPage } from '../pages/LoginPage.tsx';
 import { NewSeasonPage } from '../pages/NewSeasonPage.tsx';
 import { NotFoundPage } from '../pages/NotFoundPage.tsx';
 import { SeasonPage } from '../pages/SeasonPage.tsx';
+import { TurnPage } from '../pages/TurnPage.tsx';
 import { SeasonsPage } from '../pages/SeasonsPage.tsx';
 import { SignupPage } from '../pages/SignupPage.tsx';
 import { AppShell } from './AppShell.tsx';
 import { PublicLayout } from './PublicLayout.tsx';
+import { KeyedBySeason } from './KeyedBySeason.tsx';
 import { RouteError } from './RouteError.tsx';
 
 export const routes: RouteObject[] = [
@@ -36,7 +38,22 @@ export const routes: RouteObject[] = [
         children: [
           { index: true, element: <SeasonsPage /> },
           { path: 'seasons/new', element: <NewSeasonPage /> },
-          { path: 'seasons/:seasonId', element: <SeasonPage /> },
+          {
+            path: 'seasons/:seasonId',
+            element: (
+              <KeyedBySeason>
+                <SeasonPage />
+              </KeyedBySeason>
+            ),
+          },
+          {
+            path: 'seasons/:seasonId/turns/:turnNo',
+            element: (
+              <KeyedBySeason>
+                <TurnPage />
+              </KeyedBySeason>
+            ),
+          },
           { path: '*', element: <NotFoundPage /> },
         ],
       },
