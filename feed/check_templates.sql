@@ -16,7 +16,7 @@
 --       EVENT_ATTR LENGTH / 5 CHARSET NFC PERCENT UNIT BRACE VAR_UNKNOWN VAR_KIND VAR_TARGET PARTICLE DENY_DATE DENY_FUTURE
 --       DENY_PROPER DENY_ADVICE DENY_FACT SHAPE / 6 COVERAGE. 규칙 함수 pg_temp.zz_violations()가 (출처, 대상, 규칙 코드) 행을
 --       돌려주고, 실제 파일에는 0행, 7절 픽스처에는 사례마다 정확히 그 코드 하나를 기대한다.
--- P0-05 검증 SQL(db/01_schema_history_check.sql)과 같은 판정 형식을 쓴다. 복사한 묶음: ① 맨 앞 CREATE TEMP SEQUENCE zz_verdict +
+-- P0-05 검증 SQL(db/01_schema_history_check.sql)과 같은 판정 형식을 쓴다. 복사한 묶음: ① 맨 앞 CREATE TEMP SEQUENCE zz_verdict + pg_temp 존재 단언 + (모든 참조는 pg_temp. 한정)
 --       setval(…, 1)  ② 결과 표 zz_check_result  ④ 프로시저 check_eq + 함수 val()  ⑤ 멈춤과 판정(→ 표식 2 또는 1, RAISE)
 --       ⑥ 흔적 확인(→ 표식 0)과 마지막 CASE. 복사하지 않은 것: ③ 카탈로그 기대 목록 표(테이블이 없다)와 check_err·check_ok
 --       (DML 음성 사례가 없다). 일부만 복사하면 헛 PASS 길이 다시 열린다.
@@ -29,7 +29,10 @@
 
 -- 판정 표식: 트랜잭션이 되돌아가도 남는 임시 시퀀스 (1 = 미완료 또는 실패, 2 = 0–8절 통과·흔적 확인 대기, 0 = 최종 통과)
 CREATE TEMP SEQUENCE IF NOT EXISTS zz_verdict MINVALUE 0 START 1;
-DO $$ BEGIN PERFORM setval('zz_verdict', 1); END $$;
+DO $$ BEGIN
+    IF to_regclass('pg_temp.zz_verdict') IS NULL THEN RAISE EXCEPTION 'zz_verdict is not a temp sequence'; END IF;
+    PERFORM setval('pg_temp.zz_verdict', 1);
+END $$;
 
 BEGIN;
 
@@ -649,7 +652,7 @@ DECLARE
 BEGIN
     SELECT count(*) FILTER (WHERE NOT ok), count(*) INTO v_fail, v_total FROM zz_check_result;
     -- 2 = 0–8절 통과 (결과 표가 비어 있으면 통과로 치지 않는다), 1 = 실패. 최종 통과(0)는 9절 끝에서만 만든다.
-    PERFORM setval('zz_verdict', CASE WHEN v_fail = 0 AND v_total > 0 THEN 2 ELSE 1 END);
+    PERFORM setval('pg_temp.zz_verdict', CASE WHEN v_fail = 0 AND v_total > 0 THEN 2 ELSE 1 END);
     IF v_fail > 0 THEN
         RAISE EXCEPTION 'P0-13 검증 실패: FAIL % 건 (위의 FAIL 행 목록을 본다)', v_fail;
     END IF;
@@ -668,13 +671,13 @@ BEGIN
          + (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
             WHERE (n.nspname = 'public' OR n.nspname LIKE 'pg\_temp\_%') AND p.proname LIKE 'zz\_%') INTO v_zz;
     IF v_zz <> 0 THEN
-        PERFORM setval('zz_verdict', 1);
+        PERFORM setval('pg_temp.zz_verdict', 1);
         RAISE EXCEPTION 'P0-13 흔적 확인 실패: zz_ 객체 % 개 (기대 0)', v_zz;
     END IF;
     -- 단언을 통과했고 0–8절도 통과(2)였을 때만 최종 통과(0)로 바꾼다.
-    IF (SELECT last_value FROM zz_verdict) = 2 THEN
-        PERFORM setval('zz_verdict', 0);
+    IF (SELECT last_value FROM pg_temp.zz_verdict) = 2 THEN
+        PERFORM setval('pg_temp.zz_verdict', 0);
     END IF;
 END $$;
 
-SELECT CASE WHEN (SELECT last_value FROM zz_verdict) = 0 THEN 'PASS' ELSE 'FAIL' END AS p0_13_check;
+SELECT CASE WHEN (SELECT last_value FROM pg_temp.zz_verdict) = 0 THEN 'PASS' ELSE 'FAIL' END AS p0_13_check;

@@ -13,7 +13,7 @@
 -- 규칙 코드 21개 (규칙마다 양성 쿼리 1개 + 음성 사례 1개 이상, 7절이 커버리지 N/N 을 확인한다):
 --       ROWS_EVENT ROWS_REVIEWED / MATCH KEY_FORMAT EPISODE MONTH_CAP H6_TYPE H6_OUTCOME TYPE_CATEGORY DIRECTION_RULE /
 --       H5_DIGIT H5_TOKEN2 H5_DENY / REACTION REACTION_NULL STRENGTH / REVIEWED_ALL TAG_REVIEWED NONE_ZERO TAGGED_SOME / HIDDEN_LIST
--- P0-08 판정 계약에서 복사한 것: ① zz_verdict ② 결과 표 zz_check_result ④ check_err·check_ok·check_eq + val()
+-- P0-08 판정 계약에서 복사한 것: ① pg_temp.zz_verdict ② 결과 표 zz_check_result ④ check_err·check_ok·check_eq + val()
 --       ⑤ 0절 뒤 멈춤과 7.5 판정(표식 2 또는 1) ⑥ 8절 흔적 확인(표식 0)과 마지막 CASE.
 --       갱신 규칙: val() 은 정확히 한 행, 기대값을 NULL 로 쓰지 않는다, NULL 안전 비교(IS NOT DISTINCT FROM), 사례 하나에 조건 하나.
 -- 음성 사례: 서브트랜잭션 안에서 DELETE/UPDATE 로 위반을 1건 만들어 그 규칙의 검사 쿼리가 1건으로 잡는지 센 뒤 되돌린다.
@@ -25,7 +25,10 @@
 
 -- 판정 표식: 트랜잭션이 되돌아가도 남는 임시 시퀀스 (1 = 미완료 또는 실패, 2 = 1–7절 통과·흔적 확인 대기, 0 = 최종 통과)
 CREATE TEMP SEQUENCE IF NOT EXISTS zz_verdict MINVALUE 0 START 1;
-DO $$ BEGIN PERFORM setval('zz_verdict', 1); END $$;
+DO $$ BEGIN
+    IF to_regclass('pg_temp.zz_verdict') IS NULL THEN RAISE EXCEPTION 'zz_verdict is not a temp sequence'; END IF;
+    PERFORM setval('pg_temp.zz_verdict', 1);
+END $$;
 
 -- 흔적 확인용 스냅샷: month_event·month_block 의 행 수와 identity 마지막 값, events_reviewed 가 TRUE 인 달 수.
 -- 트랜잭션 밖(BEGIN 앞)에서 찍어 ROLLBACK 뒤에도 남는다
@@ -397,7 +400,7 @@ DECLARE
     v_total integer;
 BEGIN
     SELECT count(*) FILTER (WHERE NOT ok), count(*) INTO v_fail, v_total FROM zz_check_result;
-    PERFORM setval('zz_verdict', CASE WHEN v_fail = 0 AND v_total > 0 THEN 2 ELSE 1 END);
+    PERFORM setval('pg_temp.zz_verdict', CASE WHEN v_fail = 0 AND v_total > 0 THEN 2 ELSE 1 END);
     IF v_fail > 0 THEN
         RAISE EXCEPTION 'P0-09 검증 실패: FAIL % 건 (위의 FAIL 행 목록을 본다)', v_fail;
     END IF;
@@ -419,13 +422,13 @@ BEGIN
     SELECT (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public' AND c.relname LIKE 'zz\_%')
          + (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.proname LIKE 'zz\_%') INTO v_zz;
     IF v_before IS DISTINCT FROM v_after OR v_zz <> 0 THEN
-        PERFORM setval('zz_verdict', 1);
+        PERFORM setval('pg_temp.zz_verdict', 1);
         RAISE EXCEPTION E'P0-09 흔적 확인 실패: 실행 전 [%]\n실행 후 [%], public 의 zz_ 객체 % (기대 0)', v_before, v_after, v_zz;
     END IF;
     -- 단언을 모두 통과했고 1–7절도 통과(2)였을 때만 최종 통과(0)로 바꾼다.
-    IF (SELECT last_value FROM zz_verdict) = 2 THEN
-        PERFORM setval('zz_verdict', 0);
+    IF (SELECT last_value FROM pg_temp.zz_verdict) = 2 THEN
+        PERFORM setval('pg_temp.zz_verdict', 0);
     END IF;
 END $$;
 
-SELECT CASE WHEN (SELECT last_value FROM zz_verdict) = 0 THEN 'PASS' ELSE 'FAIL' END AS p0_09_check;
+SELECT CASE WHEN (SELECT last_value FROM pg_temp.zz_verdict) = 0 THEN 'PASS' ELSE 'FAIL' END AS p0_09_check;

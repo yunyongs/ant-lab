@@ -20,7 +20,7 @@
 -- 독립 계산: 0턴 가격은 ROUND 에 기대지 않고 정수 산술(div)로 다시 계산한다. 블록 수는 LAG 대신 "달 − 턴 개월"의 서로 다른 값 수로 센다.
 --       기대값(설정·요율·포메이션·위험 목록)은 20 파일이 아니라 문서(PLAN §4.1-1·§4.6·§4.10)에서 다시 옮겨 적었다.
 -- 출력: 건수와 판정만. 경로의 달·가격은 내지 않는다 (6절 손 계산은 합성 값이라 시세가 아니다).
--- P0-08·P0-09·P0-11·P0-12 판정 계약에서 복사한 것: ① zz_verdict ② 결과 표 zz_check_result ④ check_eq
+-- P0-08·P0-09·P0-11·P0-12 판정 계약에서 복사한 것: ① pg_temp.zz_verdict ② 결과 표 zz_check_result ④ check_eq
 --       ⑤ 0절 뒤 멈춤과 판정(표식 2 또는 1) ⑥ 9절 흔적 확인(표식 0)과 마지막 CASE.
 -- 새 문법: 서브트랜잭션(PL/pgSQL 예외 블록)으로 "바꿔 보고 되돌리기", GET STACKED DIAGNOSTICS 로 제약 이름 읽기,
 --       프로시저(CALL), EXECUTE 로 만든 SQL, div() 정수 나눗셈, LATERAL (VALUES …) 로 열마다 한 줄씩 비교.
@@ -29,7 +29,10 @@
 
 -- 판정 표식: 트랜잭션이 되돌아가도 남는 임시 시퀀스 (1 = 미완료 또는 실패, 2 = 1–8절 통과·흔적 확인 대기, 0 = 최종 통과)
 CREATE TEMP SEQUENCE IF NOT EXISTS zz_verdict MINVALUE 0 START 1;
-DO $$ BEGIN PERFORM setval('zz_verdict', 1); END $$;
+DO $$ BEGIN
+    IF to_regclass('pg_temp.zz_verdict') IS NULL THEN RAISE EXCEPTION 'zz_verdict is not a temp sequence'; END IF;
+    PERFORM setval('pg_temp.zz_verdict', 1);
+END $$;
 
 -- 흔적 확인용 스냅샷: 읽거나 일부러 바꿔 보는 표들의 행 수와 identity 마지막 값. 트랜잭션 밖(BEGIN 앞)에서 찍어 ROLLBACK 뒤에도 남는다
 CREATE FUNCTION pg_temp.zz_snap() RETURNS text
@@ -499,7 +502,7 @@ DECLARE
     v_total integer;
 BEGIN
     SELECT count(*) FILTER (WHERE NOT ok), count(*) INTO v_fail, v_total FROM zz_check_result;
-    PERFORM setval('zz_verdict', CASE WHEN v_fail = 0 AND v_total > 0 THEN 2 ELSE 1 END);
+    PERFORM setval('pg_temp.zz_verdict', CASE WHEN v_fail = 0 AND v_total > 0 THEN 2 ELSE 1 END);
     IF v_fail > 0 THEN
         RAISE EXCEPTION 'P0-14 검증 실패: FAIL % 건 (위의 FAIL 행 목록을 본다)', v_fail;
     END IF;
@@ -521,13 +524,13 @@ BEGIN
     SELECT (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public' AND c.relname LIKE 'zz\_%')
          + (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.proname LIKE 'zz\_%') INTO v_zz;
     IF v_before IS DISTINCT FROM v_after OR v_zz <> 0 THEN
-        PERFORM setval('zz_verdict', 1);
+        PERFORM setval('pg_temp.zz_verdict', 1);
         RAISE EXCEPTION E'P0-14 흔적 확인 실패: 실행 전 [%]\n실행 후 [%], public 의 zz_ 객체 % (기대 0)', v_before, v_after, v_zz;
     END IF;
     -- 단언을 모두 통과했고 1–8절도 통과(2)였을 때만 최종 통과(0)로 바꾼다.
-    IF (SELECT last_value FROM zz_verdict) = 2 THEN
-        PERFORM setval('zz_verdict', 0);
+    IF (SELECT last_value FROM pg_temp.zz_verdict) = 2 THEN
+        PERFORM setval('pg_temp.zz_verdict', 0);
     END IF;
 END $$;
 
-SELECT CASE WHEN (SELECT last_value FROM zz_verdict) = 0 THEN 'PASS' ELSE 'FAIL' END AS p0_14_check;
+SELECT CASE WHEN (SELECT last_value FROM pg_temp.zz_verdict) = 0 THEN 'PASS' ELSE 'FAIL' END AS p0_14_check;
