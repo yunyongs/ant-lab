@@ -114,6 +114,46 @@ class SqlGoldenReplayTest {
 
     @Test
     @Timeout(value = 25, unit = TimeUnit.MINUTES)
+    void 후보가_없는_보합_턴도_피드_0행으로_진행하고_23_24_검증이_통과한다() throws Exception {
+        availability.requireOrSkip();
+        try (SqlGoldenHarness drillHarness = new SqlGoldenHarness(container, GoldenFixtureSource.fromEnvironment().withDrill())) {
+            drillHarness.stageInputs();
+            DatabaseHandle db = drillHarness.createSqlDatabase("flat");
+            drillHarness.execute(db, SqlGoldenScenario.flatTurnDrill());
+            long season = drillHarness.practiceSeasonId(db);
+            RowSet feed = drillHarness.readRows(db, new RowSet.RowQuery("flat_feed",
+                    "SELECT count(*) AS n FROM turn_feed WHERE season_id = :sid AND turn_no = " + SqlGoldenScenario.PATH_LENGTH,
+                    List.of(new RowSet.RowColumn("n", RowSet.ColumnType.LONG))), season);
+            assertThat(feed.get(0, "n")).as("flat turn feed rows").isEqualTo(0L);
+        }
+    }
+
+    @Test
+    @Timeout(value = 25, unit = TimeUnit.MINUTES)
+    void 시즌_중간의_보합_턴_뒤에도_다음_턴과_23_24_26_검증이_통과한다() throws Exception {
+        availability.requireOrSkip();
+        try (SqlGoldenHarness drillHarness = new SqlGoldenHarness(container, GoldenFixtureSource.fromEnvironment().withDrill())) {
+            drillHarness.stageInputs();
+            DatabaseHandle db = drillHarness.createSqlDatabase("flat_mid");
+            // every step is a check step: a verdict other than PASS fails the execution
+            drillHarness.execute(db, SqlGoldenScenario.flatTurnDrillMid());
+            long season = drillHarness.practiceSeasonId(db);
+            int flat = SqlGoldenScenario.FLAT_DRILL_MID_TURN + 1;
+            RowSet rows = drillHarness.readRows(db, new RowSet.RowQuery("flat_mid_feed",
+                    "SELECT (SELECT count(*) FROM turn_feed WHERE season_id = :sid AND turn_no = " + flat + ") AS flat_rows,"
+                            + " (SELECT count(*) FROM turn_feed WHERE season_id = :sid AND turn_no = " + (flat + 1) + ") AS next_rows,"
+                            + " (SELECT status FROM season WHERE id = :sid) AS status",
+                    List.of(new RowSet.RowColumn("flat_rows", RowSet.ColumnType.LONG),
+                            new RowSet.RowColumn("next_rows", RowSet.ColumnType.LONG),
+                            new RowSet.RowColumn("status", RowSet.ColumnType.TEXT))), season);
+            assertThat(rows.get(0, "flat_rows")).as("flat turn feed rows").isEqualTo(0L);
+            assertThat((Long) rows.get(0, "next_rows")).as("next turn feed rows").isPositive();
+            assertThat(rows.get(0, "status")).isEqualTo("FINISHED");
+        }
+    }
+
+    @Test
+    @Timeout(value = 25, unit = TimeUnit.MINUTES)
     void 끝난_뒤_20_21_23을_다시_실행해도_모든_테이블이_그대로다() throws Exception {
         availability.requireOrSkip();
         harness.stageInputs();
