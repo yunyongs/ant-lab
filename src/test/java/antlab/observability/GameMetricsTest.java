@@ -26,7 +26,35 @@ class GameMetricsTest {
         assertThat(registry.find("antlab.season.start").tags("outcome", "committed", "code", "none").counter()).isNotNull();
         assertThat(registry.find("antlab.turn.advance").tags("outcome", "committed", "code", "none").counter()).isNotNull();
         assertThat(registry.find("antlab.reconciliation.mismatch.rules").counter().count()).isZero();
-        assertThat(registry.find("antlab.order.rejected").counter()).isNull();
+    }
+
+    @Test
+    void 알려진_거절_조합은_시작_때_0으로_있어_첫_이벤트도_센다() {
+        for (ErrorCode code : GameMetrics.SEASON_REJECTIONS) {
+            assertThat(registry.find("antlab.season.start").tags("outcome", "rejected", "code", code.name()).counter())
+                    .as("season " + code).isNotNull().extracting(Counter::count).isEqualTo(0.0);
+        }
+        for (ErrorCode code : GameMetrics.TURN_REJECTIONS) {
+            assertThat(registry.find("antlab.turn.advance").tags("outcome", "rejected", "code", code.name()).counter())
+                    .as("turn " + code).isNotNull().extracting(Counter::count).isEqualTo(0.0);
+        }
+        for (ErrorCode code : GameMetrics.ORDER_REJECTIONS) {
+            assertThat(registry.find("antlab.order.rejected").tags("code", code.name()).counter())
+                    .as("order " + code).isNotNull().extracting(Counter::count).isEqualTo(0.0);
+        }
+        metrics.turnRejected(ErrorCode.TURN_MISMATCH);
+        assertThat(count("antlab.turn.advance", "outcome", "rejected", "code", "TURN_MISMATCH")).isEqualTo(1);
+    }
+
+    @Test
+    void 사전_등록은_유한하고_목록_밖_코드는_첫_이벤트에_생긴다() {
+        long before = registry.find("antlab.order.rejected").counters().size();
+        assertThat(before).isEqualTo(GameMetrics.ORDER_REJECTIONS.size());
+        assertThat(registry.find("antlab.order.rejected").tags("code", "FORBIDDEN").counter()).isNull();
+        metrics.orderRejected(ErrorCode.FORBIDDEN);
+        assertThat(registry.find("antlab.order.rejected").counters()).hasSize((int) before + 1);
+        assertThat(registry.find("antlab.season.start").counters())
+                .hasSize(1 + GameMetrics.SEASON_REJECTIONS.size());
     }
 
     @Test
