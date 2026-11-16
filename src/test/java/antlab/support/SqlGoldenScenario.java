@@ -326,6 +326,12 @@ public final class SqlGoldenScenario {
                 run("03_schema_account"), run("10_load_sample"), run("12_calc_position")));
     }
 
+    /** Attention index comparison (MVP-09): schema (01–03), sample load (10), attention calculation (13). No season is created. */
+    public static ScenarioPlan attentionBaseline() {
+        return new ScenarioPlan("ATTENTION_BASELINE", List.of(run("01_schema_history"), run("02_schema_season"),
+                run("03_schema_account"), run("10_load_sample"), run("13_calc_attention")));
+    }
+
     /** 시즌 시작 검증 파일 하나만 — API 가 시즌을 만든 DB 에서 SQL 검증 20개를 그대로 돌린다. */
     public static ScriptStep seasonStartCheck() {
         return check("20_season_start", "p0_14_check");
