@@ -1,3 +1,7 @@
+# Testcases that may be skipped in CI (no golden sample CSVs): class<TAB>testcase.
+# Regenerate after an intended change: ./gradlew test, then
+#   python3 -I scripts/ci_test_summary.py build/test-results/test --print-skips
+# and review the diff of this file in the PR.
 antlab.api.e2e.OneSeasonE2ETest	SQL_최종_판정_90이_PASS다()
 antlab.api.e2e.OneSeasonE2ETest	끝까지_넘기면_끝난_시즌이다()
 antlab.api.e2e.OneSeasonE2ETest	다섯_번째_턴에서_부분_매도_전술_변경_묶인_매수를_한다()
