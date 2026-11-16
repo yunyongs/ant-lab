@@ -1192,7 +1192,7 @@ The `db/02_schema_season_check.sql` check covers the V2 state (it runs on a data
 
 | 테이블 | PK | UNIQUE(제약) | UNIQUE 인덱스(`uq_`) | FK | CHECK | INDEX(`idx_`) |
 |---|---|---|---|---|---|---|
-| member | 1 | 0 | 1 | 0 | 1 | 0 |
+| member | 1 | 1 | 1 | 0 | 4 | 0 |
 | refresh_token | 1 | 3 | 2 | 2 | 6 | 1 |
 | season | 1 | 0 | 0 | 1 | 19 | 1 |
 | season_path | 1 | 1 | 0 | 2 | 1 | 1 |
