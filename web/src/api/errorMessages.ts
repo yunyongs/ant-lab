@@ -6,6 +6,7 @@ export const errorMessages = {
   METHOD_NOT_ALLOWED: '지원하지 않는 요청입니다.',
   NOT_ACCEPTABLE: '지원하지 않는 응답 형식입니다.',
   UNSUPPORTED_MEDIA_TYPE: '지원하지 않는 요청 형식입니다.',
+  MALFORMED_REQUEST: '요청 형식이 올바르지 않습니다.',
   INTERNAL_ERROR: '서버에 문제가 생겼습니다. 잠시 뒤 다시 시도해 주세요.',
   POOL_NOT_LOADED: '종목 풀이 아직 준비되지 않았습니다.',
   POOL_NOT_JUDGED: '종목 풀의 포지션 판정이 끝나지 않았습니다.',

@@ -11,6 +11,8 @@ import antlab.support.E2eHttp;
 import antlab.support.E2eHttp.Reply;
 import antlab.support.OpenApiNormalizer;
 import antlab.support.PostgresTestcontainersConfig;
+import antlab.support.RawHttp;
+import antlab.support.RawHttp.Answer;
 import antlab.support.TestMembers;
 import antlab.support.TestTokens;
 import java.io.IOException;
@@ -18,6 +20,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -26,6 +29,7 @@ import java.util.stream.Stream;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -41,6 +45,7 @@ import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.servlet.mvc.method.RequestMappingInfo;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
 import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * Every error any {@code /api/v1} operation can answer is a ProblemDetail with a {@code code} the contract knows, over a real
@@ -224,6 +229,52 @@ class ApiErrorSweepTest {
             default:
                 throw new IllegalStateException(probe.name());
         }
+    }
+
+    /**
+     * Raw bytes on a socket ({@link RawHttp}): {@code HttpClient} cannot send these (it rejects {@code %ZZ} while building
+     * the URI) and Tomcat answers them before the DispatcherServlet, so advice never sees them. The answer must still be a
+     * contract problem. The size and timeout limits are probed in {@link TomcatParseStageLimitsTest}, the body details in
+     * {@link TomcatParseStageTest}.
+     */
+    @TestFactory
+    Stream<DynamicTest> Tomcat이_Spring_앞에서_거절한_요청도_계약_코드의_문제_본문이다() throws IOException {
+        JsonNode contract = contract();
+        String rawInput = "ZZ";
+        Map<String, String> probes = new LinkedHashMap<>();
+        probes.put("bad percent-encoding", "GET /api/v1/pool%" + rawInput + " HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n");
+        probes.put("encoded slash", "GET /api/v1/a%2Fb HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n");
+        probes.put("bad header line", "GET /api/v1/pool HTTP/1.1\r\nHost: x\r\nBad Header: X-Big\r\nConnection: close\r\n\r\n");
+        return probes.entrySet().stream().map(probe -> dynamicTest(probe.getKey(), () -> {
+            Answer answer = RawHttp.send(port, probe.getValue());
+            assertThat(answer.status()).as(answer.toString()).isEqualTo(400);
+            assertThat(answer.headerValues("Content-Type")).as(answer.toString()).containsExactly("application/problem+json");
+            JsonNode json = JsonMapper.shared().readTree(answer.body());
+            ErrorCode code = ErrorCode.valueOf(json.get("code").asString());
+            assertThat(ContractErrorCodes.framework(contract).get(400)).contains(code.name());
+            assertThat(ErrorHttpMapping.status(code).value()).isEqualTo(400);
+            assertThat(json.get("status").asInt()).isEqualTo(400);
+            assertThat(json.get("title").asString()).isEqualTo("Bad Request");
+            // the fixed texts are typed here, so a changed contract text fails
+            assertThat(json.get("detail").asString()).isEqualTo("요청의 주소나 헤더를 해석할 수 없다");
+            assertThat(json.get("instance").asString()).isEqualTo("/");
+            // no markup, no server name or version, and no part of the request is echoed
+            assertThat(answer.text().toLowerCase()).doesNotContain("<html", "tomcat", "11.0");
+            assertThat(answer.body()).doesNotContain(rawInput).doesNotContain("%").doesNotContain("X-Big").doesNotContain("pool");
+        }));
+    }
+
+    @Test
+    void 밸브는_본문이_이미_있는_400과_다른_상태를_고치지_않는다() {
+        // the security firewall answers with a body of its own: the valve must not replace it. This pins today's
+        // behaviour of a different layer (#274 will unify it); the valve's own rule is in ProblemErrorReportValveTest.
+        Answer firewall = RawHttp.send(port, "GET /api/v1//pool HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n");
+        assertThat(firewall.status()).as(firewall.toString()).isEqualTo(400);
+        assertThat(firewall.text()).as(firewall.toString()).doesNotContain("MALFORMED_REQUEST");
+        // a status other than 400 keeps Tomcat's own report
+        Answer version = RawHttp.send(port, "GET /api/v1/pool HTTP/9.9\r\nHost: x\r\nConnection: close\r\n\r\n");
+        assertThat(version.status()).as(version.toString()).isEqualTo(505);
+        assertThat(version.text()).as(version.toString()).doesNotContain("MALFORMED_REQUEST");
     }
 
     @TestFactory
