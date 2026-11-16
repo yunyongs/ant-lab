@@ -139,7 +139,7 @@ class ColumnContractTest {
                 .sorted()
                 .toList();
         assertThat(missing).as("엔티티에 빠진 열").isEmpty();
-        assertThat(tables).as("매핑한 표").hasSizeGreaterThanOrEqualTo(23);
+        assertThat(tables).as("매핑한 표").hasSizeGreaterThanOrEqualTo(25);
     }
 
     @Test
