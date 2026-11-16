@@ -39,3 +39,17 @@ uv run --frozen python -m antlab_ai.openrouter probe --live --max-requests 3 --e
 The ledger and its `.lock` file must be regular, unlinked files (mode 0600, owned by you); the directory must not be writable by group or others (created as 0700). Symlinks and other file types are refused.
 
 장부와 `.lock` 파일은 링크 없는 일반 파일(0600, 본인 소유)이어야 하고, 디렉터리는 그룹·타인이 쓸 수 없어야 한다(새로 만들면 0700). 심볼릭 링크와 다른 파일 종류는 거부한다.
+
+## Detection dry-run
+
+Renders the detection prompts and prints the call plan without any network access or ledger write. Prompts go only to `--out` (default `data/ai/detection/dryrun`, git-ignored); the console shows counts and a plan hash, never returns. The sample folder is `--sample-dir`, then `ANTLAB_GOLDEN_SAMPLE_DIR`, then `db/sample`; the return and FX CSVs there are git-ignored, so tests use the synthetic fixture under `tests/detection/fixtures`.
+
+탐지 dry-run은 네트워크와 장부 쓰기 없이 탐지 프롬프트를 만들고 호출 계획을 출력한다. 프롬프트는 `--out`(기본 `data/ai/detection/dryrun`, git 무시)에만 쓰고, 콘솔에는 건수와 계획 해시만 나오며 수익률은 나오지 않는다. 표본 폴더는 `--sample-dir`, `ANTLAB_GOLDEN_SAMPLE_DIR`, `db/sample` 순서로 정한다. 수익률·환율 CSV는 git 무시 파일이라 시험은 `tests/detection/fixtures`의 합성 픽스처를 쓴다.
+
+```sh
+uv run --frozen python -m antlab_ai.detection dry-run --sample-dir <dir> --out <dir> [--model <id>]... [--max-tokens 512] [--max-calls <n>]
+```
+
+`--max-calls` refuses the plan (exit code 2, nothing written) when units × models exceed it. Without `--model` the plan counts one model. The real-sample shape test is skipped, with a reason, when the sample CSVs are absent.
+
+`--max-calls`보다 단위 수 × 모델 수가 크면 계획을 거부한다(종료 코드 2, 아무것도 쓰지 않는다). `--model`이 없으면 모델 한 개로 센다. 표본 CSV가 없으면 실표본 형태 시험은 사유와 함께 건너뛴다.
