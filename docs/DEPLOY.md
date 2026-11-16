@@ -27,7 +27,7 @@
 | `grafana` | `grafana/grafana:13.3.1` (OSS, pinned in MON-02, arm64 checked 2026-11-13) / `grafana/grafana:13.3.1`(OSS, MON-02에서 고정, arm64 확인 2026-11-13) | MON | `backend` | 로컬 `127.0.0.1:${ANTLAB_GRAFANA_PORT:-3000}`, 운영 없음(OPS에서 Caddy 경로 뒤에 두고 인증을 적용한다) | `grafana-data`(대시보드·데이터 원천은 저장소 provisioning 파일) | `GET /api/health` | profile `monitoring` |
 | `engine` | `ghcr.io/yunyongs/antlab-engine` (FastAPI, `python:3.13-slim` 기반) | M2 | `backend`만 | 로컬 `127.0.0.1:8000`(개발만), 운영 없음 | 없음 | `GET /healthz` | Local: profile `engine` (M2-01; added to profile `api` in M2-06) · production: always (OPS-01) / 로컬: profile `engine`(M2-01, M2-06에서 profile `api`에도 넣는다) · 운영: 항상(OPS-01) |
 | `proxy` | `ghcr.io/yunyongs/antlab-proxy` (`caddy:2` + React 정적 빌드 `/srv`) | APP(로컬은 선택), OPS | `edge` | 운영 `80`, `443`(유일한 외부 포트) | `caddy-data`, `caddy-config` | Caddy 관리 API 또는 `GET /`(방법 **확인 필요**) | 항상(운영) |
-| `agent-runner` | AG-02에서 정함(언어 미정) | AG-02 | `egress`(api 호출 + OpenRouter) | 없음 | 없음(기록은 api가 DB에) | 프로세스 생존 | profile `agents` |
+| `agent-runner` | AG-02에서 정함. LangGraph를 쓰면 Python(FastAPI)(decided at AG-02; Python (FastAPI) if LangGraph is used) | AG-02 | `egress`(api 호출 + OpenRouter) | 없음 | 없음(기록은 api가 DB에) | 프로세스 생존 | profile `agents` |
 | `n8n` | `n8nio/n8n`(arm64 **확인 필요**) | 선택(EXT 이후) | `edge`(+`egress`) | 없음(Caddy 경로 뒤, 인증 필수) | `n8n-data` | `GET /healthz`(**확인 필요**) | profile `n8n` |
 | `ollama` | `ollama/ollama` | 선택, **로컬 전용** | `backend` | 없음 | `ollama-models` | — | profile `ollama`(VM에 올리지 않음 — §10.2) |
 
