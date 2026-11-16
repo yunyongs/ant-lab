@@ -1,6 +1,7 @@
 package antlab.season;
 
 import jakarta.persistence.LockModeType;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.Lock;
@@ -32,6 +33,8 @@ public interface SeasonRepository extends Repository<Season, Long> {
     Optional<Season> findByIdAndMemberIdForUpdate(@Param("id") Long id, @Param("memberId") Long memberId);
 
     long countByMemberIdAndStatusNot(Long memberId, SeasonStatus status);
+
+    long countByMemberIdAndCreatedAtGreaterThanEqual(Long memberId, Instant since);
 
     Optional<Season> findByIdAndMemberId(Long id, Long memberId);
 
