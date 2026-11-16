@@ -1,7 +1,3 @@
-# Testcases that may be skipped in CI (no golden sample CSVs): class<TAB>testcase.
-# Regenerate after an intended change: ./gradlew test, then
-#   python3 -I scripts/ci_test_summary.py build/test-results/test --print-skips
-# and review the diff of this file in the PR.
 antlab.api.e2e.OneSeasonE2ETest	SQL_최종_판정_90이_PASS다()
 antlab.api.e2e.OneSeasonE2ETest	끝까지_넘기면_끝난_시즌이다()
 antlab.api.e2e.OneSeasonE2ETest	다섯_번째_턴에서_부분_매도_전술_변경_묶인_매수를_한다()
@@ -43,6 +39,7 @@ antlab.api.turn.TurnAdvanceGoldenTest	행_수와_대사_기록이_턴마다_17�
 antlab.api.turn.TurnRollbackDrillGoldenTest	SQL_드릴과_같은_종목을_닫아_실패_고치기_성공한_API_시즌이_열한_표까지_같다()
 antlab.api.turn.TurnViewGoldenTest	열_번_뒤_보유_조회가_SQL의_보유_가격_열린_라인업_조인과_행_단위로_같다()
 antlab.api.turn.TurnViewGoldenTest	턴_1부터_10까지_API_조회가_26_정의의_정수_원천_계산과_행_단위로_같다()
+antlab.history.AttentionCalculatorGoldenTest	표본_전_행의_관심_지수가_SQL_저장값과_같다()
 antlab.scoring.PositionMeterBaseDateGoldenTest	기준일_풀_전_종목의_판정이_저장값과_같다()
 antlab.scoring.ReconciliationGoldenTest	API_시즌에서_Java_규칙_15개와_psql_recon_rules의_9컬럼이_같다()
 antlab.scoring.ReconciliationGoldenTest	API가_만든_DB에서_대사_검증이_통과한다()
