@@ -90,6 +90,8 @@ class TurnFacadeMetricsTest {
         when(turns.advance(anyLong(), anyInt())).thenThrow(new IllegalStateException("commit failed"));
         assertThatThrownBy(() -> facade.advance(1L, 0)).isInstanceOf(IllegalStateException.class);
         assertThat(turn("committed", "none")).isZero();
-        assertThat(registry.find("antlab.turn.advance").counters()).hasSize(1);
+        assertThat(registry.find("antlab.turn.advance").counters())
+                .hasSize(1 + GameMetrics.TURN_REJECTIONS.size())
+                .allSatisfy(c -> assertThat(c.count()).isZero());
     }
 }
