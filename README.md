@@ -44,7 +44,7 @@ Releases are four: **v0.1** backend dashboard and web, **v1** web-based simulati
 | M1–M3 | 수집기·CI, Python 엔진, 점수 백테스트 | 계획됨 |
 | M2 | Python engine: monthly blocks, regime labels, recombination (calendar alignment, regime-conditional), expected distribution; parallel reconciliation with the Java engine / Python 엔진: 월 블록·국면 라벨·재조합(달력 정렬, 국면 조건부)·예상 분포, Java 엔진과 병행 대사 | In progress — M2-01 engine skeleton, M2-02 bootstrap parity / 진행 중 — M2-01 엔진 골격, M2-02 부트스트랩 대사 |
 | EXT · M4 · APP · AI · OPS | 비용·케이스 훈련·대가 라이브러리, 전망 모드·리그·전당 API, 모바일·데스크탑 앱과 웹의 나머지 화면, AI 복기, 배포 | 계획됨 ([로드맵](docs/PLAN.md#11-로드맵커리큘럼-순서-유지)) |
-| AG | 에이전트 펀드 매니저(OpenRouter·구독 모델·Ollama, 페르소나, 누출 탐지 시험, 리더보드) | 계획됨 (PLAN v3, 2026-11-07) |
+| AG | 에이전트 펀드 매니저(OpenRouter·구독 모델·Ollama, 페르소나, 누출 탐지 시험, 리더보드) | 계획됨 (PLAN v3, 2026-11-07). In progress — AG-01 PR A1: OpenRouter call ledger and limiter. / 진행 중 — AG-01 PR A1: OpenRouter 호출 장부·제한기 |
 | R1 · R2 · R3 | 거장 추적(13F·X), 우수 매니저의 복제 봇, 에이전트의 실전 운용(소유자 자금, 사람 승인부터) | 계획됨 (PLAN v2.1, 2026-11-06) |
 
 ## 기술 스택
