@@ -35,6 +35,9 @@ CREATE TABLE job_run (
             AND unchanged_count IS NOT NULL AND unchanged_count >= 0
             AND failed_target_count IS NOT NULL AND failed_target_count >= 0)),
     CONSTRAINT ck_job_run_revised_le_inserted CHECK (revised_count <= inserted_count),
+    CONSTRAINT ck_job_run_failed_targets CHECK (
+        (status <> 'SUCCEEDED' OR failed_target_count = 0)
+        AND (status <> 'PARTIAL' OR failed_target_count >= 1)),
     CONSTRAINT ck_job_run_error CHECK ((status IN ('PARTIAL','FAILED')) = (error_code IS NOT NULL)),
     CONSTRAINT ck_job_run_error_code_format CHECK (error_code ~ '^[A-Z][A-Z0-9_]*$')
 );
@@ -80,7 +83,9 @@ CREATE TABLE asset_daily_price (
     CONSTRAINT ck_asset_daily_price_exchange_code CHECK (exchange_code IS NULL OR exchange_code IN ('NAS','NYS','AMS')),
     CONSTRAINT ck_asset_daily_price_close_positive CHECK (close_price > 0 AND close_price <> 'NaN'::numeric),
     CONSTRAINT ck_asset_daily_price_vintage_no CHECK (vintage_no >= 1),
-    CONSTRAINT ck_asset_daily_price_after_session CHECK (trade_date < (observed_at AT TIME ZONE 'Asia/Seoul')::date)
+    CONSTRAINT ck_asset_daily_price_after_session CHECK (
+        trade_date < (observed_at AT TIME ZONE
+            CASE WHEN exchange_code IS NULL THEN 'Asia/Seoul' ELSE 'America/New_York' END)::date)
 );
 CREATE INDEX idx_asset_daily_price_job_run ON asset_daily_price (job_run_id);
 COMMENT ON TABLE asset_daily_price IS '종목 일별 종가(시점 기준)';
