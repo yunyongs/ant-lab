@@ -1,0 +1,103 @@
+name: api
+
+# Only the pull_request event: fork code runs without secrets or a write token.
+# web/** is ignored instead of allow-listing the paths the tests read (docs, scripts, README, compose):
+# an allow-list would silently skip the tests that read those files.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths-ignore: ['web/**']
+  push:
+    branches: [main]
+    paths-ignore: ['web/**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: api-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Nothing in this job pushes, so the token is not left in .git/config.
+          persist-credentials: false
+          # The merge commit and its first parent are enough for the whitespace check below.
+          fetch-depth: 2
+      - name: Whitespace check of the change
+        run: git diff --check HEAD^1 HEAD
+      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
+        with:
+          # Only main writes the dependency cache; pull requests read it.
+          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+      # Same command as local. No golden sample is configured here, so the sql-golden tier skips by design.
+      - name: Tests
+        run: ./gradlew test
+      - name: Skip-count guard and summary
+        if: ${{ !cancelled() }}
+        run: python3 -I scripts/ci_test_summary.py build/test-results/test --expect-skipped 51 --summary-file "$GITHUB_STEP_SUMMARY"
+      - name: Upload test reports
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: test-reports
+          path: |
+            build/reports/tests
+            build/test-results
+          retention-days: 7
+
+  sql-schema:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 10
+    # The job container brings the psql 17 client; the service is the server the checks run against.
+    container: postgres:17
+    services:
+      db:
+        image: postgres:17
+        env:
+          # CI-only: the service is reachable from this job's network only.
+          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_DB: antlab_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: db
+      PGUSER: postgres
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # The same lines as db/README.md (c), run against an empty antlab_test.
+      - name: Schema 01 to 03
+        run: |
+          psql -X -d postgres -c "ALTER DATABASE antlab_test SET timezone TO 'Asia/Seoul'"
+          psql -X -v ON_ERROR_STOP=1 -d antlab_test -f db/01_schema_history.sql
+          psql -X -v ON_ERROR_STOP=1 -d antlab_test -f db/02_schema_season.sql
+          psql -X -v ON_ERROR_STOP=1 -d antlab_test -f db/03_schema_account.sql
+      # A check can end with FAIL and still exit 0, so the last output line must be exactly PASS.
+      - name: Schema checks
+        run: |
+          check() {
+            out=$(psql -X -q -A -P footer=off -v ON_ERROR_STOP=1 -d antlab_test -f "$1")
+            printf '%s\n' "$out"
+            [ "$(printf '%s\n' "$out" | tail -n 1)" = PASS ] || { echo "::error::$1 did not end with PASS"; exit 1; }
+          }
+          check db/01_schema_history_check.sql
+          check db/02_schema_season_check.sql
+          check db/03_schema_account_check.sql
