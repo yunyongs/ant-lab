@@ -61,6 +61,8 @@ PURE_ALLOWED_IMPORTS = {
     "collections",
     "dataclasses",
     "datetime",
+    "enum",
+    "fractions",
     "typing",
     "antlab_engine",
 }
@@ -124,6 +126,8 @@ def test_pure_modules_import_only_the_standard_library():
     assert pure_sources().keys() >= {
         "bootstrap/simple.py",
         "bootstrap/splitmix64.py",
+        "bootstrap/stationary.py",
+        "bootstrap/rules.py",
         "engine_errors.py",
     }
     assert {
@@ -141,8 +145,59 @@ def test_bootstrap_imports_without_the_web_stack():
         "for name in ('fastapi', 'starlette', 'pydantic', 'numpy', 'pandas'):\n"
         "    sys.modules[name] = None\n"
         "import antlab_engine.bootstrap.simple\n"
+        "import antlab_engine.bootstrap.stationary\n"
+        "import antlab_engine.bootstrap.rules\n"
     )
     result = subprocess.run(  # noqa: S603
         [sys.executable, "-I", "-c", code], capture_output=True, text=True, check=False
     )
     assert result.returncode == 0, result.stderr
+
+
+PATH_MODULES = ("bootstrap/stationary.py", "bootstrap/rules.py")
+
+
+def float_uses(text: str) -> list[str]:
+    found = []
+    for node in ast.walk(ast.parse(text)):
+        if isinstance(node, ast.Constant) and isinstance(node.value, float):
+            found.append("float literal")
+        elif isinstance(node, ast.Call) and getattr(node.func, "id", "") == "float":
+            found.append("float()")
+        elif isinstance(node, ast.BinOp) and isinstance(node.op, ast.Div):
+            found.append("true division")
+    return found
+
+
+def output_uses(text: str) -> list[str]:
+    found = []
+    for node in ast.walk(ast.parse(text)):
+        if isinstance(node, ast.Call) and getattr(node.func, "id", "") in {"print", "breakpoint"}:
+            found.append("print")
+    found += [m for m in imported_modules(text) if m.split(".")[0] in {"logging", "warnings"}]
+    return found
+
+
+def test_float_scanner_flags_float_arithmetic():
+    assert float_uses("x = 0.5\ny = float(3)\nz = 1 / 2\n") == [
+        "float literal",
+        "float()",
+        "true division",
+    ]
+    assert float_uses("x = 7 // 2\ny = Fraction(1, 2)\n") == []
+
+
+def test_output_scanner_flags_print_and_logging():
+    assert output_uses("import logging\nprint('x')\n") == ["print", "logging"]
+    assert output_uses("from datetime import date\n") == []
+
+
+def test_path_modules_use_no_float_arithmetic():
+    texts = sources()
+    assert {name: float_uses(texts[name]) for name in PATH_MODULES if float_uses(texts[name])} == {}
+
+
+def test_bootstrap_modules_never_print_or_log():
+    texts = sources()
+    bad = {n: output_uses(t) for n, t in texts.items() if n.startswith("bootstrap/")}
+    assert {n: hits for n, hits in bad.items() if hits} == {}
