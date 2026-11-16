@@ -45,7 +45,7 @@
       "id": 1,
       "type": "stat",
       "title": "Turns committed in range",
-      "description": "Turn advances that finished in the selected time range. The first event of a new label set is not counted (increase needs an earlier sample). / 선택한 시간 범위에서 끝난 턴 전환 수. 새 라벨 조합의 첫 이벤트는 세지 않는다(increase는 앞선 표본이 있어야 센다).",
+      "description": "Turn advances that finished in the selected time range. / 선택한 시간 범위에서 끝난 턴 전환 수.",
       "datasource": {
         "type": "prometheus",
         "uid": "antlab-prometheus"
@@ -101,7 +101,7 @@
       "id": 2,
       "type": "stat",
       "title": "Reconciliation failures in range",
-      "description": "Turn advances rejected because the reconciliation failed (red above 0). The first event of a new label set is not counted (increase needs an earlier sample). / 대사 실패로 거절된 턴 전환 수(0 초과면 빨강). 새 라벨 조합의 첫 이벤트는 세지 않는다(increase는 앞선 표본이 있어야 센다).",
+      "description": "Turn advances rejected because the reconciliation failed (red above 0). / 대사 실패로 거절된 턴 전환 수(0 초과면 빨강).",
       "datasource": {
         "type": "prometheus",
         "uid": "antlab-prometheus"
@@ -161,7 +161,7 @@
       "id": 3,
       "type": "stat",
       "title": "Mismatched rules in range",
-      "description": "Reconciliation rules that did not match (red above 0). The first event of a new label set is not counted (increase needs an earlier sample). / 대사에서 어긋난 규칙 수(0 초과면 빨강). 새 라벨 조합의 첫 이벤트는 세지 않는다(increase는 앞선 표본이 있어야 센다).",
+      "description": "Reconciliation rules that did not match (red above 0). / 대사에서 어긋난 규칙 수(0 초과면 빨강).",
       "datasource": {
         "type": "prometheus",
         "uid": "antlab-prometheus"
@@ -221,7 +221,7 @@
       "id": 4,
       "type": "stat",
       "title": "Orders rejected in range",
-      "description": "Orders the API rejected in the selected time range. The first event of a new label set is not counted (increase needs an earlier sample). / 선택한 시간 범위에서 API가 거절한 주문 수. 새 라벨 조합의 첫 이벤트는 세지 않는다(increase는 앞선 표본이 있어야 센다).",
+      "description": "Orders the API rejected in the selected time range. / 선택한 시간 범위에서 API가 거절한 주문 수.",
       "datasource": {
         "type": "prometheus",
         "uid": "antlab-prometheus"
@@ -277,7 +277,7 @@
       "id": 5,
       "type": "stat",
       "title": "Seasons started in range",
-      "description": "Seasons started in the selected time range. The first event of a new label set is not counted (increase needs an earlier sample). / 선택한 시간 범위에서 시작된 시즌 수. 새 라벨 조합의 첫 이벤트는 세지 않는다(increase는 앞선 표본이 있어야 센다).",
+      "description": "Seasons started in the selected time range. / 선택한 시간 범위에서 시작된 시즌 수.",
       "datasource": {
         "type": "prometheus",
         "uid": "antlab-prometheus"
@@ -333,7 +333,7 @@
       "id": 6,
       "type": "timeseries",
       "title": "Turn advances by outcome",
-      "description": "Turn advances per outcome and error code in the trailing rate window (about 1 min at the 1 h range). Neighbouring bars overlap, so read totals from the stats above. The first event of a new label set is not counted. / 결과와 오류 코드별로 직전 rate 구간(1시간 범위에서 약 1분)의 턴 전환 수. 이웃 막대가 겹치므로 합계는 위의 통계 패널에서 본다. 새 라벨 조합의 첫 이벤트는 세지 않는다.",
+      "description": "Turn advances per outcome and error code in the trailing rate window (about 1 min at the 1 h range). Neighbouring bars overlap, so read totals from the stats above. / 결과와 오류 코드별로 직전 rate 구간(1시간 범위에서 약 1분)의 턴 전환 수. 이웃 막대가 겹치므로 합계는 위의 통계 패널에서 본다.",
       "datasource": {
         "type": "prometheus",
         "uid": "antlab-prometheus"
@@ -387,7 +387,7 @@
       "id": 7,
       "type": "timeseries",
       "title": "Reconciliation mismatched rules",
-      "description": "Reconciliation rules that did not match in the trailing rate window (about 1 min at the 1 h range). Neighbouring bars overlap, so read totals from the stats above. The first event of a new label set is not counted. / 직전 rate 구간(1시간 범위에서 약 1분)에 대사에서 어긋난 규칙 수. 이웃 막대가 겹치므로 합계는 위의 통계 패널에서 본다. 새 라벨 조합의 첫 이벤트는 세지 않는다.",
+      "description": "Reconciliation rules that did not match in the trailing rate window (about 1 min at the 1 h range). Neighbouring bars overlap, so read totals from the stats above. / 직전 rate 구간(1시간 범위에서 약 1분)에 대사에서 어긋난 규칙 수. 이웃 막대가 겹치므로 합계는 위의 통계 패널에서 본다.",
       "datasource": {
         "type": "prometheus",
         "uid": "antlab-prometheus"
@@ -441,7 +441,7 @@
       "id": 8,
       "type": "timeseries",
       "title": "Order rejects by code",
-      "description": "Rejected orders per error code in the trailing rate window (about 1 min at the 1 h range). Neighbouring bars overlap, so read totals from the stats above. The first event of a new label set is not counted. / 오류 코드별로 직전 rate 구간(1시간 범위에서 약 1분)에 거절된 주문 수. 이웃 막대가 겹치므로 합계는 위의 통계 패널에서 본다. 새 라벨 조합의 첫 이벤트는 세지 않는다.",
+      "description": "Rejected orders per error code in the trailing rate window (about 1 min at the 1 h range). Neighbouring bars overlap, so read totals from the stats above. / 오류 코드별로 직전 rate 구간(1시간 범위에서 약 1분)에 거절된 주문 수. 이웃 막대가 겹치므로 합계는 위의 통계 패널에서 본다.",
       "datasource": {
         "type": "prometheus",
         "uid": "antlab-prometheus"
@@ -495,7 +495,7 @@
       "id": 9,
       "type": "timeseries",
       "title": "Season starts by outcome",
-      "description": "Season starts per outcome and error code in the trailing rate window (about 1 min at the 1 h range). Neighbouring bars overlap, so read totals from the stats above. The first event of a new label set is not counted. / 결과와 오류 코드별로 직전 rate 구간(1시간 범위에서 약 1분)의 시즌 시작 수. 이웃 막대가 겹치므로 합계는 위의 통계 패널에서 본다. 새 라벨 조합의 첫 이벤트는 세지 않는다.",
+      "description": "Season starts per outcome and error code in the trailing rate window (about 1 min at the 1 h range). Neighbouring bars overlap, so read totals from the stats above. / 결과와 오류 코드별로 직전 rate 구간(1시간 범위에서 약 1분)의 시즌 시작 수. 이웃 막대가 겹치므로 합계는 위의 통계 패널에서 본다.",
       "datasource": {
         "type": "prometheus",
         "uid": "antlab-prometheus"
