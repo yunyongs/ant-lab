@@ -48,7 +48,7 @@ Releases are four: **v0.1** backend dashboard and web, **v1** web-based simulati
 
 ## 기술 스택
 
-Java 21 · Spring Boot 4.1 · PostgreSQL 17 · JPA (리포트 쿼리에 MyBatis 선택) · springdoc-openapi(저장소 계약 `docs/api/openapi.yaml`) · Python (FastAPI, pandas, 시뮬레이션 엔진) · 모바일 앱 중심 + 데스크탑 앱 + 웹 페이지 (React Native, React — 웹은 WEB 단계, 앱은 이후) · RAG / LangChain / LangGraph (이후) · Docker Compose(로컬 DB는 지금, 서버 배포는 OPS) · GitHub Actions · GHCR · 오라클 클라우드 인프라(OCI, Oracle Cloud Infrastructure) Ampere VM + Caddy (이후)
+Java 21 · Spring Boot 4.1 · PostgreSQL 17 · JPA (리포트 쿼리에 MyBatis 선택) · springdoc-openapi(저장소 계약 `docs/api/openapi.yaml`) · Python (FastAPI, pandas, 시뮬레이션 엔진) · 모바일 앱 중심 + 데스크탑 앱 + 웹 페이지 (React Native, React — 웹은 WEB 단계, 앱은 이후) · RAG / LangChain / LangGraph (FastAPI·Python 서비스에서 실행, 이후) · Docker Compose(로컬 DB는 지금, 서버 배포는 OPS) · GitHub Actions · GHCR · 오라클 클라우드 인프라(OCI, Oracle Cloud Infrastructure) Ampere VM + Caddy (이후)
 
 ## API 개발 실행 (P0-22~)
 
