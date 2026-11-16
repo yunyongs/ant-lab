@@ -74,7 +74,7 @@ class VintageStorageTest {
     void 시점_기준_읽기는_그_시각에_알려진_빈티지를_돌려준다() {
         insertVintages();
 
-        assertThat(knownAt("2030-01-03 08:59:59+09")).as("첫 관측 전").isNull();
+        assertThat(knownAt("2030-01-03 13:59:59+09")).as("첫 관측 전").isNull();
         assertThat(knownAt(RUN_1)).as("첫 관측 시각").isEqualByComparingTo("100");
         assertThat(knownAt("2030-01-03 23:00:00+09")).as("둘째 관측 전").isEqualByComparingTo("100");
         assertThat(knownAt(RUN_2)).as("둘째 관측 시각").isEqualByComparingTo("90");

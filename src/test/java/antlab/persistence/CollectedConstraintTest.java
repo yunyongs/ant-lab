@@ -201,10 +201,52 @@ class CollectedConstraintTest {
         try (Tx tx = new Tx()) {
             long asset = tx.asset();
             long run = tx.run();
-            long price = tx.price(asset, run, Map.of("exchange_code", "'NAS'", "close_price", "123.4567"));
+            long price = tx.price(asset, run, Map.of("exchange_code", "'NAS'", "close_price", "123.4567",
+                    "observed_at", "TIMESTAMPTZ '2030-01-03 14:00:00+09'"));
 
             assertThat(tx.queryLong("SELECT close_price * 10000 FROM asset_daily_price WHERE id = " + price))
                     .isEqualTo(1234567);
+        }
+    }
+
+    @Test
+    void 장_마감_뒤_현지_자정부터_저장된다_한국은_서울_미국은_뉴욕_날짜() throws Exception {
+        try (Tx tx = new Tx()) {
+            long run = tx.run();
+            long kr = tx.asset();
+            // KR: first instant of the next Seoul day
+            tx.price(kr, run, Map.of("observed_at", "TIMESTAMPTZ '2030-01-03 00:00:00+09'"));
+            // US winter (EST): first instant of the next New York day is 14:00 KST
+            tx.price(tx.asset(), run, Map.of("exchange_code", "'NAS'",
+                    "observed_at", "TIMESTAMPTZ '2030-01-03 00:00:00-05'"));
+            // US summer (EDT): midnight in New York is 13:00 KST, not 14:00
+            tx.price(tx.asset(), run, Map.of("exchange_code", "'NYS'", "trade_date", "DATE '2030-07-01'",
+                    "observed_at", "TIMESTAMPTZ '2030-07-02 13:00:00+09'"));
+
+            assertThat(tx.queryLong("SELECT count(*) FROM asset_daily_price")).isGreaterThanOrEqualTo(3);
+        }
+    }
+
+    @Test
+    void 무한대_종가는_정밀도_지정_숫자_열이_받지_않는다() throws Exception {
+        for (String value : new String[] {"'Infinity'", "'-Infinity'"}) {
+            try (Tx tx = new Tx()) {
+                long asset = tx.asset();
+                long run = tx.run();
+                tx.price(asset, run, Map.of("close_price", value));
+                throw new AssertionError("무한대는 거부되어야 한다: " + value);
+            } catch (SQLException e) {
+                assertThat(e.getSQLState()).as(value + " SQLSTATE").isEqualTo("22003");
+            }
+        }
+    }
+
+    @Test
+    void 실패한_실행은_실패_대상이_0이어도_된다() throws Exception {
+        try (Tx tx = new Tx()) {
+            long run = tx.run(Map.of("status", "'FAILED'", "error_code", "'ABANDONED'"));
+
+            assertThat(run).isPositive();
         }
     }
 
@@ -251,7 +293,19 @@ class CollectedConstraintTest {
                         Map.of("trade_date", "DATE '2030-01-04'")),
                 price("UTC로는 전날 저녁이지만 KST로는 거래일과 같은 날 관측", "23514", "ck_asset_daily_price_after_session",
                         Map.of("trade_date", "DATE '2030-01-03'", "observed_at", "TIMESTAMPTZ '2030-01-02 20:00:00+00'")),
-                price("거래소 코드 목록 밖", "23514", "ck_asset_daily_price_exchange_code", Map.of("exchange_code", "'XXX'")),
+                // US rows are judged by the New York date: 2030-01-03 00:30 KST is still 2030-01-02 10:30 ET
+                price("미국 장중: KST로는 다음날 새벽이지만 ET로는 같은 날", "23514", "ck_asset_daily_price_after_session",
+                        Map.of("exchange_code", "'NAS'", "observed_at", "TIMESTAMPTZ '2030-01-03 00:30:00+09'")),
+                price("미국 거래일 ET 마지막 순간", "23514", "ck_asset_daily_price_after_session",
+                        Map.of("exchange_code", "'NYS'", "observed_at", "TIMESTAMPTZ '2030-01-02 23:59:59.999999-05'")),
+                price("미국 여름(EDT) 거래일 ET 마지막 순간", "23514", "ck_asset_daily_price_after_session",
+                        Map.of("exchange_code", "'AMS'", "trade_date", "DATE '2030-07-01'",
+                                "observed_at", "TIMESTAMPTZ '2030-07-02 12:59:59.999999+09'")),
+                price("한국 거래일 KST 마지막 순간", "23514", "ck_asset_daily_price_after_session",
+                        Map.of("observed_at", "TIMESTAMPTZ '2030-01-02 23:59:59.999999+09'")),
+                // a code outside the list is judged by the New York date, so give it a valid observation time to isolate this rule
+                price("거래소 코드 목록 밖", "23514", "ck_asset_daily_price_exchange_code",
+                        Map.of("exchange_code", "'XXX'", "observed_at", "TIMESTAMPTZ '2030-01-03 14:00:00+09'")),
                 price("가격 기준 소문자", "23514", "ck_asset_daily_price_price_basis", Map.of("price_basis", "'adjusted'")),
                 price("출처 목록 밖", "23514", "ck_asset_daily_price_source", Map.of("source", "'YF'")),
                 price("거래일 없음", "23502", "trade_date", Map.of("trade_date", "NULL")),
@@ -281,6 +335,9 @@ class CollectedConstraintTest {
                         "finished_at", "NULL")),
                 run("정정 수가 추가 수보다 큼", "23514", "ck_job_run_revised_le_inserted",
                         Map.of("inserted_count", "1", "revised_count", "2")),
+                run("성공인데 실패 대상이 있음", "23514", "ck_job_run_failed_targets", Map.of("failed_target_count", "3")),
+                run("일부 실패인데 실패 대상이 0", "23514", "ck_job_run_failed_targets",
+                        Map.of("status", "'PARTIAL'", "error_code", "'KIS_REJECTED'")),
                 run("실패인데 오류 코드 없음", "23514", "ck_job_run_error", Map.of("status", "'FAILED'")),
                 run("일부 실패인데 오류 코드 없음", "23514", "ck_job_run_error", Map.of("status", "'PARTIAL'")),
                 run("성공인데 오류 코드 있음", "23514", "ck_job_run_error", Map.of("error_code", "'KIS_HTTP'")),

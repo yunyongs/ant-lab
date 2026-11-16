@@ -27,7 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /**
- * Compares the 22 named constraints and indexes added by V5 one to one with the erd 10.4 table, the columns with the
+ * Compares the 23 named constraints and indexes added by V5 one to one with the erd 10.4 table, the columns with the
  * erd 10.3 definitions, and checks that the V4 to V5 catalog difference is exactly those two tables.
  * The db/ check SQL only knows V1-V3 and AuthSchemaCatalogTest stops at V4, so this test owns V5.
  */
@@ -96,7 +96,7 @@ class CollectedSchemaCatalogTest {
         List<Obj> expected = erdObjects();
         List<Obj> actual = actualObjects();
 
-        assertThat(expected).as("erd 10.4 의 V5 행").hasSize(22);
+        assertThat(expected).as("erd 10.4 의 V5 행").hasSize(23);
         assertThat(actual.stream().map(o -> o.name() + "/" + o.kind() + "/" + o.table()).sorted())
                 .containsExactlyElementsOf(expected.stream().map(o -> o.name() + "/" + o.kind() + "/" + o.table())
                         .sorted().toList());
@@ -137,11 +137,14 @@ class CollectedSchemaCatalogTest {
 
     @Test
     void V4에서_V5로의_카탈로그_차이는_정확히_새_제약_열_표_둘뿐이다() throws Exception {
-        Set<String> v5 = AuthSchemaCatalogTest.snapshot(jdbc);
+        // One scratch database pinned to each version, so later migrations (V6 on) cannot leak into the diff.
+        Set<String> v5;
         Set<String> v4;
-        try (FlywayScratchDatabase scratch = new FlywayScratchDatabase(postgres, "v4_collected")) {
+        try (FlywayScratchDatabase scratch = new FlywayScratchDatabase(postgres, "v5_collected")) {
             scratch.migrateTo("4");
             v4 = AuthSchemaCatalogTest.snapshot(new JdbcTemplate(scratch.dataSource()));
+            scratch.migrateTo("5");
+            v5 = AuthSchemaCatalogTest.snapshot(new JdbcTemplate(scratch.dataSource()));
         }
         Set<String> added = new TreeSet<>(v5);
         added.removeAll(v4);
@@ -153,7 +156,7 @@ class CollectedSchemaCatalogTest {
                 .filter(a -> a.startsWith("constraint ") || a.startsWith("index "))
                 .map(a -> a.split(" ")[1].split("\\.")[1]).distinct().sorted().toList();
         assertThat(names).containsExactlyElementsOf(erdObjects().stream().map(Obj::name).sorted().toList());
-        assertThat(added.stream().filter(a -> a.startsWith("constraint ")).count()).as("새 제약").isEqualTo(19);
+        assertThat(added.stream().filter(a -> a.startsWith("constraint ")).count()).as("새 제약").isEqualTo(20);
         assertThat(added.stream().filter(a -> a.startsWith("index ")).count()).as("새 인덱스(제약 인덱스 포함)")
                 .isEqualTo(6);
         assertThat(added.stream().filter(a -> a.startsWith("column ")).map(a -> a.split(" ")[1])

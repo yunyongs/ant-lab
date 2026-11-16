@@ -6,7 +6,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 final class CollectedFixtures {
 
     static final String DAY_1 = "2030-01-02";
-    static final String RUN_1 = "2030-01-03 09:00:00+09";
+    static final String RUN_1 = "2030-01-03 14:00:00+09";
     static final String RUN_2 = "2030-01-04 09:00:00+09";
     static final String RUN_3 = "2030-01-05 09:00:00+09";
 
