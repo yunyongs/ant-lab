@@ -414,6 +414,8 @@ psql -X -q -v ON_ERROR_STOP=1 -d antlab_test -f db/02_schema_season_check.sql
 psql -X -q -v ON_ERROR_STOP=1 -d antlab_test -f db/03_schema_account_check.sql
 ```
 
+CI note: job `sql-schema` of `.github/workflows/api.yml` runs these same six files (schema 01–03, then the three checks) on every pull request (except one that changes only `web/**`) against an empty `antlab_test` on a `postgres:17` service, and the job fails unless each check's last output line is `PASS`; a test keeps the file list in sync with this section. / CI 참고: `.github/workflows/api.yml`의 job `sql-schema`가 PR마다(`web/**`만 바뀐 PR은 제외) `postgres:17` 서비스의 빈 `antlab_test`에서 이 여섯 파일(스키마 01–03, 검증 세 개)을 그대로 실행하고, 각 검증의 마지막 출력 줄이 `PASS`가 아니면 실패한다. 시험(`ApiWorkflowTest`)이 파일 목록을 이 절과 맞춰 둔다.
+
 `antlab_test`에 스키마가 아직 없으면(처음 한 번) 검증 앞에 스키마 세 줄을 순서대로 실행한다. 03 파일만 고쳤다면 03 스키마 한 줄과 검증 세 줄이면 된다. 02 스키마 줄은 03이 있는 DB에서, 01 스키마 줄은 02가 있는 DB에서 `2BP01`로 멈추므로 01·02를 고쳤을 때는 (c′)를 쓴다.
 
 ```bash
