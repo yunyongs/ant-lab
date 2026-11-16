@@ -1,0 +1,16 @@
+# Allow-list: only what the Dockerfile copies.
+*
+!pyproject.toml
+!uv.lock
+!.python-version
+!src/
+
+# Re-exclude secrets and caches inside the opened paths.
+**/.env
+**/.env.*
+**/.envrc
+**/*.secret
+**/secrets/
+**/*.pem
+**/*.key
+**/__pycache__
