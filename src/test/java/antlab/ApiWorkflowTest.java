@@ -23,6 +23,8 @@ class ApiWorkflowTest {
     private static final Path WORKFLOW = Path.of(".github/workflows/api.yml");
     private static final Path SUMMARY_SCRIPT = Path.of("scripts/ci_test_summary.py");
     private static final Path DB_README = Path.of("db/README.md");
+    private static final Path DOCKERFILE = Path.of("Dockerfile");
+    private static final Path BUILD_GRADLE = Path.of("build.gradle");
     private static final Pattern PINNED_USES =
             Pattern.compile("^\\s*(?:-\\s*)?uses:\\s*[\\w.-]+/[\\w./-]+@[0-9a-f]{40}\\s+#\\s*v\\d+\\.\\d+\\.\\d+$");
     private static final Path EXPECTED_SKIPS = Path.of("scripts/ci_expected_skips.txt");
@@ -122,12 +124,13 @@ class ApiWorkflowTest {
             names.add(m.group(1));
         }
         assertThat(names).containsExactly(
-                "actions/checkout", "actions/setup-java", "actions/upload-artifact", "gradle/actions/setup-gradle");
+                "actions/checkout", "actions/setup-java", "actions/upload-artifact",
+                "docker/build-push-action", "docker/setup-buildx-action", "gradle/actions/setup-gradle");
     }
 
     @Test
     void checkoutsDoNotPersistCredentials() throws IOException {
-        for (String job : List.of("test", "sql-schema")) {
+        for (String job : List.of("test", "sql-schema", "image")) {
             for (Map<String, Object> step : steps(job)) {
                 if (String.valueOf(step.get("uses")).startsWith("actions/checkout@")) {
                     assertThat(map(step.get("with")).get("persist-credentials")).isEqualTo(false);
@@ -259,6 +262,61 @@ class ApiWorkflowTest {
                 "check db/02_schema_season_check.sql",
                 "check db/03_schema_account_check.sql");
         assertThat(checks).noneMatch(l -> l.contains("|| true") || l.contains("set +e"));
+    }
+
+    @Test
+    void imageJobBuildsTheArmImageAndNeverPushesIt() throws IOException {
+        Map<String, Object> job = map(map(workflow().get("jobs")).get("image"));
+        assertThat(job.get("runs-on")).isEqualTo("ubuntu-24.04-arm");
+        assertThat((Integer) job.get("timeout-minutes")).isBetween(1, 30);
+        assertThat(job).doesNotContainKeys("needs", "env", "services", "container", "permissions");
+
+        Map<String, Object> build = step("image", "Build the api image");
+        assertThat(String.valueOf(build.get("uses"))).startsWith("docker/build-push-action@");
+        Map<String, Object> with = map(build.get("with"));
+        assertThat(with.keySet()).containsExactlyInAnyOrder("context", "push", "load", "tags", "cache-from", "cache-to");
+        assertThat(with.get("context")).isEqualTo(".");
+        assertThat(with.get("push")).isEqualTo(false);
+        assertThat(with.get("load")).isEqualTo(true);
+        assertThat(with.get("cache-from")).isEqualTo("type=gha,scope=api");
+        assertThat(with.get("cache-to")).isEqualTo("type=gha,scope=api,mode=max");
+        assertThat(build).doesNotContainKeys("env", "continue-on-error");
+
+        List<String> uses = steps("image").stream().map(s -> String.valueOf(s.get("uses"))).toList();
+        assertThat(uses).anyMatch(u -> u.startsWith("docker/setup-buildx-action@"));
+        assertThat(uses).noneMatch(u -> u.startsWith("docker/login-action@"));
+        assertThat(String.join("\n", runCommands("image"))).doesNotContain("docker push").doesNotContain("docker login");
+        assertThat(text()).doesNotContain("ghcr.io").doesNotContain("packages:");
+    }
+
+    @Test
+    void imageJobChecksArchitectureAndNonRootUserOfTheLoadedImage() throws IOException {
+        List<String> checks = codeLines(runCommands("image").get(0));
+        assertThat(checks).containsExactly(
+                "[ \"$(docker image inspect --format '{{.Architecture}}' antlab-api:ci)\" = arm64 ]",
+                "[ \"$(docker image inspect --format '{{.Config.User}}' antlab-api:ci)\" = 10001:10001 ]");
+        assertThat(map(map(step("image", "Build the api image").get("with"))).get("tags")).isEqualTo("antlab-api:ci");
+    }
+
+    @Test
+    void dockerfileResolvesDependenciesBeforeTheSourceAndBuildsOffline() throws IOException {
+        List<String> lines = codeLines(Files.readString(DOCKERFILE));
+        int resolve = lines.indexOf("RUN ./gradlew --no-daemon resolveDependencies");
+        int sources = lines.indexOf("COPY src/main src/main");
+        int bootJar = lines.indexOf("RUN ./gradlew --no-daemon --offline bootJar");
+        assertThat(resolve).isPositive();
+        assertThat(sources).isGreaterThan(resolve);
+        assertThat(bootJar).isGreaterThan(sources);
+        assertThat(lines.stream().filter(l -> l.contains("gradlew") && l.contains("bootJar"))).hasSize(1);
+        // The dependency layer's inputs: only the Gradle wrapper and build files are copied before it.
+        assertThat(lines.subList(0, resolve).stream().filter(l -> l.startsWith("COPY ")).toList())
+                .containsExactly("COPY gradlew settings.gradle build.gradle ./", "COPY gradle gradle");
+        assertThat(String.join("\n", lines)).doesNotContain("--refresh-dependencies");
+
+        String build = Files.readString(BUILD_GRADLE);
+        assertThat(build).contains("tasks.register('resolveDependencies')");
+        assertThat(build).contains(
+                "files(configurations.compileClasspath, configurations.runtimeClasspath, configurations.annotationProcessor)");
     }
 
     @Test
