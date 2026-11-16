@@ -9,6 +9,8 @@ import java.util.function.Supplier;
 /**
  * One token for many calls: memory first, then the shared file, and only then a new issuance. A token with at most an hour
  * left is replaced. KIS allows one issuance per minute, so issuances (also a retry after a failure) are at least 65 s apart.
+ * Once an issuance has failed (after its one retry) the failure is kept for the life of this service, so a wrong key is
+ * never sent again within the run.
  */
 final class KisTokenService {
 
@@ -22,6 +24,7 @@ final class KisTokenService {
     private final SecretMasker masker;
     private StoredToken current;
     private Instant lastIssuanceAt;
+    private KisException issuanceFailure;
 
     /** {@code store} is null when no cache directory is configured: the token then lives in memory only. */
     KisTokenService(Clock clock, Sleeper sleeper, KisTokenStore store, SecretMasker masker) {
@@ -41,7 +44,15 @@ final class KisTokenService {
             masker.register(current.accessToken());
             return current.accessToken();
         }
-        current = issue(issuer);
+        if (issuanceFailure != null) {
+            throw new KisException("KIS_TOKEN_UNAVAILABLE", "KIS token issuance already failed in this run; nothing more is sent");
+        }
+        try {
+            current = issue(issuer);
+        } catch (KisException e) {
+            issuanceFailure = e;
+            throw e;
+        }
         return current.accessToken();
     }
 

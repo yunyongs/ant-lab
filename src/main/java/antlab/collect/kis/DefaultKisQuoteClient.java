@@ -170,7 +170,10 @@ final class DefaultKisQuoteClient implements KisQuoteClient {
                 sleeper.sleep(wait);
                 continue;
             }
-            if (TOKEN_REJECTED_CODES.contains(messageCode) && !reissued) {
+            if (TOKEN_REJECTED_CODES.contains(messageCode)) {
+                if (reissued) {
+                    throw new KisException("KIS_REJECTED", describe(endpoint, raw.status(), messageCode) + ": token rejected again after reissue");
+                }
                 reissued = true;
                 tokens.reject(token);
                 continue;

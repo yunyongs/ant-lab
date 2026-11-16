@@ -25,11 +25,10 @@ final class KisRequestGate implements ClientHttpRequestInterceptor {
     @Override
     public ClientHttpResponse intercept(HttpRequest request, byte[] body, ClientHttpRequestExecution execution)
             throws IOException {
-        if (sent.get() >= maxRequests) {
+        if (sent.getAndUpdate(n -> n < maxRequests ? n + 1 : n) >= maxRequests) {
             throw new KisException("REQUEST_CAP", "KIS request cap of " + maxRequests + " per run reached; nothing more is sent");
         }
         limiter.acquire();
-        sent.incrementAndGet();
         return execution.execute(request, body);
     }
 

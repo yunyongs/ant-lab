@@ -35,6 +35,9 @@ public record KisProperties(
         if (!missing.isEmpty()) {
             throw new IllegalStateException("antlab.collect.kis.enabled=true needs " + String.join(" and ", missing));
         }
+        if (!tokenCacheDir.isBlank() && !Path.of(tokenCacheDir).isAbsolute()) {
+            throw new IllegalStateException("KIS_TOKEN_CACHE_DIR must be an absolute path, so every process shares one token file");
+        }
     }
 
     /** The shared token directory, or null for a memory-only token. */
