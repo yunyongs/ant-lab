@@ -96,8 +96,8 @@ Web (WEB-01): see [web/README.md](web/README.md) — run `cd web && npm ci && np
 A full browser check of one season at phone and desktop width: `scripts/web_e2e.sh` (see [web/README.md](web/README.md#end-to-end-check--종단-확인)); it uses its own throwaway containers.
 휴대폰·데스크톱 폭에서 한 시즌을 브라우저로 끝까지 확인하려면 `scripts/web_e2e.sh`를 실행한다([web/README.md](web/README.md#end-to-end-check--종단-확인) 참고). 자체 일회용 컨테이너를 쓴다.
 
-The contract covers the `/api/v1` operations. Requests that Tomcat rejects while parsing the URL or headers (a bad percent-encoding such as `%ZZ`, an encoded slash `%2F`, an oversized header) get Tomcat's plain HTML 400 before Spring sees them; a proxy in front of the server is expected to stop those, and a follow-up issue tracks making them `problem+json`.
-계약은 `/api/v1` 연산을 다룬다. URL·헤더를 읽는 단계에서 Tomcat이 거절하는 요청(`%ZZ` 같은 잘못된 퍼센트 인코딩, 인코딩된 슬래시 `%2F`, 너무 큰 헤더)은 Spring에 닿기 전에 Tomcat의 HTML 400이 나간다. 이런 요청은 서버 앞의 프록시가 막는 것을 전제로 하고, `problem+json`으로 통일하는 일은 후속 이슈로 둔다.
+The contract covers the `/api/v1` operations. Requests that Tomcat rejects while parsing the URL or headers (a bad percent-encoding such as `%ZZ`, an encoded slash `%2F`, an oversized header) get a 400 `problem+json` with the code `MALFORMED_REQUEST`, written by a Tomcat error report valve because Spring never sees them. Not covered: the security firewall's rejections (`//`, `;`, `%25`) still answer with Boot's default JSON error body, and other Tomcat-stage statuses (for example 505 for an unknown HTTP version) still answer with Tomcat's HTML page.
+계약은 `/api/v1` 연산을 다룬다. URL·헤더를 읽는 단계에서 Tomcat이 거절하는 요청(`%ZZ` 같은 잘못된 퍼센트 인코딩, 인코딩된 슬래시 `%2F`, 너무 큰 헤더)은 Spring에 닿지 않으므로 Tomcat 오류 보고 밸브가 `MALFORMED_REQUEST` 코드의 400 `problem+json`으로 답한다. 보안 방화벽의 거절(`//`·`;`·`%25`)은 여전히 Boot 기본 JSON 오류 본문으로, 그 밖의 Tomcat 단계 상태(예: 모르는 HTTP 버전의 505)는 Tomcat의 HTML 페이지로 답한다.
 
 To run a whole season at once on a throwaway database instead of clicking, use the temporary script in [tools/play/README.md](tools/play/README.md).
 클릭 대신 일회용 DB에서 한 시즌을 한 번에 돌려 보려면 [tools/play/README.md](tools/play/README.md)의 임시 스크립트를 쓴다.
