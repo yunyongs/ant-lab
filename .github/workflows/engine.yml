@@ -2,10 +2,10 @@ name: engine
 
 on:
   pull_request:
-    paths: ['engine/**', 'docs/api/engine.yaml', 'src/test/resources/engine/p0-boot6-v1_vectors.csv', '.github/workflows/engine.yml']
+    paths: ['engine/**', 'docs/api/engine.yaml', 'src/test/resources/engine/p0-boot6-v1_vectors.csv', 'db/roles/**', 'src/main/resources/db/migration/**', '.github/workflows/engine.yml']
   push:
     branches: [main]
-    paths: ['engine/**', 'docs/api/engine.yaml', 'src/test/resources/engine/p0-boot6-v1_vectors.csv', '.github/workflows/engine.yml']
+    paths: ['engine/**', 'docs/api/engine.yaml', 'src/test/resources/engine/p0-boot6-v1_vectors.csv', 'db/roles/**', 'src/main/resources/db/migration/**', '.github/workflows/engine.yml']
   workflow_dispatch:
 
 permissions:
@@ -15,6 +15,19 @@ jobs:
   verify:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17.11
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_DB: antlab_testsrv_ci
+        ports:
+          - 127.0.0.1:55432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
     defaults:
       run:
         working-directory: engine
@@ -30,4 +43,8 @@ jobs:
       - run: uv run --frozen ruff check .
       - run: uv run --frozen ruff format --check .
       - run: uv run --frozen pytest
+        env:
+          ANTLAB_ENGINE_DB_TESTS: required
+          ANTLAB_ENGINE_TEST_SERVER_ID: ci
+          ANTLAB_ENGINE_TEST_ADMIN_DSN: host=127.0.0.1 port=55432 user=postgres dbname=antlab_testsrv_ci
       - run: docker build .
