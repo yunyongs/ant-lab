@@ -3,6 +3,7 @@ package antlab.auth;
 import antlab.common.error.DomainException;
 import antlab.common.error.ErrorCode;
 import antlab.member.Member;
+import antlab.member.MemberKind;
 import antlab.member.MemberRepository;
 import java.time.Clock;
 import java.time.Instant;
@@ -35,7 +36,8 @@ public class LoginService {
         // The only clock read of the request: expires_at and the token's iat come from the same instant.
         Instant now = clock.instant();
         Member member = members.findByEmail(email).orElse(null);
-        if (!passwords.matches(password, member == null ? null : member.getPassword())) {
+        if (!passwords.matches(password, member == null ? null : member.getPassword())
+                || member.getKind() != MemberKind.HUMAN) {
             throw new DomainException(ErrorCode.INVALID_CREDENTIALS, "이메일이나 비밀번호가 맞지 않다");
         }
         String raw = RefreshTokens.newRawValue();

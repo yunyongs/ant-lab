@@ -1,6 +1,7 @@
 package antlab.auth;
 
 import antlab.member.Member;
+import antlab.member.MemberKind;
 import java.time.Instant;
 import java.util.UUID;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
@@ -25,6 +26,10 @@ public class AccessTokenIssuer {
     }
 
     public String issue(Member member, Instant now) {
+        // Agents act only through the runner; no access token is ever signed for them.
+        if (member.getKind() != MemberKind.HUMAN) {
+            throw new IllegalStateException("access tokens are issued to human members only");
+        }
         JwsHeader header = JwsHeader.with(MacAlgorithm.HS256).type("JWT").build();
         JwtClaimsSet claims = JwtClaimsSet.builder()
                 .issuer(ISSUER)

@@ -3,20 +3,27 @@ package antlab.auth;
 import antlab.common.error.DomainException;
 import antlab.common.error.ErrorCode;
 import antlab.member.CurrentMember;
+import antlab.member.Member;
+import antlab.member.MemberKind;
 import antlab.member.MemberRepository;
 import java.util.Optional;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.stereotype.Component;
 
 /**
- * The member named by the access token's {@code sub}; the only {@link CurrentMember} in every profile. The validator
- * guarantees that {@code sub} is a positive decimal long, so parsing cannot fail. A subject without a member row
- * answers 401 like any other bad token; a call with no JWT in the security context (not reachable over HTTP, where
- * season paths require authentication) fails closed with the same 401.
+ * The only {@link CurrentMember} in every profile: the HUMAN member named by the access token's {@code sub}, or the
+ * AGENT member a verified runner acts for ({@link AgentActingAuthentication}). The validator guarantees that
+ * {@code sub} is a positive decimal long, so parsing cannot fail. A member row of the wrong kind, a subject without a
+ * member row, and a call with no usable authentication in the security context (not reachable over HTTP, where the
+ * protected paths require authentication) all fail closed with the same 401.
  */
 @Component
 public class JwtCurrentMember implements CurrentMember {
+
+    private record Subject(long id, MemberKind kind) {
+    }
 
     private final MemberRepository members;
 
@@ -26,23 +33,32 @@ public class JwtCurrentMember implements CurrentMember {
 
     @Override
     public Optional<Long> existingId() {
-        long id = subject();
-        if (!members.existsById(id)) {
+        Subject subject = subject();
+        if (!members.existsByIdAndKind(subject.id(), subject.kind())) {
             throw unknownMember();
         }
-        return Optional.of(id);
+        return Optional.of(subject.id());
     }
 
     @Override
     public long ensureId() {
-        return members.findByIdForUpdate(subject()).orElseThrow(JwtCurrentMember::unknownMember).getId();
-    }
-
-    private static long subject() {
-        if (!(SecurityContextHolder.getContext().getAuthentication() instanceof JwtAuthenticationToken token)) {
+        Subject subject = subject();
+        Member member = members.findByIdForUpdate(subject.id()).orElseThrow(JwtCurrentMember::unknownMember);
+        if (member.getKind() != subject.kind()) {
             throw unknownMember();
         }
-        return Long.parseLong(token.getToken().getSubject());
+        return member.getId();
+    }
+
+    private static Subject subject() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication instanceof JwtAuthenticationToken token) {
+            return new Subject(Long.parseLong(token.getToken().getSubject()), MemberKind.HUMAN);
+        }
+        if (authentication instanceof AgentActingAuthentication acting) {
+            return new Subject(acting.agentMemberId(), MemberKind.AGENT);
+        }
+        throw unknownMember();
     }
 
     private static DomainException unknownMember() {

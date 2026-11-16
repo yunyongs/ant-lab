@@ -63,6 +63,9 @@ services:
       ANTLAB_DB_USER: ${ANTLAB_DB_USER:-${USER:-antlab}}
       # JWT signing key (SEC-03); empty means the app refuses to start.
       ANTLAB_JWT_SECRET: ${ANTLAB_JWT_SECRET:-}
+      # Agent runner service token and owner id (AG-02); empty means every runner request answers 401.
+      ANTLAB_AGENT_RUNNER_TOKEN: ${ANTLAB_AGENT_RUNNER_TOKEN:-}
+      ANTLAB_AGENT_RUNNER_OWNER_ID: ${ANTLAB_AGENT_RUNNER_OWNER_ID:-}
       # 로컬 trust 에서는 비밀번호가 필요 없다. 운영 비밀번호는 secrets(/run/secrets) 로 준다 — env_file 로 .env 전체를 넘기지 않는다.
     ports:
       - "127.0.0.1:${ANTLAB_API_PORT:-8080}:8080"

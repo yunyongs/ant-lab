@@ -17,6 +17,7 @@ import io.swagger.v3.oas.models.responses.ApiResponses;
 import io.swagger.v3.oas.models.security.SecurityRequirement;
 import io.swagger.v3.oas.models.security.SecurityScheme;
 import java.math.BigDecimal;
+import java.util.Set;
 import org.springdoc.core.customizers.OpenApiCustomizer;
 import org.springdoc.core.utils.SpringDocUtils;
 import org.springframework.context.annotation.Bean;
@@ -36,6 +37,9 @@ public class OpenApiConfig {
     static final String BEARER_SCHEME = "bearerAuth";
 
     private static final String PATH_PREFIX = "/api/v1/";
+
+    /** Error codes only the internal runner paths answer (docs/api/agent-runner.yaml). */
+    public static final Set<String> RUNNER_ONLY_CODES = Set.of("AGENT_RETIRED");
 
     static {
         // enum 은 이름 붙은 컴포넌트로 낸다(웹 타입 이름이 된다 — 계약 docs/api/openapi.yaml 과 같게).
@@ -62,6 +66,7 @@ public class OpenApiConfig {
             Components components = openApi.getComponents();
             // 오류 본문 스키마(Problem·ErrorCode)가 컴포넌트에 있게 한다 — 다른 운영이 안 써도 500 이 참조한다.
             ModelConverters.getInstance(true).readAll(ApiProblem.class).forEach(components::addSchemas);
+            hideRunnerOnlyCodes(components);
             components.addResponses(INTERNAL_ERROR_RESPONSE, new ApiResponse()
                     .description("An unexpected server error — INTERNAL_ERROR. The message is a fixed sentence that "
                             + "carries no exception content (the content goes to the server log only)\n\n"
@@ -81,6 +86,14 @@ public class OpenApiConfig {
                 }
             }
         };
+    }
+
+    /** The public description lists only the codes the public API can answer; the runner contract lists the rest. */
+    private static void hideRunnerOnlyCodes(Components components) {
+        Schema<?> codes = components.getSchemas() == null ? null : components.getSchemas().get("ErrorCode");
+        if (codes != null && codes.getEnum() != null) {
+            codes.getEnum().removeIf(value -> RUNNER_ONLY_CODES.contains(String.valueOf(value)));
+        }
     }
 
     /**

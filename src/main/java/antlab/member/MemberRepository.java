@@ -16,6 +16,8 @@ public interface MemberRepository extends Repository<Member, Long> {
 
     boolean existsById(Long id);
 
+    boolean existsByIdAndKind(Long id, MemberKind kind);
+
     /** Locks the row by id ({@code FOR NO KEY UPDATE}). Lock order is member → season → cash_account. */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select m from Member m where m.id = :id")
