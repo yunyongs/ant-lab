@@ -245,12 +245,22 @@ public final class MoneyMath {
      * 분산은 {@code select_div_scale} 자리에서 한 번 반올림하고, 제곱근도 같은 자리에서 한 번 반올림한 뒤 8자리로 반올림한다.
      */
     public static BigDecimal sampleStddev8(List<BigDecimal> values) {
+        BigDecimal stddev = sampleStddev(values);
+        return stddev == null ? null : round8(stddev);
+    }
+
+    /**
+     * Sample standard deviation (n - 1) before the 8-digit rounding: the counterpart of SQL {@code stddev_samp(x)}, equal in value and
+     * decimal scale. Null when there are fewer than two values. The steps are those of {@link #sampleStddev8} without the final
+     * 8-digit rounding. When the variance is 0 (all values equal) the result is 0 and its scale carries no meaning.
+     */
+    public static BigDecimal sampleStddev(List<BigDecimal> values) {
         BigDecimal variance = sampleVariance(values);
         if (variance == null) {
             return null;
         }
         if (variance.signum() == 0) {
-            return ZERO.setScale(8, RoundingMode.UNNECESSARY);
+            return ZERO;
         }
         // 제곱근을 분산의 자릿수에서 한 번 반올림한다: round(sqrt(U·10^rscale)) = r 또는 r + 1 (r = 정수 제곱근).
         int rscale = variance.scale();
@@ -259,7 +269,39 @@ public final class MoneyMath {
         if (scaled.subtract(root.multiply(root)).compareTo(root) > 0) {
             root = root.add(BigInteger.ONE);
         }
-        return new BigDecimal(root, rscale).setScale(8, RoundingMode.HALF_UP);
+        return new BigDecimal(root, rscale);
+    }
+
+    /**
+     * Division: the counterpart of SQL {@code numeric / numeric}. The quotient scale is {@code select_div_scale} (from the scales and
+     * magnitudes of both inputs), rounded HALF_UP once at that scale. The input scales feed the result scale, so never pass values
+     * reduced with {@code stripTrailingZeros}. Dividing by zero throws.
+     */
+    public static BigDecimal pgDivide(BigDecimal numerator, BigDecimal denominator) {
+        require(numerator, "분자");
+        require(denominator, "분모");
+        if (denominator.signum() == 0) {
+            throw invalid("분모는 0일 수 없다");
+        }
+        int rscale = divScale(numerator, Math.max(numerator.scale(), 0), denominator, Math.max(denominator.scale(), 0));
+        return numerator.divide(denominator, rscale, RoundingMode.HALF_UP);
+    }
+
+    /**
+     * Mean: the counterpart of SQL {@code avg(numeric)}. The exact sum (scale = largest input scale) is divided by the count with
+     * {@link #pgDivide}. Null when there are no values.
+     */
+    public static BigDecimal pgAvg(List<BigDecimal> values) {
+        require(values, "값 목록");
+        if (values.isEmpty()) {
+            return null;
+        }
+        BigDecimal sum = ZERO;
+        for (BigDecimal x : values) {
+            require(x, "값");
+            sum = sum.add(x);
+        }
+        return pgDivide(sum, BigDecimal.valueOf(values.size()));
     }
 
     /**
