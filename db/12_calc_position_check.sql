@@ -22,8 +22,10 @@
 --       정의의 방법(재귀 CTE·stddev_samp·합의 비)과 다른 방법이라 서로를 검증한다. 상수(36개월, 지연 1개월, 밴드 0.01, 069500·SPY 50/50)는 erd D35 에서 다시 옮겨 적었다.
 -- 합성 손 계산(2절): 먼 미래(2097–2099) 합성 월 블록 36개와 합성 종목에서 손으로 계산한 기대값(리터럴, 시세 아님)과 pos_judge 를 대조한다. 서브트랜잭션에서 되돌린다.
 -- 경계 표(3절): 판정 함수를 직접 불러 경계 바로 위·아래와 겹치는 규칙의 순서를 본다. 함수 본문을 일부러 고친 변이(pg_get_functiondef 를 글자 바꿈)가 표에 걸려야 한다.
--- 사후 정보 배제(5절, H9): 기준일 달과 그 뒤의 수익률을 더하거나 바꿔도, 창 앞 달을 바꿔도 판정 8컬럼이 같아야 한다. 창 안 달을 바꾸면 달라져야 하고(헛돌지 않음),
---       창 끝을 기준일 달로 민 정의에서는 시험이 위반을 잡아야 한다(이빨 확인).
+-- Look-ahead exclusion (section 5, H9), run once per judged base date: only that base date's rows are snapshotted. Changing existing months from its base-date
+--       month on, adding synthetic month blocks for the months that are still missing after it, or changing months before its window must leave its 8 columns equal.
+--       Changing one month inside the window must change them (the test does not spin idle), and a definition whose window ends in the base-date month must be
+--       caught for every base date (teeth check). db/12_second_base_date_drill.sql builds a throwaway copy with a second judged base date to prove this.
 -- 새 문법: 사용자 정의 집계 CREATE AGGREGATE (누적 곱), 윈도 함수 위의 집계, OVERRIDING SYSTEM VALUE (identity 열에 번호를 직접 넣기), pg_get_viewdef·pg_get_functiondef 로 정의를
 --       글자 바꿈해 다시 만들기(변이 시험), PL/pgSQL 예외 블록(서브트랜잭션)으로 "바꿔 보고 되돌리기".
 -- 명령줄(psql)이 기준이다. VS Code 에서는 통합 터미널에서 실행한다.
@@ -176,9 +178,13 @@ FROM (VALUES
        + (SELECT count(*) FROM fx_month WHERE id >= 9400000000))::text),
     ('합성 시험이 쓰는 달 구간(2097–2099)에 실제 월 블록이 없다', '0',
         (SELECT count(*)::text FROM month_block WHERE month_start >= DATE '2090-01-01')),
-    ('H9 시험의 합성 달(기준일 달 이후)에 실제 월 블록이 없다 — 표본 구조 전제(기준일 하나, 그 뒤 달 없음)', '0',
-        (SELECT count(*)::text FROM month_block WHERE month_start >= (SELECT date_trunc('month', min(base_date)::timestamp)::date FROM asset_position WHERE system_position IS NOT NULL)
-                                                  AND month_start < DATE '2090-01-01')),
+    ('판정된 기준일이 하나 이상 있다 (H9 는 기준일마다 돈다)', 'true',
+        (SELECT (count(DISTINCT base_date) >= 1)::text FROM asset_position WHERE system_position IS NOT NULL)),
+    ('H9 합성 달 자리: 판정된 기준일마다 기준일 달부터 2089-12 사이에 월 블록이 없는 달이 3개 이상 있다 (모자란 기준일 수)', '0',
+        (SELECT count(*)::text
+         FROM (SELECT DISTINCT date_trunc('month', base_date::timestamp)::date AS bm FROM asset_position WHERE system_position IS NOT NULL) b
+         WHERE (SELECT count(*) FROM generate_series(b.bm::timestamp, TIMESTAMP '2089-12-01', INTERVAL '1 month') AS g(m)
+                WHERE NOT EXISTS (SELECT 1 FROM month_block mb WHERE mb.month_start = g.m::date)) < 3)),
     ('asset_group 이 하나 이상 있다 (합성 종목의 그룹)', 'true', (SELECT (count(*) > 0)::text FROM asset_group))
 ) AS x(item, expected, actual);
 
@@ -564,40 +570,59 @@ $$;
 CREATE TEMP TABLE zz_h9_base (asset_position_id bigint PRIMARY KEY, window_start date, window_end date, months_used smallint,
                               up numeric, down numeric, vol numeric, mdd numeric, pos text);
 CREATE TEMP TABLE zz_h9_now (LIKE zz_h9_base);
-CREATE FUNCTION pg_temp.h9_snap(p_tbl text) RETURNS void
+CREATE FUNCTION pg_temp.h9_snap(p_tbl text, p_bd date) RETURNS void
 LANGUAGE plpgsql AS $$
 BEGIN
     EXECUTE format('DELETE FROM %s', p_tbl);
-    EXECUTE format('INSERT INTO %s SELECT asset_position_id, window_start, window_end, months_used, up_participation, down_participation, volatility, max_drawdown, system_position FROM pos_judge', p_tbl);
+    EXECUTE format('INSERT INTO %s SELECT asset_position_id, window_start, window_end, months_used, up_participation, down_participation, volatility, max_drawdown, system_position FROM pos_judge WHERE base_date = %L', p_tbl, p_bd);
 END $$;
 
--- 전제: 기준일 달 이후에 실제 월 블록이 없다(0절이 확인한다). 있으면 합성 월 블록과 겹쳐 5절이 틀리게 돌므로 0절이 먼저 멈춘다.
---       기준일별로 일반화하는 일은 기준일이 여럿인 표본이 생길 때(MVP 적재 전) 후속으로 한다.
--- 변이 전 판정 8컬럼(p_def_mut 로 정의를 먼저 바꿀 수 있다)과 변이 후를 비교해 달라진 행 수를 센다 (서브트랜잭션, 되돌림).
---   FUTURE : 기준일 달과 그 뒤 합성 월 블록 3개를 더하고 모든 종목·환율에 큰 값을 넣은 뒤, 기준일 달 이후 모든 수익률을 다른 값으로 덮어쓴다
---   PRE    : 창 앞(기준일 달 − 36개월 앞) 모든 수익률·환율을 상수로 바꾼다 (표본의 2007–2012 구간)
---   BOTH   : FUTURE + PRE
---   IN     : 창 안 한 달(창 시작 + 17개월)의 모든 수익률을 바꾼다 — 달라져야 하는 경우 (시험이 헛돌지 않는다는 증거)
-CREATE FUNCTION pg_temp.h9_count(p_def_mut text, p_kind text) RETURNS bigint
+-- The synthetic months of FUT_ADD: the first 3 calendar months from the base-date month on that have no month_block, all before 2090-01 (section 2 uses 2097–2099).
+CREATE FUNCTION pg_temp.h9_missing(p_bd date) RETURNS date[]
+LANGUAGE sql STABLE AS $$
+    SELECT COALESCE(array_agg(m ORDER BY m), ARRAY[]::date[])
+    FROM (SELECT g.m::date AS m
+          FROM generate_series(date_trunc('month', p_bd::timestamp), TIMESTAMP '2089-12-01', INTERVAL '1 month') AS g(m)
+          WHERE NOT EXISTS (SELECT 1 FROM month_block mb WHERE mb.month_start = g.m::date)
+          ORDER BY g.m LIMIT 3) x
+$$;
+
+-- Changes the inputs of one base date, then counts how many of ITS rows changed in the 8 judgment columns (subtransaction, undone). p_def_mut may change the definition first.
+--   FUT_EXIST: flips every existing month from the base-date month on (returns and USD FX)
+--   FUT_ADD  : adds the missing months of h9_missing with large values for every asset and USD FX
+--   PRE      : sets every month before the window (base-date month − 36) to constants
+--   ALL      : FUT_EXIST + FUT_ADD + PRE in one subtransaction
+--   IN       : flips one month inside the window (window start + 17) — the judgment must change (the test does not spin idle)
+-- Returns -1 when FUT_ADD finds fewer than 3 missing months (setup failure: callers must not treat it as a pass).
+CREATE FUNCTION pg_temp.h9_count(p_def_mut text, p_kind text, p_bd date) RETURNS bigint
 LANGUAGE plpgsql AS $$
 DECLARE
-    v       bigint;
-    v_base  date := (SELECT date_trunc('month', min(base_date)::timestamp)::date FROM asset_position WHERE system_position IS NOT NULL);
+    v         bigint;
+    v_base    date := date_trunc('month', p_bd::timestamp)::date;
+    v_missing date[] := pg_temp.h9_missing(p_bd);
 BEGIN
     BEGIN
         IF p_def_mut IS NOT NULL THEN EXECUTE p_def_mut; END IF;
-        PERFORM pg_temp.h9_snap('zz_h9_base');
-        IF p_kind IN ('FUTURE', 'BOTH') THEN
-            INSERT INTO month_block (id, month_start) OVERRIDING SYSTEM VALUE
-            SELECT 9000001000 + i, (v_base + make_interval(months => i))::date FROM generate_series(0, 2) i;
-            INSERT INTO fx_month (id, month_block_id, currency, fx_change) OVERRIDING SYSTEM VALUE
-            SELECT 9400001000 + i, 9000001000 + i, 'USD', 0.20 FROM generate_series(0, 2) i;
-            INSERT INTO asset_month_return (id, asset_id, month_block_id, local_return) OVERRIDING SYSTEM VALUE
-            SELECT 9300010000 + row_number() OVER (ORDER BY a.id, i), a.id, 9000001000 + i, 0.30 FROM asset a CROSS JOIN generate_series(0, 2) i;
+        IF p_kind IN ('FUT_ADD', 'ALL') AND cardinality(v_missing) < 3 THEN
+            v := -1;
+            RAISE EXCEPTION 'zz_undo' USING ERRCODE = 'P0001';
+        END IF;
+        PERFORM pg_temp.h9_snap('zz_h9_base', p_bd);
+        IF p_kind IN ('FUT_EXIST', 'ALL') THEN
             UPDATE asset_month_return ar SET local_return = CASE WHEN ar.local_return > 0 THEN -0.20 ELSE 0.20 END
             FROM month_block mb WHERE mb.id = ar.month_block_id AND mb.month_start >= v_base;
+            UPDATE fx_month fx SET fx_change = CASE WHEN fx.fx_change > 0 THEN -0.20 ELSE 0.20 END
+            FROM month_block mb WHERE mb.id = fx.month_block_id AND mb.month_start >= v_base;
         END IF;
-        IF p_kind IN ('PRE', 'BOTH') THEN
+        IF p_kind IN ('FUT_ADD', 'ALL') THEN
+            INSERT INTO month_block (id, month_start) OVERRIDING SYSTEM VALUE
+            SELECT 9000001000 + i - 1, v_missing[i] FROM generate_series(1, 3) i;
+            INSERT INTO fx_month (id, month_block_id, currency, fx_change) OVERRIDING SYSTEM VALUE
+            SELECT 9400001000 + i - 1, 9000001000 + i - 1, 'USD', 0.20 FROM generate_series(1, 3) i;
+            INSERT INTO asset_month_return (id, asset_id, month_block_id, local_return) OVERRIDING SYSTEM VALUE
+            SELECT 9300010000 + row_number() OVER (ORDER BY a.id, i), a.id, 9000001000 + i - 1, 0.30 FROM asset a CROSS JOIN generate_series(1, 3) i;
+        END IF;
+        IF p_kind IN ('PRE', 'ALL') THEN
             UPDATE asset_month_return ar SET local_return = 0.01
             FROM month_block mb WHERE mb.id = ar.month_block_id AND mb.month_start < (v_base - make_interval(months => 36))::date;
             UPDATE fx_month fx SET fx_change = 0.05
@@ -607,7 +632,7 @@ BEGIN
             UPDATE asset_month_return ar SET local_return = CASE WHEN ar.local_return > 0.07 THEN -0.07 ELSE 0.07 END
             FROM month_block mb WHERE mb.id = ar.month_block_id AND mb.month_start = (v_base - make_interval(months => 36 - 17))::date;
         END IF;
-        PERFORM pg_temp.h9_snap('zz_h9_now');
+        PERFORM pg_temp.h9_snap('zz_h9_now', p_bd);
         SELECT count(*) INTO v
         FROM zz_h9_base b FULL JOIN zz_h9_now n ON n.asset_position_id = b.asset_position_id
         WHERE b.asset_position_id IS NULL OR n.asset_position_id IS NULL
@@ -619,6 +644,18 @@ BEGIN
     END;
     RETURN v;
 END $$;
+
+-- Info rows only: how many rows a change kind would touch for one base date (0 = the kind does not apply to that base date).
+CREATE FUNCTION pg_temp.h9_applied(p_kind text, p_bd date) RETURNS bigint
+LANGUAGE sql STABLE AS $$
+    SELECT CASE p_kind
+        WHEN 'FUT_EXIST' THEN (SELECT count(*) FROM asset_month_return ar JOIN month_block mb ON mb.id = ar.month_block_id
+                               WHERE mb.month_start >= date_trunc('month', p_bd::timestamp)::date)
+        WHEN 'FUT_ADD'   THEN cardinality(pg_temp.h9_missing(p_bd))
+        ELSE (SELECT count(*) FROM asset_month_return ar JOIN month_block mb ON mb.id = ar.month_block_id
+              WHERE mb.month_start < (date_trunc('month', p_bd::timestamp) - INTERVAL '36 months')::date)
+    END
+$$;
 
 -- 타입 검사 (6절): 정의 본문(뷰·함수의 정의 글자)에서 부동소수점을 만드는 이름을 센다. 이름 목록은 이 함수 한 곳에 있다.
 CREATE FUNCTION pg_temp.float_hits(p_text text) RETURNS bigint
@@ -703,12 +740,14 @@ INSERT INTO zz_q (code, section, item, sql) VALUES
      $q$SELECT pg_temp.pool_count('set')$q$),
     ('RANK_ROUNDED', '4 순위', '반올림 값은 같고 원값은 다른 쌍(Y4·Y4X)이 순위에서 같은 순위가 아닌 경우 (순위는 저장되는 반올림 변동성 기준)',
      $q$SELECT pg_temp.pool_count('rounded')$q$),
-    ('H9_CUT', '5 H9', '기준일 달과 그 뒤 월 블록을 더하고 값을 바꾸며 창 앞 달도 바꿨을 때 판정 8컬럼이 달라진 행 수 (사후 정보 배제, 0 이어야 한다)',
-     $q$SELECT pg_temp.h9_count(NULL, 'BOTH')$q$),
-    ('H9_MOVED', '5 H9', '창 안 한 달을 바꿨는데 어느 행의 판정도 달라지지 않은 경우 (시험이 헛돌지 않는다는 증거 — 달라져야 한다)',
-     $q$SELECT (pg_temp.h9_count(NULL, 'IN') = 0)::integer$q$),
-    ('H9_TEETH', '5 H9', '창 끝을 기준일 달로 민 샌 정의(end_lag = 0)를 같은 시험이 잡지 못한 경우 (잡으면 0)',
-     $q$SELECT (pg_temp.h9_count($m$SELECT pg_temp.mut_view('pos_k', '1 AS end_lag', '0 AS end_lag')$m$, 'FUTURE') = 0)::integer$q$),
+    ('H9_CUT', '5 H9', '판정된 기준일마다 기준일 달부터의 기존 달을 바꾸고 없는 달을 더하고 창 앞 달도 바꿨을 때 그 기준일의 판정 8컬럼이 달라진 행 수의 합 (사후 정보 배제, 0 이어야 한다, 준비 실패 −1 도 위반으로 센다)',
+     $q$SELECT COALESCE(sum(abs(pg_temp.h9_count(NULL, 'ALL', b.bd))), 0) FROM (SELECT DISTINCT base_date AS bd FROM asset_position WHERE system_position IS NOT NULL) b$q$),
+    ('H9_MOVED', '5 H9', '창 안 한 달을 바꿨는데 그 기준일의 어느 행도 판정이 달라지지 않은 기준일 수 (시험이 헛돌지 않는다는 증거 — 모든 기준일에서 달라져야 한다)',
+     $q$SELECT count(*) FROM (SELECT DISTINCT base_date AS bd FROM asset_position WHERE system_position IS NOT NULL) b WHERE pg_temp.h9_count(NULL, 'IN', b.bd) = 0$q$),
+    ('H9_TEETH', '5 H9', '창 끝을 기준일 달로 민 샌 정의(end_lag = 0)를 같은 시험이 잡지 못한 기준일 수 (모든 기준일에서 잡으면 0)',
+     $q$SELECT count(*) FROM (SELECT DISTINCT base_date AS bd FROM asset_position WHERE system_position IS NOT NULL) b
+        WHERE greatest(pg_temp.h9_count($m$SELECT pg_temp.mut_view('pos_k', '1 AS end_lag', '0 AS end_lag')$m$, 'FUT_EXIST', b.bd), 0)
+            + greatest(pg_temp.h9_count($m$SELECT pg_temp.mut_view('pos_k', '1 AS end_lag', '0 AS end_lag')$m$, 'FUT_ADD', b.bd), 0) = 0$q$),
     ('TYPES', '6 타입', 'pos_ 뷰·함수의 정의 글자에서 부동소수점 이름(date_part, float*, real, double precision, ln, exp, power, percentile_*)이 나온 수 + float 열을 가진 pos_ 뷰 열 수',
      $q$SELECT (SELECT COALESCE(sum(pg_temp.float_hits(pg_get_viewdef(c.oid))), 0)
                 FROM pg_class c WHERE c.relnamespace = pg_my_temp_schema() AND c.relkind = 'v' AND c.relname LIKE 'pos\_%')
@@ -733,6 +772,15 @@ VALUES ('1 저장값', '판정이 채워진 행 수 / asset_position 행 수 (�
         || pg_temp.val('SELECT min(c) FROM (SELECT count(*) AS c FROM asset_position WHERE system_position IS NOT NULL GROUP BY base_date) g'), true),
        ('1 저장값', '미드필더 중 하락 참여율이 0.7–1.1 밖인 행 수 (정보 — 표의 0.7–1.1 은 전형 설명이지 판정 조건이 아니다, W1)', '(정보)',
         pg_temp.val($s$SELECT count(*) FROM asset_position WHERE system_position = 'MIDFIELDER' AND (down_participation < 0.7 OR down_participation > 1.1)$s$), true);
+
+-- Info rows for H9 (counts only): for each change kind, on how many judged base dates it applied.
+INSERT INTO zz_check_result (section, item, expected, actual, ok)
+SELECT '5 H9', 'H9 변이 ' || k.kind || ' 가 적용된 기준일 수 / 판정된 기준일 수 (정보)', '(정보)',
+       count(*) FILTER (WHERE pg_temp.h9_applied(k.kind, b.bd) > 0) || ' / ' || count(*), true
+FROM (VALUES ('FUT_EXIST'), ('FUT_ADD'), ('PRE')) AS k(kind)
+CROSS JOIN (SELECT DISTINCT base_date AS bd FROM asset_position WHERE system_position IS NOT NULL) b
+GROUP BY k.kind
+ORDER BY k.kind;
 
 -- 음성 사례: 일부러 위반을 만들면 그 규칙의 검사 쿼리가 기대한 개수로 잡는지 (서브트랜잭션 안의 변이, 끝에 되돌린다) ----------
 -- expect: 기대 위반 수의 하한(ge: 그 수 이상). alt: 변이가 01 스키마의 CHECK 에 막혀 이 오류 코드로 끝나도 통과
@@ -876,10 +924,11 @@ INSERT INTO zz_neg (q, label, mutate, expect, alt) VALUES
      $m$SELECT pg_temp.mut_view('pos_k', '1 AS end_lag', '0 AS end_lag')$m$, '1', NULL),
     ('H9_CUT', '창을 240개월로 늘리면 (창 앞 달 — 표본의 2007–2012 — 이 들어간다)',
      $m$SELECT pg_temp.mut_view('pos_k', '36 AS win_months', '240 AS win_months')$m$, '1', NULL),
-    ('H9_MOVED', '바꿀 창 안 달의 수익률을 미리 모두 0.07 로 만들면 (시험의 변이가 같은 값으로 덮어써 아무것도 바꾸지 못해 헛돈다)',
+    ('H9_MOVED', '모든 판정된 기준일의 바꿀 창 안 달(창 시작 + 17개월)의 수익률을 미리 0.07 로 만들면 (시험의 변이가 같은 값으로 덮어써 아무것도 바꾸지 못해 헛돈다)',
      $m$UPDATE asset_month_return ar SET local_return = 0.07 FROM month_block mb
         WHERE mb.id = ar.month_block_id
-          AND mb.month_start = ((SELECT date_trunc('month', min(base_date)::timestamp)::date FROM asset_position WHERE system_position IS NOT NULL) - INTERVAL '19 months')::date$m$, '1', NULL),
+          AND mb.month_start IN (SELECT (date_trunc('month', base_date::timestamp) - INTERVAL '19 months')::date
+                                 FROM asset_position WHERE system_position IS NOT NULL)$m$, '1', NULL),
     ('H9_TEETH', '창 끝 지연 상수를 정의가 읽지 않게 하면 (샌 변이가 효과가 없어 시험이 잡을 것이 없다)',
      $m$SELECT pg_temp.mut_view('pos_window', 'k.end_lag', '1')$m$, '1', NULL),
     ('TYPES', '정의에 date_part 호출이 있으면',
