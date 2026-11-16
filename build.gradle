@@ -63,6 +63,8 @@ tasks.named('test') {
     inputs.dir('monitoring').withPropertyName('monitoringFiles').withPathSensitivity(PathSensitivity.RELATIVE)
     inputs.file('.env.example').withPropertyName('envExample').withPathSensitivity(PathSensitivity.RELATIVE)
     inputs.file('.github/workflows/api.yml').withPropertyName('apiWorkflow').withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.file('Dockerfile').withPropertyName('dockerfile').withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.file('build.gradle').withPropertyName('buildScript').withPathSensitivity(PathSensitivity.RELATIVE)
     inputs.file('scripts/ci_test_summary.py').withPropertyName('ciTestSummary').withPathSensitivity(PathSensitivity.RELATIVE)
     def sampleDir = System.getenv('ANTLAB_GOLDEN_SAMPLE_DIR')
     inputs.property('goldenSampleDir', sampleDir ?: '')
@@ -79,6 +81,17 @@ tasks.named('test') {
 tasks.named('bootJar') {
     // Dockerfile 이 이름으로 집는다. plain JAR·와일드카드 선택 실수를 막는다.
     archiveFileName = 'app.jar'
+}
+
+// Downloads everything bootJar needs, without compiling. The Dockerfile runs it before copying src/main,
+// so the dependency layer changes only when the build files change; the bootJar step then runs --offline.
+def imageBuildClasspaths = files(configurations.compileClasspath, configurations.runtimeClasspath, configurations.annotationProcessor)
+tasks.register('resolveDependencies') {
+    group = 'build setup'
+    description = 'Resolves the compile, runtime and annotation processor classpaths so a later build can run offline.'
+    doLast {
+        imageBuildClasspaths.files
+    }
 }
 
 tasks.named('bootRun') {
