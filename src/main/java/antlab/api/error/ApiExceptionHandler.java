@@ -99,6 +99,7 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
             case METHOD_NOT_ALLOWED -> "지원하지 않는 메서드다";
             case NOT_ACCEPTABLE -> "요청한 응답 형식을 제공하지 않는다";
             case UNSUPPORTED_MEDIA_TYPE -> "지원하지 않는 본문 형식이다";
+            case MALFORMED_REQUEST -> ProblemErrorReportValve.DETAIL;
             case INTERNAL_ERROR -> "처리 중 오류가 났다";
             // 4xx 도메인 코드는 던진 쪽 문장을 쓰므로 여기에 오지 않는다(위 분기). 기본 분기를 두지 않아 코드 추가 시 컴파일이 막는다.
             case POOL_NOT_LOADED, POOL_NOT_JUDGED, PATH_TOO_LONG, SEASON_LIMIT, TURN_NOT_REACHED,
