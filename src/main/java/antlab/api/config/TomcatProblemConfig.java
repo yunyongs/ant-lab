@@ -34,7 +34,8 @@ public class TomcatProblemConfig {
                 standardHost.setErrorReportValveClass(ProblemErrorReportValve.class.getName());
             }
             ProblemErrorReportValve problemValve = new ProblemErrorReportValve();
-            // keep Boot's settings for the statuses this valve leaves to Tomcat: no server version, no stack trace
+            // Fixed here on purpose: the replaced valve's own settings are not inherited (an error page or a changed
+            // setting on Boot's instance would be lost). Statuses this valve leaves to Tomcat: no version, no trace.
             problemValve.setShowServerInfo(false);
             problemValve.setShowReport(false);
             host.getPipeline().addValve(problemValve);
