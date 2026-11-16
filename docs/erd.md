@@ -1619,7 +1619,7 @@ v2에서 새로 생긴 FK는 R26·R27(`orders`의 복합 FK)과 6절의 14개다
 | D40 | `member.role` is `VARCHAR(5)` + list CHECK (`USER`/`ADMIN`) with DB default `'USER'`; it is independent of `member.kind` (AG-02): kind says who the member is, role says what they may do. / `member.role`은 `VARCHAR(5)` + 목록 CHECK(`USER`/`ADMIN`), DB 기본값 `'USER'`이다. `member.kind`(AG-02)와 독립이다: kind는 누구인지, role은 무엇을 할 수 있는지다. | Two roles, one per member; the default keeps existing rows and psql inserts working (same reason as the `member.kind` default). / 역할은 둘이고 회원마다 하나이며, 기본값은 기존 행과 psql INSERT가 계속 동작하게 한다(`member.kind` 기본값과 같은 이유). | A `member_role` join table, an `is_admin` boolean. / `member_role` 조인 테이블, `is_admin` 불리언 |
 | D41 | Raw observations are stored as vintages: `asset_daily_price` is append-only, a changed close inserts the next `vintage_no` (change-only inserts) and an unchanged close inserts nothing; the value known at an instant is the row with the largest `vintage_no` whose `observed_at` is at or before it. / 원본 관측값은 빈티지로 저장한다: `asset_daily_price`는 추가 전용이고, 종가가 바뀌면 다음 `vintage_no`를 넣고(바뀐 값만 삽입) 같으면 넣지 않으며, 어느 시각에 알려진 값은 그 시각 이전 `observed_at` 중 `vintage_no`가 가장 큰 행이다. | An A→B→A revision stays correct for as-of reads, and later backtests can see only what was known then (PLAN §4.5 spirit). / A→B→A 정정도 시점 기준 읽기에서 맞고, 뒤의 백테스트가 그때 알려진 것만 볼 수 있다(PLAN §4.5의 취지). | UNIQUE `(asset, date, basis, close)` with `ON CONFLICT DO NOTHING` (drops the third observation of A→B→A), one row per fetch without dedupe (no idempotent re-run). / `(종목, 날짜, 기준, 종가)` UNIQUE + `ON CONFLICT DO NOTHING`(A→B→A의 세 번째 관측을 버림), 가져올 때마다 한 행(재실행이 멱등이 아님) |
 | D42 | `job_run` is mutable in the DB (one finishing UPDATE by the collector) but read-only in JPA, and carries `updated_at`. A partial unique index `uq_job_run_running` allows one `RUNNING` run per job; a stale `RUNNING` row is closed as `FAILED` / `ABANDONED` by the next run. / `job_run`은 DB에서 가변(수집기가 끝날 때 한 번 UPDATE)이고 JPA에서 읽기 전용이며 `updated_at`을 갖는다. 부분 유일 인덱스 `uq_job_run_running`이 잡마다 `RUNNING` 하나를 허용하고, 오래된 `RUNNING` 행은 다음 실행이 `FAILED`/`ABANDONED`로 닫는다. | One running instance per job without an external lock library (same device as D26 `uq_lineup_open`); the writer and the reader are split in code (SPRING_JPA §7). / 외부 잠금 라이브러리 없이 잡마다 한 실행(D26 `uq_lineup_open`과 같은 방식). 쓰는 쪽과 읽는 쪽을 코드에서 나눈다(SPRING_JPA §7). | ShedLock or an advisory lock, an append-only run log with a separate state table. / ShedLock이나 advisory lock, 추가 전용 실행 기록 + 별도 상태 테이블 |
-| D43 | `ck_asset_daily_price_after_session`: `trade_date < (observed_at AT TIME ZONE 'Asia/Seoul')::date`, so a session that has not finished (or has not started in Korea's calendar) is never stored. The collector also stops its window at yesterday in the market's own zone. / `ck_asset_daily_price_after_session`: `trade_date < (observed_at AT TIME ZONE 'Asia/Seoul')::date`로 끝나지 않은 장은 저장하지 않는다. 수집기도 시장 자체 시간대의 어제까지만 가져온다. | An in-progress close is a partial value that a later fetch would silently revise. / 진행 중인 종가는 나중에 조용히 바뀔 부분 값이다. | No DB guard (application rule only), a CHECK against `now()` (not immutable, not allowed). / DB 방어 없음(앱 규칙만), `now()` 대비 CHECK(불변이 아니라 불가) |
+| D43 | `ck_asset_daily_price_after_session`: `trade_date < (observed_at AT TIME ZONE CASE WHEN exchange_code IS NULL THEN 'Asia/Seoul' ELSE 'America/New_York' END)::date`, so a session that has not finished in its own market's calendar is never stored: KR rows (`exchange_code` NULL) are judged by the Seoul date, US rows by the New York date (a US close at 16:00 ET falls on the next KST morning, so the Seoul date alone would pass an open US session). The check is date-level: the earliest accepted `observed_at` is local midnight after the trade date. The collector also stops its window at yesterday in the market's own zone. / `ck_asset_daily_price_after_session`: `trade_date < (observed_at AT TIME ZONE CASE WHEN exchange_code IS NULL THEN 'Asia/Seoul' ELSE 'America/New_York' END)::date`로 자기 시장의 달력에서 끝나지 않은 장은 저장하지 않는다. KR 행(`exchange_code` NULL)은 서울 날짜, US 행은 뉴욕 날짜로 판정한다(미국 장 마감 16:00 ET는 KST로 다음날 새벽이라 서울 날짜만 보면 진행 중인 미국 장이 통과한다). 날짜 단위 검사이며 가장 이른 허용 `observed_at`은 거래일 다음 현지 자정이다. 수집기도 시장 자체 시간대의 어제까지만 가져온다. | An in-progress close is a partial value that a later fetch would silently revise. / 진행 중인 종가는 나중에 조용히 바뀔 부분 값이다. | A Seoul-only check (passes open US sessions), no DB guard (application rule only), a CHECK against `now()` (not immutable, not allowed). / 서울 날짜만 보는 검사(진행 중인 미국 장을 통과시킴), DB 방어 없음(앱 규칙만), `now()` 대비 CHECK(불변이 아니라 불가) |
 | D44 | The collected tables live in the `public` schema (D21), not a separate `collected` schema; real dates and prices are `[복기 전용]` and the other columns `[내부]`, and they never feed a season DTO directly. / 수집 테이블은 별도 `collected` 스키마가 아니라 `public`(D21)에 두고, 실제 날짜·가격은 `[복기 전용]`, 나머지는 `[내부]`이며 시즌 DTO에 바로 나가지 않는다. | One schema keeps the role grants, `ExposureCatalog` and the catalog tests on a single namespace; only M1-09's derived month rows reach the game. / 스키마가 하나라 역할 권한·`ExposureCatalog`·카탈로그 시험이 한 이름 공간에 머문다. 게임에 닿는 것은 M1-09가 만드는 달 단위 파생 행뿐이다. | A `collected` schema (MACRO_ETF §6.1) needing Flyway `schemas`, role and test changes for no current benefit. / `collected` 스키마(MACRO_ETF §6.1)는 Flyway `schemas`·역할·시험 변경이 필요하고 지금 얻는 것이 없다. |
 
 **문서 구성 결정:** 관계도는 확정 22개(SEC-01 이후 23개) + MVP 스케치 3개(컬럼 없음), EXT 이후 스케치, 영역 상세(컬럼 있음)의 셋으로 나눴다 — 한 그림이 26개 이하라 읽힌다(each diagram has at most 26 entities)(탈락: 42개를 한 `erDiagram`에 그리기는 배치가 읽기 어렵고 PR diff가 커짐, 전체를 `flowchart`로 그리기는 카디널리티 표기가 D10과 어긋남). v1 계좌 정의는 P0-03에서 MySQL 타입 그대로 부록에 옮겨 두었다가 P0-04에서 7절로 v2로 바꿔 쓰고 부록을 지웠다 — v1과의 대응은 7.6 대조표가 남긴다. 시즌 영역(6절 9개)과 시즌 계좌(7절 5개)를 둘로 나눈 것은 DDL ②·③의 분할과 1:1이라 각 DDL 기능이 한 절만 읽으면 되기 때문이다(탈락: 14개를 한 절에 두기는 한 그림에 14개 + 앵커 4개가 되어 읽기 어렵다).
@@ -1675,9 +1675,9 @@ Raw observations from outside sources are stored append-only as vintages: a late
 
 M1-05 (Flyway V5) adds two tables to the same `public` schema (D44): `job_run` (the collector run log) and `asset_daily_price` (raw daily closes). Both follow the common rules of 2. Real dates and prices are `[복기 전용]` and never reach a season response; only the derived month rows of M1-09 do. / M1-05(Flyway V5)는 같은 `public` 스키마(D44)에 테이블 둘을 더한다: `job_run`(수집 실행 기록)과 `asset_daily_price`(일별 종가 원본). 둘 다 2절의 공통 규칙을 따른다. 실제 날짜와 가격은 `[복기 전용]`이며 시즌 응답에 나가지 않는다. 나가는 것은 M1-09가 만드는 달 단위 파생 행뿐이다.
 
-### 10.1 관계도
+### 10.1 Relationship diagram / 관계도
 
-관계선은 자식 테이블의 그림에 그린다. `asset`은 다른 절의 부모라 컬럼 없이 이름만 그린다.
+Relationship lines are drawn in the child table's picture; `asset` is a parent from another section, so only its name is drawn. / 관계선은 자식 테이블의 그림에 그린다. `asset`은 다른 절의 부모라 컬럼 없이 이름만 그린다.
 
 ```mermaid
 erDiagram
@@ -1716,18 +1716,18 @@ erDiagram
     JOB_RUN ||..o{ ASSET_DAILY_PRICE : "R36"
 ```
 
-### 10.2 관계 요약
+### 10.2 Relationship summary / 관계 요약
 
 | # | 부모 → 자식 | 카디널리티 | 선 | 근거 |
 |---|---|---|---|---|
 | R35 | `asset` → `asset_daily_price` | 1 : 0..N | 비식별 `..` | `fk_asset_daily_price_asset`. One row per (asset, trade date, price basis, vintage). / 종목·거래일·가격 기준·빈티지마다 한 행. |
 | R36 | `job_run` → `asset_daily_price` | 1 : 0..N | 비식별 `..` | `fk_asset_daily_price_job_run`. Every observation names the run that fetched it; rows of a failed run stay (they were committed per target and are real observations). / 모든 관측값은 가져온 실행을 가리킨다. 실패한 실행의 행도 남는다(대상별로 커밋된 실제 관측값이다). |
 
-### 10.3 엔티티 정의서
+### 10.3 Entity definitions / 엔티티 정의서
 
-노출 구분(`[노출]`/`[복기 전용]`/`[내부]`)은 코멘트 앞머리에 붙는다. 모든 FK는 `ON DELETE RESTRICT ON UPDATE RESTRICT`이다(2절). `job_run`은 DB에서는 끝날 때 한 번 UPDATE되지만 JPA에서는 읽기 전용이다(D42). `asset_daily_price`는 추가 전용이며 UPDATE·DELETE가 없다(D41).
+The exposure tag (`[노출]`/`[복기 전용]`/`[내부]`) leads each comment. Every FK is `ON DELETE RESTRICT ON UPDATE RESTRICT` (2). `job_run` is UPDATEd once at the end in the DB but is read-only in JPA (D42); `asset_daily_price` is append-only with no UPDATE or DELETE (D41). / 노출 구분(`[노출]`/`[복기 전용]`/`[내부]`)은 코멘트 앞머리에 붙는다. 모든 FK는 `ON DELETE RESTRICT ON UPDATE RESTRICT`이다(2절). `job_run`은 DB에서는 끝날 때 한 번 UPDATE되지만 JPA에서는 읽기 전용이다(D42). `asset_daily_price`는 추가 전용이며 UPDATE·DELETE가 없다(D41).
 
-#### 수집 실행 기록 (job_run)
+#### Collector run log / 수집 실행 기록 (job_run)
 
 | 키 | 논리명 | 물리명 | 타입 | NULL | 기본값 | 코멘트 |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -1741,7 +1741,7 @@ erDiagram
 |  | 추가 행 수 | inserted_count | INTEGER | NULL |  | `[내부]` Rows inserted by the run (any vintage). / 실행이 넣은 행 수(빈티지 무관). |
 |  | 정정 행 수 | revised_count | INTEGER | NULL |  | `[내부]` Inserted rows with `vintage_no > 1`; `ck_job_run_revised_le_inserted`: `revised_count <= inserted_count`. / `vintage_no > 1`로 넣은 행 수. |
 |  | 변동 없음 수 | unchanged_count | INTEGER | NULL |  | `[내부]` Fetched closes equal to the latest stored vintage (nothing inserted). / 가져온 종가가 저장된 최신 빈티지와 같아 넣지 않은 수. |
-|  | 실패 대상 수 | failed_target_count | SMALLINT | NULL |  | `[내부]` Targets (asset + basis) that failed in the run. / 실행에서 실패한 대상(종목 + 기준) 수. |
+|  | 실패 대상 수 | failed_target_count | SMALLINT | NULL |  | `[내부]` Targets (asset + basis) that failed in the run; `ck_job_run_failed_targets`: `SUCCEEDED` needs 0, `PARTIAL` needs at least 1. / 실행에서 실패한 대상(종목 + 기준) 수. `SUCCEEDED`면 0, `PARTIAL`이면 1 이상이다. |
 |  | 오류 코드 | error_code | VARCHAR(40) | NULL |  | `[내부]` `ck_job_run_error`: NOT NULL exactly when `status IN ('PARTIAL','FAILED')`; `ck_job_run_error_code_format`: `error_code ~ '^[A-Z][A-Z0-9_]*$'`. |
 |  | 오류 설명 | error_detail | VARCHAR(500) | NULL |  | `[내부]` Masked text only: no key, secret, token, URL query or price (application rule). / 가린 문장만: 키·비밀값·토큰·URL 쿼리·가격 없음(앱 규칙). |
 |  | 생성일시 | created_at | TIMESTAMPTZ | NN | now() | `[내부]` |
@@ -1750,7 +1750,7 @@ erDiagram
 - `uq_job_run_running`: `CREATE UNIQUE INDEX uq_job_run_running ON job_run (job_name) WHERE status = 'RUNNING'` — at most one running run per job, the same device as `uq_lineup_open` (D26). A run left `RUNNING` after a crash is closed by the next run as `FAILED` with `error_code = 'ABANDONED'` once it is older than the stale limit (D42). / 잡마다 `RUNNING`은 최대 하나이며 `uq_lineup_open`(D26)과 같은 방식이다. 충돌로 `RUNNING`에 남은 행은 오래되면 다음 실행이 `FAILED`/`ABANDONED`로 닫는다(D42).
 - `idx_job_run_job_name_started_at`: `(job_name, started_at)` — last-run lookups. / 마지막 실행 조회.
 
-#### 종목 일별 종가 (asset_daily_price)
+#### Daily close per asset / 종목 일별 종가 (asset_daily_price)
 
 | 키 | 논리명 | 물리명 | 타입 | NULL | 기본값 | 코멘트 |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -1762,15 +1762,15 @@ erDiagram
 |  | 거래소 코드 | exchange_code | VARCHAR(3) | NULL |  | `[내부]` `ck_asset_daily_price_exchange_code`: `exchange_code IS NULL OR exchange_code IN ('NAS','NYS','AMS')`. NULL for KR assets, NOT NULL for US assets (rule C4). / KR 종목은 NULL, US 종목은 NOT NULL(규칙 C4). |
 |  | 종가 | close_price | NUMERIC(19,4) | NN |  | `[복기 전용]` `ck_asset_daily_price_close_positive`: `close_price > 0 AND close_price <> 'NaN'::numeric` (D32). Local currency (D16): KRW for KR, USD for US; not forced to whole won because US prices have decimals. / 현지 통화(KR은 원, US는 달러). 달러 가격에 소수가 있어 원 단위 정수로 강제하지 않는다. |
 |  | 빈티지 번호 | vintage_no | SMALLINT | NN |  | `[내부]` `ck_asset_daily_price_vintage_no`: `vintage_no >= 1`. `uq_asset_daily_price_vintage`: `(asset_id, trade_date, price_basis, vintage_no)`. |
-|  | 관측일시 | observed_at | TIMESTAMPTZ | NN |  | `[내부]` The run's `started_at`. `ck_asset_daily_price_after_session`: `trade_date < (observed_at AT TIME ZONE 'Asia/Seoul')::date`, so an unfinished session is never stored (D43). / 실행의 `started_at`. 끝나지 않은 장은 저장하지 않는다(D43). |
+|  | 관측일시 | observed_at | TIMESTAMPTZ | NN |  | `[내부]` The run's `started_at`. `ck_asset_daily_price_after_session`: `trade_date < (observed_at AT TIME ZONE CASE WHEN exchange_code IS NULL THEN 'Asia/Seoul' ELSE 'America/New_York' END)::date`, so an unfinished session is never stored, by the Seoul date for KR and the New York date for US (D43). The run's start time, not the per-target commit time, so an as-of answer can lead the real commit by minutes (day-level use only). / 실행의 `started_at`. 끝나지 않은 장은 저장하지 않는다(KR은 서울 날짜, US는 뉴욕 날짜, D43). 대상별 커밋 시각이 아니라 실행 시작 시각이라 as-of 답이 실제 커밋보다 몇 분 앞설 수 있다(일 단위 용도만). |
 | FK | 실행번호 | job_run_id | BIGINT | NN |  | `[내부]` → job_run.id (R36). `fk_asset_daily_price_job_run`, `idx_asset_daily_price_job_run`. |
 |  | 생성일시 | created_at | TIMESTAMPTZ | NN | now() | `[내부]` |
 
 **As-of read (point-in-time):** the value of (asset, trade date, basis) known at instant `t` is the row with the largest `vintage_no` whose `observed_at <= t`; "latest" is `t = now()`. / **시점 기준 읽기:** 시각 `t`에 알려진 (종목, 거래일, 기준)의 값은 `observed_at <= t`인 행 중 `vintage_no`가 가장 큰 행이고, "최신"은 `t = now()`이다.
 
-### 10.4 제약과 인덱스
+### 10.4 Constraints and indexes / 제약과 인덱스
 
-표기는 6.4와 같다. The `db/` check files cover V1–V3 only; V5 objects are checked by `CollectedSchemaCatalogTest`. / `db/`의 검증 파일은 V1–V3만 다룬다. V5 객체는 `CollectedSchemaCatalogTest`가 검사한다.
+Notation follows 6.4 (표기는 6.4와 같다). The `db/` check files cover V1–V3 only; V5 objects are checked by `CollectedSchemaCatalogTest`. / `db/`의 검증 파일은 V1–V3만 다룬다. V5 객체는 `CollectedSchemaCatalogTest`가 검사한다.
 
 | 이름 | 종류 | 테이블 | 정의 |
 |---|---|---|---|
@@ -1782,6 +1782,7 @@ erDiagram
 | ck_job_run_finished | CK | job_run | (status = 'RUNNING' AND finished_at IS NULL) OR (status <> 'RUNNING' AND finished_at IS NOT NULL AND finished_at >= started_at) |
 | ck_job_run_counts | CK | job_run | (status = 'RUNNING' AND request_count IS NULL AND inserted_count IS NULL AND revised_count IS NULL AND unchanged_count IS NULL AND failed_target_count IS NULL) OR (status <> 'RUNNING' AND request_count IS NOT NULL AND request_count >= 0 AND inserted_count IS NOT NULL AND inserted_count >= 0 AND revised_count IS NOT NULL AND revised_count >= 0 AND unchanged_count IS NOT NULL AND unchanged_count >= 0 AND failed_target_count IS NOT NULL AND failed_target_count >= 0) |
 | ck_job_run_revised_le_inserted | CK | job_run | revised_count <= inserted_count |
+| ck_job_run_failed_targets | CK | job_run | (status <> 'SUCCEEDED' OR failed_target_count = 0) AND (status <> 'PARTIAL' OR failed_target_count >= 1) |
 | ck_job_run_error | CK | job_run | (status IN ('PARTIAL','FAILED')) = (error_code IS NOT NULL) |
 | ck_job_run_error_code_format | CK | job_run | error_code ~ '^[A-Z][A-Z0-9_]*$' |
 | idx_job_run_job_name_started_at | IDX | job_run | (job_name, started_at) |
@@ -1794,18 +1795,18 @@ erDiagram
 | ck_asset_daily_price_exchange_code | CK | asset_daily_price | exchange_code IS NULL OR exchange_code IN ('NAS','NYS','AMS') |
 | ck_asset_daily_price_close_positive | CK | asset_daily_price | close_price > 0 AND close_price <> 'NaN'::numeric |
 | ck_asset_daily_price_vintage_no | CK | asset_daily_price | vintage_no >= 1 |
-| ck_asset_daily_price_after_session | CK | asset_daily_price | trade_date < (observed_at AT TIME ZONE 'Asia/Seoul')::date |
+| ck_asset_daily_price_after_session | CK | asset_daily_price | trade_date < (observed_at AT TIME ZONE CASE WHEN exchange_code IS NULL THEN 'Asia/Seoul' ELSE 'America/New_York' END)::date |
 | idx_asset_daily_price_job_run | IDX | asset_daily_price | (job_run_id) |
 
-**개수 (`CollectedSchemaCatalogTest`의 `pg_catalog` 대조 숫자):**
+**Counts (the numbers `CollectedSchemaCatalogTest` checks against `pg_catalog`) / 개수 (`CollectedSchemaCatalogTest`의 `pg_catalog` 대조 숫자):**
 
 | 테이블 | PK | UNIQUE(제약) | UNIQUE 인덱스(`uq_`) | FK | CHECK | INDEX(`idx_`) |
 |---|---|---|---|---|---|---|
-| job_run | 1 | 0 | 1 | 0 | 8 | 1 |
+| job_run | 1 | 0 | 1 | 0 | 9 | 1 |
 | asset_daily_price | 1 | 1 | 0 | 2 | 6 | 1 |
-| **§10 소계** | **2** | **1** | **1** | **2** | **14** | **2** |
+| **§10 소계** | **2** | **1** | **1** | **2** | **15** | **2** |
 
-### 10.5 DDL로 막지 못해 검사할 규칙
+### 10.5 Rules DDL cannot enforce / DDL로 막지 못해 검사할 규칙
 
 `CHECK`는 한 행 안만 본다. 아래 규칙은 `CollectedDataRulesTest`의 쿼리가 검사하고(양성 사례 0행, 위반을 심으면 잡는다) 쓰는 쪽(M1-06)이 지킨다. / These rules cannot be enforced by DDL; the queries in `CollectedDataRulesTest` check them and the writer (M1-06) keeps them.
 
@@ -1818,9 +1819,13 @@ erDiagram
 | C5 | `price_basis` follows the source rule: KR `STOCK` → `ADJUSTED`, KR `ETF` → `RAW`, US → `ADJUSTED` (PLAN §7). / `price_basis`는 출처 규칙을 따른다: KR 주식 `ADJUSTED`, KR ETF `RAW`, US `ADJUSTED`(PLAN §7). | M1-05 test, M1-06 |
 | C6 | `observed_at` equals the `started_at` of the run named by `job_run_id`. / `observed_at`은 `job_run_id`가 가리키는 실행의 `started_at`과 같다. | M1-05 test, M1-06 |
 
-### 10.6 스케치 (DDL은 M1-07·M1-08)
+**Limit of `ADJUSTED` series.** A split or ex-rights event revises every earlier adjusted close, but a collector run only re-reads its lookback window, so older `ADJUSTED` rows keep the pre-event basis. An `ADJUSTED` series is consistent only within one collection run; M1-09 must not chain month returns across a corporate-action boundary without checking this (the alternative is to store `RAW` plus a separate adjustment-factor table, to be weighed in M1-11). / **`ADJUSTED` 계열의 한계.** 분할·권리락은 앞선 수정 종가를 모두 바꾸지만 수집 실행은 조회 창만 다시 읽으므로 더 오래된 `ADJUSTED` 행은 사건 이전 기준으로 남는다. `ADJUSTED` 계열은 한 번의 수집 실행 안에서만 일관되며, M1-09는 이를 확인하지 않고 기업 행위 경계를 넘어 월 수익률을 잇지 않는다(대안: `RAW`와 별도 조정 계수 표를 저장, M1-11에서 검토).
+
+### 10.6 Sketch (DDL in M1-07 and M1-08) / 스케치 (DDL은 M1-07·M1-08)
 
 Not created in V5. FRED/ECOS keys do not exist yet, so the observation tables are designed with their first real responses to avoid a corrective migration (Flyway files are immutable once applied). / V5에서 만들지 않는다. FRED·ECOS 키가 아직 없어 첫 실제 응답과 함께 설계하며, 적용된 Flyway 파일은 바뀌지 않으므로 정정 마이그레이션을 피한다.
+
+**Adding a price source.** The unique key `uq_asset_daily_price_vintage` has no `source`; when a second source (for example YF) is added, put `source` in the key in that migration, or two sources would share one vintage sequence. / 두 번째 출처(예: YF)를 더할 때는 그 마이그레이션에서 유일 키에 `source`를 넣는다. 아니면 두 출처가 한 빈티지 순번을 나눠 쓴다.
 
 - `series`: code, source (`FRED`/`ECOS`), source series id, unit, frequency, `release_lag_days`, revisable flag. FX `DEXKOUS` is one series.
 - `series_observation`: series, `ref_date`, `value` (`NUMERIC(24,8)` — raw indicator levels exceed `NUMERIC(12,8)`), `realtime_start` (ALFRED) or `available_on` (ECOS lag), `observed_at`, `vintage_no`, `job_run_id`.
