@@ -20,6 +20,7 @@ public final class ErrorHttpMapping {
             case METHOD_NOT_ALLOWED -> HttpStatus.METHOD_NOT_ALLOWED;
             case NOT_ACCEPTABLE -> HttpStatus.NOT_ACCEPTABLE;
             case UNSUPPORTED_MEDIA_TYPE -> HttpStatus.UNSUPPORTED_MEDIA_TYPE;
+            case MALFORMED_REQUEST -> HttpStatus.BAD_REQUEST;
             case INTERNAL_ERROR -> HttpStatus.INTERNAL_SERVER_ERROR;
             case POOL_NOT_LOADED -> HttpStatus.CONFLICT;
             case POOL_NOT_JUDGED -> HttpStatus.CONFLICT;
