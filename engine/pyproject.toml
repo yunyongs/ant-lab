@@ -30,5 +30,6 @@ known-first-party = ["antlab_engine"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "--strict-markers"
+addopts = "--strict-markers -m 'not slow'"
+markers = ["slow: timing and distribution measurements, run with -m slow -s"]
 filterwarnings = ["ignore:Using `httpx` with `starlette.testclient"]
