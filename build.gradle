@@ -54,7 +54,7 @@ tasks.named('test') {
             includeTags 'sql-golden'
         }
     }
-    // Rerun when files the tests read at run time change (SQL, events, feed, contract, compose.yaml, monitoring config, .env.example, sample dir), so test is never UP-TO-DATE by mistake.
+    // Rerun when files the tests read at run time change (SQL, events, feed, contract, compose.yaml, monitoring config, .env.example, the api workflow and its summary script, sample dir), so test is never UP-TO-DATE by mistake.
     inputs.dir('db').withPropertyName('sqlScripts').withPathSensitivity(PathSensitivity.RELATIVE)
     inputs.dir('events').withPropertyName('eventFiles').withPathSensitivity(PathSensitivity.RELATIVE)
     inputs.dir('feed').withPropertyName('feedFiles').withPathSensitivity(PathSensitivity.RELATIVE)
@@ -62,6 +62,10 @@ tasks.named('test') {
     inputs.file('compose.yaml').withPropertyName('composeFile').withPathSensitivity(PathSensitivity.RELATIVE)
     inputs.dir('monitoring').withPropertyName('monitoringFiles').withPathSensitivity(PathSensitivity.RELATIVE)
     inputs.file('.env.example').withPropertyName('envExample').withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.file('.github/workflows/api.yml').withPropertyName('apiWorkflow').withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.file('Dockerfile').withPropertyName('dockerfile').withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.file('build.gradle').withPropertyName('buildScript').withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.file('scripts/ci_test_summary.py').withPropertyName('ciTestSummary').withPathSensitivity(PathSensitivity.RELATIVE)
     def sampleDir = System.getenv('ANTLAB_GOLDEN_SAMPLE_DIR')
     inputs.property('goldenSampleDir', sampleDir ?: '')
     if (sampleDir) {
@@ -77,6 +81,17 @@ tasks.named('test') {
 tasks.named('bootJar') {
     // Dockerfile 이 이름으로 집는다. plain JAR·와일드카드 선택 실수를 막는다.
     archiveFileName = 'app.jar'
+}
+
+// Downloads everything bootJar needs, without compiling. The Dockerfile runs it before copying src/main,
+// so the dependency layer changes only when the build files change; the bootJar step then runs --offline.
+def imageBuildClasspaths = files(configurations.compileClasspath, configurations.runtimeClasspath, configurations.annotationProcessor)
+tasks.register('resolveDependencies') {
+    group = 'build setup'
+    description = 'Resolves the compile, runtime and annotation processor classpaths so a later build can run offline.'
+    doLast {
+        imageBuildClasspaths.files
+    }
 }
 
 tasks.named('bootRun') {
