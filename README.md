@@ -42,6 +42,7 @@ Releases are four: **v0.1** backend dashboard and web, **v1** web-based simulati
 | WEB — 한 판 웹(React) | 시즌 시작·팀 구성·턴 진행·매매·전술 변경·성적표 화면, 모바일 폭 우선 반응형 | Done (2026-11-14) — WEB-01–WEB-11: Vite + TypeScript React skeleton; API types, client and error catalog from openapi.yaml; signup, login and session handling; season list and season start; team build at turn 0; turn advance and turn result; between-turn trading and formation change; report card; season review; end-to-end play at two widths (local); web CI. / 완료 (2026-11-14) — WEB-01–WEB-11: Vite + TypeScript React 골격 · openapi.yaml에서 API 타입·클라이언트·오류 목록 생성 · 가입·로그인·세션 처리 · 시즌 목록·시즌 시작 · 0턴 팀 구성 · 턴 넘기기·턴 결과 · 턴 사이 매매·전술 변경 · 성적표 · 시즌 복기 · 두 폭 종단 플레이 시험(로컬) · 웹 CI |
 | MVP — Spring Boot + JPA | 전체 역사 데이터 적재, 예상 분포, 피드·랭킹·알림, 점수·레이팅 | 시작 전 |
 | M1–M3 | 수집기·CI, Python 엔진, 점수 백테스트 | 계획됨 |
+| M2 | Python engine: monthly blocks, regime labels, recombination (calendar alignment, regime-conditional), expected distribution; parallel reconciliation with the Java engine / Python 엔진: 월 블록·국면 라벨·재조합(달력 정렬, 국면 조건부)·예상 분포, Java 엔진과 병행 대사 | In progress — M2-01 engine skeleton, M2-02 bootstrap parity / 진행 중 — M2-01 엔진 골격, M2-02 부트스트랩 대사 |
 | EXT · M4 · APP · AI · OPS | 비용·케이스 훈련·대가 라이브러리, 전망 모드·리그·전당 API, 모바일·데스크탑 앱과 웹의 나머지 화면, AI 복기, 배포 | 계획됨 ([로드맵](docs/PLAN.md#11-로드맵커리큘럼-순서-유지)) |
 | AG | 에이전트 펀드 매니저(OpenRouter·구독 모델·Ollama, 페르소나, 누출 탐지 시험, 리더보드) | 계획됨 (PLAN v3, 2026-11-07) |
 | R1 · R2 · R3 | 거장 추적(13F·X), 우수 매니저의 복제 봇, 에이전트의 실전 운용(소유자 자금, 사람 승인부터) | 계획됨 (PLAN v2.1, 2026-11-06) |

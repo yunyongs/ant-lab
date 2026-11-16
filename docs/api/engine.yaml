@@ -1,0 +1,89 @@
+openapi: 3.1.0
+info:
+  title: my Fund Manager engine API
+  version: 0.1.0
+paths:
+  /healthz:
+    get:
+      operationId: healthz
+      security: []
+      responses:
+        '200':
+          description: Liveness probe / 생존성 확인
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /v1/info:
+    get:
+      operationId: getEngineInfo
+      responses:
+        '200':
+          description: Engine information / 엔진 정보
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EngineInfo'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '500':
+          $ref: '#/components/responses/InternalError'
+components:
+  securitySchemes:
+    EngineToken:
+      type: apiKey
+      in: header
+      name: X-Antlab-Engine-Token
+  responses:
+    Unauthenticated:
+      description: Unauthenticated / 인증되지 않음
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    InternalError:
+      description: Internal error / 내부 오류
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+  schemas:
+    Health:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [ok]
+    EngineInfo:
+      type: object
+      required: [service, apiVersion, version]
+      properties:
+        service: {type: string}
+        apiVersion: {type: string}
+        version: {type: string}
+    FieldViolation:
+      type: object
+      required: [field, reason]
+      properties:
+        field: {type: string}
+        reason: {type: string}
+    Problem:
+      type: object
+      required: [title, status, detail, instance, code]
+      properties:
+        title: {type: string}
+        status: {type: integer, format: int32}
+        detail: {type: string}
+        instance: {type: string}
+        code: {$ref: '#/components/schemas/ErrorCode'}
+        errors:
+          type: array
+          items: {$ref: '#/components/schemas/FieldViolation'}
+    ErrorCode:
+      type: string
+      enum: [INVALID_ARGUMENT, NOT_FOUND, METHOD_NOT_ALLOWED, UNAUTHENTICATED, INTERNAL_ERROR]
+security:
+  - EngineToken: []
