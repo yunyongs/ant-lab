@@ -242,11 +242,14 @@ class AuthSchemaCatalogTest {
 
     @Test
     void V3에서_V4로의_카탈로그_차이는_정확히_새_제약_열_표_하나뿐이다() throws Exception {
-        Set<String> v4 = snapshot(jdbc);
+        // Pinned to V4: later migrations have their own catalog tests.
+        Set<String> v4;
         Set<String> v3;
         try (FlywayScratchDatabase scratch = new FlywayScratchDatabase(postgres, "v3_catalog")) {
             scratch.migrateTo("3");
             v3 = snapshot(new JdbcTemplate(scratch.dataSource()));
+            scratch.migrateTo("4");
+            v4 = snapshot(new JdbcTemplate(scratch.dataSource()));
         }
         Set<String> added = new TreeSet<>(v4);
         added.removeAll(v3);

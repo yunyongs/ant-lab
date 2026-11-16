@@ -34,13 +34,13 @@ class ImmutableEntityTest {
     static final Set<String> READ_ONLY = Set.of("AssetGroup", "Asset", "AssetPosition", "MonthBlock",
             "AssetMonthReturn", "FxMonth", "MonthEvent", "AssetMonthAttention");
 
-    /** 추가 전용 9개: 넣을 수는 있고 넣은 뒤 바뀌지 않는다. 공개 생성자가 정확히 하나다. */
+    /** 추가 전용 11개: 넣을 수는 있고 넣은 뒤 바뀌지 않는다. 공개 생성자가 정확히 하나다. */
     static final Set<String> APPEND_ONLY = Set.of("SeasonPath", "Turn", "TurnPrice", "FormationChange", "TurnFeed",
-            "ReconciliationLog", "Order", "Execution", "CashLedger");
+            "ReconciliationLog", "Order", "Execution", "CashLedger", "SeasonAgentConfig", "AgentCall");
 
-    /** 가변 6개: 상태 변경은 이름 있는 메서드만 한다(setter 없음). 분류를 바꾸려면 이 목록을 고쳐 리뷰에 드러낸다. */
+    /** 가변 7개: 상태 변경은 이름 있는 메서드만 한다(setter 없음). 분류를 바꾸려면 이 목록을 고쳐 리뷰에 드러낸다. */
     static final Set<String> MUTABLE = Set.of("Member", "Season", "Lineup", "CashAccount", "Holding",
-            "RefreshToken");
+            "RefreshToken", "AgentProfile");
 
     private List<Class<?>> immutableEntities() {
         return MappingModel.entities(em).stream().filter(c -> c.isAnnotationPresent(Immutable.class)).toList();
@@ -51,7 +51,7 @@ class ImmutableEntityTest {
     }
 
     @Test
-    void 엔티티_분류는_읽기_전용_8_추가_전용_9_가변_6이다() {
+    void 엔티티_분류는_읽기_전용_8_추가_전용_11_가변_7이다() {
         assertThat(immutableEntities().stream().map(Class::getSimpleName))
                 .containsExactlyInAnyOrderElementsOf(
                         java.util.stream.Stream.concat(READ_ONLY.stream(), APPEND_ONLY.stream()).toList());
