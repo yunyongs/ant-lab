@@ -201,3 +201,67 @@ def test_bootstrap_modules_never_print_or_log():
     texts = sources()
     bad = {n: output_uses(t) for n, t in texts.items() if n.startswith("bootstrap/")}
     assert {n: hits for n, hits in bad.items() if hits} == {}
+
+
+PROJECTION_DIR = SRC / "projection"
+PROJECTION_ALLOWED_IMPORTS = PURE_ALLOWED_IMPORTS | {"decimal", "numpy", "re", "types"}
+BLAS_CALL = re.compile(r"\.dot\(|einsum|matmul|tensordot|\.inner\(|numpy\.linalg|\blinalg\b")
+
+
+def projection_sources() -> dict[str, str]:
+    return {
+        str(p.relative_to(SRC)): p.read_text(encoding="utf-8") for p in PROJECTION_DIR.rglob("*.py")
+    }
+
+
+def matmul_operators(text: str) -> int:
+    return sum(
+        isinstance(node, ast.BinOp) and isinstance(node.op, ast.MatMult)
+        for node in ast.walk(ast.parse(text))
+    )
+
+
+def projection_disallowed(text: str) -> set[str]:
+    bad = set()
+    for module in imported_modules(text):
+        first = module.split(".")[0]
+        if first == "antlab_engine":
+            ok = any(module == a or module.startswith(a + ".") for a in PURE_ALLOWED_FIRST_PARTY)
+            if not (ok or module.startswith("antlab_engine.projection")):
+                bad.add(module)
+        elif first not in PROJECTION_ALLOWED_IMPORTS:
+            bad.add(module)
+    return bad
+
+
+def test_projection_scanners_flag_what_they_should():
+    assert projection_disallowed(
+        "import numpy\nimport pandas\nfrom antlab_engine.api import x\n"
+    ) == {
+        "pandas",
+        "antlab_engine.api",
+    }
+    assert matmul_operators("c = a @ b\n") == 1 and matmul_operators("c = a * b\n") == 0
+    assert find(BLAS_CALL, "x = a.dot(b)\ny = np.einsum('i', a)\nz = np.matmul(a, b)") != []
+    assert find(BLAS_CALL, "np.cumprod(a, axis=1)") == []
+
+
+def test_projection_modules_import_only_numpy_and_the_pure_core():
+    sources = projection_sources()
+    assert sources.keys() >= {"projection/api.py", "projection/evaluate.py", "projection/stats.py"}
+    assert {
+        n: projection_disallowed(t) for n, t in sources.items() if projection_disallowed(t)
+    } == {}
+
+
+def test_projection_modules_read_no_clock_random_source_or_output():
+    sources = projection_sources()
+    assert {n: find(CLOCK_CALL, t) for n, t in sources.items() if find(CLOCK_CALL, t)} == {}
+    assert {n: output_uses(t) for n, t in sources.items() if output_uses(t)} == {}
+    assert [n for n, t in sources.items() if "default_rng" in t or "RandomState" in t] == []
+
+
+def test_projection_modules_use_no_blas_routine():
+    sources = projection_sources()
+    assert {n: find(BLAS_CALL, t) for n, t in sources.items() if find(BLAS_CALL, t)} == {}
+    assert {n: matmul_operators(t) for n, t in sources.items() if matmul_operators(t)} == {}

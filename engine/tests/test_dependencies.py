@@ -76,3 +76,11 @@ def test_engine_runtime_closure_has_no_llm_or_network_client():
     closure = runtime_closure((ENGINE_DIR / "uv.lock").read_text(encoding="utf-8"))
     assert {"fastapi", "uvicorn"} <= closure
     assert denied(closure) == set()
+
+
+def test_numpy_is_a_runtime_dependency_pinned_to_one_major():
+    closure = runtime_closure((ENGINE_DIR / "uv.lock").read_text(encoding="utf-8"))
+    assert "numpy" in closure
+    project = tomllib.loads((ENGINE_DIR / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+    (spec,) = [d for d in project["dependencies"] if d.startswith("numpy")]
+    assert spec.replace(" ", "").endswith(",<3")
