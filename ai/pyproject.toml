@@ -1,0 +1,28 @@
+[project]
+name = "antlab-ai"
+version = "0.1.0"
+requires-python = ">=3.13"
+dependencies = []
+
+[dependency-groups]
+dev = ["pytest>=8.0", "ruff>=0.8"]
+
+[build-system]
+requires = ["uv_build>=0.12,<0.13"]
+build-backend = "uv_build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+# Explicit so a ruff upgrade cannot silently change what is checked.
+select = ["E4", "E7", "E9", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+# The ledger and limiter are imported by path from harness scripts that may run on an older system Python,
+# so they keep datetime.timezone.utc instead of the 3.11+ datetime.UTC alias.
+"src/antlab_ai/openrouter/ledger.py" = ["UP017"]
+"src/antlab_ai/openrouter/limiter.py" = ["UP017"]
