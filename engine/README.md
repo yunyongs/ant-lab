@@ -42,3 +42,7 @@ docker compose --profile engine -p antlab-m201 down -v --rmi local
 ```
 
 The local `backend` network is a plain bridge, so engine egress isolation is not proven locally. / 로컬 `backend` 네트워크는 일반 브리지라서 엔진의 외부 통신 차단은 로컬에서 증명되지 않는다.
+
+## Bootstrap parity / 부트스트랩 대사
+
+`antlab_engine.bootstrap` is a bit-exact Python port of `p0-boot6-v1` (`SplitMix64` and the month selection of the Java `SimpleBootstrap`). It is a library only; no endpoint uses it yet. `tests/test_vectors.py` reads the tracked Java vector file `src/test/resources/engine/p0-boot6-v1_vectors.csv` in place and compares every row character for character; a missing file fails the test. Changing any constant or formula changes the paths, so the engine version must change with the vectors. / `antlab_engine.bootstrap`은 `p0-boot6-v1`(`SplitMix64`와 Java `SimpleBootstrap`의 달 선택)을 비트 단위로 같게 옮긴 Python 라이브러리이며 아직 엔드포인트는 없다. `tests/test_vectors.py`는 추적되는 Java 벡터 파일 `src/test/resources/engine/p0-boot6-v1_vectors.csv`를 제자리에서 읽어 모든 행을 글자 단위로 비교하고, 파일이 없으면 시험이 실패한다. 상수나 식이 바뀌면 경로가 달라지므로 벡터와 함께 엔진 판을 올려야 한다.
