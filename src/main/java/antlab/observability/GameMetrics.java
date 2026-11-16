@@ -3,6 +3,8 @@ package antlab.observability;
 import antlab.common.error.ErrorCode;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
+import java.util.EnumSet;
+import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -24,6 +26,16 @@ public class GameMetrics {
     private static final String TURN_HELP =
             "Turn advance attempts by outcome; committed counts only after the transaction committed";
 
+    // Codes each endpoint documents; any other ErrorCode still counts, it just starts at its first event.
+    static final Set<ErrorCode> SEASON_REJECTIONS = EnumSet.of(ErrorCode.INVALID_ARGUMENT, ErrorCode.POOL_NOT_LOADED,
+            ErrorCode.POOL_NOT_JUDGED, ErrorCode.SEASON_LIMIT, ErrorCode.PATH_TOO_LONG);
+    static final Set<ErrorCode> TURN_REJECTIONS = EnumSet.of(ErrorCode.NOT_FOUND, ErrorCode.SEASON_NOT_ACTIVE,
+            ErrorCode.TURN_MISMATCH, ErrorCode.RECONCILIATION_FAILED);
+    static final Set<ErrorCode> ORDER_REJECTIONS = EnumSet.of(ErrorCode.INVALID_ARGUMENT, ErrorCode.NOT_FOUND,
+            ErrorCode.SEASON_NOT_ACTIVE, ErrorCode.TURN_MISMATCH, ErrorCode.LEDGER_MISMATCH, ErrorCode.LINEUP_MISMATCH,
+            ErrorCode.EVENT_TIME_CONFLICT, ErrorCode.ASSET_NOT_IN_POOL, ErrorCode.INSUFFICIENT_CASH,
+            ErrorCode.INSUFFICIENT_HOLDING, ErrorCode.POSITION_CONFLICT, ErrorCode.POSITION_REQUIRED);
+
     private final MeterRegistry registry;
     private final Counter mismatchRules;
 
@@ -31,6 +43,10 @@ public class GameMetrics {
         this.registry = registry;
         outcome(SEASON, SEASON_HELP, COMMITTED, NONE);
         outcome(TURN, TURN_HELP, COMMITTED, NONE);
+        // A series that first appears with its first event is missed by rate() and increase(), so every known pair starts at 0.
+        SEASON_REJECTIONS.forEach(code -> outcome(SEASON, SEASON_HELP, REJECTED, code.name()));
+        TURN_REJECTIONS.forEach(code -> outcome(TURN, TURN_HELP, REJECTED, code.name()));
+        ORDER_REJECTIONS.forEach(this::orderCounter);
         this.mismatchRules = Counter.builder("antlab.reconciliation.mismatch.rules")
                 .description("Reconciliation rules that mismatched in rolled-back turn advances").register(registry);
     }
@@ -58,8 +74,12 @@ public class GameMetrics {
     }
 
     public void orderRejected(ErrorCode code) {
-        safely(() -> Counter.builder("antlab.order.rejected").description("Orders rejected by the API, by error code")
-                .tag("code", code.name()).register(registry).increment());
+        safely(() -> orderCounter(code).increment());
+    }
+
+    private Counter orderCounter(ErrorCode code) {
+        return Counter.builder("antlab.order.rejected").description("Orders rejected by the API, by error code")
+                .tag("code", code.name()).register(registry);
     }
 
     private Counter outcome(String name, String help, String outcome, String code) {

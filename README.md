@@ -44,7 +44,7 @@ Releases are four: **v0.1** backend dashboard and web, **v1** web-based simulati
 | M1–M3 | 수집기·CI, Python 엔진, 점수 백테스트 | M1 in progress — M1-01 A: Gradle CI (tests with a reviewed skipped-test list, SQL schema job), others planned / M1 진행 중 — M1-01 A: Gradle CI(건너뜀 시험 목록을 검토하는 시험, SQL 스키마 검증 job), 나머지는 계획됨 |
 | M2 | Python engine: monthly blocks, regime labels, recombination (calendar alignment, regime-conditional), expected distribution; parallel reconciliation with the Java engine / Python 엔진: 월 블록·국면 라벨·재조합(달력 정렬, 국면 조건부)·예상 분포, Java 엔진과 병행 대사 | In progress — M2-01 engine skeleton, M2-02 bootstrap parity / 진행 중 — M2-01 엔진 골격, M2-02 부트스트랩 대사 |
 | EXT · M4 · APP · AI · OPS | 비용·케이스 훈련·대가 라이브러리, 전망 모드·리그·전당 API, 모바일·데스크탑 앱과 웹의 나머지 화면, AI 복기, 배포 | 계획됨 ([로드맵](docs/PLAN.md#11-로드맵커리큘럼-순서-유지)) |
-| AG | 에이전트 펀드 매니저(OpenRouter·구독 모델·Ollama, 페르소나, 누출 탐지 시험, 리더보드) | 계획됨 (PLAN v3, 2026-11-07) |
+| AG | 에이전트 펀드 매니저(OpenRouter·구독 모델·Ollama, 페르소나, 누출 탐지 시험, 리더보드) | 계획됨 (PLAN v3, 2026-11-07). In progress — AG-01 PR A1: OpenRouter call ledger and limiter. / 진행 중 — AG-01 PR A1: OpenRouter 호출 장부·제한기 |
 | R1 · R2 · R3 | 거장 추적(13F·X), 우수 매니저의 복제 봇, 에이전트의 실전 운용(소유자 자금, 사람 승인부터) | 계획됨 (PLAN v2.1, 2026-11-06) |
 
 ## 기술 스택
@@ -146,8 +146,8 @@ Prometheus가 API의 관리 포트를 수집하고 Grafana가 대시보드 세 �
    ```
 4. Play: `python3 tools/play/play_season.py --base http://127.0.0.1:8080`.
    한 판 두기: `python3 tools/play/play_season.py --base http://127.0.0.1:8080`.
-5. Open http://127.0.0.1:3000, sign in as `admin` with your `GF_SECURITY_ADMIN_PASSWORD`, then Dashboards › folder `ant-lab`. Game panels fill within about 30 seconds (one scrape every 15 s). Counts in the "in range" stats skip the first event of a new label set.
-   http://127.0.0.1:3000 을 열고 `admin`과 `GF_SECURITY_ADMIN_PASSWORD`로 로그인한 뒤 Dashboards › 폴더 `ant-lab`. 게임 패널은 30초쯤 안에 채워진다(15초마다 수집). "in range" 통계는 새 라벨 조합의 첫 이벤트를 세지 않는다.
+5. Open http://127.0.0.1:3000, sign in as `admin` with your `GF_SECURITY_ADMIN_PASSWORD`, then Dashboards › folder `ant-lab`. Game panels fill within about 30 seconds (one scrape every 15 s). The game counters start at 0 for known label pairs, so their first event counts; the first response with a new status or error code is not counted.
+   http://127.0.0.1:3000 을 열고 `admin`과 `GF_SECURITY_ADMIN_PASSWORD`로 로그인한 뒤 Dashboards › 폴더 `ant-lab`. 게임 패널은 30초쯤 안에 채워진다(15초마다 수집). 게임 카운터는 알려진 라벨 조합이 0으로 시작하므로 첫 이벤트도 세지만, 새 상태 코드·오류 코드의 첫 응답은 세지 않는다.
 6. Stop: `docker compose --profile api --profile monitoring stop` (data stays).
    멈춤: `docker compose --profile api --profile monitoring stop`(데이터는 남는다).
 

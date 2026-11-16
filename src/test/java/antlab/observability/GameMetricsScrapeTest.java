@@ -65,4 +65,30 @@ class GameMetricsScrapeTest extends RealPortTest {
             assertThat(line).doesNotContain(SEASON_ID);
         }
     }
+
+    @Test
+    void HTTP_지표의_error_code_태그는_닫힌_집합이다() {
+        api().post("/api/v1/seasons/" + SEASON_ID + "/turns", "{\"expectedTurnNo\": 0}");
+        api().post("/api/v1/seasons/" + SEASON_ID + "/turns", "not json");
+        api().get("/api/v1/no-such-path-" + System.nanoTime());
+        assertThat(api().get("/livez").status()).isEqualTo(200);
+        Set<String> allowed = Arrays.stream(ErrorCode.values()).map(Enum::name).collect(Collectors.toSet());
+        allowed.addAll(Set.of("none", "other"));
+        List<String> lines = scrape().lines().filter(l -> l.startsWith("http_server_requests_seconds_count")).toList();
+        assertThat(lines).isNotEmpty();
+        Set<String> seen = new java.util.HashSet<>();
+        for (String line : lines) {
+            Matcher m = LABEL.matcher(line);
+            String value = null;
+            while (m.find()) {
+                if (m.group(1).equals("error_code")) {
+                    value = m.group(2);
+                }
+            }
+            assertThat(value).as(line).isNotNull().isIn(allowed);
+            seen.add(value);
+        }
+        assertThat(seen).contains("NOT_FOUND", "none");
+        assertThat(lines).anySatisfy(l -> assertThat(l).contains("status=\"404\"").contains("error_code=\"NOT_FOUND\""));
+    }
 }

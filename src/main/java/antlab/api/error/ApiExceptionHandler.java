@@ -2,6 +2,7 @@ package antlab.api.error;
 
 import antlab.common.error.DomainException;
 import antlab.common.error.ErrorCode;
+import antlab.observability.HttpErrorCodeTag;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -19,6 +20,7 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.context.request.RequestAttributes;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
@@ -81,6 +83,7 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         ErrorCode code = ex instanceof DomainException de ? de.getCode() : ErrorHttpMapping.code(statusCode);
         problem.setDetail(detailOf(code, ex));
         problem.setProperty("code", code.name());
+        request.setAttribute(HttpErrorCodeTag.ATTRIBUTE, code.name(), RequestAttributes.SCOPE_REQUEST);
         List<Map<String, String>> errors = errorsOf(ex);
         if (!errors.isEmpty()) {
             problem.setProperty("errors", errors);
