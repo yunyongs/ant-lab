@@ -64,4 +64,17 @@ class KisPropertiesTest {
     void 실행당_요청_상한은_1_이상이다() {
         runner.withPropertyValues("antlab.collect.kis.max-requests-per-run=0").run(context -> assertThat(context).hasFailed());
     }
+
+    @Test
+    void 토큰_디렉터리가_상대_경로면_기동이_실패하고_절대_경로는_된다() {
+        String base = "antlab.collect.kis.";
+        runner.withPropertyValues(base + "enabled=true", base + "app-key=FAKE-APP-KEY-0001", base + "app-secret=FAKE-APP-SECRET-0001",
+                base + "token-cache-dir=data/cache/kis").run(context -> {
+                    assertThat(context).hasFailed();
+                    assertThat(context.getStartupFailure()).rootCause().isInstanceOf(IllegalStateException.class)
+                            .hasMessageContaining("KIS_TOKEN_CACHE_DIR").hasMessageContaining("absolute");
+                });
+        runner.withPropertyValues(base + "enabled=true", base + "app-key=FAKE-APP-KEY-0001", base + "app-secret=FAKE-APP-SECRET-0001",
+                base + "token-cache-dir=" + System.getProperty("java.io.tmpdir")).run(context -> assertThat(context).hasNotFailed());
+    }
 }

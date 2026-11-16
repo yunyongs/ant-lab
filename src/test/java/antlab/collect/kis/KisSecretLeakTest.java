@@ -160,6 +160,6 @@ class KisSecretLeakTest {
     @Test
     void 시험_자료의_가짜_비밀은_눈에_띄는_가짜_표시를_가진다() {
         assertThat(List.of(FAKE_KEY, FAKE_SECRET, FAKE_TOKEN)).allMatch(s -> s.startsWith("FAKE-"));
-        assertThat(fixture("token_ok")).contains("FAKE").contains("\"_fixture\"");
+        assertThat(fixture("auth_ok")).contains("FAKE").contains("\"_fixture\"");
     }
 }

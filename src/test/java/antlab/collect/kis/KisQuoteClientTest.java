@@ -55,7 +55,7 @@ class KisQuoteClientTest {
         h.expectToken().andExpect(jsonPath("$.grant_type").value("client_credentials"))
                 .andExpect(jsonPath("$.appkey").value(FAKE_KEY)).andExpect(jsonPath("$.appsecret").value(FAKE_SECRET))
                 .andExpect(header("content-type", containsString("application/json")))
-                .andRespond(withSuccess(fixture("token_ok"), MediaType.APPLICATION_JSON));
+                .andRespond(withSuccess(fixture("auth_ok"), MediaType.APPLICATION_JSON));
         h.respondDomestic("kr_daily_p1");
 
         List<DailyClose> rows = h.factory.newClient().domesticDaily("900001", D07, D09, PriceBasis.ADJUSTED);
@@ -253,10 +253,10 @@ class KisQuoteClientTest {
         var h = new KisHarness();
         List<Instant> issuedAt = new ArrayList<>();
         h.expectToken().andExpect(r -> issuedAt.add(h.clock.instant()))
-                .andRespond(withSuccess(fixture("token_ok"), MediaType.APPLICATION_JSON));
-        h.expectGet(KisEndpoint.DOMESTIC_DAILY).andRespond(withSuccess(fixture("token_expired"), MediaType.APPLICATION_JSON));
+                .andRespond(withSuccess(fixture("auth_ok"), MediaType.APPLICATION_JSON));
+        h.expectGet(KisEndpoint.DOMESTIC_DAILY).andRespond(withSuccess(fixture("auth_expired"), MediaType.APPLICATION_JSON));
         h.expectToken().andExpect(r -> issuedAt.add(h.clock.instant()))
-                .andRespond(withSuccess(fixture("token_ok"), MediaType.APPLICATION_JSON));
+                .andRespond(withSuccess(fixture("auth_ok"), MediaType.APPLICATION_JSON));
         h.respondDomestic("kr_daily_p2");
 
         List<DailyClose> rows = h.factory.newClient().domesticDaily("900001", D05, D09, PriceBasis.RAW);
@@ -271,9 +271,9 @@ class KisQuoteClientTest {
     void 또_거절되면_다시_발급하지_않고_실패한다() {
         var h = new KisHarness();
         h.expectTokenOk();
-        h.expectGet(KisEndpoint.DOMESTIC_DAILY).andRespond(withSuccess(fixture("token_expired"), MediaType.APPLICATION_JSON));
+        h.expectGet(KisEndpoint.DOMESTIC_DAILY).andRespond(withSuccess(fixture("auth_expired"), MediaType.APPLICATION_JSON));
         h.expectTokenOk();
-        h.expectGet(KisEndpoint.DOMESTIC_DAILY).andRespond(withSuccess(fixture("token_expired"), MediaType.APPLICATION_JSON));
+        h.expectGet(KisEndpoint.DOMESTIC_DAILY).andRespond(withSuccess(fixture("auth_expired"), MediaType.APPLICATION_JSON));
 
         assertThatThrownBy(() -> h.factory.newClient().domesticDaily("900001", D05, D09, PriceBasis.RAW))
                 .isInstanceOfSatisfying(KisException.class, e -> assertThat(e.code()).isEqualTo("KIS_REJECTED"));
@@ -285,9 +285,9 @@ class KisQuoteClientTest {
         var h = new KisHarness();
         List<Instant> issuedAt = new ArrayList<>();
         h.expectToken().andExpect(r -> issuedAt.add(h.clock.instant()))
-                .andRespond(withStatus(HttpStatus.FORBIDDEN).body(fixture("token_fail")).contentType(MediaType.APPLICATION_JSON));
+                .andRespond(withStatus(HttpStatus.FORBIDDEN).body(fixture("auth_fail")).contentType(MediaType.APPLICATION_JSON));
         h.expectToken().andExpect(r -> issuedAt.add(h.clock.instant()))
-                .andRespond(withSuccess(fixture("token_ok"), MediaType.APPLICATION_JSON));
+                .andRespond(withSuccess(fixture("auth_ok"), MediaType.APPLICATION_JSON));
         h.respondDomestic("kr_daily_p2");
 
         h.factory.newClient().domesticDaily("900001", D05, D09, PriceBasis.RAW);
@@ -300,8 +300,45 @@ class KisQuoteClientTest {
     void 토큰_발급이_두_번_실패하면_거절로_끝난다() {
         var h = new KisHarness();
         for (int i = 0; i < 2; i++) {
-            h.expectToken().andRespond(withStatus(HttpStatus.FORBIDDEN).body(fixture("token_fail")).contentType(MediaType.APPLICATION_JSON));
+            h.expectToken().andRespond(withStatus(HttpStatus.FORBIDDEN).body(fixture("auth_fail")).contentType(MediaType.APPLICATION_JSON));
         }
+
+        assertThatThrownBy(() -> h.factory.newClient().domesticDaily("900001", D05, D09, PriceBasis.RAW))
+                .isInstanceOfSatisfying(KisException.class, e -> assertThat(e.code()).isEqualTo("KIS_REJECTED"));
+        h.server.verify();
+    }
+
+    @Test
+    void 토큰_발급이_실패하면_같은_실행_안에서는_다시_보내지_않고_실패를_유지한다() {
+        var h = new KisHarness();
+        for (int i = 0; i < 2; i++) {
+            h.expectToken().andRespond(withStatus(HttpStatus.FORBIDDEN).body(fixture("auth_fail")).contentType(MediaType.APPLICATION_JSON));
+        }
+        KisQuoteClient client = h.factory.newClient();
+        assertThatThrownBy(() -> client.domesticDaily("900001", D05, D09, PriceBasis.RAW))
+                .isInstanceOfSatisfying(KisException.class, e -> assertThat(e.code()).isEqualTo("KIS_REJECTED"));
+        Duration sleptSoFar = h.sleeper.total();
+
+        assertThatThrownBy(() -> client.domesticDaily("900001", D05, D09, PriceBasis.RAW))
+                .isInstanceOfSatisfying(KisException.class, e -> assertThat(e.code()).isEqualTo("KIS_TOKEN_UNAVAILABLE"));
+        assertThatThrownBy(() -> client.overseasDaily("SPY", KisExchange.AMS, D05, D09))
+                .isInstanceOfSatisfying(KisException.class, e -> assertThat(e.code()).isEqualTo("KIS_TOKEN_UNAVAILABLE"));
+        assertThatThrownBy(() -> h.factory.newClient().domesticDaily("900001", D05, D09, PriceBasis.RAW))
+                .isInstanceOfSatisfying(KisException.class, e -> assertThat(e.code()).isEqualTo("KIS_TOKEN_UNAVAILABLE"));
+
+        assertThat(h.sleeper.total()).isEqualTo(sleptSoFar);
+        h.server.verify();
+    }
+
+    @Test
+    void 재발급_뒤에도_만료_코드면_HTTP_상태와_무관하게_거절로_끝난다() {
+        var h = new KisHarness();
+        h.expectTokenOk();
+        h.expectGet(KisEndpoint.DOMESTIC_DAILY).andRespond(withStatus(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(fixture("auth_expired")).contentType(MediaType.APPLICATION_JSON));
+        h.expectTokenOk();
+        h.expectGet(KisEndpoint.DOMESTIC_DAILY).andRespond(withStatus(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(fixture("auth_expired")).contentType(MediaType.APPLICATION_JSON));
 
         assertThatThrownBy(() -> h.factory.newClient().domesticDaily("900001", D05, D09, PriceBasis.RAW))
                 .isInstanceOfSatisfying(KisException.class, e -> assertThat(e.code()).isEqualTo("KIS_REJECTED"));
@@ -368,7 +405,7 @@ class KisQuoteClientTest {
     void 토큰_요청_본문은_JSON_본문이고_키를_담는다() {
         var h = new KisHarness();
         h.expectToken().andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
-                .andRespond(withSuccess(fixture("token_ok"), MediaType.APPLICATION_JSON));
+                .andRespond(withSuccess(fixture("auth_ok"), MediaType.APPLICATION_JSON));
         h.respondDomestic("kr_daily_p2");
 
         h.factory.newClient().domesticDaily("900001", D05, D09, PriceBasis.RAW);

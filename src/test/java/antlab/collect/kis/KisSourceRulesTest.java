@@ -3,8 +3,10 @@ package antlab.collect.kis;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
+import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.PathMatcher;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -121,6 +123,62 @@ class KisSourceRulesTest {
                 Matcher token = Pattern.compile("\"access_token\":\\s*\"([^\"]*)\"").matcher(text);
                 while (token.find()) {
                     assertThat(token.group(1)).startsWith("FAKE-");
+                }
+            }
+        }
+    }
+
+    @Test
+    void 픽스처_이름은_gitignore_규칙에_걸리지_않아_새_체크아웃에도_있다() throws IOException {
+        List<PathMatcher> ignored = new ArrayList<>();
+        for (String line : Files.readAllLines(Path.of(".gitignore"))) {
+            String rule = line.strip();
+            if (rule.isEmpty() || rule.startsWith("#") || rule.startsWith("!") || rule.contains("/")) {
+                continue;
+            }
+            ignored.add(FileSystems.getDefault().getPathMatcher("glob:" + rule));
+        }
+        assertThat(ignored).isNotEmpty();
+        try (Stream<Path> files = Files.list(Path.of("src/test/resources/fixtures/kis"))) {
+            List<String> hidden = files.map(Path::getFileName)
+                    .filter(name -> ignored.stream().anyMatch(rule -> rule.matches(name)))
+                    .map(Path::toString).toList();
+            assertThat(hidden).as("fixtures matched by a .gitignore name rule would be missing from a clean checkout").isEmpty();
+        }
+    }
+
+    @Test
+    void 시험이_읽는_픽스처_이름은_모두_파일로_있다() throws IOException {
+        Pattern call = Pattern.compile("(?:fixture|respondDomestic|respondOverseas)\\(\"([a-z0-9_]+)\"");
+        Path testDir = Path.of("src/test/java/antlab/collect/kis");
+        try (Stream<Path> walk = Files.walk(testDir)) {
+            for (Path file : walk.filter(p -> p.toString().endsWith(".java")).toList()) {
+                Matcher m = call.matcher(Files.readString(file));
+                while (m.find()) {
+                    assertThat(Path.of("src/test/resources/fixtures/kis", m.group(1) + ".json")).as(file.getFileName() + " uses " + m.group(1)).exists();
+                }
+            }
+        }
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void 웹과_HTTP_클라이언트_로거는_어느_프로필에서도_디버그가_아니다() throws IOException {
+        Pattern wire = Pattern.compile("(?i)^(web|org\\.springframework\\.web.*|jdk\\.internal\\.net\\.http.*|jdk\\.internal\\.httpclient.*|org\\.springframework\\.http.*)$");
+        for (String resource : new String[] {"src/main/resources/application.yml", "src/test/resources/application-test.yml"}) {
+            for (Object doc : new Yaml().loadAll(Files.readString(Path.of(resource)))) {
+                Object logging = ((Map<String, Object>) doc).get("logging");
+                if (logging == null) {
+                    continue;
+                }
+                Object levels = ((Map<String, Object>) logging).get("level");
+                if (levels == null) {
+                    continue;
+                }
+                for (Map.Entry<String, Object> level : ((Map<String, Object>) levels).entrySet()) {
+                    if (wire.matcher(level.getKey()).matches()) {
+                        assertThat(String.valueOf(level.getValue()).toLowerCase()).as(resource + " " + level.getKey()).isNotIn("debug", "trace");
+                    }
                 }
             }
         }

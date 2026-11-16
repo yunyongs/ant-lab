@@ -115,7 +115,7 @@ final class KisHarness {
     }
 
     void expectTokenOk() {
-        expectToken().andRespond(withSuccess(fixture("token_ok"), MediaType.APPLICATION_JSON));
+        expectToken().andRespond(withSuccess(fixture("auth_ok"), MediaType.APPLICATION_JSON));
     }
 
     ResponseActions expectGet(KisEndpoint endpoint) {

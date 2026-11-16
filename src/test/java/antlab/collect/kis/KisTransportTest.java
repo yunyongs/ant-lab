@@ -36,7 +36,7 @@ class KisTransportTest {
     @BeforeEach
     void start() throws IOException {
         server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
-        server.createContext("/oauth2/tokenP", exchange -> reply(exchange, 200, fixture("token_ok")));
+        server.createContext("/oauth2/tokenP", exchange -> reply(exchange, 200, fixture("auth_ok")));
         server.createContext(KisEndpoint.DOMESTIC_DAILY.path(), exchange -> {
             quoteRequests.add(exchange.getRequestURI().getRawQuery());
             quoteTrIds.add(exchange.getRequestHeaders().getFirst("tr_id"));
