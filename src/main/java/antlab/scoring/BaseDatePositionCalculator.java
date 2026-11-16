@@ -6,6 +6,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -40,6 +41,12 @@ public final class BaseDatePositionCalculator {
      * @param marketMaxDrawdown drawdown of the 50/50 market series over every month block in the window; null when the window has no block
      */
     public record Detailed<K>(Map<K, BaseDateJudgement> rows, BigDecimal marketMaxDrawdown) {
+
+        /** The rows are copied (pool order kept) and read-only, so a caller cannot change a result another caller holds. */
+        public Detailed {
+            Objects.requireNonNull(rows, "rows");
+            rows = Collections.unmodifiableMap(new LinkedHashMap<>(rows));
+        }
     }
 
     /** Same as {@link #judge} and also returns the market drawdown, so a parity test can compare it with the SQL {@code pos_metric} value. */

@@ -90,6 +90,8 @@ class BaseDatePositionSqlParityTest {
                 PositionMeter.Reason.N_DOWN);
         assertThat(coverage.positions().keySet()).as("positions reached").hasSizeGreaterThanOrEqualTo(2);
         assertThat(coverage.topTie()).as("volatility tie at the top 20 % boundary").isTrue();
+        assertThat(coverage.bottomTie()).as("volatility tie at the bottom 20 % boundary").isTrue();
+        assertThat(coverage.positions().get(antlab.asset.Position.GOALKEEPER)).as("goalkeepers, the tied pair included").isGreaterThanOrEqualTo(3);
     }
 
     @Test

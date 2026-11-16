@@ -236,6 +236,16 @@ public final class SyntheticHistory {
         List<String> second = new ArrayList<>(all);
         second.remove("US/200002");
         h.pools.put(LocalDate.of(2013, 3, 1), List.copyOf(second));
+
+        // A third base date with its own pool of ten (k = 2): a noise-only asset has the lowest volatility and an identical pair at 0.1 times
+        // the market shares the second place, so three assets sit inside the bottom 20 % (a tie at the lower boundary) and the pair, whose
+        // down participation is at most 0.2, are goalkeepers. Added last, so no earlier series or rank moves.
+        h.add(new Asset("KR", "100013", "STOCK"), blocks, scaled(kr, 0, rng), rng);
+        List<Long> lowTwin = scaled(kr, 1, rng);
+        h.add(new Asset("KR", "100011", "STOCK"), blocks, lowTwin, rng);
+        h.add(new Asset("KR", "100012", "STOCK"), blocks, lowTwin, rng);
+        h.pools.put(LocalDate.of(2013, 2, 1), List.of("KR/100013", "KR/100011", "KR/100012", "KR/100003", "KR/100004", "KR/100005",
+                "KR/100006", "KR/100007", "KR/100008", "KR/100009"));
         return h;
     }
 

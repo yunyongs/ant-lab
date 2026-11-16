@@ -376,6 +376,97 @@ class BaseDatePositionCalculatorTest {
     }
 
     @Test
+    void P_N1b_종목_자신의_달에_환율이_없으면_시장이_환율을_보지_않아도_그_종목_경로에서_멈춘다() {
+        Fixture f = standard();
+        YearMonth gap = WINDOW_START.plusMonths(7);
+        AssetSeries krw = f.times("1.2");
+        AssetSeries usdWithGap = f.asset(Currency.USD, m -> true, m -> d("0.01000000"));
+        AssetSeries usdWithoutThatMonth = f.asset(Currency.USD, m -> !m.equals(gap), m -> d("0.01000000"));
+        f.fx.remove(gap);
+        // The US proxy is typed KRW, so the market series never reads an FX change; only a USD asset with a return in the gap month does.
+        PositionHistory history = new PositionHistory(new TreeSet<>(f.blocks), Map.of(Currency.USD, new HashMap<>(f.fx)),
+                new AssetSeries(Currency.KRW, new TreeMap<>(f.kr)), new AssetSeries(Currency.KRW, new TreeMap<>(f.us)));
+
+        assertThatCode(() -> BaseDatePositionCalculator.judge(BASE, pool("KRW", krw, "USD_OTHER", usdWithoutThatMonth), history))
+                .doesNotThrowAnyException();
+        assertThatThrownBy(() -> BaseDatePositionCalculator.judge(BASE, pool("USD", usdWithGap), history))
+                .isInstanceOf(IllegalStateException.class).hasMessage("USD return month has no FX change");
+    }
+
+    @Test
+    void P_N3_월_블록이_역순_집합으로_들어와도_자연순으로_바로잡아_같은_결과를_낸다() {
+        Fixture f = standard();
+        Map<String, AssetSeries> pool = pool("A", f.times("1.2"), "B", f.times("0.5"), "C", f.times("2.0"));
+        Map<String, BaseDateJudgement> ascending = judge(f, pool);
+
+        PositionHistory reversed = new PositionHistory(f.blocks.descendingSet(), Map.of(Currency.USD, new HashMap<>(f.fx)),
+                new AssetSeries(Currency.KRW, new TreeMap<>(f.kr)), new AssetSeries(Currency.USD, new TreeMap<>(f.us)));
+
+        assertThat(reversed.monthBlocks().comparator()).as("natural order").isNull();
+        assertThat(reversed.monthBlocks().first()).isEqualTo(f.blocks.first());
+        assertThat(BaseDatePositionCalculator.judge(BASE, pool, reversed)).isEqualTo(ascending);
+
+        NavigableMap<YearMonth, BigDecimal> reversedReturns = new TreeMap<>(java.util.Comparator.<YearMonth>reverseOrder());
+        reversedReturns.putAll(pool.get("A").localReturns());
+        assertThat(new AssetSeries(Currency.KRW, reversedReturns).localReturns().firstKey()).isEqualTo(f.blocks.first());
+    }
+
+    @Test
+    void P_N4_입력을_복사하므로_만든_뒤_원본을_바꿔도_결과가_변하지_않고_접근자와_결과는_수정할_수_없다() {
+        Fixture f = standard();
+        NavigableMap<YearMonth, BigDecimal> returns = new TreeMap<>(f.times("1.2").localReturns());
+        AssetSeries series = new AssetSeries(Currency.KRW, returns);
+        Map<YearMonth, BigDecimal> usdFx = new HashMap<>(f.fx);
+        Map<Currency, Map<YearMonth, BigDecimal>> fxChange = new HashMap<>(Map.of(Currency.USD, usdFx));
+        NavigableSet<YearMonth> blocks = new TreeSet<>(f.blocks);
+        NavigableMap<YearMonth, BigDecimal> kr = new TreeMap<>(f.kr);
+        PositionHistory history = new PositionHistory(blocks, fxChange, new AssetSeries(Currency.KRW, kr),
+                new AssetSeries(Currency.USD, new TreeMap<>(f.us)));
+        Map<String, AssetSeries> pool = pool("A", series, "B", f.times("0.5"), "C", f.times("2.0"));
+        Map<String, BaseDateJudgement> before = BaseDatePositionCalculator.judge(BASE, pool, history);
+
+        returns.put(WINDOW_END, d("-0.90000000"));
+        usdFx.put(WINDOW_START, d("0.50000000"));
+        fxChange.clear();
+        blocks.clear();
+        kr.put(WINDOW_START, d("0.90000000"));
+
+        assertThat(BaseDatePositionCalculator.judge(BASE, pool, history)).isEqualTo(before);
+        assertThatThrownBy(() -> series.localReturns().put(WINDOW_END, BigDecimal.ONE)).isInstanceOf(UnsupportedOperationException.class);
+        assertThatThrownBy(() -> history.monthBlocks().clear()).isInstanceOf(UnsupportedOperationException.class);
+        assertThatThrownBy(() -> history.fxChange().clear()).isInstanceOf(UnsupportedOperationException.class);
+        assertThatThrownBy(() -> history.fxChange().get(Currency.USD).put(WINDOW_START, BigDecimal.ONE))
+                .isInstanceOf(UnsupportedOperationException.class);
+        assertThatThrownBy(() -> history.krProxy().localReturns().clear()).isInstanceOf(UnsupportedOperationException.class);
+
+        BaseDatePositionCalculator.Detailed<String> detailed = BaseDatePositionCalculator.judgeDetailed(BASE, pool, history);
+        assertThatThrownBy(() -> detailed.rows().clear()).isInstanceOf(UnsupportedOperationException.class);
+        assertThatThrownBy(() -> before.put("Z", before.get("A"))).isInstanceOf(UnsupportedOperationException.class);
+        Map<String, BaseDateJudgement> mine = new LinkedHashMap<>(before);
+        BaseDatePositionCalculator.Detailed<String> copied = new BaseDatePositionCalculator.Detailed<>(mine, detailed.marketMaxDrawdown());
+        mine.clear();
+        assertThat(copied.rows()).hasSize(3);
+    }
+
+    @Test
+    void P_U7_하위_20퍼센트_경계에_걸친_동률_저변동성_종목은_모두_골키퍼다() {
+        Fixture f = standard();
+        // N = 10 so k = 2: the lowest volatility is first, the identical pair shares the second place (both inside the bottom 20 %)
+        AssetSeries twin = f.times("0.15");
+        Map<String, AssetSeries> pool = pool("LOW", f.times("0.1"), "TWIN_A", twin, "TWIN_B", twin,
+                "M1", f.times("1.2"), "M2", f.times("1.5"), "M3", f.times("2.0"), "M4", f.times("2.5"),
+                "M5", f.times("3.0"), "M6", f.times("3.5"), "M7", f.times("4.0"));
+        Map<String, BaseDateJudgement> got = judge(f, pool);
+
+        assertThat(got.get("TWIN_A").volatility()).isEqualByComparingTo(got.get("TWIN_B").volatility());
+        assertThat(got.get("TWIN_A").downParticipation()).isLessThanOrEqualTo(d("0.2"));
+        assertThat(got.get("LOW").systemPosition()).isEqualTo(Position.GOALKEEPER);
+        assertThat(got.get("TWIN_A").systemPosition()).isEqualTo(Position.GOALKEEPER);
+        assertThat(got.get("TWIN_B").systemPosition()).isEqualTo(Position.GOALKEEPER);
+        assertThat(got.get("M1").systemPosition()).isNotEqualTo(Position.GOALKEEPER);
+    }
+
+    @Test
     void 판정_열은_전부_있거나_전부_없어야_한다() {
         assertThatThrownBy(() -> new BaseDateJudgement(PositionMeter.Reason.MONTHS, YearMonth.of(2025, 1), null, null, null, null, null,
                 null, null, 0, 0)).isInstanceOf(IllegalArgumentException.class);
