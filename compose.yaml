@@ -15,6 +15,9 @@
 #   api 는 profile api 라서 `docker compose up -d` 는 지금처럼 db 만 켠다(api 빌드·8080 점유 없음). api 는 --profile api 로 켠다.
 #   ANTLAB_DB_PORT=55432 ANTLAB_API_PORT=18080 docker compose --profile api -p antlab-qa up -d --build --wait
 #   (끝나면 docker compose --profile api -p antlab-qa down -v --rmi local — 정리에도 --profile api 를 붙인다). 컨테이너 안 JDBC 주소는 db:5432 로 고정이고 ANTLAB_DB_PORT 는 호스트 접속용이다.
+# engine profile (M2-01): docker compose --profile engine up -d --build --wait engine — needs ANTLAB_ENGINE_TOKEN in .env (no default). Stop with docker compose stop engine (not down: down also removes the owner db container).
+#   isolated: ANTLAB_ENGINE_TOKEN="$(openssl rand -hex 32)" ANTLAB_ENGINE_PORT=18000 docker compose --profile engine -p antlab-qa up -d --build --wait engine
+#   (cleanup: docker compose --profile engine -p antlab-qa down -v --rmi local) (docs/DEPLOY.md §3.2).
 # monitoring profile (MON-02): prometheus + grafana, published on 127.0.0.1 only. Needs GF_SECURITY_ADMIN_PASSWORD in .env (no default; applied on the first start of grafana-data). Without it grafana restarts in a loop; read why with docker compose logs grafana.
 #   docker compose --profile api --profile monitoring up -d --wait
 #   isolated: add ANTLAB_PROMETHEUS_PORT=19090 ANTLAB_GRAFANA_PORT=13000 and -p antlab-qa (docs/DEPLOY.md §3.2).
@@ -87,6 +90,27 @@ services:
       start_period: 60s
     # Spring 의 종료 대기(20s)보다 길게
     stop_grace_period: 30s
+    restart: unless-stopped
+
+  engine:
+    profiles: [engine]
+    build: ./engine
+    environment:
+      ANTLAB_ENGINE_TOKEN: ${ANTLAB_ENGINE_TOKEN:-}
+    ports:
+      - "127.0.0.1:${ANTLAB_ENGINE_PORT:-8000}:8000"
+    networks: [backend]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=2)"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    stop_grace_period: 30s
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
     restart: unless-stopped
 
   prometheus:
