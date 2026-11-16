@@ -19,3 +19,7 @@ springdoc:
 antlab:
   auth:
     jwt-secret: dGVzdC1vbmx5LWp3dC1rZXktbmV2ZXItdXNlLWluLXByb2QhIQ==
+  # Test-only runner token and owner id: visibly fake, never a real credential. The owner member is created by the tests.
+  agent-runner:
+    token: fake-runner-token-for-tests-only-0123456789abcdef
+    owner-member-id: 910001

@@ -51,6 +51,19 @@ class ErrorCodeContractTest {
         return doc(Files.readString(Path.of("docs/api/openapi.yaml")));
     }
 
+    private static JsonNode runnerContract() throws IOException {
+        return doc(Files.readString(Path.of("docs/api/agent-runner.yaml")));
+    }
+
+    @Test
+    void AGENT_RETIRED는_공개_계약에_없고_러너_계약에만_있다() throws IOException {
+        assertThat(Files.readString(Path.of("docs/api/openapi.yaml"))).doesNotContain("AGENT_RETIRED");
+        assertThat(ContractErrorCodes.violations(contract())).containsExactly(
+                "ErrorCode AGENT_RETIRED is not listed in any x-error-codes or x-framework-errors");
+        assertThat(ContractErrorCodes.perOperation(runnerContract()).get("POST /internal/agent-runner/v1/agents/{agentId}/seasons")
+                .get(409)).contains("AGENT_RETIRED");
+    }
+
     @Test
     void 은퇴한_MEMBER_UNAVAILABLE이_계약_어디에도_없다() throws IOException {
         assertThat(Files.readString(Path.of("docs/api/openapi.yaml"))).doesNotContain("MEMBER_UNAVAILABLE");
@@ -60,7 +73,7 @@ class ErrorCodeContractTest {
 
     @Test
     void 계약의_오류_코드는_상태_매핑과_맞고_FORBIDDEN_말고는_모두_적혀_있다() throws IOException {
-        assertThat(ContractErrorCodes.violations(contract())).isEmpty();
+        assertThat(ContractErrorCodes.violations(contract(), runnerContract())).isEmpty();
     }
 
     @Test
