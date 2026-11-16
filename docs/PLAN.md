@@ -1053,6 +1053,7 @@ ant-lab/
 │   ├── DEPLOY.md    배포 구조·규칙(Docker Compose·이미지·비밀값·호스팅)
 │   └── CONVENTION.md Git 컨벤션
 ├── compose.yaml     로컬 실행(Phase 0: db) — 운영 덮어쓰기 compose.prod.yaml과 deploy/는 OPS
+├── engine/          Python simulation engine (FastAPI, package antlab_engine), from M2 / Python 시뮬레이션 엔진(FastAPI, 패키지 antlab_engine) — M2부터
 ├── web/             One-season web app (TypeScript React, Vite), from WEB / 한 판 웹 앱(TypeScript React, Vite) — WEB부터
 ├── db/              DDL, 역사 데이터 표본(사건 태그 표본 포함), 실습 SQL
 ├── cases/           케이스 훈련 데이터(전환기별 후보 기업의 당시 재무·서사, 출처) — EXT부터
