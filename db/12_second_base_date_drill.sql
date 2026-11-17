@@ -11,7 +11,7 @@
 --     psql -X -q -v ON_ERROR_STOP=1 -v drill=1 -d antlab_drill2 -f db/12_second_base_date_drill.sql
 --     psql -X -q -v ON_ERROR_STOP=1 -d antlab_drill2 -f db/12_calc_position.sql                    -- fills the judgment of the new rows
 --     psql -X -q -v ON_ERROR_STOP=1 -d antlab_drill2 -f db/12_calc_position_check.sql              -- expected last line PASS
---     psql -X -q -v ON_ERROR_STOP=1 -d antlab_drill2 -f db/14_stats_calendar_check.sql             -- stops at its section 0 (one base date) until #48; PASS only after #48
+--     psql -X -q -v ON_ERROR_STOP=1 -d antlab_drill2 -f db/14_stats_calendar_check.sql             -- expected last line PASS
 --   Optional: -v base2=2011-01-03 chooses another second base date (it must be a date with at least 36 earlier months and real months after its month).
 -- What it does: guard → assertions (no row at the base date yet) → insert one asset_position row per asset of the existing pool with a synthetic base price
 --   (1000.0000) and FX rate (1.0000 for KRW, 1300.0000 for USD) and a NULL judgment and market_cap_rank → read db/12_calc_position_def.sql → delete the
