@@ -312,6 +312,7 @@ class AgentTurnViewTest {
 
         assertThat(body.get("season").get("currentTurnNo").asInt()).isEqualTo(4);
         assertThat(body.get("lastTurn").get("turnNo").asInt()).isEqualTo(4);
+        assertThat(body.get("lastTurn").get("feed")).as("the feed of turn 4 is embedded, as the human turn answers it").isNotEmpty();
         assertThat(body.get("prices").get("turnNo").asInt()).isEqualTo(4);
         assertThat(((HoldingsDto) human[2]).turnNo()).isEqualTo(4);
         assertThat(body.get("pool")).isNotEmpty();

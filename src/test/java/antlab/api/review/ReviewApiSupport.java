@@ -51,7 +51,7 @@ public final class ReviewApiSupport {
                 "SELECT id FROM month_block WHERE month_start IN (DATE '2001-02-01', DATE '2001-03-01') ORDER BY month_start",
                 Long.class));
         blocks.addAll(jdbc.queryForList("SELECT id FROM month_block WHERE month_start >= DATE '2007-01-01' "
-                + "AND rate_dir IS NULL AND events_reviewed = FALSE ORDER BY month_start", Long.class));
+                + "AND rate_dir IS NULL AND prob_p1 IS NULL AND event_summary IS NULL AND events_reviewed = TRUE ORDER BY month_start", Long.class));
         jdbc.update("DELETE FROM season_path WHERE season_id = ?", season);
         for (int t = 1; t <= turns; t++) {
             jdbc.update("INSERT INTO season_path (season_id, turn_no, month_block_id) VALUES (?, ?, ?)", season, t,

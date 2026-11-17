@@ -45,7 +45,6 @@ class SqlGoldenIsolationTest {
     void SQL_기준_DB에_01_03을_실행해도_Flyway_DB는_그대로다() throws Exception {
         Map<String, Object> before = flywayState();
         try (SqlGoldenHarness harness = new SqlGoldenHarness(postgres, GoldenFixtureSource.fromEnvironment())) {
-            DatabaseHandle sqlDb = harness.createSqlDatabase("isolation");
             // CSV 없이도 되는 단계만: 입력 묶음 대신 필요한 SQL 파일만 직접 놓는다
             List<String> files = List.of("01_schema_history", "02_schema_season", "03_schema_account");
             for (String f : files) {
@@ -54,6 +53,8 @@ class SqlGoldenIsolationTest {
                     harness.runner().putFile(rel, Files.readAllBytes(Path.of(rel)));
                 }
             }
+            // The work directory exists only after a file is put there, so files go first (the order no longer depends on other tests).
+            DatabaseHandle sqlDb = harness.createSqlDatabase("isolation");
             Duration t = Duration.ofMinutes(2);
             ScenarioPlan plan = new ScenarioPlan("ISOLATION", List.of(
                     new ScriptStep("db/01_schema_history.sql", Kind.RUN, null, t),

@@ -28,13 +28,13 @@ public final class ExposureRules {
     /**
      * 식별자 허용 목록. 식별자 열(id·*_id)은 태그와 무관하게 이 목록으로만 통과한다. 이후 기능이 더한다.
      * asset.asset_group_id 는 부모 asset_group.id([내부])와 같은 값이지만 그룹 코드 순 적재라 날짜 단서가 없다.
-     * season.id 는 시즌 생성 순서라 역사 날짜와 무관하다. turn_price.asset_id 는 이미 허용된 asset.id 와 같은 값이다.
+     * season.id 는 시즌 생성 순서라 역사 날짜와 무관하다. turn_price.asset_id 는 이미 허용된 asset.id 와 같은 값이다. turn_feed.asset_id 도 같은 값이다(MVP-11).
      * orders.id 는 시즌 안의 주문 생성 순서일 뿐 역사 달과 무관하다. orders.formation_change_id 는 시즌 안의 전술 변경 순서로,
      * 주문이 어느 변경에 묶였는지만 알려 주고 역사 날짜 단서가 없다(P0-31).
      * member.id is signup order with no history-date clue; returned only to the member who just signed up.
      */
     public static final Set<String> IDENTIFIER_ALLOWED = Set.of("asset.id", "asset.asset_group_id", "season.id",
-            "turn_price.asset_id", "orders.id", "orders.formation_change_id", "member.id");
+            "turn_price.asset_id", "turn_feed.asset_id", "orders.id", "orders.formation_change_id", "member.id");
 
     /** 영구 금지: 적재 순서가 달 순서라 번호 자체가 날짜 단서다(erd §2, SPRING_JPA §4.6). */
     public static final Set<String> FORBIDDEN = Set.of("month_block.id", "month_event.id", "turn_feed.month_event_id");

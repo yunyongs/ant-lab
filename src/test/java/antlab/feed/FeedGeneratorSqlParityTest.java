@@ -21,12 +21,15 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.LinkedHashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Pattern;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.springframework.jdbc.core.simple.JdbcClient;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
@@ -48,6 +51,7 @@ class FeedGeneratorSqlParityTest {
     static PostgreSQLContainer container;
     static SqlGoldenHarness harness;
     static RowSet result;
+    static DatabaseHandle database;
 
     @BeforeAll
     static void start() throws Exception {
@@ -62,6 +66,7 @@ class FeedGeneratorSqlParityTest {
         runner.putFile("feed-parity/run.sql", Path.of("src/test/resources/feed-parity/run.sql"));
         runner.putFile("synthetic/feed_history.sql", SyntheticFeedHistory.standard().script());
         DatabaseHandle db = harness.createSqlDatabase("feed_parity");
+        database = db;
         for (String file : new String[] {"db/01_schema_history.sql", "db/02_schema_season.sql", "synthetic/feed_history.sql"}) {
             SqlGoldenHarness.ScriptResult step = harness.run(db, new ScriptStep(file, Kind.RUN, null, STEP_TIMEOUT));
             assertThat(step.process().exitCode()).as(file).isZero();
@@ -120,6 +125,8 @@ class FeedGeneratorSqlParityTest {
         int zeroPercentBodies = 0;
         int tiedAttention = 0;
         int zeroMeanGroups = 0;
+        int secondRoundPicks = 0;
+        int weightedNoiseRows = 0;
         int rows = 0;
         Pattern zeroPercent = Pattern.compile("(^|[^0-9+\\-])0%");
         Map<String, Integer> byTemplate = new LinkedHashMap<>();
@@ -145,7 +152,15 @@ class FeedGeneratorSqlParityTest {
             if (!generated.isEmpty() && generated.stream().allMatch(r -> r.kind() == FeedKind.EVENT)) {
                 eventsOnlyTurns++;
             }
+            Set<String> candidates = new HashSet<>();
             for (GeneratedFeedRow r : generated) {
+                String candidate = r.kind() + "/" + r.assetId() + "/" + r.assetGroupId() + "/" + r.monthEventId();
+                if (!candidates.add(candidate)) {
+                    secondRoundPicks++;
+                }
+                if (r.kind() != FeedKind.EVENT && r.strength() != null && r.strength() >= 2) {
+                    weightedNoiseRows++;
+                }
                 kinds.merge(r.kind(), 1, Integer::sum);
                 byTemplate.merge(r.templateId(), 1, Integer::sum);
                 if (r.categoryHidden()) {
@@ -172,7 +187,8 @@ class FeedGeneratorSqlParityTest {
         System.out.println("[sql-parity] feed synthetic turns=" + turns + " rows=" + rows + " kinds=" + kinds + " zeroRowTurns="
                 + zeroRowTurns + " eventsOnlyTurns=" + eventsOnlyTurns + " hiddenEvents=" + hiddenEvents + " echoRepeat>=2="
                 + echoRepeatAtLeast2 + " zeroPercentBodies=" + zeroPercentBodies + " tiedAttention=" + tiedAttention
-                + " zeroMeanGroups=" + zeroMeanGroups + " templatesUsed=" + byTemplate.size());
+                + " zeroMeanGroups=" + zeroMeanGroups + " secondRoundPicks=" + secondRoundPicks + " weightedNoiseRows="
+                + weightedNoiseRows + " templatesUsed=" + byTemplate.size());
         assertThat(turns).as("turns compared").isEqualTo(SyntheticFeedHistory.SEEDS.size() * SyntheticFeedHistory.TURNS);
         assertThat(zeroRowTurns).as("zero-candidate turns").isEqualTo(SyntheticFeedHistory.SEEDS.size());
         assertThat(eventsOnlyTurns).as("events-only turns").isEqualTo(SyntheticFeedHistory.SEEDS.size());
@@ -184,6 +200,43 @@ class FeedGeneratorSqlParityTest {
         assertThat(zeroPercentBodies).as("sentences that show 0%").isPositive();
         assertThat(tiedAttention).as("assets tied on attention rank").isPositive();
         assertThat(zeroMeanGroups).as("groups whose mean return rounds to 0 while members move").isPositive();
+        assertThat(secondRoundPicks).as("a candidate drawn again in a later round").isPositive();
+        assertThat(weightedNoiseRows).as("noise rows with weight 2 or 3").isPositive();
+    }
+
+    /**
+     * The Java reader on the same database: the input it assembles from the tables for every turn equals the JSON {@code tf_input}
+     * assembled, fact by fact (returns, streaks, ranks with ties, previous attention, previous story, focus, events). The turn's own
+     * prices are handed over as the advance does; the stored feed of the previous turn was written by the SQL generator.
+     */
+    @Test
+    void the_java_reader_assembles_the_input_that_tf_input_assembled() {
+        org.springframework.jdbc.datasource.DriverManagerDataSource source = new org.springframework.jdbc.datasource.DriverManagerDataSource(
+                "jdbc:postgresql://" + container.getHost() + ":" + container.getMappedPort(5432) + "/" + database.name(),
+                container.getUsername(), container.getPassword());
+        JdbcClient jdbc = JdbcClient.create(source);
+        FeedInputReader reader = new FeedInputReader(jdbc);
+        int checked = 0;
+        int withStory = 0;
+        for (int i = 0; i < result.size(); i++) {
+            if (!"turn".equals(result.get(i, "what"))) {
+                continue;
+            }
+            long season = (Long) result.get(i, "season_id");
+            int turn = ((Long) result.get(i, "turn_no")).intValue();
+            FeedInput expected = FeedInputJson.read((String) result.get(i, "input"));
+            Map<Long, BigDecimal> current = new LinkedHashMap<>();
+            jdbc.sql("SELECT asset_id, price FROM turn_price WHERE season_id = :season AND turn_no = :turn")
+                    .param("season", season).param("turn", turn).query(rs -> {
+                        current.put(rs.getLong("asset_id"), rs.getBigDecimal("price"));
+                    });
+            FeedInput actual = reader.read(season, expected.seed(), turn, current);
+            assertThat(actual).as("season " + season + " turn " + turn).isEqualTo(expected);
+            withStory += (int) actual.assets().stream().filter(a -> a.prevStoryDirection() != null).count();
+            checked++;
+        }
+        assertThat(checked).isEqualTo(SyntheticFeedHistory.SEEDS.size() * SyntheticFeedHistory.TURNS);
+        assertThat(withStory).as("assets with a previous story, so the feed read is exercised").isPositive();
     }
 
     @Test

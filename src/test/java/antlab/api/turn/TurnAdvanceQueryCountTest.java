@@ -23,12 +23,15 @@ import tools.jackson.databind.json.JsonMapper;
 /**
  * 턴 전환 1회의 SQL 문 수를 범주별로 세어 출력한다. 절대값은 단언하지 않는다(P0 실패 조건 아님) —
  * 풀 크기·규칙 수에 비례하고, 보유 종목 수와는 무관함만 단언한다(보유 1종목 시즌 = 보유 3종목 시즌).
+ * 피드 행 INSERT 는 행 하나에 한 문장이고 행 수(5–15)는 시즌 시드가 정하므로 따로 세어 응답의 피드 행 수와 맞추고, 나머지 문장 수만 비교한다.
  */
 @IntegrationTest
 @Sql(scripts = {"/fixtures/cleanup_season_start.sql", "/fixtures/history_pool.sql", "/fixtures/replay_months.sql",
         "/fixtures/turn_returns.sql"})
 @Sql(scripts = "/fixtures/cleanup_season_start.sql", executionPhase = ExecutionPhase.AFTER_TEST_METHOD)
 class TurnAdvanceQueryCountTest {
+
+    private static final String FEED_INSERT = "turn_feed INSERT";
 
     @Autowired
     MockMvcTester mvc;
@@ -58,6 +61,8 @@ class TurnAdvanceQueryCountTest {
             return "turn_price INSERT";
         } else if (s.startsWith("insert into turn ")) {
             return "turn INSERT";
+        } else if (s.startsWith("insert into turn_feed")) {
+            return FEED_INSERT;
         } else if (s.startsWith("insert into reconciliation_log")) {
             return "reconciliation_log INSERT";
         } else if (s.startsWith("update")) {
@@ -76,7 +81,22 @@ class TurnAdvanceQueryCountTest {
         Map<String, Integer> counts = new LinkedHashMap<>();
         sqls.forEach(q -> counts.merge(category(q), 1, Integer::sum));
         counts.put("합계", sqls.size());
-        return counts;
+        int feedRows = JsonMapper.shared().readTree(r.getContentAsString()).get("feed").size();
+        assertThat(counts.getOrDefault(FEED_INSERT, 0)).as("피드 행 INSERT 수 = 응답의 피드 행 수").isEqualTo(feedRows);
+        return withoutFeedInserts(counts);
+    }
+
+    /** The per-row feed INSERTs depend on the seed (5 to 15 rows), not on the holdings; every other statement is fixed. */
+    private static Map<String, Integer> withoutFeedInserts(Map<String, Integer> counts) {
+        Map<String, Integer> fixed = new LinkedHashMap<>(counts);
+        int inserts = fixed.getOrDefault(FEED_INSERT, 0);
+        fixed.remove(FEED_INSERT);
+        fixed.put("합계", counts.get("합계") - inserts);
+        return fixed;
+    }
+
+    private static int feedInserts(List<String> sqls) {
+        return (int) sqls.stream().filter(q -> FEED_INSERT.equals(category(q))).count();
     }
 
     @Test
@@ -98,6 +118,7 @@ class TurnAdvanceQueryCountTest {
 
     /**
      * 2턴 이후의 전환은 직전 턴 총액을 한 번 읽어(턴 결과 조립용) 1턴 전환보다 정확히 1문장 많다 — 그 문장도 보유 종목 수와 무관하다.
+     * 피드 행 INSERT 는 뺀 수이고, 피드 입력 조회는 JdbcClient 라 여기서 세지 않는다({@code FeedInputReaderTest} 가 센다).
      * 실측(P0-35, 풀 4종목 합성 시즌): 1턴 전환 52문장, 2턴 이후 53문장.
      */
     @Test
@@ -121,8 +142,8 @@ class TurnAdvanceQueryCountTest {
         assertThat(r3.getStatus()).isEqualTo(201);
         System.out.println("[X7] 2턴 전환 문장 수 (1종목) = " + second1.size() + ", (3종목) = " + second3.size()
                 + ", 1턴 전환 = " + firstOne.get("합계"));
-        assertThat(second1).hasSameSizeAs(second3);
+        assertThat(second1.size() - feedInserts(second1)).isEqualTo(second3.size() - feedInserts(second3));
         assertThat(firstOne.get("합계")).isEqualTo(firstThree.get("합계"));
-        assertThat(second1.size()).isEqualTo(firstOne.get("합계") + 1);
+        assertThat(second1.size() - feedInserts(second1)).isEqualTo(firstOne.get("합계") + 1);
     }
 }

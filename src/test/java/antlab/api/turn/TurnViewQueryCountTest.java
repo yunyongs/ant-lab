@@ -19,7 +19,7 @@ import org.springframework.test.context.jdbc.Sql;
 import org.springframework.test.context.jdbc.Sql.ExecutionPhase;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
 
-/** 턴 결과 조회의 SQL 문 수 — 보유 종목 수와 무관하고 쓰기가 없다. */
+/** 턴 결과 조회의 SQL 문 수 — 보유 종목 수와 무관하고 쓰기가 없다. 피드는 문장 하나로 읽는다(MVP-11). */
 @IntegrationTest
 @Sql(scripts = {"/fixtures/cleanup_season_start.sql", "/fixtures/history_pool.sql", "/fixtures/replay_months.sql",
         "/fixtures/turn_returns.sql"})
@@ -56,9 +56,9 @@ class TurnViewQueryCountTest {
             List<String> b = measure(three, turn);
             System.out.println("[T11] 턴 조회 turns/" + turn + " 문장 수 (1종목) = " + a.size() + ", (3종목) = " + b.size());
             assertThat(a).hasSameSizeAs(b);
-            // 절댓값: 현재 회원 1 + 시즌 1 + 턴 범위 1 + 전술 변경 1 (양쪽이 같이 늘어도 잡힌다)
-            assertThat(a).hasSize(4);
-            assertThat(b).hasSize(4);
+            // 절댓값: 현재 회원 1 + 시즌 1 + 턴 범위 1 + 전술 변경 1 + 그 턴의 피드 1 (양쪽이 같이 늘어도 잡힌다)
+            assertThat(a).hasSize(5);
+            assertThat(b).hasSize(5);
             for (List<String> sqls : List.of(a, b)) {
                 sqls.forEach(q -> assertThat(q.toLowerCase(Locale.ROOT)).doesNotStartWith("insert")
                         .doesNotStartWith("update").doesNotStartWith("delete"));
@@ -84,7 +84,7 @@ class TurnViewQueryCountTest {
         List<String> a = measure(plain, 3);
         List<String> b = measure(changed, 3);
         System.out.println("[T11] 턴 조회 turns/3 문장 수 (변경 0건) = " + a.size() + ", (변경 3건) = " + b.size());
-        assertThat(a).hasSize(4);
+        assertThat(a).hasSize(5);
         assertThat(b).hasSameSizeAs(a);
     }
 }

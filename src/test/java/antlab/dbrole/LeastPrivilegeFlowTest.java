@@ -67,8 +67,8 @@ class LeastPrivilegeFlowTest {
         {"ZZUS03", "40", "FORWARD_DEFENSIVE"},
     };
 
-    /** Tables nothing in the application writes yet: turn_feed (MVP-11) and agent_call (AG-02 part 3). */
-    private static final List<String> WITHOUT_WRITER = List.of("turn_feed", "agent_call");
+    /** Tables nothing in the application writes yet: agent_call (AG-02 part 3). turn_feed is written by the turn advance since MVP-11. */
+    private static final List<String> WITHOUT_WRITER = List.of("agent_call");
 
     private static AppRoleDatabase database;
 

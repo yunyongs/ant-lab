@@ -49,10 +49,11 @@ import org.springframework.test.web.servlet.assertj.MockMvcTester;
 /**
  * 턴 전환 골든 — 실제 표본 CSV 가 있을 때만 돈다(없으면 건너뜀, 환경 변수로 지정했는데 없으면 실패).
  * SQL 기준은 {@code TURN_GOLDEN}(20 → 21 → 23 × 10)이고, API 시즌은 같은 경로·시드·0턴 팀으로 시작해 {@code POST …/turns} 를 10번 보낸다.
- * 11개 표(시즌·경로·턴 가격·턴·계좌·보유·주문·체결·원장·라인업·대사 기록)의 정규화 행이 같다.
+ * 12개 표(시즌·경로·턴 가격·턴·계좌·보유·주문·체결·원장·라인업·턴 피드·대사 기록)의 정규화 행이 같다.
  * <ul>
  *   <li>22 수동 대사는 끼우지 않는다 — 시도 번호를 보존하려고(턴마다 17행, 시도 1).</li>
- *   <li>{@code turn_feed} 는 SQL 쪽에만 있고(23 이 소음 피드를 만든다) 비교하지 않는다 — Java 전환은 피드를 만들지 않는다(MVP).</li>
+ *   <li>{@code turn_feed}(MVP-11)는 자연 키 {@code (turn_no, seq)} 로 비교한다 — 종목·그룹·사건 번호는 시장:티커·그룹 코드·사건 키로 바꾼다.
+ *       API DB 에서 {@code db/24_turn_feed_check.sql} 도 돌려 저장 = 재생성과 사후 정보 차단을 확인한다.</li>
  * </ul>
  */
 @Tag("sql-golden")
@@ -131,7 +132,7 @@ class TurnAdvanceGoldenTest {
     @Test
     @Order(1)
     @Timeout(value = 25, unit = TimeUnit.MINUTES)
-    void 열_번_전환하면_SQL_턴_골든과_열한_표가_정규화_행까지_같다() throws Exception {
+    void 열_번_전환하면_SQL_턴_골든과_열두_표가_정규화_행까지_같다() throws Exception {
         long started = System.nanoTime();
         for (int t = 0; t < SqlGoldenScenario.PATH_LENGTH; t++) {
             MockHttpServletResponse r = advance(mvc, apiSeason, t);
@@ -160,9 +161,11 @@ class TurnAdvanceGoldenTest {
                 + " AND attempt_no = 1", apiSeason)).isEqualTo(170);
         assertThat(count(apiDb, "SELECT count(DISTINCT turn_no) AS n FROM reconciliation_log WHERE season_id = :sid", apiSeason))
                 .isEqualTo(10);
-        // 피드는 SQL 쪽에만 있다
-        assertThat(count(sqlDb, "SELECT count(*) AS n FROM turn_feed WHERE season_id = :sid", sqlSeason)).isPositive();
-        assertThat(count(apiDb, "SELECT count(*) AS n FROM turn_feed WHERE season_id = :sid", apiSeason)).isZero();
+        long sqlFeed = count(sqlDb, "SELECT count(*) AS n FROM turn_feed WHERE season_id = :sid", sqlSeason);
+        assertThat(sqlFeed).isPositive();
+        assertThat(count(apiDb, "SELECT count(*) AS n FROM turn_feed WHERE season_id = :sid", apiSeason)).isEqualTo(sqlFeed);
+        assertThat(count(apiDb, "SELECT count(DISTINCT turn_no) AS n FROM turn_feed WHERE season_id = :sid", apiSeason))
+                .isEqualTo(count(sqlDb, "SELECT count(DISTINCT turn_no) AS n FROM turn_feed WHERE season_id = :sid", sqlSeason));
     }
 
     @Test
@@ -185,5 +188,14 @@ class TurnAdvanceGoldenTest {
         var result = harness.run(apiDb, new SqlGoldenScenario.ScriptStep("db/23_turn_advance_check.sql",
                 SqlGoldenScenario.Kind.CHECK, "p0_17_check", java.time.Duration.ofMinutes(5)));
         harness.assertCheckPassed(result, "p0_17_check");
+    }
+
+    @Test
+    @Order(5)
+    @Timeout(value = 25, unit = TimeUnit.MINUTES)
+    void API가_만든_DB에서_24_피드_검증이_통과한다() throws Exception {
+        var result = harness.run(apiDb, new SqlGoldenScenario.ScriptStep("db/24_turn_feed_check.sql",
+                SqlGoldenScenario.Kind.CHECK, "p0_18_check", java.time.Duration.ofMinutes(5)));
+        harness.assertCheckPassed(result, "p0_18_check");
     }
 }

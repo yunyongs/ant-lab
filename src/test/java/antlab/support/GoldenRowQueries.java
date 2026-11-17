@@ -10,7 +10,8 @@ import java.util.List;
  * 골든 비교 대상 테이블의 조회와 비교 명세. 대리 키는 자연 키(시장·종목 코드, 턴 번호, 재생 행동 키)로 바꿔 내보낸다.
  * 모든 질의는 {@code :sid} 로 시즌 하나를 가리키고, 열 타입을 명시한다. 업무 공식은 여기서 다시 계산하지 않는다.
  *
- * <p>SQL(20·21·23·25)이 채우는 테이블을 담는다. 전술 변경 이력·주문의 변경 연결·라인업 구간은 25 재생이 비교한다(P0-37). 피드 테이블은 MVP가 확장한다.
+ * <p>SQL(20·21·23·25)이 채우는 테이블을 담는다. 전술 변경 이력·주문의 변경 연결·라인업 구간은 25 재생이 비교한다(P0-37).
+ * 턴 피드({@link #turnFeed()})는 MVP-11 부터 Java 전환도 만들어 같이 비교한다.
  */
 public final class GoldenRowQueries {
 
@@ -261,6 +262,32 @@ public final class GoldenRowQueries {
                 .values("declared_position", "end_turn").build());
     }
 
+    /**
+     * Turn feed in natural keys: {@code (turn_no, seq)}; asset, group and event ids become market:ticker, group code and event key.
+     * {@code template_vars} is compared as PostgreSQL's canonical jsonb text (numeric scale kept). Not selected:
+     * {@code id}, {@code season_id} and {@code created_at} (surrogate keys and time).
+     */
+    public static GoldenTable turnFeed() {
+        RowQuery q = new RowQuery("turn_feed", """
+                SELECT f.turn_no, f.seq, f.kind, a.market || ':' || a.ticker AS asset_key, g.code AS group_code,
+                       e.event_key AS event_key, f.category_hidden, f.direction, f.strength, f.repeat_count,
+                       f.template_id, f.template_vars::text AS template_vars, f.body
+                FROM turn_feed f
+                LEFT JOIN asset a ON a.id = f.asset_id
+                LEFT JOIN asset_group g ON g.id = f.asset_group_id
+                LEFT JOIN month_event e ON e.id = f.month_event_id
+                WHERE f.season_id = :sid""", List.of(
+                col("turn_no", ColumnType.LONG), col("seq", ColumnType.LONG), col("kind", ColumnType.TEXT),
+                col("asset_key", ColumnType.TEXT), col("group_code", ColumnType.TEXT), col("event_key", ColumnType.TEXT),
+                col("category_hidden", ColumnType.BOOLEAN), col("direction", ColumnType.TEXT),
+                col("strength", ColumnType.LONG), col("repeat_count", ColumnType.LONG), col("template_id", ColumnType.TEXT),
+                col("template_vars", ColumnType.TEXT), col("body", ColumnType.TEXT)));
+        return new GoldenTable(q, ComparisonSpec.named("turn_feed").keys("turn_no", "seq")
+                .values("kind", "asset_key", "group_code", "event_key", "category_hidden", "direction", "strength",
+                        "repeat_count", "template_id", "template_vars", "body")
+                .build());
+    }
+
     /** 시도 번호는 정규화로 지우지 않는다 */
     public static GoldenTable reconciliationLog() {
         RowQuery q = new RowQuery("reconciliation_log", """
@@ -289,7 +316,7 @@ public final class GoldenRowQueries {
                 .jsonSetArray("items", JsonIdNormalizer.SORT_KEY).build());
     }
 
-    /** 드릴 골든이 비교하는 11개 표 — 대사 로그만 정규화 판이다. */
+    /** 드릴 골든이 비교하는 12개 표 — 대사 로그만 정규화 판이다. */
     public static List<GoldenTable> allForDrillGolden() {
         List<GoldenTable> tables = allForTurnGolden();
         tables.set(tables.size() - 1, reconciliationLogNormalized());
@@ -329,7 +356,8 @@ public final class GoldenRowQueries {
 
     /** 현재 SQL(20·21·23)이 채우는 모든 테이블 */
     public static List<GoldenTable> allForTurnGolden() {
+        // reconciliationLog stays last: allForDrillGolden swaps it for the normalised one.
         return new ArrayList<>(List.of(season(), seasonPath(), turnPrice(), turn(), cashAccount(), holding(),
-                orders(), execution(), cashLedger(), lineup(), reconciliationLog()));
+                orders(), execution(), cashLedger(), lineup(), turnFeed(), reconciliationLog()));
     }
 }

@@ -22,7 +22,7 @@ import org.hibernate.type.SqlTypes;
 
 /**
  * 턴 피드: 사용자가 본 그대로의 소음 피드 문장(PLAN §4.13). 추가 전용.
- * 이번 기능에서는 매핑만 있고 저장소는 없다 — P0 API 는 피드를 만들지도 읽지도 않는다(MVP 에서 더한다).
+ * 턴 전환이 {@code antlab.feed} 의 생성기 출력으로 넣고(MVP-11), {@link TurnFeedRepository} 가 읽는다.
  */
 @Entity
 @Immutable
@@ -48,6 +48,8 @@ public class TurnFeed extends CreatedEntity {
     @Column(name = "seq", nullable = false)
     private int seq;
 
+    /** [복기 전용]: no getter, so a response cannot read it by accident (SPRING_JPA §4.6). */
+    @Getter(AccessLevel.NONE)
     @Enumerated(EnumType.STRING)
     @Column(name = "kind", length = 6, nullable = false)
     private FeedKind kind;
@@ -58,6 +60,8 @@ public class TurnFeed extends CreatedEntity {
     @Column(name = "asset_group_id", nullable = true)
     private Long assetGroupId;
 
+    /** [복기 전용]: no getter, see {@link #kind}. */
+    @Getter(AccessLevel.NONE)
     @Column(name = "month_event_id", nullable = true)
     private Long monthEventId;
 

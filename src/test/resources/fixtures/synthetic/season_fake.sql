@@ -50,13 +50,13 @@ FROM (VALUES
 JOIN asset a ON a.market = v.market AND a.ticker = v.ticker;
 
 INSERT INTO month_block (month_start, events_reviewed)
-SELECT d::date, FALSE FROM generate_series(DATE '2008-01-01', DATE '2008-06-01', INTERVAL '1 month') AS d
+SELECT d::date, TRUE FROM generate_series(DATE '2008-01-01', DATE '2008-06-01', INTERVAL '1 month') AS d
 UNION ALL
-SELECT d::date, FALSE FROM generate_series(DATE '2009-07-01', DATE '2009-12-01', INTERVAL '1 month') AS d
+SELECT d::date, TRUE FROM generate_series(DATE '2009-07-01', DATE '2009-12-01', INTERVAL '1 month') AS d
 UNION ALL
-SELECT d::date, FALSE FROM generate_series(DATE '2010-01-01', DATE '2010-06-01', INTERVAL '1 month') AS d
+SELECT d::date, TRUE FROM generate_series(DATE '2010-01-01', DATE '2010-06-01', INTERVAL '1 month') AS d
 UNION ALL
-SELECT d::date, FALSE FROM generate_series(DATE '2011-07-01', DATE '2011-12-01', INTERVAL '1 month') AS d;
+SELECT d::date, TRUE FROM generate_series(DATE '2011-07-01', DATE '2011-12-01', INTERVAL '1 month') AS d;
 
 -- Local returns: six hand-chosen values per asset, indexed by the month's place in its block (January and July are place 1).
 INSERT INTO asset_month_return (asset_id, month_block_id, local_return, return_kind)

@@ -87,8 +87,8 @@ public final class TurnApiSupport {
     /** 시즌에 딸린 표 행 수와 시즌 행 값 요약. 거절된 전환은 아무것도 바꾸지 않는다. */
     static Map<String, Object> state(JdbcTemplate jdbc, long seasonId) {
         Map<String, Object> out = new LinkedHashMap<>();
-        for (String table : new String[] {"turn", "turn_price", "reconciliation_log", "holding", "cash_ledger", "lineup",
-                "orders"}) {
+        for (String table : new String[] {"turn", "turn_price", "turn_feed", "reconciliation_log", "holding", "cash_ledger",
+                "lineup", "orders"}) {
             out.put(table, jdbc.queryForObject("SELECT count(*) FROM " + table + " WHERE season_id = ?", Long.class,
                     seasonId));
         }
