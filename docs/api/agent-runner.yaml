@@ -350,8 +350,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
         '409':
-          description: The turn cannot be advanced now — SEASON_NOT_ACTIVE, TURN_MISMATCH, RECONCILIATION_FAILED, DECISION_MISSING / 지금은 넘길 수 없다 — SEASON_NOT_ACTIVE, TURN_MISMATCH, RECONCILIATION_FAILED, DECISION_MISSING
-          x-error-codes: [SEASON_NOT_ACTIVE, TURN_MISMATCH, RECONCILIATION_FAILED, DECISION_MISSING]
+          description: The turn cannot be advanced now — SEASON_NOT_ACTIVE, SEASON_HALTED (stopped after repeated reconciliation failures; an administrator resumes it), TURN_MISMATCH, RECONCILIATION_FAILED, DECISION_MISSING / 지금은 넘길 수 없다 — SEASON_NOT_ACTIVE, SEASON_HALTED(대사 실패가 거듭되어 멈춤, 관리자가 재개), TURN_MISMATCH, RECONCILIATION_FAILED, DECISION_MISSING
+          x-error-codes: [SEASON_NOT_ACTIVE, SEASON_HALTED, TURN_MISMATCH, RECONCILIATION_FAILED, DECISION_MISSING]
           content:
             application/problem+json:
               schema:
@@ -569,7 +569,7 @@ components:
           format: int64
         status:
           type: string
-          enum: [IN_PROGRESS, ABANDONING, FINISHED]
+          enum: [IN_PROGRESS, ABANDONING, FINISHED, HALTED]
         currentTurnNo:
           type: integer
           format: int32
@@ -925,7 +925,7 @@ components:
           description: Maximum drawdown, 0 or less (−0.35 = −35%) / 최대 낙폭, 0 이하(−0.35 = −35%)
     SeasonStatus:
       type: string
-      enum: [IN_PROGRESS, ABANDONING, FINISHED]
+      enum: [IN_PROGRESS, ABANDONING, FINISHED, HALTED]
     Market:
       type: string
       enum: [KR, US]
@@ -1270,5 +1270,5 @@ components:
              UNSUPPORTED_MEDIA_TYPE, MALFORMED_REQUEST, INTERNAL_ERROR, POOL_NOT_LOADED, POOL_NOT_JUDGED, PATH_TOO_LONG,
              SEASON_LIMIT, TURN_NOT_REACHED, SEASON_NOT_FINISHED, SEASON_NOT_ACTIVE, TURN_MISMATCH, LEDGER_MISMATCH,
              LINEUP_MISMATCH, ASSET_NOT_IN_POOL, INSUFFICIENT_CASH, INSUFFICIENT_HOLDING, POSITION_CONFLICT, POSITION_REQUIRED,
-             INVALID_FORMATION, EVENT_TIME_CONFLICT, RECONCILIATION_FAILED, FORBIDDEN, EMAIL_TAKEN,
+             INVALID_FORMATION, EVENT_TIME_CONFLICT, RECONCILIATION_FAILED, SEASON_HALTED, FORBIDDEN, EMAIL_TAKEN,
              UNAUTHENTICATED, INVALID_CREDENTIALS, AGENT_RETIRED, DECISION_CONFLICT, DECISION_MISSING]

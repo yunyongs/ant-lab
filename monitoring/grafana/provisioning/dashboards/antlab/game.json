@@ -544,6 +544,66 @@
           "sort": "desc"
         }
       }
+    },
+    {
+      "id": 10,
+      "type": "stat",
+      "title": "Seasons halted in range",
+      "description": "Seasons stopped after repeated reconciliation failures in the selected time range; an administrator resumes them. / 선택한 시간 범위에서 대사 실패가 거듭되어 멈춘 시즌 수. 관리자가 재개한다.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "antlab-prometheus"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 20
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 0.5
+              }
+            ]
+          },
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "antlab-prometheus"
+          },
+          "refId": "A",
+          "expr": "sum(increase(antlab_season_halted_total{application=~\"$application\"}[$__range])) or vector(0)",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto"
+      }
     }
   ]
 }
