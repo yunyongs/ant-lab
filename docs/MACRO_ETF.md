@@ -525,6 +525,7 @@ ETF별, 계좌별, 전체 포트폴리오에 대해 계산한다.
 
 ### 6.3 KIS 연동
 
+- (game v1: real domain, quotes only; token cached in memory/a local file, not the DB; tables in `public` — erd §10 / 게임 v1: 실전 도메인 시세 조회만, 토큰은 DB가 아니라 메모리·로컬 파일, 테이블은 `public` — erd §10)
 - **모의 환경 전용**(`openapivts.koreainvestment.com`)이며 Spring profile로 선택한다. 모의 환경은 도메인, 키, 거래 식별자(ID, Identifier)가 별도이고 호출 한도가 낮으므로 요청 속도를 제한한다.
 - **액세스 토큰**은 데이터베이스(DB, Database)에 캐시해 만료 직전까지 재사용한다. KIS가 새 토큰 발급 빈도를 제한하기 때문이다.
 - **주문 흐름:** 승인된 제안 → 콘텐츠 해시 재계산·비교(§8.4) → 라인별 주문(₩5M을 넘지 않도록 분할) → 체결 폴링 → 체결과 원장 행을 한 트랜잭션으로 기록.
@@ -622,6 +623,8 @@ KIS 현금 잔고                                             ₩X
 핵심 컬럼만 적는다. 데이터 정의어(DDL, Data Definition Language)는 각 단계에서 직접 작성한다. M1에서 MVP의 테이블도 나머지와 함께 PostgreSQL로 옮긴다. 매크로 트랙은 `member`를 사용자 테이블로 재사용하고, `holding`과 `cash_ledger`는 `account_id`를 키로 갖게 되며(회원마다 계좌를 가짐), 주식 트랙의 `orders`/`execution`은 ETF의 `broker_order`/`fill`과 분리해 유지한다. 금액은 구조화 질의 언어(SQL, Structured Query Language)에서 `NUMERIC(19,4)`, Java에서 `BigDecimal`(금액을 다루는 Python 코드에서는 `Decimal`)을 쓰고, 비중은 `NUMERIC(9,6)`을 쓴다. z-score 같은 통계값은 금액이 아니므로 부동소수점을 써도 된다.
 
 ### 7.1 테이블
+
+(game v1: the collected-data tables are `job_run` and `asset_daily_price` in the `public` schema, not a `collected` schema — erd §10 / 게임 v1: 수집 데이터 테이블은 `collected` 스키마가 아니라 `public`의 `job_run`·`asset_daily_price` — erd §10)
 
 | 스키마 | 테이블 | 핵심 컬럼 |
 |--------|-------|-------------|

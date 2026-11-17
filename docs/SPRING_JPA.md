@@ -217,7 +217,7 @@ Phase 0 API 구현(P0-33)에서는 이 흐름을 `TurnService`가 맡는다. 가
 
 - 월 블록·종목 월 수익률(확장 구간 1997-01부터와 본 구간, PLAN §4.7 — 종목 180 × 달 약 348 ≈ 63,000행, 준비 구간 별도)은 JPA로 넣지 않는다. **MVP 전에 한 번** 전체를 적재한다(PLAN §11 MVP): 공개 CSV(수정 종가, 환율, 거시 지표)를 내려받아 월별로 집계하는 적재 스크립트 — Phase 0 표본 스크립트의 확장이며 `COPY`(psql `\copy`) 또는 `JdbcTemplate.batchUpdate`로 넣는다. 시스템 판정 포지션(`asset_position`)도 같은 스크립트가 계산한다. 국면 확률은 M2까지 비어 있다.
 - **Phase 0 API는 Phase 0 표본(종목 20·월 블록 100)만 쓴다.** `antlab_api` DB에는 Flyway가 스키마를 만든 뒤 `psql`로 `db/10`–`13`을 적재하고(§3 시드 행), Java 적재기는 위 전체 적재(MVP 전)의 몫이다. 이 API의 엔티티는 역사·종목 풀 테이블을 읽기만 한다.
-- M1 수집기(Spring 스케줄 잡)도 `JdbcTemplate` 배치로 쓴다. 엔티티는 읽기 전용(§4.4)이므로 쓰는 쪽과 읽는 쪽이 코드에서 갈린다.
+- M1 수집기(Spring 스케줄 잡)도 `JdbcTemplate` 배치로 쓴다. 엔티티는 읽기 전용(§4.4)이므로 쓰는 쪽과 읽는 쪽이 코드에서 갈린다. From M1-05/M1-06 the collector writes `job_run` and `asset_daily_price` with `JdbcTemplate`; their entities are read-only. / M1-05·M1-06부터 수집기는 `job_run`과 `asset_daily_price`를 `JdbcTemplate`으로 쓰고, 두 엔티티는 읽기 전용이다.
 - 사건 태그(`events/`)와 케이스(`cases/`)는 파일 → 테이블 적재 CLI 하나로.
 
 ## 8. 조회와 성능
