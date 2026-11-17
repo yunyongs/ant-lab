@@ -1,0 +1,5 @@
+market,ticker,name,asset_type,currency,group_code,listed_on,return_basis,proxy_index_name
+KR,069500,Synthetic KR Proxy,STOCK,KRW,SYNTHETIC,1990-01-01,PRICE,
+KR,T0001,Synthetic Alpha,STOCK,KRW,SYNTHETIC,1990-01-01,PRICE,
+US,SPY,Synthetic US Proxy,STOCK,USD,SYNTHETIC,1990-01-01,PRICE,
+US,T0002,Synthetic Beta,STOCK,USD,SYNTHETIC,1990-01-01,PRICE,
