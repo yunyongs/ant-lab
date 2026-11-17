@@ -9,6 +9,8 @@ from fastapi.responses import Response
 from pydantic import BaseModel, Field
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from .engine_errors import EngineError
+
 PROBLEM_MEDIA_TYPE = "application/problem+json"
 
 logger = logging.getLogger(__name__)
@@ -20,6 +22,9 @@ class ErrorCode(StrEnum):
     METHOD_NOT_ALLOWED = "METHOD_NOT_ALLOWED"
     UNAUTHENTICATED = "UNAUTHENTICATED"
     INTERNAL_ERROR = "INTERNAL_ERROR"
+    PATH_TOO_LONG = "PATH_TOO_LONG"
+    POOL_NOT_FOUND = "POOL_NOT_FOUND"
+    HISTORY_UNAVAILABLE = "HISTORY_UNAVAILABLE"
 
 
 class FieldViolation(BaseModel):
@@ -78,7 +83,28 @@ _HTTP_CODES = {
 }
 
 
+# Domain failures that reach the caller. PATH_TOO_LONG uses the status Java gives the same code.
+# UNSAFE_DB_ROLE is deliberately absent: it answers as INTERNAL_ERROR without role facts.
+_DOMAIN_STATUS = {
+    "INVALID_ARGUMENT": 400,
+    "PATH_TOO_LONG": 422,
+    "POOL_NOT_FOUND": 404,
+    "HISTORY_UNAVAILABLE": 503,
+}
+_INTERNAL_DETAIL = "The engine could not process the request."
+
+
 def register_handlers(app: FastAPI) -> None:
+    @app.exception_handler(EngineError)
+    async def engine_handler(request: Request, exc: EngineError) -> Response:
+        status = _DOMAIN_STATUS.get(exc.code)
+        if status is None:
+            logger.error("Engine failure %s", exc.code)
+            return problem_response(
+                500, ErrorCode.INTERNAL_ERROR, _INTERNAL_DETAIL, request.url.path
+            )
+        return problem_response(status, ErrorCode(exc.code), str(exc), request.url.path)
+
     @app.exception_handler(RequestValidationError)
     async def validation_handler(request: Request, exc: RequestValidationError) -> Response:
         errors = [

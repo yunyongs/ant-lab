@@ -2,10 +2,10 @@ name: engine
 
 on:
   pull_request:
-    paths: ['engine/**', 'docs/api/engine.yaml', 'src/test/resources/engine/p0-boot6-v1_vectors.csv', 'db/roles/**', 'src/main/resources/db/migration/**', '.github/workflows/engine.yml']
+    paths: ['engine/**', 'docs/api/engine.yaml', 'src/test/resources/engine/p0-boot6-v1_vectors.csv', 'db/roles/**', 'src/main/resources/db/migration/**', 'src/main/java/antlab/common/error/ErrorCode.java', 'src/main/java/antlab/api/error/ErrorHttpMapping.java', '.github/workflows/engine.yml']
   push:
     branches: [main]
-    paths: ['engine/**', 'docs/api/engine.yaml', 'src/test/resources/engine/p0-boot6-v1_vectors.csv', 'db/roles/**', 'src/main/resources/db/migration/**', '.github/workflows/engine.yml']
+    paths: ['engine/**', 'docs/api/engine.yaml', 'src/test/resources/engine/p0-boot6-v1_vectors.csv', 'db/roles/**', 'src/main/resources/db/migration/**', 'src/main/java/antlab/common/error/ErrorCode.java', 'src/main/java/antlab/api/error/ErrorHttpMapping.java', '.github/workflows/engine.yml']
   workflow_dispatch:
 
 permissions:

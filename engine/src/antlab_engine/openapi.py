@@ -35,9 +35,15 @@ def build_openapi(app: FastAPI) -> dict[str, Any]:
     return schema
 
 
+def _is_validation_error(response: dict[str, Any]) -> bool:
+    schema = response.get("content", {}).get("application/json", {}).get("schema", {})
+    return schema.get("$ref", "").endswith("/HTTPValidationError")
+
+
 def _normalize_responses(responses: dict[str, Any]) -> None:
-    validation = responses.pop("422", None)
-    if validation is not None:
+    validation = responses.get("422")
+    if validation is not None and _is_validation_error(validation):
+        del responses["422"]
         responses["400"] = {
             "description": "Invalid argument",
             "content": {PROBLEM_MEDIA_TYPE: {"schema": {"$ref": "#/components/schemas/Problem"}}},

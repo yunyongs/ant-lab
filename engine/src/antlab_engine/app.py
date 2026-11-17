@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 
-from .api import health, info
+from .api import health, info, paths
 from .errors import register_handlers
 from .history.model import HistoryReader
 from .history.reader import PostgresHistoryReader
@@ -17,6 +17,7 @@ def create_app(settings: Settings, *, history_reader: HistoryReader | None = Non
     app.add_middleware(EngineTokenMiddleware, settings=settings)
     app.include_router(health.router)
     app.include_router(info.router)
+    app.include_router(paths.router)
     register_handlers(app)
     app.openapi = lambda: build_openapi(app)  # type: ignore[method-assign]
     return app

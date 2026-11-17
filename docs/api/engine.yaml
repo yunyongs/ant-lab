@@ -30,6 +30,34 @@ paths:
           $ref: '#/components/responses/Unauthenticated'
         '500':
           $ref: '#/components/responses/InternalError'
+  /v1/paths:
+    post:
+      operationId: createPath
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PathRequest'
+      responses:
+        '200':
+          description: One path of months / 달 경로 하나
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PathResult'
+        '400':
+          $ref: '#/components/responses/InvalidArgument'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/PoolNotFound'
+        '422':
+          $ref: '#/components/responses/PathTooLong'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/HistoryUnavailable'
 components:
   securitySchemes:
     EngineToken:
@@ -49,6 +77,30 @@ components:
         application/problem+json:
           schema:
             $ref: '#/components/schemas/Problem'
+    InvalidArgument:
+      description: Invalid argument / 잘못된 인자
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    PoolNotFound:
+      description: No pool is stored for the base date / 기준일의 풀이 없다
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    PathTooLong:
+      description: The replayable history cannot build a path of this length (code PATH_TOO_LONG, same status as the public API) / 재생 가능한 이력으로 이 길이의 경로를 만들 수 없다(코드 PATH_TOO_LONG, 공개 API와 같은 상태)
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    HistoryUnavailable:
+      description: The history database is not configured or not reachable / 이력 DB가 설정되지 않았거나 닿지 않는다
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
   schemas:
     Health:
       type: object
@@ -64,6 +116,72 @@ components:
         service: {type: string}
         apiVersion: {type: string}
         version: {type: string}
+    PathRequest:
+      type: object
+      description: >-
+        Draws one path. `seed` is a decimal string (signed 64-bit). `recentMonths` and `maxOverlap` apply to
+        `m2-sb6-v1` only; `p0-boot6-v1` rejects them. `conditional` must be false until regime-conditional
+        paths exist. / 경로 하나를 뽑는다. `seed`는 부호 있는 64비트 십진 문자열이다. `recentMonths`·`maxOverlap`은
+        `m2-sb6-v1`에만 쓰이고 `p0-boot6-v1`은 거부한다. `conditional`은 국면 조건 경로가 생기기 전까지 false여야 한다.
+      additionalProperties: false
+      required: [engineVersion, seed, length, baseDate]
+      properties:
+        engineVersion:
+          type: string
+          enum: [p0-boot6-v1, m2-sb6-v1]
+        seed:
+          type: string
+          pattern: '^-?[0-9]{1,19}$'
+        length:
+          type: integer
+          enum: [12, 24, 60, 120]
+        baseDate: {type: string, format: date}
+        conditional: {type: boolean, default: false}
+        recentMonths:
+          type: array
+          maxItems: 4000
+          uniqueItems: true
+          items:
+            type: string
+            pattern: '^[0-9]{4}-(0[1-9]|1[0-2])$'
+        maxOverlap:
+          type: string
+          default: '1'
+          pattern: '^(0(\.[0-9]{1,4})?|1(\.0{1,4})?)$'
+    PathBlock:
+      type: object
+      required: [startTurn, drawnLength, length, tier]
+      properties:
+        startTurn: {type: integer}
+        drawnLength: {type: integer}
+        length: {type: integer}
+        tier:
+          type: string
+          enum: [ALIGNED, NEAR, FREE, JOIN]
+    PathResult:
+      type: object
+      description: >-
+        Months (`YYYY-MM`, turn order) are replay-only data for the internal backend route; they must not
+        reach a public or agent response before review. `historyDigest` is the SHA-256 (hex) of
+        `engineVersion` and the sorted replayable `YYYY-MM` months of the snapshot, each on its own line. /
+        달(`YYYY-MM`, 턴 순서)은 내부 backend 경로 전용 복기 데이터이며 복기 전에는 공개·에이전트 응답에 나가면 안 된다. `historyDigest`는 `engineVersion`과 스냅샷의 재생 가능한 `YYYY-MM` 달을 정렬해 한 줄에 하나씩 이은 문자열의 SHA-256(16진)이다.
+      required: [engineVersion, months, blocks, overlapMonths, overlapMet, attempt, historyDigest]
+      properties:
+        engineVersion: {type: string}
+        months:
+          type: array
+          items:
+            type: string
+            pattern: '^[0-9]{4}-(0[1-9]|1[0-2])$'
+        blocks:
+          type: array
+          items: {$ref: '#/components/schemas/PathBlock'}
+        overlapMonths: {type: integer}
+        overlapMet: {type: boolean}
+        attempt: {type: integer}
+        historyDigest:
+          type: string
+          pattern: '^[0-9a-f]{64}$'
     FieldViolation:
       type: object
       required: [field, reason]
@@ -84,6 +202,7 @@ components:
           items: {$ref: '#/components/schemas/FieldViolation'}
     ErrorCode:
       type: string
-      enum: [INVALID_ARGUMENT, NOT_FOUND, METHOD_NOT_ALLOWED, UNAUTHENTICATED, INTERNAL_ERROR]
+      enum: [INVALID_ARGUMENT, NOT_FOUND, METHOD_NOT_ALLOWED, UNAUTHENTICATED, INTERNAL_ERROR,
+           PATH_TOO_LONG, POOL_NOT_FOUND, HISTORY_UNAVAILABLE]
 security:
   - EngineToken: []
