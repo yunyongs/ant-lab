@@ -10,7 +10,7 @@ from datetime import date
 import numpy as np
 from numpy.lib.stride_tricks import sliding_window_view
 
-from antlab_engine.regime.model import SeriesView, Transformed
+from antlab_engine.regime.model import SeriesView, Transformed, take_dates
 
 
 def _clean(values: np.ndarray) -> np.ndarray:
@@ -117,12 +117,13 @@ def as_of_join(left: SeriesView, right: SeriesView) -> np.ndarray:
 
 def spread_on_left_dates(left: SeriesView, right: SeriesView) -> Transformed:
     """left - right, with `right` joined as of each left date."""
-    return Transformed(left.ref_dates, left.values - as_of_join(left, right))
+    return Transformed(left.ref_dates, left.values - as_of_join(left, right), left.ordinals)
 
 
 def same_date_spread(left: SeriesView, right: SeriesView) -> Transformed:
     """left - right on the dates both series have."""
     common = np.intersect1d(left.ordinals, right.ordinals)
-    first = left.values[np.searchsorted(left.ordinals, common)]
+    at = np.searchsorted(left.ordinals, common)
+    first = left.values[at]
     second = right.values[np.searchsorted(right.ordinals, common)]
-    return Transformed(tuple(date.fromordinal(int(o)) for o in common), first - second)
+    return Transformed(take_dates(left.ref_dates, at), first - second, common)

@@ -20,6 +20,8 @@ RUN ./gradlew --no-daemon resolveDependencies
 # 소스는 src/main 만 복사한다. 시험(src/test)은 이미지 빌드 밖에서 돌린다(Docker 소켓을 빌드에 연결하지 않는다).
 # --offline: a dependency the layer above missed fails the build instead of being downloaded here.
 COPY src/main src/main
+# feed/*.csv is the source of the turn feed templates; processResources copies it onto the classpath.
+COPY feed feed
 RUN ./gradlew --no-daemon --offline bootJar
 
 # 의존성(lib)·loader(org)·메타데이터(META-INF)·앱 클래스(classes)를 레이어별로 복사할 수 있게 펼친다.

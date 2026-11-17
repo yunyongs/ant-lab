@@ -22,6 +22,9 @@
 #   docker compose --profile api --profile monitoring up -d --wait
 #   isolated: add ANTLAB_PROMETHEUS_PORT=19090 ANTLAB_GRAFANA_PORT=13000 and -p antlab-qa (docs/DEPLOY.md §3.2).
 #   smoke: scripts/monitoring_smoke.sh (docs/DEPLOY.md §3.2).
+# MVP-20: on an empty volume the db container also creates the roles antlab_owner (Flyway) and antlab_app (the api) through
+#   /docker-entrypoint-initdb.d; an existing volume needs the one-time command in db/README.md "App roles". The api container then
+#   connects as antlab_app and refuses to start as a superuser.
 # 빈 볼륨으로 처음 시작할 때만 POSTGRES_DB(antlab_api)가 만들어진다. 이미 있는 볼륨에는 적용되지 않는다 — 절차는 db/README.md.
 # 데이터는 이름 붙은 볼륨 db-data(실제 이름 antlab_db-data)에 남는다.
 # 주의: docker compose down -v는 이 프로젝트의 볼륨을 지워 모든 데이터가 사라진다 — 꼭 필요할 때만 쓴다.
@@ -41,6 +44,10 @@ services:
       - "127.0.0.1:${ANTLAB_DB_PORT:-5432}:5432"
     volumes:
       - db-data:/var/lib/postgresql/data
+      # Role script (MVP-20): the initdb wrapper creates antlab_owner and antlab_app on an empty volume; /antlab-roles also lets
+      # the manual command for an existing volume read the script (db/README.md).
+      - ./db/roles:/antlab-roles:ro
+      - ./db/roles/initdb:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${USER:-antlab} -d postgres"]
       interval: 5s
@@ -60,7 +67,9 @@ services:
       SPRING_PROFILES_ACTIVE: prod
       # 컨테이너 안에서는 서비스 이름 db 와 컨테이너 포트 5432 로 붙는다(호스트 게시 포트와 무관).
       ANTLAB_DB_URL: jdbc:postgresql://db:5432/antlab_api
-      ANTLAB_DB_USER: ${ANTLAB_DB_USER:-${USER:-antlab}}
+      # Fixed role names (MVP-20): a host .env must not put the app back on the superuser. The Flyway user owns the schema.
+      ANTLAB_DB_USER: antlab_app
+      ANTLAB_DB_OWNER_USER: antlab_owner
       # JWT signing key (SEC-03); empty means the app refuses to start.
       ANTLAB_JWT_SECRET: ${ANTLAB_JWT_SECRET:-}
       # Agent runner service token and owner id (AG-02); empty means every runner request answers 401.

@@ -1,0 +1,1 @@
+{"seasonSeed":"14","baseDate":"2026-01-02","horizonTurns":60,"n":100,"riskLimit":"-0.20000000","summaryTurns":[12,60],"portfolios":[{"key":"TEAM","cash":"0.266666666667","weights":[{"asset":"KR:A001","weight":"0.333333333333"},{"asset":"US:C003","weight":"0.400000000000"}]},{"key":"CASH","cash":"1","weights":[]}]}

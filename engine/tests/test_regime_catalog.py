@@ -69,7 +69,13 @@ def test_indicator_14_has_one_stale_unit_over_both_parts():
 
 def test_series_specs_match_the_publication_rules():
     assert set(SERIES_SPECS) == set(S) and len(S) == 15
-    assert {c for c, s in SERIES_SPECS.items() if s.revisable} == {S.US_CPILFESL, S.US_ICSA}
+    assert {c for c, s in SERIES_SPECS.items() if s.revisable} == {
+        S.US_CPILFESL,
+        S.US_ICSA,
+        S.KR_CPI,
+        S.KR_CLI,
+        S.KR_EXPORTS,
+    }
     assert {c: s.kr_lag_days for c, s in SERIES_SPECS.items() if s.kr_lag_days} == {
         S.KR_CPI: 7,
         S.KR_EXPORTS: 15,

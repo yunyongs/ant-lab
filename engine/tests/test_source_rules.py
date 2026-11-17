@@ -357,6 +357,7 @@ REGIME_ALLOWED_IMPORTS = {
     "enum",
     "math",
     "numpy",
+    "operator",
     "statistics",
     "types",
     "typing",
@@ -403,6 +404,11 @@ def test_regime_imports_only_numpy_and_the_standard_library():
         "regime/transforms.py",
         "regime/zscore.py",
         "regime/stale.py",
+        "regime/params.py",
+        "regime/probability.py",
+        "regime/hysteresis.py",
+        "regime/scoring.py",
+        "regime/evaluate.py",
     }
     found = {n: regime_disallowed_imports(t) for n, t in texts.items()}
     assert {n: bad for n, bad in found.items() if bad} == {}

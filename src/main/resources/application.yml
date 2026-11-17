@@ -21,7 +21,8 @@ spring:
       hibernate.jdbc.time_zone: Asia/Seoul
   flyway:
     enabled: true
-    locations: classpath:db/migration
+    # db/callback holds afterMigrate.sql (table rights of antlab_app, MVP-20); it does nothing when that role does not exist.
+    locations: classpath:db/migration,classpath:db/callback
     default-schema: public
     schemas: public
     baseline-on-migrate: false
@@ -38,6 +39,9 @@ server:
   shutdown: graceful
 
 antlab:
+  db:
+    # MVP-20: refuse to start when the DB user is not the least-privilege role. On in prod.
+    least-privilege-check: false
   pool:
     # 기준일 풀(PLAN §7 매년 1월 첫 거래일). 표본 = 2026-01-02(db/20_season_start.sql 설정 표와 같음)
     base-date: ${ANTLAB_POOL_BASE_DATE:2026-01-02}
@@ -64,6 +68,18 @@ antlab:
     token: ${ANTLAB_AGENT_RUNNER_TOKEN:}
     owner-member-id: ${ANTLAB_AGENT_RUNNER_OWNER_ID:}
     max-seasons-per-week: 5
+  # Python engine client (M2-06). Calls go out only when url and token are set; the token has no default.
+  # path-source = java keeps the in-process bootstrap; engine asks the engine for season paths and then needs url and a
+  # token of at least 32 characters at startup. Generate the token with: openssl rand -hex 32
+  engine:
+    url: ${ANTLAB_ENGINE_URL:}
+    token: ${ANTLAB_ENGINE_TOKEN:}
+    connect-timeout: 1s
+    paths-timeout: 3s
+    projections-timeout: 15s
+    path-source: ${ANTLAB_ENGINE_PATH_SOURCE:java}
+    path-version: m2-sb6-v1
+    projection-paths: 2000
   # KIS quote client (M1-06): quote lookup only, off by default. Keys come from the environment, never from this file.
   # token-cache-dir shares the token file with tools/fetch (data/cache/kis); empty keeps the token in memory.
   collect:
@@ -148,6 +164,16 @@ spring:
   datasource:
     # 기본값 없음: 운영 프로필에서 ANTLAB_DB_URL 을 빠뜨리면 localhost 로 가지 않고 기동에 실패한다.
     url: ${ANTLAB_DB_URL}
+    # MVP-20: the app runs as antlab_app (DML only). Passwords: /run/secrets/spring.datasource.password and
+    # /run/secrets/spring.flyway.password (OPS mounts them).
+    username: ${ANTLAB_DB_USER:antlab_app}
+  flyway:
+    # Migrations run as the owner role; the URL is the datasource URL.
+    user: ${ANTLAB_DB_OWNER_USER:antlab_owner}
+    password: ${ANTLAB_DB_OWNER_PASSWORD:}
+antlab:
+  db:
+    least-privilege-check: true
 server:
   forward-headers-strategy: framework
 springdoc:
