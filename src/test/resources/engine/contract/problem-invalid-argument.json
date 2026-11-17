@@ -1,0 +1,1 @@
+{"title":"Invalid Argument","status":400,"detail":"The request is invalid.","instance":"/v1/paths","code":"INVALID_ARGUMENT","errors":[{"field":"body.length","reason":"Input should be 12, 24, 60 or 120"}]}

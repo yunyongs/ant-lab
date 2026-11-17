@@ -1,0 +1,1 @@
+{"title":"Pool Not Found","status":404,"detail":"No pool is stored for the base date.","instance":"/v1/paths","code":"POOL_NOT_FOUND"}
