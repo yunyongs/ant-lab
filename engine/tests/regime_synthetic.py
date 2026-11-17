@@ -91,3 +91,34 @@ def panel(years: int = 8, seed: int = 1) -> list[Observation]:
         for i, v in enumerate(walk(weeks, 220.0, 0.02))
     ]
     return out
+
+
+def hexed(value: float | None) -> str | None:
+    return None if value is None else float(value).hex()
+
+
+def fingerprint(snap) -> tuple:  # noqa: ANN001
+    """Every output of one snapshot as exact text, so two runs compare bit for bit."""
+    return (
+        snap.step,
+        tuple((s.term_id, s.status.value, hexed(s.z)) for s in snap.signals),
+        tuple(sorted((k, hexed(v)) for k, v in snap.indicator_z.items())),
+        *(
+            hexed(getattr(snap, name))
+            for name in ("r_us", "r_kr", "g_us", "g_kr", "r_raw", "g_raw", "r", "g", "f", "s")
+        ),
+        None if snap.p is None else tuple(hexed(x) for x in snap.p),
+        snap.rate_dir,
+        snap.growth_dir,
+        snap.label,
+        snap.label_since_step,
+        snap.phase,
+        tuple(
+            (axis.value, None if d is None else (d.direction.value, hexed(d.strength)))
+            for axis, d in sorted(snap.display.items())
+        ),
+        snap.stale,
+        snap.unavailable,
+        snap.quality_ok,
+        snap.carried,
+    )

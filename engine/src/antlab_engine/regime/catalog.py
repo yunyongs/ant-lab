@@ -44,7 +44,7 @@ def _daily(
 ) -> Callable[[Views], Transformed]:
     def run(views: Views) -> Transformed:
         view = views[code]
-        return Transformed(view.ref_dates, fn(view.values, *args))
+        return Transformed(view.ref_dates, fn(view.values, *args), view.ordinals)
 
     return run
 
@@ -54,7 +54,8 @@ def _monthly(
 ) -> Callable[[Views], Transformed]:
     def run(views: Views) -> Transformed:
         view = views[code]
-        return Transformed(view.ref_dates, fn(tf.month_index(view.ref_dates), view.values, *args))
+        months = tf.month_index(view.ref_dates)
+        return Transformed(view.ref_dates, fn(months, view.values, *args), view.ordinals)
 
     return run
 
@@ -62,14 +63,16 @@ def _monthly(
 def _level(code: SeriesCode, offset: float = 0.0) -> Callable[[Views], Transformed]:
     def run(views: Views) -> Transformed:
         view = views[code]
-        return Transformed(view.ref_dates, view.values - offset)
+        return Transformed(view.ref_dates, view.values - offset, view.ordinals)
 
     return run
 
 
 def _base_rate_gap(views: Views) -> Transformed:
     left = views[S.KR_KTB3Y]
-    return Transformed(left.ref_dates, left.values - tf.as_of_join(left, views[S.KR_BASE_RATE]))
+    return Transformed(
+        left.ref_dates, left.values - tf.as_of_join(left, views[S.KR_BASE_RATE]), left.ordinals
+    )
 
 
 def _kr_us_spread(views: Views) -> Transformed:
@@ -78,17 +81,17 @@ def _kr_us_spread(views: Views) -> Transformed:
 
 def _kr_us_spread_delta(views: Views) -> Transformed:
     spread = _kr_us_spread(views)
-    return Transformed(spread.ref_dates, tf.delta(spread.values, 126))
+    return Transformed(spread.ref_dates, tf.delta(spread.values, 126), spread.ordinals)
 
 
 def _kr_credit_delta(views: Views) -> Transformed:
     spread = tf.same_date_spread(views[S.KR_CORP_AA], views[S.KR_KTB3Y])
-    return Transformed(spread.ref_dates, tf.delta(spread.values, 63))
+    return Transformed(spread.ref_dates, tf.delta(spread.values, 63), spread.ordinals)
 
 
 def _identity(views: Views) -> Transformed:
     view = views[S.US_VIX]
-    return Transformed(view.ref_dates, view.values)
+    return Transformed(view.ref_dates, view.values, view.ordinals)
 
 
 R, G, FX, SENT = Axis.RATE, Axis.GROWTH, Axis.FX, Axis.SENTIMENT

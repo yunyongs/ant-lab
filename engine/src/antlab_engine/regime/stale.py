@@ -2,7 +2,8 @@
 
 Daily series are stale after more than 2 business days (weekdays minus the holidays passed in),
 weekly and weekly-published series after more than 14 days, monthly series after more than 2
-calendar months. Age counts from the newest arrival of any reference date (`last_available_on`).
+calendar months. Age counts from the first arrival of the newest reference date
+(`last_available_on`).
 """
 
 from collections.abc import Mapping
@@ -70,7 +71,10 @@ def stale_indicators(
     Indicator 14 counts once, for the quality flag. A term is excluded by its own inputs only
     (`term_signals`), so a Korean data gap does not remove the US credit term 14US.
     """
-    states = series_states(views, as_of, calendars)
+    return stale_indicators_from_states(series_states(views, as_of, calendars))
+
+
+def stale_indicators_from_states(states: Mapping[SeriesCode, SeriesState]) -> frozenset[int]:
     return frozenset(
         i
         for i in INDICATOR_IDS

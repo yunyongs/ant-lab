@@ -34,18 +34,18 @@ def _clip(z: float, sign: int) -> float:
     return max(-Z_CLIP, min(Z_CLIP, sign * z))
 
 
-def _window(series: Transformed) -> tuple[np.ndarray, date] | None:
-    """Finite points inside the window with the latest point last, and the earliest point's date."""
-    if len(series.ref_dates) == 0:
+def _window(series: Transformed) -> tuple[np.ndarray, date, date] | None:
+    """Finite points in the window (latest last), the earliest point's date and the latest date."""
+    if len(series.values) == 0:
         return None
-    latest_date = series.ref_dates[-1]
+    ordinals = series.ordinals
+    latest_date = date.fromordinal(int(ordinals[-1]))
     start = years_before(latest_date, Z_WINDOW_YEARS).toordinal()
-    ordinals = np.array([d.toordinal() for d in series.ref_dates], dtype=np.int64)
     keep = (ordinals > start) & np.isfinite(series.values)
     if not keep.any() or not math.isfinite(series.values[-1]):
         return None
     first = date.fromordinal(int(ordinals[keep][0]))
-    return series.values[keep], first
+    return series.values[keep], first, latest_date
 
 
 def z_of_latest(series: Transformed, sign: int, percentile: bool = False) -> TermSignal:
@@ -53,8 +53,8 @@ def z_of_latest(series: Transformed, sign: int, percentile: bool = False) -> Ter
     found = _window(series)
     if found is None:
         return TermSignal("", None, TermStatus.MISSING)
-    window, first = found
-    if len(window) < Z_MIN_POINTS or first > years_before(series.ref_dates[-1], Z_MIN_YEARS):
+    window, first, latest_date = found
+    if len(window) < Z_MIN_POINTS or first > years_before(latest_date, Z_MIN_YEARS):
         return TermSignal("", None, TermStatus.WARMING)
     latest = float(window[-1])
     if percentile:
@@ -93,4 +93,11 @@ def term_signals(
     """One signal per catalog term, using only what was known on `as_of`."""
     views = {code: pit.snapshot(code, as_of) for code in SeriesCode}
     states = series_states(views, as_of, calendars)
+    return signals_from_views(views, states)
+
+
+def signals_from_views(
+    views: Mapping[SeriesCode, SeriesView], states: Mapping[SeriesCode, SeriesState]
+) -> tuple[TermSignal, ...]:
+    """The same signals from snapshots and series states that the caller already holds."""
     return tuple(_signal(term, views, states) for term in TERMS)
