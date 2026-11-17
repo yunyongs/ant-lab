@@ -18,7 +18,7 @@ import org.springframework.test.context.jdbc.Sql.ExecutionPhase;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
 import tools.jackson.databind.JsonNode;
 
-/** {@code GET …/turns/{n}} returns the feed of turn n only, through the assembler the advance uses. */
+/** {@code GET …/turns/{n}} returns the feed and the alerts of turn n only, through the assembler the advance uses. */
 @IntegrationTest
 @Sql(scripts = {"/fixtures/cleanup_season_start.sql", "/fixtures/history_pool.sql", "/fixtures/replay_months.sql",
         "/fixtures/turn_returns.sql"})
@@ -54,8 +54,13 @@ class TurnViewFeedTest {
             for (JsonNode item : feed) {
                 assertThat(item.get("turnNo").asInt()).as("not the feed of another turn").isEqualTo(turn);
             }
-            assertThat(feed.size()).isEqualTo(jdbc.queryForObject("SELECT count(*) FROM turn_feed WHERE season_id = ? AND turn_no = ?",
-                    Integer.class, season, turn));
+            assertThat(feed.size()).isEqualTo(jdbc.queryForObject("SELECT count(*) FROM turn_feed WHERE season_id = ? AND turn_no = ?"
+                    + " AND kind <> 'NUDGE'", Integer.class, season, turn));
+            JsonNode alerts = json(r).get("alerts");
+            assertThat(alerts).as("turn " + turn).isEqualTo(advanced[turn - 1].get("alerts"));
+            assertThat(alerts.size()).isEqualTo(jdbc.queryForObject("SELECT count(*) FROM turn_feed WHERE season_id = ? AND turn_no = ?"
+                    + " AND kind = 'NUDGE'", Integer.class, season, turn));
+            assertThat(alerts).isNotEmpty();
             shown += feed.size();
         }
         assertThat(shown).isPositive();
@@ -71,6 +76,8 @@ class TurnViewFeedTest {
         JsonNode feed = json(empty).get("feed");
         assertThat(feed.isArray()).isTrue();
         assertThat(feed).isEmpty();
+        assertThat(json(empty).get("alerts").isArray()).isTrue();
+        assertThat(json(empty).get("alerts")).as("alerts of a turn with no stored rows").isEmpty();
         assertThat(json(getTurn(mvc, season, 1)).get("feed")).as("the other turn keeps its rows").isNotEmpty();
 
         MockHttpServletResponse later = getTurn(mvc, season, 3);
@@ -88,11 +95,17 @@ class TurnViewFeedTest {
             for (long season : new long[] {first, second}) {
                 JsonNode feed = json(getTurn(mvc, season, turn)).get("feed");
                 assertThat(feed.size()).as("season " + season + " turn " + turn).isEqualTo(jdbc.queryForObject(
-                        "SELECT count(*) FROM turn_feed WHERE season_id = ? AND turn_no = ?", Integer.class, season, turn));
+                        "SELECT count(*) FROM turn_feed WHERE season_id = ? AND turn_no = ? AND kind <> 'NUDGE'", Integer.class,
+                        season, turn));
+                assertThat(json(getTurn(mvc, season, turn)).get("alerts").size()).isEqualTo(jdbc.queryForObject(
+                        "SELECT count(*) FROM turn_feed WHERE season_id = ? AND turn_no = ? AND kind = 'NUDGE'", Integer.class,
+                        season, turn));
                 assertThat(feed).isNotEmpty();
             }
             assertThat(json(getTurn(mvc, first, turn)).get("feed")).isEqualTo(firstAdvanced[turn - 1].get("feed"));
             assertThat(json(getTurn(mvc, second, turn)).get("feed")).isEqualTo(secondAdvanced[turn - 1].get("feed"));
+            assertThat(json(getTurn(mvc, first, turn)).get("alerts")).isEqualTo(firstAdvanced[turn - 1].get("alerts"));
+            assertThat(json(getTurn(mvc, second, turn)).get("alerts")).isEqualTo(secondAdvanced[turn - 1].get("alerts"));
         }
         // Both seasons have rows of the same turn numbers, so a missing season condition would double the lists.
         assertThat(jdbc.queryForObject("SELECT count(DISTINCT season_id) FROM turn_feed WHERE season_id IN (?, ?)", Integer.class,

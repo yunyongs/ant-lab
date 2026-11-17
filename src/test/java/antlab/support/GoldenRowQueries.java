@@ -264,7 +264,8 @@ public final class GoldenRowQueries {
 
     /**
      * Turn feed in natural keys: {@code (turn_no, seq)}; asset, group and event ids become market:ticker, group code and event key.
-     * {@code template_vars} is compared as PostgreSQL's canonical jsonb text (numeric scale kept). Not selected:
+     * {@code template_vars} is compared as PostgreSQL's canonical jsonb text (numeric scale kept). The nudge alerts of the Java advance
+     * (MVP-12, rule version {@code mvp-12:v1}) have no SQL twin, so only the feed rows are compared. Not selected:
      * {@code id}, {@code season_id} and {@code created_at} (surrogate keys and time).
      */
     public static GoldenTable turnFeed() {
@@ -276,7 +277,7 @@ public final class GoldenRowQueries {
                 LEFT JOIN asset a ON a.id = f.asset_id
                 LEFT JOIN asset_group g ON g.id = f.asset_group_id
                 LEFT JOIN month_event e ON e.id = f.month_event_id
-                WHERE f.season_id = :sid""", List.of(
+                WHERE f.season_id = :sid AND f.kind <> 'NUDGE'""", List.of(
                 col("turn_no", ColumnType.LONG), col("seq", ColumnType.LONG), col("kind", ColumnType.TEXT),
                 col("asset_key", ColumnType.TEXT), col("group_code", ColumnType.TEXT), col("event_key", ColumnType.TEXT),
                 col("category_hidden", ColumnType.BOOLEAN), col("direction", ColumnType.TEXT),

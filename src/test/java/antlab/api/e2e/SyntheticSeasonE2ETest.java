@@ -328,7 +328,11 @@ class SyntheticSeasonE2ETest {
         int total = 0;
         for (int turn = 1; turn <= TURNS; turn++) {
             List<Map<String, Object>> rows = jdbc.queryForList(
-                    "SELECT seq, asset_id, body FROM turn_feed WHERE season_id = ? AND turn_no = ? ORDER BY seq", season, turn);
+                    "SELECT seq, asset_id, body FROM turn_feed WHERE season_id = ? AND turn_no = ? AND kind <> 'NUDGE' ORDER BY seq",
+                    season, turn);
+            List<Map<String, Object>> nudges = jdbc.queryForList(
+                    "SELECT seq, asset_id, body FROM turn_feed WHERE season_id = ? AND turn_no = ? AND kind = 'NUDGE' ORDER BY seq",
+                    season, turn);
             assertThat(rows.size()).as("turn " + turn).isLessThanOrEqualTo(15);
             Reply reply = http.get(url("/turns/" + turn));
             assertThat(reply.status()).as(reply.body()).isEqualTo(200);
@@ -341,6 +345,13 @@ class SyntheticSeasonE2ETest {
                 assertThat(feed.get(i).get("body").asString()).isEqualTo(rows.get(i).get("body"));
                 Object asset = rows.get(i).get("asset_id");
                 assertThat(feed.get(i).get("assetId").isNull()).isEqualTo(asset == null);
+            }
+            JsonNode alerts = reply.json().get("alerts");
+            assertThat(alerts.size()).as("alerts of turn " + turn).isEqualTo(nudges.size()).isBetween(1, 4);
+            for (int i = 0; i < nudges.size(); i++) {
+                assertThat(alerts.get(i).get("seq").asInt()).as("alert numbers continue after the feed").isEqualTo(rows.size() + i + 1);
+                assertThat(((Number) nudges.get(i).get("seq")).intValue()).isEqualTo(rows.size() + i + 1);
+                assertThat(alerts.get(i).get("body").asString()).isEqualTo(nudges.get(i).get("body"));
             }
             total += rows.size();
         }
@@ -366,10 +377,19 @@ class SyntheticSeasonE2ETest {
         for (String file : new String[] {"db/24_turn_feed_def.sql", "feed/templates.csv", "feed/variables.csv"}) {
             runner.putFile(file, Path.of(file));
         }
+        // The same comparison as tf_regen_matches, on the feed rows only: the Java advance also stores nudge alerts (mvp-12:v1), which
+        // the SQL reference does not generate.
+        String stored = "(SELECT coalesce(jsonb_agg(to_jsonb(s) ORDER BY s.seq), '[]'::jsonb) FROM (SELECT f.seq, f.kind, f.asset_id,"
+                + " f.asset_group_id, f.month_event_id, f.category_hidden, f.direction, f.strength, f.repeat_count, f.template_id,"
+                + " f.template_vars, f.body FROM turn_feed f WHERE f.season_id = " + season + " AND f.turn_no = t"
+                + " AND f.kind <> 'NUDGE') s)";
+        String regenerated = "(SELECT coalesce(jsonb_agg(to_jsonb(g) ORDER BY g.seq), '[]'::jsonb)"
+                + " FROM pg_temp.tf_generate(pg_temp.tf_input(" + season + ", t::smallint)) g)";
         String query = "SELECT count(*) AS turns, count(*) FILTER (WHERE m IS TRUE) AS matched,"
                 + " count(*) FILTER (WHERE n > 0) AS turns_with_rows, coalesce(sum(n), 0) AS stored_rows FROM ("
-                + "SELECT pg_temp.tf_regen_matches(" + season + ", t::smallint) AS m, (SELECT count(*) FROM turn_feed"
-                + " WHERE season_id = " + season + " AND turn_no = t) AS n FROM generate_series(1, " + TURNS + ") AS t) x";
+                + "SELECT " + stored + " IS NOT DISTINCT FROM " + regenerated + " AS m, (SELECT count(*) FROM turn_feed"
+                + " WHERE season_id = " + season + " AND turn_no = t AND kind <> 'NUDGE') AS n"
+                + " FROM generate_series(1, " + TURNS + ") AS t) x";
         // the API writes to this context's own database, not the container default one
         String apiDb = jdbc.queryForObject("SELECT current_database()", String.class);
         PsqlScriptRunner.Result result = runner.runDefinitionQuery(apiDb, "db/24_turn_feed_def.sql", query,
@@ -379,8 +399,8 @@ class SyntheticSeasonE2ETest {
         assertThat(Integer.parseInt(row[0])).as("turns compared").isEqualTo(TURNS);
         assertThat(Integer.parseInt(row[1])).as("turns where stored = regenerated").isEqualTo(TURNS);
         assertThat(Integer.parseInt(row[2])).as("turns with at least one stored row").isPositive();
-        assertThat(Integer.parseInt(row[3])).as("stored rows").isEqualTo(jdbc.queryForObject(
-                "SELECT count(*) FROM turn_feed WHERE season_id = ?", Integer.class, season));
+        assertThat(Integer.parseInt(row[3])).as("stored feed rows").isEqualTo(jdbc.queryForObject(
+                "SELECT count(*) FROM turn_feed WHERE season_id = ? AND kind <> 'NUDGE'", Integer.class, season));
         System.out.println("[sql-parity] e2e season turns=" + row[0] + " matched=" + row[1] + " turnsWithRows=" + row[2]
                 + " storedRows=" + row[3]);
     }

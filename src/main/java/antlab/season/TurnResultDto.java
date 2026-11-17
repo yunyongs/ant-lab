@@ -12,17 +12,18 @@ import java.util.List;
  * 비중 4개의 합은 각각 한 번 반올림해 1과 최대 2e-8 다를 수 있다. {@code status}·{@code pathLength} 는 시즌의 <em>지금</em> 값이다.
  *
  * {@code targetFormation} 은 그 턴 <b>시작 시점</b>의 목표(그 턴 이전의 마지막 전술 변경의 이후 값, 없으면 시작 포메이션)다.
- * 대사 시도 번호·상태·시드·경로·월 블록·연월·수익률 종류는 싣지 않는다. {@code feed} 는 그 턴에 저장된 피드를 표시 순서로 담는다(MVP-11).
+ * 대사 시도 번호·상태·시드·경로·월 블록·연월·수익률 종류는 싣지 않는다. {@code feed} 는 그 턴에 저장된 피드를, {@code alerts} 는 저장된 독려 알림(NUDGE 행)을 표시 순서로 담는다(MVP-11·MVP-12). 두 목록의 {@code seq} 는 한 턴 안에서 겹치지 않는다.
  */
 @Schema(description = "Values of the stored turn row and the ratios computed from them. The advance-turn "
         + "response and the turn lookup have the same shape. The sum of the four shares can differ from 1 by at "
         + "most 2e-8, and status and pathLength are the season's values now. targetFormation is the "
         + "target at the start of that turn. Reconciliation attempt number, status, seed, path, "
-        + "month block, year-month and return kind are not included. feed is the feed stored for that turn.\n"
+        + "month block, year-month and return kind are not included. feed is the feed stored for that turn and alerts "
+        + "are the nudge alerts stored for it.\n"
         + "\n"
         + "저장한 턴 행의 값과 거기서 계산한 비율. 턴 전환 응답과 턴 조회가 같은 형이다. 비중 4개의 합은 1과 최대 2e-8 다를 수 있고, "
         + "status·pathLength 는 시즌의 지금 값이다. targetFormation 은 그 턴 시작 시점의 목표다. 대사 시도 번호·상태·시드·경로·월 "
-        + "블록·연월·수익률 종류는 싣지 않는다. feed 는 그 턴에 저장된 피드다")
+        + "블록·연월·수익률 종류는 싣지 않는다. feed 는 그 턴에 저장된 피드이고 alerts 는 저장된 독려 알림이다")
 public record TurnResultDto(
         @ExposedFrom("season.id")
         @Schema(requiredMode = RequiredMode.REQUIRED, description = "Season identifier / 시즌 식별자")
@@ -140,5 +141,9 @@ public record TurnResultDto(
         BigDecimal formationDeviation,
         @Schema(requiredMode = RequiredMode.REQUIRED, description = "The feed shown at this turn, in display order; empty "
                 + "when the turn has none / 이 턴에 보인 피드, 표시 순서. 없으면 빈 목록")
-        List<FeedItemDto> feed) {
+        List<FeedItemDto> feed,
+        @Schema(requiredMode = RequiredMode.REQUIRED, description = "The nudge alerts shown at this turn, in display order; "
+                + "empty when the turn has none. Their seq numbers continue after the feed's / 이 턴에 보인 독려 알림, 표시 순서. "
+                + "없으면 빈 목록. seq 는 피드 뒤에서 이어진다")
+        List<FeedItemDto> alerts) {
 }

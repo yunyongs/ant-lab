@@ -4,10 +4,14 @@ import antlab.account.CashAccount;
 import antlab.account.CashAccountRepository;
 import antlab.common.error.DomainException;
 import antlab.common.error.ErrorCode;
+import antlab.feed.AlertGenerator;
+import antlab.feed.AlertInput;
 import antlab.feed.FeedGenerationException;
 import antlab.feed.FeedGenerator;
+import antlab.feed.FeedInput;
 import antlab.feed.FeedInputReader;
 import antlab.feed.GeneratedFeedRow;
+import antlab.feed.PlayerFactsReader;
 import antlab.feed.TurnFeedWriter;
 import antlab.member.CurrentMember;
 import antlab.scoring.ReconciliationFailedException;
@@ -16,6 +20,7 @@ import antlab.scoring.ReconciliationService;
 import antlab.scoring.ReconciliationStatus;
 import antlab.scoring.RuleResult;
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -29,7 +34,7 @@ import org.springframework.transaction.annotation.Transactional;
  * 턴 전환 — 한 요청 = 한 트랜잭션(SPRING_JPA §5.1·§5.3). {@code db/23} 의 {@code ta_apply} + {@code turn_advance}(성공 경로)의 Java 짝이다.
  *
  * <p>순서: 시즌 잠금(회원 조건 포함, 첫 시즌 조회) → 상태·턴 확인 → 계좌 잠금 → 다음 블록 확인 → 풀 전체 턴 가격 INSERT →
- * 턴 스냅샷 INSERT → 턴 피드 생성·저장(MVP-11, 스냅샷 뒤·대사 앞) → 대사 17개 → 하나라도 불일치면 예외로 전부 롤백 → 전부 일치면 로그 17행 → 마지막에 현재 턴 +1(마지막 턴이면 FINISHED).
+ * 턴 스냅샷 INSERT → 턴 피드와 독려 알림 생성·저장(MVP-11·MVP-12, 스냅샷 뒤·대사 앞) → 대사 17개 → 하나라도 불일치면 예외로 전부 롤백 → 전부 일치면 로그 17행 → 마지막에 현재 턴 +1(마지막 턴이면 FINISHED).
  * <b>현재 턴 갱신은 대사·기록 뒤다</b>: 대사가 시작에 flush 를 하므로 앞에서 부르면 {@code current_turn_no = t+1} 이 대사 전에 DB 에 나가
  * 규칙 18(현재 턴 상한)의 판단이 SQL 과 갈린다. 가격 INSERT 와 턴 갱신이 같은 트랜잭션·시즌 락 아래라 "현재 턴인데 가격 행이 없다"는 상태는 생기지 않는다.
  * 계좌는 읽기만 한다(커밋 때 계좌 UPDATE 0건). 잠금은 season → cash_account 두 개뿐이다.
@@ -53,13 +58,16 @@ public class TurnService {
     private final ReconciliationLogWriter logWriter;
     private final FeedInputReader feedReader;
     private final FeedGenerator feedGenerator;
+    private final AlertGenerator alertGenerator;
+    private final PlayerFactsReader playerFacts;
     private final TurnFeedWriter feedWriter;
 
     public TurnService(CurrentMember currentMember, SeasonRepository seasons, CashAccountRepository accounts,
             SeasonPathRepository seasonPaths, TurnPriceRepository turnPrices, TurnRepository turns,
             TurnPriceCalculator priceCalculator, TurnSnapshotCalculator snapshotCalculator,
             ReconciliationService reconciliation, ReconciliationLogWriter logWriter, FeedInputReader feedReader,
-            FeedGenerator feedGenerator, TurnFeedWriter feedWriter) {
+            FeedGenerator feedGenerator, AlertGenerator alertGenerator, PlayerFactsReader playerFacts,
+            TurnFeedWriter feedWriter) {
         this.currentMember = currentMember;
         this.seasons = seasons;
         this.accounts = accounts;
@@ -72,6 +80,8 @@ public class TurnService {
         this.logWriter = logWriter;
         this.feedReader = feedReader;
         this.feedGenerator = feedGenerator;
+        this.alertGenerator = alertGenerator;
+        this.playerFacts = playerFacts;
         this.feedWriter = feedWriter;
     }
 
@@ -128,8 +138,8 @@ public class TurnService {
                 snapshot.totalValue(), snapshot.goalkeeperValue(), snapshot.defenderValue(),
                 snapshot.midfielderValue(), snapshot.forwardValue(), snapshot.drawdown()));
 
-        // 7b. 턴 피드 — 이 턴까지의 데이터만 읽는다. 실패(FeedGenerationException)는 500 이고 같은 트랜잭션이라 턴 전체가 롤백된다.
-        List<TurnFeed> feed = storeFeed(season, next, priceByAsset);
+        // 7b. 턴 피드와 독려 알림 — 이 턴까지의 데이터만 읽는다. 실패(FeedGenerationException)는 500 이고 같은 트랜잭션이라 턴 전체가 롤백된다.
+        List<TurnFeed> feed = storeFeed(season, next, priceByAsset, snapshot);
 
         // 8~9. 대사 17개 — 하나라도 어긋나면 unchecked 예외로 전체 롤백
         List<RuleResult> results = reconciliation.evaluateTurn(seasonId, next);
@@ -153,10 +163,14 @@ public class TurnService {
         return TurnResultAssembler.assemble(season, turn, previousTotal, season.getCurrentFormation(), feed);
     }
 
-    private List<TurnFeed> storeFeed(Season season, int turnNo, Map<Long, BigDecimal> priceByAsset) {
+    /** The turn's feed rows, then its nudge alerts numbered after them, written together; returns them in display order. */
+    private List<TurnFeed> storeFeed(Season season, int turnNo, Map<Long, BigDecimal> priceByAsset, TurnSnapshot snapshot) {
         try {
-            List<GeneratedFeedRow> rows = feedGenerator
-                    .generate(feedReader.read(season.getId(), season.getSeed(), turnNo, priceByAsset));
+            FeedInput input = feedReader.read(season.getId(), season.getSeed(), turnNo, priceByAsset);
+            List<GeneratedFeedRow> rows = new ArrayList<>(feedGenerator.generate(input));
+            AlertInput alertInput = new AlertInput(season.getSeed(), turnNo, input.assets(),
+                    playerFacts.read(season.getId(), turnNo, snapshot.cashBalance(), snapshot.totalValue()));
+            rows.addAll(alertGenerator.generate(alertInput, rows.size() + 1));
             return feedWriter.write(season, turnNo, rows);
         } catch (FeedGenerationException failed) {
             log.error("피드 생성 실패: seasonId={} turnNo={} failure={}", season.getId(), turnNo, failed.failure());
