@@ -373,7 +373,7 @@ export interface paths {
          *     - X4 60/40, my-formation (follows) and start-formation (fixed) benchmarks, the three-way split into player selection, formation change and structure effect: not in these 37 columns. Java computes them at GET …/report/analysis (MVP-17). The 6-turn effect after a change is MVP-19.
          *     - X5 Trading discipline (panic, chasing) and formation change right after a fall: not in these 37 columns. Defined in PLAN §6.2; Java computes them at GET …/report/analysis (MVP-17).
          *     - X6 Number of asset classes and average correlation under diversification: not in the feature table row P0-20, and correlation is unstable over 10 turns. → MVP
-         *     - X7 Reaction to noise (direction): needs a rule that judges the feed direction. → MVP
+         *     - X7 Reaction to noise (direction): not in these 37 columns. Defined in PLAN §6.2; Java computes it at GET …/report/analysis (MVP-19).
          *     - X8 Following attention, defender goals, bench goals and signal discrimination: these are review items, so they are not part of the score (PLAN §6.2). Signal discrimination is EXT. → MVP/EXT
          *     - X9 Tax, after-tax value on liquidation and deferred tax: tax is EXT (PLAN §4.6). The verification asserts that execution.tax is always 0. → EXT
          *     - X10 Currency-exchange portion of the fee: splitting out the displayed portion adds a new rounding point in whole won. PLAN §4.6 describes this item as "display only." → MVP
@@ -389,7 +389,7 @@ export interface paths {
          *     - X4 60/40·내 포메이션(따라감)·시작 포메이션(고정) 기준선, 선수 선택·전술 변경·구조 효과 3분해 이 37열에는 없다. Java 가 GET …/report/analysis 로 계산한다 (MVP-17). 변경 뒤 6턴 효과는 MVP-19.
          *     - X5 매매 규율(패닉·추격)·하락 직후 전술 변경 이 37열에는 없다. 정의는 PLAN §6.2, Java 가 GET …/report/analysis 로 계산한다 (MVP-17).
          *     - X6 분산 중 자산군 수·평균 상관 기능 표 P0-20 행에 없고 상관은 10턴으로는 불안정하다. → MVP
-         *     - X7 소음 반응(방향) 피드 방향을 판정하는 규칙이 필요하다. → MVP
+         *     - X7 소음 반응(방향) 이 37열에는 없다. 정의는 PLAN §6.2, Java 가 GET …/report/analysis 로 계산한다 (MVP-19).
          *     - X8 관심 추종·수비수 득점·벤치 득점·신호 판별 복기 항목이라 점수에 넣지 않는다 (PLAN §6.2). 신호 판별은 EXT. → MVP/EXT
          *     - X9 세금·청산 시 세후·이연 세금 세금은 EXT 다 (PLAN §4.6). execution.tax 가 항상 0 인지는 검증이 단언한다. → EXT
          *     - X10 수수료 중 환전 몫 표시 몫을 나누면 원 단위 반올림 지점이 새로 생긴다. PLAN §4.6 이 "표시만"이라 한 항목이다. → MVP
@@ -414,9 +414,9 @@ export interface paths {
         };
         /**
          * Season analysis lookup / 시즌 분석 조회
-         * @description Simulates four baselines (market, 60/40, my formation followed, start formation fixed) on the season's own turn prices with integer shares and fees, splits the excess over the market into player selection, formation change and structure, and measures trading discipline (panic selling and chase buying, PLAN §6.2), all on read and without storing anything. Complements the 37-column season report. A season that is in progress or being abandoned returns 409 SEASON_NOT_FINISHED. Money is a whole-won integer string; ratios are strings with 8 decimal places; the three won terms of the split add up to the total exactly, while their ratios may differ from the total ratio by rounding. A baseline whose representative asset is not in the season pool is unavailable (reason REPRESENTATIVE_MISSING, values null). The 60/40 bond leg uses a US Treasury ETF until the pool holds a Korean bond ETF (bondLegSubstituted). The representative table is a fixed rule, not a position judgement. Dates, month blocks, seeds and asset names are not included; an asset is only MARKET:TICKER.
+         * @description Simulates four baselines (market, 60/40, my formation followed, start formation fixed) on the season's own turn prices with integer shares and fees, splits the excess over the market into player selection, formation change and structure, and measures trading discipline (panic selling and chase buying, PLAN §6.2), measures the reaction to noise (the share of what was traded that followed an up or down signal of the same turn's feed and ranking boards, PLAN §6.2), and splits the fees by order source (the nudged part is RANKING and ALERT only), all on read and without storing anything. Complements the 37-column season report. A season that is in progress or being abandoned returns 409 SEASON_NOT_FINISHED. Money is a whole-won integer string; ratios are strings with 8 decimal places; the three won terms of the split add up to the total exactly, while their ratios may differ from the total ratio by rounding. A baseline whose representative asset is not in the season pool is unavailable (reason REPRESENTATIVE_MISSING, values null). The 60/40 bond leg uses a US Treasury ETF until the pool holds a Korean bond ETF (bondLegSubstituted). The representative table is a fixed rule, not a position judgement. Dates, month blocks, seeds and asset names are not included; an asset is only MARKET:TICKER.
          *
-         *     끝난 시즌의 시즌 가격 위에서 기준선 네 개(시장, 60/40, 내 포메이션 따라감, 시작 포메이션 고정)를 정수 주식과 수수료로 시뮬레이션하고, 시장 대비 초과분을 선수 선택·전술 변경·구조로 나누고, 매매 규율(패닉 매도·추격 매수, PLAN §6.2)을 재며, 모두 저장 없이 조회로 계산한다. 37항목 시즌 성적표를 보완한다. 진행 중이거나 포기 중인 시즌은 409 SEASON_NOT_FINISHED 다. 금액은 원 단위 정수 문자열, 비율은 소수 8자리 문자열이고, 3분해의 원 단위 세 항은 합계와 정확히 같지만 비율은 반올림 때문에 합계 비율과 다를 수 있다. 대표 종목이 시즌 풀에 없는 기준선은 만들 수 없다(reason REPRESENTATIVE_MISSING, 값 null). 60/40 의 채권 칸은 풀에 국내 채권 ETF가 들어오기 전까지 미국 국채 ETF를 쓴다(bondLegSubstituted). 대표 종목 표는 고정 규칙이며 포지션 판정이 아니다. 날짜·월 블록·시드·종목 이름은 싣지 않고 종목은 MARKET:TICKER 로만 가리킨다.
+         *     끝난 시즌의 시즌 가격 위에서 기준선 네 개(시장, 60/40, 내 포메이션 따라감, 시작 포메이션 고정)를 정수 주식과 수수료로 시뮬레이션하고, 시장 대비 초과분을 선수 선택·전술 변경·구조로 나누고, 매매 규율(패닉 매도·추격 매수, PLAN §6.2)과 소음 반응(매매 가운데 같은 턴의 피드·순위판의 상승·하락 신호를 따른 몫, PLAN §6.2)을 재고 수수료를 주문 출발점별로 나누며(독려 몫은 RANKING·ALERT 뿐이다), 모두 저장 없이 조회로 계산한다. 37항목 시즌 성적표를 보완한다. 진행 중이거나 포기 중인 시즌은 409 SEASON_NOT_FINISHED 다. 금액은 원 단위 정수 문자열, 비율은 소수 8자리 문자열이고, 3분해의 원 단위 세 항은 합계와 정확히 같지만 비율은 반올림 때문에 합계 비율과 다를 수 있다. 대표 종목이 시즌 풀에 없는 기준선은 만들 수 없다(reason REPRESENTATIVE_MISSING, 값 null). 60/40 의 채권 칸은 풀에 국내 채권 ETF가 들어오기 전까지 미국 국채 ETF를 쓴다(bondLegSubstituted). 대표 종목 표는 고정 규칙이며 포지션 판정이 아니다. 날짜·월 블록·시드·종목 이름은 싣지 않고 종목은 MARKET:TICKER 로만 가리킨다.
          */
         get: operations["getSeasonAnalysis"];
         put?: never;
@@ -1551,6 +1551,10 @@ export interface components {
             decomposition: components["schemas"]["DecompositionDto"] | null;
             /** @description Trading discipline / 매매 규율 */
             discipline: components["schemas"]["DisciplineDto"];
+            /** @description Reaction to noise (process item) / 소음 반응(과정 항목) */
+            noise: components["schemas"]["NoiseDto"];
+            /** @description Platform revenue split by order source / 출발점별 플랫폼 수익 */
+            platform: components["schemas"]["PlatformDto"];
         };
         /** @description One baseline portfolio simulated on the season prices / 시즌 가격으로 시뮬레이션한 기준선 하나 */
         BaselineDto: {
@@ -1729,6 +1733,79 @@ export interface components {
              * @description Formation change rows that belong to a panic turn (team value fell 8% or more and the forward target ended lower than it started). Counted by row, not by turn / 패닉 턴(팀 평가액이 8% 이상 내렸고 공격 목표가 시작보다 낮게 끝난 턴)에 속한 전술 변경 행 수. 턴이 아니라 행 기준
              */
             panicFormationChanges: number;
+        };
+        /** @description Reaction to noise: how much of what was traded followed what the feed and the boards pointed at / 소음 반응: 매매 가운데 피드와 순위판이 가리킨 쪽을 따른 몫 */
+        NoiseDto: {
+            /**
+             * Format: decimal
+             * @description Mean over the turns that traded of (followed buys + followed sells) ÷ the turn's traded amount, 8 decimal places; null when no turn traded / 매매가 있던 턴마다 (따른 매수 + 따른 매도) ÷ 그 턴 매매 금액의 평균, 소수 8자리. 거래가 없으면 null
+             */
+            noiseShare: string | null;
+            /**
+             * Format: int32
+             * @description Turns of 1..T-1 with at least one filled order / 턴 1..T-1 가운데 체결된 주문이 있는 턴 수
+             */
+            tradingTurns: number;
+            /**
+             * Format: decimal
+             * @description Buys that followed the noise, whole KRW / 소음을 따른 매수 대금, 원 단위 정수
+             */
+            followedBuyNotional: string;
+            /**
+             * Format: decimal
+             * @description Sells that followed the noise, whole KRW / 소음을 따른 매도 대금, 원 단위 정수
+             */
+            followedSellNotional: string;
+            /**
+             * Format: decimal
+             * @description Sells plus buys of turns 1..T-1, equal to the report's traded amount, whole KRW / 턴 1..T-1의 매도 + 매수, 성적표의 매매 대금과 같다, 원 단위 정수
+             */
+            tradeNotional: string;
+        };
+        /** @description Platform revenue: fees split by where the order came from / 플랫폼 수익: 주문의 출발점별 수수료 */
+        PlatformDto: {
+            /**
+             * Format: decimal
+             * @description Fees of every fill including the team purchase, equal to the report's total fee, whole KRW / 팀 구성을 포함한 모든 체결의 수수료, 성적표의 총 수수료와 같다, 원 단위 정수
+             */
+            totalFee: string;
+            /**
+             * Format: decimal
+             * @description Fees of the team purchase (turn 0), whole KRW / 팀 구성(0턴)의 수수료, 원 단위 정수
+             */
+            teamFee: string;
+            /** @description Five rows in the fixed order RANKING, FEED, ALERT, BENCH, DIRECT, turns 1..T-1; a source with no order has zeros / 다섯 행, 순서 고정(RANKING, FEED, ALERT, BENCH, DIRECT), 턴 1..T-1. 주문이 없는 출발점은 0 */
+            bySource: components["schemas"]["SourceFeeDto"][];
+            /**
+             * Format: decimal
+             * @description Fees of RANKING and ALERT orders, the part the platform earned by nudging; FEED is not included, whole KRW / RANKING·ALERT 주문의 수수료, 플랫폼이 독려로 번 몫. FEED 는 넣지 않는다, 원 단위 정수
+             */
+            nudgedFee: string;
+            /**
+             * Format: decimal
+             * @description Nudged fee ÷ total fee, 8 decimal places; null when the total fee is 0 / 독려 수수료 ÷ 총 수수료, 소수 8자리. 총 수수료가 0이면 null
+             */
+            nudgedFeeShare: string | null;
+        };
+        /** @description Orders, traded amount and fees of one order source / 한 출발점의 주문 수·매매 금액·수수료 */
+        SourceFeeDto: {
+            /** @description Order source (RANKING, FEED, ALERT, BENCH, DIRECT) / 주문 출발점 */
+            source: string;
+            /**
+             * Format: int32
+             * @description Filled orders of turns 1..T-1 from this source / 이 출발점의 턴 1..T-1 체결 주문 수
+             */
+            orders: number;
+            /**
+             * Format: decimal
+             * @description Buys plus sells from this source, whole KRW / 이 출발점의 매수 + 매도 대금, 원 단위 정수
+             */
+            tradeNotional: string;
+            /**
+             * Format: decimal
+             * @description Fees of this source's orders, whole KRW / 이 출발점 주문의 수수료, 원 단위 정수
+             */
+            fee: string;
         };
         /**
          * @description Season review for a finished season. Month block number, event number, event key, reference date, member number and times are not included

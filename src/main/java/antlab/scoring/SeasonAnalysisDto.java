@@ -8,9 +8,10 @@ import java.util.List;
 
 /**
  * Season analysis (MVP-17): the four baselines simulated on the season's own turn prices, the three-way split of the excess over the
- * market and the trading-discipline item. Computed on read from stored, immutable rows and never stored; separate from the 37-column
- * {@link SeasonReportDto}. Money is a whole-won integer string, ratios are strings with 8 decimals, and a value that cannot be
- * computed is null (the key is never omitted). No date, month block, seed, event or asset name: an asset is only {@code MARKET:TICKER}.
+ * market, the trading-discipline item, the reaction to noise and the platform's fees by order source (MVP-19). Computed on read from
+ * stored, immutable rows and never stored; separate from the 37-column {@link SeasonReportDto}. Money is a whole-won integer string,
+ * ratios are strings with 8 decimals, and a value that cannot be computed is null (the key is never omitted). No date, month block,
+ * seed, event or asset name: an asset is only {@code MARKET:TICKER}.
  */
 @Schema(description = "Season analysis: baselines, three-way split, trading discipline / 시즌 분석: 기준선·3분해·매매 규율")
 public record SeasonAnalysisDto(
@@ -33,7 +34,12 @@ public record SeasonAnalysisDto(
                         + "unavailable / 시장 대비 초과분의 3분해. 포메이션 기준선이 없으면 null")
         DecompositionDto decomposition,
         @Schema(requiredMode = RequiredMode.REQUIRED, description = "Trading discipline / 매매 규율")
-        DisciplineDto discipline) {
+        DisciplineDto discipline,
+        @Schema(requiredMode = RequiredMode.REQUIRED, description = "Reaction to noise (process item) / 소음 반응(과정 항목)")
+        NoiseDto noise,
+        @Schema(requiredMode = RequiredMode.REQUIRED, description = "Platform revenue split by order source / 출발점별 "
+                + "플랫폼 수익")
+        PlatformDto platform) {
 
     /** One baseline. When it is unavailable, {@code reason} is set and every value is null (the legs list is empty). */
     @Schema(description = "One baseline portfolio simulated on the season prices / 시즌 가격으로 시뮬레이션한 기준선 하나")
@@ -240,5 +246,85 @@ public record SeasonAnalysisDto(
                     + "not by turn / 패닉 턴(팀 평가액이 8% 이상 내렸고 공격 목표가 시작보다 낮게 끝난 턴)에 속한 전술 변경 행 수. "
                     + "턴이 아니라 행 기준")
             Integer panicFormationChanges) {
+    }
+
+    /** Reaction to noise of turns 1..T-1 (PLAN §6.2); the definition is on the controller. */
+    @Schema(description = "Reaction to noise: how much of what was traded followed what the feed and the boards pointed at / "
+            + "소음 반응: 매매 가운데 피드와 순위판이 가리킨 쪽을 따른 몫")
+    public record NoiseDto(
+            @ExposedFrom({"orders.turn_no", "orders.side", "execution.fill_price", "execution.quantity", "turn_price.price",
+                    "asset_month_attention.attention_index", "turn_feed.asset_id", "turn_feed.kind", "turn_feed.direction"})
+            @Schema(requiredMode = RequiredMode.REQUIRED, nullable = true,
+                    description = "Mean over the turns that traded of (followed buys + followed sells) ÷ the turn's traded "
+                            + "amount, 8 decimal places; null when no turn traded / 매매가 있던 턴마다 (따른 매수 + 따른 매도) ÷ "
+                            + "그 턴 매매 금액의 평균, 소수 8자리. 거래가 없으면 null")
+            BigDecimal noiseShare,
+            @ExposedFrom({"orders.turn_no", "execution.quantity"})
+            @Schema(requiredMode = RequiredMode.REQUIRED, description = "Turns of 1..T-1 with at least one filled order / "
+                    + "턴 1..T-1 가운데 체결된 주문이 있는 턴 수")
+            Integer tradingTurns,
+            @ExposedFrom({"orders.turn_no", "orders.side", "execution.fill_price", "execution.quantity", "turn_price.price",
+                    "asset_month_attention.attention_index", "turn_feed.asset_id", "turn_feed.kind", "turn_feed.direction"})
+            @Schema(requiredMode = RequiredMode.REQUIRED, description = "Buys that followed the noise, whole KRW / 소음을 "
+                    + "따른 매수 대금, 원 단위 정수")
+            BigDecimal followedBuyNotional,
+            @ExposedFrom({"orders.turn_no", "orders.side", "execution.fill_price", "execution.quantity", "turn_price.price",
+                    "asset_month_attention.attention_index", "turn_feed.asset_id", "turn_feed.kind", "turn_feed.direction"})
+            @Schema(requiredMode = RequiredMode.REQUIRED, description = "Sells that followed the noise, whole KRW / 소음을 "
+                    + "따른 매도 대금, 원 단위 정수")
+            BigDecimal followedSellNotional,
+            @ExposedFrom({"execution.fill_price", "execution.quantity", "orders.turn_no"})
+            @Schema(requiredMode = RequiredMode.REQUIRED, description = "Sells plus buys of turns 1..T-1, equal to the "
+                    + "report's traded amount, whole KRW / 턴 1..T-1의 매도 + 매수, 성적표의 매매 대금과 같다, 원 단위 정수")
+            BigDecimal tradeNotional) {
+    }
+
+    /** Fees by order source. The nudged part is {@code RANKING} and {@code ALERT} only (PLAN §13 P0-20 Q2). */
+    @Schema(description = "Platform revenue: fees split by where the order came from / 플랫폼 수익: 주문의 출발점별 수수료")
+    public record PlatformDto(
+            @ExposedFrom({"execution.fee", "orders.turn_no"})
+            @Schema(requiredMode = RequiredMode.REQUIRED, description = "Fees of every fill including the team purchase, "
+                    + "equal to the report's total fee, whole KRW / 팀 구성을 포함한 모든 체결의 수수료, 성적표의 총 수수료와 "
+                    + "같다, 원 단위 정수")
+            BigDecimal totalFee,
+            @ExposedFrom({"execution.fee", "orders.turn_no"})
+            @Schema(requiredMode = RequiredMode.REQUIRED, description = "Fees of the team purchase (turn 0), whole KRW / "
+                    + "팀 구성(0턴)의 수수료, 원 단위 정수")
+            BigDecimal teamFee,
+            @Schema(requiredMode = RequiredMode.REQUIRED, description = "Five rows in the fixed order RANKING, FEED, ALERT, "
+                    + "BENCH, DIRECT, turns 1..T-1; a source with no order has zeros / 다섯 행, 순서 고정(RANKING, FEED, "
+                    + "ALERT, BENCH, DIRECT), 턴 1..T-1. 주문이 없는 출발점은 0")
+            List<SourceFeeDto> bySource,
+            @ExposedFrom({"execution.fee", "orders.turn_no", "orders.source"})
+            @Schema(requiredMode = RequiredMode.REQUIRED, description = "Fees of RANKING and ALERT orders, the part the "
+                    + "platform earned by nudging; FEED is not included, whole KRW / RANKING·ALERT 주문의 수수료, 플랫폼이 "
+                    + "독려로 번 몫. FEED 는 넣지 않는다, 원 단위 정수")
+            BigDecimal nudgedFee,
+            @ExposedFrom({"execution.fee", "orders.turn_no", "orders.source"})
+            @Schema(requiredMode = RequiredMode.REQUIRED, nullable = true,
+                    description = "Nudged fee ÷ total fee, 8 decimal places; null when the total fee is 0 / 독려 수수료 ÷ "
+                            + "총 수수료, 소수 8자리. 총 수수료가 0이면 null")
+            BigDecimal nudgedFeeShare) {
+    }
+
+    /** One row of the per-source split. */
+    @Schema(description = "Orders, traded amount and fees of one order source / 한 출발점의 주문 수·매매 금액·수수료")
+    public record SourceFeeDto(
+            @ExposedFrom({"orders.source"})
+            @Schema(requiredMode = RequiredMode.REQUIRED, description = "Order source (RANKING, FEED, ALERT, BENCH, DIRECT) / "
+                    + "주문 출발점")
+            String source,
+            @ExposedFrom({"orders.source", "orders.turn_no"})
+            @Schema(requiredMode = RequiredMode.REQUIRED, description = "Filled orders of turns 1..T-1 from this source / "
+                    + "이 출발점의 턴 1..T-1 체결 주문 수")
+            Integer orders,
+            @ExposedFrom({"orders.source", "orders.turn_no", "execution.fill_price", "execution.quantity"})
+            @Schema(requiredMode = RequiredMode.REQUIRED, description = "Buys plus sells from this source, whole KRW / 이 "
+                    + "출발점의 매수 + 매도 대금, 원 단위 정수")
+            BigDecimal tradeNotional,
+            @ExposedFrom({"orders.source", "orders.turn_no", "execution.fee"})
+            @Schema(requiredMode = RequiredMode.REQUIRED, description = "Fees of this source's orders, whole KRW / 이 "
+                    + "출발점 주문의 수수료, 원 단위 정수")
+            BigDecimal fee) {
     }
 }

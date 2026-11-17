@@ -13,6 +13,9 @@ import antlab.scoring.SeasonAnalysisDto.BaselineDto;
 import antlab.scoring.SeasonAnalysisDto.DecompositionDto;
 import antlab.scoring.SeasonAnalysisDto.DisciplineDto;
 import antlab.scoring.SeasonAnalysisDto.LegDto;
+import antlab.scoring.SeasonAnalysisDto.NoiseDto;
+import antlab.scoring.SeasonAnalysisDto.PlatformDto;
+import antlab.scoring.SeasonAnalysisDto.SourceFeeDto;
 import antlab.scoring.SeasonReportSources.AssetKey;
 import antlab.season.Formation;
 import antlab.season.FormationChange;
@@ -39,8 +42,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class SeasonAnalysisService {
 
-    /** Version of the analysis rules; it changes when a rule of the baselines or of the discipline item changes. */
-    public static final String ANALYSIS_VERSION = "mvp17-v1";
+    /** Version of the analysis rules; it changes when a rule of the baselines, the discipline item, the noise item or the platform split changes. */
+    public static final String ANALYSIS_VERSION = "mvp19-v1";
 
     private static final String INCONSISTENT = "분석 원천이 모순이다: ";
 
@@ -51,11 +54,14 @@ public class SeasonAnalysisService {
     private final SeasonReportQuery consistency;
     private final SeasonAnalysisQuery prices;
     private final DisciplineQuery disciplineOrders;
+    private final BehaviourQuery behaviourOrders;
+    private final SeasonSignalReader signals;
     private final RepresentativeTable table;
 
     public SeasonAnalysisService(CurrentMember currentMember, SeasonRepository seasons, TurnRepository turns,
             FormationChangeRepository changes, SeasonReportQuery consistency, SeasonAnalysisQuery prices,
-            DisciplineQuery disciplineOrders, RepresentativeTable table) {
+            DisciplineQuery disciplineOrders, BehaviourQuery behaviourOrders, SeasonSignalReader signals,
+            RepresentativeTable table) {
         this.currentMember = currentMember;
         this.seasons = seasons;
         this.turns = turns;
@@ -63,6 +69,8 @@ public class SeasonAnalysisService {
         this.consistency = consistency;
         this.prices = prices;
         this.disciplineOrders = disciplineOrders;
+        this.behaviourOrders = behaviourOrders;
+        this.signals = signals;
         this.table = table;
     }
 
@@ -124,8 +132,11 @@ public class SeasonAnalysisService {
                 .map(c -> new ChangeFact(c.getId(), c.getTurnNo(), c.getBefore().forward(), c.getAfter().forward())).toList();
         DisciplineCalculator.Result discipline = DisciplineCalculator.calculate(new DisciplineFacts(reportTurn, initialCash,
                 teamValues, facts, disciplineOrders.orders(id, reportTurn)));
+        List<BehaviourOrder> behaviour = behaviourOrders.orders(id, reportTurn);
+        NoiseReactionCalculator.Result noise = NoiseReactionCalculator.calculate(reportTurn, signals.read(id, reportTurn),
+                behaviour.stream().filter(o -> o.turnNo() >= 1).toList());
         return new SeasonAnalysisDto(ANALYSIS_VERSION, resolution.version(), reportTurn, baselines, decomposition,
-                disciplineDto(discipline));
+                disciplineDto(discipline), noiseDto(noise), platformDto(PlatformRevenue.of(reportTurn, behaviour)));
     }
 
     /** The following baseline starts from the start formation, so each change must start from the one before it (by id). */
@@ -196,5 +207,17 @@ public class SeasonAnalysisService {
                 MoneyMath.ratio(BigDecimal.valueOf(DisciplineRules.RISE_PERCENT), hundred), r.sellNotional(),
                 r.panicSellNotional(), r.panicSellShare(), r.buyNotional(), r.chaseBuyNotional(), r.chaseBuyShare(),
                 r.tradeNotional(), r.undisciplinedShare(), r.formationChanges(), r.panicFormationChanges());
+    }
+
+    private static NoiseDto noiseDto(NoiseReactionCalculator.Result r) {
+        return new NoiseDto(r.noiseShare(), r.tradingTurns(), r.followedBuyNotional(), r.followedSellNotional(),
+                r.tradeNotional());
+    }
+
+    private static PlatformDto platformDto(PlatformRevenue.Result r) {
+        return new PlatformDto(r.totalFee(), r.teamFee(),
+                r.bySource().stream().map(row -> new SourceFeeDto(row.source().name(), row.orders(), row.tradeNotional(),
+                        row.fee())).toList(),
+                r.nudgedFee(), r.nudgedFeeShare());
     }
 }
