@@ -51,4 +51,26 @@ public final class ReportApiSupport {
     static long finishedSeason(MockMvcTester mvc, JdbcTemplate jdbc) throws Exception {
         return season(mvc, jdbc, 12);
     }
+
+    /**
+     * Writes one filled order straight into the tables (one execution per entry of {@code parts}), bypassing the
+     * order API so that a test can make histories the API would refuse. Rows are removed by the cleanup script.
+     */
+    static void fill(JdbcTemplate jdbc, long season, long assetId, int turn, String side, int... parts) {
+        int total = java.util.Arrays.stream(parts).sum();
+        Long order = jdbc.queryForObject("INSERT INTO orders (season_id, asset_id, turn_no, side, quantity, status, source) "
+                + "VALUES (?, ?, ?, ?, ?, 'FILLED', 'DIRECT') RETURNING id", Long.class, season, assetId, turn, side, total);
+        for (int part : parts) {
+            jdbc.update("INSERT INTO execution (order_id, fill_price, quantity) VALUES (?, 1000, ?)", order, part);
+        }
+    }
+
+    /** An asset outside the season pool: no turn_price and no asset_position rows. The name starts with the fake prefix. */
+    static long unpricedAsset(JdbcTemplate jdbc) {
+        Long group = jdbc.queryForObject("SELECT id FROM asset_group WHERE code = 'FAKE_SEMI'", Long.class);
+        return jdbc.queryForObject("""
+                INSERT INTO asset (market, ticker, name, asset_type, currency, asset_group_id, listed_on, return_basis)
+                VALUES ('US', 'ZZNOPRICE', '가짜 가격 없음', 'STOCK', 'USD', ?, DATE '2000-01-04', 'PRICE') RETURNING id""",
+                Long.class, group);
+    }
 }

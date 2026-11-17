@@ -15,7 +15,7 @@ import java.util.Map;
  * @param turns        턴 스냅샷 1..T, 턴 번호 순. 정본이며 다시 계산하지 않는다
  * @param changes      시즌의 전술 변경 전부, id 순(같은 턴의 마지막은 id 가 큰 쪽)
  * @param orders       주문·체결 집계(주문별로 먼저 합친 뒤 구한 값)
- * @param holdings     턴별 보유 재구성: 턴 t 시작 시점에 수량이 0보다 큰 (종목, 턴)의 평가액. 현재 보유로 과거를 만들지 않는다
+ * @param holdings     턴별 보유 재구성: 턴 t 시작 시점에 수량이 0이 아닌 (종목, 턴)의 평가액(음수 포함 — 계산기가 거부한다). 현재 보유로 과거를 만들지 않는다
  * @param lineup       라인업 구간 시즌 전부(길이 없는 구간 포함)
  * @param poolReturns  기준일 풀 종목마다 경로 1..T 의 원화 월 수익률(길이 T, 없는 달은 null)
  * @param benchmarkPrices 기준선 대용 두 종목의 0턴..T 가격(길이 T+1)
@@ -63,7 +63,10 @@ public record SeasonReportSources(
             int ordersAfterReport) {
     }
 
-    /** 턴 t 시작 시점의 보유 한 종목: 평가액 = 수량 × 그 턴의 turn_price. */
+    /**
+     * 턴 t 시작 시점의 보유 한 종목: 평가액 = 수량 × 그 턴의 turn_price.
+     * Quantity is non-zero; a negative value means a negative cumulative quantity, which the calculator refuses.
+     */
     public record HoldingFact(AssetKey asset, int turnNo, BigDecimal value) {
     }
 

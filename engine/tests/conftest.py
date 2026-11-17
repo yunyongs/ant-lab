@@ -1,7 +1,9 @@
+import os
 import secrets
 from pathlib import Path
 
 import pytest
+from db_support import SERVER_ID_VAR, HarnessError, resolve_admin_dsn, scratch_database
 from fastapi.testclient import TestClient
 
 from antlab_engine.app import create_app
@@ -30,3 +32,38 @@ def client(app):
 @pytest.fixture
 def auth(token) -> dict[str, str]:
     return {TOKEN_HEADER: token}
+
+
+def pytest_collection_modifyitems(config, items):
+    if os.environ.get("ANTLAB_GOLDEN_SAMPLE_DIR"):
+        return
+    skip = pytest.mark.skip(reason="ANTLAB_GOLDEN_SAMPLE_DIR is not set")
+    for item in items:
+        if "sample" in item.keywords:
+            item.add_marker(skip)
+
+
+@pytest.fixture(scope="session")
+def scratch_db():
+    """A migrated scratch database with the role script applied (skipped without a DSN)."""
+    try:
+        dsn = resolve_admin_dsn(os.environ)
+    except HarnessError as exc:
+        pytest.fail(str(exc), pytrace=False)
+    if dsn is None:
+        pytest.skip("ANTLAB_ENGINE_TEST_ADMIN_DSN is not set")
+    with scratch_database(dsn, os.environ[SERVER_ID_VAR].strip()) as db:
+        yield db
+
+
+@pytest.fixture
+def fresh_db():
+    """A function-scoped scratch database for tests that pollute state (same isolation checks)."""
+    try:
+        dsn = resolve_admin_dsn(os.environ)
+    except HarnessError as exc:
+        pytest.fail(str(exc), pytrace=False)
+    if dsn is None:
+        pytest.skip("ANTLAB_ENGINE_TEST_ADMIN_DSN is not set")
+    with scratch_database(dsn, os.environ[SERVER_ID_VAR].strip()) as db:
+        yield db
