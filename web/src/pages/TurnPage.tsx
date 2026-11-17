@@ -25,6 +25,12 @@ export function TurnPage() {
   const inRange = k !== null && current !== undefined && k >= 1 && k <= current;
   const turn = useTurn(id ?? 0, k ?? 0, inRange);
   const [notice, setNotice] = useState<string | null>(null);
+  // A notice belongs to the turn page it appeared on.
+  const [noticeTurn, setNoticeTurn] = useState(k);
+  if (noticeTurn !== k) {
+    setNoticeTurn(k);
+    setNotice(null);
+  }
   if (id === null || k === null) return <NotFoundPage />;
   const base = `/seasons/${String(id)}`;
   const notFound =

@@ -54,6 +54,15 @@ export const restrictionRules = {
       selector: "Property[key.name='dangerouslySetInnerHTML']",
       message: HTML,
     },
+    {
+      selector: "Property[key.value='dangerouslySetInnerHTML']",
+      message: HTML,
+    },
+    {
+      selector:
+        'AssignmentExpression[left.property.name=/^(inner|outer)HTML$/]',
+      message: HTML,
+    },
   ],
 };
 

@@ -1,6 +1,7 @@
 import { useIsMutating, useQueryClient } from '@tanstack/react-query';
 import { useRef, useState, type ReactNode } from 'react';
 import { messageFor } from '../../api/errorMessages.ts';
+import { QueryError } from '../seasons/QueryError.tsx';
 import type { Season } from '../seasons/labels.ts';
 import { invalidateSeasonState } from '../seasons/queries.ts';
 import { canTrade } from '../seasons/seasonGate.ts';
@@ -52,6 +53,12 @@ export function SourcedOrder({
   const advancing = useIsMutating({ mutationKey: advanceKey(season.id) }) > 0;
   const [selected, setSelected] = useState<Selection | null>(null);
   const opener = useRef<HTMLButtonElement | null>(null);
+  // A sheet opened for one turn must not come back on its own for the next.
+  const [seenTurn, setSeenTurn] = useState(season.currentTurnNo);
+  if (seenTurn !== season.currentTurnNo) {
+    setSeenTurn(season.currentTurnNo);
+    setSelected(null);
+  }
 
   // A cached answer from an earlier turn is stale; wait for the refetch.
   const ready =
@@ -81,9 +88,19 @@ export function SourcedOrder({
         nameOf,
         start: (side, assetId, source, button) => {
           opener.current = button;
+          onNotice(null);
           setSelected({ side, assetId, source });
         },
       })}
+      {!ready && (holdings.isError || pool.isError) && (
+        <QueryError
+          error={holdings.error ?? pool.error}
+          onRetry={() => {
+            void holdings.refetch();
+            void pool.refetch();
+          }}
+        />
+      )}
       {ready && selected !== null && asset !== undefined && (
         <OrderSheet
           key={`${selected.side}-${String(selected.assetId)}`}

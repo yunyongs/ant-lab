@@ -224,7 +224,7 @@ describe('turn advance on the now page', () => {
     expect(view.queryClient.getQueryData(['turn', 7, 5])).toBeDefined();
   });
 
-  it('shows a non-empty feed without a date and without any identifier of its items', async () => {
+  it('shows a non-empty feed without a date', async () => {
     const world = serveTurnWorld({ current: 4 });
     world.feed = (turnNo) => feedOfTurn(turnNo);
     const { container } = renderRoute('/seasons/7');

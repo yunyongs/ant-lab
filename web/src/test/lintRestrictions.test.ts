@@ -98,6 +98,9 @@ describe('untrusted text', () => {
   it.each([
     "export const a = <div dangerouslySetInnerHTML={{ __html: 'x' }} />;",
     "export const b = { dangerouslySetInnerHTML: { __html: 'x' } };",
+    "export const c = { 'dangerouslySetInnerHTML': { __html: 'x' } };",
+    'export const d = (el, t) => { el.innerHTML = t; };',
+    'export const e = (el, t) => { el.outerHTML = t; };',
   ])('rejects %s with its reason', async (code) => {
     const found = await messagesAt(code, 'src/features/feed/sample.tsx');
     expect(found).toHaveLength(1);

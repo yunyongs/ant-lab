@@ -1,6 +1,7 @@
-import { screen, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
+import { problem } from '../test/authHandlers.ts';
 import { expectNoDatePattern } from '../test/expectNoDatePattern.ts';
 import { feedOfTurn } from '../test/fixtures/feed.ts';
 import { renderRoute } from '../test/renderWithProviders.tsx';
@@ -43,5 +44,30 @@ describe('feed on a past-turn page', () => {
     expect(screen.queryByRole('button', { name: /매수|매도/ })).toBeNull();
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(world.holdingsGets).toBe(0);
+  });
+
+  it('notes a stale screen on TURN_MISMATCH, re-reads the season, and clears the note on the next start', async () => {
+    const world = serveFeedWorld({ current: 5 });
+    world.feed = (turnNo) => feedOfTurn(turnNo);
+    world.orderAnswer = () =>
+      problem(409, { code: 'TURN_MISMATCH', status: 409 });
+    renderRoute('/seasons/7/turns/3');
+    const user = userEvent.setup();
+    await user.click(
+      await screen.findByRole('button', { name: '종목 가 매수' }),
+    );
+    const dialog = await screen.findByRole('dialog', { name: '종목 가' });
+    const before = world.seasonGets;
+    await user.click(within(dialog).getByRole('button', { name: '1주 매수' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      '화면의 턴이 지난 턴입니다.',
+    );
+    expect(screen.queryByRole('dialog')).toBeNull();
+    await waitFor(() => {
+      expect(world.seasonGets).toBeGreaterThan(before);
+    });
+    await user.click(screen.getByRole('button', { name: '종목 가 매수' }));
+    await screen.findByRole('dialog', { name: '종목 가' });
+    expect(screen.queryByRole('alert')).toBeNull();
   });
 });

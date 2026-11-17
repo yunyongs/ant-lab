@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { problem } from '../test/authHandlers.ts';
 import { expectNoDatePattern } from '../test/expectNoDatePattern.ts';
 import { feedOfTurn } from '../test/fixtures/feed.ts';
+import { turnResultFixture } from '../test/fixtures/turns.ts';
 import { heldMidfielder, holdingsFixture } from '../test/fixtures/holdings.ts';
 import { orderResultFixture } from '../test/fixtures/orders.ts';
 import { renderRoute } from '../test/renderWithProviders.tsx';
@@ -39,6 +40,11 @@ describe('feed on the now page', () => {
     const dialog = await screen.findByRole('dialog', { name: '종목 가' });
     await user.click(within(dialog).getByRole('button', { name: '1주 매수' }));
     await within(dialog).findByText('체결가');
+    await user.click(within(dialog).getByRole('button', { name: '닫기' }));
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).toBeNull();
+    });
+    expect(screen.getByRole('button', { name: BUY_FIRST })).toHaveFocus();
     expect(world.orders).toHaveLength(1);
     expect(world.orders[0]).toStrictEqual({
       expectedTurnNo: 5,
@@ -49,6 +55,48 @@ describe('feed on the now page', () => {
       source: { kind: 'FEED', feedTurnNo: 5, feedSeq: 3 },
     });
     expectNoDatePattern(container);
+  });
+
+  it('does not reopen a closed sheet when the turn moves on under it', async () => {
+    const world = openWorld();
+    const { queryClient } = renderRoute('/seasons/7');
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: BUY_FIRST }));
+    await screen.findByRole('dialog', { name: '종목 가' });
+    const holdingsBefore = world.holdingsGets;
+    // Another tab advanced the turn; this screen re-reads the state.
+    world.current = 6;
+    // The next turn is already cached, so the feed section stays mounted.
+    queryClient.setQueryData(
+      ['turn', 7, 6],
+      turnResultFixture({ turnNo: 6, feed: feedOfTurn(6) }),
+    );
+    await queryClient.invalidateQueries({ queryKey: ['season', 7] });
+    await queryClient.invalidateQueries({ queryKey: ['holdings', 7] });
+    await waitFor(() => {
+      expect(world.holdingsGets).toBeGreaterThan(holdingsBefore);
+    });
+    await screen.findByRole('heading', { name: '6턴 결과' });
+    await screen.findByRole('button', { name: BUY_FIRST });
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('shows a retry for a failed holdings answer instead of silently dropping the buttons', async () => {
+    openWorld();
+    server.use(
+      http.get('*/api/v1/seasons/7/holdings', () =>
+        problem(500, { code: 'INTERNAL_ERROR', status: 500 }),
+      ),
+    );
+    renderRoute('/seasons/7');
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      '서버에 문제가 생겼습니다.',
+    );
+    expect(
+      screen.getByRole('button', { name: '다시 불러오기' }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /매수|매도/ })).toBeNull();
   });
 
   it('requests no order data when no item names an asset', async () => {
