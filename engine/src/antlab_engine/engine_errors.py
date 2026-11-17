@@ -22,5 +22,11 @@ class PoolNotFound(EngineError):  # noqa: N818
     code = "POOL_NOT_FOUND"
 
 
+class EngineBusy(EngineError):  # noqa: N818
+    """Too many projections are running; the caller may retry later."""
+
+    code = "ENGINE_BUSY"
+
+
 class UnsafeDatabaseRole(EngineError):  # noqa: N818
     code = "UNSAFE_DB_ROLE"
