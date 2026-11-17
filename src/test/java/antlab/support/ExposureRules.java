@@ -4,6 +4,7 @@ import antlab.agent.AgentPartDto;
 import antlab.agent.RejectDto;
 import antlab.agent.decision.DecisionResultDto;
 import antlab.common.exposure.ExposedFrom;
+import antlab.scoring.SeasonAnalysisDto;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.RecordComponent;
 import java.lang.reflect.Type;
@@ -72,6 +73,9 @@ public final class ExposureRules {
             DecisionResultDto.OrderUnitResultDto.class, Set.of("index", "status"),
             DecisionResultDto.ThesesResultDto.class, Set.of("status"),
             DecisionResultDto.SchemaViolationDto.class, Set.of("pointer", "keyword"),
+            SeasonAnalysisDto.class, Set.of("analysisVersion", "representativeVersion"),
+            SeasonAnalysisDto.BaselineDto.class, Set.of("key"),
+            SeasonAnalysisDto.LegDto.class, Set.of("slot", "sharePercent"),
             antlab.season.AbandonResultDto.class, Set.of("advancedTurns"));
 
     /**
