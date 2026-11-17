@@ -1,0 +1,16 @@
+{
+ "schema": "turn-decision/1",
+ "formation_change": null,
+ "orders": [
+  {
+   "asset": "KR:ABCDEFGHIJKLM",
+   "side": "BUY",
+   "quantity": 1,
+   "source": {
+    "kind": "DIRECT"
+   }
+  }
+ ],
+ "theses": [],
+ "reason": "hold"
+}

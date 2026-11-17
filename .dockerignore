@@ -6,6 +6,7 @@
 !build.gradle
 !settings.gradle
 !src/main/
+!feed/
 
 # 연 경로 안에서도 비밀값·개인 설정은 모든 깊이에서 다시 뺀다.
 **/.env

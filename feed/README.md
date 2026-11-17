@@ -10,14 +10,15 @@
 |---|---|---|
 | `kinds.csv` | 종류 코드 7개 — `turn_feed.kind` CHECK와 글자 단위로 같다 | 7 |
 | `variables.csv` | 문장에 쓸 수 있는 변수(자리) — `turn_feed.template_vars`의 키 | 14 |
-| `templates.csv` | 템플릿(문장 + 선택 속성) | 53 |
+| `templates.csv` | 템플릿(문장 + 선택 속성) | 89 |
+| `notices.csv` | Fixed screen sentences (the season-start disclosure), same id rule as templates / 고정 화면 문장(시즌 시작 고지), 템플릿과 같은 id 규칙 | 1 |
 | `denylist.csv` | 금지어와 이유 코드 | 86 |
 | `check_templates.sql` | 위 네 파일을 읽어 규칙을 판정하는 검사 | — |
 | `README.md` | 이 문서 | — |
 
 편집은 VS Code에서 한다. 확장 "Rainbow CSV"를 설치하면 열이 색으로 구분되고 열 정렬 보기가 된다. **정렬용 공백을 넣지 않는다**(공백도 값이 된다).
 
-## 파일 형식 (네 CSV 공통)
+## 파일 형식 (다섯 CSV 공통)
 
 - UTF-8(BOM 없음), 줄 끝 LF, RFC 4180 따옴표. 쉼표가 든 칸은 `"…"`로 감싸고 안의 `"`는 `""`로 쓴다.
 - 한 행이 한 항목이다. 여러 줄 칸 금지.
@@ -89,22 +90,30 @@
 - 문장을 고치려면 `v` 번호를 올린 **새 행**을 더하고(`rise.inflow.v2`) 옛 행의 `status`를 `RETIRED`로 바꾼다. 같은 `kind.slug`의 `ACTIVE`는 하나뿐이므로 새 행을 `ACTIVE`로 더하는 같은 변경에서 옛 행을 `RETIRED`로 둔다.
 - **행을 지우지 않는다.**
 
-### 표본 구성 (합 53)
+### 구성 (합 89)
 
 | 종류 | 수 | 구성 |
 |---|---|---|
-| RISE | 14 | ASSET·UP 3, GROUP·UP 11 |
-| FALL | 13 | ASSET·DOWN 3, GROUP·DOWN 10 |
-| ECHO | 4 | ASSET·UP 2, ASSET·DOWN 2 |
-| SPREAD | 5 | GROUP·UP 2, GROUP·DOWN 3 |
-| FADE | 3 | ASSET 3 |
+| RISE | 22 | ASSET·UP 8, GROUP·UP 14 |
+| FALL | 20 | ASSET·DOWN 7, GROUP·DOWN 13 |
+| ECHO | 10 | ASSET·UP 5, ASSET·DOWN 5 |
+| SPREAD | 11 | GROUP·UP 5, GROUP·DOWN 6 |
+| FADE | 5 | ASSET 5 |
 | EVENT | 9 | 공개 범주 7개 각 1, 범주 비공개 2 |
-| NUDGE | 5 | ASSET 2, NONE 3 |
+| NUDGE | 12 | ASSET 4, NONE 8 (현금 비중 2, 거래 수 2, 쉬는 턴 2, 자리 없음 2) |
+
+Counts are builder values (PLAN §14), first edit MVP-08. Tone is wording variety inside each kind, target and direction; there is no tone column. The 36 rows added by MVP-08 are appended at the end of `templates.csv`; the 53 earlier rows are unchanged. Of the counts above, `rise.rank.v1` is never picked (its `{rank}` slot is never filled by the current rule version), and each GROUP row set includes the event-card mirrors listed below. The new group sentences include some without a name slot, so more group noise looks like an event card (no group name). The `strength`, `event_type` and `outcome` columns stay blank in the new rows.
+개수는 빌더 값이다(PLAN §14, 1차 편집 MVP-08). 어조는 종류·대상·방향 안의 문장 다양성이며 어조 열은 없다. MVP-08이 더한 36행은 `templates.csv` 끝에 붙였고 앞의 53행은 그대로다. 위 개수 가운데 `rise.rank.v1`은 현재 규칙 버전이 `{rank}` 자리를 채우지 않아 고르지 않는다. GROUP 행 수에는 아래의 사건 카드 짝(소음 18개)이 들어 있다. 새 그룹 문장 중 일부는 이름 자리가 없어, 이름이 없는 그룹 소음이 늘어 사건 카드와 더 비슷하게 보인다. 새 행의 `strength`·`event_type`·`outcome` 열은 비워 둔다.
 
 사건 카드는 이번에 **범주 단위** 7개와 범주 비공개 2개뿐이다. 유형·결과별 문장은 P0-09가 `event_type`·`outcome` 목록을 정한 뒤 새 id로 더한다.
 
 - **범주 카드는 그 범주의 모든 유형·결과·단계에서 참인 말만 쓴다.** 범주 단위 카드는 그 범주의 어떤 사건 태그에도 쓰이므로(`US_MIDTERM`이든 `US_PRESIDENTIAL_ELECTION`이든, 결과 `AGREED`든 `CEASEFIRE`든, 단계 `START`든 `END`든) "미국 대선 결과"·"관세 갈등 격화"·"무력 분쟁 발발"처럼 유형·결과·단계를 단정하면 틀린 사실을 보이게 된다. "정치 이슈 부각"·"통상 소식"처럼 단계에 중립인 말을 쓰고, 구체 문장은 새 id로 더한다.
 - **사건 카드 9개의 문장 전체를 오른 달 소음과 내린 달 소음이 각각 하나 이상 그대로 쓴다**(소음 18개, 모두 GROUP·RISE·FALL·SPREAD). 소음의 앞말에는 늘 다른 말이 붙기 때문에 꼬리나 어휘만 맞추면 사건 카드의 문장이 딱 그 모양인 소음이 없어 가려진다. 그래서 공개 카드 7개도 비공개 카드 2개와 같은 규칙을 쓴다: `주요 지역 지정학 이슈 부각 — 이달 관련 시장 {reaction}`은 `rise.geo`(UP)와 `fall.geo`(DOWN)가 자리만 `{group_ret}`로 바꿔 똑같이 쓴다. 문장은 고유명사·숫자 없이 사건 범주를 막연하게만 말한다(지정학·통상·정치·원자재 가격·금융권 신용·경제 정책·보건). `event.policy`는 통화·재정을 모두 덮도록 `경제 정책 관련 소식`이라 쓴다. 범주 비공개 카드 2개의 소음은 `rise.sweep`·`fall.sweep`·`rise.sweepwide`·`fall.sweepwide`다. 사건 카드 문장을 고치면 그 틀을 쓰는 소음 두 개(UP·DOWN)도 같은 문장으로 고친다(머지된 뒤에는 새 id가 필요하다, 위 id 규칙).
+
+## notices.csv — fixed screen sentences / 고정 화면 문장
+
+`notices.csv` holds sentences the screen shows as they are, not rendered per turn. Header `notice_id,status,text`; `notice_id` follows the template id rule (`^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)*\.v[1-9][0-9]*$`), `status` is `ACTIVE` or `RETIRED`, and the immutability rule above applies (change a sentence with a new `v` row and retire the old one; never delete). The text has no slot, no digit, no Latin letter, no `%` and no `denylist.csv` word. The file has one row, `season_start.disclosure.v1`, which is the season-start sentence of PLAN §4.13 word for word. `check_templates.sql` does not read this file; the Java catalog loader (MVP-11) validates the same rules, and serving the sentence through the API is decided by a later feature.
+`notices.csv`는 턴마다 렌더하지 않고 화면이 그대로 보이는 문장을 담는다. 헤더는 `notice_id,status,text`이고, `notice_id`는 템플릿 id 규칙을 따르며, `status`는 `ACTIVE`/`RETIRED`이고, 위의 id 불변 규칙이 같이 적용된다(문장을 고치려면 `v`를 올린 새 행을 더하고 옛 행을 `RETIRED`로 둔다. 지우지 않는다). 문장에는 자리·숫자·라틴 글자·`%`·`denylist.csv` 단어가 없다. 지금은 `season_start.disclosure.v1` 한 행이며 PLAN §4.13의 시즌 시작 화면 문구와 글자 하나까지 같다. `check_templates.sql`은 이 파일을 읽지 않는다. 같은 규칙은 Java 카탈로그 적재기(MVP-11)가 검증하고, 이 문장을 API로 내보내는 일은 이후 기능이 정한다.
 
 ## 렌더 규칙 — P0-18의 SQL과 MVP의 Java가 같은 결과를 낸다
 
@@ -179,7 +188,7 @@ A unit written right after a slot (`{x}원`, `{x}포인트`) is also reported as
 
 ### 문장 품질 기준
 
-- 소음(RISE·FALL·ECHO·SPREAD·FADE)과 사건 카드(EVENT)와 알림 문장은 **같은 옷**을 입는다: 같은 문장 부호, 비슷한 길이, 기사 제목 문체. 사건 카드만 가진 표식(`SHAPE`)이 없어야 한다. 검사가 보는 것은 사건 카드의 문장 전체 틀(자리는 타입으로 바꾼다)을 오른 달·내린 달 소음이 각각 쓰는지다. 앞말의 어휘도 문장 전체에 들어 있으므로 따로 보지 않아도 된다. 자동으로 보지 못하는 것은 대상 이름 자리의 유무다 — 이름 자리는 MVP DTO 몫이다(EVENT 0/9, 소음은 이름 자리가 없는 18개를 빼고 모두 있다. 사건 카드와 같은 틀의 소음이 늘어 이 단서는 약하다).
+- 소음(RISE·FALL·ECHO·SPREAD·FADE)과 사건 카드(EVENT)와 알림 문장은 **같은 옷**을 입는다: 같은 문장 부호, 비슷한 길이, 기사 제목 문체. 사건 카드만 가진 표식(`SHAPE`)이 없어야 한다. 검사가 보는 것은 사건 카드의 문장 전체 틀(자리는 타입으로 바꾼다)을 오른 달·내린 달 소음이 각각 쓰는지다. 앞말의 어휘도 문장 전체에 들어 있으므로 따로 보지 않아도 된다. 자동으로 보지 못하는 것은 대상 이름 자리의 유무다 — 이름 자리는 MVP DTO 몫이다(EVENT 0/9, 소음 68개 가운데 이름 자리가 없는 것은 24개 — 사건 카드와 같은 틀 18개와 MVP-08이 더한 6개 — 이고 나머지 44개는 이름 자리가 있다. 이름 없는 소음이 늘어 이 단서는 약하다).
 - 소음은 그 턴의 숫자와 방향만 말하고 다음 달을 말하지 않는다. 사건 카드는 범주와 시장 반응(`{reaction}`)만 말하고 이름·날짜를 말하지 않는다.
 - **범주 비공개 카드는 "범주 비공개"라고 말하지 않는다**(결정 5-B). 소음은 그런 말을 쓰지 않으므로, 그 글자가 화면에 나오면 "이 항목은 실제 사건"이 드러나고 희소 유형(표본 3회 미만)이라는 사실이 날짜를 가리킨다. 비공개는 `category_hidden`이라는 내부 판정으로만 두고, 화면 문장은 소음도 쓰는 중립 문체(`시장 전반 급변 — 이달 반응 {reaction}`)로 쓴다. 같은 모양의 소음 문장이 FALL·RISE에 함께 있다(`rise.sweep`·`fall.sweep` 등).
 - 문장에 숫자를 직접 쓰지 않는다. 숫자는 자리로 들어온다.
@@ -244,3 +253,6 @@ SQL 생성기는 `db/24_turn_feed_def.sql`에서 `tf_input → tf_generate → t
 P0-09: 카드로 내는 사건 태그는 `reaction_change`를 채운다(NULL이면 P0-09 검사가 보고한다). `event_type`·`outcome` 목록이 정해지면 유형·결과별 EVENT 템플릿을 새 id로 더한다. `month_event.reaction_change`가 **무엇의** 변화율인지 코드가 없어(erd 5.3) 공개 카드 문장은 "관련 시장 {reaction}"처럼 막연하게 쓴다. 대상을 말하려면 P0-09가 코드를 정하고 erd를 바꿔야 한다.
 
 MVP: Java 렌더러는 위 렌더 규칙과 같은 결과(`HALF_UP`, 정수 %, ASCII 하이픈)를 내고 같은 CSV를 읽는다(열 목록 불변). 시즌 중 DTO에 `template_id`·`kind`를 내지 않는다.
+
+MVP-11: `antlab.feed.FeedGenerator` ports rule version `p0-18:v2` from `db/24` and reads the same CSV files from the classpath (copied from `feed/` at build time). SQL stays the reference; `FeedGeneratorSqlParityTest` (CI) and `TurnAdvanceGoldenTest` (sample) prove equality.
+MVP-11: `antlab.feed.FeedGenerator`가 `db/24`의 규칙 버전 `p0-18:v2`를 옮기고 같은 CSV를 클래스패스에서 읽는다(빌드 때 `feed/`에서 복사). 기준은 SQL이며 `FeedGeneratorSqlParityTest`(CI)·`TurnAdvanceGoldenTest`(표본)가 같음을 보인다.

@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "turn-decision/1",
+  "description": "The reply an agent gives for one turn. The API checks it unit by unit; this file fixes the shape only (types, required keys, enums, patterns, length bounds). Value rules (a quantity of zero, shares that do not add up to 100, an asset that is not in the pool) are not shape rules: they reject one unit and the other units still run. The reply never carries a price, a fee or a fill — the engine decides those, and any such key is a shape error. The Java check of the API is the reference for the verdict: a number written with a fraction or exponent (3.0, 1e2) is not an integer even where a validator would accept it, a trailing newline never matches the asset pattern, and a repeated object key keeps its last value. The fixture corpus (agent/turn-decision/manifest.json) states the verdict of each case. / 에이전트가 한 턴에 내는 응답이다. API가 단위별로 검사하며, 이 파일은 모양(형, 필수 키, 열거값, 패턴, 길이 상한)만 정한다. 값 규칙(수량 0, 합이 100이 아닌 포메이션, 풀에 없는 종목)은 모양 규칙이 아니라 한 단위만 거부하고 나머지는 계속 처리한다. 응답에는 가격·수수료·체결이 없다 — 엔진이 정하며, 그런 키는 모양 오류다. 판정의 기준은 API의 자바 검사다: 소수부나 지수로 쓴 수(3.0, 1e2)는 검증기가 받아도 정수가 아니고, 끝의 줄바꿈은 종목 패턴에 맞지 않으며, 반복된 객체 키는 마지막 값을 쓴다. 사례별 판정은 픽스처 모음(agent/turn-decision/manifest.json)에 있다.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "formation_change", "orders", "theses", "reason"],
+  "properties": {
+    "schema": {
+      "const": "turn-decision/1"
+    },
+    "formation_change": {
+      "description": "null = keep the formation. / null이면 포메이션을 그대로 둔다.",
+      "anyOf": [
+        { "type": "null" },
+        { "$ref": "#/$defs/formationChange" }
+      ]
+    },
+    "orders": {
+      "description": "Market orders. Sells are applied before buys, each group in the order given. / 시장가 주문. 매도를 먼저, 매수를 나중에 적용하며 각 묶음은 적힌 순서대로다.",
+      "type": "array",
+      "maxItems": 40,
+      "items": { "$ref": "#/$defs/order" }
+    },
+    "theses": {
+      "description": "Reserved for the outlook mode. A non-empty list is rejected as a unit for now. / 전망 모드를 위해 비워 둔 자리. 지금은 비어 있지 않으면 한 단위로 거부한다.",
+      "type": "array",
+      "maxItems": 20,
+      "items": { "type": "object" }
+    },
+    "reason": {
+      "type": "string",
+      "maxLength": 500
+    }
+  },
+  "$defs": {
+    "share": {
+      "type": "integer",
+      "minimum": -2147483648,
+      "maximum": 2147483647
+    },
+    "formationChange": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["goalkeeper", "defender", "midfielder", "forward", "reason"],
+      "properties": {
+        "goalkeeper": { "$ref": "#/$defs/share" },
+        "defender": { "$ref": "#/$defs/share" },
+        "midfielder": { "$ref": "#/$defs/share" },
+        "forward": { "$ref": "#/$defs/share" },
+        "reason": { "type": "string", "maxLength": 200 }
+      }
+    },
+    "order": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["asset", "side", "quantity", "source"],
+      "properties": {
+        "asset": {
+          "description": "MARKET:TICKER as in the pool. / 풀의 MARKET:TICKER.",
+          "type": "string",
+          "pattern": "^(KR|US):[A-Z0-9.]{1,12}(?![\\s\\S])"
+        },
+        "side": { "enum": ["BUY", "SELL"] },
+        "quantity": {
+          "description": "Whole shares. Zero or negative passes the shape check and is rejected as a unit. / 정수 주. 0 이하도 모양 검사는 통과하고 한 단위로 거부한다.",
+          "type": "integer",
+          "minimum": -2147483648,
+          "maximum": 2147483647
+        },
+        "position": {
+          "description": "Declared position; a buy of an asset with no open span needs it, a sell must not carry it. / 선언 포지션. 열린 구간이 없는 종목의 매수에는 필요하고 매도에는 보내지 않는다.",
+          "enum": ["GOALKEEPER", "DEFENDER", "MIDFIELDER", "FORWARD_TARGET", "FORWARD_BREAKOUT", "FORWARD_DEFENSIVE"]
+        },
+        "source": { "$ref": "#/$defs/source" }
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "properties": {
+        "kind": { "enum": ["RANKING", "FEED", "ALERT", "BENCH", "DIRECT"] },
+        "feed_seq": { "$ref": "#/$defs/share" },
+        "ranking_rank": { "$ref": "#/$defs/share" }
+      }
+    }
+  }
+}

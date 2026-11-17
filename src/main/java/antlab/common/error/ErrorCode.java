@@ -59,5 +59,9 @@ public enum ErrorCode {
     /** Login: the email or password does not match; the same answer whichever is wrong. */
     INVALID_CREDENTIALS,
     /** The agent is retired and cannot start a season (agent runner). */
-    AGENT_RETIRED
+    AGENT_RETIRED,
+    /** A different decision was already recorded for this turn (agent runner). */
+    DECISION_CONFLICT,
+    /** The agent season's current turn has no final decision yet, so it cannot advance (agent runner). */
+    DECISION_MISSING
 }

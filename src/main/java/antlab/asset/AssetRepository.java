@@ -9,6 +9,9 @@ public interface AssetRepository extends Repository<Asset, Long> {
 
     Optional<Asset> findById(Long id);
 
+    /** The asset of a natural key; the agent decision names assets as MARKET:TICKER. */
+    Optional<Asset> findByMarketAndTicker(Market market, String ticker);
+
     /** 번호 목록으로 한 문장에 읽는다 — 성적표가 풀 종목의 자연 키(시장, 티커)를 붙인다(P0-38). */
     List<Asset> findAllById(Iterable<Long> ids);
 }

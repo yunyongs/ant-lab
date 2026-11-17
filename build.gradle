@@ -61,6 +61,8 @@ tasks.named('test') {
     inputs.dir('feed').withPropertyName('feedFiles').withPathSensitivity(PathSensitivity.RELATIVE)
     inputs.file('docs/api/openapi.yaml').withPropertyName('openApiContract').withPathSensitivity(PathSensitivity.RELATIVE)
     inputs.file('docs/api/engine.yaml').withPropertyName('engineContract').withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.file('docs/api/agent-runner.yaml').withPropertyName('agentRunnerContract').withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.file('docs/api/turn-decision-1.schema.json').withPropertyName('turnDecisionSchema').withPathSensitivity(PathSensitivity.RELATIVE)
     inputs.file('compose.yaml').withPropertyName('composeFile').withPathSensitivity(PathSensitivity.RELATIVE)
     inputs.dir('monitoring').withPropertyName('monitoringFiles').withPathSensitivity(PathSensitivity.RELATIVE)
     inputs.file('.env.example').withPropertyName('envExample').withPathSensitivity(PathSensitivity.RELATIVE)
@@ -79,6 +81,14 @@ tasks.named('test') {
     systemProperty 'user.timezone', 'UTC'
     // Tests read tracked classpath config only: never a personal config/application-local.yml (git-ignored) next to the project.
     systemProperty 'spring.config.location', 'optional:classpath:/'
+}
+
+// The feed generator reads the templates from the classpath; feed/*.csv stays the only copy (no duplicate under src/main/resources).
+tasks.named('processResources') {
+    from('feed') {
+        include '*.csv'
+        into 'feed'
+    }
 }
 
 tasks.named('bootJar') {
