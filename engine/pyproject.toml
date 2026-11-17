@@ -34,8 +34,9 @@ known-first-party = ["antlab_engine"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "--strict-markers"
+addopts = "--strict-markers -m 'not slow'"
 markers = [
+    "slow: timing and distribution measurements, run with -m slow -s",
     "db: needs an isolated PostgreSQL server (ANTLAB_ENGINE_TEST_ADMIN_DSN)",
     "sample: needs ANTLAB_GOLDEN_SAMPLE_DIR and a sample-loaded database",
 ]
