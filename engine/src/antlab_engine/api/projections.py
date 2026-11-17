@@ -11,13 +11,13 @@ from decimal import ROUND_HALF_UP, Context, Decimal
 from threading import BoundedSemaphore
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 
 from antlab_engine.bootstrap import stationary
 from antlab_engine.bootstrap.simple import REPLAY_START, replay_upper_bound
 from antlab_engine.engine_errors import EngineBusy, InvalidArgument
 from antlab_engine.errors import Problem
-from antlab_engine.history.model import HistoryReader
+from antlab_engine.history.model import HistoryReader, HistorySnapshot
 from antlab_engine.projection import PROJECTION_VERSION, Portfolio, Projection, ReturnPanel, project
 from antlab_engine.projection.stats import BAND_POINTS, MDD_POINTS
 
@@ -57,20 +57,39 @@ def probability(count: int, n: int) -> str:
     return format(rounded, "f")
 
 
-def history_digest(panel: ReturnPanel, used: list[str], base_date: date) -> str:
-    """SHA-256 over the versions, the used assets and the eligible months with their factors.
+def _plain(value: Decimal) -> str:
+    """A decimal without exponent or trailing zeros; zero is `0`."""
+    return format(value.normalize(), "f") if value else "0"
 
-    The eligible months are the replayable months in which every used asset has a return, so a
-    changed return, a missing cell or a different pool all change the digest.
+
+def history_digest(
+    snapshot: HistorySnapshot, panel: ReturnPanel, used: list[str], base_date: date
+) -> str:
+    """SHA-256 over the versions, the held assets and the source returns of the eligible months.
+
+    Text (ASCII, lines joined by LF, no final LF): `m2-pj-v1`; `m2-sb6-v1`; the held asset keys
+    sorted and joined by a space; then one line per eligible month in ascending order:
+    `YYYY-MM` and, for each held asset in that order, ` <local_return>,<fx_change>` as plain
+    decimals without trailing zeros (zero is `0`; KR assets carry fx `0`). Eligible months are the
+    replayable months in which every held asset has a return. The text uses the stored decimals,
+    not floats, so another system can reproduce it from `asset_month_return` and `fx_month`.
     """
     upper = replay_upper_bound(base_date)
-    columns = [panel.assets.index(a) for a in used]
+    month_of = {m.month_block_id: m.month_start for m in snapshot.months}
+    key_of = {a.asset_id: f"{a.market}:{a.ticker}" for a in snapshot.pool}
+    is_us = {f"{a.market}:{a.ticker}": a.currency == "USD" for a in snapshot.pool}
+    fx = {c.month_block_id: c.fx_change for c in snapshot.fx if c.currency == "USD"}
+    local = {(key_of[r.asset_id], month_of[r.month_block_id]): r for r in snapshot.returns}
     lines = [PROJECTION_VERSION, stationary.ENGINE_VERSION, " ".join(used)]
     for row in panel.rows_with(used):
         month = panel.months[int(row)]
         if REPLAY_START <= month < upper:
-            factors = " ".join(repr(float(panel.factors[row, c])) for c in columns)
-            lines.append(f"{month:%Y-%m} {factors}")
+            cells = []
+            for asset in used:
+                found = local[(asset, month)]
+                move = fx[found.month_block_id] if is_us[asset] else Decimal(0)
+                cells.append(f"{_plain(found.local_return)},{_plain(move)}")
+            lines.append(f"{month:%Y-%m} " + " ".join(cells))
     return hashlib.sha256("\n".join(lines).encode("ascii")).hexdigest()
 
 
@@ -125,7 +144,7 @@ def _result(projection: Projection, digest: str) -> ProjectionResult:
 )
 def create_projection(
     request: ProjectionRequest,
-    reader: Annotated[HistoryReader, Depends(history_reader)],
+    http_request: Request,
     slots: Annotated[BoundedSemaphore, Depends(projection_slots)],
 ) -> ProjectionResult:
     seed = int(request.seasonSeed)
@@ -135,6 +154,8 @@ def create_projection(
     if not -1 < risk_limit < 0:
         raise InvalidArgument("riskLimit must be between -1 and 0")
     books = _portfolios(request)  # weights and cash are checked before any history is read
+    # resolved after the checks: a bad request is 400 even without a configured database
+    reader = history_reader(http_request)
     if not slots.acquire(blocking=False):
         raise EngineBusy("Too many projections are running; try again later.")
     try:
@@ -150,7 +171,8 @@ def _run(
     seed: int,
     risk_limit: Decimal,
 ) -> ProjectionResult:
-    panel = panel_from_snapshot(reader.read(request.baseDate))
+    snapshot = reader.read(request.baseDate)
+    panel = panel_from_snapshot(snapshot)
     projection = project(
         panel,
         request.baseDate,
@@ -162,4 +184,4 @@ def _run(
         summary_turns=request.summaryTurns,
     )
     used = sorted({asset for p in books for asset, _ in p.active})
-    return _result(projection, history_digest(panel, used, request.baseDate))
+    return _result(projection, history_digest(snapshot, panel, used, request.baseDate))

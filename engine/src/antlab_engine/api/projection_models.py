@@ -25,14 +25,14 @@ Probability = Annotated[str, Field(pattern=PROBABILITY_PATTERN)]
 
 
 class Holding(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", strict=True)
 
     asset: Annotated[str, Field(pattern=ASSET_PATTERN)]
     weight: Share
 
 
 class ProjectionPortfolio(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", strict=True)
 
     key: Annotated[str, Field(pattern=KEY_PATTERN)]
     cash: Share
@@ -47,10 +47,10 @@ class ProjectionPortfolio(BaseModel):
 
 
 class ProjectionRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", strict=True)
 
     seasonSeed: Annotated[str, Field(pattern=SEED_PATTERN)]
-    baseDate: date
+    baseDate: Annotated[date, Field(strict=False)]  # an ISO string; see _iso_date
     horizonTurns: Literal[60, 120]
     n: int = Field(default=2000, ge=100, le=5000)
     riskLimit: Annotated[str, Field(pattern=LIMIT_PATTERN)]
@@ -58,6 +58,20 @@ class ProjectionRequest(BaseModel):
         default_factory=lambda: [60, 120], min_length=1, max_length=MAX_SUMMARY_TURNS
     )
     portfolios: list[ProjectionPortfolio] = Field(min_length=1, max_length=MAX_PORTFOLIOS)
+
+    @field_validator("horizonTurns", mode="before")
+    @classmethod
+    def _whole_horizon(cls, value: object) -> object:
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise ValueError("horizonTurns must be an integer")
+        return value
+
+    @field_validator("baseDate", mode="before")
+    @classmethod
+    def _iso_date(cls, value: object) -> object:
+        if not isinstance(value, str) or len(value) != 10:
+            raise ValueError("baseDate must be an ISO date string")
+        return value
 
     @model_validator(mode="after")
     def _unique_keys(self) -> "ProjectionRequest":

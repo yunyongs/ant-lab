@@ -124,6 +124,10 @@ components:
           schema:
             $ref: '#/components/schemas/Problem'
     ProjectionUnavailable:
+      headers:
+        Retry-After:
+          description: Seconds to wait before retrying, sent with ENGINE_BUSY / ENGINE_BUSY일 때 다시 호출하기까지 기다릴 초
+          schema: {type: string}
       description: The history database is not configured or not reachable (HISTORY_UNAVAILABLE), or too many projections are running and the call may be retried later (ENGINE_BUSY) / 이력 DB가 설정되지 않았거나 닿지 않는다(HISTORY_UNAVAILABLE), 또는 실행 중인 예상 분포가 너무 많아 나중에 다시 호출하면 된다(ENGINE_BUSY)
       content:
         application/problem+json:
@@ -289,8 +293,14 @@ components:
       description: >-
         Value multiples, drawdowns and probabilities as decimal strings with eight fractional digits
         (rounded half up once at the wire). No months, no won amounts and no per-path values leave the
-        engine. `historyDigest` is the SHA-256 (hex) of the versions, the held assets and the eligible
-        months (`YYYY-MM`, every held asset has a return) with their growth factors. / 평가 배수·낙폭·확률은
+        engine. `historyDigest` is the SHA-256 (hex) of this ASCII text, lines joined by LF without a final LF:
+        `projectionVersion`; `engineVersion`; the held asset keys sorted and joined by a space; then one line
+        per eligible month in ascending order, `YYYY-MM` followed by ` <local_return>,<fx_change>` for each held
+        asset in that order. Eligible months are the replayable months in which every held asset has a return.
+        Returns are the stored decimals written plain, without exponent or trailing zeros (zero is `0`); KR
+        assets carry fx `0`; no float text is used, so it can be recomputed from the stored history.
+        Multiples are not clipped: a multiple may exceed the 9,999.99999999 of `NUMERIC(12,8)`, so a store
+        needs a wider column. `ENGINE_BUSY` (503) carries `Retry-After: 1`. / 평가 배수·낙폭·확률은
         소수 여덟 자리 십진 문자열이다(전송 경계에서 한 번 반올림, 반올림 방식은 half up). 달·원화 금액·경로별 값은
         엔진 밖으로 나가지 않는다. `historyDigest`는 버전, 보유 종목, 자격 있는 달(모든 보유 종목에 수익률이 있는
         `YYYY-MM`)과 성장 배수에 대한 SHA-256(hex)이다.

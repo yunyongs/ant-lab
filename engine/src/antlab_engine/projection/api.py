@@ -13,7 +13,7 @@ import numpy as np
 
 from antlab_engine.bootstrap import stationary
 from antlab_engine.bootstrap.simple import REPLAY_START, replay_upper_bound
-from antlab_engine.engine_errors import InvalidArgument
+from antlab_engine.engine_errors import InvalidArgument, PathTooLong
 from antlab_engine.projection.evaluate import evaluate
 from antlab_engine.projection.model import (
     MAX_PATHS,
@@ -85,7 +85,7 @@ def project(
         panel, base_date, derive_path_seeds(season_seed, n), horizon, used, replay_start, params
     )
     if len(np.unique(paths, axis=0)) < 2:
-        raise InvalidArgument("the history allows only one projection path")
+        raise PathTooLong("the history allows only one projection path")
     column = {asset: i for i, asset in enumerate(panel.assets)}
     held = [
         (tuple((column[asset], float(w)) for asset, w in p.active), float(p.cash)) for p in books

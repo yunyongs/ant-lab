@@ -84,7 +84,7 @@ def test_the_route_for_2000_paths_120_turns_180_assets_and_three_portfolios():
     )
     projected = time.perf_counter()
     used = sorted({a for p in books for a, _ in p.active})
-    history_digest(panel, used, BASE_DATE)
+    history_digest(shot, panel, used, BASE_DATE)
     digested = time.perf_counter()
     print(
         f"\nroute stages: adapter {adapted - started:.3f} s, project {projected - adapted:.3f} s, "

@@ -388,6 +388,13 @@ INVALID = {
     "extra portfolio field": body(portfolios=[{**team(), "amount": "5"}]),
     "extra top field": {**body(), "attempts": 5},
     "weights plus cash short by 1e-8": body(portfolios=[team(cash="0.09999999")]),
+    "n as a string": body(n="2000"),
+    "n as a float": body(n=2000.0),
+    "horizon as a float": body(horizonTurns=60.0),
+    "summary turn as a string": body(summaryTurns=["60"]),
+    "base date as epoch seconds": body(baseDate=1767225600),
+    "base date as a datetime": body(baseDate="2026-01-01T00:00:00"),
+    "base date as a boolean": body(baseDate=True),
     "weights plus cash over by 1e-9": body(portfolios=[team(cash="0.100000001")]),
     "weights plus cash of 0.9": body(portfolios=[team(cash="0")]),
 }
@@ -555,18 +562,69 @@ def test_r17_the_digest_does_not_depend_on_the_order_of_the_snapshot(token):
 
 
 def test_r17_the_digest_text_is_the_documented_one():
-    shot = snapshot(ASSETS)
+    shot = snapshot(ASSETS, changes={("KR:A001", date(2012, 5, 1)): "-0.00000001"})
     panel = panel_from_snapshot(shot)
     used = ["KR:A001", "US:C003"]
+    month_of = {m.month_block_id: m.month_start for m in shot.months}
+    local = {(r.asset_id, month_of[r.month_block_id]): r.local_return for r in shot.returns}
+    fx = {month_of[c.month_block_id]: c.fx_change for c in shot.fx}
+    ids = {f"{a.market}:{a.ticker}": a.asset_id for a in shot.pool}
+
+    def plain(value: Decimal) -> str:
+        return "0" if value == 0 else format(value.normalize(), "f")
+
     lines = ["m2-pj-v1", "m2-sb6-v1", " ".join(used)]
-    for row in panel.rows_with(used):
-        month = panel.months[int(row)]
-        if date(2007, 1, 1) <= month < date(2026, 1, 1):
-            factors = " ".join(repr(float(panel.factors[row, panel.assets.index(a)])) for a in used)
-            lines.append(f"{month:%Y-%m} {factors}")
+    for month in month_range(date(2007, 1, 1), date(2025, 12, 1)):
+        cells = [
+            f"{plain(local[(ids['KR:A001'], month)])},0",
+            f"{plain(local[(ids['US:C003'], month)])},{plain(fx[month])}",
+        ]
+        lines.append(f"{month:%Y-%m} " + " ".join(cells))
     expected = hashlib.sha256("\n".join(lines).encode()).hexdigest()
-    assert history_digest(panel, used, BASE_DATE) == expected
+    assert history_digest(shot, panel, used, BASE_DATE) == expected
     assert len(lines) == 3 + 228
+    assert any(x.startswith("2012-05 -0.00000001,0 ") for x in lines)  # never `-1E-8`
+
+
+def test_r17_the_digest_reads_stored_decimals_not_float_text(token):
+    base = digest_of(token, snapshot(ASSETS, changes={("KR:A001", date(2015, 3, 1)): "0.0500"}))
+    same = digest_of(token, snapshot(ASSETS, changes={("KR:A001", date(2015, 3, 1)): "0.05"}))
+    other = digest_of(
+        token, snapshot(ASSETS, changes={("KR:A001", date(2015, 3, 1)): "0.05000001"})
+    )
+    assert base == same != other
+
+
+def test_r25_a_bad_request_is_400_even_without_a_configured_database(token):
+    client = make_client(token, None)
+    headers = {"X-Antlab-Engine-Token": token}
+    wrong_sum = body(portfolios=[{"key": "TEAM", "cash": "0.5", "weights": []}])
+    for bad in (wrong_sum, {"seasonSeed": 1}, body(riskLimit="0.1"), body(n=5)):
+        response = client.post("/v1/projections", json=bad, headers=headers)
+        problem(response, 400, "INVALID_ARGUMENT")
+    problem(
+        client.post("/v1/projections", json=body(), headers=headers), 503, "HISTORY_UNAVAILABLE"
+    )
+
+
+def test_r26_a_busy_answer_says_when_to_retry(token):
+    gate = GatedReader()
+    app = create_app(Settings(token), history_reader=gate, max_projections=1)
+    client = TestClient(app, raise_server_exceptions=False)
+    headers = {"X-Antlab-Engine-Token": token}
+    worker = threading.Thread(
+        target=lambda: client.post("/v1/projections", json=body(), headers=headers)
+    )
+    worker.start()
+    assert gate.entered.wait(10)
+    busy = client.post("/v1/projections", json=body(), headers=headers)
+    problem(busy, 503, "ENGINE_BUSY")
+    assert busy.headers["retry-after"] == "1"
+    gate.release.set()
+    worker.join(10)
+    unavailable = make_client(token, SnapshotReader(error=HistoryUnavailable("down")))
+    other = unavailable.post("/v1/projections", json=body(), headers=headers)
+    assert "retry-after" not in other.headers
 
 
 def test_r18_months_beyond_the_base_date_and_before_the_replay_start_change_nothing(token):
