@@ -7,6 +7,9 @@ import { poolFixture } from '../../test/fixtures/pool.ts';
 import { emptyBoard, rankingFixture } from '../../test/fixtures/ranking.ts';
 import { renderWithProviders } from '../../test/renderWithProviders.tsx';
 import { server } from '../../test/server.ts';
+import { settle } from '../../test/settle.ts';
+import { gate } from '../../test/serveTurns.ts';
+import { rankingKey } from './queries.ts';
 import { RankingSection } from './RankingSection.tsx';
 
 function serveBoard(board: ReturnType<typeof rankingFixture>) {
@@ -116,11 +119,16 @@ describe('RankingSection', () => {
         return HttpResponse.json(emptyBoard(6));
       }),
     );
-    renderWithProviders(
+    const { queryClient, container } = renderWithProviders(
       <RankingSection seasonId={7} turnNo={6} currentTurnNo={5} />,
     );
-    await new Promise((resolve) => setTimeout(resolve, 60));
+    await settle(queryClient);
+    expect(queryClient.getQueryState(rankingKey(7, 6))?.fetchStatus).toBe(
+      'idle',
+    );
     expect(gets).toBe(0);
+    // Out of range: nothing is shown, not even a loading line.
+    expect(container).toBeEmptyDOMElement();
   });
 
   it('does not request a board for turn 0', async () => {
@@ -131,15 +139,25 @@ describe('RankingSection', () => {
         return HttpResponse.json(emptyBoard(0));
       }),
     );
-    renderWithProviders(
+    const { queryClient } = renderWithProviders(
       <RankingSection seasonId={7} turnNo={0} currentTurnNo={5} />,
     );
-    await new Promise((resolve) => setTimeout(resolve, 60));
+    await settle(queryClient);
+    expect(queryClient.getQueryState(rankingKey(7, 0))?.fetchStatus).toBe(
+      'idle',
+    );
     expect(gets).toBe(0);
   });
 
   it('shows a pool failure inside the section and retries the pool', async () => {
-    serveBoard(rankingFixture());
+    // The board is still on its way while the pool has already failed.
+    const hold = gate();
+    server.use(
+      http.get('*/api/v1/seasons/7/turns/5/ranking', async () => {
+        await hold.promise;
+        return HttpResponse.json(rankingFixture());
+      }),
+    );
     let poolGets = 0;
     let poolOk = false;
     server.use(
@@ -154,12 +172,34 @@ describe('RankingSection', () => {
     const region = await screen.findByRole('region', { name: '순위' });
     const alert = await within(region).findByRole('alert');
     expect(within(region).queryByRole('tablist')).toBeNull();
+    // A failure replaces the loading line.
+    expect(within(region).queryByRole('status')).toBeNull();
     poolOk = true;
+    hold.release();
     const before = poolGets;
     await userEvent
       .setup()
       .click(within(alert).getByRole('button', { name: '다시 불러오기' }));
     await within(region).findByRole('tablist');
     expect(poolGets).toBeGreaterThan(before);
+  });
+
+  it('shows a loading line until the board arrives, then only the tabs', async () => {
+    const hold = gate();
+    server.use(
+      http.get('*/api/v1/seasons/7/turns/5/ranking', async () => {
+        await hold.promise;
+        return HttpResponse.json(rankingFixture());
+      }),
+    );
+    renderSection();
+    const region = await screen.findByRole('region', { name: '순위' });
+    expect(within(region).getByRole('status')).toHaveTextContent(
+      '순위를 불러오는 중입니다…',
+    );
+    expect(within(region).queryByRole('tablist')).toBeNull();
+    hold.release();
+    await within(region).findByRole('tablist');
+    expect(within(region).queryByRole('status')).toBeNull();
   });
 });

@@ -9,6 +9,7 @@ import { rankingFixture } from '../test/fixtures/ranking.ts';
 import { renderRoute } from '../test/renderWithProviders.tsx';
 import { server } from '../test/server.ts';
 import { serveTurnWorld } from '../test/serveTurns.ts';
+import { settle } from '../test/settle.ts';
 
 describe('ranking on the now page', () => {
   it('lists the current turn board after the feed and requests only that turn', async () => {
@@ -58,22 +59,36 @@ describe('ranking on the now page', () => {
     expect(screen.queryByRole('alert')).toBeNull();
   });
 
+  it('requests no board while the turn result has failed', async () => {
+    const world = serveTurnWorld({ current: 5 });
+    server.use(
+      http.get('*/api/v1/seasons/7/turns/5', () =>
+        problem(500, { code: 'INTERNAL_ERROR', status: 500 }),
+      ),
+    );
+    const { queryClient } = renderRoute('/seasons/7');
+    await screen.findByRole('alert');
+    await settle(queryClient);
+    expect(screen.queryByRole('region', { name: '순위' })).toBeNull();
+    expect(world.rankingGets).toEqual([]);
+  });
+
   it('requests no board at team build (turn 0)', async () => {
     const world = serveTurnWorld({ current: 0 });
-    renderRoute('/seasons/7');
+    const { queryClient } = renderRoute('/seasons/7');
     await screen.findByRole('heading', { name: '시즌 7' });
-    await new Promise((resolve) => setTimeout(resolve, 60));
+    await settle(queryClient);
     expect(screen.queryByRole('region', { name: '순위' })).toBeNull();
     expect(world.rankingGets).toEqual([]);
   });
 
   it('requests no turn result and no board for a turn after the current one', async () => {
     const world = serveTurnWorld({ current: 3 });
-    renderRoute('/seasons/7/turns/4');
+    const { queryClient } = renderRoute('/seasons/7/turns/4');
     expect(
       await screen.findByText('아직 진행하지 않은 턴입니다.'),
     ).toBeInTheDocument();
-    await new Promise((resolve) => setTimeout(resolve, 60));
+    await settle(queryClient);
     expect(world.turnGets).toEqual([]);
     expect(world.rankingGets).toEqual([]);
   });

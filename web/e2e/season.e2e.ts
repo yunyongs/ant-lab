@@ -114,7 +114,7 @@ test('plays one 12-turn season from signup to review', async ({
   await expect(page.getByRole('heading', { name: '2턴 결과' })).toBeVisible();
   await expect(turnCard).toBeVisible();
   // The ranking board: first tab selected, the keyboard moves to the next.
-  const ranking = page.getByRole('region', { name: '순위' });
+  const ranking = page.getByRole('region', { name: '순위', exact: true });
   await expect(ranking.getByRole('tab', { name: '등락' })).toHaveAttribute(
     'aria-selected',
     'true',

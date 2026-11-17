@@ -21,6 +21,7 @@ import { serveReport } from '../test/serveReport.ts';
 import { serveProjection } from '../test/serveProjection.ts';
 import { serveReview } from '../test/serveReview.ts';
 import { serveTurnWorld } from '../test/serveTurns.ts';
+import { settle } from '../test/settle.ts';
 
 // Real dates exist on exactly one screen: the review of a finished season.
 describe('reveal boundary', () => {
@@ -112,7 +113,7 @@ describe('reveal boundary', () => {
   it('keeps a non-empty ranking board free of dates and of any later-turn request', async () => {
     const world = serveTurnWorld({ current: 3 });
     world.ranking = (turnNo) => rankingFixture(turnNo);
-    const { router, container } = renderRoute('/seasons/7');
+    const { router, container, queryClient } = renderRoute('/seasons/7');
     await screen.findByRole('region', { name: '순위' });
     await screen.findByText('종목 나');
     expectNoDatePattern(container);
@@ -120,7 +121,7 @@ describe('reveal boundary', () => {
       await act(async () => {
         await router.navigate(path);
       });
-      await new Promise((resolve) => setTimeout(resolve, 60));
+      await settle(queryClient);
       expectNoDatePattern(container);
     }
     expect(world.rankingGets).toContain(3);

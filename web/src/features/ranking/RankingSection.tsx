@@ -18,12 +18,10 @@ export function RankingSection({
   currentTurnNo: number;
 }) {
   const titleId = useId();
-  const board = useRanking(
-    seasonId,
-    turnNo,
-    turnNo >= 1 && turnNo <= currentTurnNo,
-  );
+  const inRange = turnNo >= 1 && turnNo <= currentTurnNo;
+  const board = useRanking(seasonId, turnNo, inRange);
   const pool = usePool();
+  if (!inRange) return null;
   const error = board.isError ? board.error : pool.isError ? pool.error : null;
   return (
     <section aria-labelledby={titleId} className={styles.section}>

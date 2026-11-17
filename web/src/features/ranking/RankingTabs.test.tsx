@@ -44,6 +44,8 @@ describe('RankingTabs', () => {
     expect(panel).toHaveAttribute('aria-labelledby', tab.id);
     expect(tab).toHaveAttribute('aria-controls', panel.id);
     expect(screen.getAllByRole('tabpanel')).toHaveLength(1);
+    // The panel holds nothing focusable, so it is reachable itself.
+    expect(panel).toHaveAttribute('tabindex', '0');
     expect(within(panel).getByText('오른 종목')).toBeInTheDocument();
     expect(screen.queryByText('관심이 큰 종목')).toBeNull();
   });

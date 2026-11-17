@@ -134,6 +134,7 @@ export function RankingTabs({ lists }: { lists: RankingLists }) {
       <div
         role="tabpanel"
         id={panelId}
+        tabIndex={0}
         aria-labelledby={tabId(selected)}
         className={styles.panel}
       >
