@@ -6,9 +6,6 @@ package antlab.agent.decision;
  * (a test compares them).
  */
 public enum DecisionRejectCode {
-    // SOURCE_NOT_VISIBLE: only DIRECT passes today and orders are stored as DIRECT. When RANKING, FEED or ALERT are shown
-    // (MVP-11 to MVP-13), the plan of an applied order must carry the reply's source kind, or those orders would be
-    // stored as DIRECT.
     SCHEMA_INVALID,
     TURN_ZERO_FORMATION,
     FORMATION_UNCHANGED,

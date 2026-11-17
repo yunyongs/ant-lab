@@ -2,11 +2,13 @@ package antlab.agent.decision;
 
 import antlab.account.OrderCheck;
 import antlab.account.OrderRepository;
+import antlab.account.OrderRejection;
 import antlab.account.OrderResultDto;
 import antlab.account.OrderScope;
 import antlab.account.OrderService;
 import antlab.account.OrderSide;
 import antlab.account.OrderSource;
+import antlab.account.OrderSourceRequest;
 import antlab.account.PlaceOrderRequest;
 import antlab.agent.AgentCall;
 import antlab.agent.AgentCallKind;
@@ -248,20 +250,18 @@ public class AgentDecisionService {
             TurnDecision.OrderProposal order = proposals.get(index);
             Optional<DecisionRejectCode> reject = Optional.empty();
             OrderCheck checked = null;
-            if (order.source() == OrderSource.BENCH) {
-                reject = Optional.of(DecisionRejectCode.SOURCE_NOT_ALLOWED);
-            } else if (order.source() != OrderSource.DIRECT) {
-                reject = Optional.of(DecisionRejectCode.SOURCE_NOT_VISIBLE);
+            OrderSourceRequest source = sourceOf(order, turnNo);
+            Optional<Asset> asset = asset(order.asset());
+            if (asset.isEmpty()) {
+                // No asset id to check the order with: the origin still comes first, as in the shared check.
+                OrderRejection origin = orders.sourceRejection(scope, source, null);
+                reject = Optional.of(origin != null ? DecisionRejectCode.valueOf(origin.name())
+                        : DecisionRejectCode.ASSET_NOT_IN_POOL);
             } else {
-                Optional<Asset> asset = asset(order.asset());
-                if (asset.isEmpty()) {
-                    reject = Optional.of(DecisionRejectCode.ASSET_NOT_IN_POOL);
-                } else {
-                    checked = orders.check(scope, new PlaceOrderRequest(turnNo, order.side(), asset.get().getId(),
-                            order.quantity(), order.position(), null));
-                    if (checked.rejection() != null) {
-                        reject = Optional.of(DecisionRejectCode.valueOf(checked.rejection().name()));
-                    }
+                checked = orders.check(scope, new PlaceOrderRequest(turnNo, order.side(), asset.get().getId(),
+                        order.quantity(), order.position(), source));
+                if (checked.rejection() != null) {
+                    reject = Optional.of(DecisionRejectCode.valueOf(checked.rejection().name()));
                 }
             }
             if (reject.isPresent()) {
@@ -274,6 +274,19 @@ public class AgentDecisionService {
             }
         }
         return List.of(results);
+    }
+
+    /**
+     * The origin of an order unit in the shape of the human request. An agent is shown only this turn's feed, so a FEED or
+     * ALERT reference is this turn plus the reply's {@code feed_seq} (absent = refused by the shared rule); {@code feed_seq}
+     * with another kind is ignored, and the board check for RANKING uses the asset, not {@code ranking_rank}.
+     */
+    private static OrderSourceRequest sourceOf(TurnDecision.OrderProposal order, int turnNo) {
+        OrderSource kind = order.source();
+        if (kind == OrderSource.FEED || kind == OrderSource.ALERT) {
+            return new OrderSourceRequest(kind, turnNo, order.feedSeq());
+        }
+        return new OrderSourceRequest(kind, null, null);
     }
 
     /** Indexes of the orders in the order they are applied: sells in the reply's order, then buys in the reply's order. */
