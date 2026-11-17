@@ -17,6 +17,11 @@ public record RankingInput(int turnNo, List<AssetFacts> assets) {
         if (turnNo < 1 || assets == null) {
             throw new FeedGenerationException(FeedFailure.FEED_INPUT, "turn or fact list is missing");
         }
+        for (AssetFacts a : assets) {
+            if (a == null) {
+                throw new FeedGenerationException(FeedFailure.FEED_INPUT, "the fact list holds an empty entry");
+            }
+        }
         assets = List.copyOf(assets);
         Set<String> keys = new HashSet<>();
         for (AssetFacts a : assets) {

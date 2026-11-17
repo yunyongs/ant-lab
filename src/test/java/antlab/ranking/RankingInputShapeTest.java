@@ -61,6 +61,13 @@ class RankingInputShapeTest {
     }
 
     @Test
+    void a_null_entry_in_the_fact_list_is_a_feed_input_failure() {
+        List<AssetFacts> withNull = new ArrayList<>();
+        withNull.add(null);
+        assertFeedInputFailure(() -> new RankingInput(3, withNull));
+    }
+
+    @Test
     void the_input_graph_holds_only_scalars_and_the_asset_fact_record() {
         Set<Class<?>> seen = new HashSet<>();
         List<String> names = new ArrayList<>();

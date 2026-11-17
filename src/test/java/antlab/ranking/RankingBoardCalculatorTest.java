@@ -107,6 +107,26 @@ class RankingBoardCalculatorTest {
     }
 
     @Test
+    void equal_attention_is_ordered_by_market_then_ticker_whatever_the_input_order() {
+        RankingBoard b = board(List.of(asset(1, "B").attention("5.00000000", 1, 2).build(), asset(2, "A").attention("5.00000000", 1, 2).build()));
+        assertThat(b.attention()).extracting(RankingBoard.Attention::assetId).containsExactly(2L, 1L);
+    }
+
+    @Test
+    void equal_group_losers_follow_the_group_code_whatever_the_input_order() {
+        RankingBoard b = board(List.of(asset(1, "A1").group(7, "GB").ret("-0.03000000", 1).build(),
+                asset(2, "A2").group(9, "GA").ret("-0.03000000", 1).build()));
+        assertThat(b.groupLosers()).extracting(RankingBoard.Group::groupId).containsExactly(9L, 7L);
+    }
+
+    @Test
+    void a_flat_run_is_on_no_streak_list_however_long() {
+        RankingBoard b = board(List.of(asset(1, "A1").ret("0.00000000", 2).build(), asset(2, "A2").ret("0.00000000", 5).build()));
+        assertThat(b.risingStreaks()).isEmpty();
+        assertThat(b.fallingStreaks()).isEmpty();
+    }
+
+    @Test
     void a_longer_streak_wins_and_a_bigger_move_breaks_a_streak_tie() {
         RankingBoard b = board(List.of(asset(1, "A1").ret("0.01000000", 2).build(), asset(2, "A2").ret("0.09000000", 2).build(),
                 asset(3, "A3").ret("0.02000000", 3).build()));

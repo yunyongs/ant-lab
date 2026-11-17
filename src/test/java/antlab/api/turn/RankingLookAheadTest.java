@@ -30,6 +30,9 @@ class RankingLookAheadTest {
     /** A comparison that lets rows above the asked turn through. */
     private static final Pattern OPEN_ENDED = Pattern.compile("turn_no\\s*(<=|>=|>)");
 
+    /** Arithmetic on a bound turn ({@code :turnNo + 1}) would read a later turn while still starting with an allowed text. */
+    private static final Pattern BOUND_ARITHMETIC = Pattern.compile(":\\w+\\s*[-+*/]");
+
     @Autowired
     MockMvcTester mvc;
     @Autowired
@@ -80,6 +83,7 @@ class RankingLookAheadTest {
             for (String sql : touching) {
                 String lower = sql.toLowerCase(Locale.ROOT);
                 assertThat(OPEN_ENDED.matcher(lower).find()).as(sql).isFalse();
+                assertThat(BOUND_ARITHMETIC.matcher(lower).find()).as(sql).isFalse();
                 assertThat(lower).as(sql).containsAnyOf("turn_no = :turnno", "turn_no < :turnno", "turn_no = 0",
                         "turn_no between :previousturn and :turnno");
             }

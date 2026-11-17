@@ -290,7 +290,7 @@ class ApiErrorSweepTest {
 
         // vacuity guard: the handlers are exactly the contract's operations
         assertThat(operations.stream().map(Operation::key).toList()).containsExactlyElementsOf(documented);
-        assertThat(operations).hasSize(17);
+        assertThat(operations).hasSize(documented.size());
 
         List<DynamicTest> tests = new ArrayList<>();
         Set<String> exercised = new TreeSet<>();

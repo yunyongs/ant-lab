@@ -94,7 +94,7 @@ class RankingExposureTest {
                 }
             }
         }
-        assertThat(seen).as("every key shows up on some turn").containsAll(Set.of("rank", "assetId", "groupId", "changeRate", "grade"));
+        assertThat(seen).as("every key shows up on some turn").containsAll(Set.of("rank", "assetId", "groupId", "changeRate", "grade", "streak"));
         assertThat(changes).isPositive();
     }
 
