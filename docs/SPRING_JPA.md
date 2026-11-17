@@ -169,7 +169,7 @@ TurnService.advance(seasonId, expectedTurnNo)
   5. 풀의 종목마다 price' = MoneyMath.priceAt(저장된 0턴 가격, 이 턴까지의 `ReturnFactors` 목록) — 전 턴의 반올림 가격을 시작값으로 쓰지 않는다 → INSERT turn_price (약 180행)
   6. 적립금(EXT) → cash_ledger. (ETF 보수는 원장에서 빼지 않는다 — 수정 종가에 이미 반영, PLAN §4.6)
   7. INSERT turn(턴 번호, 평가액, 현금, 누적 낙폭, 포지션별 평가액 — 현금은 골키퍼, 비중은 조회)
-  7b. (P0 API에서는 하지 않음 — 피드는 MVP, PLAN §13 2026-11-09) 소음 피드·독려 알림 생성 → INSERT turn_feed (PLAN §4.13). 생성기(FeedGenerator)의 입력 타입은 "이 턴까지의 가격·관심 지수·사건 태그"만 담는 값 객체로 제한해 다음 블록을 넘길 수 없게 한다. 난수는 시즌 시드 + 턴 번호에서 파생
+  7b. (MVP-11부터 — `FeedInputReader` → `FeedGenerator` → `TurnFeedWriter`, 스냅샷 뒤·대사 앞, 피드 오류는 500으로 턴 전체 롤백. From MVP-11: `FeedInputReader` → `FeedGenerator` → `TurnFeedWriter`, after the snapshot and before reconciliation; a feed failure answers 500 and rolls the whole turn back. 독려 알림(`NUDGE`)은 MVP-12) 소음 피드 생성 → INSERT turn_feed (PLAN §4.13). 생성기(FeedGenerator)의 입력 타입은 "이 턴까지의 가격·관심 지수·사건 태그"만 담는 값 객체로 제한해 다음 블록을 넘길 수 없게 한다. 난수는 시즌 시드 + 턴 번호에서 파생
   8. (P0 API에서는 하지 않음 — 기준선은 성적표 조회 때 계산, 저장 테이블 없음) 기준 포트폴리오 4개도 같은 가격으로 한 턴 진행(리밸런싱·비용 규칙은 PLAN §4.6·§4.10·§6.1, scoring 패키지, 같은 트랜잭션)
   9. 대사(§6) — 불일치면 예외 → 전부 롤백
  10. season.currentTurnNo += 1; 마지막 턴이면 status = FINISHED 후 성적표 계산(별도 트랜잭션으로 분리해도 됨 — 초안: 같은 트랜잭션)
