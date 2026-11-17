@@ -57,7 +57,7 @@ class AxisDisplay:
     strength: float  # |score|, never negative
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True, slots=True, eq=False)
 class RegimeSnapshot:
     """One evaluation. `None` means the value could not be computed at this step."""
 
@@ -83,6 +83,7 @@ class RegimeSnapshot:
     phase: Phase | None
     display: Mapping[Axis, AxisDisplay | None]
     stale: tuple[str, ...]  # stale indicator ids
+    unavailable: tuple[str, ...]  # indicator ids with no usable term (stale, missing, warming)
     quality_ok: bool
     carried: bool  # raw R or G was unavailable and the previous EMA was carried
 
@@ -161,6 +162,7 @@ def evaluate(
         states = series_states(views, as_of, holidays)
         signals = signals_from_views(views, states)
         stale_ids = stale_indicators_from_states(states)
+        indicators = indicator_values(signals)
         scores = group_scores(signals)
         r_raw, g_raw = combine_axes(
             scores[Group.R_US], scores[Group.R_KR], scores[Group.G_US], scores[Group.G_KR], params
@@ -198,7 +200,7 @@ def evaluate(
                 as_of=as_of,
                 step=step,
                 signals=signals,
-                indicator_z=MappingProxyType(indicator_values(signals)),
+                indicator_z=MappingProxyType(indicators),
                 r_us=scores[Group.R_US],
                 r_kr=scores[Group.R_KR],
                 g_us=scores[Group.G_US],
@@ -224,6 +226,7 @@ def evaluate(
                     }
                 ),
                 stale=tuple(str(i) for i in sorted(stale_ids)),
+                unavailable=tuple(str(i) for i in range(1, 15) if indicators[str(i)] is None),
                 quality_ok=quality_ok(stale_ids, params),
                 carried=carried,
             )

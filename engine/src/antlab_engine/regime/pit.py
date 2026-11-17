@@ -54,21 +54,21 @@ class _Rows:
 
     __slots__ = ("available", "dates", "ordinals", "run", "values")
 
-    def __init__(self, rows: list[tuple[date, date, float]]) -> None:
+    def __init__(self, rows: list[tuple[date, date, date, float]]) -> None:
         rows.sort()
         self.dates: tuple[date, ...] = tuple(dict.fromkeys(r[0] for r in rows))
         self.ordinals = np.array([d.toordinal() for d in self.dates], dtype=np.int64)
         position = {d: i for i, d in enumerate(self.dates)}
         self.run = np.array([position[r[0]] for r in rows], dtype=np.int64)
         self.available = np.array([r[1].toordinal() for r in rows], dtype=np.int64)
-        self.values = np.array([r[2] for r in rows], dtype=np.float64)
+        self.values = np.array([r[3] for r in rows], dtype=np.float64)
 
 
 class PointInTime:
     __slots__ = ("_rows",)
 
     def __init__(self, observations: Iterable[Observation]) -> None:
-        rows: dict[SeriesCode, list[tuple[date, date, float]]] = {c: [] for c in SeriesCode}
+        rows: dict[SeriesCode, list[tuple[date, date, date, float]]] = {c: [] for c in SeriesCode}
         seen: set[tuple] = set()
         for obs in observations:
             if not isinstance(obs, Observation):
@@ -76,11 +76,11 @@ class PointInTime:
             available = effective_available(obs)
             key = (obs.series, obs.ref_date)
             if SERIES_SPECS[obs.series].revisable:
-                key = (*key, available)
+                key = (*key, obs.available_on)
             if key in seen:
                 raise InvalidArgument(f"duplicate observation in {obs.series}")
             seen.add(key)
-            rows[obs.series].append((obs.ref_date, available, float(obs.value)))
+            rows[obs.series].append((obs.ref_date, available, obs.available_on, float(obs.value)))
         self._rows = {code: _Rows(series_rows) for code, series_rows in rows.items()}
 
     def snapshot(self, series: SeriesCode, as_of: date) -> SeriesView:

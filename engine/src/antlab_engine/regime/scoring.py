@@ -27,13 +27,14 @@ def _ok(signals: Sequence[TermSignal]) -> dict[str, float]:
 
 
 def indicator_values(signals: Sequence[TermSignal]) -> dict[str, float | None]:
-    """Mean of the OK terms of each indicator that feeds a group.
+    """Mean of the OK terms of each indicator, including the FX indicators 10–12.
 
     Keys are "1" … "13", "14US", "14KR" and "14" (the mean of the two parts that are available).
+    Indicators 10 and 12 average their record-only term too (10b, 12a).
     """
     ok = _ok(signals)
     out: dict[str, float | None] = {}
-    for key in dict.fromkeys(t.indicator for t in TERMS if t.group in _GROUP_INDICATORS):
+    for key in dict.fromkeys(t.indicator for t in TERMS):
         out[key] = mean_or_none(
             ok[t.term_id] for t in TERMS if t.indicator == key and t.term_id in ok
         )

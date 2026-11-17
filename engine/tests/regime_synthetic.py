@@ -118,6 +118,7 @@ def fingerprint(snap) -> tuple:  # noqa: ANN001
             for axis, d in sorted(snap.display.items())
         ),
         snap.stale,
+        snap.unavailable,
         snap.quality_ok,
         snap.carried,
     )

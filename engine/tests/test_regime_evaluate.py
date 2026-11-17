@@ -184,3 +184,137 @@ def test_the_phase_uses_the_probability_of_the_label_not_the_largest_one():
         assert s.phase is phase_of(s.p[list(Pool).index(s.label)])
     apart = [s for s in steps if s.phase is not phase_of(max(s.p))]
     assert apart  # the panel has steps where the two readings differ, so this test can tell
+
+
+def test_indicator_z_has_all_fourteen_indicators_and_the_split_of_14():
+    expected = {str(i) for i in range(1, 15)} | {"14US", "14KR"}
+    assert set(RUN[-1].indicator_z) == expected
+    z = {s.term_id: s.z for s in RUN[-1].signals}
+    assert RUN[-1].indicator_z["10"] == pytest.approx((z["10a"] + z["10b"]) / 2, abs=1e-15)
+    assert RUN[-1].indicator_z["12"] == pytest.approx((z["12a"] + z["12b"]) / 2, abs=1e-15)
+    assert RUN[-1].indicator_z["11"] == z["11"]
+    assert RUN[-1].unavailable == ()
+
+
+def test_a_snapshot_is_hashable():
+    assert isinstance(hash(RUN[-1]), int)
+
+
+def test_unavailable_lists_indicators_without_a_usable_term_even_when_nothing_is_stale():
+    cut = [o for o in OBS if o.series is not S.KR_CLI]
+    last = evaluate(cut, DATES[-1:])[0]
+    assert "8" in last.unavailable and last.stale == () and last.quality_ok
+    assert last.indicator_z["8"] is None
+    assert set(last.unavailable) == {"8"}
+
+
+def test_two_collections_before_the_floor_keep_the_later_one():
+    from decimal import Decimal
+
+    from antlab_engine.regime import Observation
+
+    first = Observation(S.KR_CPI, date(2021, 1, 1), Decimal("100"), date(2021, 2, 2))
+    second = Observation(S.KR_CPI, date(2021, 1, 1), Decimal("101"), date(2021, 2, 4))
+    pit = PointInTime([second, first])  # the floor is 2021-02-07 for both
+    assert pit.snapshot(S.KR_CPI, date(2021, 2, 6)).values.tolist() == []
+    assert pit.snapshot(S.KR_CPI, date(2021, 2, 7)).values.tolist() == [101.0]
+    with pytest.raises(InvalidArgument):
+        PointInTime([first, first])
+
+
+def replay(run, params):
+    """Recompute direction, label, probability and phase from the smoothed scores alone."""
+    from antlab_engine.regime import phase_of, pool_probabilities
+    from antlab_engine.regime.hysteresis import advance_axis_if_fresh, advance_label
+
+    rate = growth = label = None
+    for s in run:
+        rate = advance_axis_if_fresh(
+            rate, s.r, s.r_raw is not None, params.dead_band, params.confirm_steps
+        )
+        growth = advance_axis_if_fresh(
+            growth, s.g, s.g_raw is not None, params.dead_band, params.confirm_steps
+        )
+        assert (s.rate_dir, s.growth_dir) == (
+            rate and rate.direction,
+            growth and growth.direction,
+        ), s.step
+        if rate and growth:
+            label = advance_label(
+                label, rate.direction, growth.direction, s.step, params.min_hold_steps
+            )
+        assert s.label == (label and label.label), s.step
+        assert s.label_since_step == (label and label.since_step), s.step
+        if s.r is None or s.g is None:
+            assert s.p is None and s.phase is None
+            continue
+        p = pool_probabilities(s.r, s.g, params.k)
+        assert s.p == p, s.step
+        assert s.phase is phase_of(p[list(Pool).index(label.label)], params.phase_cuts), s.step
+
+
+WIDE = weekly_schedule(date(2019, 1, 5), date(2025, 8, 9))
+BUSY = panel(8, 4)  # label changes, direction flips and locked steps all occur
+GONE = {S.US_DGS2, S.US_CPILFESL, S.KR_KTB3Y, S.KR_CPI}
+CUT = [o for o in BUSY if not (o.series in GONE and o.ref_date > date(2025, 3, 1))]
+
+
+def test_the_replay_panel_exercises_flips_label_changes_locks_and_one_sided_carries():
+    from antlab_engine.regime import pool_of
+
+    run = evaluate(BUSY, WIDE)
+    flips = [a for a, b in zip(run, run[1:], strict=False) if a.rate_dir not in (None, b.rate_dir)]
+    changes = [a for a, b in zip(run, run[1:], strict=False) if a.label not in (None, b.label)]
+    locked = [s for s in run if s.label and pool_of(s.rate_dir, s.growth_dir) is not s.label]
+    one_sided = [s for s in evaluate(CUT, WIDE) if (s.r_raw is None) != (s.g_raw is None)]
+    assert flips and changes and locked and one_sided
+
+
+LONG_GAP = [  # rate data ends early: a long stretch with only the growth axis fresh
+    o for o in panel(8, 3) if not (o.series in GONE and o.ref_date > date(2023, 6, 1))
+]
+
+
+def test_the_driver_wiring_matches_a_replay_from_the_smoothed_scores():
+    replay(evaluate(BUSY, WIDE), DEFAULT_PARAMS)
+    replay(evaluate(CUT, WIDE), DEFAULT_PARAMS)
+    gap = evaluate(LONG_GAP, WIDE)
+    assert sum(1 for s in gap if s.r_raw is None and s.g_raw is not None) > 20
+    replay(gap, DEFAULT_PARAMS)
+
+
+def test_every_parameter_reaches_the_driver():
+    from antlab_engine.regime import RegimeParams
+
+    params = RegimeParams(
+        k=3.0,
+        phase_cuts=(0.2, 0.3, 0.4),
+        growth_weights=(1.0, 0.0),
+        min_hold_steps=1,
+        dead_band=0.05,
+    )
+    run = evaluate(BUSY, WIDE, params=params)
+    replay(run, params)
+    base = evaluate(BUSY, WIDE)
+    assert [s.label for s in run] != [s.label for s in base]
+    assert [s.p for s in run] != [s.p for s in base]
+    assert all(s.g_raw == s.g_us for s in run if s.g_us is not None)
+    assert any(s.g_raw != s.g_us for s in base if s.g_us is not None and s.g_kr is not None)
+
+
+def test_the_holiday_calendar_reaches_the_stale_rule():
+    from antlab_engine.regime import Observation  # noqa: F401
+    from antlab_engine.regime.model import Market
+
+    cut = [o for o in OBS if not (o.series is S.US_VIX and o.ref_date > date(2025, 7, 1))]
+    saturday = [date(2025, 7, 5)]
+    assert "13" in evaluate(cut, saturday)[0].stale
+    holiday = {Market.US: frozenset({date(2025, 7, 4)})}
+    assert "13" not in evaluate(cut, saturday, calendars=holiday)[0].stale
+
+
+def test_the_month_sample_includes_the_first_and_last_day_of_the_month():
+    only_first = evaluate(OBS, [date(2025, 3, 1), date(2025, 4, 5)])
+    assert month_end_sample(only_first, 2025, 3).as_of == date(2025, 3, 1)
+    last_day = evaluate(OBS, [date(2025, 5, 31), date(2025, 6, 7)])
+    assert month_end_sample(last_day, 2025, 5).as_of == date(2025, 5, 31)
