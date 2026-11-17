@@ -31,14 +31,13 @@ class SqlGoldenHarnessTest {
 
     @BeforeAll
     static void start() {
-        container = SqlGoldenHarness.newContainer();
-        container.start();
+        container = SharedPostgres.container();
         harness = new SqlGoldenHarness(container, GoldenFixtureSource.fromEnvironment());
     }
 
     @AfterAll
     static void stop() throws Exception {
-        GoldenCleanup.closeThenStop(harness, container);
+        GoldenCleanup.closeThenStop(harness, null);
     }
 
     private static void put(String path, String content) {

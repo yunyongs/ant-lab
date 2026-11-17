@@ -36,12 +36,10 @@ public final class TeamBuyGoldenSeason implements AutoCloseable {
     public record Replayed(DatabaseHandle sqlDb, long sqlSeason, long apiSeason, int orders) {
     }
 
-    private final PostgreSQLContainer container;
     private final SqlGoldenHarness harness;
     private final DatabaseHandle apiDb;
 
-    private TeamBuyGoldenSeason(PostgreSQLContainer container, SqlGoldenHarness harness, DatabaseHandle apiDb) {
-        this.container = container;
+    private TeamBuyGoldenSeason(SqlGoldenHarness harness, DatabaseHandle apiDb) {
         this.harness = harness;
         this.apiDb = apiDb;
     }
@@ -58,7 +56,7 @@ public final class TeamBuyGoldenSeason implements AutoCloseable {
         return availability.isComplete();
     }
 
-    /** 컨테이너와 두 DB 를 만들고 앱이 API DB 를 보도록 접속 정보를 등록한다(@DynamicPropertySource 에서 부른다). */
+    /** 공유 컨테이너에 두 DB 를 만들고 앱이 API DB 를 보도록 접속 정보를 등록한다(@DynamicPropertySource 에서 부른다). */
     public static TeamBuyGoldenSeason start(DynamicPropertyRegistry registry, String apiDbName) throws Exception {
         return start(registry, apiDbName, SOURCE);
     }
@@ -70,8 +68,7 @@ public final class TeamBuyGoldenSeason implements AutoCloseable {
 
     private static TeamBuyGoldenSeason start(DynamicPropertyRegistry registry, String apiDbName, GoldenFixtureSource source)
             throws Exception {
-        PostgreSQLContainer container = SqlGoldenHarness.newContainer();
-        container.start();
+        PostgreSQLContainer container = SharedPostgres.container();
         SqlGoldenHarness harness = new SqlGoldenHarness(container, source);
         harness.stageInputs();
         DatabaseHandle apiDb = harness.createSqlDatabase(apiDbName);
@@ -79,7 +76,7 @@ public final class TeamBuyGoldenSeason implements AutoCloseable {
                 + container.getMappedPort(5432) + "/" + apiDb.name());
         registry.add("spring.datasource.username", container::getUsername);
         registry.add("spring.datasource.password", container::getPassword);
-        return new TeamBuyGoldenSeason(container, harness, apiDb);
+        return new TeamBuyGoldenSeason(harness, apiDb);
     }
 
     public SqlGoldenHarness harness() {
@@ -260,6 +257,6 @@ public final class TeamBuyGoldenSeason implements AutoCloseable {
 
     @Override
     public void close() throws Exception {
-        GoldenCleanup.closeThenStop(harness, container);
+        GoldenCleanup.closeThenStop(harness, null);
     }
 }

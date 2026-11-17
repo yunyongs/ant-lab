@@ -3,6 +3,7 @@ package antlab.history;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import antlab.support.GoldenCleanup;
+import antlab.support.SharedPostgres;
 import antlab.support.GoldenFixtureSource;
 import antlab.support.PsqlScriptRunner;
 import antlab.support.RowSet;
@@ -33,8 +34,7 @@ class AttentionCalculatorSqlParityTest {
 
     @BeforeAll
     static void start() throws Exception {
-        container = SqlGoldenHarness.newContainer();
-        container.start();
+        container = SharedPostgres.container();
         harness = new SqlGoldenHarness(container, GoldenFixtureSource.fromEnvironment());
         PsqlScriptRunner runner = harness.runner();
         for (String file : new String[] {"db/01_schema_history.sql", "db/13_calc_attention.sql", "db/13_calc_attention_def.sql"}) {
@@ -51,7 +51,7 @@ class AttentionCalculatorSqlParityTest {
 
     @AfterAll
     static void stop() throws Exception {
-        GoldenCleanup.closeThenStop(harness, container);
+        GoldenCleanup.closeThenStop(harness, null);
     }
 
     @Test

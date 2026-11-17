@@ -5,7 +5,7 @@ import static antlab.support.SqlFunctionParity.lit;
 import static antlab.support.SqlFunctionParity.valueCase;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import antlab.support.GoldenCleanup;
+import antlab.support.SharedPostgres;
 import antlab.support.SqlFunctionParity;
 import antlab.support.SqlFunctionParity.Case;
 import antlab.support.SqlGoldenHarness;
@@ -13,7 +13,6 @@ import java.math.BigDecimal;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.testcontainers.postgresql.PostgreSQLContainer;
@@ -29,13 +28,7 @@ class MoneyMathSqlFunctionParityTest {
 
     @BeforeAll
     static void start() {
-        container = SqlGoldenHarness.newContainer();
-        container.start();
-    }
-
-    @AfterAll
-    static void stop() throws Exception {
-        GoldenCleanup.closeThenStop(null, container);
+        container = SharedPostgres.container();
     }
 
     private static BigDecimal bd(String value) {

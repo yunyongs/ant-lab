@@ -11,6 +11,7 @@ import antlab.support.DefaultBearerConfig;
 import antlab.support.DeferredPathSource;
 import antlab.support.FixedPathSource;
 import antlab.support.GoldenCleanup;
+import antlab.support.SharedPostgres;
 import antlab.support.GoldenFixtureSource;
 import antlab.support.GoldenRowQueries;
 import antlab.support.GoldenRowQueries.GoldenTable;
@@ -95,8 +96,7 @@ class SeasonStartGoldenTest {
     /** 컨테이너·API DB 는 문맥이 뜰 때 처음 만들어진다(Flyway 가 V1–V3 을 이 DB 에 돌린다). */
     @DynamicPropertySource
     static void database(DynamicPropertyRegistry registry) throws Exception {
-        container = SqlGoldenHarness.newContainer();
-        container.start();
+        container = SharedPostgres.container();
         harness = new SqlGoldenHarness(container, SOURCE);
         harness.stageInputs();
         apiDb = harness.createSqlDatabase("season_start_api");
@@ -165,7 +165,7 @@ class SeasonStartGoldenTest {
 
     @AfterAll
     static void stop() throws Exception {
-        GoldenCleanup.closeThenStop(harness, container);
+        GoldenCleanup.closeThenStop(harness, null);
     }
 
     @Test
