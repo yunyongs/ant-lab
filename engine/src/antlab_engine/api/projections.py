@@ -21,7 +21,7 @@ from antlab_engine.history.model import HistoryReader, HistorySnapshot
 from antlab_engine.projection import PROJECTION_VERSION, Portfolio, Projection, ReturnPanel, project
 from antlab_engine.projection.stats import BAND_POINTS, MDD_POINTS
 
-from . import PROBLEM_RESPONSES
+from . import PROBLEM_RESPONSES, RETRY_AFTER_HEADER
 from .deps import history_reader, projection_slots
 from .projection_models import (
     EndQuantiles,
@@ -139,7 +139,11 @@ def _result(projection: Projection, digest: str) -> ProjectionResult:
         400: {"model": Problem, "description": "Invalid argument"},
         404: {"model": Problem, "description": "No pool for the base date"},
         422: {"model": Problem, "description": "The history cannot build the projection paths"},
-        503: {"model": Problem, "description": "History unavailable or the engine is busy"},
+        503: {
+            "model": Problem,
+            "description": "History unavailable or the engine is busy",
+            "headers": RETRY_AFTER_HEADER,
+        },
     },
 )
 def create_projection(

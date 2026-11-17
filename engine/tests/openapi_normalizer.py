@@ -1,8 +1,9 @@
 """Reduces an OpenAPI document to the facts a caller depends on.
 
-Compared: operations (id, parameters, request body, responses), effective security, security
-schemes, and the schemas reachable from the operations. Ignored: descriptions, summaries, tags,
-examples, defaults, schema titles, info, servers and x- extensions.
+Compared: operations (id, parameters, request body, responses with their header schemas),
+effective security, security schemes, and the schemas reachable from the operations.
+Ignored: descriptions, summaries, tags, examples, defaults, schema titles, info, servers
+and x- extensions.
 """
 
 import copy
@@ -59,7 +60,11 @@ def _content_holder(holder: dict[str, Any] | None, used: set[str]) -> dict[str, 
         media.split(";")[0]: _schema(body.get("schema"), used)
         for media, body in holder.get("content", {}).items()
     }
-    return {"content": content, "required": holder.get("required", False)}
+    headers = {
+        name.lower(): _schema(header.get("schema"), used)
+        for name, header in holder.get("headers", {}).items()
+    }
+    return {"content": content, "headers": headers, "required": holder.get("required", False)}
 
 
 def _schema(node: Any, used: set[str]) -> Any:
