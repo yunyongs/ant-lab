@@ -4,16 +4,9 @@ type ProjectionDto = components['schemas']['ProjectionDto'];
 type ProjectionBand = components['schemas']['ProjectionBand'];
 
 // Plan-approved mock shaped like docs/api/openapi.yaml; values are invented.
+// Like the server, bands start at turn 1 (no turn-0 row).
 // Every figure is distinct, so a test can tell the rows apart.
 export const bandRows: ProjectionBand[] = [
-  {
-    turn: 0,
-    p05: '100000000',
-    p25: '100000000',
-    p50: '100000000',
-    p75: '100000000',
-    p95: '100000000',
-  },
   {
     turn: 1,
     p05: '96100000',
@@ -45,6 +38,14 @@ export const bandRows: ProjectionBand[] = [
     p50: '101800000',
     p75: '109200000',
     p95: '117900000',
+  },
+  {
+    turn: 5,
+    p05: '85900000',
+    p25: '94200000',
+    p50: '102200000',
+    p75: '111400000',
+    p95: '122500000',
   },
 ];
 

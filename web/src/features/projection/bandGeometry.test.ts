@@ -99,8 +99,14 @@ describe('bandGeometry', () => {
     ['unsorted turns', [flat(2, '100'), flat(1, '100')]],
     ['repeated turns', [flat(1, '100'), flat(1, '100')]],
     ['no bands', []],
+    ['1002 bands', Array.from({ length: 1002 }, (_, i) => flat(i + 1, '100'))],
   ])('G4: refuses %s', (_name, bands) => {
     expect(bandGeometry(bands, '100')).toBeNull();
+  });
+
+  it('G4: accepts exactly 1001 bands (one whole pixel each)', () => {
+    const bands = Array.from({ length: 1001 }, (_, i) => flat(i + 1, '100'));
+    expect(bandGeometry(bands, '100')).not.toBeNull();
   });
 
   it('G4: refuses a malformed total value', () => {

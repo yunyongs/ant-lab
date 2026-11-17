@@ -19,7 +19,7 @@ const ROUTE = '/seasons/7/projection';
 
 function block(title: string): HTMLElement {
   const section = screen
-    .getByRole('heading', { level: 3, name: title })
+    .getByRole('heading', { level: 2, name: title })
     .closest('section');
   if (section === null) throw new Error(`no block for ${title}`);
   return section;
@@ -211,7 +211,7 @@ describe('ProjectionPage', () => {
         ),
     });
     renderRoute(ROUTE);
-    await screen.findByRole('heading', { level: 3, name: '12턴 뒤' });
+    await screen.findByRole('heading', { level: 2, name: '12턴 뒤' });
     expect(screen.queryByRole('img')).toBeNull();
     expect(screen.queryByRole('alert')).toBeNull();
     expect(screen.getByText(/예측이 아닙니다/)).toBeInTheDocument();

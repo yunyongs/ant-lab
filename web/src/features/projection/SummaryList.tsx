@@ -38,8 +38,8 @@ function SummaryBlock({
 }) {
   return (
     <section className={styles.block}>
-      <h3 className={styles.blockHeading}>{turnsHeading(summary.turn)}</h3>
-      <h4 className={styles.subHeading}>끝 가치</h4>
+      <h2 className={styles.blockHeading}>{turnsHeading(summary.turn)}</h2>
+      <h3 className={styles.subHeading}>끝 가치</h3>
       <dl className={styles.rows}>
         {END_ROWS.map(([key, label]) => (
           <div key={key} className={styles.row}>
@@ -48,7 +48,7 @@ function SummaryBlock({
           </div>
         ))}
       </dl>
-      <h4 className={styles.subHeading}>최대 낙폭</h4>
+      <h3 className={styles.subHeading}>최대 낙폭</h3>
       <dl className={styles.rows}>
         {MDD_ROWS.map(([key, label]) => (
           <div key={key} className={styles.row}>
