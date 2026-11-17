@@ -911,7 +911,7 @@ export interface components {
              *
              *     주문이 시작된 곳. 없거나 null이면 DIRECT. FEED·ALERT는 이 시즌의 현재 턴까지 보인 피드 항목을 가리켜야 하며 아니면 422 SOURCE_NOT_VISIBLE
              */
-            source?: components["schemas"]["OrderSourceRequest"];
+            source?: components["schemas"]["OrderSourceRequest"] | null;
         };
         /**
          * @description Where the order started. FEED and ALERT name the feed item that was shown (turn and display order); RANKING and DIRECT carry no reference; BENCH is reserved and refused. The server accepts a non-DIRECT origin only if that item was shown to this season at or before the current turn

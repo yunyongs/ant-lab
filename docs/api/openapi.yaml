@@ -1562,11 +1562,13 @@ components:
 
             선언 포지션(매수 전용). 열린 구간이 없는 종목(처음 사거나 전량 매도 뒤)이면 필수, 있으면 생략할 수 있다. 매도에 보내면 400
         source:
-          $ref: '#/components/schemas/OrderSourceRequest'
           description: |-
             Where the order started. Omitted or null means DIRECT. A FEED or ALERT origin must name a feed item that was shown to this season at or before the current turn, otherwise 422 SOURCE_NOT_VISIBLE
 
             주문이 시작된 곳. 없거나 null이면 DIRECT. FEED·ALERT는 이 시즌의 현재 턴까지 보인 피드 항목을 가리켜야 하며 아니면 422 SOURCE_NOT_VISIBLE
+          oneOf:
+            - $ref: '#/components/schemas/OrderSourceRequest'
+            - type: 'null'
     OrderSourceRequest:
       type: object
       description: |-

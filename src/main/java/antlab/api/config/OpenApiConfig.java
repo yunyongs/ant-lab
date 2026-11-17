@@ -17,6 +17,8 @@ import io.swagger.v3.oas.models.responses.ApiResponses;
 import io.swagger.v3.oas.models.security.SecurityRequirement;
 import io.swagger.v3.oas.models.security.SecurityScheme;
 import java.math.BigDecimal;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.springdoc.core.customizers.OpenApiCustomizer;
 import org.springdoc.core.utils.SpringDocUtils;
@@ -88,9 +90,15 @@ public class OpenApiConfig {
         };
     }
 
+    /** Properties that hold a reference and may be null, as schema name → property names. */
+    private static final Map<String, List<String>> NULLABLE_REFERENCES = Map.of(
+            "PlaceOrderRequest", List.of("source"),
+            "SeasonAnalysisDto", List.of("decomposition"));
+
     /**
      * A property that is a reference and may be null (an OpenAPI 3.1 union): springdoc writes only the {@code $ref}, so the
-     * schema is rewritten to {@code oneOf: [$ref, null]} and keeps its description. Listed by schema and property name.
+     * schema is rewritten to {@code oneOf: [$ref, null]} and keeps its description. Listed by schema and property name in
+     * {@link #NULLABLE_REFERENCES}; a listed property without a {@code $ref} is left alone.
      */
     @Bean
     OpenApiCustomizer nullableReferenceCustomizer() {
@@ -98,19 +106,23 @@ public class OpenApiConfig {
             if (openApi.getComponents() == null || openApi.getComponents().getSchemas() == null) {
                 return;
             }
-            Schema<?> owner = openApi.getComponents().getSchemas().get("SeasonAnalysisDto");
-            if (owner == null || owner.getProperties() == null) {
-                return;
-            }
-            Schema<?> property = (Schema<?>) owner.getProperties().get("decomposition");
-            if (property == null || property.get$ref() == null) {
-                return;
-            }
-            Schema<Object> union = new Schema<>();
-            union.setDescription(property.getDescription());
-            union.addOneOfItem(new Schema<>().$ref(property.get$ref()));
-            union.addOneOfItem(new Schema<>().types(Set.of("null")));
-            owner.getProperties().put("decomposition", union);
+            NULLABLE_REFERENCES.forEach((schema, names) -> {
+                Schema<?> owner = openApi.getComponents().getSchemas().get(schema);
+                if (owner == null || owner.getProperties() == null) {
+                    return;
+                }
+                for (String name : names) {
+                    Schema<?> property = (Schema<?>) owner.getProperties().get(name);
+                    if (property == null || property.get$ref() == null) {
+                        continue;
+                    }
+                    Schema<Object> union = new Schema<>();
+                    union.setDescription(property.getDescription());
+                    union.addOneOfItem(new Schema<>().$ref(property.get$ref()));
+                    union.addOneOfItem(new Schema<>().types(Set.of("null")));
+                    owner.getProperties().put(name, union);
+                }
+            });
         };
     }
 
