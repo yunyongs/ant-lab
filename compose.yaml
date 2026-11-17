@@ -32,7 +32,7 @@ name: antlab
 
 services:
   db:
-    mem_limit: 3g
+    mem_limit: 512m
     image: postgres:17
     environment:
       POSTGRES_USER: ${USER:-antlab}
@@ -59,7 +59,7 @@ services:
     restart: unless-stopped
 
   api:
-    mem_limit: 3g
+    mem_limit: 768m
     profiles: [api]
     build: .
     depends_on:
@@ -107,7 +107,7 @@ services:
     restart: unless-stopped
 
   engine:
-    mem_limit: 3g
+    mem_limit: 512m
     profiles: [engine]
     build: ./engine
     # engine reads antlab_api as antlab_engine — run db/roles/antlab_engine.sql once (db/README.md)
@@ -137,7 +137,7 @@ services:
     restart: unless-stopped
 
   prometheus:
-    mem_limit: 3g
+    mem_limit: 256m
     profiles: [monitoring]
     image: prom/prometheus:v3.16.0
     # Overriding command replaces the image defaults, so both are restated.
@@ -161,7 +161,7 @@ services:
     restart: unless-stopped
 
   grafana:
-    mem_limit: 3g
+    mem_limit: 256m
     profiles: [monitoring]
     image: grafana/grafana:13.3.1
     depends_on:
