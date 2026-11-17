@@ -86,6 +86,34 @@ paths:
           $ref: '#/components/responses/InternalError'
         '503':
           $ref: '#/components/responses/ProjectionUnavailable'
+  /v1/percentiles:
+    post:
+      operationId: createPercentile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PercentileRequest'
+      responses:
+        '200':
+          description: Rank counts of the observed values / 관측값의 순위 개수
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PercentileResult'
+        '400':
+          $ref: '#/components/responses/InvalidArgument'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/PoolNotFound'
+        '422':
+          $ref: '#/components/responses/PathTooLong'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ProjectionUnavailable'
 components:
   securitySchemes:
     EngineToken:
@@ -367,6 +395,93 @@ components:
         p50: {type: string, pattern: '^(0\.0{8}|-(0\.[0-9]{8}|1\.0{8}))$'}
         p75: {type: string, pattern: '^(0\.0{8}|-(0\.[0-9]{8}|1\.0{8}))$'}
         p95: {type: string, pattern: '^(0\.0{8}|-(0\.[0-9]{8}|1\.0{8}))$'}
+    PercentileRequest:
+      type: object
+      description: >-
+        Ranks an observed season among `n` paths of `m2-sb6-v1` whose seeds derive from `seasonSeed`, so the
+        season's own path is never one of them. `team` (the season-start team) and `benchmark` are held as
+        fixed quantities over the same paths (no trades, fees, interest or contributions); `weights` plus
+        `cash` of each must add up to exactly 1 and an asset must not repeat inside one. Per path the engine
+        takes the team's end multiple `v[horizonTurns]` and the Sharpe difference `sharpe(team) -
+        sharpe(benchmark)`, where `sharpe = mean(r) / std(r, ddof=1)` over the turn returns
+        `r_t = v_t / v_(t-1) - 1` (0 when the deviation is 0, risk-free rate 0, not annualised). `observed`
+        carries the two values to rank; all numbers are decimal strings. / 관측한 시즌이 `m2-sb6-v1` 경로
+        `n`개 안에서 어디에 놓이는지 센다. 경로 시드는 `seasonSeed`에서 파생하므로 시즌 경로는 그중 하나가
+        아니다. `team`(시즌 시작 팀)과 `benchmark`는 같은 경로에서 고정 수량으로 보유한다(매매·수수료·이자·적립
+        없음). 각각 `weights`와 `cash`의 합은 정확히 1이어야 하고 한 포트폴리오 안에서 종목이 반복되면 안 된다.
+        경로마다 팀의 최종 배수 `v[horizonTurns]`와 샤프 차이 `sharpe(team) - sharpe(benchmark)`를 구한다.
+        샤프는 턴 수익률 `r_t = v_t / v_(t-1) - 1`의 `mean(r) / std(r, ddof=1)`이고 편차가 0이면 0이며
+        무위험 이자율은 0, 연율화하지 않는다. `observed`는 순위를 매길 두 값이다. 모든 수는 십진 문자열이다.
+      additionalProperties: false
+      required: [seasonSeed, baseDate, horizonTurns, team, benchmark, observed]
+      properties:
+        seasonSeed:
+          type: string
+          pattern: '^-?[0-9]{1,19}$'
+        baseDate: {type: string, format: date}
+        horizonTurns:
+          type: integer
+          enum: [12, 24, 60, 120]
+        n:
+          type: integer
+          minimum: 100
+          maximum: 5000
+          default: 2000
+        team: {$ref: '#/components/schemas/PercentilePortfolio'}
+        benchmark: {$ref: '#/components/schemas/PercentilePortfolio'}
+        observed: {$ref: '#/components/schemas/PercentileObserved'}
+    PercentilePortfolio:
+      type: object
+      additionalProperties: false
+      required: [cash, weights]
+      properties:
+        cash:
+          type: string
+          pattern: '^(0(\.[0-9]{1,12})?|1(\.0{1,12})?)$'
+        weights:
+          type: array
+          maxItems: 200
+          items: {$ref: '#/components/schemas/Holding'}
+    PercentileObserved:
+      type: object
+      additionalProperties: false
+      required: [endMultiple, sharpeDiff]
+      properties:
+        endMultiple:
+          type: string
+          pattern: '^[0-9]{1,12}(\.[0-9]{1,12})?$'
+        sharpeDiff:
+          type: string
+          pattern: '^-?[0-9]{1,6}(\.[0-9]{1,12})?$'
+    PercentileResult:
+      type: object
+      description: >-
+        Integer counts, never rounded values: `below` paths are strictly smaller than the observed value and
+        `equal` paths are exactly equal (float64), so `0 <= below + equal <= n`. The caller derives the
+        percentile, for example the mid-rank `(below + equal / 2) / n`. No months, no won amounts and no
+        per-path values leave the engine. `historyDigest` is built as in `ProjectionResult`, over the assets
+        held by `team` and `benchmark`. `ENGINE_BUSY` (503) carries `Retry-After: 1`. /
+        정수 개수만 돌려주며 반올림한 값은 없다: `below`는 관측값보다 엄격히 작은 경로, `equal`은 float64로
+        정확히 같은 경로이므로 `0 <= below + equal <= n`이다. 백분위는 호출 쪽이 계산한다(예: 중간 순위
+        `(below + equal / 2) / n`). 달·원화 금액·경로별 값은 엔진 밖으로 나가지 않는다. `historyDigest`는
+        `ProjectionResult`와 같은 방식이며 `team`과 `benchmark`가 보유한 종목에 대해 만든다.
+      required: [projectionVersion, engineVersion, n, horizonTurns, historyDigest, endMultiple, sharpeDiff]
+      properties:
+        projectionVersion: {type: string}
+        engineVersion: {type: string}
+        n: {type: integer}
+        horizonTurns: {type: integer}
+        historyDigest:
+          type: string
+          pattern: '^[0-9a-f]{64}$'
+        endMultiple: {$ref: '#/components/schemas/RankCounts'}
+        sharpeDiff: {$ref: '#/components/schemas/RankCounts'}
+    RankCounts:
+      type: object
+      required: [below, equal]
+      properties:
+        below: {type: integer, minimum: 0, maximum: 5000}
+        equal: {type: integer, minimum: 0, maximum: 5000}
     FieldViolation:
       type: object
       required: [field, reason]

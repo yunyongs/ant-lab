@@ -10,17 +10,21 @@ from antlab_engine.projection.model import (
 )
 from antlab_engine.projection.panel import ReturnPanel, ReturnRow
 from antlab_engine.projection.paths import draw_paths
+from antlab_engine.projection.rank import Counts, Rank, rank
 from antlab_engine.projection.seeds import derive_path_seeds
 
 __all__ = [
     "PROJECTION_VERSION",
+    "Counts",
     "Portfolio",
     "PortfolioProjection",
     "Projection",
+    "Rank",
     "ReturnPanel",
     "ReturnRow",
     "Summary",
     "derive_path_seeds",
     "draw_paths",
     "project",
+    "rank",
 ]

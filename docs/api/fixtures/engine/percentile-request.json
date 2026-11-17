@@ -1,0 +1,21 @@
+{
+  "seasonSeed": "14",
+  "baseDate": "2026-01-02",
+  "horizonTurns": 60,
+  "n": 2000,
+  "team": {
+    "cash": "0.1",
+    "weights": [
+      {"asset": "KR:069500", "weight": "0.5"},
+      {"asset": "US:SPY", "weight": "0.4"}
+    ]
+  },
+  "benchmark": {
+    "cash": "0",
+    "weights": [
+      {"asset": "KR:069500", "weight": "0.5"},
+      {"asset": "US:SPY", "weight": "0.5"}
+    ]
+  },
+  "observed": {"endMultiple": "1.234567890123", "sharpeDiff": "-0.012345678901"}
+}

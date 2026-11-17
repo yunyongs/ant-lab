@@ -139,6 +139,62 @@ def _proj_not_secured(spec):
     spec["paths"]["/v1/projections"]["post"]["security"] = []
 
 
+def _pct_loses_a_status(spec):
+    del spec["paths"]["/v1/percentiles"]["post"]["responses"]["422"]
+
+
+def _pct_horizon_loses_a_value(spec):
+    spec["components"]["schemas"]["PercentileRequest"]["properties"]["horizonTurns"]["enum"].remove(
+        12
+    )
+
+
+def _pct_seed_becomes_integer(spec):
+    spec["components"]["schemas"]["PercentileRequest"]["properties"]["seasonSeed"] = {
+        "type": "integer"
+    }
+
+
+def _pct_request_allows_extra_fields(spec):
+    del spec["components"]["schemas"]["PercentileRequest"]["additionalProperties"]
+
+
+def _pct_observed_becomes_number(spec):
+    spec["components"]["schemas"]["PercentileObserved"]["properties"]["endMultiple"] = {
+        "type": "number"
+    }
+
+
+def _pct_observed_pattern_widens(spec):
+    spec["components"]["schemas"]["PercentileObserved"]["properties"]["sharpeDiff"]["pattern"] = (
+        ".*"
+    )
+
+
+def _pct_count_becomes_number(spec):
+    spec["components"]["schemas"]["RankCounts"]["properties"]["below"] = {"type": "number"}
+
+
+def _pct_count_may_be_negative(spec):
+    del spec["components"]["schemas"]["RankCounts"]["properties"]["equal"]["minimum"]
+
+
+def _pct_result_gains_a_path_value(spec):
+    spec["components"]["schemas"]["PercentileResult"]["properties"]["values"] = {"type": "array"}
+
+
+def _pct_digest_becomes_optional(spec):
+    spec["components"]["schemas"]["PercentileResult"]["required"].remove("historyDigest")
+
+
+def _pct_not_secured(spec):
+    spec["paths"]["/v1/percentiles"]["post"]["security"] = []
+
+
+def _pct_n_bound_widens(spec):
+    spec["components"]["schemas"]["PercentileRequest"]["properties"]["n"]["maximum"] = 50000
+
+
 def _busy_code_dropped(spec):
     spec["components"]["schemas"]["ErrorCode"]["enum"].remove("ENGINE_BUSY")
 
@@ -173,6 +229,18 @@ MUTATIONS = [
     _proj_band_gains_won,
     _proj_ratio_becomes_number,
     _proj_not_secured,
+    _pct_loses_a_status,
+    _pct_horizon_loses_a_value,
+    _pct_seed_becomes_integer,
+    _pct_request_allows_extra_fields,
+    _pct_observed_becomes_number,
+    _pct_observed_pattern_widens,
+    _pct_count_becomes_number,
+    _pct_count_may_be_negative,
+    _pct_result_gains_a_path_value,
+    _pct_digest_becomes_optional,
+    _pct_not_secured,
+    _pct_n_bound_widens,
     _busy_code_dropped,
     _drop_info_security_responses,
     _drop_global_security,
@@ -201,7 +269,7 @@ def test_normalizer_ignores_documentation_only_changes(contract, generated):
     assert normalize(changed) == normalize(generated)
 
 
-DOMAIN_POSTS = {"POST /v1/paths", "POST /v1/projections"}
+DOMAIN_POSTS = {"POST /v1/paths", "POST /v1/projections", "POST /v1/percentiles"}
 
 
 @pytest.mark.parametrize("which", ["contract", "generated"])
@@ -221,6 +289,7 @@ def test_invariants(which, contract, generated):
         "GET /v1/info",
         "POST /v1/paths",
         "POST /v1/projections",
+        "POST /v1/percentiles",
     }
     for key, operation in normalized.items():
         # 422 is a domain status only (PATH_TOO_LONG), never FastAPI's validation response
