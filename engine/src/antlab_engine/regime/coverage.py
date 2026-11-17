@@ -3,10 +3,11 @@
 import hashlib
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
+from datetime import date
 from types import MappingProxyType
 
 from antlab_engine.regime.adapter import Adapted
-from antlab_engine.regime.model import Observation, SeriesCode
+from antlab_engine.regime.model import Market, Observation, SeriesCode
 from antlab_engine.regime.monthly import INDICATOR_KEYS, LABEL_VERSION, MonthRegime, MonthStatus
 
 
@@ -15,18 +16,25 @@ def _canonical_value(observation: Observation) -> str:
     return "0" if value == 0 else format(value.normalize(), "f")
 
 
-def input_digest(observations: Iterable[Observation]) -> str:
-    """SHA-256 over the label version and the adapted rows in canonical order (64 hex digits).
+def input_digest(
+    observations: Iterable[Observation], calendars: Mapping[Market, frozenset[date]] | None = None
+) -> str:
+    """SHA-256 over the label version, the adapted rows and the holiday calendars (64 hex digits).
 
-    Equal inputs give equal digests whatever the row order, so two runs can be compared
-    without printing any data. Holiday calendars change the stale rule but are not rows, so
-    they are not part of the digest; a caller that varies them must compare them itself.
+    Rows and calendar days are sorted, so equal inputs give equal digests whatever their order,
+    and two runs can be compared without printing any data. Calendars change the stale rule, so
+    two runs that differ only in them differ here. Empty calendars add no line.
     """
     lines = sorted(
         f"{o.series.value}|{o.ref_date.isoformat()}|{o.available_on.isoformat()}|{_canonical_value(o)}"
         for o in observations
     )
-    return hashlib.sha256("\n".join([LABEL_VERSION, *lines]).encode("ascii")).hexdigest()
+    days = sorted(
+        f"cal|{market.value}|{day.isoformat()}"
+        for market, holidays in (calendars or {}).items()
+        for day in holidays
+    )
+    return hashlib.sha256("\n".join([LABEL_VERSION, *lines, *days]).encode("ascii")).hexdigest()
 
 
 @dataclass(frozen=True, slots=True, eq=False)

@@ -27,6 +27,7 @@ STATUS_OF_CODE = {
     ErrorCode.INTERNAL_ERROR: 500,
     ErrorCode.HISTORY_UNAVAILABLE: 503,
     ErrorCode.ENGINE_BUSY: 503,
+    ErrorCode.REGIME_DATA_INVALID: 422,
 }
 
 CONTRACT_DIR = ENGINE_DIR.parent / "src" / "test" / "resources" / "engine" / "contract"

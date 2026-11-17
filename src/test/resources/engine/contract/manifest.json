@@ -17,6 +17,7 @@
     {"file": "problem-pool-not-found.json", "kind": "response", "operation": "createProjection", "status": 404, "valid": true},
     {"file": "problem-path-too-long.json", "kind": "response", "operation": "createPath", "status": 422, "valid": true},
     {"file": "problem-path-too-long.json", "kind": "response", "operation": "createProjection", "status": 422, "valid": true},
+    {"file": "problem-regime-data-invalid.json", "kind": "response", "operation": "evaluateRegime", "status": 422, "valid": true},
     {"file": "problem-internal-error.json", "kind": "response", "operation": "createPath", "status": 500, "valid": true},
     {"file": "problem-internal-error.json", "kind": "response", "operation": "createProjection", "status": 500, "valid": true},
     {"file": "problem-internal-error.json", "kind": "response", "operation": "getEngineInfo", "status": 500, "valid": true},

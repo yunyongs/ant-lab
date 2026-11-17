@@ -414,6 +414,7 @@ def test_regime_imports_only_numpy_and_the_standard_library():
         "regime/adapter.py",
         "regime/monthly.py",
         "regime/coverage.py",
+        "regime/source.py",
     }
     found = {n: regime_disallowed_imports(t) for n, t in texts.items()}
     assert {n: bad for n, bad in found.items() if bad} == {}
