@@ -816,18 +816,29 @@ components:
           $ref: '#/components/schemas/OrderSource'
     RejectDto:
       type: object
-      required: [unit, index, code]
+      description: |-
+        One part of the previous decision that the engine rejected. Never model text: unit, code and pointer come from fixed sets or plain names. A unit reject has a unit (and an index for ORDER) and no pointer. A reply-level reject, such as a reply that failed the format check, has no unit and no index; its code is SCHEMA_INVALID and the pointer says where in the reply the fault is
+
+        엔진이 거부한 직전 결정의 한 부분. 모델 문장이 아니다: unit·code·pointer 는 정해진 집합이나 평범한 이름이다. 단위 거부는 unit(ORDER 면 index)이 있고 pointer 가 없다. 응답 전체에 대한 거부(예: 형식 검사 실패)는 unit·index 가 없고 code 는 SCHEMA_INVALID, pointer 가 응답 안의 위치를 말한다
+      required: [unit, index, code, pointer]
       properties:
         unit:
-          type: string
-          enum: [FORMATION, ORDER, THESES]
+          type: [string, 'null']
+          enum: [FORMATION, ORDER, THESES, null]
         index:
           type: [integer, 'null']
           format: int32
-          description: Position in the reply's orders array; null for the formation and theses units / 응답 orders 배열의 위치, 포메이션·논지 단위는 null
+          minimum: 0
+          maximum: 39
+          description: Position in the reply's orders array, for ORDER only / 응답 orders 배열의 위치, ORDER 에만
         code:
           type: string
+          pattern: '^[A-Z][A-Z_]{0,39}$'
           description: Reject code recorded by the engine / 엔진이 기록한 거부 코드
+        pointer:
+          type: [string, 'null']
+          pattern: '^(/[A-Za-z0-9_]{1,40}){1,6}$'
+          description: Where in the reply the fault is, for a reply-level reject only / 응답 안의 위치, 응답 전체 거부에만
     OrderSource:
       type: string
       enum: [RANKING, FEED, ALERT, BENCH, DIRECT]

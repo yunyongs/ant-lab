@@ -1,5 +1,7 @@
 package antlab.support;
 
+import antlab.agent.AgentPartDto;
+import antlab.agent.RejectDto;
 import antlab.common.exposure.ExposedFrom;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.RecordComponent;
@@ -9,6 +11,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -58,17 +61,18 @@ public final class ExposureRules {
             "season.data_snapshot_date");
 
     /**
-     * Components that name no column because they are constants of the agent turn view (reply format name, the reserved
-     * memory slot). Any other empty {@code @ExposedFrom} is a violation.
+     * Components that name no column because they are constants of the agent turn view (the reply format name). Matched
+     * by class, not by name: a record of another package with the same simple name gets nothing from this list. Any
+     * other empty {@code @ExposedFrom} is a violation.
      */
-    public static final Set<String> CONSTANT_COMPONENTS = Set.of("AgentPartDto.schema", "AgentPartDto.memory");
+    public static final Map<Class<?>, Set<String>> CONSTANT_COMPONENTS = Map.of(AgentPartDto.class, Set.of("schema"));
 
     /**
      * The engine's own record of what it rejected in the previous decision: {@code [내부]} in the DB, but the agent is
-     * told the unit, index and code on purpose. Allowed only in the one record that carries nothing else.
+     * told the unit, index, code and pointer on purpose. Allowed only in this one record, by class.
      */
     public static final String ENGINE_REJECT_SOURCE = "agent_call.rejects";
-    public static final String ENGINE_REJECT_RECORD = "RejectDto";
+    public static final Class<?> ENGINE_REJECT_RECORD = RejectDto.class;
 
     private ExposureRules() {
     }
@@ -118,16 +122,17 @@ public final class ExposureRules {
             Class<?> nested = nestedRecord(rc.getGenericType());
             ExposedFrom from = rc.getAnnotation(ExposedFrom.class);
             if (from == null) {
-                if (nested == null) {
+                // A Void component can only ever be null; when its type changes, this branch stops applying.
+                if (nested == null && rc.getType() != Void.class) {
                     out.add(where + " — @ExposedFrom 없음");
                 }
             } else if (from.value().length == 0) {
-                if (!CONSTANT_COMPONENTS.contains(where)) {
+                if (!CONSTANT_COMPONENTS.getOrDefault(record, Set.of()).contains(rc.getName())) {
                     out.add(where + " — @ExposedFrom 에 원천이 없음 (상수 허용 목록에도 없음)");
                 }
             } else {
                 for (String source : from.value()) {
-                    if (source.equals(ENGINE_REJECT_SOURCE) && record.getSimpleName().equals(ENGINE_REJECT_RECORD)
+                    if (source.equals(ENGINE_REJECT_SOURCE) && record == ENGINE_REJECT_RECORD
                             && catalog.has(source)) {
                         continue;
                     }

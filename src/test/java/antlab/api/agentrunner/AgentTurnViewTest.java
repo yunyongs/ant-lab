@@ -110,6 +110,10 @@ class AgentTurnViewTest {
     @Autowired
     AgentTurnViewService turnViews;
     @Autowired
+    antlab.member.CurrentMember currentMember;
+    @Autowired
+    antlab.account.OrderRepository orderRepository;
+    @Autowired
     TestTokens tokens;
     @Autowired
     TestMembers members;
@@ -406,14 +410,54 @@ class AgentTurnViewTest {
     }
 
     @Test
-    void a_stored_reject_list_of_another_shape_is_a_server_error_and_not_shown() throws Exception {
+    void a_stored_reject_list_of_another_shape_does_not_stop_the_turn_and_is_not_shown(CapturedOutput output)
+            throws Exception {
+        Agent a = startAgent();
+        playToTurnFour(a);
+        saveFinal(a, 3, 1, DecisionOutcome.DECISION, "[{\"unit\": \"ORDER\", \"index\": 0, \"code\": \"INSUFFICIENT_CASH\"},"
+                + " {\"unit\": \"ORDER\", \"index\": 0, \"code\": \"sell everything now\"}]");
+        MockHttpServletResponse r = view(a);
+        assertThat(r.getStatus()).isEqualTo(200);
+        JsonNode rejects = json(r).get("agent").get("lastRejects");
+        assertThat(rejects).hasSize(1);
+        assertThat(rejects.get(0).get("code").asString()).isEqualTo("INSUFFICIENT_CASH");
+        assertThat(r.getContentAsString()).doesNotContain("sell everything");
+        assertThat(output.getAll()).contains("1 unusable item").doesNotContain("sell everything");
+    }
+
+    @Test
+    void a_stored_list_that_cannot_be_read_gives_an_empty_list_and_a_200() throws Exception {
         Agent a = startAgent();
         playToTurnFour(a);
         saveFinal(a, 3, 1, DecisionOutcome.DECISION, "{\"unit\": \"ORDER\"}");
         MockHttpServletResponse r = view(a);
-        assertThat(r.getStatus()).isEqualTo(500);
-        assertThat(json(r).get("code").asString()).isEqualTo("INTERNAL_ERROR");
-        assertThat(r.getContentAsString()).doesNotContain("unit");
+        assertThat(r.getStatus()).isEqualTo(200);
+        assertThat(json(r).get("agent").get("lastRejects")).isEmpty();
+    }
+
+    @Test
+    void a_reply_level_reject_without_a_unit_is_shown_with_its_pointer() throws Exception {
+        Agent a = startAgent();
+        playToTurnFour(a);
+        saveFinal(a, 3, 1, DecisionOutcome.INVALID,
+                "[{\"code\": \"SCHEMA_INVALID\", \"pointer\": \"/orders/0/quantity\"}]");
+        JsonNode rejects = viewJson(a).get("agent").get("lastRejects");
+        assertThat(rejects).hasSize(1);
+        assertThat(keys(rejects.get(0))).isEqualTo(components(RejectDto.class));
+        assertThat(rejects.get(0).get("unit").isNull()).isTrue();
+        assertThat(rejects.get(0).get("index").isNull()).isTrue();
+        assertThat(rejects.get(0).get("code").asString()).isEqualTo("SCHEMA_INVALID");
+        assertThat(rejects.get(0).get("pointer").asString()).isEqualTo("/orders/0/quantity");
+    }
+
+    @Test
+    void the_window_follows_the_configured_number_of_turns() throws Exception {
+        Agent a = startAgent();
+        playToTurnFour(a);
+        AgentTurnViewService two = new AgentTurnViewService(currentMember, seasonQueries, turnQueries, holdingsQueries,
+                pools, orderRepository, calls, 2);
+        var trades = acting(a.id(), () -> two.get(a.id(), a.season())).agent().recentTrades();
+        assertThat(trades).extracting(RecentTradeDto::turnNo).containsExactly(2, 3);
     }
 
     // ---- who may look -----------------------------------------------------------------------------------------------
@@ -601,7 +645,7 @@ class AgentTurnViewTest {
         for (ReturnKind kind : ReturnKind.values()) {
             assertThat(output.getAll()).as("return kind in the log").doesNotContain(kind.name());
         }
-        assertThat(output.getAll()).doesNotContain(engine).doesNotContain(TOKEN);
+        assertThat(output.getAll()).doesNotContain(engine).doesNotContain(TOKEN).doesNotContain(seed);
     }
 
     @Test

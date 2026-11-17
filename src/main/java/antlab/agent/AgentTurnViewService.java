@@ -14,6 +14,10 @@ import antlab.season.TurnQueryService;
 import antlab.season.TurnResultDto;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.regex.Pattern;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
@@ -29,6 +33,15 @@ import tools.jackson.databind.json.JsonMapper;
  */
 @Service
 public class AgentTurnViewService {
+
+    private static final Logger log = LoggerFactory.getLogger(AgentTurnViewService.class);
+
+    static final Set<String> UNITS = Set.of("FORMATION", "ORDER", "THESES");
+    static final String REPLY_CODE = "SCHEMA_INVALID";
+    static final int MAX_ORDERS = 40;
+    private static final Pattern CODE = Pattern.compile("^[A-Z][A-Z_]{0,39}$");
+    /** Up to six path steps of plain names or array positions; model-chosen keys with other characters do not pass. */
+    private static final Pattern POINTER = Pattern.compile("^(/[A-Za-z0-9_]{1,40}){1,6}$");
 
     private final CurrentMember currentMember;
     private final SeasonQueryService seasonQueries;
@@ -80,34 +93,90 @@ public class AgentTurnViewService {
                 r.quantity(), MoneyMath.exactWon(r.fillPrice()), MoneyMath.exactWon(r.fee()), r.origin())).toList();
     }
 
-    /** Rejects the engine recorded on the previous turn's final call; none if that turn has no recorded rejects. */
+    /** Rejects the engine recorded on the previous turn's final decision call; none if there is no such list. */
     private List<RejectDto> lastRejects(long seasonId, int turn) {
         if (turn < 1) {
             return List.of();
         }
-        return calls.findFinalBySeasonIdAndTurnNo(seasonId, turn - 1).map(AgentCall::getRejects)
-                .map(AgentTurnViewService::parseRejects).orElse(List.of());
+        return calls.findFinalRejects(seasonId, turn - 1, AgentCallKind.TURN_DECISION).map(stored -> {
+            ParsedRejects parsed = parseRejects(stored);
+            if (parsed.dropped() > 0) {
+                // No stored value in the message: the text came from a reply.
+                log.warn("agent_call.rejects has {} unusable item(s): seasonId={} turnNo={}", parsed.dropped(), seasonId,
+                        turn - 1);
+            }
+            return parsed.items();
+        }).orElse(List.of());
     }
 
-    /** The stored list is written by the engine only; a row of another shape is damaged data, not an input error. */
-    static List<RejectDto> parseRejects(String json) {
-        JsonNode root = JsonMapper.shared().readTree(json);
-        if (!root.isArray()) {
-            throw new IllegalStateException("agent_call.rejects is not an array");
+    /** The usable items of a stored list and how many items (or whole lists) were left out. */
+    record ParsedRejects(List<RejectDto> items, int dropped) {
+    }
+
+    /**
+     * Reads the stored reject list. The engine writes it, but a row of another shape must not stop the turn: items that
+     * do not fit the vocabulary are left out (and counted), and a list that cannot be read at all gives no items.
+     * A unit reject: unit in {@link #UNITS}; index 0-39 for ORDER, null otherwise; no pointer. A reply-level reject:
+     * no unit, no index, code {@value #REPLY_CODE}, and a pointer of plain names.
+     */
+    static ParsedRejects parseRejects(String json) {
+        JsonNode root;
+        try {
+            root = JsonMapper.shared().readTree(json);
+        } catch (RuntimeException e) {
+            return new ParsedRejects(List.of(), 1);
+        }
+        if (root == null || !root.isArray()) {
+            return new ParsedRejects(List.of(), 1);
         }
         List<RejectDto> out = new ArrayList<>();
+        int dropped = 0;
         for (JsonNode item : root) {
-            JsonNode unit = item.get("unit");
-            JsonNode code = item.get("code");
-            JsonNode index = item.get("index");
-            if (unit == null || !unit.isString() || code == null || !code.isString()
-                    || (index != null && !index.isNull() && !index.isIntegralNumber())) {
-                throw new IllegalStateException("agent_call.rejects has an item of an unknown shape");
+            RejectDto reject = readReject(item);
+            if (reject == null) {
+                dropped++;
+            } else {
+                out.add(reject);
             }
-            out.add(new RejectDto(unit.asString(), index == null || index.isNull() ? null : index.asInt(),
-                    code.asString()));
         }
-        return List.copyOf(out);
+        return new ParsedRejects(List.copyOf(out), dropped);
+    }
+
+    private static RejectDto readReject(JsonNode item) {
+        if (!item.isObject()) {
+            return null;
+        }
+        String code = text(item.get("code"));
+        if (code == null || !CODE.matcher(code).matches()) {
+            return null;
+        }
+        JsonNode indexNode = item.get("index");
+        boolean hasIndex = indexNode != null && !indexNode.isNull();
+        if (hasIndex && !(indexNode.isIntegralNumber() && indexNode.canConvertToInt())) {
+            return null;
+        }
+        Integer index = hasIndex ? indexNode.asInt() : null;
+        JsonNode unitNode = item.get("unit");
+        if (unitNode == null || unitNode.isNull()) {
+            String pointer = text(item.get("pointer"));
+            boolean valid = code.equals(REPLY_CODE) && !hasIndex && pointer != null
+                    && POINTER.matcher(pointer).matches();
+            return valid ? new RejectDto(null, null, code, pointer) : null;
+        }
+        String unit = text(unitNode);
+        boolean pointerAbsent = item.get("pointer") == null || item.get("pointer").isNull();
+        if (unit == null || !UNITS.contains(unit) || !pointerAbsent) {
+            return null;
+        }
+        boolean order = unit.equals("ORDER");
+        if (order != hasIndex || (hasIndex && (index < 0 || index >= MAX_ORDERS))) {
+            return null;
+        }
+        return new RejectDto(unit, index, code, null);
+    }
+
+    private static String text(JsonNode node) {
+        return node != null && node.isString() ? node.asString() : null;
     }
 
     private static DomainException notFound() {

@@ -162,4 +162,30 @@ class AgentRunnerSchemaParityTest {
                 .path("get").path("responses").path("409").path("x-error-codes");
         assertThat(names(codes)).containsExactlyInAnyOrder("POOL_NOT_LOADED", "POOL_NOT_JUDGED");
     }
+
+    @Test
+    void the_enums_of_the_turn_view_follow_the_java_enums() throws Exception {
+        JsonNode s = schemas(RUNNER);
+        assertThat(names(s.path("OrderSource").path("enum")))
+                .isEqualTo(enumNames(antlab.account.OrderSource.values()));
+        assertThat(names(s.path("OrderSide").path("enum"))).isEqualTo(enumNames(antlab.account.OrderSide.values()));
+    }
+
+    private static Set<String> enumNames(Enum<?>[] values) {
+        Set<String> out = new TreeSet<>();
+        Arrays.stream(values).map(Enum::name).forEach(out::add);
+        return out;
+    }
+
+    @Test
+    void the_reject_schema_states_both_forms_and_the_vocabulary() throws Exception {
+        JsonNode reject = schemas(RUNNER).path("RejectDto").path("properties");
+        assertThat(reject.path("unit").path("type")).isEqualTo(OpenApiNormalizer.fromYaml("t: [string, 'null']").path("t"));
+        assertThat(reject.path("unit").path("enum")).isEqualTo(
+                OpenApiNormalizer.fromYaml("t: [FORMATION, ORDER, THESES, null]").path("t"));
+        assertThat(reject.path("pointer").path("type")).isEqualTo(
+                OpenApiNormalizer.fromYaml("t: [string, 'null']").path("t"));
+        assertThat(reject.path("index").path("maximum").asInt()).isEqualTo(39);
+        assertThat(reject.path("code").path("pattern").asString()).isEqualTo("^[A-Z][A-Z_]{0,39}$");
+    }
 }

@@ -7,7 +7,8 @@ import java.util.List;
 
 /**
  * What an agent sees beside the human turn screen: which reply format to answer in, its own recent fills, and what the
- * engine rejected in its previous decision. {@code memory} is always null until agent memory exists.
+ * engine rejected in its previous decision. {@code memory} is always null until agent memory exists; its type changes then, and the exposure check starts to
+ * look inside it.
  */
 public record AgentPartDto(
         @ExposedFrom({})
@@ -18,10 +19,9 @@ public record AgentPartDto(
         @Schema(requiredMode = RequiredMode.REQUIRED,
                 description = "Units the engine rejected in the previous turn's decision")
         List<RejectDto> lastRejects,
-        @ExposedFrom({})
-        @Schema(requiredMode = RequiredMode.REQUIRED, types = {"object", "null"},
+        @Schema(requiredMode = RequiredMode.REQUIRED, types = {"null"},
                 description = "Reserved for agent memory; always null for now")
-        Object memory) {
+        Void memory) {
 
     public static final String SCHEMA = "turn-decision/1";
 }
