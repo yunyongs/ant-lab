@@ -45,7 +45,7 @@ public class OrderController {
                     + "매도는 대금이 현금에 더해지고 수수료가 빠지며 실현 손익이 기록되고, 전량 매도면 구간이 닫힌다.")
     @ApiResponse(responseCode = "201", description = "Fill result / 체결 결과")
     @ApiResponse(responseCode = "400", description = "The input is invalid (quantity 0 or less, declared "
-            + "position on a sell) — INVALID_ARGUMENT / 입력이 틀렸다(수량 0 이하, 매도에 선언 포지션) — INVALID_ARGUMENT",
+            + "position on a sell, a malformed or BENCH source) — INVALID_ARGUMENT / 입력이 틀렸다(수량 0 이하, 매도에 선언 포지션, 모양이 틀렸거나 BENCH인 source) — INVALID_ARGUMENT",
             content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ApiProblem.class)))
     @ApiResponse(responseCode = "404", description = "The season does not exist — NOT_FOUND / 시즌이 없다 — NOT_FOUND",
             content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ApiProblem.class)))
@@ -57,11 +57,11 @@ public class OrderController {
                     + "EVENT_TIME_CONFLICT",
             content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ApiProblem.class)))
     @ApiResponse(responseCode = "422",
-            description = "The order content is not acceptable — ASSET_NOT_IN_POOL, INSUFFICIENT_CASH, "
-                    + "INSUFFICIENT_HOLDING, POSITION_CONFLICT, POSITION_REQUIRED\n"
+            description = "The order content is not acceptable — SOURCE_NOT_VISIBLE, ASSET_NOT_IN_POOL, "
+                    + "INSUFFICIENT_CASH, INSUFFICIENT_HOLDING, POSITION_CONFLICT, POSITION_REQUIRED\n"
                     + "\n"
-                    + "주문 내용을 받을 수 없다 — ASSET_NOT_IN_POOL, INSUFFICIENT_CASH, INSUFFICIENT_HOLDING, "
-                    + "POSITION_CONFLICT, POSITION_REQUIRED",
+                    + "주문 내용을 받을 수 없다 — SOURCE_NOT_VISIBLE, ASSET_NOT_IN_POOL, INSUFFICIENT_CASH, "
+                    + "INSUFFICIENT_HOLDING, POSITION_CONFLICT, POSITION_REQUIRED",
             content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ApiProblem.class)))
     public ResponseEntity<OrderResultDto> place(@PathVariable Long seasonId,
             @Valid @RequestBody PlaceOrderRequest request) {

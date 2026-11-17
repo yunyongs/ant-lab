@@ -117,7 +117,7 @@ class AgentSingleAssetLimitTest {
         long asset = jdbc.queryForObject("SELECT id FROM asset WHERE ticker = '069500'", Long.class);
         SecurityContextHolder.getContext().setAuthentication(new AgentActingAuthentication(a[0]));
         assertThatThrownBy(() -> orders.place(a[1], new PlaceOrderRequest(0, OrderSide.BUY, asset, sharesFor(a[1], "0.12"),
-                Position.MIDFIELDER))).isInstanceOfSatisfying(DomainException.class,
+                Position.MIDFIELDER, null))).isInstanceOfSatisfying(DomainException.class,
                         e -> assertThat(e.getCode()).isEqualTo(ErrorCode.INVALID_ARGUMENT));
     }
 
@@ -125,7 +125,7 @@ class AgentSingleAssetLimitTest {
     void a_limit_outside_zero_to_one_is_refused_at_start() {
         for (BigDecimal bad : List.of(BigDecimal.ZERO, new BigDecimal("-0.1"), new BigDecimal("1.01"))) {
             assertThatThrownBy(() -> new OrderService(null, null, null, null, null, null, null, null, null, null, null,
-                    null, bad)).isInstanceOf(IllegalArgumentException.class);
+                    null, null, null, bad)).isInstanceOf(IllegalArgumentException.class);
         }
     }
 }

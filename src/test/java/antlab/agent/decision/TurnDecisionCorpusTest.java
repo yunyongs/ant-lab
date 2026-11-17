@@ -144,7 +144,7 @@ class TurnDecisionCorpusTest {
         assertThat(names(DecisionRejectCode.class).stream().filter(api::contains).toList())
                 .as("codes that exist on both sides are the ones the human path shares")
                 .containsExactlyInAnyOrder("ASSET_NOT_IN_POOL", "INSUFFICIENT_HOLDING", "INSUFFICIENT_CASH",
-                        "POSITION_REQUIRED", "POSITION_CONFLICT");
+                        "POSITION_REQUIRED", "POSITION_CONFLICT", "SOURCE_NOT_VISIBLE");
     }
 
     private static Set<String> names(JsonNode array) {

@@ -18,9 +18,11 @@ public final class OrderPlan {
     private final BigDecimal notional;
     private final BigDecimal fee;
     private final BigDecimal pnl;
+    private final OrderSource source;
+    private final Long turnFeedId;
 
     OrderPlan(OrderScope scope, PlaceOrderRequest request, BigDecimal price, Long changeId, Holding holding,
-            Lineup open, BigDecimal notional, BigDecimal fee, BigDecimal pnl) {
+            Lineup open, BigDecimal notional, BigDecimal fee, BigDecimal pnl, OrderSource source, Long turnFeedId) {
         this.scope = scope;
         this.request = request;
         this.price = price;
@@ -30,6 +32,8 @@ public final class OrderPlan {
         this.notional = notional;
         this.fee = fee;
         this.pnl = pnl;
+        this.source = source;
+        this.turnFeedId = turnFeedId;
     }
 
     OrderScope scope() {
@@ -66,5 +70,15 @@ public final class OrderPlan {
 
     BigDecimal pnl() {
         return pnl;
+    }
+
+    /** The verified origin that is written to {@code orders.source}. */
+    OrderSource source() {
+        return source;
+    }
+
+    /** Internal id of the feed item the origin points at; null unless the origin is FEED or ALERT. */
+    Long turnFeedId() {
+        return turnFeedId;
     }
 }

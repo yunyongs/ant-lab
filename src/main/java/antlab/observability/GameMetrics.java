@@ -33,7 +33,7 @@ public class GameMetrics {
             ErrorCode.TURN_MISMATCH, ErrorCode.RECONCILIATION_FAILED, ErrorCode.SEASON_HALTED);
     static final Set<ErrorCode> ORDER_REJECTIONS = EnumSet.of(ErrorCode.INVALID_ARGUMENT, ErrorCode.NOT_FOUND,
             ErrorCode.SEASON_NOT_ACTIVE, ErrorCode.TURN_MISMATCH, ErrorCode.LEDGER_MISMATCH, ErrorCode.LINEUP_MISMATCH,
-            ErrorCode.EVENT_TIME_CONFLICT, ErrorCode.ASSET_NOT_IN_POOL, ErrorCode.INSUFFICIENT_CASH,
+            ErrorCode.EVENT_TIME_CONFLICT, ErrorCode.ASSET_NOT_IN_POOL, ErrorCode.SOURCE_NOT_VISIBLE, ErrorCode.INSUFFICIENT_CASH,
             ErrorCode.INSUFFICIENT_HOLDING, ErrorCode.POSITION_CONFLICT, ErrorCode.POSITION_REQUIRED);
 
     private final MeterRegistry registry;
