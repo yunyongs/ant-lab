@@ -25,6 +25,7 @@ class ErrorCode(StrEnum):
     PATH_TOO_LONG = "PATH_TOO_LONG"
     POOL_NOT_FOUND = "POOL_NOT_FOUND"
     HISTORY_UNAVAILABLE = "HISTORY_UNAVAILABLE"
+    ENGINE_BUSY = "ENGINE_BUSY"
 
 
 class FieldViolation(BaseModel):
@@ -90,6 +91,7 @@ _DOMAIN_STATUS = {
     "PATH_TOO_LONG": 422,
     "POOL_NOT_FOUND": 404,
     "HISTORY_UNAVAILABLE": 503,
+    "ENGINE_BUSY": 503,
 }
 _INTERNAL_DETAIL = "The engine could not process the request."
 

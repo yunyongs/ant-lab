@@ -58,6 +58,34 @@ paths:
           $ref: '#/components/responses/InternalError'
         '503':
           $ref: '#/components/responses/HistoryUnavailable'
+  /v1/projections:
+    post:
+      operationId: createProjection
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectionRequest'
+      responses:
+        '200':
+          description: Projection of the portfolios / 포트폴리오별 예상 분포
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectionResult'
+        '400':
+          $ref: '#/components/responses/InvalidArgument'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/PoolNotFound'
+        '422':
+          $ref: '#/components/responses/PathTooLong'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ProjectionUnavailable'
 components:
   securitySchemes:
     EngineToken:
@@ -91,6 +119,12 @@ components:
             $ref: '#/components/schemas/Problem'
     PathTooLong:
       description: The replayable history cannot build a path of this length (code PATH_TOO_LONG, same status as the public API) / 재생 가능한 이력으로 이 길이의 경로를 만들 수 없다(코드 PATH_TOO_LONG, 공개 API와 같은 상태)
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    ProjectionUnavailable:
+      description: The history database is not configured or not reachable (HISTORY_UNAVAILABLE), or too many projections are running and the call may be retried later (ENGINE_BUSY) / 이력 DB가 설정되지 않았거나 닿지 않는다(HISTORY_UNAVAILABLE), 또는 실행 중인 예상 분포가 너무 많아 나중에 다시 호출하면 된다(ENGINE_BUSY)
       content:
         application/problem+json:
           schema:
@@ -182,6 +216,147 @@ components:
         historyDigest:
           type: string
           pattern: '^[0-9a-f]{64}$'
+    ProjectionRequest:
+      type: object
+      description: >-
+        Projects fixed holdings (no trades, fees, interest or contributions) over `n` paths of `m2-sb6-v1`
+        whose seeds derive from `seasonSeed`, so the season's own path is never one of them. Every
+        portfolio sees the same paths. `weights` plus `cash` of each portfolio must add up to exactly 1;
+        an asset must not repeat inside a portfolio and portfolio keys are unique. Summary turns above
+        `horizonTurns` are dropped and `horizonTurns` itself is always summarised. All numbers are decimal
+        strings. / 고정 보유(매매·수수료·이자·적립 없음)를 `m2-sb6-v1`의 `n`개 경로에 돌린다. 경로 시드는
+        `seasonSeed`에서 파생하므로 시즌 경로는 그중 하나가 아니다. 모든 포트폴리오가 같은 경로를 쓴다.
+        포트폴리오마다 `weights`와 `cash`의 합은 정확히 1이어야 하고, 한 포트폴리오 안에서 종목이 반복되면 안 되며
+        포트폴리오 키는 유일하다. `horizonTurns`보다 큰 요약 턴은 버리고 `horizonTurns`는 항상 요약한다.
+        모든 수는 십진 문자열이다.
+      additionalProperties: false
+      required: [seasonSeed, baseDate, horizonTurns, riskLimit, portfolios]
+      properties:
+        seasonSeed:
+          type: string
+          pattern: '^-?[0-9]{1,19}$'
+        baseDate: {type: string, format: date}
+        horizonTurns:
+          type: integer
+          enum: [60, 120]
+        n:
+          type: integer
+          minimum: 100
+          maximum: 5000
+          default: 2000
+        riskLimit:
+          type: string
+          pattern: '^-0\.[0-9]{1,8}$'
+        summaryTurns:
+          type: array
+          minItems: 1
+          maxItems: 20
+          default: [60, 120]
+          items: {type: integer, minimum: 1, maximum: 120}
+        portfolios:
+          type: array
+          minItems: 1
+          maxItems: 6
+          items: {$ref: '#/components/schemas/ProjectionPortfolio'}
+    ProjectionPortfolio:
+      type: object
+      additionalProperties: false
+      required: [key, cash, weights]
+      properties:
+        key:
+          type: string
+          pattern: '^[A-Z][A-Z0-9_]{0,31}$'
+        cash:
+          type: string
+          pattern: '^(0(\.[0-9]{1,12})?|1(\.0{1,12})?)$'
+        weights:
+          type: array
+          maxItems: 200
+          items: {$ref: '#/components/schemas/Holding'}
+    Holding:
+      type: object
+      additionalProperties: false
+      required: [asset, weight]
+      properties:
+        asset:
+          type: string
+          pattern: '^(KR|US):[A-Z0-9.\-]{1,16}$'
+        weight:
+          type: string
+          pattern: '^(0(\.[0-9]{1,12})?|1(\.0{1,12})?)$'
+    ProjectionResult:
+      type: object
+      description: >-
+        Value multiples, drawdowns and probabilities as decimal strings with eight fractional digits
+        (rounded half up once at the wire). No months, no won amounts and no per-path values leave the
+        engine. `historyDigest` is the SHA-256 (hex) of the versions, the held assets and the eligible
+        months (`YYYY-MM`, every held asset has a return) with their growth factors. / 평가 배수·낙폭·확률은
+        소수 여덟 자리 십진 문자열이다(전송 경계에서 한 번 반올림, 반올림 방식은 half up). 달·원화 금액·경로별 값은
+        엔진 밖으로 나가지 않는다. `historyDigest`는 버전, 보유 종목, 자격 있는 달(모든 보유 종목에 수익률이 있는
+        `YYYY-MM`)과 성장 배수에 대한 SHA-256(hex)이다.
+      required: [projectionVersion, engineVersion, n, horizonTurns, historyDigest, portfolios]
+      properties:
+        projectionVersion: {type: string}
+        engineVersion: {type: string}
+        n: {type: integer}
+        horizonTurns: {type: integer}
+        historyDigest:
+          type: string
+          pattern: '^[0-9a-f]{64}$'
+        portfolios:
+          type: array
+          items: {$ref: '#/components/schemas/ProjectionPortfolioResult'}
+    ProjectionPortfolioResult:
+      type: object
+      required: [key, bands, summaries]
+      properties:
+        key: {type: string}
+        bands:
+          type: array
+          items: {$ref: '#/components/schemas/ProjectionBand'}
+        summaries:
+          type: array
+          items: {$ref: '#/components/schemas/ProjectionSummary'}
+    ProjectionBand:
+      type: object
+      required: [turn, p05, p25, p50, p75, p95]
+      properties:
+        turn: {type: integer}
+        p05: {type: string, pattern: '^[0-9]{1,24}\.[0-9]{8}$'}
+        p25: {type: string, pattern: '^[0-9]{1,24}\.[0-9]{8}$'}
+        p50: {type: string, pattern: '^[0-9]{1,24}\.[0-9]{8}$'}
+        p75: {type: string, pattern: '^[0-9]{1,24}\.[0-9]{8}$'}
+        p95: {type: string, pattern: '^[0-9]{1,24}\.[0-9]{8}$'}
+    ProjectionSummary:
+      type: object
+      required: [turn, end, mdd, breachCount, breachProbability]
+      properties:
+        turn: {type: integer}
+        end: {$ref: '#/components/schemas/EndQuantiles'}
+        mdd: {$ref: '#/components/schemas/MddQuantiles'}
+        breachCount: {type: integer}
+        breachProbability:
+          type: string
+          pattern: '^(0\.[0-9]{8}|1\.0{8})$'
+    EndQuantiles:
+      type: object
+      required: [p05, p25, p50, p75, p95]
+      properties:
+        p05: {type: string, pattern: '^[0-9]{1,24}\.[0-9]{8}$'}
+        p25: {type: string, pattern: '^[0-9]{1,24}\.[0-9]{8}$'}
+        p50: {type: string, pattern: '^[0-9]{1,24}\.[0-9]{8}$'}
+        p75: {type: string, pattern: '^[0-9]{1,24}\.[0-9]{8}$'}
+        p95: {type: string, pattern: '^[0-9]{1,24}\.[0-9]{8}$'}
+    MddQuantiles:
+      type: object
+      required: [p05, p10, p25, p50, p75, p95]
+      properties:
+        p05: {type: string, pattern: '^(0\.0{8}|-(0\.[0-9]{8}|1\.0{8}))$'}
+        p10: {type: string, pattern: '^(0\.0{8}|-(0\.[0-9]{8}|1\.0{8}))$'}
+        p25: {type: string, pattern: '^(0\.0{8}|-(0\.[0-9]{8}|1\.0{8}))$'}
+        p50: {type: string, pattern: '^(0\.0{8}|-(0\.[0-9]{8}|1\.0{8}))$'}
+        p75: {type: string, pattern: '^(0\.0{8}|-(0\.[0-9]{8}|1\.0{8}))$'}
+        p95: {type: string, pattern: '^(0\.0{8}|-(0\.[0-9]{8}|1\.0{8}))$'}
     FieldViolation:
       type: object
       required: [field, reason]
@@ -203,6 +378,6 @@ components:
     ErrorCode:
       type: string
       enum: [INVALID_ARGUMENT, NOT_FOUND, METHOD_NOT_ALLOWED, UNAUTHENTICATED, INTERNAL_ERROR,
-           PATH_TOO_LONG, POOL_NOT_FOUND, HISTORY_UNAVAILABLE]
+           PATH_TOO_LONG, POOL_NOT_FOUND, HISTORY_UNAVAILABLE, ENGINE_BUSY]
 security:
   - EngineToken: []

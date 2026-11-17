@@ -87,6 +87,62 @@ def _paths_overlap_pattern_widens(spec):
     spec["components"]["schemas"]["PathRequest"]["properties"]["maxOverlap"]["pattern"] = ".*"
 
 
+def _proj_loses_a_status(spec):
+    del spec["paths"]["/v1/projections"]["post"]["responses"]["422"]
+
+
+def _proj_seed_becomes_integer(spec):
+    spec["components"]["schemas"]["ProjectionRequest"]["properties"]["seasonSeed"] = {
+        "type": "integer"
+    }
+
+
+def _proj_horizon_gains_a_value(spec):
+    spec["components"]["schemas"]["ProjectionRequest"]["properties"]["horizonTurns"]["enum"].append(
+        24
+    )
+
+
+def _proj_n_bound_widens(spec):
+    spec["components"]["schemas"]["ProjectionRequest"]["properties"]["n"]["maximum"] = 50000
+
+
+def _proj_request_allows_extra_fields(spec):
+    del spec["components"]["schemas"]["ProjectionRequest"]["additionalProperties"]
+
+
+def _proj_weight_becomes_number(spec):
+    spec["components"]["schemas"]["Holding"]["properties"]["weight"] = {"type": "number"}
+
+
+def _proj_risk_limit_pattern_widens(spec):
+    spec["components"]["schemas"]["ProjectionRequest"]["properties"]["riskLimit"]["pattern"] = ".*"
+
+
+def _proj_portfolio_limit_grows(spec):
+    spec["components"]["schemas"]["ProjectionRequest"]["properties"]["portfolios"]["maxItems"] = 60
+
+
+def _proj_digest_becomes_optional(spec):
+    spec["components"]["schemas"]["ProjectionResult"]["required"].remove("historyDigest")
+
+
+def _proj_band_gains_won(spec):
+    spec["components"]["schemas"]["ProjectionBand"]["properties"]["wonValue"] = {"type": "string"}
+
+
+def _proj_ratio_becomes_number(spec):
+    spec["components"]["schemas"]["EndQuantiles"]["properties"]["p50"] = {"type": "number"}
+
+
+def _proj_not_secured(spec):
+    spec["paths"]["/v1/projections"]["post"]["security"] = []
+
+
+def _busy_code_dropped(spec):
+    spec["components"]["schemas"]["ErrorCode"]["enum"].remove("ENGINE_BUSY")
+
+
 def _error_code_domain_dropped(spec):
     spec["components"]["schemas"]["ErrorCode"]["enum"].remove("HISTORY_UNAVAILABLE")
 
@@ -105,6 +161,19 @@ MUTATIONS = [
     _paths_overlap_pattern_widens,
     _error_code_domain_dropped,
     _paths_not_secured,
+    _proj_loses_a_status,
+    _proj_seed_becomes_integer,
+    _proj_horizon_gains_a_value,
+    _proj_n_bound_widens,
+    _proj_request_allows_extra_fields,
+    _proj_weight_becomes_number,
+    _proj_risk_limit_pattern_widens,
+    _proj_portfolio_limit_grows,
+    _proj_digest_becomes_optional,
+    _proj_band_gains_won,
+    _proj_ratio_becomes_number,
+    _proj_not_secured,
+    _busy_code_dropped,
     _drop_info_security_responses,
     _drop_global_security,
     _make_healthz_secured,
@@ -132,6 +201,9 @@ def test_normalizer_ignores_documentation_only_changes(contract, generated):
     assert normalize(changed) == normalize(generated)
 
 
+DOMAIN_POSTS = {"POST /v1/paths", "POST /v1/projections"}
+
+
 @pytest.mark.parametrize("which", ["contract", "generated"])
 def test_invariants(which, contract, generated):
     spec = contract if which == "contract" else generated
@@ -144,10 +216,15 @@ def test_invariants(which, contract, generated):
     }
     assert "HTTPValidationError" not in spec["components"]["schemas"]
     normalized = normalize(spec)["paths"]
-    assert set(normalized) == {"GET /healthz", "GET /v1/info", "POST /v1/paths"}
+    assert set(normalized) == {
+        "GET /healthz",
+        "GET /v1/info",
+        "POST /v1/paths",
+        "POST /v1/projections",
+    }
     for key, operation in normalized.items():
         # 422 is a domain status only (PATH_TOO_LONG), never FastAPI's validation response
-        assert ("422" in operation["responses"]) == (key == "POST /v1/paths")
+        assert ("422" in operation["responses"]) == (key in DOMAIN_POSTS)
         assert operation["responses"]["500"]["content"] == {
             "application/problem+json": {"$ref": "Problem"}
         }
