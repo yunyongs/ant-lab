@@ -119,6 +119,13 @@ paths:
                 $ref: '#/components/schemas/Problem'
         '500':
           $ref: '#/components/responses/InternalError'
+        '503':
+          description: The path service is busy or not reachable; the runner retries later, the agent is not marked failed — ENGINE_UNAVAILABLE / 경로 서비스가 바쁘거나 연결되지 않는다. 러너는 나중에 다시 시도하고 에이전트를 실패로 표시하지 않는다 — ENGINE_UNAVAILABLE
+          x-error-codes: [ENGINE_UNAVAILABLE]
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
   /internal/agent-runner/v1/agents/{agentId}/seasons/{seasonId}/turn-view:
     get:
       tags: [agent]
@@ -1301,7 +1308,7 @@ components:
       type: string
       enum: [INVALID_ARGUMENT, NOT_FOUND, METHOD_NOT_ALLOWED, NOT_ACCEPTABLE,
              UNSUPPORTED_MEDIA_TYPE, MALFORMED_REQUEST, INTERNAL_ERROR, POOL_NOT_LOADED, POOL_NOT_JUDGED, PATH_TOO_LONG,
-             SEASON_LIMIT, TURN_NOT_REACHED, SEASON_NOT_FINISHED, SEASON_NOT_ACTIVE, TURN_MISMATCH, LEDGER_MISMATCH,
+             ENGINE_UNAVAILABLE, SEASON_LIMIT, TURN_NOT_REACHED, SEASON_NOT_FINISHED, SEASON_NOT_ACTIVE, TURN_MISMATCH, LEDGER_MISMATCH,
              LINEUP_MISMATCH, ASSET_NOT_IN_POOL, SOURCE_NOT_VISIBLE, INSUFFICIENT_CASH, INSUFFICIENT_HOLDING, POSITION_CONFLICT, POSITION_REQUIRED,
              INVALID_FORMATION, EVENT_TIME_CONFLICT, RECONCILIATION_FAILED, SEASON_HALTED, FORBIDDEN, EMAIL_TAKEN,
              UNAUTHENTICATED, INVALID_CREDENTIALS, AGENT_RETIRED, DECISION_CONFLICT, DECISION_MISSING]

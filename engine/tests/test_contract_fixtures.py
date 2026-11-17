@@ -13,7 +13,21 @@ from pydantic import BaseModel, ValidationError
 from antlab_engine.api.info import EngineInfo
 from antlab_engine.api.paths import PathRequest, PathResult
 from antlab_engine.api.projection_models import ProjectionRequest, ProjectionResult
-from antlab_engine.errors import _DOMAIN_STATUS, _HTTP_CODES, ErrorCode, Problem
+from antlab_engine.errors import ErrorCode, Problem
+
+# The status per code as docs/api/engine.yaml documents it. The engine's own mapping is checked
+# in test_contract.py and test_error_codes.py, so this test needs no private engine names.
+STATUS_OF_CODE = {
+    ErrorCode.INVALID_ARGUMENT: 400,
+    ErrorCode.UNAUTHENTICATED: 401,
+    ErrorCode.NOT_FOUND: 404,
+    ErrorCode.POOL_NOT_FOUND: 404,
+    ErrorCode.METHOD_NOT_ALLOWED: 405,
+    ErrorCode.PATH_TOO_LONG: 422,
+    ErrorCode.INTERNAL_ERROR: 500,
+    ErrorCode.HISTORY_UNAVAILABLE: 503,
+    ErrorCode.ENGINE_BUSY: 503,
+}
 
 CONTRACT_DIR = ENGINE_DIR.parent / "src" / "test" / "resources" / "engine" / "contract"
 MANIFEST = json.loads((CONTRACT_DIR / "manifest.json").read_text(encoding="utf-8"))["files"]
@@ -76,13 +90,14 @@ def test_the_engine_still_rejects_an_unknown_request_field_that_the_client_never
 def test_problem_fixtures_carry_the_status_the_engine_gives_that_code():
     problems = [e for e in VALID if e["kind"] == "response" and e["status"] != 200]
     assert problems
-    statuses = {c.value: s for s, c in _HTTP_CODES.items()}
-    statuses.update(_DOMAIN_STATUS)
-    statuses["INTERNAL_ERROR"] = 500
     for entry in problems:
         body = load(entry)
         assert body["status"] == entry["status"], label(entry)
-        assert statuses[ErrorCode(body["code"]).value] == entry["status"], label(entry)
+        assert STATUS_OF_CODE[ErrorCode(body["code"])] == entry["status"], label(entry)
+
+
+def test_the_status_table_names_every_engine_error_code():
+    assert set(STATUS_OF_CODE) == set(ErrorCode)
 
 
 def test_every_engine_error_code_has_a_problem_fixture():

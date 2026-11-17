@@ -119,6 +119,24 @@ class EnginePropertiesTest {
     }
 
     @Test
+    void 잘못된_URL은_어느_경로에서도_기동을_막고_값은_메시지에_없다() {
+        for (String bad : new String[] { "engine:8000", "ftp://engine:8000", "http://user:secretpw@engine:8000",
+                "http://engine:8000?x=1", "http://engine:8000#frag", "http:///no-host", "not a url", "//engine:8000" }) {
+            runner.withPropertyValues("antlab.engine.url=" + bad).run(context -> {
+                assertThat(context).as(bad).hasFailed();
+                assertThat(failureText(context)).as(bad).contains("ANTLAB_ENGINE_URL").doesNotContain("secretpw").doesNotContain(bad);
+            });
+        }
+    }
+
+    @Test
+    void http와_https_URL은_포트와_경로가_있어도_뜬다() {
+        for (String good : new String[] { "http://engine:8000", "https://engine.example.test", "http://127.0.0.1:18000/base" }) {
+            runner.withPropertyValues("antlab.engine.url=" + good).run(context -> assertThat(context).as(good).hasNotFailed());
+        }
+    }
+
+    @Test
     void 토큰은_문자열_표현에서_가려진다() {
         EngineProperties properties = EngineHarness.properties("http://engine:8000", FAKE_TOKEN);
 

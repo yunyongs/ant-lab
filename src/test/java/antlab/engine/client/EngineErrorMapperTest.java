@@ -1,0 +1,59 @@
+package antlab.engine.client;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import antlab.common.error.DomainException;
+import antlab.common.error.ErrorCode;
+import java.net.SocketTimeoutException;
+import java.net.http.HttpConnectTimeoutException;
+import java.net.http.HttpTimeoutException;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
+import org.springframework.web.client.ResourceAccessException;
+
+/** The mapper on its own: what is logged for a 400, and which transport failures are "timeout" and which "unreachable". */
+@ExtendWith(OutputCaptureExtension.class)
+class EngineErrorMapperTest {
+
+    private static final String REASON_MARKER = "MARKER-ENGINE-REASON-5521";
+    private static final String DETAIL_MARKER = "MARKER-ENGINE-DETAIL-7731";
+
+    private static EngineProblem badRequest() {
+        return EngineWire.read(EngineProblem.class, ("{\"title\":\"Invalid Argument\",\"status\":400,\"detail\":\"" + DETAIL_MARKER
+                + "\",\"instance\":\"/v1/paths\",\"code\":\"INVALID_ARGUMENT\",\"errors\":["
+                + "{\"field\":\"body.length\",\"reason\":\"" + REASON_MARKER + "\"},"
+                + "{\"field\":\"has space and \\\"quote\\\"\",\"reason\":\"" + REASON_MARKER + "\"}]}").getBytes());
+    }
+
+    @Test
+    void 열의_오류는_필드_이름만_기록하고_이유와_엔진_문장은_기록하지_않는다(CapturedOutput output) {
+        RuntimeException result = EngineErrorMapper.fromProblem("createPath", 400, badRequest());
+
+        assertThat(result).isInstanceOfSatisfying(DomainException.class, e -> assertThat(e.getCode()).isEqualTo(ErrorCode.INTERNAL_ERROR));
+        assertThat(output.getAll()).contains("engine.invalid_request", "fields=[body.length]")
+                .doesNotContain(REASON_MARKER).doesNotContain(DETAIL_MARKER).doesNotContain("quote");
+    }
+
+    @Test
+    void 연결_시간_초과는_연결_불가이고_읽기_시간_초과는_시간_초과다(CapturedOutput output) {
+        RuntimeException connect = EngineErrorMapper.transport("createPath", new ResourceAccessException("x", new HttpConnectTimeoutException("c")));
+        RuntimeException read = EngineErrorMapper.transport("createPath", new ResourceAccessException("x", new HttpTimeoutException("r")));
+        RuntimeException socket = EngineErrorMapper.transport("createPath",
+                new ResourceAccessException("x", new SocketTimeoutException("s")));
+        RuntimeException other = EngineErrorMapper.transport("createPath",
+                new ResourceAccessException("x", new java.net.ConnectException("refused")));
+
+        assertThat(reason(connect)).isEqualTo(EngineUnavailableException.Reason.UNREACHABLE);
+        assertThat(reason(read)).isEqualTo(EngineUnavailableException.Reason.TIMEOUT);
+        assertThat(reason(socket)).isEqualTo(EngineUnavailableException.Reason.TIMEOUT);
+        assertThat(reason(other)).isEqualTo(EngineUnavailableException.Reason.UNREACHABLE);
+        assertThat(output.getAll()).contains("engine.timeout", "engine.unreachable");
+    }
+
+    private static EngineUnavailableException.Reason reason(RuntimeException e) {
+        assertThat(e).isInstanceOf(EngineUnavailableException.class);
+        return ((EngineUnavailableException) e).reason();
+    }
+}
