@@ -3,6 +3,7 @@ import { messageFor } from '../../api/errorMessages.ts';
 import { ProblemError } from '../../api/problem.ts';
 import { formatWon } from '../format/money.ts';
 import { UNKNOWN_OUTCOME_TEXT } from '../turn/turnMessages.ts';
+import type { OrderSource } from '../feed/orderSource.ts';
 import { parseWholeNumber } from '../format/integer.ts';
 import { POSITIONS, positionLabel, type Position } from '../seasons/labels.ts';
 import {
@@ -109,6 +110,7 @@ export function OrderSheet({
   seasonId,
   turnNo,
   cashBalance,
+  source,
   onClose,
   onStale,
 }: {
@@ -123,6 +125,8 @@ export function OrderSheet({
   seasonId: number;
   turnNo: number;
   cashBalance: string;
+  // Where the order started; left out for an order from the trade screen.
+  source?: OrderSource;
   onClose: () => void;
   onStale: (code: 'TURN_MISMATCH' | 'SEASON_NOT_ACTIVE') => void;
 }) {
@@ -185,6 +189,7 @@ export function OrderSheet({
       ...(!selling && holding === undefined
         ? { declaredPosition: position }
         : {}),
+      ...(source === undefined ? {} : { source }),
     };
     setError(null);
     order.mutate(body, {

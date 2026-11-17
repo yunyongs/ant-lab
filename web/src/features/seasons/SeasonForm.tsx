@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { messageFor, UNREACHABLE_TEXT } from '../../api/errorMessages.ts';
 import { ProblemError } from '../../api/problem.ts';
+import { SEASON_START_DISCLOSURE } from '../feed/feedMessages.ts';
 import { ratioToPercent } from '../format/ratio.ts';
 import {
   checkFormation,
@@ -194,6 +195,7 @@ export function SeasonForm({
         </p>
       </fieldset>
 
+      <p className={styles.hint}>{SEASON_START_DISCLOSURE}</p>
       {risk === null && (
         <p className={styles.hint}>위험 선언을 하나 골라 주세요.</p>
       )}

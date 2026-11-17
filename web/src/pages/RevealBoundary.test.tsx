@@ -10,7 +10,10 @@ import {
   reviewFixture,
 } from '../test/fixtures/review.ts';
 import { seasonFixture } from '../test/fixtures/seasons.ts';
+import { problem } from '../test/authHandlers.ts';
+import { feedOfTurn } from '../test/fixtures/feed.ts';
 import { renderRoute } from '../test/renderWithProviders.tsx';
+import { serveFeedWorld } from '../test/serveFeed.ts';
 import { server } from '../test/server.ts';
 import { serveReport } from '../test/serveReport.ts';
 import { serveReview } from '../test/serveReview.ts';
@@ -75,6 +78,31 @@ describe('reveal boundary', () => {
     }
     expect(world.reviewGets).toBe(0);
     expect(world.turnGets.every((n) => n <= 3)).toBe(true);
+  });
+
+  it('keeps a non-empty feed free of dates and of any review or later-turn request', async () => {
+    const world = serveFeedWorld({ current: 3 });
+    world.feed = (turnNo) => feedOfTurn(turnNo);
+    let reviewGets = 0;
+    server.use(
+      http.get('*/api/v1/seasons/7/review', () => {
+        reviewGets += 1;
+        return problem(409, { code: 'SEASON_NOT_FINISHED', status: 409 });
+      }),
+    );
+    const { router, container } = renderRoute('/seasons/7');
+    await screen.findByRole('region', { name: '소식' });
+    expectNoDatePattern(container);
+    for (const path of ['/seasons/7/turns/2', '/seasons/7/turns/4']) {
+      await act(async () => {
+        await router.navigate(path);
+      });
+      await new Promise((resolve) => setTimeout(resolve, 60));
+      expectNoDatePattern(container);
+    }
+    expect(world.turnGets.every((n) => n <= 3)).toBe(true);
+    expect(world.turnGets).toContain(3);
+    expect(reviewGets).toBe(0);
   });
 
   it('a review fixture really carries the poisoned strings', () => {

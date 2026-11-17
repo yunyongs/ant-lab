@@ -2,7 +2,10 @@
 import { fileURLToPath } from 'node:url';
 import { ESLint } from 'eslint';
 import { describe, expect, it } from 'vitest';
-import { restrictionRules } from '../../eslint.restrictions.js';
+import {
+  importRestrictions,
+  restrictionRules,
+} from '../../eslint.restrictions.js';
 
 const eslint = new ESLint({
   overrideConfigFile: true,
@@ -14,6 +17,28 @@ const eslint = new ESLint({
     },
   ],
 });
+
+// A separate instance: JSX needs its parser option, and the import rule is
+// scoped by folder.
+const jsxEslint = new ESLint({
+  overrideConfigFile: true,
+  overrideConfig: [
+    {
+      files: ['**/*.tsx', '**/*.ts'],
+      languageOptions: {
+        sourceType: 'module',
+        parserOptions: { ecmaFeatures: { jsx: true } },
+      },
+      rules: restrictionRules,
+    },
+    ...importRestrictions,
+  ],
+});
+
+async function messagesAt(code: string, filePath: string) {
+  const [result] = await jsxEslint.lintText(code, { filePath });
+  return result?.messages ?? [];
+}
 
 async function messages(code: string) {
   const [result] = await eslint.lintText(code, { filePath: 'sample.ts' });
@@ -69,6 +94,60 @@ describe('lint restrictions', () => {
   });
 });
 
+describe('untrusted text', () => {
+  it.each([
+    "export const a = <div dangerouslySetInnerHTML={{ __html: 'x' }} />;",
+    "export const b = { dangerouslySetInnerHTML: { __html: 'x' } };",
+    "export const c = { 'dangerouslySetInnerHTML': { __html: 'x' } };",
+    'export const d = (el, t) => { el.innerHTML = t; };',
+    'export const e = (el, t) => { el.outerHTML = t; };',
+  ])('rejects %s with its reason', async (code) => {
+    const found = await messagesAt(code, 'src/features/feed/sample.tsx');
+    expect(found).toHaveLength(1);
+    expect(found[0]?.message).toMatch(/untrusted/);
+  });
+
+  it('allows a text child', async () => {
+    const found = await messagesAt(
+      'export const a = (t) => <p>{t}</p>;',
+      'src/features/feed/sample.tsx',
+    );
+    expect(found).toHaveLength(0);
+  });
+});
+
+describe('in-season screens and the review folder', () => {
+  const review =
+    "import { x } from '../review/reviewLabels.ts';\nexport { x };\n";
+
+  it.each([
+    'src/features/feed/sample.ts',
+    'src/features/ranking/sample.ts',
+    'src/features/feed/deep/sample.ts',
+  ])('rejects an import of the review folder from %s', async (filePath) => {
+    const found = await messagesAt(review, filePath);
+    expect(found).toHaveLength(1);
+    expect(found[0]?.ruleId).toBe('no-restricted-imports');
+    expect(found[0]?.message).toMatch(/Review-only/);
+  });
+
+  it('lets the review folder import its own files', async () => {
+    const found = await messagesAt(
+      "import { x } from './reviewLabels.ts';\nexport { x };\n",
+      'src/features/review/sample.ts',
+    );
+    expect(found).toHaveLength(0);
+  });
+
+  it('allows the feed folder to import other folders', async () => {
+    const found = await messagesAt(
+      "import { x } from '../seasons/labels.ts';\nexport { x };\n",
+      'src/features/feed/sample.ts',
+    );
+    expect(found).toHaveLength(0);
+  });
+});
+
 describe('real eslint.config.js', () => {
   it('ignores the generated schema file', async () => {
     const real = new ESLint({
@@ -99,6 +178,19 @@ describe('real eslint.config.js', () => {
       }
     },
   );
+
+  it.each([
+    ['src/features/feed/probe.ts', true],
+    ['src/features/ranking/probe.tsx', true],
+    ['src/features/review/probe.ts', false],
+  ])('import restriction for %s is %s', async (file, expected) => {
+    const config = (await real.calculateConfigForFile(file)) as {
+      rules?: Record<string, unknown[] | number | string>;
+    };
+    const setting = config.rules?.['no-restricted-imports'];
+    const severity = Array.isArray(setting) ? setting[0] : setting;
+    expect([2, 'error'].includes(severity as number | string)).toBe(expected);
+  });
 
   it('rejects Number() in a plain .js file under src', async () => {
     const [result] = await real.lintText("export const x = Number('1');\n", {

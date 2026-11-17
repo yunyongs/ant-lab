@@ -13,6 +13,9 @@ import seasons from '../features/seasons/Seasons.module.css';
 import { NotFoundPage } from './NotFoundPage.tsx';
 import styles from './Page.module.css';
 
+const HALTED_NOTE =
+  '점검 중인 시즌입니다. 지금은 턴을 넘기거나 매매할 수 없고, 저장된 결과만 볼 수 있습니다.';
+
 function isTeamBuild(season: Season): boolean {
   return season.status === 'IN_PROGRESS' && season.currentTurnNo === 0;
 }
@@ -62,6 +65,9 @@ export function SeasonPage() {
           {query.data.status === 'ABANDONING' && (
             <p className={seasons.note}>시즌을 정리하는 중입니다.</p>
           )}
+          {query.data.status === 'HALTED' && (
+            <p className={seasons.note}>{HALTED_NOTE}</p>
+          )}
           {query.data.status === 'FINISHED' && (
             <FinishedView season={query.data} focusTurnNo={focusTurnNo} />
           )}
@@ -72,7 +78,7 @@ export function SeasonPage() {
               onAdvanced={setFocusTurnNo}
             />
           )}
-          {query.data.status === 'IN_PROGRESS' &&
+          {query.data.status !== 'FINISHED' &&
             query.data.currentTurnNo >= 1 && (
               <TurnView
                 season={query.data}

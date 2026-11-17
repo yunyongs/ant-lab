@@ -1,6 +1,8 @@
 import { useEffect, useRef } from 'react';
+import { FeedSection } from '../feed/FeedSection.tsx';
 import { QueryError } from '../seasons/QueryError.tsx';
 import type { Season } from '../seasons/labels.ts';
+import { canTrade } from '../seasons/seasonGate.ts';
 import { Link } from 'react-router';
 import { AdvanceTurnButton } from './AdvanceTurnButton.tsx';
 import { useTurn } from './queries.ts';
@@ -8,6 +10,7 @@ import { TurnResultCard } from './TurnResultCard.tsx';
 import styles from './Turn.module.css';
 
 // The now page for turn 1 or later: the stored result of the current turn.
+// A season that is not in progress shows it read-only: no advance button.
 export function TurnView({
   season,
   focusTurnNo,
@@ -47,6 +50,13 @@ export function TurnView({
         />
       )}
       {turn.data && <TurnResultCard turn={turn.data} />}
+      {turn.data && (
+        <FeedSection
+          items={turn.data.feed}
+          season={season}
+          onNotice={onNotice}
+        />
+      )}
       {season.currentTurnNo >= 2 && (
         <div className={styles.links}>
           <Link
@@ -57,11 +67,13 @@ export function TurnView({
           </Link>
         </div>
       )}
-      <AdvanceTurnButton
-        season={season}
-        onNotice={onNotice}
-        onAdvanced={onAdvanced}
-      />
+      {canTrade(season) && (
+        <AdvanceTurnButton
+          season={season}
+          onNotice={onNotice}
+          onAdvanced={onAdvanced}
+        />
+      )}
     </div>
   );
 }

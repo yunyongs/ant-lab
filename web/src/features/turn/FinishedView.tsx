@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { Link } from 'react-router';
 import { isNavEnabled } from '../../app/navItems.ts';
+import { FeedSection } from '../feed/FeedSection.tsx';
 import { QueryError } from '../seasons/QueryError.tsx';
 import type { Season } from '../seasons/labels.ts';
 import { useTurn } from './queries.ts';
@@ -78,6 +79,7 @@ export function FinishedView({
         />
       )}
       {turn.data && <TurnResultCard turn={turn.data} />}
+      {turn.data && <FeedSection items={turn.data.feed} season={season} />}
       <div className={styles.entries}>
         <Entry
           enabled={isNavEnabled('report')}
