@@ -43,6 +43,26 @@ docker compose --profile engine -p antlab-m201 down -v --rmi local
 
 The local `backend` network is a plain bridge, so engine egress isolation is not proven locally. / 로컬 `backend` 네트워크는 일반 브리지라서 엔진의 외부 통신 차단은 로컬에서 증명되지 않는다.
 
+## Database / 데이터베이스
+
+The engine reads history as the SELECT-only role `antlab_engine` (created by `db/roles/antlab_engine.sql`, see `db/README.md`; Java alone writes the database). Settings come from the environment: `ANTLAB_ENGINE_DB_HOST`, `ANTLAB_ENGINE_DB_NAME` and `ANTLAB_ENGINE_DB_USER` are required (a missing or blank value fails startup and names the variable, never the value), `ANTLAB_ENGINE_DB_PORT` defaults to 5432, and `ANTLAB_ENGINE_DB_PASSWORD` is optional locally and never printed. Startup and `/healthz` open no connection. `antlab_engine.history.PostgresHistoryReader.read(base_date)` returns one frozen snapshot from a single `REPEATABLE READ READ ONLY` transaction: months strictly before 1 January of the base year, the pool of that exact base date, and local returns and FX changes for those assets and months, all as `Decimal`. It refuses a superuser or any role holding a write privilege on those tables (`UNSAFE_DB_ROLE`), and errors never echo the cause, the password or a month. The connection uses explicit parameters, so libpq `PG*` variables and password files do not apply. No route returns months. / 엔진은 SELECT만 가진 역할 `antlab_engine`(`db/roles/antlab_engine.sql`이 만든다, `db/README.md` 참고. 데이터베이스는 Java만 쓴다)으로 이력을 읽는다. 설정은 환경변수에서 읽는다: `ANTLAB_ENGINE_DB_HOST`·`ANTLAB_ENGINE_DB_NAME`·`ANTLAB_ENGINE_DB_USER`는 필수(없거나 비어 있으면 시작이 실패하고 값이 아니라 변수 이름만 알린다), `ANTLAB_ENGINE_DB_PORT` 기본값은 5432, `ANTLAB_ENGINE_DB_PASSWORD`는 로컬에서 선택이며 출력하지 않는다. 시작과 `/healthz`는 연결을 열지 않는다. `antlab_engine.history.PostgresHistoryReader.read(base_date)`는 `REPEATABLE READ READ ONLY` 트랜잭션 하나에서 얼린 스냅샷을 돌려준다: 기준 연도 1월 1일 이전의 달, 그 기준일의 풀, 그 종목·달의 현지 수익률과 환율 변화를 모두 `Decimal`로 준다. 슈퍼유저이거나 이 표들에 쓰기 권한이 있는 역할이면 거부하고(`UNSAFE_DB_ROLE`), 오류에는 원인·비밀번호·달을 싣지 않는다. 연결은 명시한 매개변수만 써서 libpq `PG*` 변수와 비밀번호 파일이 적용되지 않는다. 달을 돌려주는 경로는 없다.
+
+Smoke check (counts and session facts only, no dates). / 스모크 확인(건수와 세션 정보만, 날짜 없음).
+
+```sh
+export ANTLAB_ENGINE_DB_HOST=127.0.0.1 ANTLAB_ENGINE_DB_PORT=5432 ANTLAB_ENGINE_DB_NAME=antlab_api ANTLAB_ENGINE_DB_USER=antlab_engine
+uv run --frozen python -m antlab_engine.history --base-date 2026-01-02
+```
+
+DB tests run only against an isolated server (marker database `antlab_testsrv_<id>`, never port 5432, see `docs/DEPLOY.md` §3.2). Without `ANTLAB_ENGINE_TEST_ADMIN_DSN` they are skipped; with `ANTLAB_ENGINE_DB_TESTS=required` they fail instead. The `sample` test also needs `ANTLAB_GOLDEN_SAMPLE_DIR` (the git-ignored sample CSVs) and `psql`. / DB 시험은 격리 서버(표식 DB `antlab_testsrv_<id>`, 5432 금지, `docs/DEPLOY.md` §3.2)에서만 돈다. `ANTLAB_ENGINE_TEST_ADMIN_DSN`이 없으면 건너뛰고, `ANTLAB_ENGINE_DB_TESTS=required`이면 실패한다. `sample` 시험은 `ANTLAB_GOLDEN_SAMPLE_DIR`(git이 무시하는 표본 CSV)와 `psql`도 필요하다.
+
+```sh
+ANTLAB_DB_PORT=55432 docker compose -p antlab-m203b up -d --wait db
+docker compose -p antlab-m203b exec db psql -X -U "$USER" -d postgres -c "CREATE DATABASE antlab_testsrv_m203b"
+ANTLAB_ENGINE_DB_TESTS=required ANTLAB_ENGINE_TEST_SERVER_ID=m203b ANTLAB_ENGINE_TEST_ADMIN_DSN="host=127.0.0.1 port=55432 user=$USER dbname=antlab_testsrv_m203b" uv run --frozen pytest
+docker compose -p antlab-m203b down -v
+```
+
 ## Bootstrap parity / 부트스트랩 대사
 
 `antlab_engine.bootstrap` is a bit-exact Python port of `p0-boot6-v1` (`SplitMix64` and the month selection of the Java `SimpleBootstrap`). It is a library only; no endpoint uses it yet. `tests/test_vectors.py` reads the tracked Java vector file `src/test/resources/engine/p0-boot6-v1_vectors.csv` in place and compares every row character for character; a missing file fails the test. Changing any constant or formula changes the paths, so the engine version must change with the vectors. / `antlab_engine.bootstrap`은 `p0-boot6-v1`(`SplitMix64`와 Java `SimpleBootstrap`의 달 선택)을 비트 단위로 같게 옮긴 Python 라이브러리이며 아직 엔드포인트는 없다. `tests/test_vectors.py`는 추적되는 Java 벡터 파일 `src/test/resources/engine/p0-boot6-v1_vectors.csv`를 제자리에서 읽어 모든 행을 글자 단위로 비교하고, 파일이 없으면 시험이 실패한다. 상수나 식이 바뀌면 경로가 달라지므로 벡터와 함께 엔진 판을 올려야 한다.
