@@ -52,7 +52,7 @@ class AppRoleStartupTest {
         assertThat(superuser().queryForList("SELECT DISTINCT installed_by FROM flyway_schema_history", String.class))
                 .containsExactly("antlab_owner");
         assertThat(superuser().queryForObject("SELECT count(*) FROM flyway_schema_history WHERE success", Integer.class))
-                .isEqualTo(6);
+                .isEqualTo(flyway.info().applied().length);
         assertThat(context.containsBean("dbPrivilegeStartupCheck")).as("the guard is wired when the property is on").isTrue();
     }
 
