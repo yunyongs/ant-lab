@@ -292,6 +292,12 @@ public final class SeasonReportCalculator {
                 throw inconsistent("턴 스냅샷이 처음부터 보고 턴까지 이어지지 않는다");
             }
         }
+        // Must run before any ratio over total value, which would fail with a different exception type.
+        for (TurnFact turn : src.turns()) {
+            if (turn.totalValue().signum() == 0) {
+                throw inconsistent("평가액이 하나도 남지 않은 턴이 있다");
+            }
+        }
         if (src.orders().ordersAfterReport() != 0) {
             throw inconsistent("보고 턴 뒤의 주문이 있다");
         }
@@ -319,6 +325,10 @@ public final class SeasonReportCalculator {
         for (HoldingFact holding : src.holdings()) {
             if (holding.turnNo() < 1 || holding.turnNo() > t) {
                 throw inconsistent("보유 재구성이 보고 범위를 벗어났다");
+            }
+            // The price is positive (ck_turn_price_price_pos), so a negative value means a negative cumulative quantity.
+            if (holding.value().signum() < 0) {
+                throw inconsistent("체결 이력의 누적 수량이 음수인 턴이 있다");
             }
         }
     }

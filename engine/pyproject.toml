@@ -3,7 +3,12 @@ name = "antlab-engine"
 version = "0.1.0"
 description = "Deterministic internal simulation engine"
 requires-python = ">=3.13,<3.14"
-dependencies = ["fastapi>=0.115,<1", "uvicorn>=0.34,<1"]
+dependencies = [
+    "fastapi>=0.115,<1",
+    "numpy>=2.3,<3",
+    "psycopg[binary]>=3.2,<4",
+    "uvicorn>=0.34,<1",
+]
 
 [dependency-groups]
 dev = ["httpx>=0.28,<1", "pytest>=8,<10", "pyyaml>=6,<7", "ruff>=0.11,<1"]
@@ -23,12 +28,17 @@ target-version = "py313"
 select = ["E", "F", "I", "UP", "B", "S", "SIM"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S101"]
+"tests/**" = ["S101", "S608"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["antlab_engine"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "--strict-markers"
+addopts = "--strict-markers -m 'not slow'"
+markers = [
+    "slow: timing and distribution measurements, run with -m slow -s",
+    "db: needs an isolated PostgreSQL server (ANTLAB_ENGINE_TEST_ADMIN_DSN)",
+    "sample: needs ANTLAB_GOLDEN_SAMPLE_DIR and a sample-loaded database",
+]
 filterwarnings = ["ignore:Using `httpx` with `starlette.testclient"]
