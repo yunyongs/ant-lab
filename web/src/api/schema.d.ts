@@ -1299,7 +1299,7 @@ export interface components {
         /** @enum {string} */
         OrderSide: "BUY" | "SELL";
         /** @enum {string} */
-        SeasonStatus: "IN_PROGRESS" | "ABANDONING" | "FINISHED";
+        SeasonStatus: "IN_PROGRESS" | "ABANDONING" | "FINISHED" | "HALTED";
         /** @enum {string} */
         EventCategory: "GEOPOLITICS" | "TRADE" | "POLITICS" | "SUPPLY_SHOCK" | "FINANCIAL" | "POLICY" | "HEALTH";
         /** @enum {string} */
@@ -1333,7 +1333,7 @@ export interface components {
             reason: string;
         };
         /** @enum {string} */
-        ErrorCode: "INVALID_ARGUMENT" | "NOT_FOUND" | "METHOD_NOT_ALLOWED" | "NOT_ACCEPTABLE" | "UNSUPPORTED_MEDIA_TYPE" | "MALFORMED_REQUEST" | "INTERNAL_ERROR" | "POOL_NOT_LOADED" | "POOL_NOT_JUDGED" | "PATH_TOO_LONG" | "SEASON_LIMIT" | "TURN_NOT_REACHED" | "SEASON_NOT_FINISHED" | "SEASON_NOT_ACTIVE" | "TURN_MISMATCH" | "LEDGER_MISMATCH" | "LINEUP_MISMATCH" | "ASSET_NOT_IN_POOL" | "INSUFFICIENT_CASH" | "INSUFFICIENT_HOLDING" | "POSITION_CONFLICT" | "POSITION_REQUIRED" | "INVALID_FORMATION" | "EVENT_TIME_CONFLICT" | "RECONCILIATION_FAILED" | "FORBIDDEN" | "EMAIL_TAKEN" | "UNAUTHENTICATED" | "INVALID_CREDENTIALS";
+        ErrorCode: "INVALID_ARGUMENT" | "NOT_FOUND" | "METHOD_NOT_ALLOWED" | "NOT_ACCEPTABLE" | "UNSUPPORTED_MEDIA_TYPE" | "MALFORMED_REQUEST" | "INTERNAL_ERROR" | "POOL_NOT_LOADED" | "POOL_NOT_JUDGED" | "PATH_TOO_LONG" | "SEASON_LIMIT" | "TURN_NOT_REACHED" | "SEASON_NOT_FINISHED" | "SEASON_NOT_ACTIVE" | "TURN_MISMATCH" | "LEDGER_MISMATCH" | "LINEUP_MISMATCH" | "ASSET_NOT_IN_POOL" | "INSUFFICIENT_CASH" | "INSUFFICIENT_HOLDING" | "POSITION_CONFLICT" | "POSITION_REQUIRED" | "INVALID_FORMATION" | "EVENT_TIME_CONFLICT" | "RECONCILIATION_FAILED" | "SEASON_HALTED" | "FORBIDDEN" | "EMAIL_TAKEN" | "UNAUTHENTICATED" | "INVALID_CREDENTIALS";
     };
     responses: {
         /**
@@ -1905,7 +1905,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description The turn cannot be advanced now — SEASON_NOT_ACTIVE, TURN_MISMATCH, RECONCILIATION_FAILED / 지금은 넘길 수 없다 — SEASON_NOT_ACTIVE, TURN_MISMATCH, RECONCILIATION_FAILED */
+            /** @description The turn cannot be advanced now — SEASON_NOT_ACTIVE, SEASON_HALTED (stopped after repeated reconciliation failures; an administrator resumes it), TURN_MISMATCH, RECONCILIATION_FAILED / 지금은 넘길 수 없다 — SEASON_NOT_ACTIVE, SEASON_HALTED(대사 실패가 거듭되어 멈춤, 관리자가 재개), TURN_MISMATCH, RECONCILIATION_FAILED */
             409: {
                 headers: {
                     [name: string]: unknown;

@@ -122,6 +122,21 @@ describe('turn advance on the now page', () => {
     expect(world.posts).toEqual([{ expectedTurnNo: 4 }, { expectedTurnNo: 4 }]);
   });
 
+  it('shows the stop message on SEASON_HALTED and offers no retry button', async () => {
+    const { world } = await openNow(4);
+    world.failWith = failWithProblem(409, 'SEASON_HALTED');
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: NEXT }));
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent(
+      '대사가 거듭 맞지 않아 시즌이 멈췄습니다. 관리자 확인이 필요합니다.',
+    );
+    expect(
+      within(alert).queryByRole('button', { name: '다시 시도' }),
+    ).toBeNull();
+    expect(world.posts).toHaveLength(1);
+  });
+
   it('follows the server after TURN_MISMATCH', async () => {
     const { world } = await openNow(4);
     world.failWith = () => {

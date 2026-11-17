@@ -8,6 +8,7 @@ export function statusLabel(
 ): string {
   if (season.status === 'FINISHED') return '끝남';
   if (season.status === 'ABANDONING') return '정리 중';
+  if (season.status === 'HALTED') return '점검 중';
   return season.currentTurnNo === 0 ? '진행 중 · 팀 구성' : '진행 중';
 }
 
@@ -29,7 +30,8 @@ export function openButtonLabel(
   season: Pick<Season, 'status' | 'currentTurnNo'>,
 ): string {
   if (season.status === 'FINISHED') return '결과 보기';
-  if (season.status === 'ABANDONING') return '시즌 보기';
+  if (season.status === 'ABANDONING' || season.status === 'HALTED')
+    return '시즌 보기';
   return season.currentTurnNo === 0 ? '팀 구성하러 가기' : '이어하기';
 }
 

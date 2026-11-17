@@ -7,6 +7,7 @@ describe('seasonGate', () => {
     ['IN_PROGRESS', 3, true, true],
     ['FINISHED', 12, false, false],
     ['ABANDONING', 3, false, false],
+    ['HALTED', 3, false, false],
   ] as const)('%s at turn %i', (status, currentTurnNo, trade, formation) => {
     expect(isFinished({ status })).toBe(status === 'FINISHED');
     expect(canTrade({ status })).toBe(trade);
