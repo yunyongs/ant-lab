@@ -280,8 +280,11 @@ class RevealedRepositoryNamingTest {
 
     @Test
     void turn_feed_entity_has_no_getter_for_revealed_columns() {
-        assertThat(Arrays.stream(antlab.season.TurnFeed.class.getMethods()).map(Method::getName))
-                .doesNotContain("getKind", "getMonthEventId").contains("getBody", "getSeq", "getTurnNo", "getAssetId");
+        assertThat(Arrays.stream(antlab.season.TurnFeed.class.getMethods()).map(Method::getName).filter(n -> n.startsWith("get")
+                && !n.equals("getClass")))
+                .as("only the shown columns and the technical ones can be read")
+                .containsExactlyInAnyOrder("getId", "getSeason", "getTurnNo", "getSeq", "getAssetId", "getAssetGroupId", "getBody",
+                        "getCreatedAt");
     }
 
     @Test

@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -149,6 +150,10 @@ public class TurnService {
         } catch (FeedGenerationException failed) {
             log.error("피드 생성 실패: seasonId={} turnNo={} failure={}", season.getId(), turnNo, failed.failure());
             throw failed;
+        } catch (DataAccessException stored) {
+            // A stored row broke a constraint (key, CHECK, length): log the code only, never a value.
+            log.error("피드 저장 실패: seasonId={} turnNo={} failure=FEED_STORE", season.getId(), turnNo);
+            throw stored;
         }
     }
 

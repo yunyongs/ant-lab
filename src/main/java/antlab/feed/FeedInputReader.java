@@ -108,9 +108,14 @@ public class FeedInputReader {
         List<AssetRow> pool = jdbc.sql(ASSETS).param("seasonId", seasonId)
                 .query((rs, n) -> new AssetRow(rs.getLong("asset_id"), rs.getString("market"), rs.getString("ticker"),
                         rs.getString("name"), rs.getLong("group_id"), rs.getString("group_code"), rs.getString("group_name")))
-                .list().stream().filter(a -> currentPrices.containsKey(a.assetId()) && history.containsKey(a.assetId())
-                        && history.get(a.assetId()).size() == turnNo)
-                .toList();
+                .list();
+        for (AssetRow a : pool) {
+            List<BigDecimal> seen = history.get(a.assetId());
+            if (!currentPrices.containsKey(a.assetId()) || seen == null || seen.size() != turnNo) {
+                // A pool asset without a complete price history is damaged data; dropping it would hide the damage.
+                throw new FeedGenerationException(FeedFailure.FEED_INPUT, "a pool asset has an incomplete price history");
+            }
+        }
 
         Map<Long, BigDecimal> attention = new HashMap<>();
         Map<Long, BigDecimal> previousAttention = new HashMap<>();

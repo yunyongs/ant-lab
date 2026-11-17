@@ -48,7 +48,7 @@ public class TurnFeed extends CreatedEntity {
     @Column(name = "seq", nullable = false)
     private int seq;
 
-    /** [복기 전용]: no getter, so a response cannot read it by accident (SPRING_JPA §4.6). */
+    /** [복기 전용]·[내부] columns have no getter, so a response cannot read them by accident (SPRING_JPA §4.6). */
     @Getter(AccessLevel.NONE)
     @Enumerated(EnumType.STRING)
     @Column(name = "kind", length = 6, nullable = false)
@@ -65,25 +65,31 @@ public class TurnFeed extends CreatedEntity {
     @Column(name = "month_event_id", nullable = true)
     private Long monthEventId;
 
+    @Getter(AccessLevel.NONE)
     @Column(name = "category_hidden", nullable = false)
     private boolean categoryHidden;
 
+    @Getter(AccessLevel.NONE)
     @Enumerated(EnumType.STRING)
     @Column(name = "direction", length = 4, nullable = true)
     private MoveDirection direction;
 
+    @Getter(AccessLevel.NONE)
     @JdbcTypeCode(SqlTypes.SMALLINT)
     @Column(name = "strength", nullable = true)
     private Integer strength;
 
+    @Getter(AccessLevel.NONE)
     @JdbcTypeCode(SqlTypes.SMALLINT)
     @Column(name = "repeat_count", nullable = false)
     private int repeatCount;
 
+    @Getter(AccessLevel.NONE)
     @Column(name = "template_id", length = 40, nullable = false)
     private String templateId;
 
     /** JSON 객체 문자열 그대로(jsonb 열). */
+    @Getter(AccessLevel.NONE)
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "template_vars", nullable = false)
     private String templateVars;

@@ -209,6 +209,21 @@ class TurnAdvanceFeedTest {
     }
 
     @Test
+    void a_stored_row_that_breaks_a_constraint_is_a_500_with_a_store_failure_line(CapturedOutput output) throws Exception {
+        long season = seasonWithTeam();
+        jdbc.update("INSERT INTO turn_feed (season_id, turn_no, seq, kind, template_id, body) VALUES (?, 1, 1, 'NUDGE', 'fake.v1',"
+                + " 'FAKE body')", season);
+        Map<String, Object> before = state(jdbc, season);
+
+        MockHttpServletResponse r = advance(mvc, season, 0);
+
+        assertThat(r.getStatus()).isEqualTo(500);
+        assertThat(code(r)).isEqualTo("INTERNAL_ERROR");
+        assertThat(state(jdbc, season)).as("the turn is rolled back as a whole").isEqualTo(before);
+        assertThat(output.getAll()).contains("피드 저장 실패").contains("FEED_STORE").doesNotContain("FAKE body");
+    }
+
+    @Test
     void a_reconciliation_mismatch_leaves_no_feed_but_the_failure_record_stays() throws Exception {
         long season = brokenSeason(mvc, jdbc);
         Map<String, Object> before = state(jdbc, season);

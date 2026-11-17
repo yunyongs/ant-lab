@@ -115,8 +115,12 @@ class FeedInputReaderTest {
     }
 
     private void prices(long asset, int... values) {
+        prices(season.getId(), asset, values);
+    }
+
+    private void prices(long seasonId, long asset, int... values) {
         for (int turn = 0; turn < values.length; turn++) {
-            jdbc.update("INSERT INTO turn_price (season_id, turn_no, asset_id, price) VALUES (?, ?, ?, ?)", season.getId(), turn,
+            jdbc.update("INSERT INTO turn_price (season_id, turn_no, asset_id, price) VALUES (?, ?, ?, ?)", seasonId, turn,
                     asset, new BigDecimal(values[turn]).setScale(4));
         }
     }
@@ -217,6 +221,24 @@ class FeedInputReaderTest {
     }
 
     @Test
+    void another_season_with_the_same_turn_numbers_changes_nothing() {
+        FeedInput before = read();
+        Season other = fixture.newSeason(fixture.newMember());
+        for (int i = 1; i <= 4; i++) {
+            jdbc.update("INSERT INTO season_path (season_id, turn_no, month_block_id) VALUES (?, ?, ?)", other.getId(), i, blocks[i]);
+        }
+        for (long asset : new long[] {alpha, beta, gamma}) {
+            prices(other.getId(), asset, 1000, 900, 800);
+        }
+        jdbc.update("INSERT INTO turn_feed (season_id, turn_no, seq, kind, asset_id, direction, repeat_count, template_id, body)"
+                + " VALUES (?, 2, 1, 'ECHO', ?, 'DOWN', 7, 'fake.template.v1', 'FAKE body')", other.getId(), beta);
+        jdbc.update("INSERT INTO turn_feed (season_id, turn_no, seq, kind, asset_id, direction, repeat_count, template_id, body)"
+                + " VALUES (?, 2, 2, 'RISE', ?, 'UP', 0, 'fake.template.v1', 'FAKE body')", other.getId(), gamma);
+
+        assertThat(read()).as("prices, path and previous feed of the other season are not read").isEqualTo(before);
+    }
+
+    @Test
     void events_come_in_key_order_and_a_rare_type_hides_its_category() {
         List<EventFacts> events = read().events();
 
@@ -311,6 +333,14 @@ class FeedInputReaderTest {
 
         assertThatThrownBy(this::read).isInstanceOfSatisfying(FeedGenerationException.class,
                 e -> assertThat(e.failure()).isEqualTo(FeedFailure.FEED_REACTION_MISSING));
+    }
+
+    @Test
+    void a_pool_asset_with_a_missing_price_turn_refuses_the_feed() {
+        jdbc.update("DELETE FROM turn_price WHERE season_id = ? AND asset_id = ? AND turn_no = 1", season.getId(), beta);
+
+        assertThatThrownBy(this::read).isInstanceOfSatisfying(FeedGenerationException.class,
+                e -> assertThat(e.failure()).isEqualTo(FeedFailure.FEED_INPUT));
     }
 
     @Test
