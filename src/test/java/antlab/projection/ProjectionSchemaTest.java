@@ -188,7 +188,7 @@ class ProjectionSchemaTest {
     @ParameterizedTest(name = "{0} = {1} breaks {3}")
     @CsvSource(delimiter = '|', quoteCharacter = '"', value = {
             "phase|'MID'|23514|ck_projection_phase",
-            "turn_no|-1|23514|ck_projection_turn_no",
+            "turn_no|3|23514|ck_projection_start_turn",
             "total_value|0|23514|ck_projection_total_value",
             "total_value|10000000.5|23514|ck_projection_total_value",
             "total_value|'NaN'::numeric|23514|ck_projection_total_value",
@@ -209,6 +209,17 @@ class ProjectionSchemaTest {
             assertThatThrownBy(() -> tx.exec(sql)).isInstanceOfSatisfying(SQLException.class, e -> {
                 assertThat(e.getSQLState()).isEqualTo(state);
                 assertThat(e.getMessage()).contains(constraint);
+            });
+        }
+    }
+
+    @Test
+    void aNegativeTurnOfAnEndRowIsRejected() throws Exception {
+        try (Tx tx = new Tx()) {
+            String sql = tx.rowSql(Map.of("phase", "'END'", "turn_no", "-1"));
+            assertThatThrownBy(() -> tx.exec(sql)).isInstanceOfSatisfying(SQLException.class, e -> {
+                assertThat(e.getSQLState()).isEqualTo("23514");
+                assertThat(e.getMessage()).contains("ck_projection_turn_no");
             });
         }
     }

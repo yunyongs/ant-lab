@@ -39,6 +39,21 @@ public final class EngineProjectionAnswers {
                 .formatted(n, horizon, DIGEST, key, String.join(",", bands), String.join(",", summaries));
     }
 
+    /** An answer whose last band has an absurd p95 multiple (accepted by the wire, far beyond NUMERIC(19,4) as won). */
+    public static String bodyWithHugeMultiple(int n, int horizon, List<Integer> summaryTurns) {
+        String ok = body(n, horizon, summaryTurns);
+        String last = "{\"turn\":%d,\"p05\":\"0.90000000\",\"p25\":\"0.95000000\",\"p50\":\"%s\",\"p75\":\"1.05000000\",\"p95\":\"1.10000000\"}"
+                .formatted(horizon, median(horizon));
+        assertContains(ok, last);
+        return ok.replace(last, last.replace("\"p95\":\"1.10000000\"", "\"p95\":\"999999999999.00000000\""));
+    }
+
+    private static void assertContains(String text, String part) {
+        if (!text.contains(part)) {
+            throw new IllegalStateException("fixture shape changed");
+        }
+    }
+
     /** {@code 1 + turn / 1000} with eight decimals. */
     static String median(int turn) {
         return "1.%03d00000".formatted(turn);

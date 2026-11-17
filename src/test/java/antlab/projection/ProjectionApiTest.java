@@ -74,6 +74,8 @@ class ProjectionApiTest {
     MockMvcTester mvc;
     @Autowired
     JdbcTemplate jdbc;
+    @Autowired
+    ProjectionInputQuery inputQuery;
 
     @BeforeEach
     void reset() {
@@ -500,6 +502,74 @@ class ProjectionApiTest {
             assertThat(output.getAll()).as(wrong.getKey()).contains("engine.bad_response rule=" + wrong.getKey());
             assertThat(jdbc.queryForObject("SELECT count(*) FROM projection WHERE season_id = ?", Integer.class, season)).isZero();
         }
+    }
+
+    // ---- audit round 1 ----
+
+    @Test
+    void 배수가_원화_범위를_넘으면_저장하기_전에_500으로_거절하고_나중에_다시_저장한다(CapturedOutput output) throws Exception {
+        long season = season12WithTeam();
+        assertThat(advance(mvc, season, 0).getStatus()).isEqualTo(201);
+        ENGINE.respond(PROJECTIONS, 200, APPLICATION_JSON,
+                EngineProjectionAnswers.bodyWithHugeMultiple(2000, 120, List.of(12, 60, 120)));
+
+        MockHttpServletResponse bad = get(season, "?phase=START");
+
+        assertThat(bad.getStatus()).isEqualTo(500);
+        assertThat(json(bad).get("code").asString()).isEqualTo("INTERNAL_ERROR");
+        assertThat(output.getAll()).contains("engine.bad_response rule=won_range");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM projection WHERE season_id = ?", Integer.class, season)).isZero();
+
+        answer(120, List.of(12, 60, 120));
+        assertThat(get(season, "?phase=START").getStatus()).as("not poisoned").isEqualTo(200);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM projection WHERE season_id = ?", Integer.class, season)).isEqualTo(1);
+        assertThat(get(season, "").getStatus()).isEqualTo(200);
+    }
+
+    @Test
+    void 시작_팀은_0턴_매도와_전량_매도한_종목을_반영한다() throws Exception {
+        long season = season12WithTeam();
+        for (String[] sale : new String[][] {{"000660", "4"}, {"SPY", "5"}}) {
+            String sell = "{\"expectedTurnNo\": 0, \"side\": \"SELL\", \"assetId\": " + assetId(jdbc, sale[0])
+                    + ", \"quantity\": " + sale[1] + "}";
+            assertThat(mvc.post().uri("/api/v1/seasons/" + season + "/orders").contentType(MediaType.APPLICATION_JSON)
+                    .content(sell).exchange().getResponse().getStatus()).isEqualTo(201);
+        }
+        Team atStart = capture(season, 0);
+        assertThat(atStart.assets()).doesNotContain("US:SPY").contains("KR:000660");
+        assertThat(advance(mvc, season, 0).getStatus()).isEqualTo(201);
+        buy(mvc, jdbc, season, 1, "SPY", 3, "DEFENDER");
+        answer(120, List.of(12, 60, 120));
+
+        assertThat(get(season, "?phase=START").getStatus()).isEqualTo(200);
+
+        assertTeamRequest(lastRequest(), atStart);
+        assertThat(inputQuery.start(season).holdings()).extracting(PricedHolding::assetKey)
+                .doesNotContain("US:SPY").contains("KR:000660");
+    }
+
+    @Test
+    void 포기한_시즌의_END는_마지막_턴_가격으로_답하고_멈춘_시즌의_CURRENT도_답한다() throws Exception {
+        long season = season12WithTeam();
+        assertThat(advance(mvc, season, 0).getStatus()).isEqualTo(201);
+        assertThat(advance(mvc, season, 1).getStatus()).isEqualTo(201);
+        MockHttpServletResponse abandoned = mvc.post().uri("/api/v1/seasons/" + season + "/abandon")
+                .contentType(MediaType.APPLICATION_JSON).content("{\"expectedTurnNo\": 2}").exchange().getResponse();
+        assertThat(abandoned.getStatus()).isEqualTo(200);
+        assertThat(jdbc.queryForObject("SELECT status FROM season WHERE id = ?", String.class, season)).isEqualTo("FINISHED");
+        answer(120, List.of(12, 60, 120));
+
+        MockHttpServletResponse end = get(season, "?phase=END");
+
+        assertThat(end.getStatus()).isEqualTo(200);
+        assertThat(json(end).get("turnNo").asInt()).isEqualTo(12);
+        assertTeamRequest(lastRequest(), capture(season, 12));
+
+        long halted = season12WithTeam();
+        jdbc.update("UPDATE season SET status = 'HALTED' WHERE id = ?", halted);
+        MockHttpServletResponse current = get(halted, "");
+        assertThat(current.getStatus()).isEqualTo(200);
+        assertThat(json(current).get("phase").asString()).isEqualTo("CURRENT");
     }
 
     // ---- P16 look-ahead ----

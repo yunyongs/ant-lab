@@ -69,17 +69,28 @@ public class ProjectionService {
             }
         }
         ProjectionBasis basis = switch (moment) {
-            case CURRENT -> inputs.current(season.getId(), season.getCurrentTurnNo());
+            case CURRENT -> inputs.currentTurn(season.getId());
             case START -> inputs.start(season.getId());
             case END -> inputs.current(season.getId(), season.getPathLength());
         };
         ProjectionInput input = ProjectionInput.of(basis.cash(), basis.holdings());
         Answer answer = ask(season, input);
+        // convert first: an answer that cannot become won must fail before an immutable row exists
+        ProjectionDto computed = wonOrFail(moment, basis.turnNo(), input, answer, season);
         if (phase == null) {
-            return ProjectionDto.of(moment, basis.turnNo(), input.totalValue(), answer.request().horizonTurns(),
-                    answer.request().n(), season.getRiskLimit(), answer.portfolio());
+            return computed;
         }
         return fromRow(keep(season, phase, basis.turnNo(), input, answer), season);
+    }
+
+    private static ProjectionDto wonOrFail(ProjectionMoment moment, int turnNo, ProjectionInput input, Answer answer,
+            Season season) {
+        try {
+            return ProjectionDto.of(moment, turnNo, input.totalValue(), answer.request().horizonTurns(),
+                    answer.request().n(), season.getRiskLimit(), answer.portfolio());
+        } catch (IllegalArgumentException outOfRange) {
+            throw badAnswer("won_range");
+        }
     }
 
     private Season find(Long seasonId) {

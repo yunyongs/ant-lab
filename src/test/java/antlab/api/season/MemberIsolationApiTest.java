@@ -206,11 +206,12 @@ class MemberIsolationApiTest {
     }
 
     @Test
-    void 주인은_모든_시즌_연산에서_404가_아니다() {
+    void 주인은_모든_시즌_연산에서_404가_아니다() throws Exception {
         for (SeasonOperation op : seasonOperations()) {
             MockHttpServletResponse r = send(HttpMethod.valueOf(op.method()), op.path(seasonA), tokenA, op.body(orderBody()));
             // the projection asks the engine, which this test context does not have: 503 ENGINE_UNAVAILABLE is its normal answer here
-            boolean engineOff = op.template().endsWith("/projection") && r.getStatus() == 503;
+            boolean engineOff = op.template().endsWith("/projection") && r.getStatus() == 503
+                    && r.getContentAsString().contains("\"ENGINE_UNAVAILABLE\"");
             assertThat(r.getStatus()).as("A on " + op.method() + " " + op.template()).isNotEqualTo(404);
             assertThat(engineOff || r.getStatus() < 500).as("A on " + op.method() + " " + op.template()).isTrue();
         }

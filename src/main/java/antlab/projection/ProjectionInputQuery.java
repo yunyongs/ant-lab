@@ -55,6 +55,18 @@ public class ProjectionInputQuery {
         this.jdbc = jdbc;
     }
 
+    private static final String SEASON_TURN = "SELECT current_turn_no FROM season WHERE id = :seasonId";
+
+    /**
+     * The team as it is now, priced at the season's current turn. The turn is read in the same snapshot as the cash and
+     * the holdings, so a turn that advances meanwhile cannot mix two moments.
+     */
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+    public ProjectionBasis currentTurn(long seasonId) {
+        int turnNo = jdbc.sql(SEASON_TURN).param("seasonId", seasonId).query(Integer.class).single();
+        return current(seasonId, turnNo);
+    }
+
     /** The team as it is now: the holdings and the cash balance, at the prices of {@code turnNo}. */
     @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public ProjectionBasis current(long seasonId, int turnNo) {

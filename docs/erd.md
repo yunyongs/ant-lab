@@ -2022,13 +2022,14 @@ Notation follows 6.4 (표기는 6.4와 같다). `ProjectionSchemaTest` compares 
 | ck_projection_result | CK | projection | jsonb_typeof(result) = 'array' |
 | ck_projection_versions | CK | projection | projection_version <> '' AND engine_version <> '' |
 | ck_projection_history_digest | CK | projection | history_digest ~ '^[0-9a-f]{64}$' |
+| ck_projection_start_turn | CK | projection | phase <> 'START' OR turn_no = 0 (added by Flyway V10, the number is final at merge / V10에서 더함, 번호는 머지 때 확정) |
 
 **Counts / 개수:**
 
 | 테이블 | PK | UNIQUE(제약) | UNIQUE 인덱스(`uq_`) | FK | CHECK | INDEX(`idx_`) |
 |---|---|---|---|---|---|---|
-| projection | 1 | 1 | 0 | 1 | 8 | 0 |
-| **§12 소계** | **1** | **1** | **0** | **1** | **8** | **0** |
+| projection | 1 | 1 | 0 | 1 | 9 | 0 |
+| **§12 소계** | **1** | **1** | **0** | **1** | **9** | **0** |
 
 ### 12.5 Rules DDL cannot enforce / DDL로 막지 못해 검사할 규칙
 
@@ -2040,3 +2041,4 @@ A `CHECK` sees one row only. The writer (`ProjectionService`) keeps these rules 
 | J2 | `turn_no` is 0 for START and the season's `path_length` for END. / `turn_no`는 START에서 0, END에서 시즌의 `path_length`다. | M2-06 |
 | J3 | `total_value` equals cash plus the holdings valued at `turn_price(turn_no)` for the team the row was built from. / `total_value`는 행을 만든 팀의 현금에 보유를 `turn_price(turn_no)`로 평가해 더한 값과 같다. | M2-06 |
 | J4 | The request carries the season seed and base date only on the wire, never in `request`; nothing in a row is read from `season_path`. / 시드와 기준일은 엔진에 보내는 요청에만 실리고 `request`에는 없으며, 행의 어떤 값도 `season_path`에서 읽지 않는다. | M2-06 |
+| J5 | START cash is the balance after the last ledger row that is the opening deposit or refers to a turn-0 order. An `ADJUSTMENT` row without such a reference is not part of START; when `ADJUSTMENT` gets a writer, it must reference the order or this rule changes. / START 현금은 입금 또는 0턴 주문을 가리키는 마지막 원장 행의 거래 후 잔액이다. 그런 참조가 없는 `ADJUSTMENT` 행은 START에 들어가지 않는다. `ADJUSTMENT`에 쓰는 쪽이 생기면 주문을 참조하게 하거나 이 규칙을 바꾼다. | M2-06 |
