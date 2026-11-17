@@ -111,7 +111,11 @@ export function serveAbandonWorld(
       if (answer.kind === 'network') return HttpResponse.error();
       // The first request that gets through marks the season, even when the
       // turns after it fail.
-      if (world.abandonedTurnNo === null) {
+      const stale =
+        answer.kind === 'refuse' &&
+        (answer.code === 'TURN_MISMATCH' ||
+          answer.code === 'SEASON_NOT_ACTIVE');
+      if (world.abandonedTurnNo === null && !stale) {
         world.abandonedTurnNo = world.current;
         world.notStarted = world.current < 3;
         world.status = 'ABANDONING';

@@ -42,6 +42,15 @@ describe('abandonText (A9)', () => {
     );
   });
 
+  it('prints an abandon at turn 0 (0 is a turn, not "none")', () => {
+    expect(abandonText({ abandonedTurnNo: 0, notStarted: true })).toBe(
+      '0턴에서 포기 · 미시작',
+    );
+    expect(abandonText({ abandonedTurnNo: 0, notStarted: false })).toBe(
+      '0턴에서 포기',
+    );
+  });
+
   it('adds the not-started mark only when the server says so', () => {
     expect(abandonText({ abandonedTurnNo: 1, notStarted: true })).toBe(
       '1턴에서 포기 · 미시작',

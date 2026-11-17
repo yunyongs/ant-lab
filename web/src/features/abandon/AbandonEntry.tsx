@@ -9,6 +9,7 @@ import {
   RESUME_BUTTON,
   WORKING_TEXT,
   failureText,
+  isStaleCode,
   leftoverText,
   progressText,
 } from './abandonMessages.ts';
@@ -42,12 +43,25 @@ export function AbandonEntry({
     if (alertText !== null) alertBox.current?.focus();
   }, [alertText, mutation.error]);
 
+  // A stale refusal closes the dialog and shows a page notice; focus goes
+  // back to the button instead of falling to the document.
+  const refocus = useRef(false);
+  useEffect(() => {
+    if (!confirming && refocus.current) {
+      refocus.current = false;
+      opener.current?.focus();
+    }
+  }, [confirming]);
+
   function send() {
     if (inFlight.current || pending) return;
     inFlight.current = true;
     onNotice(null);
     // The turn the screen shows: the server rejects it if it is out of date.
     mutation.mutate(season.currentTurnNo, {
+      onError: (error) => {
+        if (isStaleCode(error)) refocus.current = true;
+      },
       onSettled: () => {
         inFlight.current = false;
         setConfirming(false);

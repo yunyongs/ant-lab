@@ -338,6 +338,22 @@ describe('failures', () => {
       expect(world.seasonGets).toBe(2);
     });
     expect(bodies(world)).toHaveLength(1);
+    // Focus is not lost to the document: it is back on the button.
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: OPEN })).toHaveFocus();
+    });
+    // A new request clears the old page notice before it is answered.
+    const hold = gate();
+    world.postGates.push(hold.promise);
+    await user.click(
+      within(await openDialog(user)).getByRole('button', { name: CONFIRM }),
+    );
+    await waitFor(() => {
+      expect(bodies(world)).toHaveLength(2);
+    });
+    expect(screen.queryByText(/화면의 턴이 지난 턴입니다/)).toBeNull();
+    hold.release();
+    await screen.findByText('시즌이 끝났습니다');
   });
 
   it('says so when the season is no longer in progress', async () => {
