@@ -11,7 +11,7 @@
 -- 판정 불능: 최소 달 수(24, 오른 달 5, 빠진 달 5)에 못 미치면 8컬럼을 NULL 로 두고 사유별 건수만 보고한다. 0 대입·절단은 하지 않는다.
 --       그 기준일은 erd 검증 규칙 H2 가 잡는다 (시즌 시작 S2 가 막는다).
 -- 보고: 건수만 낸다. 참여율·변동성·낙폭·종목별 포지션은 출력하지 않는다 (시세에서 파생된 값을 로그·PR 에 남기지 않기 위해).
--- 구조: BEGIN → 이름 해석·전제·입력 단언 → \ir 계산식 → 계산 결과를 임시 표로 한 번 굳힘 → 차이 검사 → UPDATE 한 문장 → 사후 단언 → 보고 → COMMIT
+-- Structure: BEGIN → name resolution, premise and input assertions → \ir definition → freeze the result once in a temp table → window pre-assertion (count only) → difference check → one UPDATE statement → post assertions → report → COMMIT
 -- 새 문법: UPDATE … SET (열, …) = (값, …) FROM (행 생성자로 8컬럼을 한 번에, 부분 채움이 문장 구조상 생기지 않는다), 데이터 변경 CTE(WITH … UPDATE … RETURNING),
 --       \ir, 임시 표로 굳히기, IS DISTINCT FROM 으로 NULL 안전 비교.
 -- 명령줄(psql)이 기준이다. VS Code 에서는 통합 터미널에서 실행한다.
@@ -65,6 +65,20 @@ FROM pos_judge;
 
 CREATE TEMP TABLE ld_err (msg text) ON COMMIT DROP;
 CREATE TEMP TABLE ld_report (seq serial, item text, n bigint) ON COMMIT DROP;
+
+-- [Window pre-assertion] Stop with a count-only message when a computed window would violate ck_asset_position_window, so that PostgreSQL never prints a row DETAIL (price-derived values).
+DO $$
+DECLARE
+    v_n bigint;
+BEGIN
+    SELECT count(*) INTO v_n
+    FROM ld_judge
+    WHERE judgeable
+      AND NOT (window_start <= window_end AND window_end < date_trunc('month', base_date::timestamp)::date);
+    IF v_n > 0 THEN
+        RAISE EXCEPTION 'P0-10 계산: 판정 창이 ck_asset_position_window 를 어긴다 (% 건). 정의를 확인한다. 전부 되돌린다', v_n;
+    END IF;
+END $$;
 
 -- [차이 검사] 이미 판정된 행이 계산값과 다르면(또는 지금은 판정 불능이면) 조용히 옛 값을 두지 않고 멈춘다.
 INSERT INTO ld_err
