@@ -119,6 +119,53 @@ paths:
                 $ref: '#/components/schemas/Problem'
         '500':
           $ref: '#/components/responses/InternalError'
+  /internal/agent-runner/v1/agents/{agentId}/seasons/{seasonId}/turn-view:
+    get:
+      tags: [agent]
+      operationId: getAgentTurnView
+      summary: Turn view of the agent / 에이전트의 턴 화면
+      description: |-
+        Returns what the agent may see at the current turn: the season, the result of the current turn (null at turn 0), the holdings, the prices of the whole pool, the pool, and the agent part. The first five have the same values and shape as the human endpoints (season, turn result, holdings, prices, pool), read in one snapshot. The agent part carries the reply format name, the agent's own fills of the last turns before the current one (oldest first), and the units the engine rejected in the previous turn's decision. No date, seed, engine version, path or return kind is included. A season of another member is not found.
+
+        에이전트가 현재 턴에 볼 수 있는 것을 준다: 시즌, 현재 턴의 결과(0턴이면 null), 보유, 풀 전체 가격, 풀, 에이전트 몫. 앞의 다섯은 사람의 조회와 값·형이 같고(시즌, 턴 결과, 보유, 가격, 풀) 한 스냅샷에서 읽는다. 에이전트 몫은 응답 형식 이름, 현재 턴 이전 몇 턴의 본인 체결(오래된 것부터), 직전 턴 결정에서 엔진이 거부한 단위를 싣는다. 날짜·시드·엔진 버전·경로·수익률 종류는 싣지 않는다. 다른 회원의 시즌은 없는 것과 같다.
+      parameters:
+        - $ref: '#/components/parameters/AgentId'
+        - $ref: '#/components/parameters/SeasonId'
+      responses:
+        '200':
+          description: The turn view / 턴 화면
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentTurnViewDto'
+        '400':
+          description: The season number is not a number — INVALID_ARGUMENT / 시즌 번호가 숫자가 아니다 — INVALID_ARGUMENT
+          x-error-codes: [INVALID_ARGUMENT]
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          description: |-
+            The agent does not exist or is not this owner's, or the season is not this agent's. One answer for all — NOT_FOUND
+
+            에이전트가 없거나 이 소유자의 것이 아니거나, 시즌이 이 에이전트의 것이 아니다. 모두 같은 응답이다 — NOT_FOUND
+          x-error-codes: [NOT_FOUND]
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: The pool is not ready — POOL_NOT_LOADED, POOL_NOT_JUDGED / 풀이 준비되지 않았다 — POOL_NOT_LOADED, POOL_NOT_JUDGED
+          x-error-codes: [POOL_NOT_LOADED, POOL_NOT_JUDGED]
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '500':
+          $ref: '#/components/responses/InternalError'
 components:
   securitySchemes:
     runnerToken:
@@ -131,6 +178,14 @@ components:
       in: path
       required: true
       description: Agent member identifier from registration / 등록에서 받은 에이전트 회원 식별자
+      schema:
+        type: integer
+        format: int64
+    SeasonId:
+      name: seasonId
+      in: path
+      required: true
+      description: Season identifier / 시즌 식별자
       schema:
         type: integer
         format: int64
@@ -342,6 +397,452 @@ components:
         fxSpreadRate:
           type: string
           format: decimal
+    TurnResultDto:
+      type: object
+      description: |-
+        Values of the stored turn row and the ratios computed from them. The advance-turn response and the turn lookup have the same shape. The sum of the four shares can differ from 1 by at most 2e-8, and status and pathLength are the season's values now. targetFormation is the target at the start of that turn. Reconciliation attempt number, status, seed, path, month block, year-month and return kind are not included.
+
+        저장한 턴 행의 값과 거기서 계산한 비율. 턴 전환 응답과 턴 조회가 같은 형이다. 비중 4개의 합은 1과 최대 2e-8 다를 수 있고, status·pathLength 는 시즌의 지금 값이다. targetFormation 은 그 턴 시작 시점의 목표다. 대사 시도 번호·상태·시드·경로·월 블록·연월·수익률 종류는 싣지 않는다
+      required: [seasonId, turnNo, status, pathLength, cashBalance, holdingsValue, totalValue, goalkeeperValue,
+                 defenderValue, midfielderValue, forwardValue, drawdown, previousTotalValue, valueChange, periodReturn,
+                 riskLimit, riskHeadroom, riskBreached, goalkeeperWeight, defenderWeight, midfielderWeight,
+                 forwardWeight, targetFormation, goalkeeperGap, defenderGap, midfielderGap, forwardGap,
+                 formationDeviation]
+      properties:
+        seasonId:
+          type: integer
+          format: int64
+          description: Season identifier / 시즌 식별자
+        turnNo:
+          type: integer
+          format: int32
+          description: |-
+            The turn of this result (in the advance response, the turn just applied = the new current turn)
+
+            이 결과의 턴(전환 응답에서는 방금 적용된 턴 = 새 현재 턴)
+        status:
+          $ref: '#/components/schemas/SeasonStatus'
+          description: FINISHED if it was the last turn / 마지막 턴이면 FINISHED
+        pathLength:
+          type: integer
+          format: int32
+          description: Path length (number of turns) / 경로 길이(턴 수)
+        cashBalance:
+          type: string
+          format: decimal
+          description: Cash balance, whole KRW / 현금 잔액, 원 단위 정수
+        holdingsValue:
+          type: string
+          format: decimal
+          description: Holdings valuation, whole KRW / 보유 평가액, 원 단위 정수
+        totalValue:
+          type: string
+          format: decimal
+          description: Total valuation, whole KRW / 총 평가액, 원 단위 정수
+        goalkeeperValue:
+          type: string
+          format: decimal
+          description: Goalkeeper valuation (cash included), whole KRW / 골키퍼 평가액(현금 포함), 원 단위 정수
+        defenderValue:
+          type: string
+          format: decimal
+          description: Defender valuation, whole KRW / 수비수 평가액, 원 단위 정수
+        midfielderValue:
+          type: string
+          format: decimal
+          description: Midfielder valuation, whole KRW / 미드필더 평가액, 원 단위 정수
+        forwardValue:
+          type: string
+          format: decimal
+          description: Attacker valuation, whole KRW / 공격수 평가액, 원 단위 정수
+        drawdown:
+          type: string
+          format: decimal
+          description: Cumulative drawdown (0 or less), 8 decimal places / 누적 낙폭(0 이하), 소수 8자리
+        previousTotalValue:
+          type: string
+          format: decimal
+          description: Total valuation of the previous turn (initial capital at turn 1), whole KRW / 직전 턴의 총 평가액(1턴이면 초기 자금), 원 단위 정수
+        valueChange:
+          type: string
+          format: decimal
+          description: Total valuation − previous total valuation (can be negative), whole KRW / 총 평가액 − 직전 총 평가액(음수 가능), 원 단위 정수
+        periodReturn:
+          type: string
+          format: decimal
+          description: Period return = change ÷ previous total valuation, 8 decimal places / 기간 수익률 = 변화 ÷ 직전 총 평가액, 소수 8자리
+        riskLimit:
+          type: string
+          format: decimal
+          description: Risk limit (0 or less), 8 decimal places / 위험 선언(0 이하), 소수 8자리
+        riskHeadroom:
+          type: string
+          format: decimal
+          description: |-
+            Room to the risk limit = drawdown − limit, 8 decimal places. 0 or more means inside the limit, negative means it was crossed
+
+            위험 선언까지의 여유 = 낙폭 − 선언, 소수 8자리. 0 이상이면 선언 안, 음수면 넘었다
+        riskBreached:
+          type: boolean
+          description: Whether the drawdown crossed the risk limit (drawdown < limit) / 낙폭이 위험 선언을 넘었는가(낙폭 < 선언)
+        goalkeeperWeight:
+          type: string
+          format: decimal
+          description: Goalkeeper share = valuation ÷ total valuation, 8 decimal places / 골키퍼 비중 = 평가액 ÷ 총 평가액, 소수 8자리
+        defenderWeight:
+          type: string
+          format: decimal
+          description: Defender share, 8 decimal places / 수비수 비중, 소수 8자리
+        midfielderWeight:
+          type: string
+          format: decimal
+          description: Midfielder share, 8 decimal places / 미드필더 비중, 소수 8자리
+        forwardWeight:
+          type: string
+          format: decimal
+          description: Attacker share, 8 decimal places / 공격수 비중, 소수 8자리
+        targetFormation:
+          $ref: '#/components/schemas/FormationDto'
+        goalkeeperGap:
+          type: string
+          format: decimal
+          description: Goalkeeper share − target (positive = more than the target), 8 decimal places / 골키퍼 비중 − 목표(양수 = 목표보다 많음), 소수 8자리
+        defenderGap:
+          type: string
+          format: decimal
+          description: Defender share − target, 8 decimal places / 수비수 비중 − 목표, 소수 8자리
+        midfielderGap:
+          type: string
+          format: decimal
+          description: Midfielder share − target, 8 decimal places / 미드필더 비중 − 목표, 소수 8자리
+        forwardGap:
+          type: string
+          format: decimal
+          description: Attacker share − target, 8 decimal places / 공격수 비중 − 목표, 소수 8자리
+        formationDeviation:
+          type: string
+          format: decimal
+          description: Formation deviation = sum of |share − target| over the positions, 8 decimal places / 포메이션 이탈 = 포지션별 |비중 − 목표|의 합, 소수 8자리
+    HoldingsDto:
+      type: object
+      description: |-
+        Holdings of the current turn × that turn's prices (a live value that reflects this turn's trades immediately). In a turn without trades, the total, holdings valuation and valuation per position equal the turn result of that turn. currentFormation is the formation applied now. The sum of the four shares can differ from 1 by at most 2e-8. Seed, path, month block, year-month and return kind are not included.
+
+        현재 턴의 보유 × 그 턴 가격(이번 턴의 매매가 바로 반영되는 실시간 값). 매매가 없는 턴이면 총액·보유 평가액·포지션별 평가액이 그 턴의 턴 결과와 같다. currentFormation 은 지금 적용 중인 포메이션이다. 비중 4개의 합은 1과 최대 2e-8 다를 수 있다. 시드·경로·월 블록·연월·수익률 종류는 싣지 않는다
+      required: [seasonId, turnNo, cashBalance, holdingsValue, totalValue, goalkeeperValue, defenderValue,
+                 midfielderValue, forwardValue, goalkeeperWeight, defenderWeight, midfielderWeight, forwardWeight,
+                 currentFormation, goalkeeperGap, defenderGap, midfielderGap, forwardGap, formationDeviation, holdings]
+      properties:
+        seasonId:
+          type: integer
+          format: int64
+          description: Season identifier / 시즌 식별자
+        turnNo:
+          type: integer
+          format: int32
+          description: The season's current turn (the turn the prices are based on) / 시즌의 현재 턴(가격 기준 턴)
+        cashBalance:
+          type: string
+          format: decimal
+          description: Cash balance (now), whole KRW / 현금 잔액(지금), 원 단위 정수
+        holdingsValue:
+          type: string
+          format: decimal
+          description: Holdings valuation = Σ quantity × current turn price, whole KRW / 보유 평가액 = Σ 수량 × 현재 턴 가격, 원 단위 정수
+        totalValue:
+          type: string
+          format: decimal
+          description: Total valuation = cash + holdings valuation, whole KRW / 총 평가액 = 현금 + 보유 평가액, 원 단위 정수
+        goalkeeperValue:
+          type: string
+          format: decimal
+          description: Goalkeeper valuation (cash included, total − the other three), whole KRW / 골키퍼 평가액(현금 포함, 총액 − 나머지 셋), 원 단위 정수
+        defenderValue:
+          type: string
+          format: decimal
+          description: Defender valuation, whole KRW / 수비수 평가액, 원 단위 정수
+        midfielderValue:
+          type: string
+          format: decimal
+          description: Midfielder valuation, whole KRW / 미드필더 평가액, 원 단위 정수
+        forwardValue:
+          type: string
+          format: decimal
+          description: Attacker valuation, whole KRW / 공격수 평가액, 원 단위 정수
+        goalkeeperWeight:
+          type: string
+          format: decimal
+          description: Goalkeeper share = valuation ÷ total valuation, 8 decimal places / 골키퍼 비중 = 평가액 ÷ 총 평가액, 소수 8자리
+        defenderWeight:
+          type: string
+          format: decimal
+          description: Defender share, 8 decimal places / 수비수 비중, 소수 8자리
+        midfielderWeight:
+          type: string
+          format: decimal
+          description: Midfielder share, 8 decimal places / 미드필더 비중, 소수 8자리
+        forwardWeight:
+          type: string
+          format: decimal
+          description: Attacker share, 8 decimal places / 공격수 비중, 소수 8자리
+        currentFormation:
+          $ref: '#/components/schemas/FormationDto'
+        goalkeeperGap:
+          type: string
+          format: decimal
+          description: Goalkeeper share − current formation (positive = more than the target), 8 decimal places / 골키퍼 비중 − 현재 포메이션(양수 = 목표보다 많음), 소수 8자리
+        defenderGap:
+          type: string
+          format: decimal
+          description: Defender share − current formation, 8 decimal places / 수비수 비중 − 현재 포메이션, 소수 8자리
+        midfielderGap:
+          type: string
+          format: decimal
+          description: Midfielder share − current formation, 8 decimal places / 미드필더 비중 − 현재 포메이션, 소수 8자리
+        forwardGap:
+          type: string
+          format: decimal
+          description: Attacker share − current formation, 8 decimal places / 공격수 비중 − 현재 포메이션, 소수 8자리
+        formationDeviation:
+          type: string
+          format: decimal
+          description: |-
+            Formation deviation = sum of |share − current formation| over the positions, 8 decimal places
+
+            포메이션 이탈 = 포지션별 |비중 − 현재 포메이션|의 합, 소수 8자리
+        holdings:
+          type: array
+          description: Holdings with quantity 1 or more (ascending asset number) / 수량 1 이상인 보유(종목 번호 오름차순)
+          items:
+            $ref: '#/components/schemas/HoldingDto'
+    HoldingDto:
+      type: object
+      description: |-
+        One held asset. The asset name is not included — link it by assetId from the pool response
+
+        보유 한 종목. 종목 이름은 싣지 않는다 — 풀 응답의 assetId 로 잇는다
+      required: [assetId, quantity, avgPrice, declaredPosition, price, value, weight]
+      properties:
+        assetId:
+          type: integer
+          format: int64
+          description: Asset identifier (the same as assetId in the pool response) / 종목 식별자(풀 응답의 assetId 와 같다)
+        quantity:
+          type: integer
+          format: int32
+          description: Quantity held (1 or more) / 보유 수량(1 이상)
+        avgPrice:
+          type: string
+          format: decimal
+          description: Average cost (fee excluded), 4 decimal places / 평균단가(수수료 제외), 소수 4자리
+        declaredPosition:
+          $ref: '#/components/schemas/Position'
+          description: Declared position of the open span / 열린 구간의 선언 포지션
+        price:
+          type: string
+          format: decimal
+          description: Current turn price, whole KRW / 현재 턴 가격, 원 단위 정수
+        value:
+          type: string
+          format: decimal
+          description: Valuation = quantity × current turn price, whole KRW / 평가액 = 수량 × 현재 턴 가격, 원 단위 정수
+        weight:
+          type: string
+          format: decimal
+          description: Asset share = valuation ÷ total valuation (cash included), 8 decimal places / 종목 비중 = 평가액 ÷ 총 평가액(현금 포함), 소수 8자리
+    TurnPricesDto:
+      type: object
+      description: Prices of the whole pool for one turn (ascending asset number) / 한 턴의 풀 전체 가격(종목 번호 오름차순)
+      required: [turnNo, prices]
+      properties:
+        turnNo:
+          type: integer
+          format: int32
+        prices:
+          type: array
+          items:
+            $ref: '#/components/schemas/TurnPriceDto'
+    TurnPriceDto:
+      type: object
+      required: [assetId, price]
+      properties:
+        assetId:
+          type: integer
+          format: int64
+          description: Asset identifier (the same as assetId in the pool response) / 종목 식별자(풀 응답의 assetId 와 같다)
+        price:
+          type: string
+          format: decimal
+          description: Price, whole KRW / 가격, 원 단위 정수
+    PoolAssetDto:
+      type: object
+      required: [assetId, market, ticker, name, assetType, returnBasis, proxyIndexName,
+                 groupId, groupName, groupKind, systemPosition,
+                 upParticipation, downParticipation, volatility, maxDrawdown]
+      properties:
+        assetId:
+          type: integer
+          format: int64
+          description: Asset identifier (used in order requests). Not shown to the player / 종목 식별자(주문 요청에 쓴다). 표시하지 않는다
+        market:
+          $ref: '#/components/schemas/Market'
+        ticker:
+          type: string
+        name:
+          type: string
+        assetType:
+          $ref: '#/components/schemas/AssetType'
+        returnBasis:
+          $ref: '#/components/schemas/ReturnBasis'
+        proxyIndexName:
+          type: [string, 'null']
+          description: Name of the tracked index used for the period before listing (ETFs only) / 상장 전 구간에 쓰는 추종 지수 이름(ETF만)
+        groupId:
+          type: integer
+          format: int64
+        groupName:
+          type: string
+        groupKind:
+          $ref: '#/components/schemas/AssetGroupKind'
+        systemPosition:
+          $ref: '#/components/schemas/Position'
+        upParticipation:
+          type: string
+          format: decimal
+          description: Up-market participation rate (months the market rose 1% or more, in KRW) / 상승장 참여율(시장이 1% 이상 오른 달, 원화)
+        downParticipation:
+          type: string
+          format: decimal
+          description: Down-market participation rate (months the market fell 1% or more, in KRW) / 하락장 참여율(시장이 1% 이상 빠진 달, 원화)
+        volatility:
+          type: string
+          format: decimal
+          description: Sample standard deviation of monthly returns (not annualized) / 월 수익률 표본 표준편차(연율화 안 함)
+        maxDrawdown:
+          type: string
+          format: decimal
+          description: Maximum drawdown, 0 or less (−0.35 = −35%) / 최대 낙폭, 0 이하(−0.35 = −35%)
+    SeasonStatus:
+      type: string
+      enum: [IN_PROGRESS, ABANDONING, FINISHED]
+    Market:
+      type: string
+      enum: [KR, US]
+    AssetType:
+      type: string
+      enum: [STOCK, ETF]
+    ReturnBasis:
+      type: string
+      enum: [PRICE, TOTAL]
+    AssetGroupKind:
+      type: string
+      enum: [SECTOR, ASSET_CLASS]
+    Position:
+      type: string
+      enum: [GOALKEEPER, DEFENDER, MIDFIELDER, FORWARD_TARGET, FORWARD_BREAKOUT, FORWARD_DEFENSIVE]
+    OrderSide:
+      type: string
+      enum: [BUY, SELL]
+    AgentTurnViewDto:
+      type: object
+      description: |-
+        The turn screen of an agent. season, lastTurn, holdings, prices and pool have the shapes of the human endpoints; agent is the agent-only part. Nothing the human turn screen does not show is added
+
+        에이전트의 턴 화면. season·lastTurn·holdings·prices·pool 은 사람 조회와 같은 형이고 agent 는 에이전트 전용 몫이다. 사람의 턴 화면에 없는 것은 더하지 않는다
+      required: [season, lastTurn, holdings, prices, pool, agent]
+      properties:
+        season:
+          $ref: '#/components/schemas/SeasonDto'
+        lastTurn:
+          description: Result of the current turn; null at turn 0 / 현재 턴의 결과, 0턴이면 null
+          oneOf:
+            - $ref: '#/components/schemas/TurnResultDto'
+            - type: 'null'
+        holdings:
+          $ref: '#/components/schemas/HoldingsDto'
+        prices:
+          $ref: '#/components/schemas/TurnPricesDto'
+        pool:
+          type: array
+          items:
+            $ref: '#/components/schemas/PoolAssetDto'
+        agent:
+          $ref: '#/components/schemas/AgentPartDto'
+    AgentPartDto:
+      type: object
+      required: [schema, recentTrades, lastRejects, memory]
+      properties:
+        schema:
+          type: string
+          enum: [turn-decision/1]
+          description: Reply format to answer in / 답할 응답 형식
+        recentTrades:
+          type: array
+          description: Own fills of the last turns before the current one, oldest first / 현재 턴 이전 몇 턴의 본인 체결, 오래된 것부터
+          items:
+            $ref: '#/components/schemas/RecentTradeDto'
+        lastRejects:
+          type: array
+          description: Units the engine rejected in the previous turn's decision; empty at turn 0 / 직전 턴 결정에서 엔진이 거부한 단위, 0턴이면 빈 목록
+          items:
+            $ref: '#/components/schemas/RejectDto'
+        memory:
+          type: 'null'
+          description: Reserved for agent memory; always null for now / 에이전트 기억 자리, 지금은 항상 null
+    RecentTradeDto:
+      type: object
+      required: [turnNo, side, asset, quantity, price, fee, source]
+      properties:
+        turnNo:
+          type: integer
+          format: int32
+        side:
+          $ref: '#/components/schemas/OrderSide'
+        asset:
+          type: string
+          pattern: '^(KR|US):[A-Z0-9.]{1,12}$'
+          description: MARKET:TICKER / 시장:종목코드
+        quantity:
+          type: integer
+          format: int32
+        price:
+          type: string
+          format: decimal
+          description: Fill price (that turn's price), whole KRW / 체결가(그 턴 가격), 원 단위 정수
+        fee:
+          type: string
+          format: decimal
+          description: Fee, whole KRW / 수수료, 원 단위 정수
+        source:
+          $ref: '#/components/schemas/OrderSource'
+    RejectDto:
+      type: object
+      description: |-
+        One part of the previous decision that the engine rejected. Never model text: unit, code and pointer come from fixed sets or plain names. A unit reject has a unit (and an index for ORDER) and no pointer. A reply-level reject, such as a reply that failed the format check, has no unit and no index; its code is SCHEMA_INVALID and the pointer says where in the reply the fault is
+
+        엔진이 거부한 직전 결정의 한 부분. 모델 문장이 아니다: unit·code·pointer 는 정해진 집합이나 평범한 이름이다. 단위 거부는 unit(ORDER 면 index)이 있고 pointer 가 없다. 응답 전체에 대한 거부(예: 형식 검사 실패)는 unit·index 가 없고 code 는 SCHEMA_INVALID, pointer 가 응답 안의 위치를 말한다
+      required: [unit, index, code, pointer]
+      properties:
+        unit:
+          type: [string, 'null']
+          enum: [FORMATION, ORDER, THESES, null]
+        index:
+          type: [integer, 'null']
+          format: int32
+          minimum: 0
+          maximum: 39
+          description: Position in the reply's orders array, for ORDER only / 응답 orders 배열의 위치, ORDER 에만
+        code:
+          type: string
+          pattern: '^[A-Z][A-Z_]{0,39}$'
+          description: Reject code recorded by the engine / 엔진이 기록한 거부 코드
+        pointer:
+          type: [string, 'null']
+          pattern: '^(/[A-Za-z0-9_]{1,40}){1,6}$'
+          description: Where in the reply the fault is, for a reply-level reject only / 응답 안의 위치, 응답 전체 거부에만
+    OrderSource:
+      type: string
+      enum: [RANKING, FEED, ALERT, BENCH, DIRECT]
     Problem:
       type: object
       description: RFC 9457 problem details + a top-level code / RFC 9457 문제 상세 + 최상위 code

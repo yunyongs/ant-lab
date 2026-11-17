@@ -18,6 +18,8 @@ import psycopg
 from psycopg import sql
 from psycopg.conninfo import conninfo_to_dict
 
+from antlab_engine.settings import DatabaseSettings
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 MIGRATION_DIR = REPO_ROOT / "src" / "main" / "resources" / "db" / "migration"
 ROLE_SCRIPT = REPO_ROOT / "db" / "roles" / "antlab_engine.sql"
@@ -215,3 +217,9 @@ def assert_write_denied(conn: psycopg.Connection, verb: str, table: str) -> None
 
 def assert_read_denied(conn: psycopg.Connection, table: str) -> None:
     assert_denied(conn, f"SELECT * FROM {table} LIMIT 1", read_write=False)
+
+
+def engine_settings(db: ScratchDb, user: str = ENGINE_ROLE) -> DatabaseSettings:
+    return DatabaseSettings(
+        host=db.admin_params["host"], port=int(db.admin_params["port"]), name=db.name, user=user
+    )

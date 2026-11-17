@@ -12,6 +12,7 @@ import static antlab.support.DefaultBearerConfig.ANONYMOUS;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import antlab.agent.AgentDto;
+import antlab.agent.AgentTurnViewDto;
 import antlab.api.config.OpenApiConfig;
 import antlab.season.SeasonDto;
 import antlab.support.ContractErrorCodes;
@@ -118,6 +119,14 @@ class AgentRunnerContractTest {
         assertListed(doc, register, post(mvc, AGENTS, "{}"));
         assertListed(doc, start, post(mvc, startUri, "{}"));
         assertListed(doc, start, post(mvc, AGENTS + "/987654321/seasons", START_BODY));
+
+        String turnView = "GET " + AGENTS + "/{agentId}/seasons/{seasonId}/turn-view";
+        long season = json(post(mvc, startUri, START_BODY)).get("id").asLong();
+        String viewUri = startUri + "/" + season + "/turn-view";
+        assertListed(doc, turnView, get(viewUri, "wrong"));
+        assertListed(doc, turnView, get(AGENTS + "/" + agent + "/seasons/987654321/turn-view", TOKEN));
+        assertListed(doc, turnView, get(AGENTS + "/987654321/seasons/" + season + "/turn-view", TOKEN));
+        assertListed(doc, turnView, get(AGENTS + "/" + agent + "/seasons/abc/turn-view", TOKEN));
         em.flush();
         jdbc.update("UPDATE agent_profile SET status = 'RETIRED' WHERE member_id = ?", agent);
         em.clear();
@@ -145,6 +154,10 @@ class AgentRunnerContractTest {
                 .contentType(MediaType.APPLICATION_JSON).accept(MediaType.APPLICATION_XML).content(REGISTER_BODY)
                 .exchange().getResponse();
         assertThat(notAcceptable.getStatus()).isEqualTo(406);
+    }
+
+    private MockHttpServletResponse get(String uri, String token) {
+        return mvc.get().uri(uri).header(HEADER, token).requestAttr(ANONYMOUS, true).exchange().getResponse();
     }
 
     private static void assertListed(JsonNode doc, String operation, MockHttpServletResponse response) throws Exception {
@@ -179,9 +192,10 @@ class AgentRunnerContractTest {
             }
             types.add(type.toClass());
         }
-        // A new runner response type must be added here on purpose; the turn view of a later change goes through the catalog.
-        assertThat(types).containsExactlyInAnyOrder(AgentDto.class, SeasonDto.class);
+        // A new runner response type must be added here on purpose and goes through the catalog.
+        assertThat(types).containsExactlyInAnyOrder(AgentDto.class, SeasonDto.class, AgentTurnViewDto.class);
         assertThat(ExposureRules.check(SeasonDto.class, catalog, false, false)).isEmpty();
+        assertThat(ExposureRules.check(AgentTurnViewDto.class, catalog, false, false)).isEmpty();
         assertThat(Arrays.stream(AgentDto.class.getRecordComponents()).map(RecordComponent::getName).toList())
                 .containsExactly("agentId", "displayName", "personaKey", "modelRoute", "modelId", "status");
     }
