@@ -6,18 +6,19 @@ from decimal import Decimal
 import numpy as np
 import pytest
 from synthetic_months import BASE_DATE, EXT348_REPLAY_START, tiny
-from synthetic_panel import REPLAY_MONTHS, asset_names, portfolio, random_panel
+from synthetic_panel import REPLAY_MONTHS, asset_names, make_panel, portfolio, random_panel
 
 from antlab_engine.engine_errors import InvalidArgument, PathTooLong
 from antlab_engine.projection import (
     Portfolio,
     Rank,
     derive_path_seeds,
+    draw_paths,
     project,
     rank,
 )
 from antlab_engine.projection.evaluate import evaluate
-from antlab_engine.projection.rank import sharpe
+from antlab_engine.projection.rank import sharpe, stable_values
 
 # the package re-exports the function `rank`, which shadows the module of the same name
 rank_module = importlib.import_module("antlab_engine.projection.rank")
@@ -63,6 +64,21 @@ def brute_values(horizon=24, n=100, seed=7):
     return [p.end_values for p in result.portfolios]
 
 
+def stable_end_values(horizon=24, n=100, seed=7) -> np.ndarray:
+    paths = draw_paths(
+        PANEL,
+        BASE_DATE,
+        derive_path_seeds(seed, n),
+        horizon,
+        sorted({a for p in (TEAM, BENCH) for a, _ in p.active}),
+        EXT348_REPLAY_START,
+        rank_module.stationary.DEFAULT_PARAMS,
+    )
+    column = {a: i for i, a in enumerate(PANEL.assets)}
+    book = (tuple((column[a], float(w)) for a, w in TEAM.active), float(TEAM.cash))
+    return stable_values(PANEL.factors, paths, [book])[0][:, -1]
+
+
 def brute_sharpe(values: np.ndarray) -> np.ndarray:
     steps = values[:, 1:] / values[:, :-1] - 1.0
     return steps.mean(axis=1) / steps.std(axis=1, ddof=1)
@@ -86,10 +102,11 @@ def test_e2_the_end_multiple_counts_equal_a_brute_force_count_over_the_projectio
     for k in (1, 17, 50, 83, 99):
         got = run(end=str(between(ends, k)))
         assert (got.end_multiple.below, got.end_multiple.equal) == (k, 0)
-    exact = Decimal(float(ends[40]))
+    exact_ends = np.sort(stable_end_values())
+    exact = Decimal(float(exact_ends[40]))
     got = run(end=str(exact))
-    assert got.end_multiple.below == int(np.count_nonzero(ends < ends[40]))
-    assert got.end_multiple.equal == int(np.count_nonzero(ends == ends[40])) >= 1
+    assert got.end_multiple.below == int(np.count_nonzero(exact_ends < exact_ends[40]))
+    assert got.end_multiple.equal == int(np.count_nonzero(exact_ends == exact_ends[40])) >= 1
 
 
 def test_e2_the_sharpe_difference_counts_equal_a_brute_force_count_with_an_independent_formula():
@@ -269,28 +286,69 @@ def test_the_counts_never_exceed_n_and_the_result_has_no_path_values():
     }
 
 
-def test_the_library_end_values_equal_the_evaluation_the_rank_uses():
-    # a guard that rank and project evaluate holdings the same way (one source of values)
+def test_rank_values_equal_the_projection_values_up_to_rounding():
+    # rank: 1 + sum(w * (g - 1)); project: cash + sum(w * g). Same numbers, last bits apart.
     team_values, bench_values = brute_values()
-    column = {a: i for i, a in enumerate(PANEL.assets)}
-    from antlab_engine.projection import draw_paths
-
-    used = sorted({a for p in (TEAM, BENCH) for a, _ in p.active})
     paths = draw_paths(
         PANEL,
         BASE_DATE,
         derive_path_seeds(7, 100),
         24,
-        used,
+        sorted({a for p in (TEAM, BENCH) for a, _ in p.active}),
         EXT348_REPLAY_START,
         rank_module.stationary.DEFAULT_PARAMS,
     )
+    column = {a: i for i, a in enumerate(PANEL.assets)}
     books = [
         (tuple((column[a], float(w)) for a, w in p.active), float(p.cash)) for p in (TEAM, BENCH)
     ]
-    first, second = evaluate(PANEL.factors, paths, books)
-    assert np.array_equal(first, team_values)
-    assert np.array_equal(second, bench_values)
+    first, second = stable_values(PANEL.factors, paths, books)
+    assert np.allclose(first, team_values, rtol=1e-12, atol=1e-12)
+    assert np.allclose(second, bench_values, rtol=1e-12, atol=1e-12)
+    assert (first[:, 0] == 1.0).all()
+
+
+def still_panel():
+    assets = [f"KR:S{i:03d}" for i in range(10)]
+    table = {a: dict.fromkeys(REPLAY_MONTHS, "0") for a in assets}
+    return assets, make_panel(REPLAY_MONTHS, table)
+
+
+def test_c1_ten_assets_that_never_move_keep_value_one_and_rank_in_the_middle():
+    assets, panel = still_panel()
+    tenth = {a: Decimal("0.1") for a in assets}
+    team = Portfolio("TEAM", tenth, Decimal(0))
+    for horizon in (12, 24):
+        got = rank(
+            panel,
+            BASE_DATE,
+            season_seed=3,
+            horizon=horizon,
+            team=team,
+            benchmark=CASH,
+            observed_end_multiple=Decimal(1),
+            observed_sharpe_diff=Decimal(0),
+            n=100,
+            replay_start=EXT348_REPLAY_START,
+        )
+        assert got.end_multiple == rank_module.Counts(0, 100)
+        assert got.sharpe_diff == rank_module.Counts(0, 100)
+
+
+def test_c1_the_old_summation_would_have_drifted_but_the_stable_value_does_not():
+    assets, panel = still_panel()
+    book = (tuple((i, 0.1) for i in range(10)), 0.0)
+    paths = np.zeros((3, 12), dtype=np.int64)
+    (values,) = stable_values(panel.factors, paths, [book])
+    assert (values == 1.0).all()
+    assert sharpe(values).tolist() == [0.0, 0.0, 0.0]
+    (plain,) = evaluate(panel.factors, paths, [book])
+    assert not (plain == 1.0).all()  # the cash + sum(w * g) form drifts on this input
+
+
+def test_c3_a_step_return_that_overflows_is_rejected_not_turned_into_zero():
+    with pytest.raises(InvalidArgument):
+        sharpe(np.array([[1.0, 1e-300, 1e10, 1.0, 1.0]]))
 
 
 def test_a_history_that_gives_every_seed_the_same_path_is_path_too_long(monkeypatch):
@@ -303,3 +361,12 @@ def test_a_history_that_gives_every_seed_the_same_path_is_path_too_long(monkeypa
     monkeypatch.setattr(rank_module, "draw_paths", same)
     with pytest.raises(PathTooLong):
         run()
+
+
+def test_a_total_loss_stays_exactly_zero_and_never_goes_negative():
+    assets = [f"KR:L{i:03d}" for i in range(3)]
+    panel = make_panel(REPLAY_MONTHS, {a: dict.fromkeys(REPLAY_MONTHS, "-1") for a in assets})
+    book = (((0, 0.3), (1, 0.3), (2, 0.4)), 0.0)
+    (values,) = stable_values(panel.factors, np.zeros((2, 12), dtype=np.int64), [book])
+    assert (values[:, 1:] == 0.0).all()
+    assert (values[:, 0] == 1.0).all()

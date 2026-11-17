@@ -187,6 +187,16 @@ def _pct_digest_becomes_optional(spec):
     spec["components"]["schemas"]["PercentileResult"]["required"].remove("historyDigest")
 
 
+def _pct_result_n_may_be_zero(spec):
+    del spec["components"]["schemas"]["PercentileResult"]["properties"]["n"]["minimum"]
+
+
+def _pct_result_horizon_gains_a_value(spec):
+    spec["components"]["schemas"]["PercentileResult"]["properties"]["horizonTurns"]["enum"].append(
+        36
+    )
+
+
 def _pct_not_secured(spec):
     spec["paths"]["/v1/percentiles"]["post"]["security"] = []
 
@@ -239,6 +249,8 @@ MUTATIONS = [
     _pct_count_may_be_negative,
     _pct_result_gains_a_path_value,
     _pct_digest_becomes_optional,
+    _pct_result_n_may_be_zero,
+    _pct_result_horizon_gains_a_value,
     _pct_not_secured,
     _pct_n_bound_widens,
     _busy_code_dropped,

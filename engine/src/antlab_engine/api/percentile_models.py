@@ -73,8 +73,8 @@ class RankCounts(BaseModel):
 class PercentileResult(BaseModel):
     projectionVersion: str
     engineVersion: str
-    n: int
-    horizonTurns: int
+    n: Annotated[int, Field(ge=100, le=MAX_PATHS)]
+    horizonTurns: Literal[12, 24, 60, 120]
     historyDigest: Annotated[str, Field(pattern=DIGEST_PATTERN)]
     endMultiple: RankCounts
     sharpeDiff: RankCounts

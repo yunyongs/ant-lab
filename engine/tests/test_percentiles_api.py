@@ -263,7 +263,14 @@ INVALID = {
     "benchmark missing": {k: v for k, v in body().items() if k != "benchmark"},
     "observed missing": {k: v for k, v in body().items() if k != "observed"},
     "team with a key": body(team={**team(), "key": "TEAM"}),
-    "extra holding field": body(team=hold(("KR:A001", "0.9"))) | {"extra": 1},
+    "extra field inside a team holding": body(
+        team={**team(), "weights": [{"asset": "KR:A001", "weight": "0.9", "won": "5"}]}
+    ),
+    "extra field inside a benchmark holding": body(
+        benchmark={**bench(), "weights": [{"asset": "KR:B002", "weight": "0.5", "won": "5"}]}
+    ),
+    "extra field in the team": body(team={**team(), "amount": "5"}),
+    "extra field in the benchmark": body(benchmark={**bench(), "amount": "5"}),
     "extra observed field": body(observed={**observed(), "won": "1"}),
     "extra top field": {**body(), "attempts": 5},
     "end multiple a number": body(observed=observed(end=1.05)),
@@ -487,3 +494,17 @@ def test_a_percentile_and_a_projection_share_the_same_slots(token):
     problem(busy, 503, "ENGINE_BUSY")
     gate.release.set()
     worker.join(10)
+
+
+def test_c1_assets_that_never_move_rank_in_the_middle_through_the_route(token):
+    assets = [f"KR:S{i:03d}" for i in range(10)]
+    still = {(a, m): "0" for a in assets for m in FULL_MONTHS}
+    reader = SnapshotReader(snapshot(assets, changes=still))
+    client = client_for(token, reader)
+    ten = {"cash": "0", "weights": [{"asset": a, "weight": "0.1"} for a in assets]}
+    cash = {"cash": "1", "weights": []}
+    for horizon in (12, 24):
+        payload = body(horizonTurns=horizon, team=ten, benchmark=cash, observed=observed("1", "0"))
+        answer = ok(client.post(URL, json=payload, headers=auth(token)))
+        assert answer["endMultiple"] == {"below": 0, "equal": 100}
+        assert answer["sharpeDiff"] == {"below": 0, "equal": 100}

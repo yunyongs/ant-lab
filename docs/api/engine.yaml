@@ -469,8 +469,8 @@ components:
       properties:
         projectionVersion: {type: string}
         engineVersion: {type: string}
-        n: {type: integer}
-        horizonTurns: {type: integer}
+        n: {type: integer, minimum: 100, maximum: 5000}
+        horizonTurns: {type: integer, enum: [12, 24, 60, 120]}
         historyDigest:
           type: string
           pattern: '^[0-9a-f]{64}$'

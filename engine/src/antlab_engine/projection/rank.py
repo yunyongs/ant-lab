@@ -16,7 +16,6 @@ import numpy as np
 from antlab_engine.bootstrap import stationary
 from antlab_engine.bootstrap.simple import REPLAY_START
 from antlab_engine.engine_errors import InvalidArgument, PathTooLong
-from antlab_engine.projection.evaluate import evaluate
 from antlab_engine.projection.model import (
     MAX_PATHS,
     PROJECTION_VERSION,
@@ -62,6 +61,41 @@ def _held(panel: ReturnPanel, book: Portfolio) -> tuple[tuple[tuple[int, float],
     return tuple((column[asset], float(w)) for asset, w in book.active), float(book.cash)
 
 
+Book = tuple[tuple[tuple[int, float], ...], float]
+
+
+def stable_values(factors: np.ndarray, paths: np.ndarray, books: list[Book]) -> list[np.ndarray]:
+    """Value multiples `(n, horizon + 1)` per book as `1 + sum(weight * (growth - 1))`.
+
+    Weights and cash add up to exactly 1, so this equals `cash + sum(weight * growth)` but an
+    asset that does not move contributes exactly 0: a book whose holdings never move keeps the
+    value 1.0 instead of drifting by rounding (0.1 added ten times is not 1.0), which would show up
+    as a false first-turn return and a false Sharpe. `evaluate` (used by `project`) is unchanged,
+    so the projection results do not move; values here may differ from it in the last bits.
+    Element-wise operations in sorted column order only, as in `evaluate`.
+    """
+    n, horizon = paths.shape
+    totals = [np.ones((n, horizon)) for _ in books]
+    weights = [dict(held) for held, _ in books]
+    scratch = np.empty((n, horizon))
+    with np.errstate(over="ignore", invalid="ignore"):
+        for column in sorted({a for held, _ in books for a, _ in held}):
+            excess = np.cumprod(np.ascontiguousarray(factors[:, column]).take(paths), axis=1) - 1.0
+            for total, weight in zip(totals, weights, strict=True):
+                if column in weight:
+                    np.multiply(excess, weight[column], out=scratch)
+                    np.add(total, scratch, out=total)
+    result = []
+    for total in totals:
+        if not np.isfinite(total).all():
+            raise InvalidArgument("the projected values overflow a float64")
+        values = np.empty((n, horizon + 1))
+        values[:, 0] = 1.0
+        values[:, 1:] = np.maximum(total, 0.0)  # rounding must not turn a total loss negative
+        result.append(values)
+    return result
+
+
 def sharpe(values: np.ndarray) -> np.ndarray:
     """Per-path `mean(r) / std(r, ddof=1)` of `r_t = v_t / v_{t-1} - 1`; 0 where std is 0.
 
@@ -78,6 +112,8 @@ def sharpe(values: np.ndarray) -> np.ndarray:
         returns = np.where(
             previous > 0.0, values[:, 1:] / np.where(previous > 0.0, previous, 1.0) - 1.0, 0.0
         )
+        if not np.isfinite(returns).all():
+            raise InvalidArgument("the projected values overflow a float64")
         total = np.zeros(values.shape[0])
         for t in range(steps):
             total = total + returns[:, t]
@@ -137,7 +173,7 @@ def rank(
     )
     if len(np.unique(paths, axis=0)) < 2:
         raise PathTooLong("the history allows only one projection path")
-    team_values, benchmark_values = evaluate(panel.factors, paths, books)
+    team_values, benchmark_values = stable_values(panel.factors, paths, books)
     difference = sharpe(team_values) - sharpe(benchmark_values)
     return Rank(
         projection_version=PROJECTION_VERSION,
