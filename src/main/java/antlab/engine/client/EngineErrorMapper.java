@@ -45,6 +45,7 @@ final class EngineErrorMapper {
         RULES.put(EngineErrorCode.PATH_TOO_LONG, new Rule(422, "engine.path_too_long", Outcome.PATH_TOO_LONG));
         RULES.put(EngineErrorCode.HISTORY_UNAVAILABLE, new Rule(503, "engine.history_unavailable", Outcome.HISTORY_UNAVAILABLE));
         RULES.put(EngineErrorCode.ENGINE_BUSY, new Rule(503, "engine.busy", Outcome.BUSY));
+        RULES.put(EngineErrorCode.REGIME_DATA_INVALID, new Rule(422, "engine.regime_data_invalid", Outcome.INTERNAL));
         RULES.put(EngineErrorCode.INTERNAL_ERROR, new Rule(500, "engine.bad_response", Outcome.INTERNAL));
     }
 

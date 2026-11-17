@@ -20,6 +20,7 @@ from antlab_engine.regime import (
     input_digest,
     label_months,
 )
+from antlab_engine.regime.model import Market
 
 D = date
 SRC = SourceSeries
@@ -148,3 +149,17 @@ def test_the_link_flag_and_the_rule_dated_counts_reach_the_report():
 def test_a_report_has_no_dates_or_values_in_its_repr():
     text = repr(coverage(ADAPTED, label_months(ADAPTED.observations, MONTHS)))
     assert not re.search(r"\d{4}-\d{2}", text)
+
+
+def test_the_digest_covers_the_calendars_and_empty_calendars_change_nothing():
+    plain = input_digest(ADAPTED.observations)
+    assert input_digest(ADAPTED.observations, {}) == plain
+    assert input_digest(ADAPTED.observations, {Market.US: frozenset()}) == plain
+    us = input_digest(ADAPTED.observations, {Market.US: frozenset({D(2021, 5, 31)})})
+    kr = input_digest(ADAPTED.observations, {Market.KR: frozenset({D(2021, 5, 31)})})
+    more = input_digest(
+        ADAPTED.observations, {Market.US: frozenset({D(2021, 5, 31), D(2021, 7, 5)})}
+    )
+    assert len({plain, us, kr, more}) == 4
+    reordered = {Market.US: frozenset({D(2021, 7, 5), D(2021, 5, 31)})}
+    assert input_digest(ADAPTED.observations, reordered) == more
