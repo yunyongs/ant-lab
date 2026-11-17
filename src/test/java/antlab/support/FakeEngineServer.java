@@ -13,6 +13,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /** A loopback stand-in for the Python engine: serves canned bodies, records what it was sent, can delay or redirect. */
@@ -34,6 +35,7 @@ public final class FakeEngineServer implements AutoCloseable {
 
     private final HttpServer server;
     private final Map<String, Canned> routes = new ConcurrentHashMap<>();
+    private final Map<String, ConcurrentLinkedQueue<Canned>> queued = new ConcurrentHashMap<>();
     private final List<Recorded> requests = new CopyOnWriteArrayList<>();
     private volatile Duration delay = Duration.ZERO;
     private volatile Duration bodyStall = Duration.ZERO;
@@ -76,6 +78,12 @@ public final class FakeEngineServer implements AutoCloseable {
         return respond(path, status, status == 200 ? "application/json" : "application/problem+json", fixture(fixtureName));
     }
 
+    /** An answer used once, before the route's own answer: queue two to script "422 first, then 200". */
+    public FakeEngineServer queue(String path, int status, String contentType, String body) {
+        queued.computeIfAbsent(path, key -> new ConcurrentLinkedQueue<>()).add(new Canned(status, contentType, body, null));
+        return this;
+    }
+
     public FakeEngineServer redirect(String path, String location) {
         routes.put(path, new Canned(302, "text/plain", "", location));
         return this;
@@ -96,6 +104,7 @@ public final class FakeEngineServer implements AutoCloseable {
     /** Forget the recorded requests, the canned answers and the delay (for a server shared by the tests of a class). */
     public FakeEngineServer reset() {
         routes.clear();
+        queued.clear();
         requests.clear();
         delay = Duration.ZERO;
         bodyStall = Duration.ZERO;
@@ -121,7 +130,9 @@ public final class FakeEngineServer implements AutoCloseable {
                 Thread.currentThread().interrupt();
             }
         }
-        Canned canned = routes.getOrDefault(path, new Canned(404, "text/plain", "", null));
+        ConcurrentLinkedQueue<Canned> scripted = queued.get(path);
+        Canned next = scripted == null ? null : scripted.poll();
+        Canned canned = next != null ? next : routes.getOrDefault(path, new Canned(404, "text/plain", "", null));
         byte[] bytes = canned.body().getBytes(StandardCharsets.UTF_8);
         exchange.getResponseHeaders().add("Content-Type", canned.contentType());
         if (canned.location() != null) {

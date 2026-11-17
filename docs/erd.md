@@ -15,16 +15,17 @@
 | SEC-01 | Authentication schema: `member.role` and `refresh_token` (Flyway V4). / 인증 스키마: `member.role`과 `refresh_token`(Flyway V4). | 완료 |
 | M1-05 | Collected data: `job_run` and `asset_daily_price` (Flyway V5); FX and indicator tables sketched (10.6). / 수집 데이터: `job_run`과 `asset_daily_price`(Flyway V5), 환율·지표 테이블은 스케치(10.6). | 완료 |
 | MVP-18 | Season score and rating: `season_score` and `rating_history` (Flyway V8, the number is final at merge) in 11. / 시즌 점수와 레이팅: `season_score`와 `rating_history`(Flyway V8, 번호는 머지 때 확정), 11절. | 스키마 완료 |
+| M2-06 | Projection: `projection` (Flyway V9, the number is final at merge) in 12. / 예상 분포: `projection`(Flyway V9, 번호는 머지 때 확정), 12절. | 스키마 완료 |
 
 **정본 규칙:** 타입·키·제약 이름·구분값은 이 문서가 정본이다. [PLAN.md](PLAN.md)나 [SPRING_JPA.md](SPRING_JPA.md)와 어긋나면 이 문서를 따르고, 어긋난 문서를 같은 PR에서 고친다(PLAN §12).
 
 **표기(D10):** 소유자의 ERDCloud 노트 형식을 따른다. 약어: PK(Primary Key, 기본 키), FK(Foreign Key, 외래 키), UK(Unique Key, 유일 키), NN(NOT NULL, 빈 값 불가). 엔티티는 `논리명 (물리명)`, 컬럼은 `타입 물리명 키 "논리명 | NN | 기본값"`. 선에 붙은 기호는 최소(`o` 선택, `|` 필수), 엔티티 쪽 기호는 최대(`|` 1, `{` N)이고, `--`은 식별 관계, `..`은 비식별 관계이다. Mermaid는 선 모양이 키 구성과 맞는지 검사하지 않으므로 표로 따로 확인한다.
 
-**문서 구성:** 2 공통 규칙 → 3 전체 관계도 → 4 설계 질문 답 → 5 역사 데이터와 종목 풀 → 6 회원·시즌·피드·대사 → 7 시즌 계좌 → 8 설계 결정 → 9 하류 기능 약속 → 10 수집 데이터(M1) → 11 시즌 점수와 레이팅(MVP-18). 부록은 없다 — v1 계좌 정의는 7절로 옮겨 v2로 바꿨고 v1과의 대응은 7.6에 있다.
+**문서 구성:** 2 공통 규칙 → 3 전체 관계도 → 4 설계 질문 답 → 5 역사 데이터와 종목 풀 → 6 회원·시즌·피드·대사 → 7 시즌 계좌 → 8 설계 결정 → 9 하류 기능 약속 → 10 수집 데이터(M1) → 11 시즌 점수와 레이팅(MVP-18) → 12 예상 분포(M2-06). 부록은 없다 — v1 계좌 정의는 7절로 옮겨 v2로 바꿨고 v1과의 대응은 7.6에 있다.
 
 ## 2. 공통 규칙 (PostgreSQL 17)
 
-The rules of this section apply to every confirmed table (22 through P0-04, 23 from SEC-01 / Flyway V4, 25 from M1-05 / Flyway V5, 28 from AG-02 / Flyway V6). / 이 절의 규칙은 확정 테이블 모두(P0-04까지 22개, SEC-01(Flyway V4)부터 23개, M1-05(Flyway V5)부터 25개, AG-02(Flyway V6)부터 28개)에 적용된다. 6절·7절의 정의서도 같은 규칙을 쓴다.
+The rules of this section apply to every confirmed table (22 through P0-04, 23 from SEC-01 / Flyway V4, 25 from M1-05 / Flyway V5, 28 from AG-02 / Flyway V6, 30 from MVP-18 / Flyway V8, 31 from M2-06 / Flyway V9). / 이 절의 규칙은 확정 테이블 모두(P0-04까지 22개, SEC-01(Flyway V4)부터 23개, M1-05(Flyway V5)부터 25개, AG-02(Flyway V6)부터 28개, MVP-18(Flyway V8)부터 30개, M2-06(Flyway V9)부터 31개)에 적용된다. 6절·7절의 정의서도 같은 규칙을 쓴다.
 
 - **DB:** PostgreSQL 17, 스키마는 `public` 하나(D21). DB는 `ENCODING 'UTF8'`로 만든다(구체 명령은 DDL 기능의 `db/README.md`).
 - **키:** 모든 테이블은 대리 키 `id BIGINT GENERATED ALWAYS AS IDENTITY`를 쓰고 PK 이름은 `pk_{테이블}`이다. 자연 키(적재에 쓰는 코드)는 `UNIQUE`로만 둔다. 예외는 `cash_account`(7.3, PK = `season_id`, 식별 1:1)이다(D12, v1 D6).
@@ -66,11 +67,11 @@ The rules of this section apply to every confirmed table (22 through P0-04, 23 f
 
 ## 3. 전체 관계도
 
-확정 25개와 MVP 스케치 1개는 3.1에, EXT 이후 스케치 16개와 에이전트 스케치(PLAN v3) 6개는 3.2에 따로 그린다. Each diagram has at most 26 entities, so it stays readable. / 한 그림이 26개 이하라 읽히고, 확정과 스케치가 그림 단위로 구분된다. 같은 엔티티 이름이 여러 그림에 나오는 것은 앵커이다.
+확정 테이블은 3.1에, EXT 이후 스케치 16개와 에이전트 스케치(PLAN v3) 6개는 3.2에 따로 그린다. Each diagram has at most 26 entities, so it stays readable. / 한 그림이 26개 이하라 읽히고, 확정과 스케치가 그림 단위로 구분된다. 같은 엔티티 이름이 여러 그림에 나오는 것은 앵커이다.
 
-### 3.1 확정 25개 + MVP 스케치 1개
+### 3.1 확정 테이블
 
-컬럼 없이 이름과 관계선만 그린다(컬럼은 5절·6절·7절). R1–R8은 5절에서, R9–R22는 6절에서, R23–R32는 7절에서 확정한 관계이다. R33–R34 in §6 (SEC-01). / R33–R34는 6절(SEC-01)에서, R37–R39는 11절(MVP-18)에서 확정한 관계이다. 바뀌면 이 그림과 4절 표를 같은 PR에서 고친다. MVP 스케치는 라벨에 "(스케치)"를 붙이며 MVP에서 컬럼을 확정한다.
+컬럼 없이 이름과 관계선만 그린다(컬럼은 5절·6절·7절). R1–R8은 5절에서, R9–R22는 6절에서, R23–R32는 7절에서 확정한 관계이다. R33–R34 in §6 (SEC-01). / R33–R34는 6절(SEC-01)에서, R37–R39는 11절(MVP-18)에서, R40은 12절(M2-06)에서 확정한 관계이다. 바뀌면 이 그림과 4절 표를 같은 PR에서 고친다. MVP 스케치는 라벨에 "(스케치)"를 붙이며 MVP에서 컬럼을 확정한다.
 
 ```mermaid
 erDiagram
@@ -98,7 +99,7 @@ erDiagram
     HOLDING["보유 (holding)"]
     CASH_LEDGER["현금 원장 (cash_ledger)"]
     SEASON_SCORE["시즌 점수 (season_score)"]
-    PROJECTION["예상 분포 (projection) (스케치)"]
+    PROJECTION["예상 분포 (projection)"]
     RATING_HISTORY["레이팅 이력 (rating_history)"]
     ASSET_GROUP ||..o{ ASSET : "R1 분류한다"
     ASSET ||..o{ ASSET_POSITION : "R2 기준일마다 판정된다"
@@ -135,12 +136,12 @@ erDiagram
     MEMBER ||..o{ REFRESH_TOKEN : "R33 토큰을 발급받는다"
     REFRESH_TOKEN |o..o| REFRESH_TOKEN : "R34 다음 토큰으로 회전한다"
     SEASON ||--o| SEASON_SCORE : "R37 점수를 받는다"
-    SEASON ||..o{ PROJECTION : "스케치 예상을 남긴다"
+    SEASON ||..o{ PROJECTION : "R40 예상 분포를 남긴다"
     MEMBER ||..o{ RATING_HISTORY : "R38 레이팅을 갖는다"
     SEASON_SCORE ||..o| RATING_HISTORY : "R39 레이팅을 만든다"
 ```
 
-R9–R22와 R33–R34의 관계 요약은 6.2에, R23–R32는 7.2에, R37–R39는 11.2에 있다. MVP 스케치 1개(`projection`)의 관계는 위 그림의 "스케치" 선이며 MVP에서 컬럼과 함께 확정한다.
+R9–R22와 R33–R34의 관계 요약은 6.2에, R23–R32는 7.2에, R37–R39는 11.2에, R40은 12.2에 있다. `projection`은 M2-06(Flyway V9)에서 컬럼과 함께 확정했다 — Confirmed with its columns in M2-06 (Flyway V9).
 
 ### 3.2 EXT 이후 스케치 관계도
 
@@ -245,7 +246,7 @@ PLAN §5.3의 질문 1–7과 Phase 0 기능 표의 질문 Q8–Q13에 대한 �
 | 1 | `cash_account`의 PK = `season_id`(식별 1:1). `member` 1 : `season` 0..N. "진행 중 최대 3개"는 행 집합 규칙이라 서비스 검증이 맡는다(**P0-30 구현:** `FINISHED`가 아닌 시즌 수 — `ABANDONING` 포함 — 를 `member` 행 잠금 아래에서 센다) | 7.3 `cash_account`, 6.3 `season`, 6.5 서비스 규칙 | — |
 | 2 | `season_path`는 시즌 시작 때 전부 저장하고 `UNIQUE (season_id, turn_no)`. 시즌에 시드·엔진 버전·데이터 스냅샷 날짜(PLAN §4.2)와 **기준일**(어느 `asset_position` 스냅샷을 쓰는지)을 둔다 | 6.3 `season`·`season_path`, 검증 규칙 S1·S2 | 기준일 컬럼 추가(D14에서 생김). `base_date`는 FK 대상이 없어 검증 규칙 S2가 본다 |
 | 3 | 원화 단일 계좌, 체결 시 환산. 수익률은 현지 통화(`asset_month_return`), 환율 변화는 `fx_month`, 원화 가격은 `turn_price`를 만들 때 결합한다 | 5.3 `asset_month_return`·`fx_month`, 6.3 `turn_price` | — |
-| 4 | `projection`은 시즌 시작·종료 시점 것만 저장한다. Phase 0은 스케치, MVP에서 확정 | 3.1 스케치 | — |
+| 4 | `projection`은 시즌 시작·종료 시점 것만 저장한다. Phase 0은 스케치, M2-06에서 확정. Answered (M2-06): only START and END are stored; the current team's projection is computed on request. / 답(M2-06): START와 END만 저장하고, 현재 팀의 예상 분포는 요청 때 계산한다. | 3.1, 12절 | `projection` 확정(Flyway V9) |
 | 5 | 축 4개의 방향·강도와 국면 확률 4개는 `month_block` 컬럼(NULL 허용), 지표 14개 변환값은 MVP 데이터 준비 때 컬럼 vs JSONB를 정한다(PLAN §5.3 질문 5 현재 문구와 같음) | 5.3 `month_block` | — |
 | 6 | `lineup`(보유 구간마다 한 행, 끝 턴 NULL = 보유 중). **같은 종목의 열린 구간 1개는 부분 유일 인덱스**(`CREATE UNIQUE INDEX … ON lineup (season_id, asset_id) WHERE end_turn IS NULL`)로 DDL이 막고, 나머지 겹침(열린 구간과 닫힌 구간, 닫힌 구간끼리)은 검증 쿼리가 본다 | 6.3 `lineup`, 대사 규칙 17·18 | 대사 → **DDL 강제**로 바뀜(문법 제한이 없어지고 PostgreSQL 부분 인덱스를 쓸 수 있게 됨). 구간은 반열림이고, 부분 인덱스는 FK 인덱스를 겸하지 못해 전체 인덱스 `idx_lineup_season_asset`를 따로 둔다(D26). 규칙 18이 열린 구간을 포함하도록 넓어짐 |
 | 7 | `season`에 시작 4개 + 현재 4개(`SMALLINT`), 합 100·범위 0–100·골키퍼 ≥ 1 CHECK를 시작·현재 각각, `formation_change` 이력. 현재 = 마지막 변경의 이후 값은 대사 항목 | 6.3 `season`·`formation_change`, 대사 규칙 15 | 비중 타입이 `SMALLINT`로 정해짐(v1에서 바뀐 점 참고). 범위 CHECK 2개 추가 — 합 100만으로는 −10·110을 못 막는다 |
@@ -1676,6 +1677,7 @@ v2에서 새로 생긴 FK는 R26·R27(`orders`의 복합 FK)과 6절의 14개다
 | MVP-16/18 점수·레이팅 | Rating excludes a season whose `notStarted` is true (`AbandonRules.notStarted`, one function); reaction scores ignore turns above `abandoned_turn_no` (auto turns still write `turn_feed` and nudges that nobody played). / 레이팅은 `notStarted`가 true인 시즌을 뺀다(`AbandonRules.notStarted`, 함수 하나). 반응 점수는 `abandoned_turn_no`보다 큰 턴을 무시한다(자동 턴도 `turn_feed`와 독려 알림을 쓰지만 아무도 하지 않은 턴이다). |
 | M4 프로필 | The profile shows the count of not-started abandons, taken from the same derived value. / 프로필은 같은 계산값으로 미시작 포기 횟수를 보여 준다. |
 | AG-02 A5 | The runner abandon route is a thin route over `SeasonAbandonService` (no member-kind refusal there). / 러너의 포기 경로는 `SeasonAbandonService` 위의 얇은 경로다(서비스에는 회원 종류 거절이 없다). |
+| M2-06 예상 분포 | `projection` rows are written only by `ProjectionService` (one INSERT, no UPDATE, no DELETE): START from the turn-0 orders, their executions and the cash ledger (the opening deposit and the turn-0 order rows) priced at `turn_price(0)`; END from the holdings and cash of a `FINISHED` season priced at `turn_price(path_length)`. A concurrent second writer fails on `uq_projection_season_phase` and reads the stored row. The engine call is made outside any transaction. A response carries ratios turned to won once by `MoneyMath.scaleByMultiple`, and never `request`, the versions or the digest. MVP-18 reads the stored START row for its path percentile. / `projection` 행은 `ProjectionService`만 쓴다(INSERT 한 번, UPDATE·DELETE 없음): START는 0턴 주문·체결과 현금 원장(입금과 0턴 주문 행)을 `turn_price(0)`로 평가하고, END는 `FINISHED` 시즌의 보유·현금을 `turn_price(path_length)`로 평가한다. 동시에 쓰는 두 번째 요청은 `uq_projection_season_phase`에서 실패하고 저장된 행을 읽는다. 엔진 호출은 트랜잭션 밖에서 한다. 응답은 비율을 `MoneyMath.scaleByMultiple`로 한 번만 원화로 바꿔 싣고, `request`·버전·요약은 싣지 않는다. MVP-18은 경로 백분위에 저장된 START 행을 읽는다. |
 | MVP-13 주문 출발점 | Java (MVP-13) checks S6 in `OrderService` before any write and answers `SOURCE_NOT_VISIBLE` (SQL: `INVALID_FEED_REFERENCE`). Java adds two rules SQL does not have: an item with an asset must match the order's asset, and `RANKING` needs the asset on that turn's board. Verification S6/S7 stays valid because every Java-written row is a subset of what S6 accepts. / Java(MVP-13)는 쓰기 전에 `OrderService`에서 S6을 검사하고 `SOURCE_NOT_VISIBLE`로 답한다(SQL은 `INVALID_FEED_REFERENCE`). SQL에 없는 규칙 둘을 더한다: 종목이 적힌 항목은 주문 종목과 같아야 하고, `RANKING`은 그 턴 순위판에 그 종목이 있어야 한다. Java가 쓴 행은 모두 S6이 받는 행의 부분집합이라 검증 S6·S7은 그대로 유효하다. |
 
 ## 10. Collected data / 수집 데이터
@@ -1962,3 +1964,83 @@ A `CHECK` sees one row only. The writer (MVP-18 PR B) keeps these rules and its 
 | S4 | `seq_no` is contiguous per (member, pillar) and follows the finish order of the counted seasons (the finish time of the last turn, then the season id). / `seq_no`는 (회원, 기둥)마다 빈틈이 없고 집계 시즌의 끝난 순서를 따른다(마지막 턴의 기록 시각, 그다음 시즌 번호). | MVP-18 PR B |
 | S5 | A score row with a `rating_exclusion` has no rating row; a row without one has exactly one. / 제외 사유가 있는 점수 행에는 레이팅 행이 없고, 없는 행에는 정확히 하나 있다. | MVP-18 PR B |
 | S6 | `rating_history.rating` equals the weighted mean of the member's last `seasons_used` counted scores (`RatingCalculator`). / `rating_history.rating`은 회원의 집계 점수 최근 `seasons_used`개의 가중 평균과 같다. | MVP-18 PR B |
+
+## 12. Projection / 예상 분포
+
+M2-06 (Flyway V9; the number is final at merge) adds one append-only table to the `public` schema. `projection` stores two projections per season: START (the team after turn-0 team building, at turn-0 prices) and END (the final team of a finished season). Rows are immutable and hold ratios only; won values are computed on read. The projection of the current team is computed on request and never stored (4, Q4). / M2-06(Flyway V9, 번호는 머지 때 확정)은 `public` 스키마에 추가 전용 테이블 하나를 더한다. `projection`은 시즌마다 예상 분포 두 개를 저장한다: START(0턴 팀 구성 뒤의 팀, 0턴 가격)와 END(끝난 시즌의 마지막 팀). 행은 바뀌지 않고 비율만 담으며, 원화 값은 읽을 때 계산한다. 현재 팀의 예상 분포는 요청 때 계산하고 저장하지 않는다(4절 Q4).
+
+### 12.1 Relationship diagram / 관계도
+
+`season` is a parent from another section, so only its name is drawn. / `season`은 다른 절의 부모라 이름만 그린다.
+
+```mermaid
+erDiagram
+    SEASON ||..o{ PROJECTION : "R40"
+```
+
+### 12.2 Relationship summary / 관계 요약
+
+| # | 부모 → 자식 | 카디널리티 | 선 | 근거 |
+|---|---|---|---|---|
+| R40 | `season` → `projection` | 1 : 0..2 | 비식별 `..` | `fk_projection_season`. At most one row per phase, enforced by `uq_projection_season_phase` (`season_id`, `phase`). / 시즌마다 시점당 많아야 한 행이며 `uq_projection_season_phase`가 막는다. |
+
+### 12.3 Entity definitions / 엔티티 정의서
+
+The exposure tag (`[노출]`/`[내부]`) leads each comment. The FK is `ON DELETE RESTRICT ON UPDATE RESTRICT` (2). The table is append-only: the application role may only SELECT and INSERT (`db/callback/afterMigrate.sql`), and the JPA entity is `@Immutable` with no setters. `history_digest` is `VARCHAR(64)` with a CHECK instead of `CHAR(64)`, so Hibernate's schema check sees one string type. / 코멘트 맨 앞에 노출 태그를 둔다. FK는 `ON DELETE RESTRICT ON UPDATE RESTRICT`(2절)다. 이 테이블은 추가 전용이라 애플리케이션 역할은 SELECT와 INSERT만 하고(`db/callback/afterMigrate.sql`) JPA 엔티티는 `@Immutable`이며 setter가 없다. `history_digest`는 `CHAR(64)`가 아니라 `VARCHAR(64)`와 CHECK다 — Hibernate 스키마 검사가 문자열 타입 하나만 보게 하려는 것이다.
+
+#### Projection / 예상 분포 (projection)
+
+| 키 | 논리명 | 물리명 | 타입 | NULL | 기본값 | 코멘트 |
+| --- | --- | --- | --- | --- | --- | --- |
+| PK | 번호 | id | BIGINT | NN | IDENTITY | `[내부]` `pk_projection`. |
+| FK | 시즌번호 | season_id | BIGINT | NN |  | `[내부]` → season.id (R40). `fk_projection_season`; part of `uq_projection_season_phase`. |
+|  | 시점 | phase | VARCHAR(5) | NN |  | `[노출]` `ck_projection_phase`: `phase IN ('START','END')`. The constants equal the Java `ProjectionPhase`. |
+|  | 기준 턴 번호 | turn_no | SMALLINT | NN |  | `[노출]` `ck_projection_turn_no`: `turn_no >= 0`. START = 0, END = the season's `path_length` (checked by the service test, not by DDL). |
+|  | 기준 총 평가액 | total_value | NUMERIC(19,4) | NN |  | `[노출]` `ck_projection_total_value`: whole won above 0, NaN rejected. Cash plus holdings valued at the prices of `turn_no`; the base that turns the stored ratios into won. / 현금과 보유를 `turn_no`의 가격으로 평가한 값. 저장한 비율을 원화로 바꾸는 기준이다. |
+|  | 내다본 턴 수 | horizon_turns | SMALLINT | NN |  | `[노출]` `ck_projection_horizon_turns`: 60 or 120. 120 is asked first; 60 is stored when the history cannot carry 120. / 120을 먼저 묻고, 이력이 받쳐 주지 못하면 60을 저장한다. |
+|  | 경로 수 | path_count | INTEGER | NN |  | `[노출]` `ck_projection_path_count`: 100–5000. |
+|  | 엔진에 보낸 포트폴리오 | request | JSONB | NN |  | `[내부]` `ck_projection_request`: a JSON object with `riskLimit`, `summaryTurns` and `portfolios` (the TEAM shares). No seed and no base date; those are `season` columns. |
+|  | 엔진 결과 | result | JSONB | NN |  | `[노출]` `ck_projection_result`: a JSON array, the engine's `portfolios` with ratios as strings (value multiples, drawdowns, probabilities). No month, no won amount, no per-path value. The response turns the multiples into won with `total_value`. |
+|  | 예상 분포 버전 | projection_version | VARCHAR(20) | NN |  | `[내부]` `ck_projection_versions`: not empty. First value `m2-pj-v1`. |
+|  | 엔진 버전 | engine_version | VARCHAR(20) | NN |  | `[내부]` `ck_projection_versions`: not empty. First value `m2-sb6-v1`. |
+|  | 이력 요약 | history_digest | VARCHAR(64) | NN |  | `[내부]` `ck_projection_history_digest`: `^[0-9a-f]{64}$`. The engine's SHA-256 of the history it read; stored, not recomputed in Java. / 엔진이 읽은 이력의 SHA-256이다. 저장만 하고 Java에서 다시 계산하지 않는다. |
+|  | 생성일시 | created_at | TIMESTAMPTZ | NN | now() | `[내부]` |
+
+### 12.4 Constraints and indexes / 제약과 인덱스
+
+Notation follows 6.4 (표기는 6.4와 같다). `ProjectionSchemaTest` compares this list with `pg_catalog` and breaks each rule once. / `ProjectionSchemaTest`가 이 목록을 `pg_catalog`와 대조하고 규칙마다 한 번씩 깬다.
+
+| 이름 | 종류 | 테이블 | 정의 |
+|---|---|---|---|
+| pk_projection | PK | projection | (id) |
+| uq_projection_season_phase | UQ | projection | (season_id, phase) |
+| fk_projection_season | FK | projection | (season_id) → season.id (R40) |
+| ck_projection_phase | CK | projection | phase IN ('START','END') |
+| ck_projection_turn_no | CK | projection | turn_no >= 0 |
+| ck_projection_total_value | CK | projection | total_value > 0 AND total_value = ROUND(total_value, 0) AND total_value <> 'NaN'::numeric |
+| ck_projection_horizon_turns | CK | projection | horizon_turns IN (60, 120) |
+| ck_projection_path_count | CK | projection | path_count BETWEEN 100 AND 5000 |
+| ck_projection_request | CK | projection | jsonb_typeof(request) = 'object' |
+| ck_projection_result | CK | projection | jsonb_typeof(result) = 'array' |
+| ck_projection_versions | CK | projection | projection_version <> '' AND engine_version <> '' |
+| ck_projection_history_digest | CK | projection | history_digest ~ '^[0-9a-f]{64}$' |
+| ck_projection_start_turn | CK | projection | phase <> 'START' OR turn_no = 0 (added by Flyway V10, the number is final at merge / V10에서 더함, 번호는 머지 때 확정) |
+
+**Counts / 개수:**
+
+| 테이블 | PK | UNIQUE(제약) | UNIQUE 인덱스(`uq_`) | FK | CHECK | INDEX(`idx_`) |
+|---|---|---|---|---|---|---|
+| projection | 1 | 1 | 0 | 1 | 9 | 0 |
+| **§12 소계** | **1** | **1** | **0** | **1** | **9** | **0** |
+
+### 12.5 Rules DDL cannot enforce / DDL로 막지 못해 검사할 규칙
+
+A `CHECK` sees one row only. The writer (`ProjectionService`) keeps these rules and its tests check them. / `CHECK`는 한 행 안만 본다. 아래 규칙은 쓰는 쪽(`ProjectionService`)이 지키고 그 시험이 검사한다.
+
+| # | 규칙 | 검사하는 기능 |
+|---|---|---|
+| J1 | A START row exists only once the season is past turn 0; an END row only for a `FINISHED` season. / START 행은 시즌이 0턴을 지난 뒤에만, END 행은 `FINISHED` 시즌에만 있다. | M2-06 |
+| J2 | `turn_no` is 0 for START and the season's `path_length` for END. / `turn_no`는 START에서 0, END에서 시즌의 `path_length`다. | M2-06 |
+| J3 | `total_value` equals cash plus the holdings valued at `turn_price(turn_no)` for the team the row was built from. / `total_value`는 행을 만든 팀의 현금에 보유를 `turn_price(turn_no)`로 평가해 더한 값과 같다. | M2-06 |
+| J4 | The request carries the season seed and base date only on the wire, never in `request`; nothing in a row is read from `season_path`. / 시드와 기준일은 엔진에 보내는 요청에만 실리고 `request`에는 없으며, 행의 어떤 값도 `season_path`에서 읽지 않는다. | M2-06 |
+| J5 | START cash is the balance after the last ledger row that is the opening deposit or refers to a turn-0 order. An `ADJUSTMENT` row without such a reference is not part of START; when `ADJUSTMENT` gets a writer, it must reference the order or this rule changes. / START 현금은 입금 또는 0턴 주문을 가리키는 마지막 원장 행의 거래 후 잔액이다. 그런 참조가 없는 `ADJUSTMENT` 행은 START에 들어가지 않는다. `ADJUSTMENT`에 쓰는 쪽이 생기면 주문을 참조하게 하거나 이 규칙을 바꾼다. | M2-06 |

@@ -128,6 +128,10 @@ Content-Type: application/json
 GET {{base}}/api/v1/seasons/{{season}}/holdings
 Authorization: Bearer {{token}}
 
+### 5b. Optional: how the team's value could spread over the coming turns. It needs the engine; 503 ENGINE_UNAVAILABLE means the engine is not running. / 선택: 팀 가치가 앞으로 퍼질 수 있는 범위. 엔진이 필요하다. 503 ENGINE_UNAVAILABLE 이면 엔진이 떠 있지 않다.
+GET {{base}}/api/v1/seasons/{{season}}/projection
+Authorization: Bearer {{token}}
+
 ### 6. Optional: the development reconciliation check (local profile only, outside the contract). It writes a 15-rule check to the log.
 # Needs role ADMIN: run UPDATE member SET role = 'ADMIN' WHERE lower(email) = lower('<email>') once in psql, then log in again.
 # 선택: 개발용 수동 대사(local 프로필 전용, 계약 밖). 15개 규칙 대사를 로그에 남긴다.
@@ -286,6 +290,10 @@ Authorization: Bearer {{token}}
 
 ###
 GET {{base}}/api/v1/seasons/{{season}}/review
+Authorization: Bearer {{token}}
+
+###
+GET {{base}}/api/v1/seasons/{{season}}/projection?phase=END
 Authorization: Bearer {{token}}
 
 ###
