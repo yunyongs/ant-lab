@@ -203,6 +203,59 @@ class RuntimeSmokeScriptTest {
     }
 
     @Test
+    void api_log_texts_are_read_from_json_fields_and_never_grepped_raw() throws IOException {
+        List<String> code = codeLines();
+        // Inside a JSON line the quotes of the Hikari message are escaped, so a raw grep for them cannot match.
+        assertThat(code).noneMatch(l -> l.contains("grep") && l.contains("must start with"));
+        assertThat(code).noneMatch(l -> l.contains("grep") && l.contains("Application run failed"));
+        assertThat(code).filteredOn(l -> l.contains("json_lines_only \"$work/")).hasSize(2);
+        assertThat(code).anyMatch(l -> l.contains("json_lines_only \"$work/startfail.log\""));
+        assertThat(code).anyMatch(l -> l.contains("json_lines_only \"$work/api.log\""));
+        assertThat(code).anyMatch(l -> l.contains("dc logs --no-log-prefix api"));
+        // Raw text checks that stay valid on JSON: no fallback to localhost, no signing key.
+        assertThat(String.join("\n", code)).contains("localhost:5432|Connection to .* refused", "*\"$jwt_key\"*");
+    }
+
+    /** The two inline python helpers are run against crafted logs: JSON escaping, plain lines, flat and nested fields. */
+    @Test
+    void the_json_log_helpers_accept_json_and_reject_plain_lines(@TempDir Path dir) throws Exception {
+        String source = String.join("\n", scriptLines());
+        String onlyPy = helperSource(source, "json_lines_only");
+        String textPy = helperSource(source, "json_log_text");
+
+        Path good = dir.resolve("good.log");
+        Files.writeString(good, "{\"message\":\"a \\\"quoted\\\" word\",\"log\":{\"level\":\"INFO\"}}\n\n"
+                + "{\"message\":\"boom\",\"error.message\":\"flat \\\"x\\\"\",\"error\":{\"stack_trace\":\"trace line\"}}\n");
+        assertThat(python(onlyPy, good).exit()).as("every line is a JSON object").isZero();
+        Run text = python(textPy, good);
+        assertThat(text.exit()).isZero();
+        assertThat(text.output()).contains("a \"quoted\" word", "flat \"x\"", "trace line", "boom");
+
+        Path plain = dir.resolve("plain.log");
+        Files.writeString(plain, "{\"message\":\"ok\"}\n2026-11-17 12:00:00 INFO plain text line\n");
+        Run rejected = python(onlyPy, plain);
+        assertThat(rejected.exit()).isEqualTo(1);
+        assertThat(rejected.output()).contains("line 2 is not a JSON object");
+        Path array = dir.resolve("array.log");
+        Files.writeString(array, "[1, 2]\n");
+        assertThat(python(onlyPy, array).exit()).as("a JSON array is not a log event").isEqualTo(1);
+        // The text helper skips plain lines instead of failing; the strict check is json_lines_only.
+        assertThat(python(textPy, plain).output()).contains("ok").doesNotContain("plain text line");
+    }
+
+    private static String helperSource(String script, String function) {
+        Matcher m = Pattern.compile(function + "\\(\\) \\{\\s*python3 -c '(.*?)' \"\\$1\"", Pattern.DOTALL).matcher(script);
+        assertThat(m.find()).as("function " + function).isTrue();
+        return m.group(1);
+    }
+
+    private static Run python(String code, Path file) throws Exception {
+        Process process = new ProcessBuilder("python3", "-c", code, file.toString()).redirectErrorStream(true).start();
+        String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        return new Run(process.waitFor(), output);
+    }
+
+    @Test
     void 정상_종료_시험은_진행_중_요청을_기다리고_단언을_모두_가진다() throws IOException {
         List<String> code = codeLines();
         int lock = indexOf(code, l -> l.contains("LOCK TABLE member IN EXCLUSIVE MODE"));

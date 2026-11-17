@@ -171,6 +171,18 @@ spring:
     # Migrations run as the owner role; the URL is the datasource URL.
     user: ${ANTLAB_DB_OWNER_USER:antlab_owner}
     password: ${ANTLAB_DB_OWNER_PASSWORD:}
+  main:
+    # The startup banner is not a log event; with JSON logs it would be the one plain-text line.
+    banner-mode: "off"
+logging:
+  structured:
+    format:
+      # One ECS JSON object per line on stdout (MVP-20 PR B). local, test and default stay plain text.
+      console: ecs
+    ecs:
+      service:
+        # Same value as the metrics tag management.metrics.tags.application.
+        name: antlab-api
 antlab:
   db:
     least-privilege-check: true

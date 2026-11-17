@@ -205,4 +205,31 @@ class ProdProfileConfigTest {
             assertThat(env.getProperty("antlab.db.least-privilege-check")).as("profile '%s'", profile).isEqualTo("false");
         }
     }
+
+    // ---- MVP-20 PR B: structured logs ----
+
+    @Test
+    void prod_writes_ecs_json_logs_for_antlab_api_with_the_banner_off() {
+        ConfigurableEnvironment env = prodEnvironment(Map.of("ANTLAB_DB_URL", URL));
+        assertThat(env.getProperty("logging.structured.format.console")).isEqualTo("ecs");
+        assertThat(env.getProperty("logging.structured.ecs.service.name")).isEqualTo("antlab-api");
+        assertThat(env.getProperty("spring.main.banner-mode")).isEqualTo("off");
+        // The same name labels the metrics, so a log line and a metric point at the same service.
+        assertThat(env.getProperty("management.metrics.tags.application")).isEqualTo("antlab-api");
+    }
+
+    @Test
+    void default_and_local_log_plain_text() {
+        for (String profile : new String[] {"", "local"}) {
+            StandardEnvironment env = isolatedEnvironment();
+            if (profile.isEmpty()) {
+                ConfigDataEnvironmentPostProcessor.applyTo(env, new DefaultResourceLoader(), null);
+            } else {
+                ConfigDataEnvironmentPostProcessor.applyTo(env, new DefaultResourceLoader(), null, profile);
+            }
+            assertThat(env.getProperty("logging.structured.format.console")).as("profile '%s'", profile).isNull();
+            assertThat(env.getProperty("logging.structured.ecs.service.name")).as("profile '%s'", profile).isNull();
+            assertThat(env.getProperty("spring.main.banner-mode")).as("profile '%s'", profile).isNull();
+        }
+    }
 }
