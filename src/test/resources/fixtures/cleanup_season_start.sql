@@ -12,6 +12,7 @@ DELETE FROM formation_change WHERE season_id IN (SELECT s.id FROM season s JOIN 
 DELETE FROM turn_price  WHERE season_id IN (SELECT s.id FROM season s JOIN member m ON m.id = s.member_id WHERE lower(m.email) = 'player@example.invalid');
 DELETE FROM season_path WHERE season_id IN (SELECT s.id FROM season s JOIN member m ON m.id = s.member_id WHERE lower(m.email) = 'player@example.invalid');
 DELETE FROM cash_account WHERE season_id IN (SELECT s.id FROM season s JOIN member m ON m.id = s.member_id WHERE lower(m.email) = 'player@example.invalid');
+DELETE FROM projection  WHERE season_id IN (SELECT s.id FROM season s JOIN member m ON m.id = s.member_id WHERE lower(m.email) = 'player@example.invalid');
 DELETE FROM season WHERE member_id IN (SELECT id FROM member WHERE lower(email) = 'player@example.invalid');
 DELETE FROM asset_month_attention WHERE asset_id IN (SELECT id FROM asset WHERE name LIKE '가짜%');
 DELETE FROM asset_month_return WHERE asset_id IN (SELECT id FROM asset WHERE name LIKE '가짜%');
