@@ -32,6 +32,7 @@ name: antlab
 
 services:
   db:
+    mem_limit: 512m
     image: postgres:17
     environment:
       POSTGRES_USER: ${USER:-antlab}
@@ -58,6 +59,7 @@ services:
     restart: unless-stopped
 
   api:
+    mem_limit: 768m
     profiles: [api]
     build: .
     depends_on:
@@ -110,6 +112,7 @@ services:
     restart: unless-stopped
 
   engine:
+    mem_limit: 512m
     # in profile api too (M2-06): --profile api starts it, so ANTLAB_ENGINE_TOKEN and the antlab_engine role are needed (docs/DEPLOY.md §2)
     profiles: [engine, api]
     build: ./engine
@@ -140,6 +143,7 @@ services:
     restart: unless-stopped
 
   prometheus:
+    mem_limit: 256m
     profiles: [monitoring]
     image: prom/prometheus:v3.16.0
     # Overriding command replaces the image defaults, so both are restated.
@@ -163,6 +167,7 @@ services:
     restart: unless-stopped
 
   grafana:
+    mem_limit: 256m
     profiles: [monitoring]
     image: grafana/grafana:13.3.1
     depends_on:

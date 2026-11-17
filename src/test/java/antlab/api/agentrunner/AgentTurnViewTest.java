@@ -167,7 +167,7 @@ class AgentTurnViewTest {
 
     private void order(Agent a, int turn, OrderSide side, String ticker, int quantity, Position position) {
         acting(a.id(), () -> orders.place(a.season(),
-                new PlaceOrderRequest(turn, side, assetId(ticker), quantity, position)));
+                new PlaceOrderRequest(turn, side, assetId(ticker), quantity, position, null)));
     }
 
     private void advance(Agent a, int fromTurn) {

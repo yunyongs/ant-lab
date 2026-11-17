@@ -34,6 +34,7 @@ public final class ErrorHttpMapping {
             case LEDGER_MISMATCH -> HttpStatus.CONFLICT;
             case LINEUP_MISMATCH -> HttpStatus.CONFLICT;
             case ASSET_NOT_IN_POOL -> HttpStatus.UNPROCESSABLE_ENTITY;
+            case SOURCE_NOT_VISIBLE -> HttpStatus.UNPROCESSABLE_ENTITY;
             case INSUFFICIENT_CASH -> HttpStatus.UNPROCESSABLE_ENTITY;
             case INSUFFICIENT_HOLDING -> HttpStatus.UNPROCESSABLE_ENTITY;
             case POSITION_CONFLICT -> HttpStatus.UNPROCESSABLE_ENTITY;

@@ -319,15 +319,15 @@ class AgentDecisionTest {
         // The same accepted units through the human services, in the same order, for another agent's season.
         Agent h = startAgent();
         Supplier<Object> replay = () -> {
-            orders.place(h.season(), new PlaceOrderRequest(0, OrderSide.BUY, assetId("000660"), 10, Position.FORWARD_BREAKOUT));
-            orders.place(h.season(), new PlaceOrderRequest(0, OrderSide.BUY, assetId("069500"), 100, Position.MIDFIELDER));
-            orders.place(h.season(), new PlaceOrderRequest(0, OrderSide.BUY, assetId("SPY"), 5, Position.DEFENDER));
+            orders.place(h.season(), new PlaceOrderRequest(0, OrderSide.BUY, assetId("000660"), 10, Position.FORWARD_BREAKOUT, null));
+            orders.place(h.season(), new PlaceOrderRequest(0, OrderSide.BUY, assetId("069500"), 100, Position.MIDFIELDER, null));
+            orders.place(h.season(), new PlaceOrderRequest(0, OrderSide.BUY, assetId("SPY"), 5, Position.DEFENDER, null));
             turns.advance(h.season(), 0);
             formations.change(h.season(), new ChangeFormationRequest(1, new FormationDto(10, 20, 30, 40), "shift"));
-            orders.place(h.season(), new PlaceOrderRequest(1, OrderSide.SELL, assetId("000660"), 2, null));
-            orders.place(h.season(), new PlaceOrderRequest(1, OrderSide.SELL, assetId("SPY"), 1, null));
-            orders.place(h.season(), new PlaceOrderRequest(1, OrderSide.BUY, assetId("BRK.B"), 2, Position.GOALKEEPER));
-            orders.place(h.season(), new PlaceOrderRequest(1, OrderSide.BUY, assetId("069500"), 5, null));
+            orders.place(h.season(), new PlaceOrderRequest(1, OrderSide.SELL, assetId("000660"), 2, null, null));
+            orders.place(h.season(), new PlaceOrderRequest(1, OrderSide.SELL, assetId("SPY"), 1, null, null));
+            orders.place(h.season(), new PlaceOrderRequest(1, OrderSide.BUY, assetId("BRK.B"), 2, Position.GOALKEEPER, null));
+            orders.place(h.season(), new PlaceOrderRequest(1, OrderSide.BUY, assetId("069500"), 5, null, null));
             turns.advance(h.season(), 1);
             return null;
         };

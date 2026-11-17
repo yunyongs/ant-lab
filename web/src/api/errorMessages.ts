@@ -22,6 +22,7 @@ export const errorMessages = {
   LEDGER_MISMATCH: '계좌 기록이 맞지 않아 주문을 멈췄습니다.',
   LINEUP_MISMATCH: '보유와 라인업 기록이 맞지 않아 주문을 멈췄습니다.',
   ASSET_NOT_IN_POOL: '이번 턴에 거래할 수 없는 종목입니다.',
+  SOURCE_NOT_VISIBLE: '화면에 보인 항목에서 시작한 주문이 아닙니다.',
   INSUFFICIENT_CASH: '현금이 모자랍니다(대금과 수수료).',
   INSUFFICIENT_HOLDING: '보유 수량보다 많이 팔 수 없습니다.',
   POSITION_CONFLICT: '이미 보유 중인 종목의 포지션과 다릅니다.',
