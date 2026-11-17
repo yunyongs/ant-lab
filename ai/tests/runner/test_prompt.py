@@ -7,6 +7,7 @@ from decimal import Decimal
 import pytest
 from runner_helpers import reply
 
+from antlab_ai.modelport.port import Message
 from antlab_ai.runner import decision, prompt
 from antlab_ai.runner.decision import MAX_TEXT_BYTES, Rejected, parse_reply
 from antlab_ai.runner.persona import load_persona
@@ -207,8 +208,8 @@ def test_prompt_size_guard_is_exact_at_limit_minus_headroom(persona, small_view)
     view["pad"] = ""
     base = prompt._size(
         (
-            prompt.PromptMessage("system", system_message(persona)),
-            prompt.PromptMessage("user", canonical_json(view)),
+            Message("system", system_message(persona)),
+            Message("user", canonical_json(view)),
         )
     )
     view["pad"] = "x" * (limit - base)
@@ -216,3 +217,82 @@ def test_prompt_size_guard_is_exact_at_limit_minus_headroom(persona, small_view)
     view["pad"] += "x"
     with pytest.raises(PromptError):
         build_messages(persona, view)
+
+
+def test_korean_heavy_view_is_measured_as_the_adapters_store_it(persona, small_view):
+    # 80,000 Korean characters: 240 KB as UTF-8 but 480 KB once the adapters write ASCII escapes.
+    view = copy.deepcopy(small_view)
+    view["pad"] = "가" * 80_000
+    with pytest.raises(PromptError):
+        build_messages(persona, view)
+
+
+def test_guard_size_equals_the_stored_request_body_messages(persona, small_view):
+    messages = build_messages(persona, small_view)
+    stored = json.dumps([{"role": m.role, "content": m.content} for m in messages])
+    assert prompt._size(messages) == len(stored.encode("utf-8"))
+
+
+# ---- audit round 1 (C5, C7, C9) ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("value", ["2020-03", " 2020-03", "as of 2020-03", "2020/03", "x1999-12y"])
+def test_year_month_anywhere_in_a_value_is_refused(persona, small_view, value):
+    view = copy.deepcopy(small_view)
+    view["pool"][1]["name"] = value
+    with pytest.raises(LookAheadGuard):
+        build_messages(persona, view)
+
+
+def test_year_month_in_a_key_is_refused(persona, small_view):
+    view = copy.deepcopy(small_view)
+    view["pool"][1]["returns"] = {"2020-03": "0.1"}
+    with pytest.raises(LookAheadGuard):
+        build_messages(persona, view)
+
+
+@pytest.mark.parametrize("value", ["2000.50", "1950.25", "12020-03", "2020", "0.2020"])
+def test_prices_and_ids_that_look_like_years_pass(persona, small_view, value):
+    view = copy.deepcopy(small_view)
+    view["pool"][1]["name"] = value
+    assert build_messages(persona, view)
+
+
+# Per version id: a changed template or schema text must come with a new id.
+PINNED = {
+    "td1-p1": {
+        "template": "ba07cc4d2e4bba93dc9d4008df440106b5cd25f6af083e0372b16fc00a8a420a",
+        "schema": "04ad409bc17f27709d63f77d140ea36726c923ab874b09644e51688f312151f6",
+    }
+}
+
+
+def test_template_and_schema_text_are_pinned_to_the_version_id():
+    import hashlib
+
+    pins = PINNED[PROMPT_TEMPLATE_VERSION]
+    template = hashlib.sha256(prompt.TEMPLATE_PATH.read_bytes()).hexdigest()
+    schema = hashlib.sha256(decision.SCHEMA_PATH.read_bytes()).hexdigest()
+    assert (template, schema) == (pins["template"], pins["schema"])
+
+
+def test_every_validator_keyword_of_the_schema_file_is_in_the_vocabulary():
+    import json as _json
+
+    from jsonschema import Draft202012Validator
+
+    found = set()
+
+    def walk(node, in_properties=False):
+        if isinstance(node, dict):
+            for key, value in node.items():
+                if not in_properties and key in Draft202012Validator.VALIDATORS:
+                    found.add(key)
+                walk(value, in_properties=key in {"properties", "$defs"} and not in_properties)
+        elif isinstance(node, list):
+            for value in node:
+                walk(value)
+
+    walk(_json.loads(decision.SCHEMA_PATH.read_text(encoding="utf-8")))
+    structural = {"properties", "items", "$ref", "$defs", "$schema"}
+    assert found - structural <= decision.KEYWORDS

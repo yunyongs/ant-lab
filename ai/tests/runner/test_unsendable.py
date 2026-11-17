@@ -94,7 +94,7 @@ def test_pointer_never_carries_a_free_form_key():
 def _padded(extra: int) -> str:
     base = reply(theses=[{"p": ""}])
     size = len(serialize(json.loads(base)).encode("utf-8"))
-    return reply(theses=[{"p": "x" * (MAX_TEXT_BYTES - size + extra)}])
+    return serialize(json.loads(reply(theses=[{"p": "x" * (MAX_TEXT_BYTES - size + extra)}])))
 
 
 def test_size_limit_is_inclusive_at_262144_bytes():
@@ -120,3 +120,49 @@ def test_is_storable_matches_the_call_record_rules():
     assert is_storable("x" * MAX_TEXT_BYTES)
     assert not is_storable("x" * (MAX_TEXT_BYTES + 1))
     assert not is_storable("가" * (MAX_TEXT_BYTES // 3 + 1))
+
+
+# ---- audit round 1 (C2, C3) -------------------------------------------------------------------------------
+
+
+def test_lone_surrogate_in_a_reply_is_rejected_not_raised():
+    text = '{"schema":"turn-decision/1","formation_change":null,"orders":[],"theses":[],"reason":"\\ud800"}'
+    assert parse_reply(text) == Rejected((("/reply", "json"),))
+    assert parse_reply("\ud800") == Rejected((("/reply", "json"),))
+
+
+def test_lone_surrogate_in_a_key_is_rejected_not_raised():
+    text = reply().replace('"theses": []', '"theses": [{"\\udc00": 1}]')
+    assert parse_reply(text) == Rejected((("/reply", "json"),))
+
+
+def test_is_storable_is_false_for_a_lone_surrogate():
+    assert is_storable("\ud800") is False
+
+
+def test_duplicate_key_that_hides_a_key_shape_in_the_raw_text_is_rejected():
+    raw = (
+        '{"schema":"turn-decision/1","formation_change":null,"orders":[],"theses":[],'
+        f'"reason":"{KEY_SHAPES[0]}","reason":"hold"}}'
+    )
+    assert not is_storable(raw)
+    assert parse_reply(raw) == Rejected((("/reply", "secret"),))
+
+
+def test_whitespace_padding_beyond_the_text_limit_is_rejected():
+    raw = reply() + " " * (MAX_TEXT_BYTES + 1)
+    assert parse_reply(raw) == Rejected((("/reply", "size"),))
+
+
+def test_raw_text_at_the_limit_is_still_accepted():
+    body = reply()
+    raw = body + " " * (MAX_TEXT_BYTES - len(body.encode("utf-8")))
+    assert len(raw.encode("utf-8")) == MAX_TEXT_BYTES
+    assert isinstance(parse_reply(raw), Parsed)
+
+
+def test_every_accepted_reply_is_storable(corpus, manifest):
+    for entry in manifest["files"]:
+        text = (corpus / entry["file"]).read_text(encoding="utf-8")
+        if isinstance(parse_reply(text), Parsed):
+            assert is_storable(text), entry["file"]

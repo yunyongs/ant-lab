@@ -29,6 +29,9 @@ INT_PATTERN = re.compile(r"(0|[1-9][0-9]{0,2})")
 SECTIONS = ("## 철학", "## 행동 규칙", "## 하지 않는 것")
 
 
+_DATE_IN_BODY = re.compile(r"(?<!\d)(19|20)\d{2}[-/.]?(0[1-9]|1[0-2])(?!\d)|YYYY-MM")
+
+
 class PersonaError(ValueError):
     pass
 
@@ -70,7 +73,7 @@ def _split(text: str) -> tuple[str, str]:
 def _front(raw: str) -> dict[str, object]:
     try:
         data = yaml.load(raw, Loader=_StrictLoader)  # noqa: S506 - BaseLoader subclass, strings only
-    except yaml.YAMLError as exc:
+    except (yaml.YAMLError, TypeError) as exc:
         raise PersonaError("front matter is not valid YAML") from exc
     if not isinstance(data, dict) or set(data) != set(FIELDS):
         raise PersonaError(f"front matter keys must be exactly {', '.join(FIELDS)}")
@@ -102,6 +105,13 @@ def _risk_limit(raw: str) -> Decimal:
     return Decimal(raw)
 
 
+def _checked_body(body: str) -> str:
+    # The persona text must not carry dates: the agent has no calendar (PLAN 4.16).
+    if _DATE_IN_BODY.search(body):
+        raise PersonaError("persona body must not contain a year-month")
+    return body.strip("\n")
+
+
 def parse_persona(content: bytes) -> Persona:
     """Parse persona file bytes. The hash is the SHA-256 of exactly these bytes."""
     try:
@@ -124,6 +134,7 @@ def parse_persona(content: bytes) -> Persona:
         not display_name
         or len(display_name) > DISPLAY_NAME_MAX
         or display_name != display_name.strip()
+        or not display_name.isprintable()
     ):
         raise PersonaError("display_name must be 1-50 characters without edge spaces")
     master_text = _scalar(data, "style_master")
@@ -138,7 +149,7 @@ def parse_persona(content: bytes) -> Persona:
         style_master=style_master,
         default_risk_limit=_risk_limit(_scalar(data, "default_risk_limit")),
         default_formation=_formation(data),
-        body=body.strip("\n"),
+        body=_checked_body(body),
         sha256=hashlib.sha256(content).hexdigest(),
     )
 
