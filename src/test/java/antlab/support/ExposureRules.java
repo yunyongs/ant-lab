@@ -71,7 +71,8 @@ public final class ExposureRules {
             DecisionResultDto.FormationResultDto.class, Set.of("status"),
             DecisionResultDto.OrderUnitResultDto.class, Set.of("index", "status"),
             DecisionResultDto.ThesesResultDto.class, Set.of("status"),
-            DecisionResultDto.SchemaViolationDto.class, Set.of("pointer", "keyword"));
+            DecisionResultDto.SchemaViolationDto.class, Set.of("pointer", "keyword"),
+            antlab.season.AbandonResultDto.class, Set.of("advancedTurns"));
 
     /**
      * The engine's own record of what it rejected in the previous decision: {@code [내부]} in the DB, but the agent is

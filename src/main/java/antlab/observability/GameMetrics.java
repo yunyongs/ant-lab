@@ -40,6 +40,8 @@ public class GameMetrics {
     private final Counter mismatchRules;
     private final Counter seasonHalted;
     private final Counter seasonResumed;
+    private final Counter abandonedStarted;
+    private final Counter abandonedNotStarted;
 
     public GameMetrics(MeterRegistry registry) {
         this.registry = registry;
@@ -56,6 +58,19 @@ public class GameMetrics {
         this.seasonResumed = Counter.builder("antlab.season.resumed")
                 .description("Halted seasons resumed by an administrator; counted only when a season really resumed")
                 .register(registry);
+        // Two bounded series, both pre-registered so rate() sees the first event of either.
+        this.abandonedStarted = abandonedCounter(false);
+        this.abandonedNotStarted = abandonedCounter(true);
+    }
+
+    private Counter abandonedCounter(boolean notStarted) {
+        return Counter.builder("antlab.season.abandoned")
+                .description("Seasons abandoned by a member; counted once, by the request that set the mark")
+                .tag("not_started", Boolean.toString(notStarted)).register(registry);
+    }
+
+    public void seasonAbandoned(boolean notStarted) {
+        safely((notStarted ? abandonedNotStarted : abandonedStarted)::increment);
     }
 
     public void seasonHalted() {

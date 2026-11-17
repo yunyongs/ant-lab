@@ -2,6 +2,7 @@ package antlab.season;
 
 import antlab.common.exposure.ExposedFrom;
 import antlab.common.money.MoneyMath;
+import antlab.member.MemberKind;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.media.Schema.RequiredMode;
 import java.math.BigDecimal;
@@ -52,14 +53,29 @@ public record SeasonDto(
         @ExposedFrom("season.fx_spread_rate")
         @Schema(requiredMode = RequiredMode.REQUIRED, description = "Currency exchange cost rate, 8 decimal "
                 + "places / 환전 비용률, 소수 8자리")
-        BigDecimal fxSpreadRate) {
+        BigDecimal fxSpreadRate,
+        @ExposedFrom("season.abandoned_turn_no")
+        @Schema(requiredMode = RequiredMode.REQUIRED, types = {"integer", "null"}, description = "The turn at which the "
+                + "season was abandoned. null if it was not abandoned / 포기한 턴. 포기하지 않았으면 null")
+        Integer abandonedTurnNo,
+        @ExposedFrom("season.abandoned_turn_no")
+        @Schema(requiredMode = RequiredMode.REQUIRED, description = "True for a human member who abandoned before "
+                + "turn 3 (derived from the abandon turn and the member kind; not stored) / 사람 회원이 3턴 전에 포기하면 "
+                + "true(포기 턴과 회원 종류에서 계산, 저장하지 않는다)")
+        Boolean notStarted) {
 
-    public static SeasonDto from(Season s, BigDecimal cashBalance) {
+    /** A season that was just started: nothing is abandoned yet, so the member kind does not matter. */
+    public static SeasonDto forNewSeason(Season s, BigDecimal cashBalance) {
+        return from(s, cashBalance, MemberKind.HUMAN);
+    }
+
+    public static SeasonDto from(Season s, BigDecimal cashBalance, MemberKind memberKind) {
         return new SeasonDto(s.getId(), s.getStatus(), s.getCurrentTurnNo(), s.getPathLength(),
                 MoneyMath.exactRate(s.getRiskLimit()),
                 FormationDto.from(s.getStartFormation()), FormationDto.from(s.getCurrentFormation()),
                 MoneyMath.exactWon(s.getInitialCash()), MoneyMath.exactWon(cashBalance),
                 MoneyMath.exactRate(s.getFeeRateKr()), MoneyMath.exactRate(s.getFeeRateUs()),
-                MoneyMath.exactRate(s.getFxSpreadRate()));
+                MoneyMath.exactRate(s.getFxSpreadRate()), s.getAbandonedTurnNo(),
+                AbandonRules.notStarted(memberKind, s.getAbandonedTurnNo()));
     }
 }

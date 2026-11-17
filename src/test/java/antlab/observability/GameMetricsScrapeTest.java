@@ -59,6 +59,7 @@ class GameMetricsScrapeTest extends RealPortTest {
                     case "application" -> assertThat(m.group(2)).isEqualTo("antlab-api");
                     case "outcome" -> assertThat(m.group(2)).isIn("committed", "rejected");
                     case "code" -> assertThat(m.group(2)).isIn(codes);
+                    case "not_started" -> assertThat(m.group(2)).isIn("true", "false");
                     default -> throw new AssertionError("label not allowed: " + m.group(1) + " in " + line);
                 }
             }
