@@ -89,7 +89,12 @@ class ErrorCodeContractTest {
     @Test
     void 계약의_모든_비_2xx_응답에_코드가_적혀_있다() throws IOException {
         var perOperation = ContractErrorCodes.perOperation(contract());
-        assertThat(perOperation).hasSize(18);
+        int counted = 0;
+        for (var path : contract().path("paths").properties()) {
+            counted += path.getValue().size();
+        }
+        assertThat(counted).as("operations counted in the contract's paths").isPositive();
+        assertThat(perOperation).hasSize(counted);
         perOperation.forEach((op, byStatus) -> {
             assertThat(byStatus).as(op).containsKey(500);
             byStatus.forEach((status, codes) -> assertThat(codes).as(op + " " + status).isNotEmpty());
