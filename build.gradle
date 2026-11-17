@@ -82,6 +82,14 @@ tasks.named('test') {
     systemProperty 'spring.config.location', 'optional:classpath:/'
 }
 
+// The feed generator reads the templates from the classpath; feed/*.csv stays the only copy (no duplicate under src/main/resources).
+tasks.named('processResources') {
+    from('feed') {
+        include '*.csv'
+        into 'feed'
+    }
+}
+
 tasks.named('bootJar') {
     // Dockerfile 이 이름으로 집는다. plain JAR·와일드카드 선택 실수를 막는다.
     archiveFileName = 'app.jar'

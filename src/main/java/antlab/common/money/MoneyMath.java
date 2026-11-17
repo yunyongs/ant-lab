@@ -343,6 +343,12 @@ public final class MoneyMath {
         return value.setScale(8, RoundingMode.HALF_UP);
     }
 
+    /** Whole percentage points of a ratio: {@code round(ratio * 100, 0)}, HALF_UP (away from zero on ties, like SQL {@code round}). */
+    public static BigDecimal percentPoints(BigDecimal ratio) {
+        require(ratio, "비율");
+        return ratio.multiply(BigDecimal.valueOf(100)).setScale(0, RoundingMode.HALF_UP);
+    }
+
     /** CEIL(ratio × n) — 풀 상대 순위의 상위·하위 개수 k (SQL {@code ceil(top_ratio * count(*))}). */
     public static int ceilCount(BigDecimal ratio, long n) {
         require(ratio, "비율");

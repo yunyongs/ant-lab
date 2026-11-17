@@ -253,3 +253,6 @@ SQL 생성기는 `db/24_turn_feed_def.sql`에서 `tf_input → tf_generate → t
 P0-09: 카드로 내는 사건 태그는 `reaction_change`를 채운다(NULL이면 P0-09 검사가 보고한다). `event_type`·`outcome` 목록이 정해지면 유형·결과별 EVENT 템플릿을 새 id로 더한다. `month_event.reaction_change`가 **무엇의** 변화율인지 코드가 없어(erd 5.3) 공개 카드 문장은 "관련 시장 {reaction}"처럼 막연하게 쓴다. 대상을 말하려면 P0-09가 코드를 정하고 erd를 바꿔야 한다.
 
 MVP: Java 렌더러는 위 렌더 규칙과 같은 결과(`HALF_UP`, 정수 %, ASCII 하이픈)를 내고 같은 CSV를 읽는다(열 목록 불변). 시즌 중 DTO에 `template_id`·`kind`를 내지 않는다.
+
+MVP-11: `antlab.feed.FeedGenerator` ports rule version `p0-18:v2` from `db/24` and reads the same CSV files from the classpath (copied from `feed/` at build time). SQL stays the reference; `FeedGeneratorSqlParityTest` (CI) and `TurnAdvanceGoldenTest` (sample) prove equality.
+MVP-11: `antlab.feed.FeedGenerator`가 `db/24`의 규칙 버전 `p0-18:v2`를 옮기고 같은 CSV를 클래스패스에서 읽는다(빌드 때 `feed/`에서 복사). 기준은 SQL이며 `FeedGeneratorSqlParityTest`(CI)·`TurnAdvanceGoldenTest`(표본)가 같음을 보인다.
