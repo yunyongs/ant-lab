@@ -101,6 +101,6 @@ public class SeasonStartService {
             turnPrices.save(new TurnPrice(season, 0, p.getAssetId(),
                     MoneyMath.initialPrice(p.getBasePrice(), p.getBaseFxRate())));
         }
-        return SeasonDto.from(season, account.getBalance());
+        return SeasonDto.forNewSeason(season, account.getBalance());
     }
 }

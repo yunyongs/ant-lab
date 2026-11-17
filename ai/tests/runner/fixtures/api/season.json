@@ -10,6 +10,8 @@
   "feeRateKr": "0.00015",
   "feeRateUs": "0.0025",
   "fxSpreadRate": "0.0040",
+  "abandonedTurnNo": null,
+  "notStarted": false,
   "id": 7,
   "initialCash": "30000000",
   "pathLength": 12,

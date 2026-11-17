@@ -39,7 +39,7 @@ import tools.jackson.databind.json.JsonMapper;
 class SeasonExposureTest {
 
     static final Set<String> FORBIDDEN_KEYS = Set.of("seed", "engineVersion", "dataSnapshotDate", "baseDate",
-            "monthBlockId", "monthStart", "memberId", "version", "createdAt", "updatedAt", "abandonedTurnNo",
+            "monthBlockId", "monthStart", "memberId", "version", "createdAt", "updatedAt",
             "marketCapRank", "baseFxRate", "basePrice", "currency", "code");
 
     @Autowired

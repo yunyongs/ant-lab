@@ -103,4 +103,62 @@ class SeasonStateTest {
         assertThatThrownBy(() -> new FormationChange(season(5), 1, f, f, null, java.time.Instant.now()))
                 .isInstanceOf(IllegalArgumentException.class);
     }
+
+    // ---- MVP-14 abandon ----
+
+    @Test
+    void abandonMarksTheCurrentTurnAndMovesToAbandoning() {
+        Season s = season(5);
+        s.advanceTurn();
+        s.advanceTurn();
+        s.abandon();
+        assertThat(s.getStatus()).isEqualTo(SeasonStatus.ABANDONING);
+        assertThat(s.getAbandonedTurnNo()).isEqualTo(2);
+        assertThat(s.getCurrentTurnNo()).isEqualTo(2);
+    }
+
+    @Test
+    void abandonRefusesAnythingButAnInProgressSeason() {
+        Season abandoning = season(5);
+        abandoning.abandon();
+        assertThatThrownBy(abandoning::abandon).as("ABANDONING").isInstanceOf(IllegalStateException.class);
+        assertThat(abandoning.getAbandonedTurnNo()).isZero();
+
+        Season finished = season(1);
+        finished.advanceTurn();
+        assertThatThrownBy(finished::abandon).as("FINISHED").isInstanceOf(IllegalStateException.class);
+        assertThat(finished.getAbandonedTurnNo()).isNull();
+
+        Season halted = season(5);
+        halted.halt();
+        assertThatThrownBy(halted::abandon).as("HALTED").isInstanceOf(IllegalStateException.class);
+        assertThat(halted.getAbandonedTurnNo()).isNull();
+    }
+
+    @Test
+    void anAbandoningSeasonAdvancesAndFinishesKeepingTheAbandonTurn() {
+        Season s = season(3);
+        s.advanceTurn();
+        s.abandon();
+        s.advanceTurn();
+        assertThat(s.getStatus()).isEqualTo(SeasonStatus.ABANDONING);
+        assertThat(s.getCurrentTurnNo()).isEqualTo(2);
+        s.advanceTurn();
+        assertThat(s.getStatus()).isEqualTo(SeasonStatus.FINISHED);
+        assertThat(s.getCurrentTurnNo()).isEqualTo(3);
+        assertThat(s.getAbandonedTurnNo()).isEqualTo(1);
+    }
+
+    @Test
+    void aHaltedOrFinishedSeasonStillRefusesToAdvance() {
+        Season halted = season(3);
+        halted.halt();
+        assertThatThrownBy(halted::advanceTurn).isInstanceOf(IllegalStateException.class);
+        Season abandonedHalted = season(3);
+        abandonedHalted.abandon();
+        abandonedHalted.halt();
+        assertThatThrownBy(abandonedHalted::advanceTurn).isInstanceOf(IllegalStateException.class);
+        assertThat(abandonedHalted.resume()).isTrue();
+        assertThat(abandonedHalted.getStatus()).as("a halted abandon resumes as abandoning").isEqualTo(SeasonStatus.ABANDONING);
+    }
 }

@@ -137,9 +137,24 @@ public class Season extends AuditedEntity {
         this.currentFormation = after;
     }
 
-    /** 턴을 하나 진행한다. 마지막 턴에 닿으면 끝난 시즌이 된다(ck_season_finished_turn). */
-    public void advanceTurn() {
+    /**
+     * Marks the season as abandoned at the current turn: the remaining turns run without trades and the season ends
+     * through the normal turn path. Only a season in progress can be abandoned.
+     */
+    public void abandon() {
         requireInProgress();
+        this.abandonedTurnNo = currentTurnNo;
+        this.status = SeasonStatus.ABANDONING;
+    }
+
+    /**
+     * 턴을 하나 진행한다. 마지막 턴에 닿으면 끝난 시즌이 된다(ck_season_finished_turn).
+     * An abandoning season advances too (auto turns); its abandon turn is kept.
+     */
+    public void advanceTurn() {
+        if (status != SeasonStatus.IN_PROGRESS && status != SeasonStatus.ABANDONING) {
+            throw new IllegalStateException("진행 중인 시즌이 아니다: " + status);
+        }
         if (currentTurnNo >= pathLength) {
             throw new IllegalStateException("이미 마지막 턴이다: " + currentTurnNo);
         }

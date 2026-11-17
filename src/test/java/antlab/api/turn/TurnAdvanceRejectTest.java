@@ -76,8 +76,8 @@ class TurnAdvanceRejectTest {
 
     @Test
     void 포기_중인_시즌은_409_SEASON_NOT_ACTIVE이고_아무것도_쓰지_않는다() throws Exception {
-        // 23 SQL은 ABANDONING도 진행한다(PLAN §4.1-7). Phase 0 API에는 포기 기능이 없어 거절한다 —
-        // 포기 기능(MVP)이 Season.advanceTurn과 함께 바꾼다(D7).
+        // 23 SQL은 ABANDONING도 진행한다(PLAN §4.1-7). 회원의 턴 요청은 계속 거절한다 — 포기 요청만 그 시즌을 진행한다
+        // (MVP-14, TurnService.advanceAbandoned). 실제 포기 시즌에 대한 거절은 SeasonAbandonCapTest 가 고정한다.
         long season = teamSeason();
         jdbc.update("UPDATE season SET status = 'ABANDONING', abandoned_turn_no = 0 WHERE id = ?", season);
         Map<String, Object> before = state(jdbc, season);
