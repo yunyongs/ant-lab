@@ -327,7 +327,7 @@ Spring 프로젝트를 만들 때(Phase 0 API, P0-22·P0-24) 아래를 지킨다
 4. 그레이스풀 셧다운: 4.1.2는 기본 `graceful`이고(설정 메타데이터 확인, `server.shutdown: graceful`도 명시) `spring.lifecycle.timeout-per-shutdown-phase=20s`로 둔다(`SettingsAssertionTest`).
 5. 프록시 뒤: `server.forward-headers-strategy=framework`(Caddy의 `X-Forwarded-*`로 HTTPS·원래 IP 인식 — 속성 이름은 4.1.2 설정 메타데이터로 확인했고 `prod` 문서에 있다).
 6. Flyway는 시작 때 적용하고 `ddl-auto: validate`를 유지한다.
-7. 로그는 stdout만, 키·토큰은 마스킹한다.
+7. Logs go to stdout only; `prod` writes ECS JSON lines; keys and tokens stay masked. / 로그는 stdout만, `prod`는 ECS JSON 줄로 쓰고 키·토큰은 마스킹한다.
 8. Dockerfile(멀티 스테이지)·`.dockerignore`와 `compose.yaml`의 `api`(`build: .`)는 P0-24에서 만들었다(루트 `Dockerfile` — 펼친 bootJar를 의존성·loader·앱 레이어로 나눠 복사하고, 비루트 UID 10001로 실행하며, exec `ENTRYPOINT`로 `JarLauncher`를 사용한다). CI는 이미지 **빌드만** 하고 푸시하지 않는다(M1).
 9. Spring Boot 판은 **4.1.x(Java 21)로 정했다**(소유자 Gate 0, 2026-11-09 — 커리큘럼 프로젝트가 4.1.2, PLAN §10). 이 문서의 3.x 전제는 위 3·4번에서 4.1.2 기준으로 바꿨다. 스타터 이름(`spring-boot-starter-webmvc` 등)과 직렬화 라이브러리(Jackson 3, 패키지 `tools.jackson`, `JsonMapperBuilderCustomizer`는 `org.springframework.boot.jackson.autoconfigure`)는 P0-22에서 실행으로 확인했다.
 10. API 계약: 기능마다 `docs/api/openapi.yaml`을 계획 단계에서 먼저 쓰고(§2), springdoc 명세와 yaml을 대조하는 시험(§9)을 통과시킨다. springdoc은 3.2.0(Boot 4.1.x와 호환)이고 Swagger UI 경로는 `/swagger-ui.html`이다. 공통 문서에서 끄고 `local`에서만 켜며(시험은 명세만), `BigDecimal`은 `SpringDocUtils.getConfig().replaceWithSchema(...)`로 명세에서도 `type: string`으로 맞췄다(`JsonMoneyFormatTest`).
