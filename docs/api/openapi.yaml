@@ -750,6 +750,63 @@ paths:
                 $ref: '#/components/schemas/Problem'
         '500':
           $ref: '#/components/responses/InternalError'
+  /api/v1/seasons/{seasonId}/turns/{turnNo}/ranking:
+    get:
+      tags: [turn]
+      operationId: getTurnRanking
+      summary: Ranking board of a turn / 턴의 순위판
+      description: |-
+        Returns seven lists for one played turn, at most 5 rows each: biggest price rises and falls, most attention (rank and grade only), longest rising and falling streaks (2 turns or more), and the groups with the biggest mean rise and fall. The board is computed from the facts of that turn only, so a turn gives the same answer whenever it is asked, in a season in progress or a finished one.
+
+        진행한 턴 하나의 목록 일곱 개를 줄 5개 이하로 준다: 가격이 가장 많이 오르내린 종목, 관심이 가장 큰 종목(순위와 등급만), 가장 오래 오르내린 종목(2턴 이상), 평균 상승·하락이 가장 큰 그룹. 그 턴의 자료만으로 계산하므로 언제 물어도 같은 답이고 진행 중인 시즌과 끝난 시즌이 같다.
+      parameters:
+        - name: seasonId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+        - name: turnNo
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int32
+            minimum: 1
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Ranking board / 순위판
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RankingBoardDto'
+        '400':
+          description: turnNo is below 1, or the season or turn number is not a number — INVALID_ARGUMENT / turnNo 가 1 미만이거나 시즌·턴 번호가 숫자가 아니다 — INVALID_ARGUMENT
+          x-error-codes: [INVALID_ARGUMENT]
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          description: The season does not exist — NOT_FOUND / 시즌이 없다 — NOT_FOUND
+          x-error-codes: [NOT_FOUND]
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: That turn has not been played yet — TURN_NOT_REACHED / 아직 진행하지 않은 턴이다 — TURN_NOT_REACHED
+          x-error-codes: [TURN_NOT_REACHED]
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /api/v1/seasons/{seasonId}/holdings:
     get:
       tags: [holding]
@@ -1811,6 +1868,124 @@ components:
         body:
           type: string
           description: The sentence as shown / 보인 문장
+    RankingBoardDto:
+      type: object
+      description: 'Ranking board of one played turn: seven lists of at most 5 rows each, computed from that turn''s data only / 한 턴의 순위판: 그 턴의 자료만으로 계산한, 줄 5개 이하의 목록 일곱 개'
+      required: [turnNo, gainers, losers, attention, risingStreaks, fallingStreaks, groupGainers, groupLosers]
+      properties:
+        turnNo:
+          type: integer
+          format: int32
+        gainers:
+          type: array
+          description: Biggest price rises, change above 0, largest first / 가격이 가장 많이 오른 종목, 변화 0 초과, 큰 순
+          items:
+            $ref: '#/components/schemas/RankedAssetDto'
+        losers:
+          type: array
+          description: Biggest price falls, change below 0, largest fall first / 가격이 가장 많이 내린 종목, 변화 0 미만, 많이 내린 순
+          items:
+            $ref: '#/components/schemas/RankedAssetDto'
+        attention:
+          type: array
+          description: Most attention, by rank and grade; assets without an attention figure are left out / 관심이 가장 큰 종목, 순위와 등급. 관심 값이 없는 종목은 뺀다
+          items:
+            $ref: '#/components/schemas/AttentionRankDto'
+        risingStreaks:
+          type: array
+          description: Longest runs of rising turns, at least 2 / 가장 오래 오른 종목, 2턴 이상
+          items:
+            $ref: '#/components/schemas/StreakRankDto'
+        fallingStreaks:
+          type: array
+          description: Longest runs of falling turns, at least 2 / 가장 오래 내린 종목, 2턴 이상
+          items:
+            $ref: '#/components/schemas/StreakRankDto'
+        groupGainers:
+          type: array
+          description: Groups with the biggest mean rise / 평균 상승이 가장 큰 그룹
+          items:
+            $ref: '#/components/schemas/RankedGroupDto'
+        groupLosers:
+          type: array
+          description: Groups with the biggest mean fall / 평균 하락이 가장 큰 그룹
+          items:
+            $ref: '#/components/schemas/RankedGroupDto'
+    RankedAssetDto:
+      type: object
+      description: One row of a gainers or losers list / 상승·하락 목록의 한 줄
+      required: [rank, assetId, changeRate]
+      properties:
+        rank:
+          type: integer
+          format: int32
+          description: Row position in the list, from 1 / 목록 안의 줄 번호, 1부터
+        assetId:
+          type: integer
+          format: int64
+          description: Asset identifier (the same as assetId in the pool response) / 종목 식별자(풀 응답의 assetId 와 같다)
+        changeRate:
+          type: string
+          format: decimal
+          description: Price change of the turn = price ÷ previous turn's price − 1, 8 decimal places / 그 턴의 가격 변화 = 가격 ÷ 직전 턴 가격 − 1, 소수 8자리
+    AttentionRankDto:
+      type: object
+      description: One row of the attention list; rank and grade only, the index value is not shown / 관심 목록의 한 줄. 순위와 등급만 보이고 지수 값은 보이지 않는다
+      required: [rank, assetId, grade]
+      properties:
+        rank:
+          type: integer
+          format: int32
+          description: Row position in the list, from 1 / 목록 안의 줄 번호, 1부터
+        assetId:
+          type: integer
+          format: int64
+          description: Asset identifier (the same as assetId in the pool response) / 종목 식별자(풀 응답의 assetId 와 같다)
+        grade:
+          type: integer
+          format: int32
+          minimum: 1
+          maximum: 3
+          description: 'Attention grade: 3 = top 10 %, 2 = top half, 1 = the rest / 관심 등급: 3 = 상위 10%, 2 = 상위 절반, 1 = 나머지'
+    StreakRankDto:
+      type: object
+      description: One row of a rising or falling streak list / 연속 상승·하락 목록의 한 줄
+      required: [rank, assetId, streak, changeRate]
+      properties:
+        rank:
+          type: integer
+          format: int32
+          description: Row position in the list, from 1 / 목록 안의 줄 번호, 1부터
+        assetId:
+          type: integer
+          format: int64
+          description: Asset identifier (the same as assetId in the pool response) / 종목 식별자(풀 응답의 assetId 와 같다)
+        streak:
+          type: integer
+          format: int32
+          minimum: 2
+          description: Turns in a row with the same direction of price change, at least 2 / 가격이 같은 방향으로 이어진 턴 수, 2 이상
+        changeRate:
+          type: string
+          format: decimal
+          description: Price change of the turn, 8 decimal places / 그 턴의 가격 변화, 소수 8자리
+    RankedGroupDto:
+      type: object
+      description: One row of a group gainers or losers list / 그룹 상승·하락 목록의 한 줄
+      required: [rank, groupId, changeRate]
+      properties:
+        rank:
+          type: integer
+          format: int32
+          description: Row position in the list, from 1 / 목록 안의 줄 번호, 1부터
+        groupId:
+          type: integer
+          format: int64
+          description: Asset group identifier (the same as groupId in the pool response) / 종목 그룹 식별자(풀 응답의 groupId 와 같다)
+        changeRate:
+          type: string
+          format: decimal
+          description: Mean price change of the group's assets, rounded once to 8 decimal places / 그룹 종목들의 가격 변화 평균, 소수 8자리로 한 번 반올림
     SeasonReportDto:
       type: object
       description: Season report / 시즌 성적표
