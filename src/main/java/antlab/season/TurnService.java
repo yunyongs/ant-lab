@@ -64,6 +64,9 @@ public class TurnService {
         long memberId = currentMember.existingId().orElseThrow(TurnService::seasonNotFound);
         Season season = seasons.findByIdAndMemberIdForUpdate(seasonId, memberId)
                 .orElseThrow(TurnService::seasonNotFound);
+        if (season.getStatus() == SeasonStatus.HALTED) {
+            throw new DomainException(ErrorCode.SEASON_HALTED, "대사가 거듭 맞지 않아 시즌을 멈췄다 — 관리자 확인이 필요하다");
+        }
         if (season.getStatus() != SeasonStatus.IN_PROGRESS) {
             throw new DomainException(ErrorCode.SEASON_NOT_ACTIVE, "진행 중인 시즌이 아니다");
         }

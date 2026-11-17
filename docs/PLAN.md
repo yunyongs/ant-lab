@@ -602,6 +602,7 @@ default_formation: [10, 30, 30, 30]
 - 원가: 이동평균, 수수료 제외. 실현 손익 = (체결가 − 평균단가) × 수량, 비용은 원장 `FEE`/`TAX`와 성적표 비용 항목에 따로(erd D9).
 - **턴별 가격의 정본 규칙:** 가격(t) = round(시작가 × Π(1+r₁)…(1+rₜ)) — 누적 곱을 정확한 소수로 유지하고 **마지막에 한 번만** 원 단위로 반올림한다. 매달 반올림하면 반올림 시점에 따라 가격이 달라져 Java·Python 병행 대사가 어긋난다. 결과는 `turn_price`에 저장하고 체결·평가는 그 값만 쓴다.
 - 대사는 턴을 넘길 때마다 위 항등식을 검사하고 결과를 기록한다(일치해도 기록). **불일치하면 그 턴 전환을 되돌리고 시즌은 그 턴에 멈춘다** — 돈이 틀린 채로 진행하지 않는다. 기록은 되돌린 뒤 남기고, 분류(시차·조정·조사)는 MVP에서 전부 "조사"로 두고 사람이 본다.
+- If the same turn fails reconciliation three times in a row (builder value, configurable), the season moves to the stop status `HALTED`: further turn advances are refused with `SEASON_HALTED` and only a local administrator action resumes it, after which the next failure stops it again (MVP-15). / 같은 턴의 대사가 세 번 연속 어긋나면(빌더 값, 설정으로 바꿈) 시즌은 정지 상태 `HALTED`가 된다. 이후 턴 전환은 `SEASON_HALTED`로 거절하고, 로컬 관리자 조치로만 재개하며, 재개 뒤 다시 어긋나면 곧바로 다시 멈춘다(MVP-15).
 
 ### 5.3 설계 질문(Phase 0 ERD 작성 전에 답한다)
 
@@ -1014,6 +1015,7 @@ ERD 확정 범위(Gate 0 결정 2): Phase 0 SQL이 쓰는 22개 테이블(역사
 - **개발용 대사 엔드포인트의 값 노출·접근 제한(소유자, 2026-11-11, P0-32 Q1·Q2, 이슈 #123·#134).** 지시 "값까지 보여 줌"(Q1) — 개발용 수동 대사 응답이 규칙별 기대·실제·차이·`detail`을 `reconciliation_log` 행 그대로(가공·반올림 없음) 담는다. 개발 엔드포인트는 노출 상한 검사에서 예외다(local 전용, prod 미등록). Q2 "200 + MISMATCH" — 불일치여도 기록을 커밋하고 200으로 답한다. #123 "127.0.0.1 + 고정 헤더" — `local` 프로필은 `server.address: 127.0.0.1`로만 열고, 개발 엔드포인트는 고정 헤더(`X-Antlab-Dev: true`)가 없으면 403 `FORBIDDEN`으로 거절한다.
 - **턴 전환 응답과 첫 전환 규칙(소유자, 2026-11-11, P0-33 Q1·Q2).** Q1 "두지 않음" — 0턴 → 1턴 전환에 최소 팀 규칙(최소 종목 수 등)을 두지 않는다(P0-31 Q1과 같다). Q2 "담음" — 턴 전환 응답에 그 턴의 결과 값(평가액·현금·포지션별 평가액·낙폭)을 담는다.
 - **대사 실패 롤백(소유자, 2026-11-11, P0-34 Q1·Q2).** Q1 "Phase 0은 이대로" — 대사가 계속 어긋나는 시즌을 멈추는 정지 상태·재시도 상한은 두지 않고(스키마 변경 없음) MVP에서 정한다. Q2 "그대로" — 409 `RECONCILIATION_FAILED` 본문 문장을 그대로 둔다(화면 문구는 WEB).
+- **Reconciliation stop state (MVP-15, builder values; answers P0-34 Q1).** N = 3 failed attempts of one pending turn → `HALTED`; the count comes from `reconciliation_log`, a success resets it; the halting request keeps 409 `RECONCILIATION_FAILED`, later ones get 409 `SEASON_HALTED`; orders and formation changes keep `SEASON_NOT_ACTIVE`; resume = local ADMIN dev endpoint, one more try; halted seasons count toward the three-season limit. / **대사 정지 상태(MVP-15, 빌더 값 — P0-34 Q1의 답).** 대기 중인 한 턴의 실패 시도 3번 → `HALTED`. 횟수는 `reconciliation_log`에서 세고 성공하면 처음부터다. 멈추게 한 요청은 409 `RECONCILIATION_FAILED` 그대로, 그 뒤는 409 `SEASON_HALTED`. 주문·전술 변경은 `SEASON_NOT_ACTIVE` 그대로. 재개는 로컬 ADMIN 개발 엔드포인트이고 한 번 더 시도할 수 있다. 정지 시즌도 진행 중 3개 한도에 든다.
 - **모든 엔드포인트의 공통 500 응답(소유자, 2026-11-11, #129).** "넣는다" — 명세에 모든 엔드포인트의 공통 500 응답을 넣는다. 별도 PR로 처리한다.
 - **턴 결과·보유 조회(소유자, 2026-11-11, P0-35 Q1–Q3).** Q1 "넣지 않음" — 과거 턴의 종목별 보유 목록 조회를 이번에 넣지 않는다(P0-39 / MVP). Q2 "넣지 않음" — 턴 목록(1..현재) 조회를 넣지 않는다(WEB에서 필요하면). Q3 "여유 + 넘었는지" — 위험 선언 대비를 위험 여유(`riskHeadroom`)와 한도를 넘었는지 표시로 함께 보여 준다.
 - **매도 주문 API(소유자, 2026-11-11, P0-36 Q1).** "허용 (추천)" — 0턴(팀 구성 중)에도 보유 종목을 팔 수 있다. 매수와 같은 경로를 사용하며 수수료는 그대로 든다. SQL `trade_sell`이 0턴을 거부하는 것(0턴 주문은 21이 만든다는 파일 구조 때문)과는 다르며, 이 차이는 SPRING_JPA §5.2에 적었다. 성적표(P0-38)는 0턴 수수료를 팀 구성 비용으로 보고 회전율 계산에서 0턴을 제외하는 26 정의를 그대로 쓴다.

@@ -3,7 +3,6 @@ package antlab.season;
 import antlab.common.error.DomainException;
 import antlab.observability.GameMetrics;
 import antlab.scoring.ReconciliationFailedException;
-import antlab.scoring.ReconciliationLogWriter;
 import antlab.scoring.ReconciliationStatus;
 import antlab.scoring.RuleResult;
 import java.sql.SQLException;
@@ -41,12 +40,12 @@ public class TurnFacade {
     static final int MAX_RECORD_TRIES = 3;
 
     private final TurnService turns;
-    private final ReconciliationLogWriter logWriter;
+    private final ReconciliationFailureRecorder recorder;
     private final GameMetrics metrics;
 
-    public TurnFacade(TurnService turns, ReconciliationLogWriter logWriter, GameMetrics metrics) {
+    public TurnFacade(TurnService turns, ReconciliationFailureRecorder recorder, GameMetrics metrics) {
         this.turns = turns;
-        this.logWriter = logWriter;
+        this.recorder = recorder;
         this.metrics = metrics;
     }
 
@@ -75,9 +74,15 @@ public class TurnFacade {
         RuntimeException last = null;
         for (int attempt = 1; attempt <= MAX_RECORD_TRIES; attempt++) {
             try {
-                int attemptNo = logWriter.record(failed.getSeasonId(), failed.getTurnNo(), failed.getResults());
+                ReconciliationFailureRecorder.Outcome outcome = recorder.record(failed);
                 log.warn("대사 불일치 기록: seasonId={} turnNo={} attemptNo={} rules={}", failed.getSeasonId(),
-                        failed.getTurnNo(), attemptNo, mismatchedRules(failed));
+                        failed.getTurnNo(), outcome.attemptNo(), mismatchedRules(failed));
+                if (outcome.haltedNow()) {
+                    // The halt is committed here, so the counter is final.
+                    metrics.seasonHalted();
+                    log.warn("시즌 정지: seasonId={} turnNo={} failures={}", failed.getSeasonId(), failed.getTurnNo(),
+                            outcome.failures());
+                }
                 return;
             } catch (DataIntegrityViolationException e) {
                 if (!isAttemptCollision(e)) {

@@ -149,6 +149,27 @@ public class Season extends AuditedEntity {
         }
     }
 
+    /** Stops the season after repeated reconciliation failures. Only a running season (in progress or abandoning) can halt. */
+    public void halt() {
+        if (status != SeasonStatus.IN_PROGRESS && status != SeasonStatus.ABANDONING) {
+            throw new IllegalStateException("멈출 수 없는 상태다: " + status);
+        }
+        this.status = SeasonStatus.HALTED;
+    }
+
+    /**
+     * Resumes a halted season: back to ABANDONING when an abandon turn is set, else IN_PROGRESS.
+     *
+     * @return true when the season was halted and is running again; false (nothing changed) for any other status
+     */
+    public boolean resume() {
+        if (status != SeasonStatus.HALTED) {
+            return false;
+        }
+        this.status = abandonedTurnNo == null ? SeasonStatus.IN_PROGRESS : SeasonStatus.ABANDONING;
+        return true;
+    }
+
     private void requireInProgress() {
         if (status != SeasonStatus.IN_PROGRESS) {
             throw new IllegalStateException("진행 중인 시즌이 아니다: " + status);

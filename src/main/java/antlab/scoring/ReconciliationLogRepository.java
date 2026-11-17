@@ -17,6 +17,11 @@ public interface ReconciliationLogRepository extends AppendOnlyRepository<Reconc
     @Query("select coalesce(max(l.attemptNo), 0) from ReconciliationLog l where l.seasonId = :seasonId and l.turnNo = :turnNo")
     int findMaxAttemptNo(@Param("seasonId") long seasonId, @Param("turnNo") int turnNo);
 
+    /** Failed attempts of one (season, turn): distinct attempt numbers that hold a MISMATCH row. */
+    @Query("select count(distinct l.attemptNo) from ReconciliationLog l"
+            + " where l.seasonId = :seasonId and l.turnNo = :turnNo and l.status = antlab.scoring.ReconciliationStatus.MISMATCH")
+    int countFailedAttempts(@Param("seasonId") long seasonId, @Param("turnNo") int turnNo);
+
     /** 지금 트랜잭션의 격리 수준(소문자 문장, 예: {@code read committed}). 읽기 일관성 가드가 쓴다. */
     @Query(nativeQuery = true, value = "SELECT current_setting('transaction_isolation')")
     String findTransactionIsolation();

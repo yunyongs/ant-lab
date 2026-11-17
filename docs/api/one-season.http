@@ -136,6 +136,12 @@ POST {{base}}/api/v1/dev/seasons/{{season}}/reconciliation
 Authorization: Bearer {{token}}
 X-Antlab-Dev: true
 
+### 6b. Optional: resume a season halted by repeated reconciliation failures (local profile only, outside the contract). One more try follows; a season that is not halted is left as it is (resumed: false).
+# 선택: 대사 실패가 거듭되어 멈춘 시즌을 재개한다(local 프로필 전용, 계약 밖). 한 번 더 시도할 수 있고, 멈추지 않은 시즌은 그대로 둔다(resumed: false).
+POST {{base}}/api/v1/dev/seasons/{{season}}/reconciliation/resume
+Authorization: Bearer {{token}}
+X-Antlab-Dev: true
+
 ### 7. Advance turns: the body carries the turn you are leaving (so a repeated click cannot advance twice) / 턴 넘기기
 POST {{base}}/api/v1/seasons/{{season}}/turns
 Authorization: Bearer {{token}}

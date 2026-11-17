@@ -104,7 +104,7 @@ class TurnFacadeTransactionTest {
                 }
                 String txName = TransactionSynchronizationManager.getCurrentTransactionName();
                 assertThat(txName).as("기록은 새로 열린 트랜잭션이고 안쪽 잠금은 이미 풀렸다")
-                        .endsWith("antlab.scoring.ReconciliationLogWriter.record");
+                        .endsWith("antlab.season.ReconciliationFailureRecorder.record");
                 seenAtRecord.add(Map.of(
                         "txActiveAtEntry", TransactionSynchronizationManager.isActualTransactionActive(),
                         "nextPriceRows", count(other, "SELECT count(*) FROM turn_price WHERE season_id = " + season + " AND turn_no = 1"),

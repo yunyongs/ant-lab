@@ -53,6 +53,9 @@ antlab:
     fee-rate-us: 0.0025
     fx-spread-rate: 0.0040
     data-snapshot-date: 2026-11-07
+  # Reconciliation stop (MVP-15): the season halts when this many advance attempts of one pending turn fail reconciliation.
+  reconciliation:
+    halt-after-failures: 3
   # Tokens (SEC-03). The signing key has no default in any profile: without it the app does not start.
   # Base64 of at least 32 bytes (openssl rand -base64 32). In prod the file /run/secrets/antlab.auth.jwt-secret also works.
   auth:

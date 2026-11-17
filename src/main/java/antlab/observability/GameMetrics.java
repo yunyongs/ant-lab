@@ -30,7 +30,7 @@ public class GameMetrics {
     static final Set<ErrorCode> SEASON_REJECTIONS = EnumSet.of(ErrorCode.INVALID_ARGUMENT, ErrorCode.POOL_NOT_LOADED,
             ErrorCode.POOL_NOT_JUDGED, ErrorCode.SEASON_LIMIT, ErrorCode.PATH_TOO_LONG);
     static final Set<ErrorCode> TURN_REJECTIONS = EnumSet.of(ErrorCode.NOT_FOUND, ErrorCode.SEASON_NOT_ACTIVE,
-            ErrorCode.TURN_MISMATCH, ErrorCode.RECONCILIATION_FAILED);
+            ErrorCode.TURN_MISMATCH, ErrorCode.RECONCILIATION_FAILED, ErrorCode.SEASON_HALTED);
     static final Set<ErrorCode> ORDER_REJECTIONS = EnumSet.of(ErrorCode.INVALID_ARGUMENT, ErrorCode.NOT_FOUND,
             ErrorCode.SEASON_NOT_ACTIVE, ErrorCode.TURN_MISMATCH, ErrorCode.LEDGER_MISMATCH, ErrorCode.LINEUP_MISMATCH,
             ErrorCode.EVENT_TIME_CONFLICT, ErrorCode.ASSET_NOT_IN_POOL, ErrorCode.INSUFFICIENT_CASH,
@@ -38,6 +38,8 @@ public class GameMetrics {
 
     private final MeterRegistry registry;
     private final Counter mismatchRules;
+    private final Counter seasonHalted;
+    private final Counter seasonResumed;
 
     public GameMetrics(MeterRegistry registry) {
         this.registry = registry;
@@ -49,6 +51,19 @@ public class GameMetrics {
         ORDER_REJECTIONS.forEach(this::orderCounter);
         this.mismatchRules = Counter.builder("antlab.reconciliation.mismatch.rules")
                 .description("Reconciliation rules that mismatched in rolled-back turn advances").register(registry);
+        this.seasonHalted = Counter.builder("antlab.season.halted")
+                .description("Seasons stopped after repeated reconciliation failures; counted once per halt").register(registry);
+        this.seasonResumed = Counter.builder("antlab.season.resumed")
+                .description("Halted seasons resumed by an administrator; counted only when a season really resumed")
+                .register(registry);
+    }
+
+    public void seasonHalted() {
+        safely(seasonHalted::increment);
+    }
+
+    public void seasonResumed() {
+        safely(seasonResumed::increment);
     }
 
     public void seasonStarted() {

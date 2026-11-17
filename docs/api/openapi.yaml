@@ -543,8 +543,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
         '409':
-          description: The turn cannot be advanced now — SEASON_NOT_ACTIVE, TURN_MISMATCH, RECONCILIATION_FAILED / 지금은 넘길 수 없다 — SEASON_NOT_ACTIVE, TURN_MISMATCH, RECONCILIATION_FAILED
-          x-error-codes: [SEASON_NOT_ACTIVE, TURN_MISMATCH, RECONCILIATION_FAILED]
+          description: The turn cannot be advanced now — SEASON_NOT_ACTIVE, SEASON_HALTED (stopped after repeated reconciliation failures; an administrator resumes it), TURN_MISMATCH, RECONCILIATION_FAILED / 지금은 넘길 수 없다 — SEASON_NOT_ACTIVE, SEASON_HALTED(대사 실패가 거듭되어 멈춤, 관리자가 재개), TURN_MISMATCH, RECONCILIATION_FAILED
+          x-error-codes: [SEASON_NOT_ACTIVE, SEASON_HALTED, TURN_MISMATCH, RECONCILIATION_FAILED]
           content:
             application/problem+json:
               schema:
@@ -1770,7 +1770,7 @@ components:
       enum: [BUY, SELL]
     SeasonStatus:
       type: string
-      enum: [IN_PROGRESS, ABANDONING, FINISHED]
+      enum: [IN_PROGRESS, ABANDONING, FINISHED, HALTED]
     EventCategory:
       type: string
       enum: [GEOPOLITICS, TRADE, POLITICS, SUPPLY_SHOCK, FINANCIAL, POLICY, HEALTH]
@@ -1831,5 +1831,5 @@ components:
              UNSUPPORTED_MEDIA_TYPE, MALFORMED_REQUEST, INTERNAL_ERROR, POOL_NOT_LOADED, POOL_NOT_JUDGED, PATH_TOO_LONG,
              SEASON_LIMIT, TURN_NOT_REACHED, SEASON_NOT_FINISHED, SEASON_NOT_ACTIVE, TURN_MISMATCH, LEDGER_MISMATCH,
              LINEUP_MISMATCH, ASSET_NOT_IN_POOL, INSUFFICIENT_CASH, INSUFFICIENT_HOLDING, POSITION_CONFLICT, POSITION_REQUIRED,
-             INVALID_FORMATION, EVENT_TIME_CONFLICT, RECONCILIATION_FAILED, FORBIDDEN, EMAIL_TAKEN,
+             INVALID_FORMATION, EVENT_TIME_CONFLICT, RECONCILIATION_FAILED, SEASON_HALTED, FORBIDDEN, EMAIL_TAKEN,
              UNAUTHENTICATED, INVALID_CREDENTIALS]

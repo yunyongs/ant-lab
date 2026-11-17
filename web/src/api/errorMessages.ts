@@ -28,6 +28,8 @@ export const errorMessages = {
   EVENT_TIME_CONFLICT: '앞선 요청과 시각이 겹칩니다. 다시 시도해 주세요.',
   RECONCILIATION_FAILED:
     '턴을 넘기는 중 계좌 검산이 맞지 않아 아무것도 바꾸지 않았습니다. 지금 턴 그대로입니다.',
+  SEASON_HALTED:
+    '대사가 거듭 맞지 않아 시즌이 멈췄습니다. 관리자 확인이 필요합니다.',
   FORBIDDEN: '이 기능을 쓸 권한이 없습니다.',
   EMAIL_TAKEN:
     '이미 가입한 이메일입니다. 로그인하거나 다른 이메일을 써 주세요.',

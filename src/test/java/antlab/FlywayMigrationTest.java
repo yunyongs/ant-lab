@@ -48,12 +48,12 @@ class FlywayMigrationTest {
         assertThat(tableCount).isEqualTo(28);
         assertThat(jdbc.queryForObject("""
                 SELECT count(*) FROM public.flyway_schema_history
-                WHERE success AND version IN ('1', '2', '3', '4', '5', '6')
-                """, Integer.class)).isEqualTo(6);
+                WHERE success AND version IN ('1', '2', '3', '4', '5', '6', '7')
+                """, Integer.class)).isEqualTo(7);
         assertThat(jdbc.queryForObject("""
                 SELECT count(*) FROM public.flyway_schema_history
-                WHERE version IN ('1', '2', '3', '4', '5', '6') AND checksum IS NOT NULL
-                """, Integer.class)).isEqualTo(6);
+                WHERE version IN ('1', '2', '3', '4', '5', '6', '7') AND checksum IS NOT NULL
+                """, Integer.class)).isEqualTo(7);
     }
 
     @Test
@@ -67,7 +67,7 @@ class FlywayMigrationTest {
     }
 
     @Test
-    void 업무_테이블은_비어_있고_이력은_여섯_건이다() {
+    void 업무_테이블은_비어_있고_이력은_일곱_건이다() {
         // the committed default test member (TestMembers) is the only business row
         assertThat(jdbc.queryForObject(
                 "SELECT count(*) FROM public.member WHERE id <> ?", Integer.class, testMembers.defaultId())).isZero();
@@ -75,7 +75,7 @@ class FlywayMigrationTest {
                 "SELECT count(*) FROM public.cash_account", Integer.class)).isZero();
         assertThat(jdbc.queryForObject(
                 "SELECT count(*) FROM public.flyway_schema_history WHERE installed_by IS NOT NULL", Integer.class))
-                .isEqualTo(6);
+                .isEqualTo(7);
     }
 
     @Test

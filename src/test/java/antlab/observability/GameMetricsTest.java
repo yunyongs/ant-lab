@@ -29,6 +29,18 @@ class GameMetricsTest {
     }
 
     @Test
+    void 정지와_재개_카운터는_0으로_있고_정지_거절_조합도_미리_있다() {
+        assertThat(registry.find("antlab.season.halted").counter().count()).isZero();
+        assertThat(registry.find("antlab.season.resumed").counter().count()).isZero();
+        assertThat(GameMetrics.TURN_REJECTIONS).contains(ErrorCode.SEASON_HALTED);
+        metrics.seasonHalted();
+        metrics.seasonHalted();
+        metrics.seasonResumed();
+        assertThat(registry.find("antlab.season.halted").counter().count()).isEqualTo(2);
+        assertThat(registry.find("antlab.season.resumed").counter().count()).isEqualTo(1);
+    }
+
+    @Test
     void 알려진_거절_조합은_시작_때_0으로_있어_첫_이벤트도_센다() {
         for (ErrorCode code : GameMetrics.SEASON_REJECTIONS) {
             assertThat(registry.find("antlab.season.start").tags("outcome", "rejected", "code", code.name()).counter())

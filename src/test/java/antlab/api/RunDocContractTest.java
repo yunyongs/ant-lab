@@ -18,13 +18,14 @@ import org.yaml.snakeyaml.Yaml;
 
 /**
  * The hand-play file {@code docs/api/one-season.http} stays inside the contract: every request line is an operation of
- * {@code docs/api/openapi.yaml}. The one allowed exception is the documented development reconciliation call, which is outside
+ * {@code docs/api/openapi.yaml}. The allowed exceptions are the documented development reconciliation call and its resume call, which are outside
  * the contract by design. A plain unit test: no Spring, no database.
  */
 class RunDocContractTest {
 
     private static final Path HTTP_FILE = Path.of("docs/api/one-season.http");
     private static final String DEV_CALL = "POST /api/v1/dev/seasons/{}/reconciliation";
+    private static final String DEV_RESUME_CALL = "POST /api/v1/dev/seasons/{}/reconciliation/resume";
     private static final Pattern REQUEST_LINE = Pattern.compile("^(GET|POST|PUT|PATCH|DELETE)\\s+\\{\\{base}}(/[^\\s?]*)");
     private static final Pattern ANY_METHOD_LINE = Pattern.compile("^(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\\s+(\\S+)");
     private static final String API_PREFIX = "{{base}}/api/v1/";
@@ -59,7 +60,7 @@ class RunDocContractTest {
     /** Requests that match no contract operation (the allowed dev call is not reported). */
     static List<String> outsideContract(Collection<String> requests, Set<String> operations) {
         return requests.stream()
-                .filter(r -> !r.equals(DEV_CALL) && operations.stream().noneMatch(op -> matches(r, op)))
+                .filter(r -> !r.equals(DEV_CALL) && !r.equals(DEV_RESUME_CALL) && operations.stream().noneMatch(op -> matches(r, op)))
                 .distinct().toList();
     }
 
@@ -80,8 +81,8 @@ class RunDocContractTest {
         List<String> requests = requests(Files.readString(HTTP_FILE));
         assertThat(requests).as("the file has requests").hasSizeGreaterThan(20);
         assertThat(outsideContract(requests, yamlOperations())).isEmpty();
-        assertThat(requests.stream().filter(r -> r.contains("/dev/")).toList()).as("the dev call appears once")
-                .containsExactly(DEV_CALL);
+        assertThat(requests.stream().filter(r -> r.contains("/dev/")).toList()).as("each dev call appears once")
+                .containsExactly(DEV_CALL, DEV_RESUME_CALL);
     }
 
     @Test

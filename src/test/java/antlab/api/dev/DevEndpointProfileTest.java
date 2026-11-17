@@ -2,7 +2,9 @@ package antlab.api.dev;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import antlab.observability.GameMetrics;
 import antlab.scoring.ManualReconciliationService;
+import antlab.season.SeasonResumeService;
 import antlab.support.IntegrationTest;
 import antlab.support.TestMembers;
 import antlab.support.TestTokens;
@@ -42,6 +44,11 @@ class DevEndpointProfileTest {
         MockHttpServletResponse r = mvc.post().uri("/api/v1/dev/seasons/1/reconciliation")
                 .header("Authorization", "Bearer " + tokens.admin(members.defaultId())).exchange().getResponse();
         assertThat(r.getStatus()).isEqualTo(404);
+        MockHttpServletResponse resume = mvc.post().uri("/api/v1/dev/seasons/1/reconciliation/resume")
+                .header("Authorization", "Bearer " + tokens.admin(members.defaultId()))
+                .header(DevReconciliationController.DEV_HEADER, DevReconciliationController.DEV_HEADER_VALUE).exchange()
+                .getResponse();
+        assertThat(resume.getStatus()).as("the resume route does not exist outside the local profile").isEqualTo(404);
         // the URL rule applies even where no controller exists: a plain user is refused before routing
         assertThat(mvc.post().uri("/api/v1/dev/seasons/1/reconciliation").exchange().getResponse().getStatus())
                 .isEqualTo(403);
@@ -57,6 +64,8 @@ class DevEndpointProfileTest {
         try (AnnotationConfigApplicationContext ctx = new AnnotationConfigApplicationContext()) {
             ctx.getEnvironment().setActiveProfiles(profiles);
             ctx.registerBean(ManualReconciliationService.class, () -> Mockito.mock(ManualReconciliationService.class));
+            ctx.registerBean(SeasonResumeService.class, () -> Mockito.mock(SeasonResumeService.class));
+            ctx.registerBean(GameMetrics.class, () -> Mockito.mock(GameMetrics.class));
             ctx.register(DevReconciliationController.class);
             ctx.refresh();
             return ctx.getBeanNamesForType(DevReconciliationController.class).length == 1;
