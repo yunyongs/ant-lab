@@ -21,7 +21,7 @@
 
 **추적하지 않는 이유.** 이 저장소는 공개다. KIS 약관의 시세 재배포 조항은 공개 자료(KIS Developers 공개 페이지, 공식 GitHub 저장소 `koreainvestment/open-trading-api` — 저장소는 포털에서 약관을 확인하라고만 안내한다, 2026-11-07 확인)에서 확인하지 못했고, yfinance(Yahoo)는 자동 수집과 재배포를 허락 없이 금지한다. 그래서 보수적으로 적용한다: 받은 시세 원본과 시세·환율에서 만든 값(CSV 포함)은 저장소에 올리지 않고, 만드는 방법만 이 문서로 안내한다. `asset_position.csv`·`asset_month_return.csv`·`fx_month.csv`·`hand_check.csv`는 `.gitignore`가 무시하고, 각자 원본을 내려받아 아래 "표본 만들기" 순서로 만든다. 추적하는 CSV 3개에는 시세·환율에서 나온 값이 없다: 손 편집 둘(`asset_group.csv`, `asset.csv`)과 달력(`month_block.csv`).
 
-**키가 없는 사람.** 무시 CSV 3개(`asset_month_return.csv`·`asset_position.csv`·`fx_month.csv`)가 없으면 `db/10_load_sample.sql`이 첫 줄에서 멈춘다(`db/README.md`). 키 없이 적재를 시험하려면 합성 표본이 필요하며, MVP의 CI는 "가짜 데이터"로 표시한 합성 표본을 테스트 픽스처로 쓰도록 MVP 계획에 넘긴다(`docs/erd.md` §9 P0-08 행).
+**키가 없는 사람.** 무시 CSV 3개(`asset_month_return.csv`·`asset_position.csv`·`fx_month.csv`)가 없으면 `db/10_load_sample.sql`이 첫 줄에서 멈춘다(`db/README.md`). 키 없이 적재를 시험하려면 합성 표본이 필요하며, CI는 "가짜 데이터"로 표시한 가짜 티커 픽스처 `src/test/resources/fixtures/synthetic/season_fake.sql`(M1-01 B)로 한 시즌을 둔다. 이것은 시험용 SQL이며 CSV 표본이 아니고 실제 DB에 적재하지 않는다(`docs/erd.md` §9 P0-08 행). English: without the key files, CI plays a season on the tracked fake-ticker fixture `src/test/resources/fixtures/synthetic/season_fake.sql` (M1-01 B); it is test SQL, not a CSV sample, and is never loaded into the real DB.
 
 ## 표본 만들기 (추적하지 않는 CSV 만들기)
 

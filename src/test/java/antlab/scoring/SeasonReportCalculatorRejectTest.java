@@ -149,6 +149,38 @@ class SeasonReportCalculatorRejectTest {
     }
 
     @Test
+    void 평가액이_남지_않은_턴이_있으면_멈춘다() {
+        SeasonReportSources base = threeTurns();
+        List<TurnFact> turns = new ArrayList<>(base.turns());
+        turns.set(1, turn(2, 0, "-1.00000000", 0, 0, 0, 0));
+        // IllegalStateException with the fixed sentence, not the IllegalArgumentException of the ratio division
+        assertThatThrownBy(() -> SeasonReportCalculator.calculate(SeasonReportFixtures.withTurns(base, turns)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("성적표 원천이 모순이다: 평가액이 하나도 남지 않은 턴이 있다");
+        rejected(SeasonReportFixtures.withTurns(base, turns));
+    }
+
+    @Test
+    void 누적_수량이_음수인_보유가_있으면_멈춘다() {
+        SeasonReportSources base = threeTurns();
+        List<HoldingFact> holdings = new ArrayList<>(base.holdings());
+        holdings.add(new HoldingFact(A, 2, won(-1_000_000)));
+        assertThatThrownBy(() -> SeasonReportCalculator
+                .calculate(SeasonReportFixtures.withHoldings(base, holdings, base.lineup())))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("성적표 원천이 모순이다: 체결 이력의 누적 수량이 음수인 턴이 있다");
+        rejected(SeasonReportFixtures.withHoldings(base, holdings, base.lineup()));
+    }
+
+    @Test
+    void 누적_수량이_정확히_0이_되어_보유_행에서_빠진_종목은_멈추지_않는다() {
+        SeasonReportSources base = threeTurns();
+        // B is sold out before turn 3, so it has no holding row at turn 3 (the query drops zero quantities)
+        assertThat(base.holdings()).noneMatch(h -> h.asset().equals(SeasonReportFixtures.B) && h.turnNo() == 3);
+        SeasonReportCalculator.calculate(base);
+    }
+
+    @Test
     void 보유한_턴에_열린_선언_구간이_하나가_아니면_멈춘다() {
         SeasonReportSources base = threeTurns();
         // 구간 없음: A 의 구간을 모두 지우면 1턴 보유가 선언을 찾지 못한다

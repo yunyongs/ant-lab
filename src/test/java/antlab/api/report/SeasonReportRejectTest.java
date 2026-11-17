@@ -158,6 +158,58 @@ class SeasonReportRejectTest {
     }
 
     @Test
+    void 누적_수량이_음수가_된_시즌은_500이다() throws Exception {
+        long season = ReportApiSupport.finishedSeason(mvc, jdbc);
+        // Same mutation as db/26_season_report_check.sql: one turn-0 BUY becomes a SELL, so its asset goes negative
+        int flipped = jdbc.update("UPDATE orders SET side = 'SELL' WHERE id = (SELECT min(id) FROM orders "
+                + "WHERE season_id = ? AND turn_no = 0 AND side = 'BUY')", season);
+        assertThat(flipped).isEqualTo(1);
+        MockHttpServletResponse r = ReportApiSupport.getReport(mvc, season);
+        assertThat(r.getStatus()).isEqualTo(500);
+        assertThat(code(r)).isEqualTo("INTERNAL_ERROR");
+        ProblemBodyAssert.assertAbsent(r.getContentAsString(), "성적표 원천", "모순", "누적 수량", "orders");
+        assertInconsistent(season, "성적표 원천이 모순이다: 체결 이력의 누적 수량이 음수인 턴이 있다");
+    }
+
+    @Test
+    void 가격이_없는_종목의_음수_누적도_500이다() throws Exception {
+        long season = ReportApiSupport.finishedSeason(mvc, jdbc);
+        // A SELL of an asset outside the pool (no turn_price): the holdings join drops it, the consistency query must not
+        ReportApiSupport.fill(jdbc, season, ReportApiSupport.unpricedAsset(jdbc), 3, "SELL", 5);
+        MockHttpServletResponse r = ReportApiSupport.getReport(mvc, season);
+        assertThat(r.getStatus()).isEqualTo(500);
+        assertThat(code(r)).isEqualTo("INTERNAL_ERROR");
+        ProblemBodyAssert.assertAbsent(r.getContentAsString(), "성적표 원천", "모순", "누적 수량", "orders");
+        assertInconsistent(season, "성적표 원천이 모순이다: 체결 이력의 누적 수량이 음수인 턴이 있다");
+    }
+
+    @Test
+    void 턴_경계에서_음수였다가_회복한_시즌은_500이다() throws Exception {
+        long season = ReportApiSupport.finishedSeason(mvc, jdbc);
+        long brk = antlab.api.turn.TurnApiSupport.assetId(jdbc, "BRK.B");
+        // Holds 5 from turn 0; selling 8 in turn 3 leaves -3 at the turn 3 boundary, buying 8 in turn 4 ends at 5 again
+        ReportApiSupport.fill(jdbc, season, brk, 3, "SELL", 8);
+        ReportApiSupport.fill(jdbc, season, brk, 4, "BUY", 8);
+        MockHttpServletResponse r = ReportApiSupport.getReport(mvc, season);
+        assertThat(r.getStatus()).isEqualTo(500);
+        assertInconsistent(season, "성적표 원천이 모순이다: 체결 이력의 누적 수량이 음수인 턴이 있다");
+    }
+
+    @Test
+    void 평가액이_남지_않은_턴은_500이다() throws Exception {
+        long season = ReportApiSupport.finishedSeason(mvc, jdbc);
+        int zeroed = jdbc.update("UPDATE turn SET cash_balance = 0, holdings_value = 0, total_value = 0, "
+                + "goalkeeper_value = 0, defender_value = 0, midfielder_value = 0, forward_value = 0 "
+                + "WHERE season_id = ? AND turn_no = 1", season);
+        assertThat(zeroed).isEqualTo(1);
+        MockHttpServletResponse r = ReportApiSupport.getReport(mvc, season);
+        assertThat(r.getStatus()).isEqualTo(500);
+        assertThat(code(r)).isEqualTo("INTERNAL_ERROR");
+        ProblemBodyAssert.assertAbsent(r.getContentAsString(), "성적표 원천", "모순", "평가액");
+        assertInconsistent(season, "성적표 원천이 모순이다: 평가액이 하나도 남지 않은 턴이 있다");
+    }
+
+    @Test
     void 진행_중_시즌은_원천이_모순이어도_409다() throws Exception {
         long season = ReportApiSupport.season(mvc, jdbc, 3);
         jdbc.update("DELETE FROM season_path WHERE season_id = ? AND turn_no = 2", season);

@@ -877,6 +877,13 @@ CALL pg_temp.rej('체결 이력의 누적 수량이 0 미만 (0턴 BUY 주문 �
                  'UPDATE orders SET side = ''SELL'' WHERE id = (SELECT min(o.id) FROM orders o JOIN zz_cur c ON c.id = o.season_id WHERE o.turn_no = 0 AND o.side = ''BUY'')',
                  'SELECT * FROM pg_temp.sr_report((SELECT id FROM zz_cur))', 'REPORT_INCONSISTENT',
                  'SELECT count(*) FROM orders o JOIN zz_cur c ON c.id = o.season_id WHERE o.turn_no = 0 AND o.side = ''BUY''');
+-- 같은 가드가 가격과 무관한지: 0턴 BUY 주문 하나를 시즌 풀 밖(turn_price 없는) 종목의 SELL 로 바꾼다. 메시지 앞부분까지 확인해 다른 가드가 대신 잡은 경우를 거른다. 풀 밖 종목이 없으면 적용 불가.
+CALL pg_temp.rej('체결 이력의 누적 수량이 0 미만 (풀 밖 종목, 가격 없음)',
+                 'UPDATE orders SET side = ''SELL'', asset_id = (SELECT a.id FROM asset a WHERE NOT EXISTS (SELECT 1 FROM turn_price tp WHERE tp.season_id = (SELECT id FROM zz_cur) AND tp.asset_id = a.id) ORDER BY a.id LIMIT 1)
+                   WHERE id = (SELECT min(o.id) FROM orders o JOIN zz_cur c ON c.id = o.season_id WHERE o.turn_no = 0 AND o.side = ''BUY'')',
+                 'SELECT * FROM pg_temp.sr_report((SELECT id FROM zz_cur))', '*P0-20 성적표: 체결 이력의 누적 수량이 0 미만',
+                 'SELECT least((SELECT count(*) FROM asset a WHERE NOT EXISTS (SELECT 1 FROM turn_price tp WHERE tp.season_id = (SELECT id FROM zz_cur) AND tp.asset_id = a.id)),
+                               (SELECT count(*) FROM orders o JOIN zz_cur c ON c.id = o.season_id WHERE o.turn_no = 0 AND o.side = ''BUY''))');
 CALL pg_temp.rej('평가액이 0 인 턴 (1턴 스냅샷의 금액을 모두 0 으로)',
                  'UPDATE turn SET total_value = 0, cash_balance = 0, holdings_value = 0, goalkeeper_value = 0, defender_value = 0, midfielder_value = 0, forward_value = 0
                    WHERE season_id = (SELECT id FROM zz_cur) AND turn_no = 1',
