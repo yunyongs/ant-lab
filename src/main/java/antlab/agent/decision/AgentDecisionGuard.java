@@ -35,9 +35,12 @@ public class AgentDecisionGuard {
             throw notFound();
         }
         Season season = seasons.findByIdAndMemberId(seasonId, agentId).orElseThrow(AgentDecisionGuard::notFound);
+        if (season.getStatus() == SeasonStatus.HALTED) {
+            // Answered here, not passed on: a resume between this check and the turn path must not skip the decision check.
+            throw new DomainException(ErrorCode.SEASON_HALTED, "시즌이 대사 불일치로 멈춰 있다");
+        }
         if (season.getStatus() != SeasonStatus.IN_PROGRESS) {
             // ABANDONING and FINISHED never return to IN_PROGRESS, so the turn path may answer SEASON_NOT_ACTIVE.
-            // A HALTED season passes too: the turn path answers SEASON_HALTED first, and that outranks a missing decision.
             return;
         }
         // A number ahead of the turn read here must not pass: another advance could commit before the facade locks the
