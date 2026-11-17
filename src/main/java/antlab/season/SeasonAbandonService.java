@@ -61,6 +61,10 @@ public class SeasonAbandonService {
             }
             state = marker.read(seasonId, state.memberKind());
         }
+        if (state.status() == SeasonStatus.HALTED) {
+            // Another request halted the season after this one's last turn: that is a refusal, never a success answer.
+            throw new DomainException(ErrorCode.SEASON_HALTED, "대사가 거듭 맞지 않아 시즌을 멈췄다 — 관리자 확인이 필요하다");
+        }
         return new AbandonResultDto(seasonId, state.status(), state.currentTurnNo(), state.pathLength(),
                 state.abandonedTurnNo(), state.notStarted(), advanced, state.pathLength() - state.currentTurnNo());
     }

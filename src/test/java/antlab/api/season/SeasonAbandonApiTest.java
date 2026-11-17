@@ -16,6 +16,7 @@ import static antlab.api.turn.TurnApiSupport.startSeason;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import antlab.season.SeedGenerator;
+import org.springframework.boot.test.system.CapturedOutput;
 import antlab.support.IntegrationTest;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.util.List;
@@ -42,6 +43,7 @@ import tools.jackson.databind.JsonNode;
 @Sql(scripts = {"/fixtures/cleanup_season_start.sql", "/fixtures/history_pool.sql", "/fixtures/replay_months.sql",
         "/fixtures/turn_returns.sql"})
 @Sql(scripts = "/fixtures/cleanup_season_start.sql", executionPhase = ExecutionPhase.AFTER_TEST_METHOD)
+@org.junit.jupiter.api.extension.ExtendWith(org.springframework.boot.test.system.OutputCaptureExtension.class)
 class SeasonAbandonApiTest {
 
     @TestConfiguration
@@ -139,12 +141,44 @@ class SeasonAbandonApiTest {
         }
 
         String turnSql = "SELECT string_agg(turn_no || ':' || cash_balance || ':' || holdings_value || ':' || total_value"
-                + " || ':' || drawdown, ',' ORDER BY turn_no) FROM turn WHERE season_id = ?";
+                + " || ':' || drawdown || ':' || goalkeeper_value || ':' || defender_value || ':' || midfielder_value"
+                + " || ':' || forward_value, ',' ORDER BY turn_no) FROM turn WHERE season_id = ?";
         assertThat(jdbc.queryForObject(turnSql, String.class, abandoned)).isEqualTo(jdbc.queryForObject(turnSql, String.class, manual));
         String priceSql = "SELECT string_agg(turn_no || ':' || asset_id || ':' || price, ',' ORDER BY turn_no, asset_id)"
                 + " FROM turn_price WHERE season_id = ?";
         assertThat(jdbc.queryForObject(priceSql, String.class, abandoned)).isEqualTo(jdbc.queryForObject(priceSql, String.class, manual));
         assertThat(count(jdbc, "turn_feed", abandoned)).isEqualTo(count(jdbc, "turn_feed", manual));
+        // The feed content too (ids and times left out): kind, links, direction, strength, template, variables, body.
+        String feedSql = "SELECT string_agg(turn_no || ':' || seq || ':' || kind || ':' || coalesce(asset_id::text, '-')"
+                + " || ':' || coalesce(asset_group_id::text, '-') || ':' || coalesce(direction, '-') || ':'"
+                + " || coalesce(strength::text, '-') || ':' || repeat_count || ':' || template_id || ':'"
+                + " || template_vars::text || ':' || body, '|' ORDER BY turn_no, seq) FROM turn_feed WHERE season_id = ?";
+        assertThat(jdbc.queryForObject(feedSql, String.class, abandoned)).isEqualTo(jdbc.queryForObject(feedSql, String.class, manual));
+    }
+
+    @Test
+    void theAbandonAnswerHasExactlyTheRecordKeysAndNoSeedDateOrMonthBlock(CapturedOutput output) throws Exception {
+        long season = startSeason(mvc);
+        String seed = jdbc.queryForObject("SELECT seed::text FROM season WHERE id = ?", String.class, season);
+        String engine = jdbc.queryForObject("SELECT engine_version FROM season WHERE id = ?", String.class, season);
+
+        MockHttpServletResponse r = abandon(mvc, season, 0);
+
+        assertThat(r.getStatus()).isEqualTo(200);
+        String body = r.getContentAsString();
+        JsonNode json = json(r);
+        java.util.Set<String> expected = new java.util.HashSet<>();
+        for (java.lang.reflect.RecordComponent rc : antlab.season.AbandonResultDto.class.getRecordComponents()) {
+            expected.add(rc.getName());
+        }
+        assertThat(new java.util.HashSet<>(json.propertyNames())).isEqualTo(expected);
+        assertThat(body).doesNotContain(seed).doesNotContain(engine).doesNotContain("seed").doesNotContain("baseDate")
+                .doesNotContain("monthBlock");
+        assertThat(body).doesNotContainPattern("\\d{4}-\\d{2}-\\d{2}");
+        assertThat(output.getAll()).doesNotContain(seed).doesNotContain(engine);
+        jdbc.queryForList("SELECT mb.month_start::text FROM season_path sp JOIN month_block mb ON mb.id = sp.month_block_id"
+                + " WHERE sp.season_id = ?", String.class, season)
+                .forEach(month -> assertThat(output.getAll()).as("month in log").doesNotContain(month));
     }
 
     @Test
