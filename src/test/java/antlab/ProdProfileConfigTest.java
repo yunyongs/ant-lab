@@ -192,6 +192,40 @@ class ProdProfileConfigTest {
     }
 
     @Test
+    void the_prod_documents_own_import_lets_a_password_file_beat_its_environment_placeholder(@TempDir Path secrets)
+            throws IOException {
+        // Throwaway test values. No first-priority spring.config.import is injected: the prod document's own import
+        // runs, with only its directory redirected, so the real file-versus-placeholder precedence is exercised.
+        Files.writeString(secrets.resolve("spring.flyway.password"), "owner-from-file");
+        Files.writeString(secrets.resolve("spring.datasource.password"), "app-from-file");
+
+        StandardEnvironment env = isolatedEnvironment();
+        env.getPropertySources().addFirst(new SystemEnvironmentPropertySource("envLike", Map.of("ANTLAB_DB_URL", URL,
+                "ANTLAB_SECRETS_DIR", secrets + "/", "ANTLAB_DB_OWNER_PASSWORD", "owner-from-placeholder",
+                "ANTLAB_DB_PASSWORD", "app-from-placeholder")));
+        ConfigDataEnvironmentPostProcessor.applyTo(env, new DefaultResourceLoader(), null, "prod");
+
+        assertThat(env.getProperty("spring.flyway.password")).isEqualTo("owner-from-file");
+        assertThat(env.getProperty("spring.datasource.password")).isEqualTo("app-from-file");
+    }
+
+    @Test
+    void the_prod_documents_own_import_still_lets_a_spring_environment_variable_beat_the_file(@TempDir Path secrets)
+            throws IOException {
+        Files.writeString(secrets.resolve("spring.flyway.password"), "owner-from-file");
+        Files.writeString(secrets.resolve("spring.datasource.password"), "app-from-file");
+
+        StandardEnvironment env = isolatedEnvironment();
+        env.getPropertySources().addFirst(new SystemEnvironmentPropertySource("envLike", Map.of("ANTLAB_DB_URL", URL,
+                "ANTLAB_SECRETS_DIR", secrets + "/", "SPRING_FLYWAY_PASSWORD", "owner-from-env")));
+        ConfigDataEnvironmentPostProcessor.applyTo(env, new DefaultResourceLoader(), null, "prod");
+
+        assertThat(env.getProperty("spring.flyway.password")).isEqualTo("owner-from-env");
+        // The directory was really read in this environment: the file value that nothing overrides is visible.
+        assertThat(env.getProperty("spring.datasource.password")).isEqualTo("app-from-file");
+    }
+
+    @Test
     void default_and_local_keep_the_single_user_defaults_and_the_guard_off() {
         for (String profile : new String[] {"", "local"}) {
             StandardEnvironment env = isolatedEnvironment();
@@ -203,6 +237,33 @@ class ProdProfileConfigTest {
             assertThat(env.getProperty("spring.datasource.username")).as("profile '%s'", profile).isEqualTo("antlab");
             assertThat(env.getProperty("spring.flyway.user")).as("profile '%s'", profile).isNull();
             assertThat(env.getProperty("antlab.db.least-privilege-check")).as("profile '%s'", profile).isEqualTo("false");
+        }
+    }
+
+    // ---- MVP-20 PR B: structured logs ----
+
+    @Test
+    void prod_writes_ecs_json_logs_for_antlab_api_with_the_banner_off() {
+        ConfigurableEnvironment env = prodEnvironment(Map.of("ANTLAB_DB_URL", URL));
+        assertThat(env.getProperty("logging.structured.format.console")).isEqualTo("ecs");
+        assertThat(env.getProperty("logging.structured.ecs.service.name")).isEqualTo("antlab-api");
+        assertThat(env.getProperty("spring.main.banner-mode")).isEqualTo("off");
+        // The same name labels the metrics, so a log line and a metric point at the same service.
+        assertThat(env.getProperty("management.metrics.tags.application")).isEqualTo("antlab-api");
+    }
+
+    @Test
+    void default_and_local_log_plain_text() {
+        for (String profile : new String[] {"", "local"}) {
+            StandardEnvironment env = isolatedEnvironment();
+            if (profile.isEmpty()) {
+                ConfigDataEnvironmentPostProcessor.applyTo(env, new DefaultResourceLoader(), null);
+            } else {
+                ConfigDataEnvironmentPostProcessor.applyTo(env, new DefaultResourceLoader(), null, profile);
+            }
+            assertThat(env.getProperty("logging.structured.format.console")).as("profile '%s'", profile).isNull();
+            assertThat(env.getProperty("logging.structured.ecs.service.name")).as("profile '%s'", profile).isNull();
+            assertThat(env.getProperty("spring.main.banner-mode")).as("profile '%s'", profile).isNull();
         }
     }
 }

@@ -69,7 +69,9 @@ class AppPrivilegeMatrixTest {
     private static String aclSnapshot(JdbcTemplate jdbc) {
         return jdbc.queryForList("SELECT relname || ' ' || coalesce(relacl::text, '-') FROM pg_class "
                 + "WHERE relnamespace = 'public'::regnamespace AND relkind IN ('r', 'p', 'S') ORDER BY relname",
-                String.class).toString();
+                String.class).toString() + jdbc.queryForList("SELECT c.relname || '.' || a.attname || ' ' || a.attacl::text "
+                + "FROM pg_attribute a JOIN pg_class c ON c.oid = a.attrelid "
+                + "WHERE c.relnamespace = 'public'::regnamespace AND a.attacl IS NOT NULL ORDER BY 1", String.class);
     }
 
     @Test
@@ -104,9 +106,13 @@ class AppPrivilegeMatrixTest {
                         wrong.add(privilege + " on " + table + " is " + has);
                     }
                 }
-                boolean anyColumn = Boolean.TRUE.equals(jdbc.queryForObject(
-                        "SELECT has_any_column_privilege('antlab_app', ?::regclass, 'UPDATE')", Boolean.class, "public." + table));
-                assertThat(anyColumn).as("column-level UPDATE on " + table).isEqualTo(expected(table).contains("UPDATE"));
+                for (String columnPrivilege : List.of("SELECT", "INSERT", "UPDATE", "REFERENCES")) {
+                    boolean anyColumn = Boolean.TRUE.equals(jdbc.queryForObject(
+                            "SELECT has_any_column_privilege('antlab_app', ?::regclass, ?)", Boolean.class,
+                            "public." + table, columnPrivilege));
+                    assertThat(anyColumn).as("column-level " + columnPrivilege + " on " + table)
+                            .isEqualTo(expected(table).contains(columnPrivilege));
+                }
             }
             assertThat(wrong).isEmpty();
             assertThat(jdbc.queryForObject("""
@@ -232,14 +238,74 @@ class AppPrivilegeMatrixTest {
                 s.execute("GRANT UPDATE ON cash_ledger TO antlab_app");
                 s.execute("GRANT USAGE ON SEQUENCE member_id_seq TO antlab_app");
                 s.execute("GRANT UPDATE (name) ON asset TO antlab_app");
+                s.execute("GRANT INSERT (name) ON asset TO antlab_app");
+                s.execute("GRANT REFERENCES (name) ON asset TO antlab_app");
+                s.execute("GRANT SELECT (name) ON member TO antlab_app");
             }
             assertThat(aclSnapshot(jdbc)).isNotEqualTo(converged);
 
             assertThat(SERVER.migrate(db.name, "antlab_owner", true).migrationsExecuted).isZero();
 
             assertThat(aclSnapshot(jdbc)).isEqualTo(converged);
-            assertThat(jdbc.queryForObject("SELECT has_any_column_privilege('antlab_app', 'asset'::regclass, 'UPDATE')",
-                    Boolean.class)).isFalse();
+            for (String privilege : List.of("UPDATE", "INSERT", "REFERENCES")) {
+                assertThat(jdbc.queryForObject("SELECT has_any_column_privilege('antlab_app', 'asset'::regclass, ?)",
+                        Boolean.class, privilege)).as("column " + privilege).isFalse();
+            }
+        }
+    }
+
+    @Test
+    void p8_tablesLeftBehindByASuperuserMigrationStopTheCallbackWithTheFix() throws SQLException {
+        try (RoleTestServer.Db db = new RoleTestServer.Db(SERVER, "p8")) {
+            prepare(db);
+            db.superuserExecute("ALTER TABLE holding OWNER TO " + SERVER.container().getUsername());
+
+            assertThatThrownBy(() -> SERVER.migrate(db.name, "antlab_owner", true))
+                    .isInstanceOf(FlywayException.class).hasMessageContaining("not owned by antlab_owner")
+                    .hasMessageContaining("holding").hasMessageContaining("db/roles/antlab_owner_app.sql");
+        }
+    }
+
+    @Test
+    void p8_aSuperuserMigrateIsNotStoppedByForeignOwnedTables() throws SQLException {
+        try (RoleTestServer.Db db = new RoleTestServer.Db(SERVER, "p8s")) {
+            prepare(db);
+            db.superuserExecute("ALTER TABLE holding OWNER TO " + SERVER.container().getUsername());
+
+            assertThat(SERVER.migrate(db.name, SERVER.container().getUsername(), true).success).isTrue();
+        }
+    }
+
+    @Test
+    void p8_aSuperuserOwnedViewOrSequenceStopsTheCallbackWithTheFixToo() throws SQLException {
+        try (RoleTestServer.Db db = new RoleTestServer.Db(SERVER, "p8v")) {
+            prepare(db);
+            db.superuserExecute("CREATE VIEW probe_view AS SELECT 1 AS i");
+
+            assertThatThrownBy(() -> SERVER.migrate(db.name, "antlab_owner", true))
+                    .isInstanceOf(FlywayException.class).hasMessageContaining("probe_view")
+                    .hasMessageContaining("db/roles/antlab_owner_app.sql");
+        }
+        try (RoleTestServer.Db db = new RoleTestServer.Db(SERVER, "p8q")) {
+            prepare(db);
+            db.superuserExecute("CREATE SEQUENCE probe_seq");
+
+            assertThatThrownBy(() -> SERVER.migrate(db.name, "antlab_owner", true))
+                    .isInstanceOf(FlywayException.class).hasMessageContaining("probe_seq");
+        }
+    }
+
+    @Test
+    void p9_aRoutineInPublicStopsTheCallbackAndNamesIt() throws SQLException {
+        try (RoleTestServer.Db db = new RoleTestServer.Db(SERVER, "p9")) {
+            prepare(db);
+            try (Connection c = SERVER.connect(db.name, "antlab_owner", RoleTestServer.PASSWORD); Statement s = c.createStatement()) {
+                s.execute("CREATE FUNCTION probe_routine() RETURNS int LANGUAGE sql SECURITY DEFINER AS 'SELECT 1'");
+            }
+
+            assertThatThrownBy(() -> SERVER.migrate(db.name, "antlab_owner", true))
+                    .isInstanceOf(FlywayException.class).hasMessageContaining("routine(s) in public")
+                    .hasMessageContaining("probe_routine");
         }
     }
 }
