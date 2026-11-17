@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseWholeNumber } from './integer.ts';
+import { groupDigits, parseWholeNumber } from './integer.ts';
 
 describe('parseWholeNumber', () => {
   it.each([
@@ -16,4 +16,15 @@ describe('parseWholeNumber', () => {
       expect(parseWholeNumber(text, 100)).toBeNull();
     },
   );
+});
+
+describe('groupDigits', () => {
+  it.each([
+    [0, '0'],
+    [999, '999'],
+    [2000, '2,000'],
+    [1234567, '1,234,567'],
+  ])('%i -> %s', (count, expected) => {
+    expect(groupDigits(count)).toBe(expected);
+  });
 });

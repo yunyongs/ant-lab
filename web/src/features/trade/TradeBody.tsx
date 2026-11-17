@@ -1,6 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { messageFor } from '../../api/errorMessages.ts';
+import { ProjectionLink } from '../projection/ProjectionLink.tsx';
 import { QueryError } from '../seasons/QueryError.tsx';
 import type { Season } from '../seasons/labels.ts';
 import { invalidateSeasonState } from '../seasons/queries.ts';
@@ -71,6 +72,7 @@ export function TradeBody({
       {failed && <QueryError error={error} onRetry={retry} />}
       <TradeSummary holdings={holdings.data} />
       <FormationEntry season={season} />
+      <ProjectionLink seasonId={season.id} />
       <HoldingList holdings={held} names={names} {...common} />
       <details
         className={styles.pool}

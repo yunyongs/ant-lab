@@ -1,0 +1,1 @@
+{"title":"Regime Data Invalid","status":422,"detail":"The collected observations cannot be used: duplicate row in KR_CPI","instance":"/v1/regime/evaluate","code":"REGIME_DATA_INVALID"}

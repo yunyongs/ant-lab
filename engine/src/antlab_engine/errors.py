@@ -26,6 +26,7 @@ class ErrorCode(StrEnum):
     POOL_NOT_FOUND = "POOL_NOT_FOUND"
     HISTORY_UNAVAILABLE = "HISTORY_UNAVAILABLE"
     ENGINE_BUSY = "ENGINE_BUSY"
+    REGIME_DATA_INVALID = "REGIME_DATA_INVALID"
 
 
 class FieldViolation(BaseModel):
@@ -84,7 +85,8 @@ _HTTP_CODES = {
 }
 
 
-# Domain failures that reach the caller. PATH_TOO_LONG uses the status Java gives the same code.
+# Domain failures that reach the caller. PATH_TOO_LONG uses the status Java gives the same code;
+# REGIME_DATA_INVALID is 422 because bad stored data is not transient.
 # UNSAFE_DB_ROLE is deliberately absent: it answers as INTERNAL_ERROR without role facts.
 _DOMAIN_STATUS = {
     "INVALID_ARGUMENT": 400,
@@ -92,6 +94,7 @@ _DOMAIN_STATUS = {
     "POOL_NOT_FOUND": 404,
     "HISTORY_UNAVAILABLE": 503,
     "ENGINE_BUSY": 503,
+    "REGIME_DATA_INVALID": 422,
 }
 RETRY_AFTER_SECONDS = "1"
 _INTERNAL_DETAIL = "The engine could not process the request."

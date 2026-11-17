@@ -28,7 +28,7 @@ import org.springframework.test.web.servlet.assertj.MockMvcTester;
 import tools.jackson.databind.JsonNode;
 
 /**
- * The feed inside the turn advance: stored with the turn after the snapshot and before reconciliation, answered as the stored rows,
+ * The feed inside the turn advance (the nudge alerts are covered by {@code TurnAdvanceAlertTest}): stored with the turn after the snapshot and before reconciliation, answered as the stored rows,
  * and rolled back with everything else when it cannot be made (an unreviewed block, an event without a reaction) or when
  * reconciliation fails. Synthetic fixtures only (fake months are marked as reviewed).
  */
@@ -54,9 +54,14 @@ class TurnAdvanceFeedTest {
         return season;
     }
 
+    /** The stored feed of a turn: every row but the nudge alerts, which have their own list ({@code TurnAdvanceAlertTest}). */
     private List<Map<String, Object>> stored(long season, int turn) {
         return jdbc.queryForList("SELECT turn_no, seq, asset_id, body FROM turn_feed WHERE season_id = ? AND turn_no = ?"
-                + " ORDER BY seq", season, turn);
+                + " AND kind <> 'NUDGE' ORDER BY seq", season, turn);
+    }
+
+    private long storedCount(long season, int turn) {
+        return jdbc.queryForObject("SELECT count(*) FROM turn_feed WHERE season_id = ? AND turn_no = ?", Long.class, season, turn);
     }
 
     /** The response items as the same {turn_no, seq, asset_id, body} maps the table gives. */
@@ -105,6 +110,12 @@ class TurnAdvanceFeedTest {
             for (int i = 0; i < rows.size(); i++) {
                 assertThat(((Number) rows.get(i).get("seq")).intValue()).isEqualTo(i + 1);
             }
+            List<Map<String, Object>> alerts = items(json(r).get("alerts"));
+            assertThat(alerts).as("turn " + (turn + 1) + " has its alerts after the feed").isNotEmpty();
+            for (int i = 0; i < alerts.size(); i++) {
+                assertThat(alerts.get(i).get("seq")).as("seq runs on after the feed rows").isEqualTo(rows.size() + i + 1);
+            }
+            assertThat(storedCount(season, turn + 1)).isEqualTo(rows.size() + alerts.size());
             total += rows.size();
         }
         assertThat(total).as("a season of four fake assets produces some feed").isPositive();
@@ -129,7 +140,7 @@ class TurnAdvanceFeedTest {
             List<antlab.feed.GeneratedFeedRow> expected = generator.generate(reader.read(season, seed, turn, prices));
             List<Map<String, Object>> rows = jdbc.queryForList("SELECT seq, kind, direction, strength, repeat_count, template_id,"
                     + " template_vars::text AS vars, category_hidden, body FROM turn_feed WHERE season_id = ? AND turn_no = ?"
-                    + " ORDER BY seq", season, turn);
+                    + " AND kind <> 'NUDGE' ORDER BY seq", season, turn);
             assertThat(rows).as("turn " + turn).hasSameSizeAs(expected);
             for (int i = 0; i < rows.size(); i++) {
                 Map<String, Object> row = rows.get(i);
@@ -256,7 +267,7 @@ class TurnAdvanceFeedTest {
         assertThat(snapshot).isGreaterThanOrEqualTo(0);
         assertThat(firstFeed).as("feed rows were written").isGreaterThan(snapshot);
         assertThat(firstRule).as("reconciliation rules ran").isGreaterThan(lastFeed);
-        assertThat(sqls.stream().filter(q -> q.startsWith("insert into turn_feed"))).hasSize(stored(season, 1).size());
+        assertThat(sqls.stream().filter(q -> q.startsWith("insert into turn_feed"))).hasSize((int) storedCount(season, 1));
     }
 
     private static int indexOf(List<String> sqls, java.util.function.Predicate<String> match) {

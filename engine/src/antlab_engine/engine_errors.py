@@ -28,5 +28,11 @@ class EngineBusy(EngineError):  # noqa: N818
     code = "ENGINE_BUSY"
 
 
+class RegimeDataInvalid(EngineError):  # noqa: N818
+    """The collected observations cannot be used; the text names a series, never a date or value."""
+
+    code = "REGIME_DATA_INVALID"
+
+
 class UnsafeDatabaseRole(EngineError):  # noqa: N818
     code = "UNSAFE_DB_ROLE"

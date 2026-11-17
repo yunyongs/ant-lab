@@ -1,0 +1,98 @@
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--font-base);
+}
+
+.note {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+.tabs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.tablist {
+  display: flex;
+  gap: var(--space-1);
+}
+
+.tab {
+  min-width: 44px;
+  min-height: 44px;
+  flex: 1;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-text);
+  cursor: pointer;
+  font: inherit;
+}
+
+/* The selected state is also announced by aria-selected; weight and border
+   carry it visually without relying on colour alone. */
+.tab[aria-selected='true'] {
+  border: 2px solid var(--color-primary);
+  color: var(--color-primary-strong);
+  font-weight: 700;
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.subtitle {
+  margin: 0;
+  font-size: var(--font-base);
+}
+
+.list {
+  display: flex;
+  margin: 0;
+  padding: 0;
+  flex-direction: column;
+  gap: var(--space-2);
+  list-style: none;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+}
+
+.rank {
+  min-width: 2.5rem;
+  font-weight: 700;
+}
+
+.name {
+  min-width: 0;
+  flex: 1;
+  overflow-wrap: anywhere;
+}
+
+.meta {
+  color: var(--color-text-muted);
+}

@@ -84,6 +84,25 @@ test('plays one 12-turn season from signup to review', async ({
   await expect(page.getByText(/^보유 \d+주 · /)).toHaveCount(2);
   await checkpoint(run, 'team-built');
 
+  // 06b projection page: opt-in, because it needs the engine service and
+  // enough price history in the stack (the guards fail on any 4xx/5xx)
+  if (process.env.E2E_PROJECTION === '1') {
+    await nav.getByRole('link', { name: '매매' }).click();
+    await page.getByRole('link', { name: '예상 분포 보기' }).click();
+    await expect(
+      page.getByRole('heading', { name: '예상 분포' }),
+    ).toBeVisible();
+    await expect(page.getByText(/예측이 아닙니다/).first()).toBeVisible();
+    await expect(
+      page.getByRole('img', { name: /예상 분포 띠 그림/ }),
+    ).toBeVisible({ timeout: 30_000 });
+    await checkpoint(run, 'projection', { axe: 'projection' });
+    await page.getByRole('link', { name: '시즌으로 돌아가기' }).click();
+    await expect(
+      page.getByRole('heading', { name: '0턴 팀 구성' }),
+    ).toBeVisible();
+  }
+
   // 07 and 08 turns 1 and 2
   await page.getByRole('button', { name: '다음 턴 (1턴으로)' }).click();
   await expect(page.getByRole('heading', { name: '1턴 결과' })).toBeVisible();
@@ -94,7 +113,19 @@ test('plays one 12-turn season from signup to review', async ({
   await page.getByRole('button', { name: '다음 턴 (2턴으로)' }).click();
   await expect(page.getByRole('heading', { name: '2턴 결과' })).toBeVisible();
   await expect(turnCard).toBeVisible();
-  await checkpoint(run, 'turn-2');
+  // The ranking board: first tab selected, the keyboard moves to the next.
+  const ranking = page.getByRole('region', { name: '순위', exact: true });
+  await expect(ranking.getByRole('tab', { name: '등락' })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  );
+  await ranking.getByRole('tab', { name: '등락' }).focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(ranking.getByRole('tab', { name: '관심' })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  );
+  await checkpoint(run, 'turn-2', { axe: 'turn-ranking' });
 
   // 09 formation change at turn 2
   await nav.getByRole('link', { name: '매매' }).click();

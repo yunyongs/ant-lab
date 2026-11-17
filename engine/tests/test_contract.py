@@ -205,6 +205,108 @@ def _pct_n_bound_widens(spec):
     spec["components"]["schemas"]["PercentileRequest"]["properties"]["n"]["maximum"] = 50000
 
 
+def _regime_loses_a_status(spec):
+    del spec["paths"]["/v1/regime/evaluate"]["post"]["responses"]["422"]
+
+
+def _regime_not_secured(spec):
+    spec["paths"]["/v1/regime/evaluate"]["post"]["security"] = []
+
+
+def _regime_request_allows_extra_fields(spec):
+    del spec["components"]["schemas"]["RegimeRequest"]["additionalProperties"]
+
+
+def _regime_months_bound_widens(spec):
+    spec["components"]["schemas"]["RegimeRequest"]["properties"]["months"]["maxItems"] = 4800
+
+
+def _regime_month_pattern_widens(spec):
+    spec["components"]["schemas"]["RegimeRequest"]["properties"]["months"]["items"]["pattern"] = (
+        ".*"
+    )
+
+
+def _regime_label_version_changes(spec):
+    spec["components"]["schemas"]["RegimeRequest"]["properties"]["labelVersion"]["const"] = (
+        "m2-rl-v2"
+    )
+
+
+def _regime_digest_becomes_optional(spec):
+    spec["components"]["schemas"]["RegimeResult"]["required"].remove("inputDigest")
+
+
+def _regime_probability_becomes_number(spec):
+    spec["components"]["schemas"]["Probabilities"]["properties"]["p1"] = {"type": "number"}
+
+
+def _regime_probability_gains_digits(spec):
+    spec["components"]["schemas"]["Probabilities"]["properties"]["p2"]["pattern"] = (
+        "^(0\\.[0-9]{8}|1\\.0{8})$"
+    )
+
+
+def _regime_strength_becomes_number(spec):
+    spec["components"]["schemas"]["AxisReading"]["properties"]["strength"] = {"type": "number"}
+
+
+def _regime_indicator_key_dropped(spec):
+    spec["components"]["schemas"]["RegimeMonth"]["properties"]["indicators"]["propertyNames"][
+        "enum"
+    ].remove("14KR")
+
+
+def _regime_indicator_may_be_number(spec):
+    spec["components"]["schemas"]["RegimeMonth"]["properties"]["indicators"][
+        "additionalProperties"
+    ]["anyOf"][0] = {"type": "number"}
+
+
+def _regime_label_gains_a_pool(spec):
+    spec["components"]["schemas"]["RegimeMonth"]["properties"]["label"]["anyOf"][0]["enum"].append(
+        "P5"
+    )
+
+
+def _regime_status_gains_a_value(spec):
+    spec["components"]["schemas"]["RegimeMonth"]["properties"]["status"]["enum"].append("STALE")
+
+
+def _regime_label_becomes_required_text(spec):
+    spec["components"]["schemas"]["RegimeMonth"]["properties"]["label"] = {"type": "string"}
+
+
+def _regime_month_loses_a_required_field(spec):
+    spec["components"]["schemas"]["RegimeMonth"]["required"].remove("quality")
+
+
+def _regime_axes_gain_a_won_field(spec):
+    spec["components"]["schemas"]["Axes"]["properties"]["wonValue"] = {"type": "string"}
+
+
+def _regime_coverage_count_may_be_negative(spec):
+    del spec["components"]["schemas"]["RegimeCoverage"]["properties"]["evaluated"]["minimum"]
+
+
+def _regime_data_invalid_code_dropped(spec):
+    spec["components"]["schemas"]["ErrorCode"]["enum"].remove("REGIME_DATA_INVALID")
+
+
+def _regime_retry_after_header_dropped(spec):
+    del spec["components"]["responses"]["RegimeUnavailable"]["headers"]
+
+
+def _projection_retry_after_header_dropped(spec):
+    del spec["components"]["responses"]["ProjectionUnavailable"]["headers"]
+
+
+def _retry_after_header_becomes_integer(spec):
+    spec["components"]["responses"]["RegimeUnavailable"]["headers"]["Retry-After"]["schema"] = {
+        "type": "integer"
+    }
+
+
 def _busy_code_dropped(spec):
     spec["components"]["schemas"]["ErrorCode"]["enum"].remove("ENGINE_BUSY")
 
@@ -254,6 +356,28 @@ MUTATIONS = [
     _pct_not_secured,
     _pct_n_bound_widens,
     _busy_code_dropped,
+    _regime_retry_after_header_dropped,
+    _projection_retry_after_header_dropped,
+    _retry_after_header_becomes_integer,
+    _regime_loses_a_status,
+    _regime_not_secured,
+    _regime_request_allows_extra_fields,
+    _regime_months_bound_widens,
+    _regime_month_pattern_widens,
+    _regime_label_version_changes,
+    _regime_digest_becomes_optional,
+    _regime_probability_becomes_number,
+    _regime_probability_gains_digits,
+    _regime_strength_becomes_number,
+    _regime_indicator_key_dropped,
+    _regime_indicator_may_be_number,
+    _regime_label_gains_a_pool,
+    _regime_status_gains_a_value,
+    _regime_label_becomes_required_text,
+    _regime_month_loses_a_required_field,
+    _regime_axes_gain_a_won_field,
+    _regime_coverage_count_may_be_negative,
+    _regime_data_invalid_code_dropped,
     _drop_info_security_responses,
     _drop_global_security,
     _make_healthz_secured,
@@ -281,7 +405,12 @@ def test_normalizer_ignores_documentation_only_changes(contract, generated):
     assert normalize(changed) == normalize(generated)
 
 
-DOMAIN_POSTS = {"POST /v1/paths", "POST /v1/projections", "POST /v1/percentiles"}
+DOMAIN_POSTS = {
+    "POST /v1/paths",
+    "POST /v1/projections",
+    "POST /v1/percentiles",
+    "POST /v1/regime/evaluate",
+}
 
 
 @pytest.mark.parametrize("which", ["contract", "generated"])
@@ -302,6 +431,7 @@ def test_invariants(which, contract, generated):
         "POST /v1/paths",
         "POST /v1/projections",
         "POST /v1/percentiles",
+        "POST /v1/regime/evaluate",
     }
     for key, operation in normalized.items():
         # 422 is a domain status only (PATH_TOO_LONG), never FastAPI's validation response

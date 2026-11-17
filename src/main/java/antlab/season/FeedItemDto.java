@@ -5,7 +5,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.media.Schema.RequiredMode;
 
 /**
- * One feed item as shown to the player. Event cards and noise share this shape: nothing here says which is which, and
+ * One feed item or alert as shown to the player. Event cards and noise share this shape: nothing here says which is which, and
  * the kind, template, group, event and strength of the stored row are never exported (PLAN §4.13, erd §9 P0-18·MVP DTO).
  * {@code turnNo} with {@code seq} is the visible reference of an item.
  */

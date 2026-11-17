@@ -163,7 +163,10 @@ class TurnAdvanceGoldenTest {
                 .isEqualTo(10);
         long sqlFeed = count(sqlDb, "SELECT count(*) AS n FROM turn_feed WHERE season_id = :sid", sqlSeason);
         assertThat(sqlFeed).isPositive();
-        assertThat(count(apiDb, "SELECT count(*) AS n FROM turn_feed WHERE season_id = :sid", apiSeason)).isEqualTo(sqlFeed);
+        assertThat(count(apiDb, "SELECT count(*) AS n FROM turn_feed WHERE season_id = :sid AND kind <> 'NUDGE'", apiSeason))
+                .isEqualTo(sqlFeed);
+        assertThat(count(apiDb, "SELECT count(*) AS n FROM turn_feed WHERE season_id = :sid AND kind = 'NUDGE'", apiSeason))
+                .as("the Java advance adds nudge alerts, the SQL reference does not").isPositive();
         assertThat(count(apiDb, "SELECT count(DISTINCT turn_no) AS n FROM turn_feed WHERE season_id = :sid", apiSeason))
                 .isEqualTo(count(sqlDb, "SELECT count(DISTINCT turn_no) AS n FROM turn_feed WHERE season_id = :sid", sqlSeason));
     }
@@ -194,6 +197,10 @@ class TurnAdvanceGoldenTest {
     @Order(5)
     @Timeout(value = 25, unit = TimeUnit.MINUTES)
     void API가_만든_DB에서_24_피드_검증이_통과한다() throws Exception {
+        // db/24 is the SQL reference of the feed (p0-18:v2) and has no alerts: it expects none in the season it checks, so the Java
+        // alerts of this scratch database are removed first (the feed rows, which the check is about, stay).
+        var cleared = harness.runner().runSql(apiDb.name(), "DELETE FROM turn_feed WHERE kind = 'NUDGE'", java.time.Duration.ofMinutes(1));
+        assertThat(cleared.exitCode()).as(cleared.stderr()).isZero();
         var result = harness.run(apiDb, new SqlGoldenScenario.ScriptStep("db/24_turn_feed_check.sql",
                 SqlGoldenScenario.Kind.CHECK, "p0_18_check", java.time.Duration.ofMinutes(5)));
         harness.assertCheckPassed(result, "p0_18_check");

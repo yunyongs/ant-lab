@@ -114,6 +114,32 @@ paths:
           $ref: '#/components/responses/InternalError'
         '503':
           $ref: '#/components/responses/ProjectionUnavailable'
+  /v1/regime/evaluate:
+    post:
+      operationId: evaluateRegime
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegimeRequest'
+      responses:
+        '200':
+          description: The regime of each requested month / 요청한 달마다의 국면
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegimeResult'
+        '400':
+          $ref: '#/components/responses/InvalidArgument'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '422':
+          $ref: '#/components/responses/RegimeDataInvalid'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/RegimeUnavailable'
 components:
   securitySchemes:
     EngineToken:
@@ -163,6 +189,22 @@ components:
             $ref: '#/components/schemas/Problem'
     HistoryUnavailable:
       description: The history database is not configured or not reachable / 이력 DB가 설정되지 않았거나 닿지 않는다
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    RegimeDataInvalid:
+      description: The collected observations cannot be used (code REGIME_DATA_INVALID) / 수집된 관측값을 쓸 수 없다(코드 REGIME_DATA_INVALID)
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    RegimeUnavailable:
+      headers:
+        Retry-After:
+          description: Seconds to wait before retrying, sent with ENGINE_BUSY / ENGINE_BUSY일 때 다시 호출하기까지 기다릴 초
+          schema: {type: string}
+      description: No regime data source is configured or it cannot be read (HISTORY_UNAVAILABLE), or another evaluation is running and the call may be retried later (ENGINE_BUSY) / 국면 데이터 출처가 설정되지 않았거나 읽을 수 없다(HISTORY_UNAVAILABLE), 또는 다른 평가가 실행 중이라 나중에 다시 호출하면 된다(ENGINE_BUSY)
       content:
         application/problem+json:
           schema:
@@ -482,6 +524,154 @@ components:
       properties:
         below: {type: integer, minimum: 0, maximum: 5000}
         equal: {type: integer, minimum: 0, maximum: 5000}
+    RegimeRequest:
+      type: object
+      additionalProperties: false
+      description: >-
+        The months to label. `months` are `YYYY-MM`, 1 to 480 items in strictly increasing order. `labelVersion`
+        names the schedule start, month-end sampling, publication floors and dollar-index link
+        (`m2-rl-v1`); a change of any of them is a new version. / 라벨을 붙일 달 목록이다. `months`는 `YYYY-MM`
+        형식이며 1~480개, 엄격히 증가해야 한다. `labelVersion`은 일정 시작, 월말 표본, 공표 하한, 달러지수 연결 규칙을
+        가리키며 이 중 하나가 바뀌면 새 버전이다.
+      required: [labelVersion, months]
+      properties:
+        labelVersion:
+          type: string
+          const: m2-rl-v1
+        months:
+          type: array
+          minItems: 1
+          maxItems: 480
+          items: {type: string, pattern: '^(19|20)[0-9]{2}-(0[1-9]|1[0-2])$'}
+    RegimeResult:
+      type: object
+      description: >-
+        Per requested month, in request order: the last Saturday evaluation inside the month. Strengths and
+        indicator values are decimal strings with eight fractional digits, probabilities four, each rounded half up
+        once from the exact binary value, never `-0`. `probabilities`, `label` and `phase` are all null or all
+        present, and present only when `status` is EVALUATED. `inputDigest` is the SHA-256 (hex) of the label version,
+        the adapted rows (series, reference date, usable date, value; sorted) and the holiday calendars (sorted), so
+        two runs can be compared without printing data. Months and values are replay-only: they are never logged or
+        put in an error. `ENGINE_BUSY` (503) carries `Retry-After: 1`. / 요청한 달마다(요청 순서) 그달 안의 마지막
+        토요일 평가이다. 강도와 지표 값은 소수 여덟 자리, 확률은 네 자리 십진 문자열이며 정확한 이진 값에서 한 번만
+        half up으로 반올림하고 `-0`은 없다. `probabilities`, `label`, `phase`는 모두 null이거나 모두 있으며 `status`가
+        EVALUATED일 때만 있다. `inputDigest`는 버전, 어댑터를 거친 행, 휴일 달력에 대한 SHA-256(hex)이라 데이터를
+        찍지 않고 두 실행을 비교할 수 있다. 달과 값은 복기 전용이라 로그와 오류에는 싣지 않는다.
+      required: [labelVersion, regimeVersion, inputDigest, months, coverage]
+      properties:
+        labelVersion:
+          type: string
+          const: m2-rl-v1
+        regimeVersion: {type: string}
+        inputDigest:
+          type: string
+          pattern: '^[0-9a-f]{64}$'
+        months:
+          type: array
+          items: {$ref: '#/components/schemas/RegimeMonth'}
+        coverage: {$ref: '#/components/schemas/RegimeCoverage'}
+    RegimeMonth:
+      type: object
+      description: >-
+        `CARRIED` (the sample step reused the previous smoothed value) and `NO_DATA` carry no probabilities, label,
+        phase or RATE and GROWTH axes; the FX and SENTIMENT axes stay as computed. `indicators` always has all
+        sixteen keys, null where a value could not be computed. / `CARRIED`(표본 단계가 이전 평활값을 이어 썼다)와
+        `NO_DATA`는 확률·라벨·단계·RATE·GROWTH 축이 없고 FX·SENTIMENT 축은 계산된 대로 남는다. `indicators`는 열여섯 키를
+        항상 가지며 계산할 수 없는 값은 null이다.
+      required: [month, status, axes, probabilities, label, phase, indicators, quality]
+      properties:
+        month: {type: string, pattern: '^(19|20)[0-9]{2}-(0[1-9]|1[0-2])$'}
+        status: {type: string, enum: [EVALUATED, CARRIED, NO_DATA]}
+        axes: {$ref: '#/components/schemas/Axes'}
+        probabilities:
+          anyOf:
+            - {$ref: '#/components/schemas/Probabilities'}
+            - {type: 'null'}
+        label:
+          anyOf:
+            - {type: string, enum: [P1, P2, P3, P4]}
+            - {type: 'null'}
+        phase:
+          anyOf:
+            - {type: string, enum: [WATCH, ALERT, TRANSITION, CONVICTION]}
+            - {type: 'null'}
+        indicators:
+          type: object
+          propertyNames:
+            enum: ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '14US', '14KR']
+          additionalProperties:
+            anyOf:
+              - {type: string, pattern: '^-?[0-9]{1,4}\.[0-9]{8}$'}
+              - {type: 'null'}
+        quality: {$ref: '#/components/schemas/Quality'}
+    Axes:
+      type: object
+      required: [rate, growth, fx, sentiment]
+      properties:
+        rate:
+          anyOf:
+            - {$ref: '#/components/schemas/AxisReading'}
+            - {type: 'null'}
+        growth:
+          anyOf:
+            - {$ref: '#/components/schemas/AxisReading'}
+            - {type: 'null'}
+        fx:
+          anyOf:
+            - {$ref: '#/components/schemas/AxisReading'}
+            - {type: 'null'}
+        sentiment:
+          anyOf:
+            - {$ref: '#/components/schemas/AxisReading'}
+            - {type: 'null'}
+    AxisReading:
+      type: object
+      required: [direction, strength]
+      properties:
+        direction: {type: string, enum: [UP, DOWN, NEUTRAL]}
+        strength: {type: string, pattern: '^[0-9]{1,4}\.[0-9]{8}$'}
+    Probabilities:
+      type: object
+      required: [p1, p2, p3, p4]
+      properties:
+        p1: {type: string, pattern: '^(0\.[0-9]{4}|1\.0000)$'}
+        p2: {type: string, pattern: '^(0\.[0-9]{4}|1\.0000)$'}
+        p3: {type: string, pattern: '^(0\.[0-9]{4}|1\.0000)$'}
+        p4: {type: string, pattern: '^(0\.[0-9]{4}|1\.0000)$'}
+    Quality:
+      type: object
+      required: [ok, stale, unavailable]
+      properties:
+        ok: {type: boolean}
+        stale:
+          type: array
+          items: {type: string}
+        unavailable:
+          type: array
+          items: {type: string}
+    RegimeCoverage:
+      type: object
+      description: >-
+        Counts only, no dates or values. `indicators` counts the months with a value per indicator key;
+        `ruleDatedRows` counts the rows that had no publication date per series. / 개수만 담으며 날짜나 값은 없다.
+        `indicators`는 지표 키마다 값이 있는 달 수이고, `ruleDatedRows`는 시리즈마다 공표일이 없던 행 수이다.
+      required: [evaluated, carried, noData, indicators, ruleDatedRows, dtwexLinked]
+      properties:
+        evaluated: {type: integer, minimum: 0}
+        carried: {type: integer, minimum: 0}
+        noData: {type: integer, minimum: 0}
+        indicators:
+          type: object
+          propertyNames:
+            enum: ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '14US', '14KR']
+          additionalProperties: {type: integer}
+        ruleDatedRows:
+          type: object
+          propertyNames:
+            enum: [US_DGS2, US_CPILFESL, KR_KTB3Y, KR_BASE_RATE, KR_CPI, US_ICSA, US_SAHM, US_T10Y3M, KR_CLI,
+                   KR_EXPORTS, KR_USDKRW, US_DTWEXBGS, US_VIX, US_BAA10Y, KR_CORP_AA]
+          additionalProperties: {type: integer}
+        dtwexLinked: {type: boolean}
     FieldViolation:
       type: object
       required: [field, reason]
@@ -503,6 +693,6 @@ components:
     ErrorCode:
       type: string
       enum: [INVALID_ARGUMENT, NOT_FOUND, METHOD_NOT_ALLOWED, UNAUTHENTICATED, INTERNAL_ERROR,
-           PATH_TOO_LONG, POOL_NOT_FOUND, HISTORY_UNAVAILABLE, ENGINE_BUSY]
+           PATH_TOO_LONG, POOL_NOT_FOUND, HISTORY_UNAVAILABLE, ENGINE_BUSY, REGIME_DATA_INVALID]
 security:
   - EngineToken: []

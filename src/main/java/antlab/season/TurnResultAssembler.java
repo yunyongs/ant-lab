@@ -9,15 +9,20 @@ import java.util.List;
  * {@link TurnResultDto} 를 만든다(erd §9 "같은 조립 코드의 출력"). 금액·비율의 scale 은 여기서 정한다.
  *
  * <p>입력은 저장된 값뿐이다: 그 턴의 {@code turn} 행, 직전 총액(1턴이면 초기 자금), 그 턴 <b>시작 시점</b>의 목표 포메이션.
- * 피드는 그 턴에 저장된 행을 표시 순서로 받아 {@link FeedItemDto} 로만 바꾼다. 비율은 {@link PositionRatios}, 기간 수익률은 {@link MoneyMath#ratio}, 위험 여유는 정확한 뺄셈이다(반올림 없음).
+ * 그 턴에 저장된 피드 행은 표시 순서로 받아 알림({@link TurnFeed#isAlert})과 나머지로 나눈 뒤 {@link FeedItemDto} 로만 바꾼다. 비율은 {@link PositionRatios}, 기간 수익률은 {@link MoneyMath#ratio}, 위험 여유는 정확한 뺄셈이다(반올림 없음).
  */
 public final class TurnResultAssembler {
 
     private TurnResultAssembler() {
     }
 
+    /** One stored list in display order split in two: the nudge alerts, and everything else as the feed. */
+    private static List<FeedItemDto> items(List<TurnFeed> rows, boolean alerts) {
+        return rows.stream().filter(row -> row.isAlert() == alerts).map(FeedItemDto::from).toList();
+    }
+
     public static TurnResultDto assemble(Season season, Turn turn, BigDecimal previousTotal, Formation target,
-            List<TurnFeed> feed) {
+            List<TurnFeed> rows) {
         BigDecimal total = turn.getTotalValue();
         BigDecimal change = total.subtract(previousTotal);
         BigDecimal riskLimit = season.getRiskLimit();
@@ -34,6 +39,6 @@ public final class TurnResultAssembler {
                 ratios.goalkeeperWeight(), ratios.defenderWeight(), ratios.midfielderWeight(), ratios.forwardWeight(),
                 FormationDto.from(target),
                 ratios.goalkeeperGap(), ratios.defenderGap(), ratios.midfielderGap(), ratios.forwardGap(),
-                ratios.formationDeviation(), feed.stream().map(FeedItemDto::from).toList());
+                ratios.formationDeviation(), items(rows, false), items(rows, true));
     }
 }

@@ -10,5 +10,6 @@ public enum EngineErrorCode {
     PATH_TOO_LONG,
     POOL_NOT_FOUND,
     HISTORY_UNAVAILABLE,
-    ENGINE_BUSY
+    ENGINE_BUSY,
+    REGIME_DATA_INVALID
 }

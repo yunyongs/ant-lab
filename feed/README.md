@@ -57,9 +57,9 @@
 | `streak` | int | **시즌 경로의** 같은 방향 연속 턴 수(`turn_price` 부호로 센다 — `asset_month_attention.streak`이 아니다) | 0 | RISE FALL ECHO | 3 |
 | `repeat` | int | `turn_feed.repeat_count` | 0 | ECHO | 3 |
 | `attention_rank` | int | 그 턴 관심 지수 순위(조회, 저장 안 함) | 0 | FADE | 3 |
-| `cash_weight` | pct_unsigned | 그 턴 현금 / 총평가액 | 0 | NUDGE | 4 |
-| `trade_count` | int | 직전 매매 구간의 체결 수 | −1 | NUDGE | 4 |
-| `idle_turns` | int | 체결 없는 턴이 이어진 수 | 0 | NUDGE | 3 |
+| `cash_weight` | pct_unsigned | 그 턴 현금 / 총평가액. `turn.cash_balance / turn.total_value` of turn t. / t턴의 `turn.cash_balance / turn.total_value`. | 0 | NUDGE | 4 |
+| `trade_count` | int | 직전 매매 구간의 체결 수. Executions of orders with `orders.turn_no = t − 1`. / `orders.turn_no = t − 1`인 주문의 체결 수. | −1 | NUDGE | 4 |
+| `idle_turns` | int | 체결 없는 턴이 이어진 수. Consecutive intervals ending at t − 1 with no execution. / t − 1에서 끝나는, 체결이 없는 구간이 이어진 수. | 0 | NUDGE | 3 |
 | `reaction` | pct_signed | 그 턴 블록 사건 태그의 `month_event.reaction_change` | 0 | EVENT | 8 |
 
 - **타입은 네 개뿐이다**: `name`(문자열) · `pct_signed`(부호 있는 %) · `pct_unsigned`(%) · `int`(정수). 가격·금액·지수 수준 타입은 없다(PLAN §4.4·§4.13 절대 수치 금지).
@@ -256,3 +256,6 @@ MVP: Java 렌더러는 위 렌더 규칙과 같은 결과(`HALF_UP`, 정수 %, A
 
 MVP-11: `antlab.feed.FeedGenerator` ports rule version `p0-18:v2` from `db/24` and reads the same CSV files from the classpath (copied from `feed/` at build time). SQL stays the reference; `FeedGeneratorSqlParityTest` (CI) and `TurnAdvanceGoldenTest` (sample) prove equality.
 MVP-11: `antlab.feed.FeedGenerator`가 `db/24`의 규칙 버전 `p0-18:v2`를 옮기고 같은 CSV를 클래스패스에서 읽는다(빌드 때 `feed/`에서 복사). 기준은 SQL이며 `FeedGeneratorSqlParityTest`(CI)·`TurnAdvanceGoldenTest`(표본)가 같음을 보인다.
+
+Alerts (MVP-12, rule version `mvp-12:v1`, Java only): `NUDGE` rows are generated after the feed rows of the same turn and stored with the following `seq`. Count = min(4, 1 + idle intervals). Families by template shape: ASSET (target ASSET), IDLE (`idle_turns`/`trade_count`), CASH (`cash_weight`, from a 20 % cash share), FREE (no slot). `rank` is the asset's position on that turn's gainers or losers list. The SQL generator in `db/24` does not produce alerts.
+알림(MVP-12, 규칙 버전 `mvp-12:v1`, Java 전용): `NUDGE` 행은 같은 턴의 피드 행 뒤에 만들고 이어지는 `seq`로 저장한다. 개수 = min(4, 1 + 매매 없는 구간 수). 템플릿 모양으로 나눈 묶음: ASSET(대상 ASSET), IDLE(`idle_turns`·`trade_count`), CASH(`cash_weight`, 현금 비중 20%부터), FREE(자리 없음). `rank`는 그 턴 급등·급락 목록에서의 자리다. `db/24`의 SQL 생성기는 알림을 만들지 않는다.
