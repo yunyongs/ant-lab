@@ -914,7 +914,7 @@ export interface components {
              * Format: int64
              * @description Asset the sentence is about, null when it names none / 문장이 다루는 종목, 없으면 null
              */
-            assetId?: number | null;
+            assetId: number | null;
             /** @description The sentence as shown / 보인 문장 */
             body: string;
         };
