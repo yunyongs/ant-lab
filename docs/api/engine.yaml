@@ -198,7 +198,7 @@ components:
         Months (`YYYY-MM`, turn order) are replay-only data for the internal backend route; they must not
         reach a public or agent response before review. `historyDigest` is the SHA-256 (hex) of
         `engineVersion` and the sorted replayable `YYYY-MM` months of the snapshot, each on its own line. /
-        달(`YYYY-MM`, 턴 순서)은 내부 backend 경로 전용 복기 데이터이며 복기 전에는 공개·에이전트 응답에 나가면 안 된다.
+        달(`YYYY-MM`, 턴 순서)은 내부 backend 경로 전용 복기 데이터이며 복기 전에는 공개·에이전트 응답에 나가면 안 된다. `historyDigest`는 `engineVersion`과 스냅샷의 재생 가능한 `YYYY-MM` 달을 정렬해 한 줄에 하나씩 이은 문자열의 SHA-256(16진)이다.
       required: [engineVersion, months, blocks, overlapMonths, overlapMet, attempt, historyDigest]
       properties:
         engineVersion: {type: string}

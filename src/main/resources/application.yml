@@ -71,6 +71,11 @@ antlab:
       token-cache-dir: ${KIS_TOKEN_CACHE_DIR:}
       rps: 2
       max-requests-per-run: 60
+      # Daily price job (M1-06 b): a run asks from lookback-days before the latest stored date (to see revisions), or
+      # initial-days before yesterday when nothing is stored; a RUNNING row older than stale-after is closed as ABANDONED.
+      lookback-days: 10
+      initial-days: 30
+      stale-after: 2h
 
 # springdoc 은 설정이 없으면 켜진다(matchIfMissing). 공통에서 끄고 local 에서만 켠다.
 springdoc:

@@ -266,11 +266,10 @@ class ApiErrorSweepTest {
 
     @Test
     void 밸브는_본문이_이미_있는_400과_다른_상태를_고치지_않는다() {
-        // the security firewall answers with a body of its own: the valve must not replace it. This pins today's
-        // behaviour of a different layer (#274 will unify it); the valve's own rule is in ProblemErrorReportValveTest.
+        // the security firewall writes its 400 itself (FirewallRejectionTest): the valve must leave that body as it is,
+        // so it is exactly one fixed problem, not a second one appended; the valve's own rule is in ProblemErrorReportValveTest.
         Answer firewall = RawHttp.send(port, "GET /api/v1//pool HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n");
-        assertThat(firewall.status()).as(firewall.toString()).isEqualTo(400);
-        assertThat(firewall.text()).as(firewall.toString()).doesNotContain("MALFORMED_REQUEST");
+        TomcatParseStageTest.assertFixedProblem(firewall);
         // a status other than 400 keeps Tomcat's own report
         Answer version = RawHttp.send(port, "GET /api/v1/pool HTTP/9.9\r\nHost: x\r\nConnection: close\r\n\r\n");
         assertThat(version.status()).as(version.toString()).isEqualTo(505);
