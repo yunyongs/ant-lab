@@ -59,7 +59,52 @@ def _error_code_dropped(spec):
     spec["components"]["schemas"]["ErrorCode"]["enum"].remove("NOT_FOUND")
 
 
+def _paths_loses_a_status(spec):
+    del spec["paths"]["/v1/paths"]["post"]["responses"]["503"]
+
+
+def _paths_seed_becomes_integer(spec):
+    spec["components"]["schemas"]["PathRequest"]["properties"]["seed"] = {"type": "integer"}
+
+
+def _paths_length_gains_a_value(spec):
+    spec["components"]["schemas"]["PathRequest"]["properties"]["length"]["enum"].append(36)
+
+
+def _paths_request_allows_extra_fields(spec):
+    del spec["components"]["schemas"]["PathRequest"]["additionalProperties"]
+
+
+def _paths_digest_becomes_optional(spec):
+    spec["components"]["schemas"]["PathResult"]["required"].remove("historyDigest")
+
+
+def _paths_recent_months_may_repeat(spec):
+    del spec["components"]["schemas"]["PathRequest"]["properties"]["recentMonths"]["uniqueItems"]
+
+
+def _paths_overlap_pattern_widens(spec):
+    spec["components"]["schemas"]["PathRequest"]["properties"]["maxOverlap"]["pattern"] = ".*"
+
+
+def _error_code_domain_dropped(spec):
+    spec["components"]["schemas"]["ErrorCode"]["enum"].remove("HISTORY_UNAVAILABLE")
+
+
+def _paths_not_secured(spec):
+    spec["paths"]["/v1/paths"]["post"]["security"] = []
+
+
 MUTATIONS = [
+    _paths_loses_a_status,
+    _paths_seed_becomes_integer,
+    _paths_length_gains_a_value,
+    _paths_request_allows_extra_fields,
+    _paths_digest_becomes_optional,
+    _paths_recent_months_may_repeat,
+    _paths_overlap_pattern_widens,
+    _error_code_domain_dropped,
+    _paths_not_secured,
     _drop_info_security_responses,
     _drop_global_security,
     _make_healthz_secured,
@@ -99,9 +144,10 @@ def test_invariants(which, contract, generated):
     }
     assert "HTTPValidationError" not in spec["components"]["schemas"]
     normalized = normalize(spec)["paths"]
-    assert set(normalized) == {"GET /healthz", "GET /v1/info"}
+    assert set(normalized) == {"GET /healthz", "GET /v1/info", "POST /v1/paths"}
     for key, operation in normalized.items():
-        assert "422" not in operation["responses"]
+        # 422 is a domain status only (PATH_TOO_LONG), never FastAPI's validation response
+        assert ("422" in operation["responses"]) == (key == "POST /v1/paths")
         assert operation["responses"]["500"]["content"] == {
             "application/problem+json": {"$ref": "Problem"}
         }
