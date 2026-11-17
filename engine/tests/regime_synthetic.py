@@ -6,7 +6,15 @@ from decimal import Decimal
 
 import numpy as np
 
-from antlab_engine.regime import Observation, PointInTime, SeriesCode, SeriesView
+from antlab_engine.regime import (
+    MonthRegime,
+    Observation,
+    PointInTime,
+    RawObservation,
+    SeriesCode,
+    SeriesView,
+    SourceSeries,
+)
 from antlab_engine.regime.pit import add_months
 
 FAR = date(2100, 1, 1)
@@ -121,4 +129,43 @@ def fingerprint(snap) -> tuple:  # noqa: ANN001
         snap.unavailable,
         snap.quality_ok,
         snap.carried,
+    )
+
+
+def raw(
+    source: SourceSeries, ref: date, value: float | str, published: date | None = None
+) -> RawObservation:
+    exact = Decimal(value) if isinstance(value, str) else decimal(value)
+    return RawObservation(source, ref, exact, published)
+
+
+def raw_of(item: Observation) -> RawObservation:
+    """A back-filled raw row (no publication date); weekly claims move to their Saturday."""
+    ref = item.ref_date
+    if item.series is SeriesCode.US_ICSA:
+        ref = ref + timedelta(days=(5 - ref.weekday()) % 7)
+    return RawObservation(SourceSeries(item.series.value), ref, item.value, None)
+
+
+def raw_panel(years: int = 8, seed: int = 1) -> list[RawObservation]:
+    """The `panel` as raw rows with no publication dates, so every date comes from the rules."""
+    return [raw_of(item) for item in panel(years, seed)]
+
+
+def month_fingerprint(month: MonthRegime) -> tuple:
+    """Every output of one month as exact text, so two runs compare bit for bit."""
+    return (
+        month.month.isoformat(),
+        month.status.value,
+        tuple(
+            (axis.value, None if d is None else (d.direction.value, hexed(d.strength)))
+            for axis, d in sorted(month.axes.items())
+        ),
+        None if month.p is None else tuple(hexed(x) for x in month.p),
+        month.label,
+        month.phase,
+        tuple(sorted((k, hexed(v)) for k, v in month.indicator_z.items())),
+        month.quality_ok,
+        month.stale,
+        month.unavailable,
     )
