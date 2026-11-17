@@ -1,5 +1,7 @@
 package antlab.api.error;
 
+import antlab.common.error.ErrorCode;
+import antlab.observability.HttpErrorCodeTag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
@@ -24,6 +26,10 @@ public class ProblemRequestRejectedHandler implements RequestRejectedHandler {
         if (response.isCommitted()) {
             return;
         }
+        // same code in the HTTP metrics as in the body (the request is the observation's carrier)
+        request.setAttribute(HttpErrorCodeTag.ATTRIBUTE, ErrorCode.MALFORMED_REQUEST.name());
+        // output buffered but not sent yet must not stay in front of the fixed body; status and headers stay
+        response.resetBuffer();
         byte[] body = ProblemErrorReportValve.BODY.getBytes(StandardCharsets.UTF_8);
         response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
         response.setContentType("application/problem+json");

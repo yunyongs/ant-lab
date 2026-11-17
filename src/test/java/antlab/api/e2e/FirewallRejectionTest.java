@@ -47,10 +47,30 @@ class FirewallRejectionTest extends RealPortTest {
         return probes;
     }
 
+    /**
+     * Header bytes the firewall only rejects when the header is read (0x85 is a control character after ISO-8859-1):
+     * one read by Spring MVC (Accept) and one by a security filter (Authorization). The firewall here checks them up
+     * front, so neither reaches a layer that would log the value.
+     */
+    private static Map<String, String> lazyProbes() {
+        Map<String, String> probes = new LinkedHashMap<>();
+        probes.put("bad header value read by MVC",
+                "GET /api/v1/pool HTTP/1.1\r\nHost: x\r\nAccept: application/json\u0085" + MARK + "\r\n" + CLOSE);
+        probes.put("bad header value read by a filter",
+                "GET /api/v1/seasons HTTP/1.1\r\nHost: x\r\nAuthorization: Bearer abc\u0085" + MARK + "\r\n" + CLOSE);
+        return probes;
+    }
+
+    private static Map<String, String> allProbes() {
+        Map<String, String> all = new LinkedHashMap<>(probes());
+        all.putAll(lazyProbes());
+        return all;
+    }
+
     @TestFactory
     Stream<DynamicTest> 방화벽이_거절한_요청은_계약_코드의_고정_문제_본문이다() throws IOException {
         JsonNode contract = ApiErrorSweepTest.contract();
-        return probes().entrySet().stream().map(probe -> dynamicTest(probe.getKey(), () -> {
+        return allProbes().entrySet().stream().map(probe -> dynamicTest(probe.getKey(), () -> {
             Answer answer = RawHttp.send(port, probe.getValue());
             assertFixedProblem(answer);
             JsonNode json = JsonMapper.shared().readTree(answer.body());
@@ -94,15 +114,19 @@ class FirewallRejectionTest extends RealPortTest {
     void 거절된_요청의_값은_어떤_로그에도_남지_않는다() throws InterruptedException {
         // DEBUG on the security packages: Spring's own rejection handler logs the exception message (which names the
         // value) at that level, so INFO alone would not notice a handler that logs.
+        // org.springframework.web too: DispatcherServlet logs "Failed to complete request" with the exception message
         Logger security = (Logger) LoggerFactory.getLogger("org.springframework.security");
+        Logger web = (Logger) LoggerFactory.getLogger("org.springframework.web");
         Level before = security.getLevel();
+        Level webBefore = web.getLevel();
         Logger root = (Logger) LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME);
         ListAppender<ILoggingEvent> appender = new ListAppender<>();
         appender.start();
         root.addAppender(appender);
         security.setLevel(Level.DEBUG);
+        web.setLevel(Level.TRACE);
         try {
-            for (String probe : probes().values()) {
+            for (String probe : allProbes().values()) {
                 assertThat(RawHttp.send(port, probe.replace(MARK, "LOGMARK77")).status()).isEqualTo(400);
             }
             Thread.sleep(200);
@@ -112,8 +136,20 @@ class FirewallRejectionTest extends RealPortTest {
             }
         } finally {
             security.setLevel(before);
+            web.setLevel(webBefore);
             root.detachAppender(appender);
         }
+    }
+
+    @Test
+    void 방화벽_거절은_HTTP_지표에_본문과_같은_코드로_센다() {
+        for (String probe : allProbes().values()) {
+            assertThat(RawHttp.send(port, probe).status()).isEqualTo(400);
+        }
+        String scrape = management().send(org.springframework.http.HttpMethod.GET, "/actuator/prometheus", null, null,
+                "text/plain").body();
+        assertThat(scrape.lines().filter(l -> l.startsWith("http_server_requests_seconds_count")).toList())
+                .anySatisfy(l -> assertThat(l).contains("status=\"400\"").contains("error_code=\"MALFORMED_REQUEST\""));
     }
 
     private static String everything(ILoggingEvent event) {

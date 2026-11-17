@@ -30,6 +30,22 @@ class ProblemRequestRejectedHandlerTest {
     }
 
     @Test
+    void 커밋_전에_버퍼에_쌓인_출력은_지우고_고정_본문만_남긴다() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/x");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        response.setHeader("X-Kept", "yes");
+        response.getOutputStream().write("{\"a\"".getBytes(StandardCharsets.UTF_8));
+        assertThat(response.isCommitted()).isFalse();
+
+        handler.handle(request, response, new RequestRejectedException("m"));
+
+        assertThat(response.getContentAsString(StandardCharsets.UTF_8)).isEqualTo(BODY);
+        assertThat(response.getHeader("X-Kept")).isEqualTo("yes");
+        // the metrics tag carries the same code as the body
+        assertThat(request.getAttribute("antlab.error.code")).isEqualTo("MALFORMED_REQUEST");
+    }
+
+    @Test
     void 이미_커밋된_응답은_건드리지_않는다() throws Exception {
         MockHttpServletResponse response = new MockHttpServletResponse();
         response.setStatus(200);
