@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { Link } from 'react-router';
 import { isNavEnabled } from '../../app/navItems.ts';
 import { FeedSection } from '../feed/FeedSection.tsx';
+import { ProjectionLink } from '../projection/ProjectionLink.tsx';
 import { QueryError } from '../seasons/QueryError.tsx';
 import type { Season } from '../seasons/labels.ts';
 import { useTurn } from './queries.ts';
@@ -94,6 +95,7 @@ export function FinishedView({
           primary={false}
         />
       </div>
+      <ProjectionLink seasonId={season.id} />
       {season.currentTurnNo >= 2 && (
         <Link className={styles.link} to={`${base}/turns/${String(last - 1)}`}>
           지난 턴 보기

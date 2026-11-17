@@ -11,3 +11,8 @@ export function parseWholeNumber(text: string, max: number): number | null {
 
 // Largest route id accepted from a URL (ids are JSON integers).
 export const MAX_ROUTE_ID = Number.MAX_SAFE_INTEGER;
+
+// Thousands separators for a plain count (never money; money has formatWon).
+export function groupDigits(count: number): string {
+  return String(count).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+}

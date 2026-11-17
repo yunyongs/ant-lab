@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { ProblemError } from '../api/problem.ts';
 import { MAX_ROUTE_ID, parseWholeNumber } from '../features/format/integer.ts';
+import { AbandonEntry } from '../features/abandon/AbandonEntry.tsx';
 import { TeamBuild } from '../features/team/TeamBuild.tsx';
 import { FinishedView } from '../features/turn/FinishedView.tsx';
 import { TurnView } from '../features/turn/TurnView.tsx';
@@ -87,6 +88,11 @@ export function SeasonPage() {
                 onAdvanced={setFocusTurnNo}
               />
             )}
+          <AbandonEntry
+            season={query.data}
+            onNotice={setNotice}
+            onFinished={setFocusTurnNo}
+          />
         </>
       )}
     </div>

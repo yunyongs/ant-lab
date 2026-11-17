@@ -3,6 +3,7 @@ import { parseWholeNumber } from '../features/format/integer.ts';
 import { authHandlers } from './authHandlers.ts';
 import { holdingsFixture } from './fixtures/holdings.ts';
 import { pricesFixture } from './fixtures/prices.ts';
+import { projectionFixture } from './fixtures/projection.ts';
 import { poolFixture } from './fixtures/pool.ts';
 import { seasonList } from './fixtures/seasons.ts';
 import { turnResultFixture } from './fixtures/turns.ts';
@@ -25,5 +26,13 @@ export const handlers = [
       }),
     ),
   ),
+  http.get('*/api/v1/seasons/:seasonId/projection', ({ request }) => {
+    const phase = new URL(request.url).searchParams.get('phase');
+    return HttpResponse.json(
+      projectionFixture({
+        phase: phase === 'START' || phase === 'END' ? phase : 'CURRENT',
+      }),
+    );
+  }),
   ...authHandlers,
 ];
