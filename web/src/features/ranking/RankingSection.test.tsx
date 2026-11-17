@@ -1,0 +1,123 @@
+import { screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { http, HttpResponse } from 'msw';
+import { describe, expect, it } from 'vitest';
+import { emptyBoard, rankingFixture } from '../../test/fixtures/ranking.ts';
+import { renderWithProviders } from '../../test/renderWithProviders.tsx';
+import { server } from '../../test/server.ts';
+import { RankingSection } from './RankingSection.tsx';
+
+function serveBoard(board: ReturnType<typeof rankingFixture>) {
+  server.use(
+    http.get('*/api/v1/seasons/7/turns/5/ranking', () =>
+      HttpResponse.json(board),
+    ),
+  );
+}
+
+function renderSection() {
+  return renderWithProviders(
+    <RankingSection seasonId={7} turnNo={5} currentTurnNo={5} />,
+  );
+}
+
+describe('RankingSection', () => {
+  it('prints rank, name and the server change as percent text', async () => {
+    serveBoard(rankingFixture());
+    renderSection();
+    const region = await screen.findByRole('region', { name: '순위' });
+    const rows = await within(region).findAllByRole('listitem');
+    expect(rows.map((r) => r.textContent)).toEqual([
+      '1위종목 나12.34%',
+      '2위종목 가5%',
+      '1위채권 ETF 다-7.25%',
+    ]);
+  });
+
+  it('adds "n턴 연속" on streak rows', async () => {
+    serveBoard(rankingFixture());
+    renderSection();
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('tab', { name: '연속' }));
+    const panel = screen.getByRole('tabpanel');
+    expect(
+      within(panel)
+        .getAllByRole('listitem')
+        .map((r) => r.textContent),
+    ).toEqual(['1위종목 가4턴 연속5%']);
+    expect(within(panel).getByText('해당하는 종목이 없습니다')).toBeVisible();
+  });
+
+  it('prints attention as rank and grade label only', async () => {
+    serveBoard(rankingFixture());
+    renderSection();
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('tab', { name: '관심' }));
+    const rows = within(screen.getByRole('tabpanel')).getAllByRole('listitem');
+    expect(rows.map((r) => r.textContent)).toEqual([
+      '1위채권 ETF 다매우 높음',
+      '2위종목 가높음',
+      '3위종목 나보통',
+    ]);
+    for (const row of rows) {
+      // After the rank, no digit string is left: no index value, no ratio.
+      expect(row.textContent?.replace(/^\d+위/, '')).not.toMatch(/\d/);
+    }
+  });
+
+  it('shows a short sentence for an empty list and keeps the tabs when all are empty', async () => {
+    serveBoard(emptyBoard(5));
+    renderSection();
+    const tabs = await screen.findAllByRole('tab');
+    expect(tabs).toHaveLength(4);
+    const user = userEvent.setup();
+    expect(screen.getAllByText('해당하는 종목이 없습니다')).toHaveLength(2);
+    await user.click(screen.getByRole('tab', { name: '그룹' }));
+    expect(screen.getAllByText('해당하는 그룹이 없습니다')).toHaveLength(2);
+  });
+
+  it('has no order button on any row, group rows included', async () => {
+    serveBoard(rankingFixture());
+    renderSection();
+    const user = userEvent.setup();
+    await screen.findByRole('tablist');
+    for (const name of ['등락', '관심', '연속', '그룹']) {
+      await user.click(screen.getByRole('tab', { name }));
+      const panel = screen.getByRole('tabpanel');
+      expect(within(panel).queryAllByRole('button')).toHaveLength(0);
+    }
+    expect(screen.queryByRole('button', { name: /매수|매도/ })).toBeNull();
+  });
+
+  it('prints no identifier and sets no data attribute', async () => {
+    serveBoard(
+      rankingFixture(5, {
+        gainers: [{ rank: 1, assetId: 987654, changeRate: '0.01000000' }],
+        groupGainers: [{ rank: 1, groupId: 987655, changeRate: '0.01000000' }],
+      }),
+    );
+    const { container } = renderSection();
+    await screen.findByText('이름을 찾지 못한 종목');
+    expect(container.innerHTML).not.toContain('987654');
+    expect(container.innerHTML).not.toContain('987655');
+    expect(container.innerHTML).not.toMatch(/data-/);
+    await userEvent.setup().click(screen.getByRole('tab', { name: '그룹' }));
+    expect(screen.getByText('이름을 찾지 못한 그룹')).toBeInTheDocument();
+    expect(container.innerHTML).not.toContain('987655');
+  });
+
+  it('does not request a board for a turn after the current one', async () => {
+    let gets = 0;
+    server.use(
+      http.get('*/api/v1/seasons/7/turns/6/ranking', () => {
+        gets += 1;
+        return HttpResponse.json(emptyBoard(6));
+      }),
+    );
+    renderWithProviders(
+      <RankingSection seasonId={7} turnNo={6} currentTurnNo={5} />,
+    );
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    expect(gets).toBe(0);
+  });
+});

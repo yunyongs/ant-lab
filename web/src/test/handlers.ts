@@ -4,6 +4,7 @@ import { authHandlers } from './authHandlers.ts';
 import { holdingsFixture } from './fixtures/holdings.ts';
 import { pricesFixture } from './fixtures/prices.ts';
 import { poolFixture } from './fixtures/pool.ts';
+import { emptyBoard } from './fixtures/ranking.ts';
 import { seasonList } from './fixtures/seasons.ts';
 import { turnResultFixture } from './fixtures/turns.ts';
 
@@ -23,6 +24,11 @@ export const handlers = [
       turnResultFixture({
         turnNo: parseWholeNumber(String(params.turnNo), 1000) ?? 0,
       }),
+    ),
+  ),
+  http.get('*/api/v1/seasons/:seasonId/turns/:turnNo/ranking', ({ params }) =>
+    HttpResponse.json(
+      emptyBoard(parseWholeNumber(String(params.turnNo), 1000) ?? 0),
     ),
   ),
   ...authHandlers,

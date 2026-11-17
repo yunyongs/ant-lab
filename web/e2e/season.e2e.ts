@@ -94,7 +94,19 @@ test('plays one 12-turn season from signup to review', async ({
   await page.getByRole('button', { name: '다음 턴 (2턴으로)' }).click();
   await expect(page.getByRole('heading', { name: '2턴 결과' })).toBeVisible();
   await expect(turnCard).toBeVisible();
-  await checkpoint(run, 'turn-2');
+  // The ranking board: first tab selected, the keyboard moves to the next.
+  const ranking = page.getByRole('region', { name: '순위' });
+  await expect(ranking.getByRole('tab', { name: '등락' })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  );
+  await ranking.getByRole('tab', { name: '등락' }).focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(ranking.getByRole('tab', { name: '관심' })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  );
+  await checkpoint(run, 'turn-2', { axe: 'turn-ranking' });
 
   // 09 formation change at turn 2
   await nav.getByRole('link', { name: '매매' }).click();

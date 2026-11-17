@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { FeedSection } from '../feed/FeedSection.tsx';
+import { RankingSection } from '../ranking/RankingSection.tsx';
 import { QueryError } from '../seasons/QueryError.tsx';
 import type { Season } from '../seasons/labels.ts';
 import { canTrade } from '../seasons/seasonGate.ts';
@@ -55,6 +56,13 @@ export function TurnView({
           items={turn.data.feed}
           season={season}
           onNotice={onNotice}
+        />
+      )}
+      {turn.data && (
+        <RankingSection
+          seasonId={season.id}
+          turnNo={season.currentTurnNo}
+          currentTurnNo={season.currentTurnNo}
         />
       )}
       {season.currentTurnNo >= 2 && (
