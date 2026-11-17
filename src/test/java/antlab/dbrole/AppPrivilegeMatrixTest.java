@@ -25,7 +25,8 @@ class AppPrivilegeMatrixTest {
     static final Set<String> READ = Set.of("asset_group", "asset", "asset_position", "month_block", "asset_month_return",
             "fx_month", "month_event", "asset_month_attention");
     static final Set<String> APPEND = Set.of("season_path", "turn", "turn_price", "formation_change", "turn_feed",
-            "reconciliation_log", "orders", "execution", "cash_ledger", "asset_daily_price", "season_agent_config", "agent_call");
+            "reconciliation_log", "orders", "execution", "cash_ledger", "asset_daily_price", "season_agent_config", "agent_call",
+            "season_score", "rating_history");
     static final Set<String> MUTABLE = Set.of("member", "season", "cash_account", "holding", "lineup", "refresh_token",
             "agent_profile", "job_run");
     static final List<String> PRIVILEGES = List.of("SELECT", "INSERT", "UPDATE", "DELETE", "TRUNCATE", "REFERENCES", "TRIGGER",

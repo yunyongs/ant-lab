@@ -1,10 +1,15 @@
-# 시험 전용 값(jar 에 들어가지 않는다). DB 접속 정보는 Testcontainers(@ServiceConnection)가 준다.
+# 시험 전용 값(jar 에 들어가지 않는다). DB 접속 정보는 PostgresTestcontainersConfig 가 준다(JVM 당 한 컨테이너, 문맥마다 전용 데이터베이스).
 logging:
   level:
     org.hibernate.SQL: info
     # 통계를 켜면 세션마다 요약 로그가 INFO 로 나온다 — 시험 출력을 조용하게 한다.
     org.hibernate.engine.internal.StatisticalLoggingSessionEventListener: warn
 spring:
+  datasource:
+    hikari:
+      # Many Spring contexts stay cached in one JVM and share one PostgreSQL server: keep idle pools small so connections stay far below max_connections.
+      minimum-idle: 2
+      idle-timeout: 10000
   jpa:
     properties:
       # 쿼리 수 단언용(N+1 방지 시험이 Statistics 를 읽는다)

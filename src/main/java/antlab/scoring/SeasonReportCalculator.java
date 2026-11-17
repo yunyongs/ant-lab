@@ -72,7 +72,7 @@ public final class SeasonReportCalculator {
         BigDecimal riskBreachDepth = MoneyMath.round8(minDiff.min(BigDecimal.ZERO));
 
         // 기준선과 초과 수익률 (초과는 한 번만 나눈다 — 두 수익률의 차가 아니다)
-        BigDecimal baselineFinal = baselineValue(src, t);
+        BigDecimal baselineFinal = Phase0MarketBaseline.valueAt(src, t);
         BigDecimal baselineReturn = MoneyMath.ratio(baselineFinal.subtract(initialCash), initialCash);
         BigDecimal excessReturn = MoneyMath.ratio(finalValue.subtract(baselineFinal), initialCash);
 
@@ -147,38 +147,6 @@ public final class SeasonReportCalculator {
                 MoneyMath.exactWon(formationChangeFee), MoneyMath.exactWon(orders.platformNudgeFee()),
                 formationChanges, (int) formationChangeOrders, changesWithoutOrders,
                 recon.mismatchRows(), recon.turnBundles(), recon.manualBundles(), recon.outOfRangeRows());
-    }
-
-    // ------------------------------------------------------------------ 기준선
-
-    /**
-     * 시즌 기준일의 대용 두 종목을 0턴 가격으로 사서 끝까지 보유한 평가액(SQL {@code sr_baseline}): 예산 = 초기 자금 × 비중,
-     * 정수 주 = {@code teamQty}, 남은 현금 = 초기 자금 − Σ(수량 × 0턴 가격 + 수수료), B_t = Σ 수량 × t턴 가격 + 남은 현금.
-     */
-    /** 기준선의 한 다리: 대용 종목과 초기 자금 중 매수 비중. */
-    private record BenchmarkLeg(AssetKey key, BigDecimal weight) {
-    }
-
-    private static final List<BenchmarkLeg> BENCHMARK_LEGS = List.of(
-            new BenchmarkLeg(BENCH_KR, ReportRules.BENCH_KR_WEIGHT), new BenchmarkLeg(BENCH_US, ReportRules.BENCH_US_WEIGHT));
-
-    private static BigDecimal baselineValue(SeasonReportSources src, int turnNo) {
-        SeasonFacts season = src.season();
-        BigDecimal cash = season.initialCash();
-        BigDecimal held = BigDecimal.ZERO;
-        for (BenchmarkLeg leg : BENCHMARK_LEGS) {
-            AssetKey key = leg.key();
-            BigDecimal weight = leg.weight();
-            List<BigDecimal> prices = src.benchmarkPrices().get(key);
-            BigDecimal rate = MoneyMath.feeRate(key.market(), season.feeRateKr(), season.feeRateUs(), season.fxSpreadRate());
-            BigDecimal firstPrice = prices.get(0);
-            int quantity = MoneyMath.teamQty(season.initialCash().multiply(weight), firstPrice, rate);
-            BigDecimal fee = quantity == 0 ? BigDecimal.ZERO : MoneyMath.fee(firstPrice, quantity, rate);
-            BigDecimal count = BigDecimal.valueOf(quantity);
-            cash = cash.subtract(count.multiply(firstPrice).add(fee));
-            held = held.add(count.multiply(prices.get(turnNo)));
-        }
-        return held.add(cash);
     }
 
     // ------------------------------------------------------------------ 포메이션 준수

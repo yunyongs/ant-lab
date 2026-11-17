@@ -3,6 +3,9 @@ package antlab.api.season;
 import antlab.api.error.ApiProblem;
 import antlab.common.error.DomainException;
 import antlab.observability.GameMetrics;
+import antlab.season.AbandonResultDto;
+import antlab.season.AbandonSeasonRequest;
+import antlab.season.SeasonAbandonService;
 import antlab.season.SeasonDto;
 import antlab.season.SeasonListDto;
 import antlab.season.SeasonQueryService;
@@ -36,11 +39,14 @@ public class SeasonController {
 
     private final SeasonStartService starts;
     private final SeasonQueryService queries;
+    private final SeasonAbandonService abandons;
     private final GameMetrics metrics;
 
-    public SeasonController(SeasonStartService starts, SeasonQueryService queries, GameMetrics metrics) {
+    public SeasonController(SeasonStartService starts, SeasonQueryService queries, SeasonAbandonService abandons,
+            GameMetrics metrics) {
         this.starts = starts;
         this.queries = queries;
+        this.abandons = abandons;
         this.metrics = metrics;
     }
 
@@ -67,6 +73,9 @@ public class SeasonController {
     @ApiResponse(responseCode = "422", description = "A path of the requested length cannot be built — "
             + "PATH_TOO_LONG / 요청한 길이의 경로를 만들 수 없다 — PATH_TOO_LONG",
             content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ApiProblem.class)))
+    @ApiResponse(responseCode = "503", description = "The path service is busy or not reachable; try again later — "
+            + "ENGINE_UNAVAILABLE / 경로 서비스가 바쁘거나 연결되지 않는다. 잠시 뒤 다시 시도한다 — ENGINE_UNAVAILABLE",
+            content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ApiProblem.class)))
     public ResponseEntity<SeasonDto> start(@Valid @RequestBody StartSeasonRequest request) {
         SeasonDto season;
         try {
@@ -79,6 +88,38 @@ public class SeasonController {
         URI location = ServletUriComponentsBuilder.fromCurrentRequestUri().path("/{id}")
                 .buildAndExpand(season.id()).toUri();
         return ResponseEntity.created(location).body(season);
+    }
+
+    @PostMapping(value = "/api/v1/seasons/{seasonId}/abandon", consumes = MediaType.APPLICATION_JSON_VALUE,
+            produces = MediaType.APPLICATION_JSON_VALUE)
+    @Operation(operationId = "abandonSeason", summary = "Abandon a season / 시즌 포기",
+            description = "Marks the season as abandoned at the current turn, then runs the remaining turns with no "
+                    + "trades through the normal turn path, one transaction per turn, until the season is finished "
+                    + "or the per-request turn cap is reached. The same request continues an abandon that stopped "
+                    + "midway: repeat it while the status is ABANDONING. A repeat on a finished abandoned season "
+                    + "answers 200 and changes nothing. notStarted is true for a human member who abandoned before "
+                    + "turn 3.\n"
+                    + "\n"
+                    + "시즌을 현재 턴에서 포기로 표시하고, 남은 턴을 거래 없이 보통의 턴 전환 경로로 턴마다 한 트랜잭션씩 시즌이 끝나거나 요청당 턴 상한에 닿을 때까지 "
+                    + "진행한다. 중간에 멈춘 포기는 같은 요청으로 이어 간다 — 상태가 ABANDONING 이면 반복한다. 이미 끝난 포기 시즌에 반복하면 200 이고 아무것도 "
+                    + "바꾸지 않는다. 사람 회원이 3턴 전에 포기하면 notStarted 가 true 다.")
+    @ApiResponse(responseCode = "200", description = "State of the season after this request / 이번 요청 뒤 시즌의 상태")
+    @ApiResponse(responseCode = "400", description = "The input is invalid — INVALID_ARGUMENT / 입력이 틀렸다 — "
+            + "INVALID_ARGUMENT",
+            content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ApiProblem.class)))
+    @ApiResponse(responseCode = "404", description = "The season does not exist — NOT_FOUND / 시즌이 없다 — NOT_FOUND",
+            content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ApiProblem.class)))
+    @ApiResponse(responseCode = "409",
+            description = "The season cannot be abandoned now — TURN_MISMATCH (the season is in progress at another "
+                    + "turn), SEASON_NOT_ACTIVE (finished without an abandon), SEASON_HALTED (an administrator "
+                    + "resumes it first), RECONCILIATION_FAILED (an auto turn mismatched; the mark and the earlier "
+                    + "auto turns stay, repeat to continue)\n"
+                    + "\n"
+                    + "지금은 포기할 수 없다 — TURN_MISMATCH(진행 중인 시즌의 현재 턴이 다르다), SEASON_NOT_ACTIVE(포기 없이 끝난 시즌), "
+                    + "SEASON_HALTED(관리자가 먼저 재개), RECONCILIATION_FAILED(자동 턴의 대사가 어긋났다. 표시와 앞선 자동 턴은 남고 반복하면 이어 간다)",
+            content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ApiProblem.class)))
+    public AbandonResultDto abandon(@PathVariable Long seasonId, @Valid @RequestBody AbandonSeasonRequest request) {
+        return abandons.abandon(seasonId, request.expectedTurnNo());
     }
 
     @GetMapping(value = "/api/v1/seasons", produces = MediaType.APPLICATION_JSON_VALUE)

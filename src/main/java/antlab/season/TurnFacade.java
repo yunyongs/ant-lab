@@ -6,6 +6,7 @@ import antlab.scoring.ReconciliationFailedException;
 import antlab.scoring.ReconciliationStatus;
 import antlab.scoring.RuleResult;
 import java.sql.SQLException;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.hibernate.exception.ConstraintViolationException;
 import org.slf4j.Logger;
@@ -50,12 +51,21 @@ public class TurnFacade {
     }
 
     public TurnResultDto advance(long seasonId, int expectedTurnNo) {
+        return run(() -> turns.advance(seasonId, expectedTurnNo));
+    }
+
+    /** One auto turn of an abandoning season (MVP-14); same failure handling as {@link #advance}. */
+    public TurnResultDto advanceAbandoned(long seasonId, int expectedTurnNo) {
+        return run(() -> turns.advanceAbandoned(seasonId, expectedTurnNo));
+    }
+
+    private TurnResultDto run(Supplier<TurnResultDto> advance) {
         if (TransactionSynchronizationManager.isActualTransactionActive()) {
             throw new IllegalStateException("턴 전환 퍼사드는 트랜잭션 밖에서만 부른다 — 안에서 부르면 롤백 뒤 기록이 바깥 롤백과 함께 사라진다");
         }
         TurnResultDto result;
         try {
-            result = turns.advance(seasonId, expectedTurnNo);
+            result = advance.get();
         } catch (ReconciliationFailedException failed) {
             metrics.turnRejected(failed.getCode());
             metrics.mismatchRules((int) failed.getResults().stream()

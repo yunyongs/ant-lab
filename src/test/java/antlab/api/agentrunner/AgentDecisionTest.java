@@ -423,6 +423,243 @@ class AgentDecisionTest {
                 "T:NONE");
     }
 
+    // ---- order origin (MVP-13 PR 2): the reply's source reaches the shared origin rule ---------------------------------
+
+    private static final int SEQ_CHIP = 101;
+    private static final int SEQ_GROUP = 102;
+    private static final int SEQ_NUDGE = 103;
+
+    private ObjectNode sourced(String asset, String side, int quantity, String position, String kind, Integer feedSeq,
+            Integer rankingRank) {
+        ObjectNode o = order(asset, side, quantity, position, kind);
+        ObjectNode source = (ObjectNode) o.get("source");
+        if (feedSeq != null) {
+            source.put("feed_seq", feedSeq);
+        }
+        if (rankingRank != null) {
+            source.put("ranking_rank", rankingRank);
+        }
+        return o;
+    }
+
+    private long plantFeed(long season, int turn, int seq, String kind, String chipTicker, boolean group) {
+        Long chip = chipTicker == null ? null : assetId(chipTicker);
+        Long groupId = group ? jdbc.queryForObject("SELECT id FROM asset_group WHERE code = 'FAKE_SEMI'", Long.class) : null;
+        return jdbc.queryForObject("INSERT INTO turn_feed (season_id, turn_no, seq, kind, asset_id, asset_group_id, month_event_id,"
+                + " template_id, body) VALUES (?, ?, ?, ?, ?, ?, NULL, 'TEST_ROW', 'test row') RETURNING id", Long.class,
+                season, turn, seq, kind, chip, groupId);
+    }
+
+    /** Turn 1 of a fresh agent season with a chip item (000660), a group item and an alert planted at fixed seqs. */
+    private Agent agentAtTurnOneWithFeed(long[] feedIds) throws Exception {
+        Agent a = startAgent();
+        toTurnOne(a);
+        feedIds[0] = plantFeed(a.season(), 1, SEQ_CHIP, "RISE", "000660", false);
+        feedIds[1] = plantFeed(a.season(), 1, SEQ_GROUP, "SPREAD", null, true);
+        feedIds[2] = plantFeed(a.season(), 1, SEQ_NUDGE, "NUDGE", null, false);
+        return a;
+    }
+
+    private Map<String, Object> lastOrderRow(long season) {
+        return jdbc.queryForMap("SELECT source, turn_feed_id, turn_no FROM orders WHERE season_id = ? ORDER BY id DESC LIMIT 1",
+                season);
+    }
+
+    @Test
+    void A1_A2_a_shown_feed_item_and_a_shown_alert_start_stored_FEED_and_ALERT_orders() throws Exception {
+        long[] feed = new long[3];
+        Agent a = agentAtTurnOneWithFeed(feed);
+
+        JsonNode result = decideOk(a, 1, decisionBody(dec(null,
+                sourced("KR:000660", "BUY", 1, "FORWARD_BREAKOUT", "FEED", SEQ_CHIP, null),
+                sourced("US:SPY", "BUY", 1, "DEFENDER", "ALERT", SEQ_NUDGE, null))));
+
+        assertThat(codes(result)).containsExactly("F:NONE:-", "0:APPLIED:-", "1:APPLIED:-", "T:NONE");
+        List<Map<String, Object>> rows = jdbc.queryForList(
+                "SELECT source, turn_feed_id, turn_no FROM orders WHERE season_id = ? ORDER BY id", a.season());
+        assertThat(rows).hasSize(2);
+        assertThat(rows.get(0)).containsEntry("source", "FEED").containsEntry("turn_feed_id", feed[0]).containsEntry("turn_no", 1);
+        assertThat(rows.get(1)).containsEntry("source", "ALERT").containsEntry("turn_feed_id", feed[2]).containsEntry("turn_no", 1);
+    }
+
+    @Test
+    void A2b_an_item_without_a_chip_starts_an_order_for_any_asset() throws Exception {
+        long[] feed = new long[3];
+        Agent a = agentAtTurnOneWithFeed(feed);
+
+        JsonNode result = decideOk(a, 1, decisionBody(dec(null,
+                sourced("KR:069500", "BUY", 1, "MIDFIELDER", "FEED", SEQ_GROUP, null))));
+
+        assertThat(codes(result)).containsExactly("F:NONE:-", "0:APPLIED:-", "T:NONE");
+        assertThat(lastOrderRow(a.season())).containsEntry("source", "FEED").containsEntry("turn_feed_id", feed[1]);
+    }
+
+    /** Each case is a bad origin plus a good DIRECT buy after it: only the bad unit is rejected, the good one fills. */
+    @ParameterizedTest
+    @CsvSource(delimiter = '|', value = {
+            "KR:000660|FEED|-|no feed_seq at all",
+            "KR:000660|FEED|777|an item that does not exist",
+            "KR:069500|FEED|101|chip is another asset",
+            "KR:000660|ALERT|101|ALERT on an item that is not an alert",
+            "KR:000660|FEED|103|FEED on an alert item",
+            "KR:000660|FEED|0|seq below the display order range",
+            "KR:000660|FEED|-5|negative seq"})
+    void A3_a_reference_that_was_not_shown_rejects_that_unit_only(String asset, String kind, String seq, String why)
+            throws Exception {
+        Agent a = agentAtTurnOneWithFeed(new long[3]);
+        long before = count("orders", a.season());
+
+        JsonNode result = decideOk(a, 1, decisionBody(dec(null,
+                sourced(asset, "BUY", 1, "FORWARD_BREAKOUT", kind, "-".equals(seq) ? null : Integer.valueOf(seq), null),
+                order("US:SPY", "BUY", 1, "DEFENDER"))));
+
+        assertThat(codes(result)).as(why).containsExactly("F:NONE:-", "0:REJECTED:SOURCE_NOT_VISIBLE", "1:APPLIED:-", "T:NONE");
+        assertThat(count("orders", a.season())).isEqualTo(before + 1);
+        assertThat(lastOrderRow(a.season())).containsEntry("source", "DIRECT").containsEntry("turn_feed_id", null);
+        assertThat(jdbc.queryForObject("SELECT rejects::text FROM agent_call WHERE season_id = ? AND turn_no = 1 AND is_final",
+                String.class, a.season())).contains("SOURCE_NOT_VISIBLE").contains("\"index\": 0");
+    }
+
+    @Test
+    void A3b_an_item_of_an_earlier_turn_is_not_referable_by_its_number_in_a_later_turn() throws Exception {
+        Agent a = agentAtTurnOneWithFeed(new long[3]);
+        decideOk(a, 1, noResponseBody());
+        advanceApi(a, 1);
+
+        JsonNode result = decideOk(a, 2, decisionBody(dec(null,
+                sourced("KR:000660", "BUY", 1, "FORWARD_BREAKOUT", "FEED", SEQ_CHIP, null))));
+
+        assertThat(codes(result)).containsExactly("F:NONE:-", "0:REJECTED:SOURCE_NOT_VISIBLE", "T:NONE");
+    }
+
+    @Test
+    void A3c_turn_0_has_no_feed_so_a_feed_or_alert_reference_is_refused() throws Exception {
+        Agent a = startAgent();
+
+        JsonNode result = decideOk(a, 0, decisionBody(dec(null,
+                sourced("KR:000660", "BUY", 1, "FORWARD_BREAKOUT", "FEED", 1, null),
+                sourced("US:SPY", "BUY", 1, "DEFENDER", "ALERT", 1, null))));
+
+        assertThat(codes(result)).containsExactly("F:NONE:-", "0:REJECTED:SOURCE_NOT_VISIBLE",
+                "1:REJECTED:SOURCE_NOT_VISIBLE", "T:NONE");
+        assertThat(count("orders", a.season())).isZero();
+    }
+
+    @Test
+    void A4_a_reference_that_the_kind_does_not_use_is_ignored_and_ranking_needs_a_board() throws Exception {
+        long[] feed = new long[3];
+        Agent a = agentAtTurnOneWithFeed(feed);
+
+        JsonNode result = decideOk(a, 1, decisionBody(dec(null,
+                sourced("KR:000660", "BUY", 1, "FORWARD_BREAKOUT", "DIRECT", SEQ_CHIP, null),
+                sourced("US:SPY", "BUY", 1, "DEFENDER", "RANKING", null, 3),
+                sourced("KR:069500", "BUY", 1, "MIDFIELDER", "RANKING", SEQ_CHIP, 1))));
+
+        assertThat(codes(result)).containsExactly("F:NONE:-", "0:APPLIED:-", "1:REJECTED:SOURCE_NOT_VISIBLE",
+                "2:REJECTED:SOURCE_NOT_VISIBLE", "T:NONE");
+        assertThat(lastOrderRow(a.season())).containsEntry("source", "DIRECT").containsEntry("turn_feed_id", null);
+        assertThat(count("orders", a.season())).isEqualTo(1);
+    }
+
+    /** The origin comes first, so an unknown asset only wins when the origin itself would pass. */
+    @ParameterizedTest
+    @CsvSource(delimiter = '|', value = {
+            "BENCH|-|SOURCE_NOT_ALLOWED",
+            "RANKING|-|SOURCE_NOT_VISIBLE",
+            "FEED|777|SOURCE_NOT_VISIBLE",
+            "FEED|101|SOURCE_NOT_VISIBLE",
+            "FEED|102|ASSET_NOT_IN_POOL",
+            "ALERT|103|ASSET_NOT_IN_POOL",
+            "DIRECT|-|ASSET_NOT_IN_POOL"})
+    void A5_an_unknown_asset_follows_the_origin_first_order(String kind, String seq, String code) throws Exception {
+        Agent a = agentAtTurnOneWithFeed(new long[3]);
+
+        JsonNode result = decideOk(a, 1, decisionBody(dec(null,
+                sourced("KR:999999", "BUY", 1, "MIDFIELDER", kind, "-".equals(seq) ? null : Integer.valueOf(seq), null))));
+
+        assertThat(codes(result)).containsExactly("F:NONE:-", "0:REJECTED:" + code, "T:NONE");
+        assertThat(count("orders", a.season())).isZero();
+    }
+
+    @Test
+    void A6_the_same_decision_again_returns_the_same_result_with_the_stored_origins() throws Exception {
+        long[] feed = new long[3];
+        Agent a = agentAtTurnOneWithFeed(feed);
+        ObjectNode body = decisionBody(dec(null,
+                sourced("KR:000660", "BUY", 1, "FORWARD_BREAKOUT", "FEED", SEQ_CHIP, null),
+                sourced("US:SPY", "BUY", 1, "DEFENDER", "ALERT", SEQ_NUDGE, null),
+                sourced("KR:069500", "BUY", 1, "MIDFIELDER", "FEED", 777, null)));
+        JsonNode first = decideOk(a, 1, body);
+        long trades = count("orders", a.season());
+
+        JsonNode again = decideOk(a, 1, body);
+
+        assertThat(again.get("replayed").asBoolean()).isTrue();
+        assertThat(codes(again)).isEqualTo(codes(first)).containsExactly("F:NONE:-", "0:APPLIED:-", "1:APPLIED:-",
+                "2:REJECTED:SOURCE_NOT_VISIBLE", "T:NONE");
+        assertThat(again.get("orders")).isEqualTo(first.get("orders"));
+        assertThat(json(get(a.turns() + "/1/decision")).get("orders")).isEqualTo(first.get("orders"));
+        assertThat(count("orders", a.season())).isEqualTo(trades);
+    }
+
+    @Test
+    void A7_A8_sells_then_buys_each_keep_the_source_sent_and_the_next_view_shows_it() throws Exception {
+        Agent a = startAgent();
+        decideOk(a, 0, decisionBody(dec(null, order("KR:000660", "BUY", 5, "FORWARD_BREAKOUT"),
+                order("KR:069500", "BUY", 5, "MIDFIELDER"))));
+        advanceApi(a, 0);
+        long chip = plantFeed(a.season(), 1, SEQ_CHIP, "RISE", "000660", false);
+        long group = plantFeed(a.season(), 1, SEQ_GROUP, "SPREAD", null, true);
+        long nudge = plantFeed(a.season(), 1, SEQ_NUDGE, "NUDGE", null, false);
+
+        JsonNode result = decideOk(a, 1, decisionBody(dec(null,
+                sourced("US:SPY", "BUY", 1, "DEFENDER", "ALERT", SEQ_NUDGE, null),
+                sourced("KR:000660", "SELL", 2, null, "FEED", SEQ_CHIP, null),
+                sourced("KR:069500", "BUY", 1, null, "FEED", SEQ_GROUP, null),
+                sourced("KR:069500", "SELL", 1, null, "DIRECT", null, null))));
+
+        assertThat(codes(result)).containsExactly("F:NONE:-", "0:APPLIED:-", "1:APPLIED:-", "2:APPLIED:-", "3:APPLIED:-",
+                "T:NONE");
+        List<Map<String, Object>> rows = jdbc.queryForList("""
+                SELECT o.id, o.side, a.ticker, o.source, o.turn_feed_id FROM orders o JOIN asset a ON a.id = o.asset_id
+                WHERE o.season_id = ? AND o.turn_no = 1 ORDER BY o.id""", a.season());
+        assertThat(rows.stream().map(r -> r.get("side") + " " + r.get("ticker") + " " + r.get("source")).toList())
+                .containsExactly("SELL 000660 FEED", "SELL 069500 DIRECT", "BUY SPY ALERT", "BUY 069500 FEED");
+        assertThat(rows.stream().map(r -> r.get("turn_feed_id")).toList()).containsExactly(chip, null, nudge, group);
+        assertThat(List.of(result.get("orders").get(1).get("orderId").asLong(), result.get("orders").get(3).get("orderId").asLong(),
+                result.get("orders").get(0).get("orderId").asLong(), result.get("orders").get(2).get("orderId").asLong()))
+                .isEqualTo(rows.stream().map(r -> (Long) r.get("id")).toList());
+
+        advanceApi(a, 1);
+        JsonNode view = json(get(AGENTS + "/" + a.id() + "/seasons/" + a.season() + "/turn-view"));
+        List<String> shown = new ArrayList<>();
+        view.get("agent").get("recentTrades").forEach(t -> {
+            if (t.get("turnNo").asInt() == 1) {
+                shown.add(t.get("side").asString() + " " + t.get("asset").asString() + " " + t.get("source").asString());
+            }
+        });
+        assertThat(shown).containsExactly("SELL KR:000660 FEED", "SELL KR:069500 DIRECT", "BUY US:SPY ALERT",
+                "BUY KR:069500 FEED");
+    }
+
+    @Test
+    void A10_the_reconciliation_and_the_origin_check_agree_after_origin_orders_are_stored() throws Exception {
+        long[] feed = new long[3];
+        Agent a = agentAtTurnOneWithFeed(feed);
+        decideOk(a, 1, decisionBody(dec(null,
+                sourced("KR:000660", "BUY", 1, "FORWARD_BREAKOUT", "FEED", SEQ_CHIP, null),
+                sourced("US:SPY", "BUY", 1, "DEFENDER", "ALERT", SEQ_NUDGE, null))));
+
+        advanceApi(a, 1);
+
+        // the stored values satisfy the SQL rule S6: same season, ALERT iff NUDGE, feed turn not after the order's turn
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM orders o LEFT JOIN turn_feed f ON f.id = o.turn_feed_id AND f.season_id = o.season_id
+                WHERE o.season_id = ? AND o.source IN ('FEED','ALERT')
+                  AND (f.id IS NULL OR (o.source = 'ALERT') <> (f.kind = 'NUDGE') OR f.turn_no > o.turn_no)""",
+                Long.class, a.season())).isZero();
+    }
+
     @Test
     void the_first_failing_check_names_the_code() throws Exception {
         Agent a = startAgent();

@@ -40,10 +40,17 @@ class ApplicationStartupTest {
     }
 
     @Test
+    void 문맥은_공유_컨테이너_안의_전용_데이터베이스를_쓴다() {
+        assertThat(jdbc.queryForObject("SELECT current_database()", String.class)).isNotEqualTo(postgres.getDatabaseName());
+    }
+
+    @Test
     void 시험_DB는_주입한_Testcontainers_컨테이너다() throws Exception {
         try (var conn = dataSource.getConnection()) {
             String url = conn.getMetaData().getURL();
-            assertThat(url).isEqualTo(postgres.getJdbcUrl()).doesNotContain(":5432/");
+            // the context gets its own database inside the shared container, so compare host and mapped port, not the database name
+            String server = "jdbc:postgresql://" + postgres.getHost() + ":" + postgres.getMappedPort(5432) + "/";
+            assertThat(url).startsWith(server).doesNotContain(":5432/");
         }
     }
 }

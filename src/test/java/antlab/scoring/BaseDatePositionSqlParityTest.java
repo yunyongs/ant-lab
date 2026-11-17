@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import antlab.support.GoldenCleanup;
+import antlab.support.SharedPostgres;
 import antlab.support.GoldenFixtureSource;
 import antlab.support.PsqlScriptRunner;
 import antlab.support.RowSet;
@@ -38,8 +39,7 @@ class BaseDatePositionSqlParityTest {
 
     @BeforeAll
     static void start() throws Exception {
-        container = SqlGoldenHarness.newContainer();
-        container.start();
+        container = SharedPostgres.container();
         harness = new SqlGoldenHarness(container, GoldenFixtureSource.fromEnvironment());
         for (String file : SQL_FILES) {
             harness.runner().putFile(file, Path.of(file));
@@ -48,7 +48,7 @@ class BaseDatePositionSqlParityTest {
 
     @AfterAll
     static void stop() throws Exception {
-        GoldenCleanup.closeThenStop(harness, container);
+        GoldenCleanup.closeThenStop(harness, null);
     }
 
     private static DatabaseHandle load(SyntheticHistory history, String name) throws Exception {

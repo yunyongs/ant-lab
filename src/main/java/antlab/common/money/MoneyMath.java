@@ -2,6 +2,7 @@ package antlab.common.money;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.math.MathContext;
 import java.math.RoundingMode;
 import java.util.List;
 import java.util.Objects;
@@ -350,6 +351,36 @@ public final class MoneyMath {
     public static BigDecimal round8(BigDecimal value) {
         require(value, "값");
         return value.setScale(8, RoundingMode.HALF_UP);
+    }
+
+    /** Working scale of unrounded score arithmetic (season score, rating): 30 decimals, far below any stored scale. */
+    public static final int SCORE_WORK_SCALE = 30;
+    private static final MathContext SCORE_ROOT = new MathContext(60, RoundingMode.HALF_UP);
+
+    /** Score arithmetic division at {@link #SCORE_WORK_SCALE}, HALF_UP. Parts stay unrounded until their stored scale. */
+    public static BigDecimal scoreDivide(BigDecimal numerator, BigDecimal denominator) {
+        require(numerator, "분자");
+        require(denominator, "분모");
+        return numerator.divide(denominator, SCORE_WORK_SCALE, RoundingMode.HALF_UP);
+    }
+
+    /** Division to 60 significant digits (for a variance feeding a square root). */
+    public static BigDecimal divideSignificant(BigDecimal numerator, BigDecimal denominator) {
+        require(numerator, "분자");
+        require(denominator, "분모");
+        return numerator.divide(denominator, SCORE_ROOT);
+    }
+
+    /** Square root to 60 significant digits. */
+    public static BigDecimal sqrtSignificant(BigDecimal value) {
+        require(value, "값");
+        return value.sqrt(SCORE_ROOT);
+    }
+
+    /** Two decimals HALF_UP once: the stored scale of scores and ratings. */
+    public static BigDecimal round2(BigDecimal value) {
+        require(value, "값");
+        return value.setScale(2, RoundingMode.HALF_UP);
     }
 
     /** Whole percentage points of a ratio: {@code round(ratio * 100, 0)}, HALF_UP (away from zero on ties, like SQL {@code round}). */

@@ -267,7 +267,7 @@ public class OrderService {
             case BENCH:
                 return SourceCheck.refused(OrderRejection.SOURCE_NOT_ALLOWED);
             case RANKING:
-                return ranking.onBoard(scope.season(), scope.turnNo(), assetId)
+                return assetId != null && ranking.onBoard(scope.season(), scope.turnNo(), assetId)
                         ? SourceCheck.accepted(OrderSource.RANKING, null)
                         : SourceCheck.refused(OrderRejection.SOURCE_NOT_VISIBLE);
             default:
@@ -289,6 +289,15 @@ public class OrderService {
             return SourceCheck.refused(OrderRejection.SOURCE_NOT_VISIBLE);
         }
         return SourceCheck.accepted(source.kind(), item.get().id());
+    }
+
+    /**
+     * The origin rule alone, for an agent order whose asset is not in the asset table (there is no id to check the order with).
+     * It is the same rule as the first step of {@link #check}; a null asset id matches no chip and is on no board. Returns the
+     * refusal, or null when the origin would be accepted.
+     */
+    public OrderRejection sourceRejection(OrderScope scope, OrderSourceRequest source, Long assetIdOrNull) {
+        return checkSource(scope, source, assetIdOrNull).rejection();
     }
 
     /** 같은 턴의 마지막 전술 변경(번호 기준)에 묶는다 — 주문은 불변이라 INSERT 때 넣는다. */
