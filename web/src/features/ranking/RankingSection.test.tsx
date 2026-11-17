@@ -2,6 +2,8 @@ import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { describe, expect, it } from 'vitest';
+import { problem } from '../../test/authHandlers.ts';
+import { poolFixture } from '../../test/fixtures/pool.ts';
 import { emptyBoard, rankingFixture } from '../../test/fixtures/ranking.ts';
 import { renderWithProviders } from '../../test/renderWithProviders.tsx';
 import { server } from '../../test/server.ts';
@@ -119,5 +121,45 @@ describe('RankingSection', () => {
     );
     await new Promise((resolve) => setTimeout(resolve, 60));
     expect(gets).toBe(0);
+  });
+
+  it('does not request a board for turn 0', async () => {
+    let gets = 0;
+    server.use(
+      http.get('*/api/v1/seasons/7/turns/0/ranking', () => {
+        gets += 1;
+        return HttpResponse.json(emptyBoard(0));
+      }),
+    );
+    renderWithProviders(
+      <RankingSection seasonId={7} turnNo={0} currentTurnNo={5} />,
+    );
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    expect(gets).toBe(0);
+  });
+
+  it('shows a pool failure inside the section and retries the pool', async () => {
+    serveBoard(rankingFixture());
+    let poolGets = 0;
+    let poolOk = false;
+    server.use(
+      http.get('*/api/v1/pool', () => {
+        poolGets += 1;
+        return poolOk
+          ? HttpResponse.json(poolFixture)
+          : problem(500, { code: 'INTERNAL_ERROR', status: 500 });
+      }),
+    );
+    renderSection();
+    const region = await screen.findByRole('region', { name: '순위' });
+    const alert = await within(region).findByRole('alert');
+    expect(within(region).queryByRole('tablist')).toBeNull();
+    poolOk = true;
+    const before = poolGets;
+    await userEvent
+      .setup()
+      .click(within(alert).getByRole('button', { name: '다시 불러오기' }));
+    await within(region).findByRole('tablist');
+    expect(poolGets).toBeGreaterThan(before);
   });
 });
