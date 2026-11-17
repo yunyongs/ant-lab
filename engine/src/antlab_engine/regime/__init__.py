@@ -39,6 +39,7 @@ from antlab_engine.regime.pit import PointInTime, effective_available
 from antlab_engine.regime.probability import phase_of, pool_of, pool_probabilities
 from antlab_engine.regime.publication import publication_floor
 from antlab_engine.regime.scoring import combine_axes
+from antlab_engine.regime.source import RegimeInputs, RegimeSource
 from antlab_engine.regime.stale import SeriesState, series_state, stale_indicators
 from antlab_engine.regime.zscore import term_signals, z_of_latest
 
@@ -50,6 +51,8 @@ __all__ = [
     "MonthRegime",
     "MonthStatus",
     "RawObservation",
+    "RegimeInputs",
+    "RegimeSource",
     "SourceSeries",
     "adapt",
     "coverage",
