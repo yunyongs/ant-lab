@@ -1,0 +1,1 @@
+{"title":"Engine Busy","status":503,"detail":"Too many projections are running.","instance":"/v1/projections","code":"ENGINE_BUSY"}

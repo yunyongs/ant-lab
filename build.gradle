@@ -60,6 +60,7 @@ tasks.named('test') {
     inputs.dir('events').withPropertyName('eventFiles').withPathSensitivity(PathSensitivity.RELATIVE)
     inputs.dir('feed').withPropertyName('feedFiles').withPathSensitivity(PathSensitivity.RELATIVE)
     inputs.file('docs/api/openapi.yaml').withPropertyName('openApiContract').withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.file('docs/api/engine.yaml').withPropertyName('engineContract').withPathSensitivity(PathSensitivity.RELATIVE)
     inputs.file('docs/api/agent-runner.yaml').withPropertyName('agentRunnerContract').withPathSensitivity(PathSensitivity.RELATIVE)
     inputs.file('docs/api/turn-decision-1.schema.json').withPropertyName('turnDecisionSchema').withPathSensitivity(PathSensitivity.RELATIVE)
     inputs.file('compose.yaml').withPropertyName('composeFile').withPathSensitivity(PathSensitivity.RELATIVE)
