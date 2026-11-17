@@ -87,12 +87,14 @@ public final class AnalysisAssertions {
                 }
                 assertThat(won(b.get("totalFee")).signum()).isGreaterThanOrEqualTo(0);
                 assertThat(b.get("forcedChangeCount").asInt()).isLessThanOrEqualTo(b.get("rebalanceCount").asInt());
+                assertThat(b.get("bandNoFillCount").asInt()).isGreaterThanOrEqualTo(0);
+                assertThat(won(b.get("forcedChangeFee"))).isLessThanOrEqualTo(won(b.get("totalFee")));
                 assertThat(b.get("totalReturn").asString()).as("return = (final − initial) ÷ initial")
                         .isEqualTo(fin.subtract(initial).divide(initial, 8, java.math.RoundingMode.HALF_UP).toPlainString());
             } else {
                 assertThat(b.get("reason").asString()).isEqualTo("REPRESENTATIVE_MISSING");
                 for (String name : List.of("finalValue", "totalReturn", "excessWon", "excessReturn", "totalFee",
-                        "rebalanceCount", "forcedChangeCount", "forcedChangeFee", "turnValues")) {
+                        "rebalanceCount", "bandNoFillCount", "forcedChangeCount", "forcedChangeFee", "turnValues")) {
                     assertThat(b.get(name).isNull()).as(b.get("key").asString() + "." + name).isTrue();
                 }
                 assertThat(b.get("legs").size()).isZero();

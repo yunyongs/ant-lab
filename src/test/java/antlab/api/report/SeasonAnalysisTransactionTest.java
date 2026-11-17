@@ -93,12 +93,13 @@ class SeasonAnalysisTransactionTest {
         SqlRecorder.Recorded b = measure(small);
         System.out.println("[M3] analysis statements (4 held assets) = Hibernate " + a.hibernate().size() + " + JdbcClient "
                 + a.jdbcClient().size() + ", (1 held asset) = " + b.hibernate().size() + " + " + b.jdbcClient().size());
-        // Hibernate: member, season, turn snapshots, formation changes. JdbcClient: consistency, prices, discipline orders.
+        // Hibernate: member, season, turn snapshots, formation changes. JdbcClient: consistency, prices, late orders, discipline orders.
         assertThat(a.hibernate()).hasSameSizeAs(b.hibernate()).hasSize(4);
-        assertThat(a.jdbcClient()).hasSameSizeAs(b.jdbcClient()).hasSize(3);
-        assertThat(a.total()).isEqualTo(b.total()).isEqualTo(7);
+        assertThat(a.jdbcClient()).hasSameSizeAs(b.jdbcClient()).hasSize(4);
+        assertThat(a.total()).isEqualTo(b.total()).isEqualTo(8);
         assertThat(a.jdbcClient()).containsExactlyInAnyOrder(statement(SeasonReportQuery.class, "CONSISTENCY"),
-                statement(SeasonAnalysisQuery.class, "PRICES"), statement(DisciplineQuery.class, "ORDERS"));
+                statement(SeasonAnalysisQuery.class, "PRICES"), statement(SeasonAnalysisQuery.class, "LATE_ORDERS"),
+                statement(DisciplineQuery.class, "ORDERS"));
         for (SqlRecorder.Recorded recorded : List.of(a, b)) {
             recorded.all().forEach(q -> {
                 String s = q.toLowerCase(Locale.ROOT).strip();

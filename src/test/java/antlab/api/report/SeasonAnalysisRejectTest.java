@@ -133,7 +133,8 @@ class SeasonAnalysisRejectTest {
         MockHttpServletResponse r = SeasonAnalysisApiSupport.getAnalysis(mvc, season);
         assertThat(r.getStatus()).isEqualTo(500);
         assertThat(code(r)).isEqualTo("INTERNAL_ERROR");
-        assertThatThrownBy(() -> service.get(season)).isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> service.get(season)).isInstanceOf(IllegalStateException.class)
+                .hasMessage("성적표 원천이 모순이다: 풀 종목의 턴 가격이 비어 있다");
     }
 
     @Test
@@ -146,12 +147,49 @@ class SeasonAnalysisRejectTest {
                 .hasMessage("분석 원천이 모순이다: 턴 스냅샷이 첫 턴부터 보고 턴까지 이어지지 않는다");
     }
 
+    /** The report refuses these seasons with a 500; the analysis answers the same, so the two endpoints never disagree. */
+    private void assertBothRefuse(long season, String analysisMessage) throws Exception {
+        assertThat(ReportApiSupport.getReport(mvc, season).getStatus()).as("report").isEqualTo(500);
+        assertThat(SeasonAnalysisApiSupport.getAnalysis(mvc, season).getStatus()).as("analysis").isEqualTo(500);
+        assertThatThrownBy(() -> service.get(season)).isInstanceOf(IllegalStateException.class).hasMessage(analysisMessage);
+    }
+
     @Test
-    void 마지막_턴에_걸린_주문은_판정_범위_밖이라_금액에_들어가지_않는다() throws Exception {
+    void 마지막_턴에_걸린_주문이_있으면_성적표처럼_500이다() throws Exception {
         long season = ReportApiSupport.finishedSeason(mvc, jdbc);
         ReportApiSupport.fill(jdbc, season, antlab.api.turn.TurnApiSupport.assetId(jdbc, "BRK.B"), 12, "SELL", 1);
-        MockHttpServletResponse r = SeasonAnalysisApiSupport.getAnalysis(mvc, season);
-        assertThat(r.getStatus()).isEqualTo(200);
-        assertThat(antlab.api.turn.TurnApiSupport.json(r).get("discipline").get("sellNotional").asString()).isEqualTo("0");
+        assertBothRefuse(season, "분석 원천이 모순이다: 끝난 시즌에 마지막 턴의 주문이나 전술 변경이 남아 있다");
+    }
+
+    @Test
+    void 마지막_턴_뒤의_주문이_있어도_성적표처럼_500이다() throws Exception {
+        long season = ReportApiSupport.finishedSeason(mvc, jdbc);
+        ReportApiSupport.fill(jdbc, season, antlab.api.turn.TurnApiSupport.assetId(jdbc, "BRK.B"), 13, "SELL", 1);
+        assertBothRefuse(season, "분석 원천이 모순이다: 끝난 시즌에 마지막 턴의 주문이나 전술 변경이 남아 있다");
+    }
+
+    @Test
+    void 마지막_턴의_전술_변경이_있으면_성적표처럼_500이다() throws Exception {
+        long season = ReportApiSupport.finishedSeason(mvc, jdbc);
+        int[] start = new int[4];
+        String[] columns = {"start_goalkeeper", "start_defender", "start_midfielder", "start_forward"};
+        for (int i = 0; i < 4; i++) {
+            start[i] = jdbc.queryForObject("SELECT " + columns[i] + " FROM season WHERE id = ?", Integer.class, season);
+        }
+        jdbc.update("INSERT INTO formation_change (season_id, turn_no, before_goalkeeper, before_defender, before_midfielder, "
+                + "before_forward, after_goalkeeper, after_defender, after_midfielder, after_forward) "
+                + "VALUES (?, 12, ?, ?, ?, ?, 100, 0, 0, 0)", season, start[0], start[1], start[2], start[3]);
+        assertBothRefuse(season, "분석 원천이 모순이다: 끝난 시즌에 마지막 턴의 주문이나 전술 변경이 남아 있다");
+    }
+
+    @Test
+    void 전술_변경이_시작_포메이션에서_이어지지_않으면_500이다() throws Exception {
+        long season = ReportApiSupport.finishedSeason(mvc, jdbc);
+        jdbc.update("INSERT INTO formation_change (season_id, turn_no, before_goalkeeper, before_defender, before_midfielder, "
+                + "before_forward, after_goalkeeper, after_defender, after_midfielder, after_forward) "
+                + "VALUES (?, 4, 100, 0, 0, 0, 90, 10, 0, 0)", season);
+        assertThat(SeasonAnalysisApiSupport.getAnalysis(mvc, season).getStatus()).isEqualTo(500);
+        assertThatThrownBy(() -> service.get(season)).isInstanceOf(IllegalStateException.class)
+                .hasMessage("분석 원천이 모순이다: 전술 변경이 시작 포메이션부터 이어지지 않는다");
     }
 }

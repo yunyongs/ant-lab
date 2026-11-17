@@ -14,10 +14,10 @@ import java.util.List;
  */
 @Schema(description = "Season analysis: baselines, three-way split, trading discipline / 시즌 분석: 기준선·3분해·매매 규율")
 public record SeasonAnalysisDto(
-        @ExposedFrom({"turn_price.price", "turn.total_value"})
+        @ExposedFrom({})
         @Schema(requiredMode = RequiredMode.REQUIRED, description = "Version of the analysis rules / 분석 규칙 버전")
         String analysisVersion,
-        @ExposedFrom({"asset.market", "asset.ticker"})
+        @ExposedFrom({})
         @Schema(requiredMode = RequiredMode.REQUIRED, description = "Version of the representative-asset table / "
                 + "대표 자산 표 버전")
         String representativeVersion,
@@ -38,7 +38,7 @@ public record SeasonAnalysisDto(
     /** One baseline. When it is unavailable, {@code reason} is set and every value is null (the legs list is empty). */
     @Schema(description = "One baseline portfolio simulated on the season prices / 시즌 가격으로 시뮬레이션한 기준선 하나")
     public record BaselineDto(
-            @ExposedFrom({"turn_price.price", "season.initial_cash"})
+            @ExposedFrom({})
             @Schema(requiredMode = RequiredMode.REQUIRED, description = "Baseline key (MARKET, SIXTY_FORTY, "
                     + "FORMATION_FOLLOW, FORMATION_FIXED) / 기준선 키")
             String key,
@@ -126,11 +126,11 @@ public record SeasonAnalysisDto(
             @ExposedFrom({"asset.market", "asset.ticker"})
             @Schema(requiredMode = RequiredMode.REQUIRED, description = "Asset as MARKET:TICKER / 종목, MARKET:TICKER 꼴")
             String asset,
-            @ExposedFrom("asset.market")
+            @ExposedFrom({})
             @Schema(requiredMode = RequiredMode.REQUIRED, description = "Slot name (MARKET, EQUITY, BOND, GK, DF, MF, FW) / "
                     + "칸 이름")
             String slot,
-            @ExposedFrom("asset.market")
+            @ExposedFrom({})
             @Schema(requiredMode = RequiredMode.REQUIRED, description = "Share of the slot in whole percent / 칸 안의 비중, "
                     + "정수 퍼센트")
             Integer sharePercent) {

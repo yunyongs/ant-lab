@@ -77,7 +77,8 @@ public class SeasonAnalysisService {
         }
         long id = season.getId();
         int reportTurn = season.getCurrentTurnNo();
-        if (reportTurn < 1) {
+        // A finished season stops at the last turn of its path, as the report requires (SeasonReportCalculator.validate)
+        if (reportTurn < 1 || reportTurn != season.getPathLength()) {
             throw new IllegalStateException(INCONSISTENT + "보고 턴이 범위를 벗어났다");
         }
         BigDecimal initialCash = season.getInitialCash();
@@ -86,7 +87,14 @@ public class SeasonAnalysisService {
             throw new IllegalStateException(INCONSISTENT + "턴 스냅샷이 첫 턴부터 보고 턴까지 이어지지 않는다");
         }
         List<FormationChange> changeRows = changes.findAllBySeasonId(id);
+        if (changeRows.stream().anyMatch(c -> c.getTurnNo() >= reportTurn)) {
+            throw new IllegalStateException(INCONSISTENT + "끝난 시즌에 마지막 턴의 주문이나 전술 변경이 남아 있다");
+        }
+        requireChain(season.getStartFormation(), changeRows);
         consistency.requireConsistent(id, reportTurn);
+        if (prices.ordersFromReportTurn(id, reportTurn) != 0) {
+            throw new IllegalStateException(INCONSISTENT + "끝난 시즌에 마지막 턴의 주문이나 전술 변경이 남아 있다");
+        }
 
         BigDecimal userFinal = turnRows.get(reportTurn - 1).getTotalValue();
         Map<AssetKey, List<BigDecimal>> series = prices.prices(id, reportTurn, candidates());
@@ -118,6 +126,17 @@ public class SeasonAnalysisService {
                 teamValues, facts, disciplineOrders.orders(id, reportTurn)));
         return new SeasonAnalysisDto(ANALYSIS_VERSION, resolution.version(), reportTurn, baselines, decomposition,
                 disciplineDto(discipline));
+    }
+
+    /** The following baseline starts from the start formation, so each change must start from the one before it (by id). */
+    private static void requireChain(Formation start, List<FormationChange> changeRows) {
+        Formation previous = start;
+        for (FormationChange change : changeRows.stream().sorted(java.util.Comparator.comparingLong(FormationChange::getId)).toList()) {
+            if (!change.getBefore().equals(previous)) {
+                throw new IllegalStateException(INCONSISTENT + "전술 변경이 시작 포메이션부터 이어지지 않는다");
+            }
+            previous = change.getAfter();
+        }
     }
 
     private List<AssetKey> candidates() {

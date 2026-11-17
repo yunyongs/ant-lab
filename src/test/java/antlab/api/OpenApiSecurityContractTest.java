@@ -68,8 +68,8 @@ class OpenApiSecurityContractTest {
                     }
                 }
             }
-            assertThat(operations).as(spec.getKey()).isEqualTo(17);
-            assertThat(secured).as(spec.getKey() + " secured operations").hasSize(12);
+            assertThat(operations).as(spec.getKey()).isEqualTo(18);
+            assertThat(secured).as(spec.getKey() + " secured operations").hasSize(13);
             JsonNode response = spec.getValue().path("components").path("responses").path("Unauthenticated");
             assertThat(response.path("content").has("application/problem+json")).as(spec.getKey()).isTrue();
             if (spec.getKey().equals("계약")) {

@@ -10,9 +10,9 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Component;
 
 /**
- * Source of the baseline simulation: one read-only native statement that returns the stored {@code turn_price} series of turns 0..T
+ * Source of the baseline simulation: two read-only native statements: one returns the stored {@code turn_price} series of turns 0..T
  * for the representative candidates (market index pair, bond candidates, gold, growth). An asset that is in the season pool has a
- * turn-0 price, so the keys of the result are the pool members among the candidates. No rounding and no write here; the number of
+ * turn-0 price, so the keys of the result are the pool members among the candidates. The other counts orders at the last turn or later. No rounding and no write here; the number of
  * statements does not depend on the candidates, the holdings or the turns.
  */
 @Component
@@ -25,6 +25,9 @@ public class SeasonAnalysisQuery {
             WHERE tp.season_id = :seasonId AND tp.turn_no BETWEEN 0 AND :reportTurn
               AND (a.market || ':' || a.ticker) = ANY (CAST(:keys AS text[]))
             ORDER BY a.market, a.ticker, tp.turn_no""";
+
+    private static final String LATE_ORDERS = """
+            SELECT count(*) FROM orders o WHERE o.season_id = :seasonId AND o.turn_no >= :reportTurn""";
 
     private final JdbcClient jdbc;
 
@@ -43,5 +46,10 @@ public class SeasonAnalysisQuery {
                     return null;
                 }).list();
         return out;
+    }
+
+    /** Orders placed at the last turn or later; a finished season has none (the report refuses it too). */
+    public long ordersFromReportTurn(long seasonId, int reportTurn) {
+        return jdbc.sql(LATE_ORDERS).param("seasonId", seasonId).param("reportTurn", reportTurn).query(Long.class).single();
     }
 }

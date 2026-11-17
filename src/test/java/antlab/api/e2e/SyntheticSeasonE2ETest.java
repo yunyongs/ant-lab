@@ -418,6 +418,8 @@ class SyntheticSeasonE2ETest {
         JsonNode fixed = a.get("baselines").get(3);
         assertThat(follow.get("forcedChangeCount").asInt()).as("the one formation change forces one rebalance").isEqualTo(1);
         assertThat(fixed.get("forcedChangeCount").asInt()).isZero();
+        assertThat(AnalysisAssertions.won(follow.get("forcedChangeFee")).signum()).as("the forced rebalance costs fees").isPositive();
+        assertThat(AnalysisAssertions.won(fixed.get("forcedChangeFee")).signum()).isZero();
         assertThat(follow.get("legs").size()).isEqualTo(fixed.get("legs").size()).isEqualTo(5);
         assertThat(follow.get("turnValues").get(0).asString()).as("both formation baselines start alike")
                 .isEqualTo(fixed.get("turnValues").get(0).asString());
