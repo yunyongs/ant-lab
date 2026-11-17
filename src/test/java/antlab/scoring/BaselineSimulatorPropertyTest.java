@@ -70,6 +70,7 @@ class BaselineSimulatorPropertyTest {
             BaselineSpec spec = spec(result.key());
             TargetSchedule schedule = schedule(season, result.key());
             int expectedRebalances = 0;
+            int expectedNoFill = 0;
             for (int turn = 1; turn < season.turns(); turn++) {
                 boolean forced = schedule.switchesAt(turn);
                 boolean broken = broken(spec, schedule, result.states().get(turn), season);
@@ -78,11 +79,14 @@ class BaselineSimulatorPropertyTest {
                 if (anyFill) {
                     assertThat(forced || broken).as("fill without a reason at turn " + turn).isTrue();
                 }
-                if (forced || broken) {
+                if (forced || (broken && anyFill)) {
                     expectedRebalances++;
+                } else if (broken) {
+                    expectedNoFill++;
                 }
             }
             assertThat(result.rebalanceCount()).isEqualTo(expectedRebalances);
+            assertThat(result.bandNoFillCount()).isEqualTo(expectedNoFill);
             assertThat(result.fills()).noneMatch(f -> f.turnNo() >= season.turns());
         });
     }

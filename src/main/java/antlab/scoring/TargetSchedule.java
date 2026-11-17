@@ -13,12 +13,48 @@ public record TargetSchedule(List<Integer> start, List<Switch> switches) {
 
     public record Switch(int turnNo, List<Integer> target) {
         public Switch {
-            target = List.copyOf(Objects.requireNonNull(target, "target"));
+            target = copyChecked(target);
         }
     }
 
+    /** One stored formation change: its turn, its id (order within a turn) and the target after it. */
+    public record Change(int turnNo, long id, List<Integer> target) {
+    }
+
+    /**
+     * Builds a schedule from stored changes: several changes in one turn collapse to the last by id, and a turn whose final target equals the
+     * target in force before it (A to B to A within one turn) is dropped, since the target did not change. No forced trade is made for it.
+     */
+    public static TargetSchedule fromChanges(List<Integer> start, List<Change> changes) {
+        List<Change> ordered = new ArrayList<>(Objects.requireNonNull(changes, "changes"));
+        ordered.sort(java.util.Comparator.comparingInt(Change::turnNo).thenComparingLong(Change::id));
+        List<Switch> switches = new ArrayList<>();
+        List<Integer> current = copyChecked(start);
+        for (int i = 0; i < ordered.size(); i++) {
+            Change change = ordered.get(i);
+            boolean lastOfTurn = i + 1 == ordered.size() || ordered.get(i + 1).turnNo() != change.turnNo();
+            if (!lastOfTurn) {
+                continue;
+            }
+            List<Integer> target = copyChecked(change.target());
+            if (!target.equals(current)) {
+                switches.add(new Switch(change.turnNo(), target));
+                current = target;
+            }
+        }
+        return new TargetSchedule(start, switches);
+    }
+
+    private static List<Integer> copyChecked(List<Integer> list) {
+        Objects.requireNonNull(list, "target");
+        if (list.stream().anyMatch(Objects::isNull)) {
+            throw BaselineSimulator.invalid("a target percentage is outside the allowed range");
+        }
+        return List.copyOf(list);
+    }
+
     public TargetSchedule {
-        start = List.copyOf(Objects.requireNonNull(start, "start"));
+        start = copyChecked(start);
         switches = List.copyOf(Objects.requireNonNull(switches, "switches"));
         checkTarget(start, start.size());
         List<Integer> previous = start;

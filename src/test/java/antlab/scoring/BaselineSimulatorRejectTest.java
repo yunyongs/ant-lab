@@ -155,4 +155,21 @@ class BaselineSimulatorRejectTest {
         rejected(() -> new TargetSchedule(List.of(50, 50), List.of(new TargetSchedule.Switch(1, List.of(100)))));
         rejected(() -> new TargetSchedule(List.of(50, 50), List.of(new TargetSchedule.Switch(1, List.of(60, 60)))));
     }
+
+    @Test
+    void exceptions_outside_the_fixed_sentence_contract_are_converted() {
+        rejected(() -> BaselineSimulator.simulate(twoSlots(), TargetSchedule.constant(50, 50), prices(), bd("1000000"),
+                new FeeRates(null, new BigDecimal("0.002"), new BigDecimal("0.004"))));
+        BaselineSpec foreign = new BaselineSpec(BaselineKey.MARKET,
+                List.of(new Slot("S", List.of(new Leg(new AssetKey("JP", "AAA"), 100)))), null);
+        Map<AssetKey, List<BigDecimal>> jp = Map.of(new AssetKey("JP", "AAA"), series("100", "110", "120"));
+        rejected(() -> BaselineSimulator.simulate(foreign, TargetSchedule.constant(100), jp, bd("1000000"), FEES));
+        List<Integer> withNull = new ArrayList<>(List.of(50, 50));
+        withNull.set(0, null);
+        rejected(() -> new TargetSchedule(withNull, List.of()));
+        Map<AssetKey, List<BigDecimal>> huge = prices();
+        huge.put(A, series("100", "110", "99999999999999999999", "130"));
+        rejected(() -> simulate(TargetSchedule.constant(50, 50), huge, "1000000"));
+        rejected(() -> Decomposition.of(bd("1"), bd("1"), bd("1"), bd("1"), bd("-5")));
+    }
 }

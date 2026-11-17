@@ -75,12 +75,13 @@ class RepresentativeTableTest {
     }
 
     @Test
-    void the_second_domestic_bond_is_already_a_substitution() {
+    void the_second_domestic_bond_is_a_domestic_bond_and_not_flagged() {
         Set<AssetKey> pool = samplePool();
         pool.add(KR_BOND_2);
         Entry entry = RepresentativeTable.REP_V1.resolve(pool).entry(BaselineKey.SIXTY_FORTY);
         assertThat(legs(entry.spec())).contains("BOND=[KR:114260/100]");
-        assertThat(entry.bondLegSubstituted()).isTrue();
+        // the flag means "a US Treasury ETF stands in", so a domestic second candidate is not flagged
+        assertThat(entry.bondLegSubstituted()).isFalse();
     }
 
     @Test

@@ -12,7 +12,9 @@ import java.util.TreeMap;
  * Outcome of one baseline over a season. {@code states} has one entry per turn 0..T: the holdings carried into that turn, valued at that
  * turn's price, before any trade of that turn (turn 0 is after the opening purchase). Amounts are whole won.
  *
- * @param rebalanceCount    turns with a rebalance, band-triggered or forced
+ * @param rebalanceCount    turns with a rebalance that traded, or was forced by a target switch
+ * @param bandNoFillCount   turns where the band was broken but integer shares allowed no trade (a slot that cannot buy one share);
+ *                          not counted in {@code rebalanceCount}, so such a slot cannot inflate the count turn after turn
  * @param forcedChangeCount turns with a rebalance forced by a target switch (subset of {@code rebalanceCount})
  * @param forcedChangeFee   fees paid in forced rebalances
  * @param totalFee          fees of every fill, the opening purchase included
@@ -22,6 +24,7 @@ public record BaselineResult(
         List<TurnState> states,
         List<Fill> fills,
         int rebalanceCount,
+        int bandNoFillCount,
         int forcedChangeCount,
         BigDecimal forcedChangeFee,
         BigDecimal totalFee) {

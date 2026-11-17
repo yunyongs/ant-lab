@@ -58,6 +58,13 @@ public final class BaselineSimulator {
             throw invalid("the target needs one percentage per slot");
         }
         Map<AssetKey, long[]> series = normalise(spec, prices);
+        try {
+            for (AssetKey asset : series.keySet()) {
+                fees.rate(asset.market());
+            }
+        } catch (IllegalArgumentException | NullPointerException ex) {
+            throw invalid("the fee rates or a market code are not usable");
+        }
         int lastTurn = series.values().iterator().next().length - 1;
         if (!schedule.switches().isEmpty()
                 && schedule.switches().get(schedule.switches().size() - 1).turnNo() >= lastTurn) {
@@ -83,7 +90,11 @@ public final class BaselineSimulator {
                 length = list.size();
                 long[] values = new long[list.size()];
                 for (int i = 0; i < values.length; i++) {
-                    values[i] = wholeWon(list.get(i), "a price must be a positive whole amount").longValueExact();
+                    try {
+                        values[i] = wholeWon(list.get(i), "a price must be a positive whole amount").longValueExact();
+                    } catch (ArithmeticException ex) {
+                        throw invalid("a price is too large");
+                    }
                 }
                 out.put(leg.asset(), values);
             }
@@ -127,6 +138,7 @@ public final class BaselineSimulator {
         private BigDecimal totalFee = BigDecimal.ZERO;
         private BigDecimal forcedFee = BigDecimal.ZERO;
         private int rebalances;
+        private int bandNoFill;
         private int forcedRebalances;
 
         Run(BaselineSpec spec, TargetSchedule schedule, Map<AssetKey, long[]> prices, BigDecimal initialCash,
@@ -154,7 +166,7 @@ public final class BaselineSimulator {
                     }
                 }
             }
-            return new BaselineResult(spec.key(), states, fills, rebalances, forcedRebalances, forcedFee, totalFee);
+            return new BaselineResult(spec.key(), states, fills, rebalances, bandNoFill, forcedRebalances, forcedFee, totalFee);
         }
 
         private void openingPurchase() {
@@ -217,6 +229,7 @@ public final class BaselineSimulator {
                 }
             }
             BigDecimal feeBefore = totalFee;
+            int fillsBefore = fills.size();
             for (Map.Entry<AssetKey, BigInteger> entry : targetValue.entrySet()) {
                 AssetKey asset = entry.getKey();
                 BigInteger price = BigInteger.valueOf(price(asset, turn));
@@ -236,7 +249,11 @@ public final class BaselineSimulator {
                 BigDecimal budget = new BigDecimal(gap.divide(TEN_THOUSAND).min(cash.toBigIntegerExact()));
                 buy(turn, asset, budget, forced);
             }
-            rebalances++;
+            if (forced || fills.size() > fillsBefore) {
+                rebalances++;
+            } else {
+                bandNoFill++;
+            }
             if (forced) {
                 forcedRebalances++;
                 forcedFee = forcedFee.add(totalFee.subtract(feeBefore));

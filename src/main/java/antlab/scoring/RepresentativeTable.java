@@ -58,7 +58,8 @@ public record RepresentativeTable(String version, AssetKey domesticEquity, Asset
                 break;
             }
         }
-        boolean substituted = bondIndex > 0;
+        // true only when the leg is not a domestic bond: the disclosure says a US Treasury ETF stands in
+        boolean substituted = bond != null && !"KR".equals(bond.market());
 
         Entry marketEntry = new Entry(BaselineKey.MARKET,
                 new BaselineSpec(BaselineKey.MARKET, List.of(new Slot(BaselineRules.SLOT_MARKET, market)), null), null, false);

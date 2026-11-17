@@ -24,6 +24,9 @@ public record Decomposition(BigDecimal selectionWon, BigDecimal tacticWon, BigDe
         Objects.requireNonNull(fixedFinal, "fixedFinal");
         Objects.requireNonNull(marketFinal, "marketFinal");
         Objects.requireNonNull(initialCash, "initialCash");
+        if (initialCash.signum() <= 0) {
+            throw BaselineSimulator.invalid("the initial cash must be positive");
+        }
         BigDecimal selection = MoneyMath.exactWon(userFinal.subtract(followFinal));
         BigDecimal tactic = MoneyMath.exactWon(followFinal.subtract(fixedFinal));
         BigDecimal structure = MoneyMath.exactWon(fixedFinal.subtract(marketFinal));
