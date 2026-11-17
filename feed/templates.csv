@@ -52,3 +52,39 @@ nudge.watch.v1,NUDGE,ACTIVE,ASSET,,,,,,false,{asset_name} 호가가 바쁘게 �
 nudge.cash.v1,NUDGE,ACTIVE,NONE,,,,,,false,현금 비중 {cash_weight} — 기회를 놓치고 있지 않나요
 nudge.idle.v1,NUDGE,ACTIVE,NONE,,,,,,false,직전 매매 구간 거래 {trade_count}건 — 시장은 쉬지 않습니다
 nudge.rest.v1,NUDGE,ACTIVE,NONE,,,,,,false,{idle_turns}번째 쉬는 턴 — 지켜만 보고 계신가요
+rise.rally.v1,RISE,ACTIVE,ASSET,UP,,,,,false,{asset_name} 이달 {ret} 오름세 — 투자 심리 개선
+rise.buying.v1,RISE,ACTIVE,ASSET,UP,,,,,false,"{asset_name} 매수세 유입, 이달 {ret} 올라"
+rise.leader.v1,RISE,ACTIVE,ASSET,UP,,,,,false,{asset_name} 시장 주도 흐름 — 이달 {ret} 상승
+rise.streak.v1,RISE,ACTIVE,ASSET,UP,,,,,false,{asset_name} {streak}달 연속 상승 — 오름세 이어져
+rise.glad.v1,RISE,ACTIVE,ASSET,UP,,,,,false,{asset_name} 이달 {ret} — 투자자들 표정 밝아져
+fall.slump.v1,FALL,ACTIVE,ASSET,DOWN,,,,,false,{asset_name} 이달 {ret} 부진 — 투자 심리 위축
+fall.selloff.v1,FALL,ACTIVE,ASSET,DOWN,,,,,false,"{asset_name} 매도 물량 쏟아져, 이달 {ret}"
+fall.slide.v1,FALL,ACTIVE,ASSET,DOWN,,,,,false,{asset_name} {streak}달째 하락 — 약세 흐름 이어져
+fall.weak.v1,FALL,ACTIVE,ASSET,DOWN,,,,,false,{asset_name} 힘 못 쓰는 장세 — 이달 {ret}
+rise.broad.v1,RISE,ACTIVE,GROUP,UP,,,,,false,{group_name} 업종 전반 매수세 — 평균 {group_ret} 강세
+rise.mood.v1,RISE,ACTIVE,GROUP,UP,,,,,false,시장 분위기 한결 밝아졌다 — 관련 종목 평균 {group_ret}
+rise.broadbuy.v1,RISE,ACTIVE,GROUP,UP,,,,,false,매수세가 넓게 퍼졌다 — 이달 관련주 평균 {group_ret}
+fall.broad.v1,FALL,ACTIVE,GROUP,DOWN,,,,,false,{group_name} 업종 전반 매도세 — 평균 {group_ret} 약세
+fall.mood.v1,FALL,ACTIVE,GROUP,DOWN,,,,,false,시장 분위기 한풀 꺾였다 — 관련 종목 평균 {group_ret}
+fall.broadsell.v1,FALL,ACTIVE,GROUP,DOWN,,,,,false,매도세가 넓게 퍼졌다 — 이달 관련주 평균 {group_ret}
+echo.cont.v1,ECHO,ACTIVE,ASSET,UP,,,,,false,"{asset_name} 상승세 계속 — 지난달 {prev_ret}, 이달 {ret}"
+echo.streak.v1,ECHO,ACTIVE,ASSET,UP,,,,,false,{asset_name} 상승 흐름 {streak}달째 — 이달 {ret}
+echo.momentum.v1,ECHO,ACTIVE,ASSET,UP,,,,,false,{asset_name} 탄력 유지 — 상승 이야기 {repeat}번째 등장
+echo.contdown.v1,ECHO,ACTIVE,ASSET,DOWN,,,,,false,"{asset_name} 하락세 계속 — 지난달 {prev_ret}, 이달 {ret}"
+echo.slide.v1,ECHO,ACTIVE,ASSET,DOWN,,,,,false,{asset_name} 하락 흐름 {streak}달째 — 이달 {ret}
+echo.gloom.v1,ECHO,ACTIVE,ASSET,DOWN,,,,,false,{asset_name} 불안 이어져 — 하락 이야기 {repeat}번째 등장
+spread.wave.v1,SPREAD,ACTIVE,GROUP,UP,,,,,false,{group_name} 안에서 매수세 확산 — 평균 {group_ret}
+spread.chain.v1,SPREAD,ACTIVE,GROUP,UP,,,,,false,{group_name} 관련주 연쇄 상승 — 이달 평균 {group_ret}
+spread.allup.v1,SPREAD,ACTIVE,GROUP,UP,,,,,false,오름세가 관련주 전반으로 번졌다 — 평균 {group_ret}
+spread.wavedown.v1,SPREAD,ACTIVE,GROUP,DOWN,,,,,false,{group_name} 안에서 매도세 확산 — 평균 {group_ret}
+spread.chaindown.v1,SPREAD,ACTIVE,GROUP,DOWN,,,,,false,{group_name} 관련주 연쇄 하락 — 이달 평균 {group_ret}
+spread.alldown.v1,SPREAD,ACTIVE,GROUP,DOWN,,,,,false,약세가 관련주 전반으로 번졌다 — 평균 {group_ret}
+fade.shift.v1,FADE,ACTIVE,ASSET,,,,,,false,"{asset_name} 인기 시들, 관심 순위 {attention_rank}위 — 시선은 {focus_name} 쪽으로"
+fade.lull.v1,FADE,ACTIVE,ASSET,,,,,,false,{asset_name} 거래 열기 식었다 — 화제는 {focus_name} 쪽으로
+nudge.move.v1,NUDGE,ACTIVE,ASSET,,,,,,false,{asset_name} 이달 {ret} — 흐름을 한 번 점검해 볼까요
+nudge.look.v1,NUDGE,ACTIVE,ASSET,,,,,,false,"{asset_name} 움직임이 커졌습니다 — 이달 {ret}, 지금 확인해 보세요"
+nudge.cashpile.v1,NUDGE,ACTIVE,NONE,,,,,,false,놀고 있는 현금 {cash_weight} — 기회를 살펴볼 때일까요
+nudge.trades.v1,NUDGE,ACTIVE,NONE,,,,,,false,직전 구간 체결 {trade_count}건 — 움직임이 적지 않았나요
+nudge.idleturn.v1,NUDGE,ACTIVE,NONE,,,,,,false,{idle_turns}턴 연속 매매 없음 — 시장은 계속 움직입니다
+nudge.freea.v1,NUDGE,ACTIVE,NONE,,,,,,false,이번 턴 시장 흐름을 한번 둘러보세요 — 놓친 기회는 없나요
+nudge.freeb.v1,NUDGE,ACTIVE,NONE,,,,,,false,지켜보기만 하셨나요 — 새로운 기회를 찾아볼 시간입니다
