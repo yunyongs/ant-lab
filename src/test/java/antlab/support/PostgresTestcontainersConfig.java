@@ -1,26 +1,45 @@
 package antlab.support;
 
+import org.springframework.boot.jdbc.autoconfigure.JdbcConnectionDetails;
 import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Bean;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /**
- * 일회용 PostgreSQL 17 컨테이너. 시험과 {@code bootTestRun} 이 함께 쓴다.
- * 소유자의 상시 DB(127.0.0.1:5432)에는 접속하지 않는다.
+ * Throwaway PostgreSQL 17 for the tests and {@code bootTestRun}: the JVM-wide {@link SharedPostgres} container, with a new
+ * empty database for every Spring context (so contexts never see each other's rows). It never connects to the owner's
+ * always-on DB (127.0.0.1:5432).
  */
 @TestConfiguration(proxyBeanMethods = false)
 public class PostgresTestcontainersConfig {
 
-    /** 이미지는 이 한 곳에서만 정한다. */
+    /** The image is decided in this one place. */
     public static final String IMAGE = "postgres:17";
 
-    @Bean
-    @ServiceConnection
+    /** The shared container itself (tests that need host, port or the admin login inject it); it outlives every context. */
+    @Bean(destroyMethod = "")
     PostgreSQLContainer postgres() {
-        // compose 의 db 와 같은 서버 시간대(Asia/Seoul)
-        return new PostgreSQLContainer(IMAGE)
-                .withEnv("TZ", "Asia/Seoul")
-                .withEnv("PGTZ", "Asia/Seoul");
+        return SharedPostgres.container();
+    }
+
+    @Bean
+    JdbcConnectionDetails postgresConnectionDetails(PostgreSQLContainer postgres) {
+        String url = SharedPostgres.jdbcUrl(SharedPostgres.createDatabase("ctx"));
+        return new JdbcConnectionDetails() {
+            @Override
+            public String getJdbcUrl() {
+                return url;
+            }
+
+            @Override
+            public String getUsername() {
+                return postgres.getUsername();
+            }
+
+            @Override
+            public String getPassword() {
+                return postgres.getPassword();
+            }
+        };
     }
 }

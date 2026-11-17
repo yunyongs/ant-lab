@@ -13,6 +13,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.jdbc.autoconfigure.JdbcConnectionDetails;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 import probe.SmallIntAnnotatedProbe;
@@ -30,6 +31,8 @@ class HibernateValidateSpikeTest {
     JdbcTemplate jdbc;
     @Autowired
     PostgreSQLContainer postgres;
+    @Autowired
+    JdbcConnectionDetails connection;
 
     @BeforeEach
     void 표_만들기() {
@@ -43,7 +46,7 @@ class HibernateValidateSpikeTest {
 
     private SessionFactory validating(Class<?> entity) {
         Properties props = new Properties();
-        props.put("hibernate.connection.url", postgres.getJdbcUrl());
+        props.put("hibernate.connection.url", connection.getJdbcUrl());
         props.put("hibernate.connection.username", postgres.getUsername());
         props.put("hibernate.connection.password", postgres.getPassword());
         props.put("hibernate.hbm2ddl.auto", "validate");

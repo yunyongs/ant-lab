@@ -10,7 +10,6 @@ import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
-import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -33,13 +32,7 @@ class SqlFunctionParityTest {
 
     @BeforeAll
     static void start() {
-        container = SqlGoldenHarness.newContainer();
-        container.start();
-    }
-
-    @AfterAll
-    static void stop() throws Exception {
-        GoldenCleanup.closeThenStop(null, container);
+        container = SharedPostgres.container();
     }
 
     private SqlFunctionParity parity(String source) throws Exception {
