@@ -1,0 +1,78 @@
+-- Table rights of the API role antlab_app (MVP-20). Flyway runs this after every migrate, as the Flyway user (the table
+-- owner), so it needs no superuser and converges the rights on every start.
+-- It does nothing when the role antlab_app does not exist (tests and tools that migrate as a superuser, the engine test
+-- harness). A table in public that is not listed below stops the start: a new table is added to one class in the same
+-- change that creates it. The roles themselves come from db/roles/antlab_owner_app.sql.
+--   READ    SELECT                  history and pool
+--   APPEND  SELECT, INSERT          ledger and every other append-only table: never UPDATE, DELETE or TRUNCATE
+--   MUTABLE SELECT, INSERT, UPDATE  state rows the services change (SELECT ... FOR UPDATE needs UPDATE)
+-- Nobody but the owner gets DELETE, TRUNCATE, REFERENCES, TRIGGER or MAINTAIN. Sequences get no grant: identity columns
+-- need none.
+
+DO $grants$
+DECLARE
+    read_tables constant text[] := ARRAY['asset_group', 'asset', 'asset_position', 'month_block', 'asset_month_return',
+        'fx_month', 'month_event', 'asset_month_attention'];
+    append_tables constant text[] := ARRAY['season_path', 'turn', 'turn_price', 'formation_change', 'turn_feed',
+        'reconciliation_log', 'orders', 'execution', 'cash_ledger', 'asset_daily_price', 'season_agent_config',
+        'agent_call'];
+    mutable_tables constant text[] := ARRAY['member', 'season', 'cash_account', 'holding', 'lineup', 'refresh_token',
+        'agent_profile', 'job_run'];
+    privileges constant text[] := ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER',
+        'MAINTAIN'];
+    unclassified text[];
+    t text;
+    p text;
+    expected text[];
+    problems text[] := '{}';
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'antlab_app') THEN
+        RETURN;
+    END IF;
+
+    SELECT coalesce(array_agg(c.relname::text ORDER BY c.relname), '{}') INTO unclassified
+    FROM pg_class c
+    WHERE c.relnamespace = 'public'::regnamespace AND c.relkind IN ('r', 'p')
+      AND c.relname <> 'flyway_schema_history'
+      AND c.relname::text <> ALL (read_tables || append_tables || mutable_tables);
+    IF cardinality(unclassified) > 0 THEN
+        RAISE EXCEPTION 'afterMigrate: table(s) not classified for antlab_app: %. Add each to one class in db/callback/afterMigrate.sql',
+            array_to_string(unclassified, ', ');
+    END IF;
+
+    REVOKE ALL ON ALL TABLES IN SCHEMA public FROM antlab_app, PUBLIC;
+    REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM antlab_app, PUBLIC;
+    FOREACH t IN ARRAY read_tables LOOP
+        EXECUTE format('GRANT SELECT ON TABLE public.%I TO antlab_app', t);
+    END LOOP;
+    FOREACH t IN ARRAY append_tables LOOP
+        EXECUTE format('GRANT SELECT, INSERT ON TABLE public.%I TO antlab_app', t);
+    END LOOP;
+    FOREACH t IN ARRAY mutable_tables LOOP
+        EXECUTE format('GRANT SELECT, INSERT, UPDATE ON TABLE public.%I TO antlab_app', t);
+    END LOOP;
+
+    -- Verify the effective result for every table, whatever the source of a right.
+    FOR t IN
+        SELECT c.relname::text FROM pg_class c
+        WHERE c.relnamespace = 'public'::regnamespace AND c.relkind IN ('r', 'p') ORDER BY c.relname
+    LOOP
+        expected := CASE
+            WHEN t = ANY (read_tables) THEN ARRAY['SELECT']
+            WHEN t = ANY (append_tables) THEN ARRAY['SELECT', 'INSERT']
+            WHEN t = ANY (mutable_tables) THEN ARRAY['SELECT', 'INSERT', 'UPDATE']
+            ELSE ARRAY[]::text[] END;
+        FOREACH p IN ARRAY privileges LOOP
+            IF (has_table_privilege('antlab_app', format('public.%I', t)::regclass, p)
+                    OR (p IN ('SELECT', 'INSERT', 'UPDATE', 'REFERENCES')
+                        AND has_any_column_privilege('antlab_app', format('public.%I', t)::regclass, p)))
+               <> (p = ANY (expected)) THEN
+                problems := problems || format('%s on %s should be %s', p, t, CASE WHEN p = ANY (expected) THEN 'granted' ELSE 'denied' END);
+            END IF;
+        END LOOP;
+    END LOOP;
+    IF cardinality(problems) > 0 THEN
+        RAISE EXCEPTION 'afterMigrate: antlab_app rights differ from the classes: %', array_to_string(problems, '; ');
+    END IF;
+END
+$grants$;
