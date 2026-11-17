@@ -3,6 +3,7 @@ package antlab.support;
 import antlab.history.MonthReturn;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -58,6 +59,7 @@ public final class SyntheticHistory {
     private final List<YearMonth> blocks;
     private final Map<Asset, TreeMap<YearMonth, BigDecimal>> returns = new LinkedHashMap<>();
     private final TreeMap<YearMonth, BigDecimal> usdChange = new TreeMap<>();
+    private final Map<LocalDate, List<String>> pools = new LinkedHashMap<>();
 
     private SyntheticHistory(List<YearMonth> blocks) {
         this.blocks = List.copyOf(blocks);
@@ -140,6 +142,146 @@ public final class SyntheticHistory {
             h.usdChange.put(month, BigDecimal.valueOf(rng.signed(5_000_000L), SCALE));
         }
         return h;
+    }
+
+    /**
+     * A history for base-date positions: months 2010-01 to 2011-05 and 2011-07 to 2013-03 (no 2011-06 block, so the market series has a
+     * hole), two base dates whose windows are 2010-01 to 2012-12 and 2010-03 to 2013-02, and a pool that covers every outcome: judged assets
+     * of every beta (some with a gap), two assets with an identical series (a volatility tie at the top-20 % boundary), and assets that stop
+     * on MONTHS, N_UP and N_DOWN. The market is controlled: every sixth month rises, every sixth falls, the rest are neutral, plus one month
+     * at exactly +0.01 and one at exactly -0.01 (the band edges). USD assets and the US proxy go through the FX changes.
+     */
+    public static SyntheticHistory positions() {
+        List<YearMonth> blocks = new ArrayList<>(months(YearMonth.of(2010, 1), YearMonth.of(2011, 5)));
+        blocks.addAll(months(YearMonth.of(2011, 7), YearMonth.of(2013, 3)));
+        SyntheticHistory h = new SyntheticHistory(blocks);
+        SplitMix64 rng = new SplitMix64(20261117L);
+
+        List<Long> kr = new ArrayList<>();
+        List<Long> us = new ArrayList<>();
+        for (int i = 0; i < blocks.size(); i++) {
+            long fx = rng.signed(800_000L);
+            long u = rng.signed(800_000L);
+            long k;
+            if (i == 13) {
+                k = 2_000_000L;
+                fx = 0;
+                u = 0;
+            } else if (i == 22) {
+                k = -2_000_000L;
+                fx = 0;
+                u = 0;
+            } else if (i == 3) {
+                // An early deep US drop, so the market drawdown is set by a month that the late-window mutations drop.
+                k = rng.signed(200_000L);
+                u = -20_000_000L;
+            } else if (i % 6 == 1) {
+                k = 7_000_000L + Math.abs(rng.signed(2_000_000L));
+            } else if (i % 6 == 4) {
+                k = -7_000_000L - Math.abs(rng.signed(2_000_000L));
+            } else {
+                k = rng.signed(200_000L);
+            }
+            kr.add(k);
+            us.add(u);
+            h.usdChange.put(blocks.get(i), BigDecimal.valueOf(fx, SCALE));
+        }
+        h.add(new Asset("KR", "069500", "ETF"), blocks, kr, rng);
+        h.add(new Asset("US", "SPY", "ETF"), blocks, us, rng);
+
+        long[] tenths = {2, 5, 7, 10, 14, 30, 25};
+        for (int i = 0; i < tenths.length; i++) {
+            h.add(new Asset("KR", "10000" + (i + 1), "STOCK"), blocks, scaled(kr, tenths[i], rng), rng);
+        }
+        List<Long> twin = scaled(kr, 20, rng);
+        h.add(new Asset("KR", "100008", "STOCK"), blocks, twin, rng);
+        h.add(new Asset("KR", "100009", "STOCK"), blocks, twin, rng);
+        h.add(new Asset("US", "200001", "STOCK"), blocks, List.of(), rng);
+        h.add(new Asset("US", "200002", "STOCK"), blocks, List.of(), rng);
+
+        List<YearMonth> withHoles = new ArrayList<>(blocks);
+        withHoles.remove(5);
+        withHoles.remove(5);
+        withHoles.remove(7);
+        h.add(new Asset("US", "GAPX", "STOCK"), withHoles, List.of(), rng);
+
+        List<YearMonth> noUp = new ArrayList<>();
+        List<YearMonth> noDown = new ArrayList<>();
+        for (int i = 0; i < blocks.size(); i++) {
+            if (i % 6 != 1) {
+                noUp.add(blocks.get(i));
+            }
+            if (i % 6 != 4) {
+                noDown.add(blocks.get(i));
+            }
+        }
+        h.add(new Asset("KR", "300001", "STOCK"), noUp, List.of(), rng);
+        h.add(new Asset("KR", "300002", "STOCK"), noDown, List.of(), rng);
+        h.add(new Asset("KR", "SHORT01", "STOCK"), months(YearMonth.of(2012, 1), YearMonth.of(2012, 12)), List.of(), rng);
+
+        // Pool-size probe: low volatility rank (just above the three lowest) and almost no down-month participation. It is a goalkeeper
+        // only when the pool rank limit grows from CEIL(0.2 * judged) to CEIL(0.2 * all rows), so a rule that counts unjudged rows changes it.
+        // Every month is explicit (integer arithmetic, no random draw), so the series of the other assets do not move.
+        List<Long> probe = new ArrayList<>();
+        for (long k : kr) {
+            probe.add(k > 0 ? k * 12 / 10 : k / 20);
+        }
+        h.add(new Asset("KR", "100010", "STOCK"), blocks, probe, rng);
+
+        List<String> all = new ArrayList<>();
+        for (Asset a : h.returns.keySet()) {
+            all.add(key(a.market(), a.ticker()));
+        }
+        h.pools.put(LocalDate.of(2013, 1, 15), List.copyOf(all));
+        List<String> second = new ArrayList<>(all);
+        second.remove("US/200002");
+        h.pools.put(LocalDate.of(2013, 3, 1), List.copyOf(second));
+
+        // A third base date with its own pool of ten (k = 2): a noise-only asset has the lowest volatility and an identical pair at 0.1 times
+        // the market shares the second place, so three assets sit inside the bottom 20 % (a tie at the lower boundary) and the pair, whose
+        // down participation is at most 0.2, are goalkeepers. Added last, so no earlier series or rank moves.
+        h.add(new Asset("KR", "100013", "STOCK"), blocks, scaled(kr, 0, rng), rng);
+        List<Long> lowTwin = scaled(kr, 1, rng);
+        h.add(new Asset("KR", "100011", "STOCK"), blocks, lowTwin, rng);
+        h.add(new Asset("KR", "100012", "STOCK"), blocks, lowTwin, rng);
+        h.pools.put(LocalDate.of(2013, 2, 1), List.of("KR/100013", "KR/100011", "KR/100012", "KR/100003", "KR/100004", "KR/100005",
+                "KR/100006", "KR/100007", "KR/100008", "KR/100009"));
+        return h;
+    }
+
+    /** {@code tenths} / 10 times the base series plus a small deterministic noise, in units of 1e-8 (integer arithmetic only). */
+    private static List<Long> scaled(List<Long> base, long tenths, SplitMix64 rng) {
+        List<Long> out = new ArrayList<>();
+        for (long value : base) {
+            out.add(value * tenths / 10 + rng.signed(20_000L));
+        }
+        return out;
+    }
+
+    /** Removes the USD change of one month block (the fixture of a missing in-window FX row). */
+    public SyntheticHistory withoutUsdChange(YearMonth month) {
+        if (usdChange.remove(month) == null) {
+            throw new IllegalArgumentException("no USD change for that month");
+        }
+        return this;
+    }
+
+    /** Base dates and, for each, the keys ({@code MARKET/TICKER}) of the pool that has an {@code asset_position} row on that date. */
+    public Map<LocalDate, List<String>> pools() {
+        return Map.copyOf(pools);
+    }
+
+    /** An SQL script that adds the {@code asset_position} rows (judgement columns left NULL) after {@link #insertScript()}. */
+    public byte[] positionScript() {
+        List<String> rows = new ArrayList<>();
+        pools.forEach((baseDate, keys) -> keys.forEach(k -> rows.add("('" + k.substring(0, 2) + "', '" + k.substring(3) + "', DATE '"
+                + baseDate.format(DATE_FORMAT) + "')")));
+        String sql = "-- synthetic, not market data\n"
+                + "INSERT INTO asset_position (asset_id, base_date, base_price, base_fx_rate)\n"
+                + "SELECT a.id, v.base_date, 100.0000, 1.0000 FROM (VALUES " + String.join(", ", rows)
+                + ") AS v(market, ticker, base_date)\n"
+                + "JOIN asset a ON a.market = v.market AND a.ticker = v.ticker;\n";
+        return sql.getBytes(StandardCharsets.UTF_8);
     }
 
     private static List<YearMonth> months(YearMonth from, YearMonth to) {
