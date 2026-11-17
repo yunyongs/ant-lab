@@ -249,6 +249,13 @@ paths:
                 $ref: '#/components/schemas/Problem'
         '500':
           $ref: '#/components/responses/InternalError'
+        '503':
+          description: The path service is busy or not reachable; try again later — ENGINE_UNAVAILABLE / 경로 서비스가 바쁘거나 연결되지 않는다. 잠시 뒤 다시 시도한다 — ENGINE_UNAVAILABLE
+          x-error-codes: [ENGINE_UNAVAILABLE]
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
     get:
       tags: [season]
       operationId: listSeasons
@@ -301,6 +308,65 @@ paths:
         '404':
           description: The season does not exist — NOT_FOUND / 시즌이 없다 — NOT_FOUND
           x-error-codes: [NOT_FOUND]
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/v1/seasons/{seasonId}/abandon:
+    post:
+      tags: [season]
+      operationId: abandonSeason
+      summary: Abandon a season / 시즌 포기
+      description: |-
+        Marks the season as abandoned at the current turn, then runs the remaining turns with no trades through the normal turn path, one transaction per turn, until the season is finished or the per-request turn cap is reached. The same request continues an abandon that stopped midway: repeat it while the status is ABANDONING. A repeat on a finished abandoned season answers 200 and changes nothing. notStarted is true for a human member who abandoned before turn 3.
+
+        시즌을 현재 턴에서 포기로 표시하고, 남은 턴을 거래 없이 보통의 턴 전환 경로로 턴마다 한 트랜잭션씩 시즌이 끝나거나 요청당 턴 상한에 닿을 때까지 진행한다. 중간에 멈춘 포기는 같은 요청으로 이어 간다 — 상태가 ABANDONING 이면 반복한다. 이미 끝난 포기 시즌에 반복하면 200 이고 아무것도 바꾸지 않는다. 사람 회원이 3턴 전에 포기하면 notStarted 가 true 다.
+      parameters:
+        - name: seasonId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AbandonSeasonRequest'
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: State of the season after this request / 이번 요청 뒤 시즌의 상태
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AbandonResultDto'
+        '400':
+          description: The input is invalid — INVALID_ARGUMENT / 입력이 틀렸다 — INVALID_ARGUMENT
+          x-error-codes: [INVALID_ARGUMENT]
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          description: The season does not exist — NOT_FOUND / 시즌이 없다 — NOT_FOUND
+          x-error-codes: [NOT_FOUND]
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: |-
+            The season cannot be abandoned now — TURN_MISMATCH (the season is in progress at another turn), SEASON_NOT_ACTIVE (finished without an abandon), SEASON_HALTED (an administrator resumes it first), RECONCILIATION_FAILED (an auto turn mismatched; the mark and the earlier auto turns stay, repeat to continue)
+
+            지금은 포기할 수 없다 — TURN_MISMATCH(진행 중인 시즌의 현재 턴이 다르다), SEASON_NOT_ACTIVE(포기 없이 끝난 시즌), SEASON_HALTED(관리자가 먼저 재개), RECONCILIATION_FAILED(자동 턴의 대사가 어긋났다. 표시와 앞선 자동 턴은 남고 반복하면 이어 간다)
+          x-error-codes: [TURN_MISMATCH, SEASON_NOT_ACTIVE, SEASON_HALTED, RECONCILIATION_FAILED]
           content:
             application/problem+json:
               schema:
@@ -1064,7 +1130,7 @@ components:
 
         시드·엔진 버전·기준일·스냅샷 날짜·회원 번호·버전·시각은 싣지 않는다
       required: [id, status, currentTurnNo, pathLength, riskLimit, startFormation, currentFormation,
-                 initialCash, cashBalance, feeRateKr, feeRateUs, fxSpreadRate]
+                 initialCash, cashBalance, feeRateKr, feeRateUs, fxSpreadRate, abandonedTurnNo, notStarted]
       properties:
         id:
           type: integer
@@ -1108,6 +1174,13 @@ components:
           type: string
           format: decimal
           description: Currency exchange cost rate, 8 decimal places / 환전 비용률, 소수 8자리
+        abandonedTurnNo:
+          type: [integer, 'null']
+          format: int32
+          description: The turn at which the season was abandoned. null if it was not abandoned / 포기한 턴. 포기하지 않았으면 null
+        notStarted:
+          type: boolean
+          description: True for a human member who abandoned before turn 3 (derived from the abandon turn and the member kind; not stored) / 사람 회원이 3턴 전에 포기하면 true(포기 턴과 회원 종류에서 계산, 저장하지 않는다)
     SeasonListDto:
       type: object
       description: All seasons of the current member (newest season number first). No paging / 현재 회원의 시즌 전부(시즌 번호 내림차순). 쪽 나누기 없음
@@ -1275,6 +1348,57 @@ components:
           format: int32
           minimum: 0
           description: The current turn before the advance. 409 if it differs from the season's current turn / 전환 전의 현재 턴. 시즌의 현재 턴과 다르면 409
+    AbandonSeasonRequest:
+      type: object
+      description: |-
+        The current turn the member saw is checked only while the season is in progress
+
+        회원이 본 현재 턴은 시즌이 진행 중일 때만 확인한다
+      required: [expectedTurnNo]
+      properties:
+        expectedTurnNo:
+          type: integer
+          format: int32
+          minimum: 0
+          description: The current turn the member saw. 409 TURN_MISMATCH if the season is in progress at another turn; ignored when the abandon was already marked (repeat) / 회원이 본 현재 턴. 진행 중인 시즌의 현재 턴과 다르면 409 TURN_MISMATCH, 이미 포기가 표시된 시즌의 반복 요청에서는 무시한다
+    AbandonResultDto:
+      type: object
+      description: |-
+        State of the season after this abandon request; repeat the request while the status is ABANDONING
+
+        이번 포기 요청 뒤 시즌의 상태. 상태가 ABANDONING 이면 같은 요청을 반복한다
+      required: [seasonId, status, currentTurnNo, pathLength, abandonedTurnNo, notStarted, advancedTurns, remainingTurns]
+      properties:
+        seasonId:
+          type: integer
+          format: int64
+          description: Season identifier / 시즌 식별자
+        status:
+          $ref: '#/components/schemas/SeasonStatus'
+          description: ABANDONING (more turns remain) or FINISHED / ABANDONING(남은 턴이 있다) 또는 FINISHED
+        currentTurnNo:
+          type: integer
+          format: int32
+          description: Current turn now / 지금의 현재 턴
+        pathLength:
+          type: integer
+          format: int32
+          description: Path length (number of turns) / 경로 길이(턴 수)
+        abandonedTurnNo:
+          type: integer
+          format: int32
+          description: The turn at which the season was abandoned / 포기한 턴
+        notStarted:
+          type: boolean
+          description: True for a human member who abandoned before turn 3 (derived from the abandon turn and the member kind) / 사람 회원이 3턴 전에 포기하면 true(포기 턴과 회원 종류에서 계산)
+        advancedTurns:
+          type: integer
+          format: int32
+          description: Auto turns this request advanced / 이번 요청이 진행한 자동 턴 수
+        remainingTurns:
+          type: integer
+          format: int32
+          description: 'Turns still to run: pathLength - currentTurnNo / 남은 턴: pathLength - currentTurnNo'
     TurnResultDto:
       type: object
       description: |-
@@ -1887,7 +2011,7 @@ components:
       type: string
       enum: [INVALID_ARGUMENT, NOT_FOUND, METHOD_NOT_ALLOWED, NOT_ACCEPTABLE,
              UNSUPPORTED_MEDIA_TYPE, MALFORMED_REQUEST, INTERNAL_ERROR, POOL_NOT_LOADED, POOL_NOT_JUDGED, PATH_TOO_LONG,
-             SEASON_LIMIT, TURN_NOT_REACHED, SEASON_NOT_FINISHED, SEASON_NOT_ACTIVE, TURN_MISMATCH, LEDGER_MISMATCH,
+             ENGINE_UNAVAILABLE, SEASON_LIMIT, TURN_NOT_REACHED, SEASON_NOT_FINISHED, SEASON_NOT_ACTIVE, TURN_MISMATCH, LEDGER_MISMATCH,
              LINEUP_MISMATCH, ASSET_NOT_IN_POOL, SOURCE_NOT_VISIBLE, INSUFFICIENT_CASH, INSUFFICIENT_HOLDING, POSITION_CONFLICT, POSITION_REQUIRED,
              INVALID_FORMATION, EVENT_TIME_CONFLICT, RECONCILIATION_FAILED, SEASON_HALTED, FORBIDDEN, EMAIL_TAKEN,
              UNAUTHENTICATED, INVALID_CREDENTIALS]

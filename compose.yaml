@@ -77,6 +77,11 @@ services:
       # Agent runner service token and owner id (AG-02); empty means every runner request answers 401.
       ANTLAB_AGENT_RUNNER_TOKEN: ${ANTLAB_AGENT_RUNNER_TOKEN:-}
       ANTLAB_AGENT_RUNNER_OWNER_ID: ${ANTLAB_AGENT_RUNNER_OWNER_ID:-}
+      # Python engine (M2-06). The url is the compose service name; with the default path source java the api never calls it
+      # for season paths. path-source engine needs the same ANTLAB_ENGINE_TOKEN the engine service reads. No depends_on: the api starts without the engine.
+      ANTLAB_ENGINE_URL: http://engine:8000
+      ANTLAB_ENGINE_TOKEN: ${ANTLAB_ENGINE_TOKEN:-}
+      ANTLAB_ENGINE_PATH_SOURCE: ${ANTLAB_ENGINE_PATH_SOURCE:-java}
       # 로컬 trust 에서는 비밀번호가 필요 없다. 운영 비밀번호는 secrets(/run/secrets) 로 준다 — env_file 로 .env 전체를 넘기지 않는다.
     ports:
       - "127.0.0.1:${ANTLAB_API_PORT:-8080}:8080"
@@ -108,7 +113,8 @@ services:
 
   engine:
     mem_limit: 512m
-    profiles: [engine]
+    # in profile api too (M2-06): --profile api starts it, so ANTLAB_ENGINE_TOKEN and the antlab_engine role are needed (docs/DEPLOY.md §2)
+    profiles: [engine, api]
     build: ./engine
     # engine reads antlab_api as antlab_engine — run db/roles/antlab_engine.sql once (db/README.md)
     depends_on:
