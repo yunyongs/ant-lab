@@ -76,6 +76,11 @@ class FeedItemDtoExposureTest {
                 for (JsonNode item : feed) {
                     assertThat(item.propertyNames()).containsExactlyInAnyOrder("turnNo", "seq", "assetId", "body");
                 }
+                JsonNode alerts = JsonMapper.shared().readTree(text).get("alerts");
+                assertThat(alerts).as("the turn holds a nudge alert, so the check is not vacuous").isNotEmpty();
+                for (JsonNode item : alerts) {
+                    assertThat(item.propertyNames()).containsExactlyInAnyOrder("turnNo", "seq", "assetId", "body");
+                }
                 for (String word : INNER_WORDS) {
                     assertThat(text).as("response must not carry \"" + word + "\"").doesNotContain("\"" + word + "\"");
                 }
