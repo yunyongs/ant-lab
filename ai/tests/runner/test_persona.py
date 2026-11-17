@@ -1,6 +1,7 @@
 """D7, D8: persona loader and the shipped persona."""
 
 import hashlib
+import json
 import re
 from decimal import Decimal
 from pathlib import Path
@@ -218,3 +219,34 @@ def test_loader_reads_only_inside_the_given_directory(tmp_path):
 def test_formation_sum_above_100_is_refused(shares):
     with pytest.raises(PersonaError):
         parse_persona(_swap("default_formation: [10, 30, 30, 30]", f"default_formation: {shares}"))
+
+
+# ---- audit round 1 (C9) -----------------------------------------------------------------------------------
+
+
+def test_unhashable_front_matter_key_is_a_persona_error():
+    with pytest.raises(PersonaError):
+        parse_persona(_swap("version: 1\n", "version: 1\n[a, b]: 1\n"))
+
+
+@pytest.mark.parametrize("name", ["a\nb", "a\tb", "a\x07b", " 가", "가 "])
+def test_display_name_with_control_or_edge_space_is_refused(name):
+    with pytest.raises(PersonaError):
+        parse_persona(
+            _swap("display_name: 인내하는 가치 매니저", f"display_name: {json.dumps(name)}")
+        )
+
+
+@pytest.mark.parametrize("text", ["2020-03", "2020/03", "202003", "YYYY-MM", "1999.12"])
+def test_body_with_a_year_month_is_refused_by_the_loader(text):
+    with pytest.raises(PersonaError):
+        parse_persona(_swap("## 철학\n", f"## 철학\n{text} 에는 사지 않는다. "))
+
+
+def test_body_numbers_that_are_not_dates_pass():
+    assert parse_persona(_swap("## 철학\n", "## 철학\n여섯 턴, 20% 한도, 2030 종목, 1234567 원. "))
+
+
+def test_carriage_return_in_the_body_is_refused():
+    with pytest.raises(PersonaError):
+        parse_persona(_swap("## 철학\n", "## 철학\r\n"))

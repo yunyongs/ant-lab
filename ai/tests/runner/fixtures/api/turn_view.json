@@ -1,0 +1,223 @@
+{
+  "agent": {
+    "lastRejects": [],
+    "memory": null,
+    "recentTrades": [
+      {
+        "asset": "KR:100000",
+        "fee": "75",
+        "price": "50000",
+        "quantity": 10,
+        "side": "BUY",
+        "source": "DIRECT",
+        "turnNo": 0
+      }
+    ],
+    "schema": "turn-decision/1"
+  },
+  "holdings": {
+    "cashBalance": "28000000",
+    "currentFormation": {
+      "defender": 30,
+      "forward": 30,
+      "goalkeeper": 10,
+      "midfielder": 30
+    },
+    "defenderGap": "0",
+    "defenderValue": "9000000",
+    "defenderWeight": "0.3000",
+    "formationDeviation": "0",
+    "forwardGap": "0",
+    "forwardValue": "9000000",
+    "forwardWeight": "0.3000",
+    "goalkeeperGap": "0",
+    "goalkeeperValue": "3000000",
+    "goalkeeperWeight": "0.1000",
+    "holdings": [
+      {
+        "assetId": 1000,
+        "avgPrice": "50000",
+        "declaredPosition": "MIDFIELDER",
+        "price": "52000",
+        "quantity": 10,
+        "value": "520000",
+        "weight": "0.0500"
+      },
+      {
+        "assetId": 1001,
+        "avgPrice": "50000",
+        "declaredPosition": "MIDFIELDER",
+        "price": "52000",
+        "quantity": 11,
+        "value": "572000",
+        "weight": "0.0500"
+      },
+      {
+        "assetId": 1002,
+        "avgPrice": "50000",
+        "declaredPosition": "MIDFIELDER",
+        "price": "52000",
+        "quantity": 12,
+        "value": "624000",
+        "weight": "0.0500"
+      }
+    ],
+    "holdingsValue": "2000000",
+    "midfielderGap": "0",
+    "midfielderValue": "9000000",
+    "midfielderWeight": "0.3000",
+    "seasonId": 7,
+    "totalValue": "30000000",
+    "turnNo": 1
+  },
+  "lastTurn": {
+    "cashBalance": "28000000",
+    "defenderGap": "0",
+    "defenderValue": "9000000",
+    "defenderWeight": "0.3000",
+    "drawdown": "-0.0200",
+    "formationDeviation": "0",
+    "forwardGap": "0",
+    "forwardValue": "9000000",
+    "forwardWeight": "0.3000",
+    "goalkeeperGap": "0",
+    "goalkeeperValue": "3000000",
+    "goalkeeperWeight": "0.1000",
+    "holdingsValue": "2000000",
+    "midfielderGap": "0",
+    "midfielderValue": "9000000",
+    "midfielderWeight": "0.3000",
+    "pathLength": 12,
+    "periodReturn": "-0.0033",
+    "previousTotalValue": "30100000",
+    "riskBreached": false,
+    "riskHeadroom": "0.1800",
+    "riskLimit": "-0.20",
+    "seasonId": 7,
+    "status": "IN_PROGRESS",
+    "targetFormation": {
+      "defender": 30,
+      "forward": 30,
+      "goalkeeper": 10,
+      "midfielder": 30
+    },
+    "totalValue": "30000000",
+    "turnNo": 1,
+    "valueChange": "-100000"
+  },
+  "pool": [
+    {
+      "assetId": 1000,
+      "assetType": "STOCK",
+      "downParticipation": "0.9000",
+      "groupId": 10,
+      "groupKind": "SECTOR",
+      "groupName": "그룹 0",
+      "market": "KR",
+      "maxDrawdown": "-0.3100",
+      "name": "샘플 종목 0",
+      "proxyIndexName": null,
+      "returnBasis": "PRICE",
+      "systemPosition": "GOALKEEPER",
+      "ticker": "100000",
+      "upParticipation": "1.0500",
+      "volatility": "0.2200"
+    },
+    {
+      "assetId": 1001,
+      "assetType": "STOCK",
+      "downParticipation": "0.9000",
+      "groupId": 11,
+      "groupKind": "SECTOR",
+      "groupName": "그룹 1",
+      "market": "US",
+      "maxDrawdown": "-0.3100",
+      "name": "샘플 종목 1",
+      "proxyIndexName": null,
+      "returnBasis": "PRICE",
+      "systemPosition": "DEFENDER",
+      "ticker": "TK1",
+      "upParticipation": "1.0500",
+      "volatility": "0.2200"
+    },
+    {
+      "assetId": 1002,
+      "assetType": "STOCK",
+      "downParticipation": "0.9000",
+      "groupId": 12,
+      "groupKind": "SECTOR",
+      "groupName": "그룹 2",
+      "market": "KR",
+      "maxDrawdown": "-0.3100",
+      "name": "샘플 종목 2",
+      "proxyIndexName": null,
+      "returnBasis": "PRICE",
+      "systemPosition": "MIDFIELDER",
+      "ticker": "100002",
+      "upParticipation": "1.0500",
+      "volatility": "0.2200"
+    },
+    {
+      "assetId": 1003,
+      "assetType": "STOCK",
+      "downParticipation": "0.9000",
+      "groupId": 13,
+      "groupKind": "SECTOR",
+      "groupName": "그룹 3",
+      "market": "US",
+      "maxDrawdown": "-0.3100",
+      "name": "샘플 종목 3",
+      "proxyIndexName": null,
+      "returnBasis": "PRICE",
+      "systemPosition": "FORWARD_TARGET",
+      "ticker": "TK3",
+      "upParticipation": "1.0500",
+      "volatility": "0.2200"
+    }
+  ],
+  "prices": {
+    "prices": [
+      {
+        "assetId": 1000,
+        "price": "52000"
+      },
+      {
+        "assetId": 1001,
+        "price": "52000"
+      },
+      {
+        "assetId": 1002,
+        "price": "52000"
+      },
+      {
+        "assetId": 1003,
+        "price": "52000"
+      }
+    ],
+    "turnNo": 1
+  },
+  "season": {
+    "cashBalance": "28000000",
+    "currentFormation": {
+      "defender": 30,
+      "forward": 30,
+      "goalkeeper": 10,
+      "midfielder": 30
+    },
+    "currentTurnNo": 1,
+    "feeRateKr": "0.00015",
+    "feeRateUs": "0.0025",
+    "fxSpreadRate": "0.0040",
+    "id": 7,
+    "initialCash": "30000000",
+    "pathLength": 12,
+    "riskLimit": "-0.20",
+    "startFormation": {
+      "defender": 30,
+      "forward": 30,
+      "goalkeeper": 10,
+      "midfielder": 30
+    },
+    "status": "IN_PROGRESS"
+  }
+}

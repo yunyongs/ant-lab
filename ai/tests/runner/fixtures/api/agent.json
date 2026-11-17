@@ -1,0 +1,8 @@
+{
+  "agentId": 11,
+  "displayName": "인내하는 가치 매니저",
+  "modelId": "vendor/some-model:free",
+  "modelRoute": "OPENROUTER",
+  "personaKey": "patient-value",
+  "status": "ACTIVE"
+}
