@@ -8,6 +8,14 @@ import antlab.agent.AgentTurnViewDto;
 import antlab.agent.AgentTurnViewService;
 import antlab.agent.RegisterAgentRequest;
 import antlab.agent.StartAgentSeasonRequest;
+import antlab.agent.decision.AgentDecisionService;
+import antlab.agent.decision.AgentTurnAdvanceService;
+import antlab.agent.decision.CallsRequest;
+import antlab.agent.decision.DecisionRequest;
+import antlab.agent.decision.DecisionResultDto;
+import antlab.season.AdvanceTurnRequest;
+import antlab.season.TurnResultDto;
+import jakarta.validation.constraints.Min;
 import antlab.season.SeasonDto;
 import io.swagger.v3.oas.annotations.Hidden;
 import jakarta.validation.Valid;
@@ -33,12 +41,16 @@ public class AgentRunnerController {
     private final AgentRegistrationService registrations;
     private final AgentSeasonService seasons;
     private final AgentTurnViewService turnViews;
+    private final AgentDecisionService decisions;
+    private final AgentTurnAdvanceService advances;
 
     public AgentRunnerController(AgentRegistrationService registrations, AgentSeasonService seasons,
-            AgentTurnViewService turnViews) {
+            AgentTurnViewService turnViews, AgentDecisionService decisions, AgentTurnAdvanceService advances) {
         this.registrations = registrations;
         this.seasons = seasons;
         this.turnViews = turnViews;
+        this.decisions = decisions;
+        this.advances = advances;
     }
 
     @PostMapping(value = BASE + "/agents", consumes = MediaType.APPLICATION_JSON_VALUE,
@@ -59,5 +71,35 @@ public class AgentRunnerController {
             produces = MediaType.APPLICATION_JSON_VALUE)
     public AgentTurnViewDto turnView(@PathVariable long agentId, @PathVariable long seasonId) {
         return turnViews.get(agentId, seasonId);
+    }
+
+    @PostMapping(value = BASE + "/agents/{agentId}/seasons/{seasonId}/turns/{turnNo}/calls",
+            consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<Void> flushCalls(@PathVariable long agentId, @PathVariable long seasonId,
+            @PathVariable @Min(0) int turnNo, @Valid @RequestBody CallsRequest request) {
+        decisions.flush(agentId, seasonId, turnNo, request.calls());
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping(value = BASE + "/agents/{agentId}/seasons/{seasonId}/turns/{turnNo}/decision",
+            consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    public DecisionResultDto submitDecision(@PathVariable long agentId, @PathVariable long seasonId,
+            @PathVariable @Min(0) int turnNo, @Valid @RequestBody DecisionRequest request) {
+        return decisions.submit(agentId, seasonId, turnNo, request);
+    }
+
+    @GetMapping(value = BASE + "/agents/{agentId}/seasons/{seasonId}/turns/{turnNo}/decision",
+            produces = MediaType.APPLICATION_JSON_VALUE)
+    public DecisionResultDto readDecision(@PathVariable long agentId, @PathVariable long seasonId,
+            @PathVariable @Min(0) int turnNo) {
+        return decisions.read(agentId, seasonId, turnNo);
+    }
+
+    @PostMapping(value = BASE + "/agents/{agentId}/seasons/{seasonId}/turns",
+            consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<TurnResultDto> advance(@PathVariable long agentId, @PathVariable long seasonId,
+            @Valid @RequestBody AdvanceTurnRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(advances.advance(agentId, seasonId, request.expectedTurnNo()));
     }
 }

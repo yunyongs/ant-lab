@@ -32,6 +32,9 @@ final class RunnerTokenFilter extends OncePerRequestFilter {
 
     static final String HEADER = "X-Antlab-Runner-Token";
 
+    /** Upper bound of a runner request body (a call list of 20 calls of two 256 KiB texts is about 10 MiB). */
+    static final long MAX_BODY_BYTES = 12L * 1024 * 1024;
+
     private static final Pattern AGENT_PATH = Pattern.compile("^/internal/agent-runner/v1/agents/([^/]+)(?:/.*)?$");
 
     private final RunnerTokenCheck tokens;
@@ -53,6 +56,12 @@ final class RunnerTokenFilter extends OncePerRequestFilter {
         if (!tokens.matches(request.getHeader(HEADER))) {
             SecurityContextHolder.clearContext();
             problems.commence(request, response, new BadCredentialsException("runner token"));
+            return;
+        }
+        if (request.getContentLengthLong() > MAX_BODY_BYTES) {
+            SecurityContextHolder.clearContext();
+            resolver.resolveException(request, response, null,
+                    new DomainException(ErrorCode.MALFORMED_REQUEST, "요청 본문이 너무 크다"));
             return;
         }
         Matcher agentPath = AGENT_PATH.matcher(pathWithinApplication(request));
