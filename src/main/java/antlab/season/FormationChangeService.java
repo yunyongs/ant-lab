@@ -43,9 +43,7 @@ public class FormationChangeService {
     @Transactional
     public FormationChangeDto change(long seasonId, ChangeFormationRequest request) {
         // 0. 잠금 전 입력 검사 — 사유 원문은 바꾸지 않는다(trim 없음). 거부한 값은 메시지에 싣지 않는다.
-        String reason = request.reason();
-        if (reason != null && (reason.codePointCount(0, reason.length()) > REASON_MAX_CODE_POINTS
-                || reason.indexOf('\u0000') >= 0)) {
+        if (reasonInvalid(request.reason())) {
             throw new DomainException(ErrorCode.INVALID_ARGUMENT, "사유가 너무 길거나 쓸 수 없는 문자가 있다");
         }
         Formation after = request.formation().toFormation();
@@ -57,33 +55,76 @@ public class FormationChangeService {
         if (season.getStatus() != SeasonStatus.IN_PROGRESS) {
             throw new DomainException(ErrorCode.SEASON_NOT_ACTIVE, "진행 중인 시즌이 아니다");
         }
-        int turnNo = season.getCurrentTurnNo();
-        if (turnNo != request.expectedTurnNo()) {
+        if (season.getCurrentTurnNo() != request.expectedTurnNo()) {
             throw new DomainException(ErrorCode.TURN_MISMATCH, "시즌의 현재 턴과 변경이 본 턴이 다르다");
         }
+        FormationCheck checked = check(season, after, request.reason());
+        if (checked.rejection() != null) {
+            throw checked.rejection().toException();
+        }
+        return apply(checked.plan());
+    }
+
+    /**
+     * 한 건의 검증 — 시즌은 이미 잠겨 있고 진행 중이며 현재 턴이 맞다고 본다. 쓰기는 하지 않고, 거절은 던지지 않고 값으로
+     * 돌려준다(던지면 호출한 트랜잭션이 롤백 전용이 된다). 순서: 0턴 → 사유 → 현재와 같은 값 → 사슬(깨졌으면 예외).
+     */
+    public FormationCheck check(Season season, Formation after, String reason) {
+        int turnNo = season.getCurrentTurnNo();
         if (turnNo == 0) {
-            throw new DomainException(ErrorCode.TURN_MISMATCH, "팀 구성 중인 0턴에는 전술을 바꿀 수 없다");
+            return FormationCheck.rejected(FormationRejection.TURN_ZERO_FORMATION);
+        }
+        if (reasonInvalid(reason)) {
+            return FormationCheck.rejected(FormationRejection.FORMATION_INVALID);
         }
 
         // 2. 현재와 같은 값은 변경이 아니다(ck_formation_change_changed 와 같다).
         Formation before = season.getCurrentFormation();
         if (before.equals(after)) {
-            throw new DomainException(ErrorCode.INVALID_ARGUMENT, "현재 포메이션과 같아 바꿀 수 없다");
+            return FormationCheck.rejected(FormationRejection.FORMATION_UNCHANGED);
         }
 
         // 3. 사슬 — 저장된 현재 포메이션이 마지막 변경의 이후 값(없으면 시작 값)과 같아야 한다. 과거 전체 사슬은 대사 규칙 15 가 본다.
-        Formation expected = formationChanges.findLastBySeasonId(seasonId).map(FormationChange::getAfter)
+        Formation expected = formationChanges.findLastBySeasonId(season.getId()).map(FormationChange::getAfter)
                 .orElse(season.getStartFormation());
         if (!expected.equals(before)) {
             throw new DomainException(ErrorCode.INVALID_FORMATION, "현재 포메이션이 변경 이력과 맞지 않는다");
         }
+        return FormationCheck.passed(new FormationPlan(season, turnNo, before, after, reason));
+    }
 
-        // 4~5. 시각 확정(잠금 뒤) → 쓰기. 확정한 시각을 그대로 저장한다.
-        Instant at = eventTime.next(seasonId, turnNo);
-        FormationChange saved = formationChanges.save(new FormationChange(season, turnNo, before, after, reason, at));
-        season.changeFormation(after);
+    /**
+     * Same as {@link #check(Season, Formation, String)} from raw shares, for a reply that has not been through the formation
+     * rules: the turn-0 rule comes first, then shares that break the rules (sum, range, goalkeeper) are FORMATION_INVALID.
+     */
+    public FormationCheck check(Season season, int goalkeeper, int defender, int midfielder, int forward,
+            String reason) {
+        if (season.getCurrentTurnNo() == 0) {
+            return FormationCheck.rejected(FormationRejection.TURN_ZERO_FORMATION);
+        }
+        Formation after;
+        try {
+            after = new Formation(goalkeeper, defender, midfielder, forward);
+        } catch (IllegalArgumentException invalid) {
+            return FormationCheck.rejected(FormationRejection.FORMATION_INVALID);
+        }
+        return check(season, after, reason);
+    }
+
+    /** 4~5. 시각 확정(잠금 뒤) → 쓰기. 확정한 시각을 그대로 저장한다. */
+    public FormationChangeDto apply(FormationPlan plan) {
+        Season season = plan.season();
+        Instant at = eventTime.next(season.getId(), plan.turnNo());
+        FormationChange saved = formationChanges.save(
+                new FormationChange(season, plan.turnNo(), plan.before(), plan.after(), plan.reason(), at));
+        season.changeFormation(plan.after());
         // 시즌 UPDATE 는 커밋 때 flush 된다. 거기서 실패하면 위 INSERT 도 함께 되돌아간다.
         return FormationChangeDto.from(saved);
+    }
+
+    private static boolean reasonInvalid(String reason) {
+        return reason != null && (reason.codePointCount(0, reason.length()) > REASON_MAX_CODE_POINTS
+                || reason.indexOf('\u0000') >= 0);
     }
 
     private static DomainException seasonNotFound() {

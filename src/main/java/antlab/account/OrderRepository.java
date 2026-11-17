@@ -14,6 +14,10 @@ public interface OrderRepository extends AppendOnlyRepository<Order, Long> {
     @Query("select max(o.createdAt) from Orders o where o.seasonId = :seasonId and o.turnNo = :turnNo")
     Optional<Instant> findLatestCreatedAt(@Param("seasonId") Long seasonId, @Param("turnNo") int turnNo);
 
+    /** Ids of the orders of a turn, oldest first — the order they were applied in. */
+    @Query("select o.id from Orders o where o.seasonId = :seasonId and o.turnNo = :turnNo order by o.id")
+    List<Long> findIdsBySeasonIdAndTurnNo(@Param("seasonId") Long seasonId, @Param("turnNo") int turnNo);
+
     /** Fills of the turns {@code fromTurn..toTurn} of a season, oldest first, with the asset's market and ticker. */
     @Query("""
             select new antlab.account.RecentTradeRow(o.turnNo, o.side, a.market, a.ticker, e.quantity, e.fillPrice,

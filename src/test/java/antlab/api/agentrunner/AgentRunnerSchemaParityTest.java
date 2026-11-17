@@ -9,7 +9,15 @@ import antlab.agent.RecentTradeDto;
 import antlab.agent.RegisterAgentRequest;
 import antlab.agent.RejectDto;
 import antlab.agent.StartAgentSeasonRequest;
+import antlab.agent.AgentCallStatus;
 import antlab.agent.AgentTurnViewDto;
+import antlab.agent.DecisionOutcome;
+import antlab.agent.decision.CallRecordRequest;
+import antlab.agent.decision.CallsRequest;
+import antlab.agent.decision.DecisionRejectCode;
+import antlab.agent.decision.DecisionRequest;
+import antlab.agent.decision.DecisionResultDto;
+import antlab.agent.decision.UnitStatus;
 import antlab.api.config.OpenApiConfig;
 import antlab.common.error.ErrorCode;
 import antlab.support.OpenApiNormalizer;
@@ -164,17 +172,72 @@ class AgentRunnerSchemaParityTest {
     }
 
     @Test
+    void the_decision_schemas_have_the_properties_and_requirements_of_their_records() throws Exception {
+        assertSchemaMatches("DecisionRequest", DecisionRequest.class);
+        assertSchemaMatches("CallRecordRequest", CallRecordRequest.class);
+        assertSchemaMatches("CallsRequest", CallsRequest.class);
+        assertSchemaMatches("DecisionResultDto", DecisionResultDto.class);
+        assertSchemaMatches("FormationResultDto", DecisionResultDto.FormationResultDto.class);
+        assertSchemaMatches("OrderUnitResultDto", DecisionResultDto.OrderUnitResultDto.class);
+        assertSchemaMatches("ThesesResultDto", DecisionResultDto.ThesesResultDto.class);
+        assertSchemaMatches("SchemaViolationDto", DecisionResultDto.SchemaViolationDto.class);
+        JsonNode s = schemas(RUNNER);
+        for (String response : new String[] {"DecisionResultDto", "FormationResultDto", "OrderUnitResultDto",
+                "ThesesResultDto", "SchemaViolationDto"}) {
+            Class<? extends Record> type = switch (response) {
+                case "DecisionResultDto" -> DecisionResultDto.class;
+                case "FormationResultDto" -> DecisionResultDto.FormationResultDto.class;
+                case "OrderUnitResultDto" -> DecisionResultDto.OrderUnitResultDto.class;
+                case "ThesesResultDto" -> DecisionResultDto.ThesesResultDto.class;
+                default -> DecisionResultDto.SchemaViolationDto.class;
+            };
+            assertThat(names(s.path(response).path("required"))).as(response).isEqualTo(components(type));
+        }
+        assertThat(names(s.path("CallRecordRequest").path("required")))
+                .containsExactlyInAnyOrder("attemptNo", "kind", "status", "modelRequested", "requestText", "latencyMs");
+    }
+
+    @Test
+    void the_decision_enums_and_reject_codes_of_the_contract_are_the_java_ones() throws Exception {
+        JsonNode s = schemas(RUNNER);
+        assertThat(names(s.path("DecisionOutcome").path("enum"))).isEqualTo(enumNames(DecisionOutcome.class));
+        assertThat(names(s.path("UnitStatus").path("enum"))).isEqualTo(enumNames(UnitStatus.class));
+        assertThat(names(s.path("AgentCallStatus").path("enum"))).isEqualTo(enumNames(AgentCallStatus.class));
+        Set<String> listed = new TreeSet<>();
+        for (String schema : new String[] {"FormationResultDto", "OrderUnitResultDto", "ThesesResultDto"}) {
+            names(s.path(schema).path("properties").path("code").path("enum")).stream().filter(c -> !c.isEmpty())
+                    .forEach(listed::add);
+        }
+        // every unit-level reject code is listed in exactly the unit that can produce it; SCHEMA_INVALID is a unit of its own
+        Set<String> all = enumNames(DecisionRejectCode.class);
+        all.remove("SCHEMA_INVALID");
+        assertThat(listed).isEqualTo(all);
+        assertThat(names(s.path("SchemaViolationDto").path("properties").path("keyword").path("enum")))
+                .containsExactlyInAnyOrder("type", "required", "additionalProperties", "const", "enum", "pattern",
+                        "maxLength", "maxItems", "minimum", "maximum");
+    }
+
+    @Test
+    void the_decision_operations_list_the_codes_they_answer() throws Exception {
+        JsonNode paths = OpenApiNormalizer.fromYaml(Files.readString(RUNNER)).path("paths");
+        String turn = "/internal/agent-runner/v1/agents/{agentId}/seasons/{seasonId}/turns";
+        assertThat(names(paths.path(turn + "/{turnNo}/decision").path("post").path("responses").path("409")
+                .path("x-error-codes"))).containsExactlyInAnyOrder("TURN_MISMATCH", "SEASON_NOT_ACTIVE", "DECISION_CONFLICT",
+                "LEDGER_MISMATCH", "LINEUP_MISMATCH", "INVALID_FORMATION", "EVENT_TIME_CONFLICT");
+        assertThat(names(paths.path(turn).path("post").path("responses").path("409").path("x-error-codes")))
+                .containsExactlyInAnyOrder("SEASON_NOT_ACTIVE", "TURN_MISMATCH", "RECONCILIATION_FAILED", "DECISION_MISSING");
+        assertThat(names(paths.path(turn + "/{turnNo}/calls").path("post").path("responses").path("409").path("x-error-codes")))
+                .containsExactlyInAnyOrder("SEASON_NOT_ACTIVE", "TURN_MISMATCH", "DECISION_CONFLICT");
+        assertThat(names(paths.path(turn + "/{turnNo}/decision").path("get").path("responses").path("409")
+                .path("x-error-codes"))).containsExactly("TURN_NOT_REACHED");
+    }
+
+    @Test
     void the_enums_of_the_turn_view_follow_the_java_enums() throws Exception {
         JsonNode s = schemas(RUNNER);
         assertThat(names(s.path("OrderSource").path("enum")))
-                .isEqualTo(enumNames(antlab.account.OrderSource.values()));
-        assertThat(names(s.path("OrderSide").path("enum"))).isEqualTo(enumNames(antlab.account.OrderSide.values()));
-    }
-
-    private static Set<String> enumNames(Enum<?>[] values) {
-        Set<String> out = new TreeSet<>();
-        Arrays.stream(values).map(Enum::name).forEach(out::add);
-        return out;
+                .isEqualTo(enumNames(antlab.account.OrderSource.class));
+        assertThat(names(s.path("OrderSide").path("enum"))).isEqualTo(enumNames(antlab.account.OrderSide.class));
     }
 
     @Test
@@ -187,5 +250,11 @@ class AgentRunnerSchemaParityTest {
                 OpenApiNormalizer.fromYaml("t: [string, 'null']").path("t"));
         assertThat(reject.path("index").path("maximum").asInt()).isEqualTo(39);
         assertThat(reject.path("code").path("pattern").asString()).isEqualTo("^[A-Z][A-Z_]{0,39}$");
+    }
+
+    private static <E extends Enum<E>> Set<String> enumNames(Class<E> type) {
+        Set<String> out = new TreeSet<>();
+        Arrays.stream(type.getEnumConstants()).map(Enum::name).forEach(out::add);
+        return out;
     }
 }

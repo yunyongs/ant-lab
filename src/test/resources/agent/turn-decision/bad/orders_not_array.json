@@ -1,0 +1,9 @@
+{
+ "schema": "turn-decision/1",
+ "formation_change": null,
+ "orders": {
+  "asset": "KR:005930"
+ },
+ "theses": [],
+ "reason": "hold"
+}
