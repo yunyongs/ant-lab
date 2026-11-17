@@ -1,0 +1,24 @@
+{
+  "formationChange": {
+    "code": null,
+    "formationChangeId": null,
+    "status": "NONE"
+  },
+  "orders": [
+    {
+      "code": null,
+      "index": 0,
+      "orderId": 5,
+      "status": "APPLIED"
+    }
+  ],
+  "outcome": "DECISION",
+  "replayed": false,
+  "schemaViolations": [],
+  "seasonId": 7,
+  "theses": {
+    "code": null,
+    "status": "NONE"
+  },
+  "turnNo": 1
+}
