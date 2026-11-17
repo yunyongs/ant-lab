@@ -214,6 +214,17 @@ class SyntheticSeasonE2ETest {
         List<Long> changeIds = jdbc.queryForList("SELECT id FROM formation_change WHERE season_id = ?", Long.class, season);
         assertThat(changeIds).as("the season's single formation change").hasSize(1);
         assertThat(buy.json().get("formationChangeId").asLong()).isEqualTo(changeIds.get(0));
+
+        // An order that starts from a feed item shown at turn 5 or before: an event card names no asset, so any held asset fits.
+        Map<String, Object> shown = jdbc.queryForMap("SELECT turn_no, seq FROM turn_feed WHERE season_id = ? AND turn_no <= 5"
+                + " AND asset_id IS NULL ORDER BY turn_no DESC, seq LIMIT 1", season);
+        String fed = "{\"expectedTurnNo\": 5, \"side\": \"BUY\", \"assetId\": " + assetId.get("ZZ0001") + ", \"quantity\": 1,"
+                + " \"source\": {\"kind\": \"FEED\", \"feedTurnNo\": " + shown.get("turn_no") + ", \"feedSeq\": " + shown.get("seq")
+                + "}}";
+        Reply fedBuy = http.post(url("/orders"), fed);
+        assertThat(fedBuy.status()).as(fedBuy.body()).isEqualTo(201);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM orders WHERE season_id = ? AND source = 'FEED' AND turn_feed_id IS NOT NULL",
+                Long.class, season)).isEqualTo(1);
     }
 
     @Test
@@ -236,6 +247,7 @@ class SyntheticSeasonE2ETest {
         assertThat(report.status()).as(report.body()).isEqualTo(200);
         JsonNode r = report.json();
         assertThat(r.get("isFinal").asBoolean()).isTrue();
+        assertThat(money(r.get("nudgeShare"))).as("the FEED order counts as encouraged, with no UPDATE of orders").isPositive();
         assertThat(r.get("formationChanges").asInt()).isEqualTo(1);
         assertThat(money(r.get("initialCash"))).isEqualByComparingTo("30000000");
         for (String key : ReportApiSupport.MONEY) {

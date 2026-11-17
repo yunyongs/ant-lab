@@ -141,7 +141,7 @@ class TurnOrderRaceTest {
         long ordersBefore = count("orders", season);
 
         MockHttpServletResponse turn = holdWhileWaiting(
-                () -> orderService.place(season, new PlaceOrderRequest(0, OrderSide.BUY, assetId(jdbc, "069500"), 3, Position.MIDFIELDER)),
+                () -> orderService.place(season, new PlaceOrderRequest(0, OrderSide.BUY, assetId(jdbc, "069500"), 3, Position.MIDFIELDER, null)),
                 () -> advance(mvc, season, 0));
 
         assertThat(turn.getStatus()).isEqualTo(201);

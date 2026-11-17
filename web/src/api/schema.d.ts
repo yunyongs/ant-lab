@@ -642,9 +642,9 @@ export interface components {
             price: string;
         };
         /**
-         * @description One market buy or sell. The server decides the fill price, fee and rates, and fixes the origin to DIRECT
+         * @description One market buy or sell. The server decides the fill price, fee and rates; the origin is DIRECT unless a source is sent
          *
-         *     시장가 매수·매도 한 건. 체결가·수수료·요율은 서버가 정하고 출발점은 서버가 DIRECT 로 고정한다
+         *     시장가 매수·매도 한 건. 체결가·수수료·요율은 서버가 정하고, 출발점은 source 를 보내지 않으면 DIRECT 다
          */
         PlaceOrderRequest: {
             /**
@@ -670,6 +670,31 @@ export interface components {
              *     선언 포지션(매수 전용). 열린 구간이 없는 종목(처음 사거나 전량 매도 뒤)이면 필수, 있으면 생략할 수 있다. 매도에 보내면 400
              */
             declaredPosition?: components["schemas"]["Position"];
+            /**
+             * @description Where the order started. Omitted or null means DIRECT. A FEED or ALERT origin must name a feed item that was shown to this season at or before the current turn, otherwise 422 SOURCE_NOT_VISIBLE
+             *
+             *     주문이 시작된 곳. 없거나 null이면 DIRECT. FEED·ALERT는 이 시즌의 현재 턴까지 보인 피드 항목을 가리켜야 하며 아니면 422 SOURCE_NOT_VISIBLE
+             */
+            source?: components["schemas"]["OrderSourceRequest"];
+        };
+        /**
+         * @description Where the order started. FEED and ALERT name the feed item that was shown (turn and display order); RANKING and DIRECT carry no reference; BENCH is reserved and refused. The server accepts a non-DIRECT origin only if that item was shown to this season at or before the current turn
+         *
+         *     주문이 시작된 곳. FEED·ALERT는 보인 피드 항목(턴과 표시 순서)을 가리키고, RANKING·DIRECT는 참조가 없으며, BENCH는 예약이라 거절한다. 서버는 그 항목이 이 시즌의 현재 턴까지 보인 경우에만 DIRECT 아닌 출발점을 받는다
+         */
+        OrderSourceRequest: {
+            /** @description Origin of the order / 주문의 출발점 */
+            kind: components["schemas"]["OrderSource"];
+            /**
+             * Format: int32
+             * @description Turn in which the feed item was shown (FEED and ALERT only, with feedSeq) / 피드 항목이 보인 턴(FEED·ALERT 전용, feedSeq와 함께)
+             */
+            feedTurnNo?: number;
+            /**
+             * Format: int32
+             * @description Display order of the feed item inside that turn (FEED and ALERT only, with feedTurnNo) / 그 턴 안에서 피드 항목의 표시 순서(FEED·ALERT 전용, feedTurnNo와 함께)
+             */
+            feedSeq?: number;
         };
         /**
          * @description Recorded time, origin, kind, status, feed number, seed, path and year-month are not included
@@ -1325,6 +1350,8 @@ export interface components {
         /** @enum {string} */
         OrderSide: "BUY" | "SELL";
         /** @enum {string} */
+        OrderSource: "RANKING" | "FEED" | "ALERT" | "BENCH" | "DIRECT";
+        /** @enum {string} */
         SeasonStatus: "IN_PROGRESS" | "ABANDONING" | "FINISHED" | "HALTED";
         /** @enum {string} */
         EventCategory: "GEOPOLITICS" | "TRADE" | "POLITICS" | "SUPPLY_SHOCK" | "FINANCIAL" | "POLICY" | "HEALTH";
@@ -1359,7 +1386,7 @@ export interface components {
             reason: string;
         };
         /** @enum {string} */
-        ErrorCode: "INVALID_ARGUMENT" | "NOT_FOUND" | "METHOD_NOT_ALLOWED" | "NOT_ACCEPTABLE" | "UNSUPPORTED_MEDIA_TYPE" | "MALFORMED_REQUEST" | "INTERNAL_ERROR" | "POOL_NOT_LOADED" | "POOL_NOT_JUDGED" | "PATH_TOO_LONG" | "SEASON_LIMIT" | "TURN_NOT_REACHED" | "SEASON_NOT_FINISHED" | "SEASON_NOT_ACTIVE" | "TURN_MISMATCH" | "LEDGER_MISMATCH" | "LINEUP_MISMATCH" | "ASSET_NOT_IN_POOL" | "INSUFFICIENT_CASH" | "INSUFFICIENT_HOLDING" | "POSITION_CONFLICT" | "POSITION_REQUIRED" | "INVALID_FORMATION" | "EVENT_TIME_CONFLICT" | "RECONCILIATION_FAILED" | "SEASON_HALTED" | "FORBIDDEN" | "EMAIL_TAKEN" | "UNAUTHENTICATED" | "INVALID_CREDENTIALS";
+        ErrorCode: "INVALID_ARGUMENT" | "NOT_FOUND" | "METHOD_NOT_ALLOWED" | "NOT_ACCEPTABLE" | "UNSUPPORTED_MEDIA_TYPE" | "MALFORMED_REQUEST" | "INTERNAL_ERROR" | "POOL_NOT_LOADED" | "POOL_NOT_JUDGED" | "PATH_TOO_LONG" | "SEASON_LIMIT" | "TURN_NOT_REACHED" | "SEASON_NOT_FINISHED" | "SEASON_NOT_ACTIVE" | "TURN_MISMATCH" | "LEDGER_MISMATCH" | "LINEUP_MISMATCH" | "ASSET_NOT_IN_POOL" | "SOURCE_NOT_VISIBLE" | "INSUFFICIENT_CASH" | "INSUFFICIENT_HOLDING" | "POSITION_CONFLICT" | "POSITION_REQUIRED" | "INVALID_FORMATION" | "EVENT_TIME_CONFLICT" | "RECONCILIATION_FAILED" | "SEASON_HALTED" | "FORBIDDEN" | "EMAIL_TAKEN" | "UNAUTHENTICATED" | "INVALID_CREDENTIALS";
     };
     responses: {
         /**
@@ -1777,7 +1804,7 @@ export interface operations {
                     "application/json": components["schemas"]["OrderResultDto"];
                 };
             };
-            /** @description The input is invalid (quantity 0 or less, declared position on a sell) — INVALID_ARGUMENT / 입력이 틀렸다(수량 0 이하, 매도에 선언 포지션) — INVALID_ARGUMENT */
+            /** @description The input is invalid (quantity 0 or less, declared position on a sell, a malformed or BENCH source) — INVALID_ARGUMENT / 입력이 틀렸다(수량 0 이하, 매도에 선언 포지션, 모양이 틀렸거나 BENCH인 source) — INVALID_ARGUMENT */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -1810,9 +1837,9 @@ export interface operations {
                 };
             };
             /**
-             * @description The order content is not acceptable — ASSET_NOT_IN_POOL, INSUFFICIENT_CASH, INSUFFICIENT_HOLDING, POSITION_CONFLICT, POSITION_REQUIRED
+             * @description The order content is not acceptable — SOURCE_NOT_VISIBLE, ASSET_NOT_IN_POOL, INSUFFICIENT_CASH, INSUFFICIENT_HOLDING, POSITION_CONFLICT, POSITION_REQUIRED
              *
-             *     주문 내용을 받을 수 없다 — ASSET_NOT_IN_POOL, INSUFFICIENT_CASH, INSUFFICIENT_HOLDING, POSITION_CONFLICT, POSITION_REQUIRED
+             *     주문 내용을 받을 수 없다 — SOURCE_NOT_VISIBLE, ASSET_NOT_IN_POOL, INSUFFICIENT_CASH, INSUFFICIENT_HOLDING, POSITION_CONFLICT, POSITION_REQUIRED
              */
             422: {
                 headers: {

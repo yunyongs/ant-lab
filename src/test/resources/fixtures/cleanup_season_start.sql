@@ -1,13 +1,13 @@
 -- Fake data cleanup: committing season and order tests delete only the rows they made (children before parents).
 -- Targets: seasons of the default test member (player@example.invalid; the member row stays for the context) and the fake rows of history_pool.sql and replay_months.sql.
 DELETE FROM reconciliation_log WHERE season_id IN (SELECT s.id FROM season s JOIN member m ON m.id = s.member_id WHERE lower(m.email) = 'player@example.invalid');
-DELETE FROM turn_feed   WHERE season_id IN (SELECT s.id FROM season s JOIN member m ON m.id = s.member_id WHERE lower(m.email) = 'player@example.invalid');
 DELETE FROM turn        WHERE season_id IN (SELECT s.id FROM season s JOIN member m ON m.id = s.member_id WHERE lower(m.email) = 'player@example.invalid');
 DELETE FROM execution   WHERE order_id IN (SELECT id FROM orders WHERE season_id IN (SELECT s.id FROM season s JOIN member m ON m.id = s.member_id WHERE lower(m.email) = 'player@example.invalid'));
 DELETE FROM cash_ledger WHERE season_id IN (SELECT s.id FROM season s JOIN member m ON m.id = s.member_id WHERE lower(m.email) = 'player@example.invalid');
 DELETE FROM holding     WHERE season_id IN (SELECT s.id FROM season s JOIN member m ON m.id = s.member_id WHERE lower(m.email) = 'player@example.invalid');
 DELETE FROM lineup      WHERE season_id IN (SELECT s.id FROM season s JOIN member m ON m.id = s.member_id WHERE lower(m.email) = 'player@example.invalid');
 DELETE FROM orders      WHERE season_id IN (SELECT s.id FROM season s JOIN member m ON m.id = s.member_id WHERE lower(m.email) = 'player@example.invalid');
+DELETE FROM turn_feed   WHERE season_id IN (SELECT s.id FROM season s JOIN member m ON m.id = s.member_id WHERE lower(m.email) = 'player@example.invalid');
 DELETE FROM formation_change WHERE season_id IN (SELECT s.id FROM season s JOIN member m ON m.id = s.member_id WHERE lower(m.email) = 'player@example.invalid');
 DELETE FROM turn_price  WHERE season_id IN (SELECT s.id FROM season s JOIN member m ON m.id = s.member_id WHERE lower(m.email) = 'player@example.invalid');
 DELETE FROM season_path WHERE season_id IN (SELECT s.id FROM season s JOIN member m ON m.id = s.member_id WHERE lower(m.email) = 'player@example.invalid');
