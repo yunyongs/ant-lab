@@ -183,6 +183,8 @@ Phase 0 API 구현(P0-33)에서는 이 흐름을 `TurnService`가 맡는다. 가
 - `season`과 `cash_account`에 `@Version`도 둔다. 비관적 락이 있는데 왜 또? 락을 거는 경로(주문·턴)가 아닌 **다른 경로**(시즌 포기, 관리자 상태 변경)가 같은 행을 고칠 때 "읽은 뒤 누가 바꿨다"를 잡기 위해서다. 둘은 서로 다른 일을 한다: 비관적 락은 돈 계산의 직렬화, 낙관적 락은 상태 변경의 충돌 감지.
 - 시즌 포기(PLAN §4.1-7)는 "남은 턴을 매매 없이 자동 진행"이므로 `advance`를 반복 호출하는 것과 같다. 60턴을 한 트랜잭션에서 돌리면 길어지므로 **턴마다 별도 트랜잭션**으로 돌리고 중간 실패 시 재개할 수 있게 한다(`season.status = ABANDONING`).
 
+Ranking lookup (MVP-12): `GET …/turns/{n}/ranking` is read-only, lock-free, six statements regardless of pool size (current member 1, season 1, the turn's prices 1, the earlier prices 1, the pool 1, attention 1), and reads no row of a turn above n. / 랭킹 조회(MVP-12): `GET …/turns/{n}/ranking`은 읽기 전용·잠금 없음이고 문장 수는 풀 크기와 무관하게 6개(현재 회원 1, 시즌 1, 그 턴 가격 1, 이전 턴 가격 1, 풀 1, 관심 지수 1)이며 n보다 큰 턴의 행을 읽지 않는다.
+
 ### 5.4 전술 변경·포지션 지정
 
 - 전술 변경은 `season` 락을 얻은 뒤 `season.current_goalkeeper`·`current_defender`·`current_midfielder`·`current_forward`를 갱신하고 `formation_change`를 INSERT. 전술 변경은 `formation_change` INSERT와 이 네 컬럼 갱신을 한 트랜잭션으로 처리한다. 같은 턴의 여러 변경을 모두 남긴다 — 마지막 것만 남지 않는다(복기용). 턴 전환과 같은 락 순서(P0-37: `FormationChangeService`는 계좌를 잠그지 않는다 — 계좌·보유·원장을 쓰지 않는다). 요청 오류(합 ≠ 100·골키퍼 0·같은 포메이션·사유 200자 초과)는 400 `INVALID_ARGUMENT`, 저장된 현재 포메이션이 마지막 변경의 이후 값과 다른 상태 불일치는 409 `INVALID_FORMATION`이다(SQL은 둘 다 `INVALID_FORMATION` HINT). 0턴에는 바꿀 수 없다(409 `TURN_MISMATCH`). 변경 뒤의 매도·매수는 보통 주문이고, 주문 트랜잭션 안에서 `orders.formation_change_id`를 채운다(어느 변경에 묶는지의 규칙은 PLAN §5.1).

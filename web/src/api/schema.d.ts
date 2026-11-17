@@ -267,6 +267,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/seasons/{seasonId}/turns/{turnNo}/ranking": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Ranking board of a turn / 턴의 순위판
+         * @description Returns seven lists for one played turn, at most 5 rows each: biggest price rises and falls, most attention (rank and grade only), longest rising and falling streaks (2 turns or more), and the groups with the biggest mean rise and fall. The board is computed from the facts of that turn only, so a turn gives the same answer whenever it is asked, in a season in progress or a finished one.
+         *
+         *     진행한 턴 하나의 목록 일곱 개를 줄 5개 이하로 준다: 가격이 가장 많이 오르내린 종목, 관심이 가장 큰 종목(순위와 등급만), 가장 오래 오르내린 종목(2턴 이상), 평균 상승·하락이 가장 큰 그룹. 그 턴의 자료만으로 계산하므로 언제 물어도 같은 답이고 진행 중인 시즌과 끝난 시즌이 같다.
+         */
+        get: operations["getTurnRanking"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/seasons/{seasonId}/holdings": {
         parameters: {
             query?: never;
@@ -942,6 +964,102 @@ export interface components {
             assetId: number | null;
             /** @description The sentence as shown / 보인 문장 */
             body: string;
+        };
+        /** @description Ranking board of one played turn: seven lists of at most 5 rows each, computed from that turn's data only / 한 턴의 순위판: 그 턴의 자료만으로 계산한, 줄 5개 이하의 목록 일곱 개 */
+        RankingBoardDto: {
+            /** Format: int32 */
+            turnNo: number;
+            /** @description Biggest price rises, change above 0, largest first / 가격이 가장 많이 오른 종목, 변화 0 초과, 큰 순 */
+            gainers: components["schemas"]["RankedAssetDto"][];
+            /** @description Biggest price falls, change below 0, largest fall first / 가격이 가장 많이 내린 종목, 변화 0 미만, 많이 내린 순 */
+            losers: components["schemas"]["RankedAssetDto"][];
+            /** @description Most attention, by rank and grade; assets without an attention figure are left out / 관심이 가장 큰 종목, 순위와 등급. 관심 값이 없는 종목은 뺀다 */
+            attention: components["schemas"]["AttentionRankDto"][];
+            /** @description Longest runs of rising turns, at least 2 / 가장 오래 오른 종목, 2턴 이상 */
+            risingStreaks: components["schemas"]["StreakRankDto"][];
+            /** @description Longest runs of falling turns, at least 2 / 가장 오래 내린 종목, 2턴 이상 */
+            fallingStreaks: components["schemas"]["StreakRankDto"][];
+            /** @description Groups with the biggest mean rise / 평균 상승이 가장 큰 그룹 */
+            groupGainers: components["schemas"]["RankedGroupDto"][];
+            /** @description Groups with the biggest mean fall / 평균 하락이 가장 큰 그룹 */
+            groupLosers: components["schemas"]["RankedGroupDto"][];
+        };
+        /** @description One row of a gainers or losers list / 상승·하락 목록의 한 줄 */
+        RankedAssetDto: {
+            /**
+             * Format: int32
+             * @description Row position in the list, from 1 / 목록 안의 줄 번호, 1부터
+             */
+            rank: number;
+            /**
+             * Format: int64
+             * @description Asset identifier (the same as assetId in the pool response) / 종목 식별자(풀 응답의 assetId 와 같다)
+             */
+            assetId: number;
+            /**
+             * Format: decimal
+             * @description Price change of the turn = price ÷ previous turn's price − 1, 8 decimal places / 그 턴의 가격 변화 = 가격 ÷ 직전 턴 가격 − 1, 소수 8자리
+             */
+            changeRate: string;
+        };
+        /** @description One row of the attention list; rank and grade only, the index value is not shown / 관심 목록의 한 줄. 순위와 등급만 보이고 지수 값은 보이지 않는다 */
+        AttentionRankDto: {
+            /**
+             * Format: int32
+             * @description Row position in the list, from 1 / 목록 안의 줄 번호, 1부터
+             */
+            rank: number;
+            /**
+             * Format: int64
+             * @description Asset identifier (the same as assetId in the pool response) / 종목 식별자(풀 응답의 assetId 와 같다)
+             */
+            assetId: number;
+            /**
+             * Format: int32
+             * @description Attention grade: 3 = top 10 %, 2 = top half, 1 = the rest / 관심 등급: 3 = 상위 10%, 2 = 상위 절반, 1 = 나머지
+             */
+            grade: number;
+        };
+        /** @description One row of a rising or falling streak list / 연속 상승·하락 목록의 한 줄 */
+        StreakRankDto: {
+            /**
+             * Format: int32
+             * @description Row position in the list, from 1 / 목록 안의 줄 번호, 1부터
+             */
+            rank: number;
+            /**
+             * Format: int64
+             * @description Asset identifier (the same as assetId in the pool response) / 종목 식별자(풀 응답의 assetId 와 같다)
+             */
+            assetId: number;
+            /**
+             * Format: int32
+             * @description Turns in a row with the same direction of price change, at least 2 / 가격이 같은 방향으로 이어진 턴 수, 2 이상
+             */
+            streak: number;
+            /**
+             * Format: decimal
+             * @description Price change of the turn, 8 decimal places / 그 턴의 가격 변화, 소수 8자리
+             */
+            changeRate: string;
+        };
+        /** @description One row of a group gainers or losers list / 그룹 상승·하락 목록의 한 줄 */
+        RankedGroupDto: {
+            /**
+             * Format: int32
+             * @description Row position in the list, from 1 / 목록 안의 줄 번호, 1부터
+             */
+            rank: number;
+            /**
+             * Format: int64
+             * @description Asset group identifier (the same as groupId in the pool response) / 종목 그룹 식별자(풀 응답의 groupId 와 같다)
+             */
+            groupId: number;
+            /**
+             * Format: decimal
+             * @description Mean price change of the group's assets, rounded once to 8 decimal places / 그룹 종목들의 가격 변화 평균, 소수 8자리로 한 번 반올림
+             */
+            changeRate: string;
         };
         /** @description Season report / 시즌 성적표 */
         SeasonReportDto: {
@@ -2015,6 +2133,58 @@ export interface operations {
              *
              *     아직 진행하지 않은 턴이다 — TURN_NOT_REACHED(현재 턴보다 큰 번호 전부. 경로 길이를 넘는 번호는 끝난 시즌에서도 이 코드이므로 클라이언트는 pathLength 로 범위를 먼저 거른다)
              */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getTurnRanking: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                seasonId: number;
+                turnNo: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Ranking board / 순위판 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RankingBoardDto"];
+                };
+            };
+            /** @description turnNo is below 1, or the season or turn number is not a number — INVALID_ARGUMENT / turnNo 가 1 미만이거나 시즌·턴 번호가 숫자가 아니다 — INVALID_ARGUMENT */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description The season does not exist — NOT_FOUND / 시즌이 없다 — NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description That turn has not been played yet — TURN_NOT_REACHED / 아직 진행하지 않은 턴이다 — TURN_NOT_REACHED */
             409: {
                 headers: {
                     [name: string]: unknown;
