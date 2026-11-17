@@ -5,6 +5,7 @@
 antlab.api.e2e.OneSeasonE2ETest	SQL_최종_판정_90이_PASS다()
 antlab.api.e2e.OneSeasonE2ETest	끝까지_넘기면_끝난_시즌이다()
 antlab.api.e2e.OneSeasonE2ETest	다섯_번째_턴에서_부분_매도_전술_변경_묶인_매수를_한다()
+antlab.api.e2e.OneSeasonE2ETest	분석이_성적표와_맞고_3분해가_정확히_더해진다()
 antlab.api.e2e.OneSeasonE2ETest	성적표와_복기의_모양()
 antlab.api.e2e.OneSeasonE2ETest	세_번째_턴까지_넘긴다()
 antlab.api.e2e.OneSeasonE2ETest	시즌_중_거절은_문제_본문이고_상태를_바꾸지_않는다()

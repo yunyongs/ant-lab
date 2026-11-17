@@ -2,7 +2,10 @@ package antlab.api.e2e;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import antlab.api.report.AnalysisAssertions;
 import antlab.api.report.ReportApiSupport;
+import antlab.scoring.RepresentativeTable;
+import antlab.scoring.SeasonReportSources.AssetKey;
 import antlab.season.SeedGenerator;
 import antlab.support.E2eHttp;
 import antlab.support.E2eHttp.Reply;
@@ -79,6 +82,22 @@ class SyntheticSeasonE2ETest {
         @Primary
         SeedGenerator fixedSeed() {
             return () -> SEED;
+        }
+    }
+
+    /**
+     * The shipped table names real tickers that the fake fixture does not hold. This one keeps the market pair (the fixture holds
+     * its two fake proxies) and points the bond, gold and growth slots at fake assets, so all four baselines can be built. The
+     * bond candidate list has an absent first entry and a US second one, which makes the bond leg a substitute.
+     */
+    @TestConfiguration(proxyBeanMethods = false)
+    static class FakeRepresentatives {
+        @Bean
+        @Primary
+        RepresentativeTable fakeRepresentativeTable() {
+            return new RepresentativeTable("rep-v1", new AssetKey("KR", "069500"), new AssetKey("US", "SPY"),
+                    List.of(new AssetKey("KR", "ZZ0099"), new AssetKey("US", "ZZUS04")), new AssetKey("KR", "ZZ0002"),
+                    new AssetKey("US", "ZZUS02"));
         }
     }
 
@@ -196,6 +215,7 @@ class SyntheticSeasonE2ETest {
         expectProblem(http.post(url("/turns"), "{\"expectedTurnNo\": 1}"), 409, "TURN_MISMATCH");
         expectProblem(http.get(url("/prices?turnNo=3")), 409, "TURN_NOT_REACHED");
         expectProblem(http.get(url("/report")), 409, "SEASON_NOT_FINISHED");
+        expectProblem(http.get(url("/report/analysis")), 409, "SEASON_NOT_FINISHED");
         expectProblem(http.get(url("/review")), 409, "SEASON_NOT_FINISHED");
         assertThat(state()).as("rejections change nothing").isEqualTo(before);
     }
@@ -369,6 +389,45 @@ class SyntheticSeasonE2ETest {
 
     private String url(String suffix) {
         return "/api/v1/seasons/" + season + suffix;
+    }
+
+    /**
+     * All four baselines on the fake table, after the report. The market baseline and the trading amount are computed by
+     * the report in another class, so equality with them is the check; the won identity of the three-way split is exact.
+     */
+    @Test
+    @Order(12)
+    @Timeout(value = 2, unit = TimeUnit.MINUTES)
+    void 분석은_성적표와_맞고_네_기준선과_3분해가_정확히_더해진다() {
+        Reply report = http.get(url("/report"));
+        Reply analysis = http.get(url("/report/analysis"));
+        assertThat(analysis.status()).as(analysis.body()).isEqualTo(200);
+        JsonNode a = analysis.json();
+        AnalysisAssertions.assertConsistent(a, report.json(), 4);
+        for (JsonNode baseline : a.get("baselines")) {
+            System.out.println("[M1] " + baseline.get("key").asString() + " rebalances=" + baseline.get("rebalanceCount").asInt()
+                    + " forced=" + baseline.get("forcedChangeCount").asInt() + " bandNoFill="
+                    + baseline.get("bandNoFillCount").asInt() + " fee=" + baseline.get("totalFee").asString());
+        }
+        JsonNode sixtyForty = a.get("baselines").get(1);
+        assertThat(sixtyForty.get("legs").size()).isEqualTo(3);
+        assertThat(sixtyForty.get("legs").get(2).get("asset").asString()).isEqualTo("US:ZZUS04");
+        assertThat(sixtyForty.get("legs").get(2).get("slot").asString()).isEqualTo("BOND");
+        assertThat(sixtyForty.get("bondLegSubstituted").asBoolean()).as("a US ETF stands in for the domestic bond").isTrue();
+        JsonNode follow = a.get("baselines").get(2);
+        JsonNode fixed = a.get("baselines").get(3);
+        assertThat(follow.get("forcedChangeCount").asInt()).as("the one formation change forces one rebalance").isEqualTo(1);
+        assertThat(fixed.get("forcedChangeCount").asInt()).isZero();
+        assertThat(AnalysisAssertions.won(follow.get("forcedChangeFee")).signum()).as("the forced rebalance costs fees").isPositive();
+        assertThat(AnalysisAssertions.won(fixed.get("forcedChangeFee")).signum()).isZero();
+        assertThat(follow.get("legs").size()).isEqualTo(fixed.get("legs").size()).isEqualTo(5);
+        assertThat(follow.get("turnValues").get(0).asString()).as("both formation baselines start alike")
+                .isEqualTo(fixed.get("turnValues").get(0).asString());
+        assertThat(a.get("discipline").get("formationChanges").asInt()).isEqualTo(1);
+        assertThat(a.get("discipline").get("tradeNotional").asString()).isEqualTo(report.json().get("tradeNotional").asString());
+        // The turn-5 sell of 50 shares of ZZ0003 is the only sell; it fills at that turn's price.
+        BigDecimal sold = prices(5).get("ZZ0003").multiply(BigDecimal.valueOf(50));
+        assertThat(new BigDecimal(a.get("discipline").get("sellNotional").asString())).isEqualByComparingTo(sold);
     }
 
     private static BigDecimal money(JsonNode node) {

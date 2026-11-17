@@ -289,6 +289,11 @@ Authorization: Bearer {{token}}
 GET {{base}}/api/v1/seasons/{{season}}/report
 Authorization: Bearer {{token}}
 
+### Baselines, three-way split and trading discipline of the same season
+# 같은 시즌의 기준선·3분해·매매 규율
+GET {{base}}/api/v1/seasons/{{season}}/report/analysis
+Authorization: Bearer {{token}}
+
 ###
 GET {{base}}/api/v1/seasons/{{season}}/review
 Authorization: Bearer {{token}}

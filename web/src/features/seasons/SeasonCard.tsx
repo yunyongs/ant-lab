@@ -2,6 +2,7 @@ import { Link } from 'react-router';
 import { formatWon } from '../format/money.ts';
 import { ratioWithPercent } from '../format/ratio.ts';
 import {
+  abandonText,
   openButtonLabel,
   statusLabel,
   turnText,
@@ -11,6 +12,7 @@ import styles from './Seasons.module.css';
 
 export function SeasonCard({ season }: { season: Season }) {
   const finished = season.status === 'FINISHED';
+  const abandoned = abandonText(season);
   return (
     <li className={styles.card}>
       <div className={styles.cardTitle}>
@@ -33,6 +35,7 @@ export function SeasonCard({ season }: { season: Season }) {
           <dd>{formatWon(season.cashBalance)}</dd>
         </div>
       </dl>
+      {abandoned !== null && <p className={styles.abandoned}>{abandoned}</p>}
       <Link to={`/seasons/${String(season.id)}`} className={styles.secondary}>
         {openButtonLabel(season)}
       </Link>
