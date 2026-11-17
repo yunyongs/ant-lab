@@ -125,4 +125,14 @@ class ReportExclusionListTest {
             assertThat(fold(operation)).contains(entry);
         }
     }
+
+    @Test
+    void 컨트롤러_설명의_X4_X5가_분석_엔드포인트를_가리키고_영어도_계약과_같다() throws Exception {
+        String operation = fold(SeasonReportDescriptions.controllerDescription());
+        for (String entry : documentedEnglishEntries()) {
+            assertThat(operation).contains(entry);
+        }
+        assertThat(operation).contains("X5 Trading discipline (panic, chasing) and formation change right after a fall: not in "
+                + "these 37 columns. Defined in PLAN §6.2; Java computes them at GET …/report/analysis (MVP-17).");
+    }
 }
