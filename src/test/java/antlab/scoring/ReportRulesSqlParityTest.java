@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import antlab.asset.Position;
 import antlab.support.GoldenCleanup;
+import antlab.support.SharedPostgres;
 import antlab.support.PsqlScriptRunner;
 import antlab.support.RowSet;
 import antlab.support.RowSet.ColumnType;
@@ -41,8 +42,7 @@ class ReportRulesSqlParityTest {
 
     @BeforeAll
     static void start() throws Exception {
-        container = SqlGoldenHarness.newContainer();
-        container.start();
+        container = SharedPostgres.container();
         harness = new SqlGoldenHarness(container, antlab.support.GoldenFixtureSource.fromEnvironment());
         PsqlScriptRunner runner = harness.runner();
         try (Stream<Path> files = Files.list(Path.of("db"))) {
@@ -61,7 +61,7 @@ class ReportRulesSqlParityTest {
 
     @AfterAll
     static void stop() throws Exception {
-        GoldenCleanup.closeThenStop(harness, container);
+        GoldenCleanup.closeThenStop(harness, null);
     }
 
     private static String literals(String[] values) {

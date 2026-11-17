@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import antlab.common.money.MoneyMath;
 import antlab.season.FeedKind;
 import antlab.support.GoldenCleanup;
+import antlab.support.SharedPostgres;
 import antlab.support.GoldenFixtureSource;
 import antlab.support.PsqlScriptRunner;
 import antlab.support.RowSet;
@@ -55,8 +56,7 @@ class FeedGeneratorSqlParityTest {
 
     @BeforeAll
     static void start() throws Exception {
-        container = SqlGoldenHarness.newContainer();
-        container.start();
+        container = SharedPostgres.container();
         harness = new SqlGoldenHarness(container, GoldenFixtureSource.fromEnvironment());
         PsqlScriptRunner runner = harness.runner();
         for (String file : new String[] {"db/01_schema_history.sql", "db/02_schema_season.sql", "db/24_turn_feed_def.sql",
@@ -86,7 +86,7 @@ class FeedGeneratorSqlParityTest {
 
     @AfterAll
     static void stop() throws Exception {
-        GoldenCleanup.closeThenStop(harness, container);
+        GoldenCleanup.closeThenStop(harness, null);
     }
 
     private static String line(String seq, String kind, String asset, String group, String event, String hidden, String direction,

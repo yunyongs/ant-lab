@@ -3,6 +3,7 @@ package antlab.history;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import antlab.support.GoldenCleanup;
+import antlab.support.SharedPostgres;
 import antlab.support.GoldenFixtureSource;
 import antlab.support.RowSet;
 import antlab.support.SqlGoldenHarness;
@@ -39,14 +40,13 @@ class AttentionCalculatorGoldenTest {
             System.out.println("[sql-golden] 건너뜀 — " + availability.skipMessage());
             return;
         }
-        container = SqlGoldenHarness.newContainer();
-        container.start();
+        container = SharedPostgres.container();
         harness = new SqlGoldenHarness(container, source);
     }
 
     @AfterAll
     static void stop() throws Exception {
-        GoldenCleanup.closeThenStop(harness, container);
+        GoldenCleanup.closeThenStop(harness, null);
     }
 
     @Test

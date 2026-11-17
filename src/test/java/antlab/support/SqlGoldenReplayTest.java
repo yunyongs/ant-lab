@@ -42,14 +42,13 @@ class SqlGoldenReplayTest {
         if (!availability.isComplete()) {
             return;
         }
-        container = SqlGoldenHarness.newContainer();
-        container.start();
+        container = SharedPostgres.container();
         harness = new SqlGoldenHarness(container, source);
     }
 
     @AfterAll
     static void stop() throws Exception {
-        GoldenCleanup.closeThenStop(harness, container);
+        GoldenCleanup.closeThenStop(harness, null);
     }
 
     private static Map<String, RowSet> snapshot(DatabaseHandle db, long seasonId) throws Exception {

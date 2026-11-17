@@ -67,13 +67,6 @@ public final class SqlGoldenHarness implements AutoCloseable {
         this.source = source;
     }
 
-    /** 하네스 전용 일회용 컨테이너 (일반 통합 시험의 공유 컨테이너와 따로 쓴다) */
-    public static PostgreSQLContainer newContainer() {
-        return new PostgreSQLContainer(PostgresTestcontainersConfig.IMAGE)
-                .withEnv("TZ", "Asia/Seoul")
-                .withEnv("PGTZ", "Asia/Seoul");
-    }
-
     public PsqlScriptRunner runner() {
         return runner;
     }

@@ -2,7 +2,7 @@ package antlab.support;
 
 import org.testcontainers.lifecycle.Startable;
 
-/** Golden test teardown: the container is stopped even when the harness cleanup fails. */
+/** Golden test teardown: the container (when a test owns one) is stopped even when the harness cleanup fails. */
 public final class GoldenCleanup {
 
     /** One teardown step that may throw. */
@@ -14,7 +14,7 @@ public final class GoldenCleanup {
     private GoldenCleanup() {
     }
 
-    /** Closes the harness, then stops the container; either argument may be null (setup did not finish). */
+    /** Closes the harness, then stops the container; either argument may be null (setup did not finish, or the container is the JVM-wide {@link SharedPostgres} one that tests never stop). */
     public static void closeThenStop(AutoCloseable harness, Startable container) throws Exception {
         closeThenStop(harness == null ? null : harness::close, container == null ? null : container::stop);
     }
