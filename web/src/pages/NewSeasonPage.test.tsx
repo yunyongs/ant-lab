@@ -2,6 +2,7 @@ import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse, delay } from 'msw';
 import { describe, expect, it } from 'vitest';
+import { SEASON_START_DISCLOSURE } from '../features/feed/feedMessages.ts';
 import { problem } from '../test/authHandlers.ts';
 import { seasonFixture } from '../test/fixtures/seasons.ts';
 import { renderRoute } from '../test/renderWithProviders.tsx';
@@ -50,6 +51,11 @@ describe('NewSeasonPage', () => {
     expect(screen.getByText('합계 100 / 100')).toBeInTheDocument();
     expect(screen.getByRole('radio', { name: '12턴' })).toBeChecked();
     expect(startButton()).toBeDisabled();
+  });
+
+  it('shows the fixed disclosure sentence once on the form', () => {
+    renderRoute('/seasons/new');
+    expect(screen.getAllByText(SEASON_START_DISCLOSURE)).toHaveLength(1);
   });
 
   it('enables submit once a risk limit is chosen', async () => {

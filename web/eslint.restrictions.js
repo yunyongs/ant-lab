@@ -1,5 +1,9 @@
 const MONEY =
   'Money values are decimal strings and must not be parsed into floating-point numbers; show the server string as is.';
+const HTML =
+  'Server text is untrusted: render it as a text child, never as raw HTML.';
+const REVIEW =
+  'Review-only labels and reveal text must not reach in-season screens by reuse.';
 const TOKEN =
   'Access tokens live in memory only; browser storage and cookies are not allowed.';
 
@@ -42,5 +46,29 @@ export const restrictionRules = {
       selector: "CallExpression > Identifier.arguments[name='Number']",
       message: MONEY,
     },
+    {
+      selector: "JSXAttribute[name.name='dangerouslySetInnerHTML']",
+      message: HTML,
+    },
+    {
+      selector: "Property[key.name='dangerouslySetInnerHTML']",
+      message: HTML,
+    },
   ],
 };
+
+// In-season screens (feed, ranking) must not import the review folder.
+/** @type {import('eslint').Linter.Config[]} */
+export const importRestrictions = [
+  {
+    files: ['src/features/feed/**', 'src/features/ranking/**'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [{ group: ['**/review', '**/review/**'], message: REVIEW }],
+        },
+      ],
+    },
+  },
+];

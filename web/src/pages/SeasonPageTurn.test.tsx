@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { describe, expect, it } from 'vitest';
 import { expectNoDatePattern } from '../test/expectNoDatePattern.ts';
+import { feedOfTurn } from '../test/fixtures/feed.ts';
 import { poisoned, turnResultFixture } from '../test/fixtures/turns.ts';
 import { renderRoute } from '../test/renderWithProviders.tsx';
 import { failWithProblem, gate, serveTurnWorld } from '../test/serveTurns.ts';
@@ -221,6 +222,16 @@ describe('turn advance on the now page', () => {
       );
     });
     expect(view.queryClient.getQueryData(['turn', 7, 5])).toBeDefined();
+  });
+
+  it('shows a non-empty feed without a date and without any identifier of its items', async () => {
+    const world = serveTurnWorld({ current: 4 });
+    world.feed = (turnNo) => feedOfTurn(turnNo);
+    const { container } = renderRoute('/seasons/7');
+    await screen.findByRole('heading', { name: '4턴 결과' });
+    const region = await screen.findByRole('region', { name: '소식' });
+    expect(within(region).getAllByRole('listitem')).toHaveLength(3);
+    expectNoDatePattern(container);
   });
 
   it('shows nothing from a payload that carries a date, block or seed', async () => {

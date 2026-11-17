@@ -1,6 +1,7 @@
-import { screen } from '@testing-library/react';
+import { screen, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { expectNoDatePattern } from '../../test/expectNoDatePattern.ts';
+import { feedOfTurn } from '../../test/fixtures/feed.ts';
 import { renderRoute } from '../../test/renderWithProviders.tsx';
 import { serveTurnWorld } from '../../test/serveTurns.ts';
 
@@ -30,6 +31,17 @@ describe('FinishedView', () => {
     );
     expect(screen.queryByRole('button', { name: /턴/ })).toBeNull();
     expect(world.turnGets).toEqual([12]);
+    expectNoDatePattern(container);
+  });
+
+  it('lists the last turn feed read-only', async () => {
+    const world = serveTurnWorld({ current: 12 });
+    world.status = 'FINISHED';
+    world.feed = (turnNo) => feedOfTurn(turnNo);
+    const { container } = renderRoute('/seasons/7');
+    const region = await screen.findByRole('region', { name: '소식' });
+    expect(within(region).getAllByRole('listitem')).toHaveLength(3);
+    expect(screen.queryByRole('button', { name: /매수|매도/ })).toBeNull();
     expectNoDatePattern(container);
   });
 });

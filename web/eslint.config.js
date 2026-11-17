@@ -4,7 +4,7 @@ import reactHooks from 'eslint-plugin-react-hooks';
 import reactRefresh from 'eslint-plugin-react-refresh';
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
-import { restrictionRules } from './eslint.restrictions.js';
+import { importRestrictions, restrictionRules } from './eslint.restrictions.js';
 
 export default tseslint.config(
   {
@@ -41,5 +41,6 @@ export default tseslint.config(
     files: ['src/**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}'],
     rules: restrictionRules,
   },
+  ...importRestrictions,
   prettier,
 );
