@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime
 from decimal import Decimal
 from enum import StrEnum
+from operator import itemgetter
 from types import MappingProxyType
 
 import numpy as np
@@ -79,11 +80,35 @@ class TermStatus(StrEnum):
     DEGENERATE = "DEGENERATE"
 
 
+class Direction(StrEnum):
+    UP = "UP"
+    DOWN = "DOWN"
+    NEUTRAL = "NEUTRAL"  # display only: inside the dead band
+
+
+class Pool(StrEnum):
+    """Regime pool: P1 rate down / growth down, P2 down / up, P3 up / up, P4 up / down."""
+
+    P1 = "P1"
+    P2 = "P2"
+    P3 = "P3"
+    P4 = "P4"
+
+
+class Phase(StrEnum):
+    WATCH = "WATCH"
+    ALERT = "ALERT"
+    TRANSITION = "TRANSITION"
+    CONVICTION = "CONVICTION"
+
+
 @dataclass(frozen=True, slots=True)
 class SeriesSpec:
     frequency: Frequency
     market: Market  # business-day calendar of the stale rule
-    revisable: bool = False  # each vintage is its own observation
+    # each vintage is its own observation; the Korean monthly series are revisable too, because
+    # the system snapshots every collection (MACRO_ETF §2.8)
+    revisable: bool = False
     kr_lag_days: int | None = None  # publication lag after the reference month end
     stale_exempt: bool = False  # published only when it changes
     weekly_publication: bool = False  # daily values published once a week
@@ -94,12 +119,12 @@ _SPECS = {
     SeriesCode.US_CPILFESL: SeriesSpec(Frequency.MONTHLY, Market.US, revisable=True),
     SeriesCode.KR_KTB3Y: SeriesSpec(Frequency.DAILY, Market.KR),
     SeriesCode.KR_BASE_RATE: SeriesSpec(Frequency.DAILY, Market.KR, stale_exempt=True),
-    SeriesCode.KR_CPI: SeriesSpec(Frequency.MONTHLY, Market.KR, kr_lag_days=7),
+    SeriesCode.KR_CPI: SeriesSpec(Frequency.MONTHLY, Market.KR, revisable=True, kr_lag_days=7),
     SeriesCode.US_ICSA: SeriesSpec(Frequency.WEEKLY, Market.US, revisable=True),
     SeriesCode.US_SAHM: SeriesSpec(Frequency.MONTHLY, Market.US),
     SeriesCode.US_T10Y3M: SeriesSpec(Frequency.DAILY, Market.US),
-    SeriesCode.KR_CLI: SeriesSpec(Frequency.MONTHLY, Market.KR, kr_lag_days=35),
-    SeriesCode.KR_EXPORTS: SeriesSpec(Frequency.MONTHLY, Market.KR, kr_lag_days=15),
+    SeriesCode.KR_CLI: SeriesSpec(Frequency.MONTHLY, Market.KR, revisable=True, kr_lag_days=35),
+    SeriesCode.KR_EXPORTS: SeriesSpec(Frequency.MONTHLY, Market.KR, revisable=True, kr_lag_days=15),
     SeriesCode.KR_USDKRW: SeriesSpec(Frequency.DAILY, Market.KR),
     SeriesCode.US_DTWEXBGS: SeriesSpec(Frequency.DAILY, Market.US, weekly_publication=True),
     SeriesCode.US_VIX: SeriesSpec(Frequency.DAILY, Market.US),
@@ -156,16 +181,35 @@ class SeriesView:
         return len(self.ref_dates)
 
 
+def take_dates(dates: tuple[date, ...], index: np.ndarray) -> tuple[date, ...]:
+    """`dates` at the strictly ascending positions in `index`, without a Python-level loop."""
+    if len(index) == 0:
+        return ()
+    if index[-1] == len(index) - 1:  # strictly ascending, so this is a prefix
+        return dates[: len(index)]
+    picked = itemgetter(*index.tolist())(dates)
+    return picked if len(index) > 1 else (picked,)
+
+
 @dataclass(frozen=True, slots=True, eq=False)
 class Transformed:
-    """A transformed series aligned to `ref_dates`; NaN marks a point that cannot be computed."""
+    """A transformed series aligned to `ref_dates`; NaN marks a point that cannot be computed.
+
+    `ordinals` (the proleptic Gregorian ordinals of `ref_dates`) are filled in when omitted.
+    """
 
     ref_dates: tuple[date, ...] = field(repr=False)
     values: np.ndarray = field(repr=False)
+    ordinals: np.ndarray | None = field(default=None, repr=False)
 
     def __post_init__(self) -> None:
         if self.values.ndim != 1 or len(self.values) != len(self.ref_dates):
             raise InvalidArgument("a transformed series needs one value per reference date")
+        if self.ordinals is None:
+            computed = np.array([d.toordinal() for d in self.ref_dates], dtype=np.int64)
+            object.__setattr__(self, "ordinals", computed)
+        elif self.ordinals.shape != self.values.shape:
+            raise InvalidArgument("a transformed series needs one ordinal per reference date")
 
 
 @dataclass(frozen=True, slots=True)
