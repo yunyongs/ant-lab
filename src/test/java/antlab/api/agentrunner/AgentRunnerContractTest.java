@@ -129,6 +129,8 @@ class AgentRunnerContractTest {
     @Test
     void framework_errors_are_listed_too() throws Exception {
         JsonNode doc = contract();
+        // a request the security firewall rejects (answered by ProblemRequestRejectedHandler, see FirewallRejectionTest)
+        assertThat(ContractErrorCodes.isListed(doc, "POST " + AGENTS, 400, "MALFORMED_REQUEST")).isTrue();
         var wrongMethod = mvc.get().uri(AGENTS).header(HEADER, TOKEN).requestAttr(ANONYMOUS, true).exchange()
                 .getResponse();
         assertThat(wrongMethod.getStatus()).isEqualTo(405);

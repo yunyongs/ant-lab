@@ -6,8 +6,9 @@ info:
     Internal contract between the agent runner service and the API. It is not part of the public API description (docs/api/openapi.yaml) and the proxy never routes /internal/** to the outside. Every request carries the service token in the X-Antlab-Runner-Token header; a human access token is never read on these paths. Operations under /agents/{agentId} act for that agent, which must belong to the owner the API is configured with.
 
     에이전트 러너와 API 사이의 내부 계약이다. 공개 API 명세(docs/api/openapi.yaml)에 넣지 않으며, 프록시는 /internal/** 을 바깥으로 연결하지 않는다. 모든 요청은 X-Antlab-Runner-Token 헤더에 서비스 토큰을 싣고, 사람의 접근 토큰은 이 경로에서 읽지 않는다. /agents/{agentId} 아래 연산은 그 에이전트를 대신해 일하며, 에이전트는 API 설정의 소유자에게 속해야 한다.
-# Errors raised by the framework for any operation. They are not repeated per operation. / 프레임워크가 모든 연산에 공통으로 내는 오류. 연산마다 적지 않는다.
+# Errors raised by the framework for any operation (a request the security firewall rejects, wrong method, unsupported Accept or Content-Type). They are not repeated per operation. / 프레임워크가 모든 연산에 공통으로 내는 오류(보안 방화벽이 거절한 요청, 메서드·Accept·Content-Type). 연산마다 적지 않는다.
 x-framework-errors:
+  '400': [MALFORMED_REQUEST]
   '405': [METHOD_NOT_ALLOWED]
   '406': [NOT_ACCEPTABLE]
   '415': [UNSUPPORTED_MEDIA_TYPE]
