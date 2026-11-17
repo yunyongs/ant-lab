@@ -9,6 +9,10 @@ import antlab.common.error.ErrorCode;
  * of the decision contract.
  */
 public enum OrderRejection {
+    /** BENCH is reserved: no bench screen or API exists yet, so every request that names it is refused. */
+    SOURCE_NOT_ALLOWED(ErrorCode.INVALID_ARGUMENT, "이 출발점은 쓸 수 없다"),
+    /** One reason for every "not shown" case (future turn, unknown, other season, kind or asset mismatch, not on the board). */
+    SOURCE_NOT_VISIBLE(ErrorCode.SOURCE_NOT_VISIBLE, "화면에 보인 항목에서 시작한 주문이 아니다"),
     ASSET_NOT_IN_POOL(ErrorCode.ASSET_NOT_IN_POOL, "이 턴의 풀에 없는 종목이다"),
     QUANTITY_INVALID(ErrorCode.INVALID_ARGUMENT, "수량은 1 이상이어야 한다"),
     POSITION_ON_SELL(ErrorCode.INVALID_ARGUMENT, "매도에는 선언 포지션을 보내지 않는다"),

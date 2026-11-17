@@ -129,6 +129,9 @@ jobs:
         run: |
           [ "$(docker image inspect --format '{{.Architecture}}' antlab-api:ci)" = arm64 ]
           [ "$(docker image inspect --format '{{.Config.User}}' antlab-api:ci)" = 10001:10001 ]
+      # The feed templates are read at start-up only; a missing or stale file would pass the build and fail the boot.
+      - name: Image holds the feed files of the repository
+        run: scripts/image_feed_check.sh antlab-api:ci
       # Hand-off to job smoke (retention one day). The image holds no secret: the signing key is a run-time value only.
       - name: Save the image for the runtime smoke
         run: docker save --output api-image.tar antlab-api:ci

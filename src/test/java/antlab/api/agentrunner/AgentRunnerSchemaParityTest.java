@@ -112,7 +112,7 @@ class AgentRunnerSchemaParityTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"SeasonDto", "FormationDto", "TurnResultDto", "HoldingsDto", "HoldingDto", "TurnPricesDto",
-            "TurnPriceDto", "PoolAssetDto"})
+            "TurnPriceDto", "PoolAssetDto", "FeedItemDto"})
     void the_shared_schemas_equal_the_public_ones(String schema) throws Exception {
         JsonNode runnerSchemas = schemas(RUNNER);
         JsonNode openSchemas = schemas(PUBLIC);

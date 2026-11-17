@@ -7,7 +7,10 @@ import antlab.season.SeedGenerator;
 import antlab.support.E2eHttp;
 import antlab.support.E2eHttp.Reply;
 import antlab.support.PostgresTestcontainersConfig;
+import antlab.support.PsqlScriptRunner;
 import java.math.BigDecimal;
+import java.nio.file.Path;
+import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -33,6 +36,7 @@ import org.springframework.core.io.ClassPathResource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
 import org.springframework.test.context.ActiveProfiles;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 import tools.jackson.databind.JsonNode;
 
 /**
@@ -84,6 +88,8 @@ class SyntheticSeasonE2ETest {
     JdbcTemplate jdbc;
     @Autowired
     DataSource dataSource;
+    @Autowired
+    PostgreSQLContainer container;
 
     private E2eHttp http;
     private long season;
@@ -214,6 +220,17 @@ class SyntheticSeasonE2ETest {
         List<Long> changeIds = jdbc.queryForList("SELECT id FROM formation_change WHERE season_id = ?", Long.class, season);
         assertThat(changeIds).as("the season's single formation change").hasSize(1);
         assertThat(buy.json().get("formationChangeId").asLong()).isEqualTo(changeIds.get(0));
+
+        // An order that starts from a feed item shown at turn 5 or before: an event card names no asset, so any held asset fits.
+        Map<String, Object> shown = jdbc.queryForMap("SELECT turn_no, seq FROM turn_feed WHERE season_id = ? AND turn_no <= 5"
+                + " AND asset_id IS NULL ORDER BY turn_no DESC, seq LIMIT 1", season);
+        String fed = "{\"expectedTurnNo\": 5, \"side\": \"BUY\", \"assetId\": " + assetId.get("ZZ0001") + ", \"quantity\": 1,"
+                + " \"source\": {\"kind\": \"FEED\", \"feedTurnNo\": " + shown.get("turn_no") + ", \"feedSeq\": " + shown.get("seq")
+                + "}}";
+        Reply fedBuy = http.post(url("/orders"), fed);
+        assertThat(fedBuy.status()).as(fedBuy.body()).isEqualTo(201);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM orders WHERE season_id = ? AND source = 'FEED' AND turn_feed_id IS NOT NULL",
+                Long.class, season)).isEqualTo(1);
     }
 
     @Test
@@ -236,6 +253,7 @@ class SyntheticSeasonE2ETest {
         assertThat(report.status()).as(report.body()).isEqualTo(200);
         JsonNode r = report.json();
         assertThat(r.get("isFinal").asBoolean()).isTrue();
+        assertThat(money(r.get("nudgeShare"))).as("the FEED order counts as encouraged, with no UPDATE of orders").isPositive();
         assertThat(r.get("formationChanges").asInt()).isEqualTo(1);
         assertThat(money(r.get("initialCash"))).isEqualByComparingTo("30000000");
         for (String key : ReportApiSupport.MONEY) {
@@ -313,6 +331,36 @@ class SyntheticSeasonE2ETest {
         assertThat(events).isPositive();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM turn_feed WHERE season_id = ? AND kind = 'EVENT'", Long.class, season))
                 .isEqualTo(events);
+    }
+
+    /**
+     * Java reader + generator = SQL on the very database the API wrote: the SQL reference ({@code db/24_turn_feed_def.sql}) runs in
+     * a psql session inside the same container and {@code tf_regen_matches} must hold for every turn. Nothing is written; the
+     * definitions live in the session only. It is not vacuous: stored rows must exist and at least one turn must have rows.
+     */
+    @Test
+    @Order(11)
+    @Timeout(value = 3, unit = TimeUnit.MINUTES)
+    void 저장된_피드는_SQL_기준_생성기가_같은_입력으로_다시_만든_것과_턴마다_같다() throws Exception {
+        PsqlScriptRunner runner = new PsqlScriptRunner(container);
+        for (String file : new String[] {"db/24_turn_feed_def.sql", "feed/templates.csv", "feed/variables.csv"}) {
+            runner.putFile(file, Path.of(file));
+        }
+        String query = "SELECT count(*) AS turns, count(*) FILTER (WHERE m IS TRUE) AS matched,"
+                + " count(*) FILTER (WHERE n > 0) AS turns_with_rows, coalesce(sum(n), 0) AS stored_rows FROM ("
+                + "SELECT pg_temp.tf_regen_matches(" + season + ", t::smallint) AS m, (SELECT count(*) FROM turn_feed"
+                + " WHERE season_id = " + season + " AND turn_no = t) AS n FROM generate_series(1, " + TURNS + ") AS t) x";
+        PsqlScriptRunner.Result result = runner.runDefinitionQuery(container.getDatabaseName(), "db/24_turn_feed_def.sql", query,
+                Duration.ofMinutes(2));
+        assertThat(result.exitCode()).as(result.stderr()).isZero();
+        String[] row = result.stdout().strip().split("\\R")[1].split(",");
+        assertThat(Integer.parseInt(row[0])).as("turns compared").isEqualTo(TURNS);
+        assertThat(Integer.parseInt(row[1])).as("turns where stored = regenerated").isEqualTo(TURNS);
+        assertThat(Integer.parseInt(row[2])).as("turns with at least one stored row").isPositive();
+        assertThat(Integer.parseInt(row[3])).as("stored rows").isEqualTo(jdbc.queryForObject(
+                "SELECT count(*) FROM turn_feed WHERE season_id = ?", Integer.class, season));
+        System.out.println("[sql-parity] e2e season turns=" + row[0] + " matched=" + row[1] + " turnsWithRows=" + row[2]
+                + " storedRows=" + row[3]);
     }
 
     // ---------------------------------------------------------------- helpers

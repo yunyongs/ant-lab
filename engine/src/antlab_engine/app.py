@@ -2,7 +2,7 @@ from threading import BoundedSemaphore
 
 from fastapi import FastAPI
 
-from .api import health, info, paths, projections
+from .api import health, info, paths, percentiles, projections
 from .errors import register_handlers
 from .history.model import HistoryReader
 from .history.reader import PostgresHistoryReader
@@ -29,6 +29,7 @@ def create_app(
     app.include_router(info.router)
     app.include_router(paths.router)
     app.include_router(projections.router)
+    app.include_router(percentiles.router)
     register_handlers(app)
     app.openapi = lambda: build_openapi(app)  # type: ignore[method-assign]
     return app

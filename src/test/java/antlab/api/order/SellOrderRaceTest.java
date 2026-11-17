@@ -138,7 +138,7 @@ class SellOrderRaceTest {
         buyTeam(mvc, jdbc, season);
 
         MockHttpServletResponse turn = holdWhileWaiting(
-                () -> orderService.place(season, new PlaceOrderRequest(0, OrderSide.SELL, assetId(jdbc, "000660"), 10, null)),
+                () -> orderService.place(season, new PlaceOrderRequest(0, OrderSide.SELL, assetId(jdbc, "000660"), 10, null, null)),
                 () -> advance(mvc, season, 0));
 
         assertThat(turn.getStatus()).isEqualTo(201);
