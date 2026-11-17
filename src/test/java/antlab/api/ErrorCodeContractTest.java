@@ -56,12 +56,22 @@ class ErrorCodeContractTest {
     }
 
     @Test
-    void AGENT_RETIRED는_공개_계약에_없고_러너_계약에만_있다() throws IOException {
-        assertThat(Files.readString(Path.of("docs/api/openapi.yaml"))).doesNotContain("AGENT_RETIRED");
-        assertThat(ContractErrorCodes.violations(contract())).containsExactly(
-                "ErrorCode AGENT_RETIRED is not listed in any x-error-codes or x-framework-errors");
-        assertThat(ContractErrorCodes.perOperation(runnerContract()).get("POST /internal/agent-runner/v1/agents/{agentId}/seasons")
-                .get(409)).contains("AGENT_RETIRED");
+    void 러너_전용_코드는_공개_계약에_없고_러너_계약에만_있다() throws IOException {
+        String publicContract = Files.readString(Path.of("docs/api/openapi.yaml"));
+        for (String code : antlab.api.config.OpenApiConfig.RUNNER_ONLY_CODES) {
+            assertThat(publicContract).as(code).doesNotContain(code);
+        }
+        assertThat(ContractErrorCodes.violations(contract())).containsExactlyInAnyOrderElementsOf(
+                antlab.api.config.OpenApiConfig.RUNNER_ONLY_CODES.stream()
+                        .map(code -> "ErrorCode " + code + " is not listed in any x-error-codes or x-framework-errors")
+                        .toList());
+        var runner = ContractErrorCodes.perOperation(runnerContract());
+        assertThat(runner.get("POST /internal/agent-runner/v1/agents/{agentId}/seasons").get(409))
+                .contains("AGENT_RETIRED");
+        assertThat(runner.get("POST /internal/agent-runner/v1/agents/{agentId}/seasons/{seasonId}/turns/{turnNo}/decision")
+                .get(409)).contains("DECISION_CONFLICT");
+        assertThat(runner.get("POST /internal/agent-runner/v1/agents/{agentId}/seasons/{seasonId}/turns").get(409))
+                .contains("DECISION_MISSING");
     }
 
     @Test
