@@ -3,9 +3,13 @@ package antlab.api.agentrunner;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import antlab.agent.AgentDto;
+import antlab.agent.AgentPartDto;
 import antlab.agent.AgentSeasonConfigRequest;
+import antlab.agent.RecentTradeDto;
 import antlab.agent.RegisterAgentRequest;
+import antlab.agent.RejectDto;
 import antlab.agent.StartAgentSeasonRequest;
+import antlab.agent.AgentTurnViewDto;
 import antlab.api.config.OpenApiConfig;
 import antlab.common.error.ErrorCode;
 import antlab.support.OpenApiNormalizer;
@@ -92,10 +96,15 @@ class AgentRunnerSchemaParityTest {
         assertSchemaMatches("AgentDto", AgentDto.class);
         assertSchemaMatches("StartAgentSeasonRequest", StartAgentSeasonRequest.class);
         assertSchemaMatches("AgentSeasonConfig", AgentSeasonConfigRequest.class);
+        assertSchemaMatches("AgentTurnViewDto", AgentTurnViewDto.class);
+        assertSchemaMatches("AgentPartDto", AgentPartDto.class);
+        assertSchemaMatches("RecentTradeDto", RecentTradeDto.class);
+        assertSchemaMatches("RejectDto", RejectDto.class);
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"SeasonDto", "FormationDto"})
+    @ValueSource(strings = {"SeasonDto", "FormationDto", "TurnResultDto", "HoldingsDto", "HoldingDto", "TurnPricesDto",
+            "TurnPriceDto", "PoolAssetDto"})
     void the_shared_schemas_equal_the_public_ones(String schema) throws Exception {
         JsonNode runnerSchemas = schemas(RUNNER);
         JsonNode openSchemas = schemas(PUBLIC);
@@ -126,5 +135,31 @@ class AgentRunnerSchemaParityTest {
         runnerOnly.removeAll(open);
         assertThat(OpenApiConfig.RUNNER_ONLY_CODES).isEqualTo(runnerOnly);
         assertThat(open).doesNotContainAnyElementsOf(OpenApiConfig.RUNNER_ONLY_CODES);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"AgentTurnViewDto", "AgentPartDto", "RecentTradeDto", "RejectDto"})
+    void every_component_of_an_agent_response_schema_is_required(String schema) throws Exception {
+        Class<? extends Record> type = switch (schema) {
+            case "AgentTurnViewDto" -> AgentTurnViewDto.class;
+            case "AgentPartDto" -> AgentPartDto.class;
+            case "RecentTradeDto" -> RecentTradeDto.class;
+            default -> RejectDto.class;
+        };
+        assertThat(names(schemas(RUNNER).path(schema).path("required"))).isEqualTo(components(type));
+    }
+
+    @Test
+    void the_nullable_parts_and_the_pool_errors_of_the_turn_view_are_written_down() throws Exception {
+        JsonNode s = schemas(RUNNER);
+        assertThat(s.path("AgentTurnViewDto").path("properties").path("lastTurn").path("oneOf"))
+                .isEqualTo(OpenApiNormalizer.fromYaml("t: [{$ref: '#/components/schemas/TurnResultDto'}, {type: 'null'}]").path("t"));
+        assertThat(s.path("AgentPartDto").path("properties").path("memory").path("type").asString()).isEqualTo("null");
+        assertThat(s.path("RejectDto").path("properties").path("index").path("type"))
+                .isEqualTo(OpenApiNormalizer.fromYaml("t: [integer, 'null']").path("t"));
+        JsonNode doc = OpenApiNormalizer.fromYaml(Files.readString(RUNNER));
+        JsonNode codes = doc.path("paths").path("/internal/agent-runner/v1/agents/{agentId}/seasons/{seasonId}/turn-view")
+                .path("get").path("responses").path("409").path("x-error-codes");
+        assertThat(names(codes)).containsExactlyInAnyOrder("POOL_NOT_LOADED", "POOL_NOT_JUDGED");
     }
 }
