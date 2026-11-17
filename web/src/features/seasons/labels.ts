@@ -22,6 +22,15 @@ export function headerSeasonLine(season: Season): string {
   return `시즌 ${String(season.id)} · ${String(season.currentTurnNo)}/${String(season.pathLength)}턴 · ${statusLabel(season)}`;
 }
 
+// Server fields only: the web never works out "not started" itself.
+export function abandonText(
+  season: Pick<Season, 'abandonedTurnNo' | 'notStarted'>,
+): string | null {
+  if (season.abandonedTurnNo === null) return null;
+  const base = `${String(season.abandonedTurnNo)}턴에서 포기`;
+  return season.notStarted ? `${base} · 미시작` : base;
+}
+
 export function formationText(formation: Formation): string {
   return `골키퍼 ${String(formation.goalkeeper)} · 수비수 ${String(formation.defender)} · 미드필더 ${String(formation.midfielder)} · 공격수 ${String(formation.forward)}`;
 }
