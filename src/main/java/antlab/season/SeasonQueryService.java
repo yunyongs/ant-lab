@@ -5,6 +5,8 @@ import antlab.account.CashAccountRepository;
 import antlab.common.error.DomainException;
 import antlab.common.error.ErrorCode;
 import antlab.member.CurrentMember;
+import antlab.member.MemberKind;
+import antlab.member.MemberRepository;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.stereotype.Service;
@@ -18,13 +20,15 @@ public class SeasonQueryService {
     private final SeasonRepository seasons;
     private final CashAccountRepository accounts;
     private final TurnPriceRepository turnPrices;
+    private final MemberRepository members;
 
     public SeasonQueryService(CurrentMember currentMember, SeasonRepository seasons, CashAccountRepository accounts,
-            TurnPriceRepository turnPrices) {
+            TurnPriceRepository turnPrices, MemberRepository members) {
         this.currentMember = currentMember;
         this.seasons = seasons;
         this.accounts = accounts;
         this.turnPrices = turnPrices;
+        this.members = members;
     }
 
     @Transactional(readOnly = true)
@@ -33,8 +37,9 @@ public class SeasonQueryService {
         if (memberId.isEmpty()) {
             return new SeasonListDto(List.of());
         }
+        MemberKind kind = kindOf(memberId.get());
         return new SeasonListDto(seasons.findWithBalanceByMemberId(memberId.get()).stream()
-                .map(r -> SeasonDto.from(r.season(), r.balance())).toList());
+                .map(r -> SeasonDto.from(r.season(), r.balance(), kind)).toList());
     }
 
     @Transactional(readOnly = true)
@@ -42,7 +47,12 @@ public class SeasonQueryService {
         Season season = find(seasonId);
         CashAccount account = accounts.findById(season.getId())
                 .orElseThrow(() -> new IllegalStateException("시즌에 현금 계좌가 없다"));
-        return SeasonDto.from(season, account.getBalance());
+        return SeasonDto.from(season, account.getBalance(), kindOf(season.getMemberId()));
+    }
+
+    /** One read per request, never per row: the kind decides the derived notStarted flag. */
+    private MemberKind kindOf(long memberId) {
+        return members.existsByIdAndKind(memberId, MemberKind.AGENT) ? MemberKind.AGENT : MemberKind.HUMAN;
     }
 
     /** turnNo 를 생략하면 현재 턴. 아직 진행하지 않은 턴은 409. */

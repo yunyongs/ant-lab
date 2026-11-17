@@ -157,6 +157,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/seasons/{seasonId}/abandon": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Abandon a season / 시즌 포기
+         * @description Marks the season as abandoned at the current turn, then runs the remaining turns with no trades through the normal turn path, one transaction per turn, until the season is finished or the per-request turn cap is reached. The same request continues an abandon that stopped midway: repeat it while the status is ABANDONING. A repeat on a finished abandoned season answers 200 and changes nothing. notStarted is true for a human member who abandoned before turn 3.
+         *
+         *     시즌을 현재 턴에서 포기로 표시하고, 남은 턴을 거래 없이 보통의 턴 전환 경로로 턴마다 한 트랜잭션씩 시즌이 끝나거나 요청당 턴 상한에 닿을 때까지 진행한다. 중간에 멈춘 포기는 같은 요청으로 이어 간다 — 상태가 ABANDONING 이면 반복한다. 이미 끝난 포기 시즌에 반복하면 200 이고 아무것도 바꾸지 않는다. 사람 회원이 3턴 전에 포기하면 notStarted 가 true 다.
+         */
+        post: operations["abandonSeason"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/seasons/{seasonId}/prices": {
         parameters: {
             query?: never;
@@ -618,6 +640,13 @@ export interface components {
              * @description Currency exchange cost rate, 8 decimal places / 환전 비용률, 소수 8자리
              */
             fxSpreadRate: string;
+            /**
+             * Format: int32
+             * @description The turn at which the season was abandoned. null if it was not abandoned / 포기한 턴. 포기하지 않았으면 null
+             */
+            abandonedTurnNo: number | null;
+            /** @description True for a human member who abandoned before turn 3 (derived from the abandon turn and the member kind; not stored) / 사람 회원이 3턴 전에 포기하면 true(포기 턴과 회원 종류에서 계산, 저장하지 않는다) */
+            notStarted: boolean;
         };
         /** @description All seasons of the current member (newest season number first). No paging / 현재 회원의 시즌 전부(시즌 번호 내림차순). 쪽 나누기 없음 */
         SeasonListDto: {
@@ -775,6 +804,59 @@ export interface components {
              * @description The current turn before the advance. 409 if it differs from the season's current turn / 전환 전의 현재 턴. 시즌의 현재 턴과 다르면 409
              */
             expectedTurnNo: number;
+        };
+        /**
+         * @description The current turn the member saw is checked only while the season is in progress
+         *
+         *     회원이 본 현재 턴은 시즌이 진행 중일 때만 확인한다
+         */
+        AbandonSeasonRequest: {
+            /**
+             * Format: int32
+             * @description The current turn the member saw. 409 TURN_MISMATCH if the season is in progress at another turn; ignored when the abandon was already marked (repeat) / 회원이 본 현재 턴. 진행 중인 시즌의 현재 턴과 다르면 409 TURN_MISMATCH, 이미 포기가 표시된 시즌의 반복 요청에서는 무시한다
+             */
+            expectedTurnNo: number;
+        };
+        /**
+         * @description State of the season after this abandon request; repeat the request while the status is ABANDONING
+         *
+         *     이번 포기 요청 뒤 시즌의 상태. 상태가 ABANDONING 이면 같은 요청을 반복한다
+         */
+        AbandonResultDto: {
+            /**
+             * Format: int64
+             * @description Season identifier / 시즌 식별자
+             */
+            seasonId: number;
+            /** @description ABANDONING (more turns remain) or FINISHED / ABANDONING(남은 턴이 있다) 또는 FINISHED */
+            status: components["schemas"]["SeasonStatus"];
+            /**
+             * Format: int32
+             * @description Current turn now / 지금의 현재 턴
+             */
+            currentTurnNo: number;
+            /**
+             * Format: int32
+             * @description Path length (number of turns) / 경로 길이(턴 수)
+             */
+            pathLength: number;
+            /**
+             * Format: int32
+             * @description The turn at which the season was abandoned / 포기한 턴
+             */
+            abandonedTurnNo: number;
+            /** @description True for a human member who abandoned before turn 3 (derived from the abandon turn and the member kind) / 사람 회원이 3턴 전에 포기하면 true(포기 턴과 회원 종류에서 계산) */
+            notStarted: boolean;
+            /**
+             * Format: int32
+             * @description Auto turns this request advanced / 이번 요청이 진행한 자동 턴 수
+             */
+            advancedTurns: number;
+            /**
+             * Format: int32
+             * @description Turns still to run: pathLength - currentTurnNo / 남은 턴: pathLength - currentTurnNo
+             */
+            remainingTurns: number;
         };
         /**
          * @description Values of the stored turn row and the ratios computed from them. The advance-turn response and the turn lookup have the same shape. The sum of the four shares can differ from 1 by at most 2e-8, and status and pathLength are the season's values now. targetFormation is the target at the start of that turn. Reconciliation attempt number, status, seed, path, month block, year-month and return kind are not included. feed is the feed stored for that turn.
@@ -1717,6 +1799,65 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             /** @description The season does not exist — NOT_FOUND / 시즌이 없다 — NOT_FOUND */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    abandonSeason: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                seasonId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AbandonSeasonRequest"];
+            };
+        };
+        responses: {
+            /** @description State of the season after this request / 이번 요청 뒤 시즌의 상태 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AbandonResultDto"];
+                };
+            };
+            /** @description The input is invalid — INVALID_ARGUMENT / 입력이 틀렸다 — INVALID_ARGUMENT */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description The season does not exist — NOT_FOUND / 시즌이 없다 — NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /**
+             * @description The season cannot be abandoned now — TURN_MISMATCH (the season is in progress at another turn), SEASON_NOT_ACTIVE (finished without an abandon), SEASON_HALTED (an administrator resumes it first), RECONCILIATION_FAILED (an auto turn mismatched; the mark and the earlier auto turns stay, repeat to continue)
+             *
+             *     지금은 포기할 수 없다 — TURN_MISMATCH(진행 중인 시즌의 현재 턴이 다르다), SEASON_NOT_ACTIVE(포기 없이 끝난 시즌), SEASON_HALTED(관리자가 먼저 재개), RECONCILIATION_FAILED(자동 턴의 대사가 어긋났다. 표시와 앞선 자동 턴은 남고 반복하면 이어 간다)
+             */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

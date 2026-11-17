@@ -27,6 +27,8 @@ export function seasonFixture(overrides: Partial<SeasonDto> = {}): SeasonDto {
     feeRateKr: '0.00015000',
     feeRateUs: '0.00025000',
     fxSpreadRate: '0.00400000',
+    abandonedTurnNo: null,
+    notStarted: false,
     ...overrides,
   };
 }
