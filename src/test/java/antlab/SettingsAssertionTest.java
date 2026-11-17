@@ -28,12 +28,19 @@ class SettingsAssertionTest {
         assertThat(env.getProperty("spring.jpa.open-in-view")).isEqualTo("false");
         assertThat(env.getProperty("spring.jpa.properties.hibernate.jdbc.time_zone")).isEqualTo("Asia/Seoul");
         assertThat(env.getProperty("spring.flyway.enabled")).isEqualTo("true");
-        assertThat(env.getProperty("spring.flyway.locations")).isEqualTo("classpath:db/migration");
+        assertThat(env.getProperty("spring.flyway.locations")).isEqualTo("classpath:db/migration,classpath:db/callback");
         assertThat(env.getProperty("spring.flyway.default-schema")).isEqualTo("public");
         assertThat(env.getProperty("spring.flyway.schemas")).isEqualTo("public");
         assertThat(env.getProperty("spring.flyway.validate-on-migrate")).isEqualTo("true");
         assertThat(env.getProperty("spring.flyway.baseline-on-migrate")).isEqualTo("false");
         assertThat(env.getProperty("spring.flyway.clean-disabled")).isEqualTo("true");
+    }
+
+    @Test
+    void db_privilege_guard_is_off_outside_prod_and_no_prod_only_user_is_set() {
+        assertThat(env.getProperty("antlab.db.least-privilege-check")).isEqualTo("false");
+        assertThat(env.getProperty("spring.flyway.user")).isNull();
+        assertThat(env.getProperty("spring.flyway.password")).isNull();
     }
 
     @Test
