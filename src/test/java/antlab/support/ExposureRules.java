@@ -57,6 +57,19 @@ public final class ExposureRules {
     public static final Set<String> REVIEW_INTERNAL_ALLOWED = Set.of("season.seed", "season.engine_version",
             "season.data_snapshot_date");
 
+    /**
+     * Components that name no column because they are constants of the agent turn view (reply format name, the reserved
+     * memory slot). Any other empty {@code @ExposedFrom} is a violation.
+     */
+    public static final Set<String> CONSTANT_COMPONENTS = Set.of("AgentPartDto.schema", "AgentPartDto.memory");
+
+    /**
+     * The engine's own record of what it rejected in the previous decision: {@code [내부]} in the DB, but the agent is
+     * told the unit, index and code on purpose. Allowed only in the one record that carries nothing else.
+     */
+    public static final String ENGINE_REJECT_SOURCE = "agent_call.rejects";
+    public static final String ENGINE_REJECT_RECORD = "RejectDto";
+
     private ExposureRules() {
     }
 
@@ -108,8 +121,16 @@ public final class ExposureRules {
                 if (nested == null) {
                     out.add(where + " — @ExposedFrom 없음");
                 }
+            } else if (from.value().length == 0) {
+                if (!CONSTANT_COMPONENTS.contains(where)) {
+                    out.add(where + " — @ExposedFrom 에 원천이 없음 (상수 허용 목록에도 없음)");
+                }
             } else {
                 for (String source : from.value()) {
+                    if (source.equals(ENGINE_REJECT_SOURCE) && record.getSimpleName().equals(ENGINE_REJECT_RECORD)
+                            && catalog.has(source)) {
+                        continue;
+                    }
                     out.addAll(checkRestricted(where, source, from.value(), rc.getType(), catalog, finishedSeasonOnly,
                             reviewReveal));
                 }

@@ -36,10 +36,30 @@ class ExposureRulesTest {
         tags.put("season.engine_version", ExposureCatalog.INTERNAL);
         tags.put("season.data_snapshot_date", ExposureCatalog.INTERNAL);
         tags.put("season.base_date", ExposureCatalog.INTERNAL);
+        tags.put("agent_call.rejects", ExposureCatalog.INTERNAL);
+        tags.put("agent_call.request_text", ExposureCatalog.INTERNAL);
         return new ExposureCatalog(tags);
     }
 
     record Good(@ExposedFrom("asset.id") Long id, @ExposedFrom("asset.name") String name) {
+    }
+
+    record RejectDto(@ExposedFrom("agent_call.rejects") String code) {
+    }
+
+    record OtherRecordRejects(@ExposedFrom("agent_call.rejects") String code) {
+    }
+
+    /** Same simple name as the allowed record, with one more source next to the allowed one. */
+    static final class WithText {
+        record RejectDto(@ExposedFrom({"agent_call.rejects", "agent_call.request_text"}) String code) {
+        }
+    }
+
+    record AgentPartDto(@ExposedFrom({}) String schema, @ExposedFrom({}) Object memory) {
+    }
+
+    record OtherEmptySource(@ExposedFrom({}) String leak) {
     }
 
     record InternalSource(@ExposedFrom("asset.currency") String currency) {
@@ -254,5 +274,22 @@ class ExposureRulesTest {
     void 재현_정보_허용_목록은_영구_금지_목록과_식별자_허용_목록과_겹치지_않는다() {
         assertThat(ExposureRules.REVIEW_INTERNAL_ALLOWED).doesNotContainAnyElementsOf(ExposureRules.FORBIDDEN)
                 .doesNotContainAnyElementsOf(ExposureRules.IDENTIFIER_ALLOWED);
+    }
+
+    @Test
+    void the_engine_reject_list_passes_only_in_the_one_record_made_for_it() {
+        assertThat(ExposureRules.check(RejectDto.class, catalog())).isEmpty();
+        assertThat(ExposureRules.check(OtherRecordRejects.class, catalog())).singleElement().asString()
+                .contains("agent_call.rejects").contains("내부");
+        // the allowance covers that one source and nothing next to it
+        assertThat(ExposureRules.check(WithText.RejectDto.class, catalog())).singleElement().asString()
+                .contains("agent_call.request_text");
+    }
+
+    @Test
+    void a_component_without_a_source_column_passes_only_when_it_is_a_named_constant() {
+        assertThat(ExposureRules.check(AgentPartDto.class, catalog())).isEmpty();
+        assertThat(ExposureRules.check(OtherEmptySource.class, catalog())).singleElement().asString()
+                .contains("OtherEmptySource.leak").contains("원천이 없음");
     }
 }

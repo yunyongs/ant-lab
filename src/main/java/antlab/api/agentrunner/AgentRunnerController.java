@@ -4,6 +4,8 @@ import antlab.agent.AgentDto;
 import antlab.agent.AgentRegistration;
 import antlab.agent.AgentRegistrationService;
 import antlab.agent.AgentSeasonService;
+import antlab.agent.AgentTurnViewDto;
+import antlab.agent.AgentTurnViewService;
 import antlab.agent.RegisterAgentRequest;
 import antlab.agent.StartAgentSeasonRequest;
 import antlab.season.SeasonDto;
@@ -12,6 +14,7 @@ import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -29,10 +32,13 @@ public class AgentRunnerController {
 
     private final AgentRegistrationService registrations;
     private final AgentSeasonService seasons;
+    private final AgentTurnViewService turnViews;
 
-    public AgentRunnerController(AgentRegistrationService registrations, AgentSeasonService seasons) {
+    public AgentRunnerController(AgentRegistrationService registrations, AgentSeasonService seasons,
+            AgentTurnViewService turnViews) {
         this.registrations = registrations;
         this.seasons = seasons;
+        this.turnViews = turnViews;
     }
 
     @PostMapping(value = BASE + "/agents", consumes = MediaType.APPLICATION_JSON_VALUE,
@@ -47,5 +53,11 @@ public class AgentRunnerController {
     public ResponseEntity<SeasonDto> startSeason(@PathVariable long agentId,
             @Valid @RequestBody StartAgentSeasonRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(seasons.start(agentId, request));
+    }
+
+    @GetMapping(value = BASE + "/agents/{agentId}/seasons/{seasonId}/turn-view",
+            produces = MediaType.APPLICATION_JSON_VALUE)
+    public AgentTurnViewDto turnView(@PathVariable long agentId, @PathVariable long seasonId) {
+        return turnViews.get(agentId, seasonId);
     }
 }
