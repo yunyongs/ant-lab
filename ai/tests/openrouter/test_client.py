@@ -2,9 +2,13 @@ import email.message
 import io
 import json
 import logging
+import socket
+import threading
+import time
 import types
 import urllib.response
 from decimal import Decimal
+from http.client import HTTPResponse
 from urllib import error, request
 
 import pytest
@@ -539,7 +543,7 @@ class Endless:
     def __init__(self):
         self.total = 0
 
-    def read(self, n=-1):
+    def read1(self, n=-1):
         self.total += n
         return b"x" * n
 
@@ -582,7 +586,7 @@ class Drip:
     def __init__(self, clock):
         self.clock = clock
 
-    def read(self, n=-1):
+    def read1(self, n=-1):
         self.clock[0] += 10
         return b" "
 
@@ -602,6 +606,84 @@ def test_slow_drip_response_hits_the_total_deadline(monkeypatch):
     with pytest.raises(TimeoutError):
         urllib_transport(b"{}", {}, 30)
     assert now[0] <= 40  # stopped within one read of the 30 s deadline
+
+
+class RawDrip:
+    """A real HTTPResponse over a socket pair; a thread sends one byte per `gap` seconds."""
+
+    def __init__(self, total: int, gap: float, chunked: bool = False):
+        self.client, self.server = socket.socketpair()
+        self.client.settimeout(client_module.SOCKET_TIMEOUT_S)
+        head = b"HTTP/1.1 200 OK\r\n"
+        head += (
+            b"Transfer-Encoding: chunked\r\n\r\n"
+            if chunked
+            else (b"Content-Length: %d\r\n\r\n" % total)
+        )
+        self.server.sendall(head)
+        self.total, self.gap, self.chunked = total, gap, chunked
+        self.thread = threading.Thread(target=self._send, daemon=True)
+        self.response = HTTPResponse(self.client)
+        self.response.begin()
+        self.thread.start()
+
+    def _send(self):
+        try:
+            for _ in range(self.total):
+                time.sleep(self.gap)
+                self.server.sendall(b"1\r\n \r\n" if self.chunked else b" ")
+            if self.chunked:
+                self.server.sendall(b"0\r\n\r\n")
+        except OSError:
+            pass
+
+    def close(self):
+        self.client.close()
+        self.server.close()
+        self.thread.join(5)
+
+
+@pytest.mark.parametrize("chunked", [False, True])
+def test_real_socket_drip_is_cut_at_the_total_deadline(chunked):
+    drip = RawDrip(total=40, gap=0.1, chunked=chunked)  # would take about 4 s to finish
+    try:
+        started = time.monotonic()
+        with pytest.raises(TimeoutError):
+            client_module._read_body(drip.response, started + 0.5)
+        assert time.monotonic() - started < 1.5
+    finally:
+        drip.close()
+
+
+def test_real_socket_stall_is_cut_by_the_time_left_not_the_socket_timeout():
+    drip = RawDrip(total=1, gap=3.0)  # silent for 3 s, far under the 15 s socket timeout
+    try:
+        started = time.monotonic()
+        with pytest.raises(TimeoutError):
+            client_module._read_body(drip.response, started + 0.5)
+        assert time.monotonic() - started < 1.5
+    finally:
+        drip.close()
+
+
+def test_real_socket_error_body_is_cut_at_the_total_deadline():
+    drip = RawDrip(total=40, gap=0.1)
+    try:
+        exc = error.HTTPError("https://openrouter.ai/x", 500, "x", {}, drip.response)
+        started = time.monotonic()
+        with pytest.raises(TimeoutError):
+            client_module._read_body(exc, started + 0.5)
+        assert time.monotonic() - started < 1.5
+    finally:
+        drip.close()
+
+
+def test_real_socket_body_within_the_deadline_is_read_whole():
+    drip = RawDrip(total=5, gap=0.01)
+    try:
+        assert client_module._read_body(drip.response, time.monotonic() + 5) == b" " * 5
+    finally:
+        drip.close()
 
 
 def test_slow_drip_is_a_timeout_outcome(tmp_path, clock, monkeypatch):
