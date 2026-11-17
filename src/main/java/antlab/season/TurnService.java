@@ -75,8 +75,19 @@ public class TurnService {
         this.feedWriter = feedWriter;
     }
 
+    /** The member's own turn request: the season must be in progress. */
     @Transactional
     public TurnResultDto advance(long seasonId, int expectedTurnNo) {
+        return advanceBody(seasonId, expectedTurnNo, SeasonStatus.IN_PROGRESS);
+    }
+
+    /** One auto turn of an abandoning season (MVP-14): the same body, the season must be abandoning. */
+    @Transactional
+    public TurnResultDto advanceAbandoned(long seasonId, int expectedTurnNo) {
+        return advanceBody(seasonId, expectedTurnNo, SeasonStatus.ABANDONING);
+    }
+
+    private TurnResultDto advanceBody(long seasonId, int expectedTurnNo, SeasonStatus required) {
         // 1~2. 시즌 — 소유 확인과 잠금을 한 조회로. 상태 검사가 턴 검사보다 앞이다(마지막 턴의 둘째 요청은 SEASON_NOT_ACTIVE).
         long memberId = currentMember.existingId().orElseThrow(TurnService::seasonNotFound);
         Season season = seasons.findByIdAndMemberIdForUpdate(seasonId, memberId)
@@ -84,7 +95,7 @@ public class TurnService {
         if (season.getStatus() == SeasonStatus.HALTED) {
             throw new DomainException(ErrorCode.SEASON_HALTED, "대사가 거듭 맞지 않아 시즌을 멈췄다 — 관리자 확인이 필요하다");
         }
-        if (season.getStatus() != SeasonStatus.IN_PROGRESS) {
+        if (season.getStatus() != required) {
             throw new DomainException(ErrorCode.SEASON_NOT_ACTIVE, "진행 중인 시즌이 아니다");
         }
         if (season.getCurrentTurnNo() != expectedTurnNo) {

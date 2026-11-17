@@ -37,6 +37,7 @@ public final class RoleTestServer {
     private final PostgreSQLContainer container;
 
     private RoleTestServer() {
+        // Own container on purpose: roles and ownership are cluster-wide, so sharing would leak them into other tests.
         container = new PostgreSQLContainer(PostgresTestcontainersConfig.IMAGE).withEnv("TZ", "Asia/Seoul").withEnv("PGTZ", "Asia/Seoul");
         container.start();
     }

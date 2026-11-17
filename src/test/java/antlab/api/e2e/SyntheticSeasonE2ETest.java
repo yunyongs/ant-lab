@@ -46,7 +46,7 @@ import tools.jackson.databind.JsonNode;
  * <p>The client signs up, builds an 8-line team, advances 12 turns (a partial sell and a formation change with a bound buy at
  * turn 5) and reads the report and the review. A few prices and the cash after the first buy are computed by hand below;
  * the reconciliation log must hold 17 MATCH rows for every turn. The steps share one season, so the methods are ordered.
- * The fixture is loaded once and never removed: the context (and its container) is private to this class.
+ * The fixture is loaded once and never removed: the context has its own database in the shared container.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
@@ -350,7 +350,9 @@ class SyntheticSeasonE2ETest {
                 + " count(*) FILTER (WHERE n > 0) AS turns_with_rows, coalesce(sum(n), 0) AS stored_rows FROM ("
                 + "SELECT pg_temp.tf_regen_matches(" + season + ", t::smallint) AS m, (SELECT count(*) FROM turn_feed"
                 + " WHERE season_id = " + season + " AND turn_no = t) AS n FROM generate_series(1, " + TURNS + ") AS t) x";
-        PsqlScriptRunner.Result result = runner.runDefinitionQuery(container.getDatabaseName(), "db/24_turn_feed_def.sql", query,
+        // the API writes to this context's own database, not the container default one
+        String apiDb = jdbc.queryForObject("SELECT current_database()", String.class);
+        PsqlScriptRunner.Result result = runner.runDefinitionQuery(apiDb, "db/24_turn_feed_def.sql", query,
                 Duration.ofMinutes(2));
         assertThat(result.exitCode()).as(result.stderr()).isZero();
         String[] row = result.stdout().strip().split("\\R")[1].split(",");

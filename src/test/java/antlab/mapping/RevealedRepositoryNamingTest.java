@@ -59,8 +59,9 @@ class RevealedRepositoryNamingTest {
     static final Set<String> CALLERS = Set.of("antlab/season/SeasonPathRepository.java", "antlab/season/SeasonReviewService.java",
             "antlab/season/TurnFeedRepository.java", "antlab/account/OrderService.java");
 
-    /** The engine exemption is declared in its repository and called only by the engine path source. */
-    static final Set<String> ENGINE_CALLERS = Set.of("antlab/history/MonthBlockRepository.java", "antlab/engine/BootstrapPathSource.java");
+    /** The engine exemption is declared in its repository and called only by the two path sources (in-process and engine). */
+    static final Set<String> ENGINE_CALLERS = Set.of("antlab/history/MonthBlockRepository.java", "antlab/engine/BootstrapPathSource.java",
+            "antlab/engine/EnginePathSource.java");
 
     @Autowired
     JdbcTemplate jdbc;

@@ -292,3 +292,23 @@ Authorization: Bearer {{token}}
 ###
 GET {{base}}/api/v1/seasons
 Authorization: Bearer {{token}}
+
+### 13. Optional: give up a second season. It starts a new season, abandons it at turn 0 and the remaining turns run with no trades. Repeat the abandon while the status is ABANDONING.
+# 선택: 두 번째 시즌을 포기한다. 새 시즌을 시작해 0턴에서 포기하면 남은 턴이 거래 없이 진행된다. 상태가 ABANDONING 이면 같은 요청을 반복한다.
+# @name second
+POST {{base}}/api/v1/seasons
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "riskLimit": "-0.20",
+  "formation": { "goalkeeper": 10, "defender": 30, "midfielder": 30, "forward": 30 },
+  "pathLength": 12
+}
+
+###
+POST {{base}}/api/v1/seasons/{{second.response.body.$.id}}/abandon
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "expectedTurnNo": 0 }

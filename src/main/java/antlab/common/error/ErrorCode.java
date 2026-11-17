@@ -20,6 +20,8 @@ public enum ErrorCode {
     POOL_NOT_JUDGED,
     /** 요청한 길이의 경로를 만들 수 없다 — 60턴 초과이거나 재생 구간의 달이 모자란다(P0-29). */
     PATH_TOO_LONG,
+    /** The Python engine cannot answer right now (not reachable, too slow, busy, history unavailable); try again later (M2-06). */
+    ENGINE_UNAVAILABLE,
     /** 진행 중인 시즌이 3개라 새로 시작할 수 없다(P0-30). */
     SEASON_LIMIT,
     /** 아직 진행하지 않은 턴이다(P0-30 가격 조회, P0-35). */

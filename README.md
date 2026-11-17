@@ -37,7 +37,7 @@ git clone https://github.com/yunyongs/ant-lab.git && cd ant-lab
 echo "ANTLAB_JWT_SECRET=$(openssl rand -base64 32)" > .env
 
 # 2. Database + API
-docker compose --profile api up -d --build --wait
+docker compose --profile api up -d --build --wait db api
 curl -fsS http://127.0.0.1:8080/readyz          # {"status":"UP"}
 
 # 3. Web app (another terminal)

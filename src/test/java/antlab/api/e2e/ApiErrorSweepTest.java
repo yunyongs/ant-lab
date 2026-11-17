@@ -100,7 +100,7 @@ class ApiErrorSweepTest {
             if (template.endsWith("/auth/login")) {
                 return "{\"email\":\"sweep@example.test\",\"password\":\"correct-horse-battery\"}";
             }
-            if (template.endsWith("/turns")) {
+            if (template.endsWith("/turns") || template.endsWith("/abandon")) {
                 return "{\"expectedTurnNo\": 0}";
             }
             return "{\"riskLimit\": \"-0.20\", \"formation\": {\"goalkeeper\": 10, \"defender\": 30,"

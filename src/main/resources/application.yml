@@ -56,6 +56,9 @@ antlab:
   # Reconciliation stop (MVP-15): the season halts when this many advance attempts of one pending turn fail reconciliation.
   reconciliation:
     halt-after-failures: 3
+  # Season abandon (MVP-14): auto turns one abandon request runs at most (60 = the longest path, so one request finishes a season).
+  abandon:
+    max-turns-per-request: 60
   # Tokens (SEC-03). The signing key has no default in any profile: without it the app does not start.
   # Base64 of at least 32 bytes (openssl rand -base64 32). In prod the file /run/secrets/antlab.auth.jwt-secret also works.
   auth:

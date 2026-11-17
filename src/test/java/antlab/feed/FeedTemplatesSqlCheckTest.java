@@ -3,6 +3,7 @@ package antlab.feed;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import antlab.support.GoldenCleanup;
+import antlab.support.SharedPostgres;
 import antlab.support.GoldenFixtureSource;
 import antlab.support.SqlGoldenHarness;
 import antlab.support.SqlGoldenHarness.DatabaseHandle;
@@ -23,14 +24,13 @@ class FeedTemplatesSqlCheckTest {
 
     @BeforeAll
     static void start() {
-        container = SqlGoldenHarness.newContainer();
-        container.start();
+        container = SharedPostgres.container();
         harness = new SqlGoldenHarness(container, GoldenFixtureSource.fromEnvironment());
     }
 
     @AfterAll
     static void stop() throws Exception {
-        GoldenCleanup.closeThenStop(harness, container);
+        GoldenCleanup.closeThenStop(harness, null);
     }
 
     @Test

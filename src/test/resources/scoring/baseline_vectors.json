@@ -1,0 +1,635 @@
+{
+  "version": "baseline-vectors-v1",
+  "initialCash": 1000000,
+  "feeRates": {
+    "kr": "0.00100000",
+    "us": "0.00200000",
+    "fxSpread": "0.00400000"
+  },
+  "prices": {
+    "KR:AAA": [
+      10000,
+      10500,
+      11000,
+      12000,
+      12500,
+      12000,
+      13000
+    ],
+    "US:BBB": [
+      20000,
+      19000,
+      18000,
+      17000,
+      18000,
+      21000,
+      22000
+    ],
+    "KR:CCC": [
+      50000,
+      50100,
+      50200,
+      50300,
+      50400,
+      50500,
+      50600
+    ]
+  },
+  "baselines": {
+    "MARKET": {
+      "slots": [
+        {
+          "name": "MARKET",
+          "legs": [
+            {
+              "asset": "KR:AAA",
+              "sharePercent": 50
+            },
+            {
+              "asset": "US:BBB",
+              "sharePercent": 50
+            }
+          ]
+        }
+      ],
+      "target": [
+        100
+      ],
+      "switches": [],
+      "bandPercent": null,
+      "expected": {
+        "turnValues": [
+          996630,
+          997130,
+          997630,
+          1022630,
+          1071130,
+          1118630,
+          1191630
+        ],
+        "turnCash": [
+          26630,
+          26630,
+          26630,
+          26630,
+          26630,
+          26630,
+          26630
+        ],
+        "turnQuantities": [
+          {
+            "KR:AAA": 49,
+            "KR:CCC": 0,
+            "US:BBB": 24
+          },
+          {
+            "KR:AAA": 49,
+            "KR:CCC": 0,
+            "US:BBB": 24
+          },
+          {
+            "KR:AAA": 49,
+            "KR:CCC": 0,
+            "US:BBB": 24
+          },
+          {
+            "KR:AAA": 49,
+            "KR:CCC": 0,
+            "US:BBB": 24
+          },
+          {
+            "KR:AAA": 49,
+            "KR:CCC": 0,
+            "US:BBB": 24
+          },
+          {
+            "KR:AAA": 49,
+            "KR:CCC": 0,
+            "US:BBB": 24
+          },
+          {
+            "KR:AAA": 49,
+            "KR:CCC": 0,
+            "US:BBB": 24
+          }
+        ],
+        "fills": [
+          {
+            "turnNo": 0,
+            "side": "BUY",
+            "asset": "KR:AAA",
+            "quantity": 49,
+            "fee": 490,
+            "forced": false
+          },
+          {
+            "turnNo": 0,
+            "side": "BUY",
+            "asset": "US:BBB",
+            "quantity": 24,
+            "fee": 2880,
+            "forced": false
+          }
+        ],
+        "totalFee": 3370,
+        "rebalanceCount": 0,
+        "forcedChangeCount": 0,
+        "forcedChangeFee": 0
+      }
+    },
+    "SIXTY_FORTY": {
+      "slots": [
+        {
+          "name": "EQUITY",
+          "legs": [
+            {
+              "asset": "KR:AAA",
+              "sharePercent": 50
+            },
+            {
+              "asset": "US:BBB",
+              "sharePercent": 50
+            }
+          ]
+        },
+        {
+          "name": "BOND",
+          "legs": [
+            {
+              "asset": "KR:CCC",
+              "sharePercent": 100
+            }
+          ]
+        }
+      ],
+      "target": [
+        60,
+        40
+      ],
+      "switches": [],
+      "bandPercent": 5,
+      "expected": {
+        "turnValues": [
+          997680,
+          998880,
+          1000080,
+          1015780,
+          1045676,
+          1084976,
+          1127776
+        ],
+        "turnCash": [
+          77680,
+          77680,
+          77680,
+          77680,
+          23976,
+          23976,
+          23976
+        ],
+        "turnQuantities": [
+          {
+            "KR:AAA": 29,
+            "KR:CCC": 7,
+            "US:BBB": 14
+          },
+          {
+            "KR:AAA": 29,
+            "KR:CCC": 7,
+            "US:BBB": 14
+          },
+          {
+            "KR:AAA": 29,
+            "KR:CCC": 7,
+            "US:BBB": 14
+          },
+          {
+            "KR:AAA": 29,
+            "KR:CCC": 7,
+            "US:BBB": 14
+          },
+          {
+            "KR:AAA": 25,
+            "KR:CCC": 8,
+            "US:BBB": 17
+          },
+          {
+            "KR:AAA": 25,
+            "KR:CCC": 8,
+            "US:BBB": 17
+          },
+          {
+            "KR:AAA": 25,
+            "KR:CCC": 8,
+            "US:BBB": 17
+          }
+        ],
+        "fills": [
+          {
+            "turnNo": 0,
+            "side": "BUY",
+            "asset": "KR:AAA",
+            "quantity": 29,
+            "fee": 290,
+            "forced": false
+          },
+          {
+            "turnNo": 0,
+            "side": "BUY",
+            "asset": "US:BBB",
+            "quantity": 14,
+            "fee": 1680,
+            "forced": false
+          },
+          {
+            "turnNo": 0,
+            "side": "BUY",
+            "asset": "KR:CCC",
+            "quantity": 7,
+            "fee": 350,
+            "forced": false
+          },
+          {
+            "turnNo": 3,
+            "side": "SELL",
+            "asset": "KR:AAA",
+            "quantity": 4,
+            "fee": 48,
+            "forced": false
+          },
+          {
+            "turnNo": 3,
+            "side": "BUY",
+            "asset": "KR:CCC",
+            "quantity": 1,
+            "fee": 50,
+            "forced": false
+          },
+          {
+            "turnNo": 3,
+            "side": "BUY",
+            "asset": "US:BBB",
+            "quantity": 3,
+            "fee": 306,
+            "forced": false
+          }
+        ],
+        "totalFee": 2724,
+        "rebalanceCount": 1,
+        "forcedChangeCount": 0,
+        "forcedChangeFee": 0
+      }
+    },
+    "FORMATION_FOLLOW": {
+      "slots": [
+        {
+          "name": "GK",
+          "legs": []
+        },
+        {
+          "name": "DF",
+          "legs": [
+            {
+              "asset": "KR:CCC",
+              "sharePercent": 100
+            }
+          ]
+        },
+        {
+          "name": "MF",
+          "legs": [
+            {
+              "asset": "KR:AAA",
+              "sharePercent": 100
+            }
+          ]
+        },
+        {
+          "name": "FW",
+          "legs": [
+            {
+              "asset": "US:BBB",
+              "sharePercent": 100
+            }
+          ]
+        }
+      ],
+      "target": [
+        20,
+        30,
+        30,
+        20
+      ],
+      "switches": [
+        {
+          "turnNo": 3,
+          "target": [
+            40,
+            30,
+            20,
+            10
+          ]
+        },
+        {
+          "turnNo": 5,
+          "target": [
+            38,
+            32,
+            20,
+            10
+          ]
+        }
+      ],
+      "bandPercent": 5,
+      "expected": {
+        "turnValues": [
+          998380,
+          1004380,
+          1008805,
+          1027405,
+          1041965,
+          1052065,
+          1074539
+        ],
+        "turnCash": [
+          278380,
+          278380,
+          219605,
+          219605,
+          419065,
+          419065,
+          439939
+        ],
+        "turnQuantities": [
+          {
+            "KR:AAA": 29,
+            "KR:CCC": 5,
+            "US:BBB": 9
+          },
+          {
+            "KR:AAA": 29,
+            "KR:CCC": 5,
+            "US:BBB": 9
+          },
+          {
+            "KR:AAA": 28,
+            "KR:CCC": 6,
+            "US:BBB": 10
+          },
+          {
+            "KR:AAA": 28,
+            "KR:CCC": 6,
+            "US:BBB": 10
+          },
+          {
+            "KR:AAA": 17,
+            "KR:CCC": 6,
+            "US:BBB": 6
+          },
+          {
+            "KR:AAA": 17,
+            "KR:CCC": 6,
+            "US:BBB": 6
+          },
+          {
+            "KR:AAA": 17,
+            "KR:CCC": 6,
+            "US:BBB": 5
+          }
+        ],
+        "fills": [
+          {
+            "turnNo": 0,
+            "side": "BUY",
+            "asset": "KR:CCC",
+            "quantity": 5,
+            "fee": 250,
+            "forced": false
+          },
+          {
+            "turnNo": 0,
+            "side": "BUY",
+            "asset": "KR:AAA",
+            "quantity": 29,
+            "fee": 290,
+            "forced": false
+          },
+          {
+            "turnNo": 0,
+            "side": "BUY",
+            "asset": "US:BBB",
+            "quantity": 9,
+            "fee": 1080,
+            "forced": false
+          },
+          {
+            "turnNo": 1,
+            "side": "SELL",
+            "asset": "KR:AAA",
+            "quantity": 1,
+            "fee": 11,
+            "forced": false
+          },
+          {
+            "turnNo": 1,
+            "side": "BUY",
+            "asset": "KR:CCC",
+            "quantity": 1,
+            "fee": 50,
+            "forced": false
+          },
+          {
+            "turnNo": 1,
+            "side": "BUY",
+            "asset": "US:BBB",
+            "quantity": 1,
+            "fee": 114,
+            "forced": false
+          },
+          {
+            "turnNo": 3,
+            "side": "SELL",
+            "asset": "KR:AAA",
+            "quantity": 11,
+            "fee": 132,
+            "forced": true
+          },
+          {
+            "turnNo": 3,
+            "side": "SELL",
+            "asset": "US:BBB",
+            "quantity": 4,
+            "fee": 408,
+            "forced": true
+          },
+          {
+            "turnNo": 5,
+            "side": "SELL",
+            "asset": "US:BBB",
+            "quantity": 1,
+            "fee": 126,
+            "forced": true
+          }
+        ],
+        "totalFee": 2461,
+        "rebalanceCount": 3,
+        "forcedChangeCount": 2,
+        "forcedChangeFee": 666
+      }
+    },
+    "FORMATION_FIXED": {
+      "slots": [
+        {
+          "name": "GK",
+          "legs": []
+        },
+        {
+          "name": "DF",
+          "legs": [
+            {
+              "asset": "KR:CCC",
+              "sharePercent": 100
+            }
+          ]
+        },
+        {
+          "name": "MF",
+          "legs": [
+            {
+              "asset": "KR:AAA",
+              "sharePercent": 100
+            }
+          ]
+        },
+        {
+          "name": "FW",
+          "legs": [
+            {
+              "asset": "US:BBB",
+              "sharePercent": 100
+            }
+          ]
+        }
+      ],
+      "target": [
+        20,
+        30,
+        30,
+        20
+      ],
+      "switches": [],
+      "bandPercent": 5,
+      "expected": {
+        "turnValues": [
+          998380,
+          1004380,
+          1008805,
+          1027405,
+          1052005,
+          1068605,
+          1107205
+        ],
+        "turnCash": [
+          278380,
+          278380,
+          219605,
+          219605,
+          219605,
+          219605,
+          219605
+        ],
+        "turnQuantities": [
+          {
+            "KR:AAA": 29,
+            "KR:CCC": 5,
+            "US:BBB": 9
+          },
+          {
+            "KR:AAA": 29,
+            "KR:CCC": 5,
+            "US:BBB": 9
+          },
+          {
+            "KR:AAA": 28,
+            "KR:CCC": 6,
+            "US:BBB": 10
+          },
+          {
+            "KR:AAA": 28,
+            "KR:CCC": 6,
+            "US:BBB": 10
+          },
+          {
+            "KR:AAA": 28,
+            "KR:CCC": 6,
+            "US:BBB": 10
+          },
+          {
+            "KR:AAA": 28,
+            "KR:CCC": 6,
+            "US:BBB": 10
+          },
+          {
+            "KR:AAA": 28,
+            "KR:CCC": 6,
+            "US:BBB": 10
+          }
+        ],
+        "fills": [
+          {
+            "turnNo": 0,
+            "side": "BUY",
+            "asset": "KR:CCC",
+            "quantity": 5,
+            "fee": 250,
+            "forced": false
+          },
+          {
+            "turnNo": 0,
+            "side": "BUY",
+            "asset": "KR:AAA",
+            "quantity": 29,
+            "fee": 290,
+            "forced": false
+          },
+          {
+            "turnNo": 0,
+            "side": "BUY",
+            "asset": "US:BBB",
+            "quantity": 9,
+            "fee": 1080,
+            "forced": false
+          },
+          {
+            "turnNo": 1,
+            "side": "SELL",
+            "asset": "KR:AAA",
+            "quantity": 1,
+            "fee": 11,
+            "forced": false
+          },
+          {
+            "turnNo": 1,
+            "side": "BUY",
+            "asset": "KR:CCC",
+            "quantity": 1,
+            "fee": 50,
+            "forced": false
+          },
+          {
+            "turnNo": 1,
+            "side": "BUY",
+            "asset": "US:BBB",
+            "quantity": 1,
+            "fee": 114,
+            "forced": false
+          }
+        ],
+        "totalFee": 1795,
+        "rebalanceCount": 1,
+        "forcedChangeCount": 0,
+        "forcedChangeFee": 0
+      }
+    }
+  }
+}

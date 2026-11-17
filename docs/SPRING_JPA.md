@@ -21,7 +21,7 @@ src/main/java/antlab/
 ├── history/       월 블록, 종목 월 수익률, 환율, 사건 태그 — 읽기 전용
 ├── season/        시즌, 경로, 턴, 라인업, 전술 변경
 ├── account/       시즌 계좌: 현금, 주문, 체결, 보유, 원장
-├── engine/        Java 단순 부트스트랩(경로 생성 — Phase 0 API, P0-29), 예상 분포(MVP 범위)
+├── engine/        Java 단순 부트스트랩(경로 생성 — Phase 0 API, P0-29), 예상 분포(MVP 범위). `engine/` holds the Java bootstrap (tests and default path source until M2-09), the engine path source (`antlab.engine.path-source=engine`) and the engine client (`antlab.engine.client`). / `engine/`에는 Java 부트스트랩(M2-09까지 시험·기본 경로 출처), 엔진 경로 출처(`antlab.engine.path-source=engine`), 엔진 클라이언트(`antlab.engine.client`)가 있다.
 ├── scoring/       기준 포트폴리오, 성적표, 점수, 대사 로그
 └── api/           REST 컨트롤러, 요청·응답 DTO, 예외 → HTTP 매핑
 ```
@@ -176,12 +176,12 @@ TurnService.advance(seasonId, expectedTurnNo)
  10. season.currentTurnNo += 1; 마지막 턴이면 status = FINISHED 후 성적표 계산(별도 트랜잭션으로 분리해도 됨 — 초안: 같은 트랜잭션)
 ```
 
-Phase 0 API 구현(P0-33)에서는 이 흐름을 `TurnService`가 맡는다. 가격은 `TurnPriceCalculator`, 스냅샷은 `TurnSnapshotCalculator`가 계산한다. 1단계에서는 턴보다 상태를 먼저 검사한다(마지막 턴을 넘긴 뒤의 둘째 요청은 `SEASON_NOT_ACTIVE`, 중간 턴은 `TURN_MISMATCH`). 23 SQL과 다른 점은 두 가지다. ① `ABANDONING` 시즌은 포기 기능(MVP)이 들어올 때까지 거절한다. A `HALTED` season is refused with `SEASON_HALTED` before the status and turn checks. / `HALTED` 시즌은 상태·턴 검사보다 먼저 `SEASON_HALTED`로 거절한다. ② 현금 계좌 행이 없으면 데이터 손상으로 보고 500으로 멈춘다(23은 스냅샷 0행 → 대사 `NO_ACCOUNT`). 대사 불일치가 발생하면 예외 하나로 전부 롤백한다. 롤백 뒤 새 트랜잭션에 17행을 기록하는 일은 `TurnFacade`(P0-34)가 맡는다 — 실패 묶음이 끼어든 성공 묶음보다 뒤 번호를 받을 수 있다. 따라서 턴의 성공 여부는 마지막 시도 번호가 아니라 `turn` 행(= 17행 `MATCH` 묶음)의 존재로 판단한다.
+Phase 0 API 구현(P0-33)에서는 이 흐름을 `TurnService`가 맡는다. 가격은 `TurnPriceCalculator`, 스냅샷은 `TurnSnapshotCalculator`가 계산한다. 1단계에서는 턴보다 상태를 먼저 검사한다(마지막 턴을 넘긴 뒤의 둘째 요청은 `SEASON_NOT_ACTIVE`, 중간 턴은 `TURN_MISMATCH`). 23 SQL과 다른 점은 두 가지다. ① The member's turn request refuses an `ABANDONING` season; only the abandon request advances it (`TurnService.advanceAbandoned`). / 회원의 턴 요청은 `ABANDONING` 시즌을 거절하고, 포기 요청만 그 시즌을 진행한다(`TurnService.advanceAbandoned`). A `HALTED` season is refused with `SEASON_HALTED` before the status and turn checks. / `HALTED` 시즌은 상태·턴 검사보다 먼저 `SEASON_HALTED`로 거절한다. ② 현금 계좌 행이 없으면 데이터 손상으로 보고 500으로 멈춘다(23은 스냅샷 0행 → 대사 `NO_ACCOUNT`). 대사 불일치가 발생하면 예외 하나로 전부 롤백한다. 롤백 뒤 새 트랜잭션에 17행을 기록하는 일은 `TurnFacade`(P0-34)가 맡는다 — 실패 묶음이 끼어든 성공 묶음보다 뒤 번호를 받을 수 있다. 따라서 턴의 성공 여부는 마지막 시도 번호가 아니라 `turn` 행(= 17행 `MATCH` 묶음)의 존재로 판단한다.
 
 - Phase 0 정본은 `db/23_turn_advance_def.sql`(erd D37)이다. 1–5단계의 전제 오류(`SEASON_NOT_FOUND`·`SEASON_NOT_ACTIVE`·`TURN_MISMATCH`·`NO_PATH`·`NO_RETURN`)는 쓰기 전에 거절하고 기록하지 않는다. `NO_RETURN` includes a computed price ≤ 0; Java's `TurnPriceCalculator` already throws `IllegalStateException` (500 `INTERNAL_ERROR`) for it before any save. / `NO_RETURN`에는 계산 가격이 0 이하인 경우가 들어간다. Java의 `TurnPriceCalculator`는 이미 저장 전에 `IllegalStateException`(500 `INTERNAL_ERROR`)으로 거절한다. 9단계 대사 불일치만 롤백한 뒤 17행을 기록한다(§6). 낙폭은 `MoneyMath.drawdown`으로 한 번만 반올림하고(HALF_UP), 골키퍼 평가액은 총액에서 다른 세 포지션을 뺀 값이다.
 - `turn(season_id, turn_no) UNIQUE`가 "같은 턴 두 번"을 DB 수준에서 막는다. 락과 턴 번호 검사가 먼저 걸러 주지만, UNIQUE는 마지막 안전망이다.
 - `season`과 `cash_account`에 `@Version`도 둔다. 비관적 락이 있는데 왜 또? 락을 거는 경로(주문·턴)가 아닌 **다른 경로**(시즌 포기, 관리자 상태 변경)가 같은 행을 고칠 때 "읽은 뒤 누가 바꿨다"를 잡기 위해서다. 둘은 서로 다른 일을 한다: 비관적 락은 돈 계산의 직렬화, 낙관적 락은 상태 변경의 충돌 감지.
-- 시즌 포기(PLAN §4.1-7)는 "남은 턴을 매매 없이 자동 진행"이므로 `advance`를 반복 호출하는 것과 같다. 60턴을 한 트랜잭션에서 돌리면 길어지므로 **턴마다 별도 트랜잭션**으로 돌리고 중간 실패 시 재개할 수 있게 한다(`season.status = ABANDONING`).
+- 시즌 포기(PLAN §4.1-7)는 "남은 턴을 매매 없이 자동 진행"이므로 `advance`를 반복 호출하는 것과 같다. 60턴을 한 트랜잭션에서 돌리면 길어지므로 **턴마다 별도 트랜잭션**으로 돌리고 중간 실패 시 재개할 수 있게 한다(`season.status = ABANDONING`). The abandon mark takes the same pessimistic season lock as orders (erd S7: no order after the abandon turn); `@Version` stays as a second net. The loop runs outside a transaction (`SeasonAbandonService`), at most `antlab.abandon.max-turns-per-request` turns per request, and stops at the first failed turn, so one request costs one failed attempt; repeating the request continues. / 포기 표시는 주문과 같은 비관적 시즌 락을 잡는다(erd S7: 포기 턴 뒤의 주문은 없다). `@Version`은 두 번째 그물로 남는다. 반복문은 트랜잭션 밖에서 돌고(`SeasonAbandonService`) 요청당 최대 `antlab.abandon.max-turns-per-request`턴이며 첫 실패에서 멈춘다. 한 요청이 실패 시도 하나만 쓰고, 같은 요청을 반복하면 이어 간다.
 
 Ranking lookup (MVP-12): `GET …/turns/{n}/ranking` is read-only, lock-free, six statements regardless of pool size (current member 1, season 1, the turn's prices 1, the earlier prices 1, the pool 1, attention 1), and reads no row of a turn above n. / 랭킹 조회(MVP-12): `GET …/turns/{n}/ranking`은 읽기 전용·잠금 없음이고 문장 수는 풀 크기와 무관하게 6개(현재 회원 1, 시즌 1, 그 턴 가격 1, 이전 턴 가격 1, 풀 1, 관심 지수 1)이며 n보다 큰 턴의 행을 읽지 않는다.
 
@@ -305,7 +305,7 @@ spring.flyway:
   clean-disabled: true
   validate-on-migrate: true
 # 블록 길이(6)·허용 경로 길이·재생 시작·엔진 판은 설정이 아니라 SimpleBootstrap 상수다(P0-29) — 설정으로 두면 같은 engine_version 이 다른 경로를 낼 수 있어 재현성이 깨진다.
-# projection-paths: 2000 은 MVP 에서 antlab.engine.* 설정으로 더한다
+# antlab.engine.* (M2-06): URL, token, timeouts (connect 1 s, paths 3 s, projections 15 s), path-source (java default | engine), path-version, projection-paths 2000. With path-source=engine the URL and token are required at startup. / URL, 토큰, 시간 제한(연결 1초, 경로 3초, 예상 분포 15초), path-source(기본 java | engine), path-version, projection-paths 2000. path-source=engine이면 URL과 토큰이 없을 때 기동하지 않는다.
 antlab.pool.base-date: ${ANTLAB_POOL_BASE_DATE:2026-01-02}   # P0-27: 기준일 풀(매년 1월 첫 거래일). P0-30 시즌 시작도 같은 값을 쓴다
 # P0-30: 새 시즌에 적는 설정(요청에서 받지 않는다). 시즌 행의 8개 설정 컬럼은 DB 기본값이 없으므로 값이 빠지면 기동 실패(@Validated)
 antlab.season.initial-cash: 30000000        # PLAN §4.1-1 기본 초기 자금
