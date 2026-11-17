@@ -205,4 +205,24 @@ class DisciplineOracleTest {
         assertThat(after.stream().filter(r -> r.turnNo() == 6).toList())
                 .isNotEqualTo(before.stream().filter(r -> r.turnNo() == 6).toList());
     }
+    @Test
+    void a_missing_turn_price_keeps_the_order_with_a_null_price_and_the_calculator_refuses() throws Exception {
+        long season = seed();
+        long asset = assetId(jdbc, "000660");
+        int before = query.orders(season, LAST_TURN).size();
+        // turn 5 price gone: the orders of turn 5 lose the current price, the orders of turn 6 lose the previous price
+        assertThat(jdbc.update("DELETE FROM turn_price WHERE season_id = ? AND asset_id = ? AND turn_no = 5", season, asset))
+                .isEqualTo(1);
+        List<OrderFact> rows = query.orders(season, LAST_TURN);
+        assertThat(rows).as("no order may disappear with its price").hasSize(before);
+        assertThat(rows.stream().filter(r -> r.turnNo() == 5 && r.asset().ticker().equals("000660")))
+                .hasSize(2).allSatisfy(r -> {
+                    assertThat(r.price()).isNull();
+                    assertThat(r.notional().signum()).isPositive();
+                });
+        assertThat(rows.stream().filter(r -> r.turnNo() == 6 && r.asset().ticker().equals("000660")))
+                .hasSize(2).allSatisfy(r -> assertThat(r.previousPrice()).isNull());
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> DisciplineCalculator.calculate(facts(season)))
+                .isInstanceOf(IllegalStateException.class);
+    }
 }

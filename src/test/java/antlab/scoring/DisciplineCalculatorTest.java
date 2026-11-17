@@ -356,7 +356,7 @@ class DisciplineCalculatorTest {
         List<TurnValue> values = new ArrayList<>();
         long value = 30_000_000;
         for (int t = 1; t <= turns; t++) {
-            value = Math.max(1_000, Math.round(value * (0.85 + rnd.nextDouble() * 0.3)));
+            value = Math.max(1_000, value * (85 + rnd.nextInt(31)) / 100);
             values.add(new TurnValue(t, won(value)));
         }
         List<ChangeFact> changes = new ArrayList<>();
@@ -381,7 +381,7 @@ class DisciplineCalculatorTest {
             List<ChangeFact> here = changes.stream().filter(c -> c.turnNo() == turn).toList();
             for (int i = rnd.nextInt(4); i > 0; i--) {
                 long previous = 10_000;
-                long price = Math.round(previous * (0.88 + rnd.nextDouble() * 0.24));
+                long price = previous * (88 + rnd.nextInt(25)) / 100;
                 Long bound = !here.isEmpty() && rnd.nextDouble() < 0.3 ? here.get(rnd.nextInt(here.size())).id() : null;
                 orders.add(order(orderId++, t, rnd.nextBoolean() ? OrderSide.BUY : OrderSide.SELL,
                         assets[rnd.nextInt(3)], 1_000L * (1 + rnd.nextInt(5_000)), bound, price, previous));
