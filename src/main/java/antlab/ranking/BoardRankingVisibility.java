@@ -10,7 +10,8 @@ import org.springframework.stereotype.Component;
  * {@link RankingVisibility} backed by the ranking board: an asset is on the board of a turn when it appears in one of the five asset
  * lists (group lists name groups, not assets, so they open no order route). It runs the same calculation on the same stored rows as
  * {@link RankingQueryService}, for the asked turn only, so the answer is what the player could see at that turn and nothing later.
- * It reads without locking and writes nothing, so it can run inside the order transaction (four statements per call).
+ * It reads without locking and writes nothing, so it can run inside the order transaction (four statements per call). Damaged price
+ * history (a pool asset without a price) throws instead of answering false: the order or agent decision fails as a broken state.
  */
 @Component
 class BoardRankingVisibility implements RankingVisibility {
@@ -23,8 +24,8 @@ class BoardRankingVisibility implements RankingVisibility {
 
     @Override
     public boolean onBoard(Season season, int turnNo, long assetId) {
-        // There is no board before the first played turn (the endpoint refuses turn 0 too).
-        if (turnNo < 1) {
+        // There is no board before the first played turn (the endpoint refuses turn 0 too), and only the current turn's board counts.
+        if (turnNo < 1 || turnNo != season.getCurrentTurnNo()) {
             return false;
         }
         return assetIds(RankingBoardCalculator.board(reader.read(season.getId(), turnNo))).contains(assetId);

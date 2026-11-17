@@ -214,7 +214,7 @@ class RankingOriginApiTest {
     // ---- the port answers what the endpoint shows ----
 
     @Test
-    void the_port_matches_the_endpoint_for_every_pool_asset_at_every_played_turn() throws Exception {
+    void the_port_matches_the_endpoint_for_the_current_turn_and_refuses_every_other() throws Exception {
         Played p = played(3);
         Season season = seasons.findById(p.season()).orElseThrow();
         List<Long> pool = jdbc.queryForList("SELECT DISTINCT asset_id FROM turn_price WHERE season_id = ? ORDER BY asset_id",
@@ -227,7 +227,8 @@ class RankingOriginApiTest {
             for (long asset : pool) {
                 boolean answer = visibility.onBoard(season, turn, asset);
                 onBoardCount += answer ? 1 : 0;
-                if (answer != shown.contains(asset)) {
+                // the port answers for the current turn (3) only; earlier boards are still shown by the endpoint
+                if (answer != (turn == 3 && shown.contains(asset))) {
                     mismatches.add("turn " + turn + " asset " + asset);
                 }
             }
@@ -235,6 +236,11 @@ class RankingOriginApiTest {
         assertThat(mismatches).isEmpty();
         assertThat(onBoardCount).as("the check is not vacuous").isPositive();
         assertThat(visibility.onBoard(season, 0, pool.get(0))).as("no board at turn 0").isFalse();
+        // only the current turn counts, whichever turn the caller passes
+        for (long asset : pool) {
+            assertThat(visibility.onBoard(season, 2, asset)).as("a past turn, asset " + asset).isFalse();
+            assertThat(visibility.onBoard(season, 4, asset)).as("a future turn, asset " + asset).isFalse();
+        }
         assertThat(visibility.onBoard(season, 1, Long.MAX_VALUE)).as("an unknown asset is on no board").isFalse();
     }
 
@@ -259,7 +265,7 @@ class RankingOriginApiTest {
     // ---- cost ----
 
     @Test
-    void a_RANKING_order_adds_the_four_board_statements_and_a_DIRECT_order_adds_none() throws Exception {
+    void a_DIRECT_order_costs_its_known_statements_and_a_RANKING_order_adds_the_four_board_statements() throws Exception {
         Played p = played(1);
         long onBoard = boardAssets(p.season(), 1).iterator().next();
         SqlRecorder.start();
@@ -268,7 +274,7 @@ class RankingOriginApiTest {
         SqlRecorder.start();
         assertThat(order(p.season(), 1, "BUY", onBoard, 1, null, RANKING).getStatus()).isEqualTo(201);
         List<String> ranking = SqlRecorder.stopAll().all();
-        System.out.println("[MVP-13] order statements DIRECT = " + direct.size() + ", RANKING = " + ranking.size());
+        assertThat(direct).as("statements of one DIRECT order").hasSize(17);
         // turn prices of the turn, earlier prices, pool, attention (RankingInputReader)
         assertThat(ranking.size() - direct.size()).isEqualTo(4);
     }

@@ -562,6 +562,42 @@ class AgentDecisionTest {
                 .containsExactly("DIRECT:-", "RANKING:-", "RANKING:-");
     }
 
+    /** A pool asset that never moves: it has a price every turn but is on no list of the ranking board. */
+    private void addFlatAsset(long season) {
+        Long group = jdbc.queryForObject("SELECT id FROM asset_group WHERE code = 'FAKE_SEMI'", Long.class);
+        Long asset = jdbc.queryForObject("""
+                INSERT INTO asset (market, ticker, name, asset_type, currency, asset_group_id, listed_on, return_basis)
+                VALUES ('KR', 'FLAT01', '가짜 고정', 'STOCK', 'KRW', ?, DATE '2000-01-04', 'PRICE') RETURNING id""", Long.class, group);
+        jdbc.update("INSERT INTO turn_price (season_id, turn_no, asset_id, price) VALUES (?, 0, ?, 100000)", season, asset);
+        jdbc.update("""
+                INSERT INTO asset_position (asset_id, base_date, base_price, base_fx_rate, window_start, window_end, months_used,
+                                            up_participation, down_participation, volatility, max_drawdown, system_position)
+                VALUES (?, DATE '2026-01-02', 100000.0000, 1.0000, DATE '2020-01-01', DATE '2025-12-01', 72,
+                        1.00000000, 1.00000000, 0.05000000, -0.20000000, 'MIDFIELDER')""", asset);
+        jdbc.update("""
+                INSERT INTO asset_month_return (asset_id, month_block_id, local_return, return_kind)
+                SELECT ?, mb.id, 0, 'ACTUAL' FROM month_block mb
+                WHERE mb.month_start BETWEEN DATE '2006-12-01' AND DATE '2026-01-01'
+                  AND mb.rate_dir IS NULL AND mb.prob_p1 IS NULL AND mb.event_summary IS NULL AND mb.events_reviewed = TRUE""", asset);
+    }
+
+    @Test
+    void A4b_a_ranking_unit_for_an_asset_off_the_board_is_rejected_alone() throws Exception {
+        Agent a = startAgent();
+        addFlatAsset(a.season());
+        toTurnOne(a);
+
+        JsonNode result = decideOk(a, 1, decisionBody(dec(null,
+                sourced("KR:FLAT01", "BUY", 1, "MIDFIELDER", "RANKING", null, null),
+                sourced("US:SPY", "BUY", 1, "DEFENDER", "RANKING", null, null))));
+
+        assertThat(codes(result)).containsExactly("F:NONE:-", "0:REJECTED:SOURCE_NOT_VISIBLE", "1:APPLIED:-", "T:NONE");
+        assertThat(jdbc.queryForList("SELECT source FROM orders WHERE season_id = ? AND turn_no = 1", String.class, a.season()))
+                .containsExactly("RANKING");
+        // the same unit sent as DIRECT is fine, so only the origin was refused
+        assertThat(count("orders", a.season())).isEqualTo(1);
+    }
+
     /** The origin comes first, so an unknown asset only wins when the origin itself would pass. */
     @ParameterizedTest
     @CsvSource(delimiter = '|', value = {
