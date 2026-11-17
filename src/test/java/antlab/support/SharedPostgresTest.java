@@ -7,6 +7,8 @@ import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.Statement;
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.builder.SpringApplicationBuilder;
+import org.springframework.context.ConfigurableApplicationContext;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /** Contract of the JVM-wide container: one instance, and databases that never see each other's rows. */
@@ -56,5 +58,26 @@ class SharedPostgresTest {
         assertThat(scalar(db, "SELECT array_to_string(setconfig, ',') FROM pg_db_role_setting s JOIN pg_database d ON d.oid = s.setdatabase"
                 + " WHERE d.datname = current_database()")).isEqualToIgnoringCase("timezone=Asia/Seoul");
         assertThat(scalar(db, "SHOW server_encoding")).isEqualTo("UTF8");
+    }
+
+    /** Closing a Spring context that imported the config must not stop the container the other contexts still use. */
+    @Test
+    void closing_a_context_does_not_stop_the_shared_container() {
+        PostgreSQLContainer before = SharedPostgres.container();
+        try (ConfigurableApplicationContext context = new SpringApplicationBuilder(PostgresTestcontainersConfig.class)
+                .web(org.springframework.boot.WebApplicationType.NONE).run()) {
+            assertThat(context.getBean(PostgreSQLContainer.class)).isSameAs(before);
+        }
+        assertThat(before.isRunning()).isTrue();
+        assertThat(SharedPostgres.container()).isSameAs(before);
+    }
+
+    /** Idle connections of cached contexts stay far below the server limit (see the budget note in SharedPostgres). */
+    @Test
+    void connections_stay_below_the_server_limit() throws Exception {
+        int max = Integer.parseInt(scalar(SharedPostgres.container().getDatabaseName(), "SHOW max_connections"));
+        int used = Integer.parseInt(scalar(SharedPostgres.container().getDatabaseName(), "SELECT count(*) FROM pg_stat_activity"));
+        assertThat(max).isEqualTo(300);
+        assertThat(used).isLessThan(max / 2);
     }
 }

@@ -24,15 +24,36 @@ public final class SharedPostgres {
     private SharedPostgres() {
     }
 
+    /**
+     * Spring Boot's Testcontainers support stops every container bean when its context closes, whatever the bean's destroy
+     * method says, and a context can close while others still use the container (cache eviction). So stop is a no-op here;
+     * the resource reaper removes the container when the JVM ends.
+     */
+    private static final class Shared extends PostgreSQLContainer {
+        Shared(String image) {
+            super(image);
+        }
+
+        @Override
+        public void stop() {
+        }
+    }
+
     /** Starts the container on first use; later calls return the same running instance. */
     public static synchronized PostgreSQLContainer container() {
+        if (container != null && !container.isRunning()) {
+            // a dead singleton would fail every later test with unrelated connection errors; say what happened instead
+            throw new IllegalStateException("shared test container was removed or stopped from outside the test JVM");
+        }
         if (container == null) {
-            PostgreSQLContainer created = new PostgreSQLContainer(PostgresTestcontainersConfig.IMAGE)
+            PostgreSQLContainer created = new Shared(PostgresTestcontainersConfig.IMAGE)
                     // lets a container guard recognise the one long-lived container of this JVM (it lives as long as the test run)
                     .withLabel("antlab.shared-test-db", "true")
                     // same server time zone as the compose db
                     .withEnv("TZ", "Asia/Seoul")
                     .withEnv("PGTZ", "Asia/Seoul")
+                    // Budget: cached contexts (cap 32) x Hikari pool (max 10, minimum-idle 0 and idle-timeout 10s in application-test.yml)
+                    // stay far below 300 only because idle connections are released; keep those two settings when changing this.
                     // many Spring contexts stay cached at once, each with its own pool; small buffers keep the container light
                     .withCommand("postgres", "-c", "fsync=off", "-c", "max_connections=300", "-c", "shared_buffers=32MB");
             created.start();
