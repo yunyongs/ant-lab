@@ -14,10 +14,11 @@ uv run --frozen ruff format --check .
 uv run --frozen pytest
 ```
 
-Run locally (the token is read from the environment only, at least 32 printable ASCII characters, no default). / 로컬 실행(토큰은 환경변수에서만 읽고, 32자 이상 ASCII 출력 문자이며 기본값이 없다).
+Run locally (the token is read from the environment only, at least 32 printable ASCII characters, no default; the three DB variables are required, see Database below). / 로컬 실행(토큰은 환경변수에서만 읽고, 32자 이상 ASCII 출력 문자이며 기본값이 없다. DB 변수 세 개도 필수이며 아래 데이터베이스 절을 본다).
 
 ```sh
 export ANTLAB_ENGINE_TOKEN="$(openssl rand -hex 32)"
+export ANTLAB_ENGINE_DB_HOST=127.0.0.1 ANTLAB_ENGINE_DB_NAME=antlab_api ANTLAB_ENGINE_DB_USER=antlab_engine
 uv run --frozen uvicorn --factory antlab_engine.app:create_app_from_env --reload
 ```
 
@@ -34,10 +35,10 @@ docker compose stop engine
 
 `docker compose down` would also remove the owner database container of the same project, so only the engine service is started and stopped here. / 같은 프로젝트의 소유자 DB 컨테이너까지 내려가므로 `docker compose down`은 쓰지 않고, 엔진 서비스만 켜고 멈춘다.
 
-Isolated check that leaves the default project alone. / 기본 프로젝트를 건드리지 않는 격리 확인.
+Isolated check that leaves the default project alone. The engine depends on `db`, so the isolated project starts its own `db` too; `ANTLAB_DB_PORT` moves its published port off 5432 so it cannot collide with the owner database. / 기본 프로젝트를 건드리지 않는 격리 확인. 엔진은 `db`에 의존하므로 격리 프로젝트도 자기 `db`를 함께 올린다. `ANTLAB_DB_PORT`로 게시 포트를 5432에서 옮겨 소유자 DB와 부딪치지 않게 한다.
 
 ```sh
-ANTLAB_ENGINE_TOKEN="$(openssl rand -hex 32)" ANTLAB_ENGINE_PORT=18201 docker compose --profile engine -p antlab-m201 up -d --build --wait engine
+ANTLAB_DB_PORT=55433 ANTLAB_ENGINE_TOKEN="$(openssl rand -hex 32)" ANTLAB_ENGINE_PORT=18201 docker compose --profile engine -p antlab-m201 up -d --build --wait engine
 docker compose --profile engine -p antlab-m201 down -v --rmi local
 ```
 
@@ -45,7 +46,7 @@ The local `backend` network is a plain bridge, so engine egress isolation is not
 
 ## Database / 데이터베이스
 
-The engine reads history as the SELECT-only role `antlab_engine` (created by `db/roles/antlab_engine.sql`, see `db/README.md`; Java alone writes the database). Settings come from the environment: `ANTLAB_ENGINE_DB_HOST`, `ANTLAB_ENGINE_DB_NAME` and `ANTLAB_ENGINE_DB_USER` are required (a missing or blank value fails startup and names the variable, never the value), `ANTLAB_ENGINE_DB_PORT` defaults to 5432, and `ANTLAB_ENGINE_DB_PASSWORD` is optional locally and never printed. Startup and `/healthz` open no connection. `antlab_engine.history.PostgresHistoryReader.read(base_date)` returns one frozen snapshot from a single `REPEATABLE READ READ ONLY` transaction: months strictly before 1 January of the base year, the pool of that exact base date, and local returns and FX changes for those assets and months, all as `Decimal`. It refuses a superuser or any role holding a write privilege on those tables (`UNSAFE_DB_ROLE`), and errors never echo the cause, the password or a month. The connection uses explicit parameters, so libpq `PG*` variables and password files do not apply. No route returns months. / 엔진은 SELECT만 가진 역할 `antlab_engine`(`db/roles/antlab_engine.sql`이 만든다, `db/README.md` 참고. 데이터베이스는 Java만 쓴다)으로 이력을 읽는다. 설정은 환경변수에서 읽는다: `ANTLAB_ENGINE_DB_HOST`·`ANTLAB_ENGINE_DB_NAME`·`ANTLAB_ENGINE_DB_USER`는 필수(없거나 비어 있으면 시작이 실패하고 값이 아니라 변수 이름만 알린다), `ANTLAB_ENGINE_DB_PORT` 기본값은 5432, `ANTLAB_ENGINE_DB_PASSWORD`는 로컬에서 선택이며 출력하지 않는다. 시작과 `/healthz`는 연결을 열지 않는다. `antlab_engine.history.PostgresHistoryReader.read(base_date)`는 `REPEATABLE READ READ ONLY` 트랜잭션 하나에서 얼린 스냅샷을 돌려준다: 기준 연도 1월 1일 이전의 달, 그 기준일의 풀, 그 종목·달의 현지 수익률과 환율 변화를 모두 `Decimal`로 준다. 슈퍼유저이거나 이 표들에 쓰기 권한이 있는 역할이면 거부하고(`UNSAFE_DB_ROLE`), 오류에는 원인·비밀번호·달을 싣지 않는다. 연결은 명시한 매개변수만 써서 libpq `PG*` 변수와 비밀번호 파일이 적용되지 않는다. 달을 돌려주는 경로는 없다.
+The engine reads history as the SELECT-only role `antlab_engine` (created by `db/roles/antlab_engine.sql`, see `db/README.md`; Java alone writes the database). Settings come from the environment: `ANTLAB_ENGINE_DB_HOST`, `ANTLAB_ENGINE_DB_NAME` and `ANTLAB_ENGINE_DB_USER` are required (a missing or blank value fails startup and names the variable, never the value), `ANTLAB_ENGINE_DB_PORT` defaults to 5432, and `ANTLAB_ENGINE_DB_PASSWORD` is optional locally and never printed. Startup and `/healthz` open no connection. `antlab_engine.history.PostgresHistoryReader.read(base_date)` returns one frozen snapshot from a single `REPEATABLE READ READ ONLY` transaction: months strictly before 1 January of the base year, the pool of that exact base date, and local returns and FX changes for those assets and months, all as `Decimal`. It refuses a superuser, a role that can create roles or databases or bypass row security, and any role holding a write privilege on any ordinary table outside the system schemas (`UNSAFE_DB_ROLE`), and errors never echo the cause, the password or a month. The connection uses explicit parameters, so libpq `PG*` variables (including `PGHOSTADDR`, `PGPASSWORD` and `PGGSSENCMODE`) and password files do not apply. No route returns months. / 엔진은 SELECT만 가진 역할 `antlab_engine`(`db/roles/antlab_engine.sql`이 만든다, `db/README.md` 참고. 데이터베이스는 Java만 쓴다)으로 이력을 읽는다. 설정은 환경변수에서 읽는다: `ANTLAB_ENGINE_DB_HOST`·`ANTLAB_ENGINE_DB_NAME`·`ANTLAB_ENGINE_DB_USER`는 필수(없거나 비어 있으면 시작이 실패하고 값이 아니라 변수 이름만 알린다), `ANTLAB_ENGINE_DB_PORT` 기본값은 5432, `ANTLAB_ENGINE_DB_PASSWORD`는 로컬에서 선택이며 출력하지 않는다. 시작과 `/healthz`는 연결을 열지 않는다. `antlab_engine.history.PostgresHistoryReader.read(base_date)`는 `REPEATABLE READ READ ONLY` 트랜잭션 하나에서 얼린 스냅샷을 돌려준다: 기준 연도 1월 1일 이전의 달, 그 기준일의 풀, 그 종목·달의 현지 수익률과 환율 변화를 모두 `Decimal`로 준다. 슈퍼유저, 역할·데이터베이스 생성 또는 행 보안 우회 권한이 있는 역할, 시스템 스키마 밖의 어느 일반 표에든 쓰기 권한이 있는 역할이면 거부하고(`UNSAFE_DB_ROLE`), 오류에는 원인·비밀번호·달을 싣지 않는다. 연결은 명시한 매개변수만 써서 libpq `PG*` 변수와 비밀번호 파일이 적용되지 않는다. 달을 돌려주는 경로는 없다.
 
 Smoke check (counts and session facts only, no dates). / 스모크 확인(건수와 세션 정보만, 날짜 없음).
 

@@ -19,7 +19,6 @@ from .model import (
     SessionFacts,
 )
 
-GRANTED_TABLES = ("asset", "asset_position", "month_block", "asset_month_return", "fx_month")
 WRITE_PRIVILEGES = ("INSERT", "UPDATE", "DELETE", "TRUNCATE")
 
 UNAVAILABLE = "The history database is not available."
@@ -35,18 +34,19 @@ def connection_parameters(settings: DatabaseSettings) -> dict[str, object]:
     """Explicit keyword parameters; they take precedence over libpq environment variables."""
     params: dict[str, object] = {
         "host": settings.host,
+        "hostaddr": "",  # explicit empty value: PGHOSTADDR must not redirect the connection
         "port": settings.port,
         "dbname": settings.name,
         "user": settings.user,
+        "password": settings.password,  # always set: an empty value keeps PGPASSWORD out
         "passfile": "/nonexistent/antlab-engine-passfile",  # a missing file: no lookup, no warning
         "sslmode": "disable",
+        "gssencmode": "disable",
         "connect_timeout": 5,
         "application_name": "antlab-engine",
         "options": "",
         "target_session_attrs": "any",
     }
-    if settings.password:
-        params["password"] = settings.password
     return params
 
 
@@ -70,10 +70,9 @@ class PostgresHistoryReader:
 
     @staticmethod
     def _read(conn: psycopg.Connection, base_date: date, upper: date) -> HistorySnapshot:
-        if conn.execute(
-            queries.UNSAFE_ROLE_SQL,
-            {"tables": list(GRANTED_TABLES), "privileges": list(WRITE_PRIVILEGES)},
-        ).fetchone()[0]:  # type: ignore[index]
+        if conn.execute(queries.UNSAFE_ROLE_SQL, {"privileges": list(WRITE_PRIVILEGES)}).fetchone()[
+            0
+        ]:  # type: ignore[index]
             raise UnsafeDatabaseRole(UNSAFE)
         role, read_only, isolation = conn.execute(queries.SESSION_SQL).fetchone()  # type: ignore[misc]
         params = {"upper": upper, "base_date": base_date}
