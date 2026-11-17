@@ -77,6 +77,12 @@ final class FeedCsvReader {
                 if (wasQuoted) {
                     throw new IllegalStateException("CSV: text after a closing quote");
                 }
+                if (ch == '"') {
+                    throw new IllegalStateException("CSV: quote inside an unquoted cell");
+                }
+                if (ch == '\r') {
+                    throw new IllegalStateException("CSV: bare carriage return");
+                }
                 cell.append(ch);
                 pending = true;
             }

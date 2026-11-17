@@ -86,6 +86,14 @@ class FeedInputShapeTest {
     }
 
     @Test
+    void a_return_must_have_scale_eight() {
+        assertThatThrownBy(() -> asset(1, "A1", "가나").ret("0.100000").build()).isInstanceOf(FeedGenerationException.class)
+                .extracting(e -> ((FeedGenerationException) e).failure()).isEqualTo(FeedFailure.FEED_INPUT);
+        assertThatThrownBy(() -> asset(1, "A1", "가나").prev("0.1", null, 1).build()).isInstanceOf(FeedGenerationException.class);
+        asset(1, "A1", "가나").ret("0.10000000").prev("-0.00000000", null, 1).build();
+    }
+
+    @Test
     void an_event_without_a_reaction_is_a_reaction_missing_failure() {
         assertThatThrownBy(() -> new EventFacts(5, 1, "e1", "TRADE", null, 2, false)).isInstanceOf(FeedGenerationException.class)
                 .extracting(e -> ((FeedGenerationException) e).failure()).isEqualTo(FeedFailure.FEED_REACTION_MISSING);

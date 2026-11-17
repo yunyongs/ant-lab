@@ -252,6 +252,9 @@ public final class FeedTemplateCatalog {
             if (text.codePointCount(0, text.length()) > MAX_TEXT) {
                 throw fail("templates.csv", "LENGTH " + id);
             }
+            if (kind != FeedKind.NUDGE && active && FeedTemplate.placeholdersOf(text).isEmpty()) {
+                throw fail("templates.csv", "SLOT_FREE " + id);
+            }
             for (String slot : FeedTemplate.placeholdersOf(text)) {
                 FeedVariable v = variables.get(slot);
                 if (v == null) {

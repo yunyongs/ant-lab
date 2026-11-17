@@ -180,6 +180,16 @@ class FeedTemplateCatalogTest {
     }
 
     @Test
+    void an_active_template_without_a_slot_stops_the_load_except_for_alerts() throws IOException {
+        Path dir = feedCopy("slotfree");
+        append(dir, "templates.csv", "rise.plain.v1,RISE,ACTIVE,GROUP,UP,,,,,false,고정 문장 소식");
+        assertRejects(dir, "SLOT_FREE rise.plain.v1");
+        Path retired = feedCopy("slotfreeretired");
+        append(retired, "templates.csv", "rise.plain.v1,RISE,RETIRED,GROUP,UP,,,,,false,고정 문장 소식");
+        assertThat(FeedTemplateCatalog.fromDirectory(retired).templates()).extracting(FeedTemplate::id).contains("rise.plain.v1");
+    }
+
+    @Test
     void a_header_that_differs_stops_the_load() throws IOException {
         Path dir = feedCopy("header");
         replace(dir, "templates.csv", "template_id,kind", "kind,template_id");

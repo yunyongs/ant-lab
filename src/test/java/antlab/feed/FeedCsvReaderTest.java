@@ -51,6 +51,12 @@ class FeedCsvReaderTest {
     }
 
     @Test
+    void a_quote_inside_an_unquoted_cell_and_a_bare_carriage_return_fail() {
+        assertThatThrownBy(() -> FeedCsvReader.read("a,b,c\n1,속보 \"급등\" 소식,3\n", HEADER)).hasMessageContaining("quote inside");
+        assertThatThrownBy(() -> FeedCsvReader.read("a,b,c\n1,x\ry,3\n", HEADER)).hasMessageContaining("bare carriage return");
+    }
+
+    @Test
     void a_trailing_blank_line_fails() {
         assertThatThrownBy(() -> FeedCsvReader.read("a,b,c\n1,2,3\n\n", HEADER)).hasMessageContaining("record 3");
     }

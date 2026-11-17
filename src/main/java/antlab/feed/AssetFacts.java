@@ -32,6 +32,9 @@ public record AssetFacts(int asOfTurn, long assetId, String market, String ticke
         Objects.requireNonNull(groupCode, "groupCode");
         Objects.requireNonNull(groupName, "groupName");
         Objects.requireNonNull(ret, "ret");
+        if (ret.scale() != 8 || (prevRet != null && prevRet.scale() != 8)) {
+            throw new FeedGenerationException(FeedFailure.FEED_INPUT, "a return must have scale 8");
+        }
         if (streak < 0 || attentionN < 0 || prevEchoRepeat < 1) {
             throw new FeedGenerationException(FeedFailure.FEED_INPUT, "asset counts out of range");
         }
