@@ -67,3 +67,21 @@ def fresh_db():
         pytest.skip("ANTLAB_ENGINE_TEST_ADMIN_DSN is not set")
     with scratch_database(dsn, os.environ[SERVER_ID_VAR].strip()) as db:
         yield db
+
+
+HISTORY_FIXTURE = Path(__file__).resolve().parent / "fixtures" / "history_fake.sql"
+
+
+@pytest.fixture(scope="session")
+def history_db():
+    """A scratch database with the role script applied and the fake history loaded."""
+    try:
+        dsn = resolve_admin_dsn(os.environ)
+    except HarnessError as exc:
+        pytest.fail(str(exc), pytrace=False)
+    if dsn is None:
+        pytest.skip("ANTLAB_ENGINE_TEST_ADMIN_DSN is not set")
+    with scratch_database(dsn, os.environ[SERVER_ID_VAR].strip()) as db:
+        with db.admin() as admin:
+            admin.execute(HISTORY_FIXTURE.read_text(encoding="utf-8"))  # type: ignore[arg-type]
+        yield db
