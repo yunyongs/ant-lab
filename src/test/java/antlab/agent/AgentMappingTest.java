@@ -122,7 +122,7 @@ class AgentMappingTest {
         assertThat(a.isFinalCall()).isFalse();
         assertThat(a.getLedgerCallId()).isEqualTo(ledgerId);
         assertThat(a.getCostUsd()).isEqualByComparingTo("0.00001234");
-        AgentCall f = calls.findFinalBySeasonIdAndTurnNo(season.getId(), 0).orElseThrow();
+        AgentCall f = calls.findFinalBySeasonIdAndTurnNo(season.getId(), 0, AgentCallKind.TURN_DECISION).orElseThrow();
         assertThat(f.getId()).isEqualTo(last.getId());
         assertThat(f.isFinalCall()).isTrue();
         assertThat(jdbc.queryForObject("SELECT jsonb_typeof(parsed) FROM agent_call WHERE id = ?", String.class,
