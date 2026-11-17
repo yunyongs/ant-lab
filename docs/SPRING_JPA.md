@@ -21,7 +21,7 @@ src/main/java/antlab/
 ├── history/       월 블록, 종목 월 수익률, 환율, 사건 태그 — 읽기 전용
 ├── season/        시즌, 경로, 턴, 라인업, 전술 변경
 ├── account/       시즌 계좌: 현금, 주문, 체결, 보유, 원장
-├── engine/        Java 단순 부트스트랩(경로 생성 — Phase 0 API, P0-29), 예상 분포(MVP 범위)
+├── engine/        Java 단순 부트스트랩(경로 생성 — Phase 0 API, P0-29), 예상 분포(MVP 범위). `engine/` holds the Java bootstrap (tests and default path source until M2-09), the engine path source (`antlab.engine.path-source=engine`) and the engine client (`antlab.engine.client`). / `engine/`에는 Java 부트스트랩(M2-09까지 시험·기본 경로 출처), 엔진 경로 출처(`antlab.engine.path-source=engine`), 엔진 클라이언트(`antlab.engine.client`)가 있다.
 ├── scoring/       기준 포트폴리오, 성적표, 점수, 대사 로그
 └── api/           REST 컨트롤러, 요청·응답 DTO, 예외 → HTTP 매핑
 ```
@@ -302,7 +302,7 @@ spring.flyway:
   clean-disabled: true
   validate-on-migrate: true
 # 블록 길이(6)·허용 경로 길이·재생 시작·엔진 판은 설정이 아니라 SimpleBootstrap 상수다(P0-29) — 설정으로 두면 같은 engine_version 이 다른 경로를 낼 수 있어 재현성이 깨진다.
-# projection-paths: 2000 은 MVP 에서 antlab.engine.* 설정으로 더한다
+# antlab.engine.* (M2-06): URL, token, timeouts (connect 1 s, paths 3 s, projections 15 s), path-source (java default | engine), path-version, projection-paths 2000. With path-source=engine the URL and token are required at startup. / URL, 토큰, 시간 제한(연결 1초, 경로 3초, 예상 분포 15초), path-source(기본 java | engine), path-version, projection-paths 2000. path-source=engine이면 URL과 토큰이 없을 때 기동하지 않는다.
 antlab.pool.base-date: ${ANTLAB_POOL_BASE_DATE:2026-01-02}   # P0-27: 기준일 풀(매년 1월 첫 거래일). P0-30 시즌 시작도 같은 값을 쓴다
 # P0-30: 새 시즌에 적는 설정(요청에서 받지 않는다). 시즌 행의 8개 설정 컬럼은 DB 기본값이 없으므로 값이 빠지면 기동 실패(@Validated)
 antlab.season.initial-cash: 30000000        # PLAN §4.1-1 기본 초기 자금

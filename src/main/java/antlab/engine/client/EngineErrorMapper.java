@@ -3,6 +3,7 @@ package antlab.engine.client;
 import antlab.common.error.DomainException;
 import antlab.common.error.ErrorCode;
 import java.net.SocketTimeoutException;
+import java.net.http.HttpConnectTimeoutException;
 import java.net.http.HttpTimeoutException;
 import java.util.EnumMap;
 import java.util.List;
@@ -84,8 +85,12 @@ final class EngineErrorMapper {
     /** A transport failure; only the exception class is logged, because its message may hold a URL. */
     static RuntimeException transport(String operation, Throwable failure) {
         boolean timeout = false;
-        for (Throwable t = failure; t != null && !timeout; t = t.getCause() == t ? null : t.getCause()) {
-            timeout = t instanceof HttpTimeoutException || t instanceof SocketTimeoutException;
+        for (Throwable t = failure; t != null; t = t.getCause() == t ? null : t.getCause()) {
+            if (t instanceof HttpConnectTimeoutException) {
+                // never connected: the same as "refused" for the log key (a read timeout means the engine took the request)
+                return unavailable("engine.unreachable", operation, EngineUnavailableException.Reason.UNREACHABLE);
+            }
+            timeout |= t instanceof HttpTimeoutException || t instanceof SocketTimeoutException;
         }
         if (timeout) {
             return unavailable("engine.timeout", operation, EngineUnavailableException.Reason.TIMEOUT);

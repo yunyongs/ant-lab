@@ -12,6 +12,8 @@ export const errorMessages = {
   POOL_NOT_JUDGED: '종목 풀의 포지션 판정이 끝나지 않았습니다.',
   PATH_TOO_LONG:
     '이 길이의 시즌은 만들 수 없습니다. 더 짧은 시즌을 골라 주세요.',
+  ENGINE_UNAVAILABLE:
+    '경로를 만드는 서비스가 지금 바쁘거나 연결되지 않습니다. 잠시 뒤 다시 시도해 주세요.',
   SEASON_LIMIT: '진행 중인 시즌은 3개까지입니다. 하나를 끝낸 뒤 시작해 주세요.',
   TURN_NOT_REACHED: '아직 진행하지 않은 턴입니다.',
   SEASON_NOT_FINISHED: '시즌을 끝내야 성적표를 볼 수 있습니다.',

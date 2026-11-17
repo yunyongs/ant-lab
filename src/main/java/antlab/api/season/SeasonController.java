@@ -67,6 +67,9 @@ public class SeasonController {
     @ApiResponse(responseCode = "422", description = "A path of the requested length cannot be built — "
             + "PATH_TOO_LONG / 요청한 길이의 경로를 만들 수 없다 — PATH_TOO_LONG",
             content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ApiProblem.class)))
+    @ApiResponse(responseCode = "503", description = "The path service is busy or not reachable; try again later — "
+            + "ENGINE_UNAVAILABLE / 경로 서비스가 바쁘거나 연결되지 않는다. 잠시 뒤 다시 시도한다 — ENGINE_UNAVAILABLE",
+            content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ApiProblem.class)))
     public ResponseEntity<SeasonDto> start(@Valid @RequestBody StartSeasonRequest request) {
         SeasonDto season;
         try {

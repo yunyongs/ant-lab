@@ -37,7 +37,10 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(DomainException.class)
     public ResponseEntity<Object> handleDomain(DomainException ex, WebRequest request) {
         HttpStatus status = ErrorHttpMapping.status(ex.getCode());
-        if (status.is5xxServerError()) {
+        if (ex.getCode() == ErrorCode.ENGINE_UNAVAILABLE) {
+            // A transient engine outage: the engine client already logged its reason key; no stack trace.
+            log.warn("엔진을 쓸 수 없다(503)");
+        } else if (status.is5xxServerError()) {
             // 5xx 는 응답에 내용을 싣지 않으므로 로그에 남긴다.
             log.error("도메인 예외(5xx)", ex);
         }
@@ -104,6 +107,7 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
             case UNSUPPORTED_MEDIA_TYPE -> "지원하지 않는 본문 형식이다";
             case MALFORMED_REQUEST -> ProblemErrorReportValve.DETAIL;
             case INTERNAL_ERROR -> "처리 중 오류가 났다";
+            case ENGINE_UNAVAILABLE -> "일시적으로 처리할 수 없다. 잠시 뒤 다시 시도한다";
             // 4xx 도메인 코드는 던진 쪽 문장을 쓰므로 여기에 오지 않는다(위 분기). 기본 분기를 두지 않아 코드 추가 시 컴파일이 막는다.
             case POOL_NOT_LOADED, POOL_NOT_JUDGED, PATH_TOO_LONG, SEASON_LIMIT, TURN_NOT_REACHED,
                     SEASON_NOT_ACTIVE, SEASON_NOT_FINISHED, TURN_MISMATCH, LEDGER_MISMATCH, LINEUP_MISMATCH, ASSET_NOT_IN_POOL,
