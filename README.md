@@ -47,6 +47,403 @@ Releases are four: **v0.1** backend dashboard and web, **v1** web-based simulati
 | AG | 에이전트 펀드 매니저(OpenRouter·구독 모델·Ollama, 페르소나, 누출 탐지 시험, 리더보드) | 계획됨 (PLAN v3, 2026-11-07). In progress — AG-01 PR A1 (OpenRouter call ledger and limiter) done; PR A2: detection dry-run (sample reader, prompt rendering, call plan). / 진행 중 — AG-01 PR A1(OpenRouter 호출 장부·제한기) 완료, PR A2: 탐지 dry-run(표본 읽기·프롬프트 렌더링·호출 계획) |
 | R1 · R2 · R3 | 거장 추적(13F·X), 우수 매니저의 복제 봇, 에이전트의 실전 운용(소유자 자금, 사람 승인부터) | 계획됨 (PLAN v2.1, 2026-11-06) |
 
+## Try it yourself (직접 확인하기)
+
+A step-by-step path to check every finished part with your own hands: database, backend, API, web, monitoring, engine, agent runner, collector and guards. Every command here was run on a throwaway Compose project (`antlab-try`, other ports) and the printed output was compared with the «Expect» lines. Your own database (`antlab-db-1`, port 5432) and port 8080 are never touched. Commands marked «not run here» were not executed while writing this guide.
+지금까지 만든 것을 단계별로 직접 확인하는 안내다: DB, 백엔드, API, 웹, 모니터링, 엔진, 에이전트 러너, 수집 잡, 보안 가드. 아래 명령은 모두 일회용 Compose 프로젝트(`antlab-try`, 다른 포트)에서 실제로 실행해 «기대 결과» 출력과 견주었다. 내 DB(`antlab-db-1`, 5432)와 8080은 건드리지 않는다. «직접 실행 확인 안 함»으로 표시한 것은 이 안내를 쓰는 동안 실행하지 않았다.
+
+Ports used below (all on `127.0.0.1`): DB 55433, API 18083, Prometheus 19093, Grafana 13013, engine 18003. Run everything from the repository root in the VS Code terminal (`` Ctrl+` ``). The expected outputs show values of the shipped sample; ids and token text differ per run.
+아래에서 쓰는 포트(모두 `127.0.0.1`): DB 55433, API 18083, Prometheus 19093, Grafana 13013, 엔진 18003. 모든 명령은 저장소 루트에서 VS Code 터미널(`` Ctrl+` ``)로 실행한다. 기대 결과의 값은 동봉 표본 기준이며 id와 토큰 문자열은 실행마다 다르다.
+
+### Step 1. Prerequisites and environment (준비물과 환경)
+
+**What it checks / 확인하는 것:** the tools exist and the git-ignored secret file has the right names.
+도구가 있고, git이 무시하는 비밀값 파일에 이름이 맞게 들어 있는지.
+
+Needs: Docker Desktop (running), JDK 21, `uv`, Node 26 (`web/.nvmrc`), `psql` 16 or later, `curl`, `jq`, `openssl`, and the git-ignored sample CSVs in `db/sample/` ([how to build them](db/sample/README.md#표본-만들기-추적하지-않는-csv-만들기)). `.env.try` is git-ignored (`.env.*`). It holds names with random values; never paste the values anywhere.
+필요한 것: Docker Desktop(켜 둔 상태), JDK 21, `uv`, Node 26(`web/.nvmrc`), `psql` 16 이상, `curl`, `jq`, `openssl`, `db/sample/`의 git 무시 표본 CSV([만드는 법](db/sample/README.md#표본-만들기-추적하지-않는-csv-만들기)). `.env.try`는 git이 무시한다(`.env.*`). 이름과 임의 값이 들어 있으며 값은 어디에도 붙이지 않는다.
+
+```bash
+docker --version
+java -version
+uv --version
+node -v
+psql --version
+ls db/sample
+```
+
+```bash
+{
+  echo "ANTLAB_DB_PORT=55433"
+  echo "ANTLAB_API_PORT=18083"
+  echo "ANTLAB_PROMETHEUS_PORT=19093"
+  echo "ANTLAB_GRAFANA_PORT=13013"
+  echo "ANTLAB_ENGINE_PORT=18003"
+  echo "ANTLAB_JWT_SECRET=$(openssl rand -base64 32)"
+  echo "GF_SECURITY_ADMIN_PASSWORD=$(openssl rand -hex 16)"
+  echo "ANTLAB_ENGINE_TOKEN=$(openssl rand -hex 32)"
+  echo "ANTLAB_AGENT_RUNNER_TOKEN=$(openssl rand -hex 32)"
+} > .env.try
+chmod 600 .env.try
+```
+
+**Expect / 기대 결과:** versions print (Java `21.x`, Node `v26.x`, `psql` 16+); `ls db/sample` lists `asset.csv`, `asset_group.csv`, `asset_month_return.csv`, `asset_position.csv`, `fx_month.csv`, `hand_check.csv`, `month_block.csv`, `build_sample.sql`; `.env.try` has nine lines. Other names in `.env.example` (`KIS_APP_KEY`, `KIS_APP_SECRET`, `OPENROUTER_API_KEY`) are not needed in this guide.
+버전이 출력되고(Java `21.x`, Node `v26.x`, `psql` 16+), `ls db/sample`에 위 CSV와 `build_sample.sql`이 보이며, `.env.try`는 아홉 줄이다. `.env.example`의 다른 이름(`KIS_APP_KEY`, `KIS_APP_SECRET`, `OPENROUTER_API_KEY`)은 이 안내에 필요 없다.
+
+**If it fails / 안 될 때:** a missing CSV makes `db/10_load_sample.sql` stop at its first line (Step 2); build them from `db/sample/README.md`. Docker not running → every `docker` command fails; start Docker Desktop.
+CSV가 없으면 2단계의 `db/10_load_sample.sql`이 첫 줄에서 멈춘다. `db/sample/README.md`대로 만든다. Docker가 꺼져 있으면 모든 `docker` 명령이 실패한다. Docker Desktop을 켠다.
+
+- [ ] Step 1 confirmed / 1단계 확인됨: tools present, `.env.try` created, no value pasted anywhere.
+
+### Step 2. Database and schema (DB 기동과 스키마)
+
+**What it checks / 확인하는 것:** PostgreSQL 17 starts, Flyway V1–V7 are applied, the two app roles exist, and the sample loads with every `_check` printing `PASS`.
+PostgreSQL 17이 뜨고, Flyway V1–V7이 적용되고, 앱 역할 둘이 있고, 표본 적재의 `_check`가 모두 `PASS`인지.
+
+```bash
+docker compose --env-file .env.try -p antlab-try --profile api --profile monitoring --profile engine up -d --build --wait --wait-timeout 900
+```
+
+The first build downloads Gradle and dependencies and takes minutes. Then the schema and roles:
+첫 빌드는 Gradle과 의존성을 내려받아 몇 분 걸린다. 그다음 스키마와 역할:
+
+```bash
+export PGHOST=127.0.0.1 PGPORT=55433 PGUSER=$USER
+psql -X -d antlab_api -Atc "select version,success from flyway_schema_history order by installed_rank"
+psql -X -d postgres -Atc "select rolname from pg_roles where rolname like 'antlab%' order by 1"
+```
+
+**Expect / 기대 결과:** five services `healthy`; seven lines `1|t` … `7|t`; roles `antlab_app` and `antlab_owner` (the app connects as `antlab_app`, Flyway as `antlab_owner`, MVP-20).
+서비스 다섯 개가 `healthy`, `1|t`부터 `7|t`까지 일곱 줄, 역할 `antlab_app`·`antlab_owner`(앱은 `antlab_app`, Flyway는 `antlab_owner`로 접속, MVP-20).
+
+Load the sample (stop the API first, as the loader writes to the same database):
+표본 적재(같은 DB에 쓰므로 API를 먼저 멈춘다):
+
+```bash
+docker compose --env-file .env.try -p antlab-try --profile api stop api
+psql -X -d postgres -c "ALTER DATABASE antlab_api SET timezone TO 'Asia/Seoul'"
+for f in 10_load_sample 11_load_events 12_calc_position 13_calc_attention; do
+  psql -X -v ON_ERROR_STOP=1 -d antlab_api -f db/$f.sql && psql -X -q -v ON_ERROR_STOP=1 -d antlab_api -f db/${f}_check.sql || break
+done
+docker compose --env-file .env.try -p antlab-try --profile api start api
+```
+
+**Expect / 기대 결과:** four times a one-row table with `PASS` (the 13 step takes about two minutes). Practice SQL `db/20_…`–`db/26_…` and the final verdict `db/90_full_run_check.sql` run on a separate practice database; the order is in [db/README.md «전체 순서»](db/README.md#전체-순서) (not run here).
+`PASS`만 든 한 행 표가 네 번 나온다(13단계는 2분쯤 걸린다). 연습 SQL `db/20_…`–`db/26_…`과 최종 판정 `db/90_full_run_check.sql`은 별도 실습 DB에서 돈다. 순서는 [db/README.md「전체 순서」](db/README.md#전체-순서)(직접 실행 확인 안 함).
+
+**If it fails / 안 될 때:** `api` keeps restarting → `docker compose --env-file .env.try -p antlab-try logs api` (usually a missing `ANTLAB_JWT_SECRET` in `.env.try`). A port is taken → change it in `.env.try`. `psql` connects to another database → you skipped the `export` line.
+`api`가 계속 재시작 → `docker compose --env-file .env.try -p antlab-try logs api`(대개 `.env.try`에 `ANTLAB_JWT_SECRET`이 없다). 포트가 겹치면 `.env.try`에서 바꾼다. `psql`이 다른 DB에 붙으면 `export` 줄을 빼먹은 것이다.
+
+- [ ] Step 2 confirmed / 2단계 확인됨: services healthy · V1–V7 `t` · two roles · four `PASS`.
+
+### Step 3. Backend start and tests (백엔드 기동·시험)
+
+**What it checks / 확인하는 것:** the API answers readiness, and the Java tests pass.
+API가 readiness에 답하고 Java 시험이 통과하는지.
+
+```bash
+curl -fsS http://127.0.0.1:18083/readyz
+./gradlew test
+```
+
+**Expect / 기대 결과:** `{"status":"UP"}`. `./gradlew test` ends with `BUILD SUCCESSFUL` (on the verification run the full suite (1788 tests) did not finish cleanly: the test JVM ran out of heap («Java heap space», 8 failures in `TurnViewGoldenTest`, `TurnViewQueryCountTest`, `AppRoleStartupTest`, `EngineTransportTest`), while the same four classes pass when run alone with `./gradlew test --tests '*AppRoleStartupTest' --tests '*TurnViewQueryCountTest' --tests '*EngineTransportTest' --tests '*TurnViewGoldenTest'`; if you see «Java heap space», run by package as in the sections below and tell the maintainer). It uses throwaway PostgreSQL containers only (Docker Desktop must run). With the sample CSVs in `db/sample` the SQL golden (about 2–3 minutes) runs too; without them only that part is skipped with a reason. Add `-PexcludeSqlGolden` to skip it.
+`{"status":"UP"}`. `./gradlew test`는 `BUILD SUCCESSFUL`로 끝난다(검증 실행에서는 전체 시험(1788건)이 깨끗이 끝나지 않았다. 시험 JVM의 힙이 부족해(«Java heap space», `TurnViewGoldenTest`·`TurnViewQueryCountTest`·`AppRoleStartupTest`·`EngineTransportTest`에서 8건 실패) 같은 네 클래스를 단독으로 돌리면 통과한다(`./gradlew test --tests '*AppRoleStartupTest' --tests '*TurnViewQueryCountTest' --tests '*EngineTransportTest' --tests '*TurnViewGoldenTest'`). «Java heap space»가 보이면 아래 절들처럼 패키지별로 돌리고 담당자에게 알린다). 일회용 PostgreSQL 컨테이너만 쓴다(Docker Desktop 필요). `db/sample`에 표본 CSV가 있으면 SQL 골든(2–3분)도 돌고, 없으면 그 부분만 이유를 밝히고 건너뛴다. 빼려면 `-PexcludeSqlGolden`.
+
+Run the app from source instead of the container (profile `local`, Swagger on) against the same database:
+컨테이너 대신 소스로 앱을 띄울 때(`local` 프로필, Swagger 켜짐, 같은 DB):
+
+```bash
+ANTLAB_DB_URL=jdbc:postgresql://127.0.0.1:55433/antlab_api ANTLAB_JWT_SECRET="$(grep ^ANTLAB_JWT_SECRET .env.try | cut -d= -f2-)" ./gradlew bootRun --args='--server.port=18084 --management.server.port=18085'
+```
+
+**Expect / 기대 결과:** `Started AntlabApplication in 3 seconds`; `curl -fsS http://127.0.0.1:18084/readyz` → `{"status":"UP"}`; http://127.0.0.1:18084/swagger-ui.html opens (302 first). Stop with `Ctrl+C`. `./gradlew bootTestRun` (own throwaway database, no secrets) is the safest alternative: not run here.
+`Started AntlabApplication in 3 seconds`, `readyz`가 `{"status":"UP"}`, http://127.0.0.1:18084/swagger-ui.html 이 열린다(처음엔 302). `Ctrl+C`로 멈춘다. 일회용 DB를 쓰는 `./gradlew bootTestRun`이 가장 안전한 대안이다(직접 실행 확인 안 함).
+
+**If it fails / 안 될 때:** «Docker 환경을 찾을 수 없음» → start Docker Desktop. `bootRun` fails on the JWT key → the variable is empty (`.env.try` line missing). Port in use → another `--server.port`.
+«Docker 환경을 찾을 수 없음» → Docker Desktop을 켠다. `bootRun`이 JWT 키로 실패하면 변수가 비어 있다(`.env.try` 줄 확인). 포트가 쓰이면 `--server.port`를 바꾼다.
+
+- [ ] Step 3 confirmed / 3단계 확인됨: `readyz` UP · `./gradlew test` BUILD SUCCESSFUL · (optional) `bootRun` UP.
+
+### Step 4. Play one season through the API (API 한 시즌 체험)
+
+**What it checks / 확인하는 것:** sign up → log in → start a season → pool and prices → buy → advance turns → sell and formation change → report card, all over HTTP with a bearer token. The VS Code way is [docs/api/one-season.http](docs/api/one-season.http) (REST Client extension, set `@base = http://127.0.0.1:18083`, send the blocks top to bottom). The curl way:
+가입 → 로그인 → 시즌 시작 → 풀·가격 → 매수 → 턴 진행 → 매도·전술 변경 → 성적표를 토큰으로 HTTP에서 진행하는지. VS Code로는 [docs/api/one-season.http](docs/api/one-season.http)(REST Client 확장, `@base = http://127.0.0.1:18083`로 바꾸고 위에서부터 보낸다). curl로는:
+
+```bash
+B=http://127.0.0.1:18083
+curl -sS -X POST $B/api/v1/auth/signup -H 'Content-Type: application/json' -d '{"email":"player@example.test","name":"player","password":"correct-horse-battery"}'
+TOKEN=$(curl -sS -X POST $B/api/v1/auth/login -H 'Content-Type: application/json' -d '{"email":"player@example.test","password":"correct-horse-battery"}' | jq -r .accessToken)
+curl -sS -X POST $B/api/v1/seasons -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d '{"riskLimit":"-0.20","formation":{"goalkeeper":10,"defender":30,"midfielder":30,"forward":30},"pathLength":12}'
+```
+
+**Expect / 기대 결과:** `{"id":1,"name":"player"}` (201; a second signup is 409 `EMAIL_TAKEN`), a token of about 300 characters (`expiresIn` 900 s), and a season `{"id":1,"status":"IN_PROGRESS","currentTurnNo":0,"pathLength":12,"riskLimit":"-0.20000000",…,"initialCash":"30000000",…}`. Use the season `id` as `SEASON`.
+`{"id":1,"name":"player"}`(201, 두 번째 가입은 409 `EMAIL_TAKEN`), 300자쯤 되는 토큰(`expiresIn` 900초), 시즌 `{"id":1,"status":"IN_PROGRESS","currentTurnNo":0,"pathLength":12,"riskLimit":"-0.20000000",…,"initialCash":"30000000",…}`. 시즌 `id`를 `SEASON`으로 쓴다.
+
+```bash
+SEASON=1
+H=(-H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json')
+POOL=$(curl -sS $B/api/v1/pool)
+echo "$POOL" | jq '.assets|length'
+curl -sS "${H[@]}" "$B/api/v1/seasons/$SEASON/prices?turnNo=0" | jq -c '{turnNo, first:.prices[0]}'
+for i in 0 1 2 3 4 5 6 7; do
+  AID=$(echo "$POOL" | jq -r ".assets[$i].assetId"); POS=$(echo "$POOL" | jq -r ".assets[$i].systemPosition")
+  curl -sS "${H[@]}" -X POST $B/api/v1/seasons/$SEASON/orders -d "{\"expectedTurnNo\":0,\"side\":\"BUY\",\"assetId\":$AID,\"quantity\":2,\"declaredPosition\":\"$POS\"}"
+  echo
+done
+curl -sS "${H[@]}" $B/api/v1/seasons/$SEASON/holdings | jq -c '{totalValue, n:(.holdings|length)}'
+```
+
+**Expect / 기대 결과:** `20`; `{"turnNo":0,"first":{"assetId":1,"price":"677000"}}`; eight lines like `{"orderId":1,"turnNo":0,"side":"BUY","assetId":1,"quantity":2,"fillPrice":"677000","notional":"1354000","fee":"203","cashBalance":"28645797","holdingQuantity":2,…}`; holdings with `n` 8. Before the pool is loaded (Step 2) the pool answers 409 `POOL_NOT_LOADED`; a buy that answers 422 `INSUFFICIENT_CASH` needs a smaller `quantity`.
+`20`, `{"turnNo":0,"first":{"assetId":1,"price":"677000"}}`, 매수 응답 여덟 줄(위 예), 보유 `n`이 8. 표본 적재(2단계) 전에는 풀이 409 `POOL_NOT_LOADED`이고, 매수가 422 `INSUFFICIENT_CASH`이면 `quantity`를 줄인다.
+
+Advance the turns. Each answer carries the turn result (`turnNo`, `totalValue`, `periodReturn`, `drawdown`, weights); the body names the turn you leave, so a repeated click cannot advance twice:
+턴을 넘긴다. 응답마다 턴 결과(`turnNo`, `totalValue`, `periodReturn`, `drawdown`, 비중)가 오고, 본문이 떠나는 턴을 적으므로 같은 클릭이 두 번 넘기지 못한다:
+
+```bash
+for t in 0 1 2 3 4; do
+  curl -sS "${H[@]}" -X POST $B/api/v1/seasons/$SEASON/turns -d "{\"expectedTurnNo\":$t}" | jq -c '{turnNo,status,totalValue,periodReturn}'
+done
+curl -sS "${H[@]}" -X POST $B/api/v1/seasons/$SEASON/orders -d '{"expectedTurnNo":5,"side":"SELL","assetId":1,"quantity":1}' | jq -c .
+curl -sS "${H[@]}" -X POST $B/api/v1/seasons/$SEASON/formation-changes -d '{"expectedTurnNo":5,"formation":{"goalkeeper":10,"defender":20,"midfielder":30,"forward":40},"reason":"less defence, more attack"}' | jq -c .
+for t in 5 6 7 8 9 10 11; do
+  curl -sS "${H[@]}" -X POST $B/api/v1/seasons/$SEASON/turns -d "{\"expectedTurnNo\":$t}" | jq -c '{turnNo,status,totalValue}'
+done
+curl -sS "${H[@]}" $B/api/v1/seasons/$SEASON/report | jq -c '{seasonStatus,isFinal,finalValue,totalReturn,maxDrawdown,reconMismatchRows,reconTurnBundles}'
+curl -sS "${H[@]}" $B/api/v1/seasons/$SEASON/review | jq -c '{seasonStatus,seed,engineVersion,dataSnapshotDate}'
+```
+
+**Expect / 기대 결과:** turns `1` … `12`, the last one `"status":"FINISHED"`; the sell answers `"side":"SELL"` with a `realizedPnl`; the formation change answers `"before"`/`"after"`; the report shows `"seasonStatus":"FINISHED","isFinal":true`, `reconMismatchRows` `0` and `reconTurnBundles` `12` (every turn reconciled, nothing mismatched); the review shows the seed and the real dates only now that the season is finished. Prices, returns and ids depend on the seed, so only the shape and the `0` / `12` / `FINISHED` values must match. The same flow runs as a test: `./gradlew test -PonlySqlGolden --tests '*OneSeasonE2ETest*'` (not run here separately; it is part of `./gradlew test`).
+턴이 `1`부터 `12`까지 나오고 마지막이 `"status":"FINISHED"`, 매도 응답은 `"side":"SELL"`에 `realizedPnl`이 있고, 전술 변경은 `"before"`·`"after"`를 돌려주고, 성적표는 `"seasonStatus":"FINISHED","isFinal":true`, `reconMismatchRows` `0`, `reconTurnBundles` `12`(모든 턴 대사, 불일치 없음)를 보이며, 복기는 시즌이 끝난 지금에야 시드와 실제 날짜를 보여 준다. 가격·수익률·id는 시드에 따라 다르므로 모양과 `0`·`12`·`FINISHED`만 맞으면 된다. 같은 흐름이 시험으로도 돈다: `./gradlew test -PonlySqlGolden --tests '*OneSeasonE2ETest*'`(따로 실행 확인 안 함, `./gradlew test`에 포함).
+
+**If it fails / 안 될 때:** 401 `UNAUTHENTICATED` → the token lasts 15 minutes, log in again. 409 `TURN_MISMATCH` → `expectedTurnNo` is not the current turn (read `GET /api/v1/seasons/$SEASON`). 409 `POOL_NOT_JUDGED` → Step 2 stopped before `12_calc_position`.
+401 `UNAUTHENTICATED` → 토큰은 15분이다, 다시 로그인한다. 409 `TURN_MISMATCH` → `expectedTurnNo`가 현재 턴이 아니다(`GET /api/v1/seasons/$SEASON`로 확인). 409 `POOL_NOT_JUDGED` → 2단계가 `12_calc_position` 전에 멈췄다.
+
+- [ ] Step 4 confirmed / 4단계 확인됨: season `FINISHED` · report `reconMismatchRows` 0 · `reconTurnBundles` 12 · review shows dates.
+
+### Step 5. Web screens (웹 화면)
+
+**What it checks / 확인하는 것:** the React app talks to the API through the dev proxy and plays the same season.
+React 앱이 개발 프록시로 API와 통신하고 같은 시즌을 두는지.
+
+```bash
+cd web
+npm ci
+ANTLAB_API_PORT=18083 npm run dev -- --port 5199
+```
+
+Open http://localhost:5199 (always `localhost`, not `127.0.0.1`). `ANTLAB_API_PORT` points the proxy at the isolated API (default 8080).
+http://localhost:5199 를 연다(항상 `localhost`, `127.0.0.1` 아님). `ANTLAB_API_PORT`가 프록시를 격리 API로 향하게 한다(기본 8080).
+
+**Expect / 기대 결과:** `VITE v8.x ready`; the login page shows the status line «API 연결됨 · 종목 20개» (checked in a browser). Then play: sign up → **첫 시즌 시작** → buy at turn 0 → **다음 턴** … → **마지막 턴 넘기기** → **성적표** → **복기** ([web/README.md](web/README.md#play--플레이); the full click-through was not repeated here, `scripts/web_e2e.sh` does it in a headless browser: not run here). Stop with `Ctrl+C`.
+`VITE v8.x ready`, 로그인 화면에 상태 줄 «API 연결됨 · 종목 20개»(브라우저로 확인). 이어서 가입 → **첫 시즌 시작** → 0턴 매수 → **다음 턴** … → **마지막 턴 넘기기** → **성적표** → **복기**([web/README.md](web/README.md#play--플레이). 끝까지 클릭하는 것은 여기서 반복하지 않았고, `scripts/web_e2e.sh`가 헤드리스 브라우저로 한다: 직접 실행 확인 안 함). `Ctrl+C`로 멈춘다.
+
+**If it fails / 안 될 때:** the status line says the API is not connected → the proxy port is wrong (`ANTLAB_API_PORT`) or the API is down (`curl` Step 3). «Node» error on `npm ci` → use Node 26 (`web/.nvmrc`). Port 5199 taken → another `--port`.
+상태 줄이 API 연결 안 됨이면 프록시 포트(`ANTLAB_API_PORT`)가 틀렸거나 API가 꺼져 있다(3단계 `curl`). `npm ci`의 Node 오류는 Node 26을 쓴다(`web/.nvmrc`). 5199가 쓰이면 다른 `--port`.
+
+- [ ] Step 5 confirmed / 5단계 확인됨: dev server up · status line «API 연결됨 · 종목 20개» · (optional) one season played in the browser.
+
+### Step 6. Monitoring (모니터링)
+
+**What it checks / 확인하는 것:** Prometheus scrapes the API's management port, and Grafana shows the three dashboards filled by the season you just played.
+Prometheus가 API 관리 포트를 수집하고 Grafana 대시보드 세 개가 방금 둔 시즌으로 채워지는지.
+
+```bash
+curl -sS 'http://127.0.0.1:19093/api/v1/targets' | jq -c '.data.activeTargets[]|{job:.labels.job,health,scrapeUrl}'
+curl -sS 'http://127.0.0.1:19093/api/v1/query' --data-urlencode 'query=antlab_turn_advance_total{outcome="committed"}' | jq -c '.data.result[]|{outcome:.metric.outcome,value:.value[1]}'
+curl -sS 'http://127.0.0.1:19093/api/v1/query' --data-urlencode 'query=antlab_season_start_total{outcome="committed"}' | jq -c '.data.result[]|{outcome:.metric.outcome,value:.value[1]}'
+```
+
+**Expect / 기대 결과** (after about 30 seconds, scrape every 15 s): `{"job":"antlab-api","health":"up","scrapeUrl":"http://api:8081/actuator/prometheus"}`; `committed` turns `12` (or more, one per advanced turn since the start) and seasons `1`. Metric names: `antlab_season_start_total`, `antlab_turn_advance_total`, `antlab_order_rejected_total`, `antlab_reconciliation_mismatch_rules_total`, `antlab_season_halted_total`, `antlab_season_resumed_total` (labels `outcome`, `code`), plus the standard `http_server_requests_seconds_*`, `jvm_*` and `hikaricp_*`.
+약 30초 뒤(15초마다 수집): `{"job":"antlab-api","health":"up","scrapeUrl":"http://api:8081/actuator/prometheus"}`, `committed` 턴은 시작 이후 넘긴 턴 수(한 시즌이면 `12`), 시즌은 `1`. 지표 이름: `antlab_season_start_total`, `antlab_turn_advance_total`, `antlab_order_rejected_total`, `antlab_reconciliation_mismatch_rules_total`, `antlab_season_halted_total`, `antlab_season_resumed_total`(라벨 `outcome`·`code`)과 표준 `http_server_requests_seconds_*`·`jvm_*`·`hikaricp_*`.
+
+Grafana: open http://127.0.0.1:13013, user `admin`, password = the value of `GF_SECURITY_ADMIN_PASSWORD` in `.env.try` (open the file in VS Code; never paste it elsewhere). Dashboards › folder `ant-lab`:
+Grafana: http://127.0.0.1:13013 을 열고 사용자 `admin`, 비밀번호는 `.env.try`의 `GF_SECURITY_ADMIN_PASSWORD` 값(VS Code로 파일을 연다. 다른 곳에 붙이지 않는다). Dashboards › 폴더 `ant-lab`:
+
+| Dashboard / 대시보드 | Panels / 패널 |
+|---|---|
+| `ant-lab · API` | Request rate, 5xx ratio, Requests by endpoint, Errors by status, Error ratio 4xx / 5xx, Latency p50 / p95 / p99, p95 by endpoint, Max latency by endpoint, Errors by error code |
+| `ant-lab · Game` | Turns committed in range, Reconciliation failures in range, Mismatched rules in range, Orders rejected in range, Seasons started in range, Seasons halted in range, Turn advances by outcome, Reconciliation mismatched rules, Order rejects by code, Season starts by outcome |
+| `ant-lab · JVM and DB pool` | Uptime, Hikari timeouts in range, Heap used by pool, Heap committed / max, Non-heap used, GC pause time, GC overhead, Threads, Thread states, Hikari connections, Hikari acquire time, CPU |
+
+**Expect / 기대 결과:** the three dashboards are listed (checked through Grafana's search API); the `Game` panels count your season (set the time range to «Last 15 minutes»). The browser view itself was not screenshotted here. The one-minute automatic check is `scripts/monitoring_smoke.sh` ([DEPLOY §3.2](docs/DEPLOY.md)): in the verification it ended with `monitoring smoke: PASS (50 checks)`.
+세 대시보드가 목록에 보이고(Grafana 검색 API로 확인) `Game` 패널이 방금 둔 시즌을 센다(시간 범위 «Last 15 minutes»). 브라우저 화면 자체는 캡처하지 않았다. 1분짜리 자동 확인은 `scripts/monitoring_smoke.sh`다([DEPLOY §3.2](docs/DEPLOY.md)): 검증에서 `monitoring smoke: PASS (50 checks)`로 끝났다.
+
+**If it fails / 안 될 때:** the target is `down` → the API container is not running (Prometheus reaches it by its compose name). Grafana restarts in a loop → `GF_SECURITY_ADMIN_PASSWORD` is empty (`docker compose --env-file .env.try -p antlab-try logs grafana`); the password applies only when the `grafana-data` volume is first created, so a changed value needs a new project. Empty panels → play a season, wait 30 s.
+타깃이 `down` → API 컨테이너가 꺼져 있다(Prometheus가 compose 이름으로 닿는다). Grafana가 계속 재시작 → `GF_SECURITY_ADMIN_PASSWORD`가 비었다(`docker compose --env-file .env.try -p antlab-try logs grafana`). 비밀번호는 `grafana-data` 볼륨을 처음 만들 때만 적용되므로 값을 바꾸면 새 프로젝트가 필요하다. 패널이 비면 한 판을 두고 30초 기다린다.
+
+- [ ] Step 6 confirmed / 6단계 확인됨: target `up` · `committed` counters match · three dashboards listed · Game panels move.
+
+### Step 7. Engine (엔진, Python)
+
+**What it checks / 확인하는 것:** the engine tests pass, the container answers `/healthz`, and the two POST routes work with the token header and refuse calls without it.
+엔진 시험이 통과하고, 컨테이너가 `/healthz`에 답하고, POST 경로 둘이 토큰 헤더로 동작하며 토큰 없이는 거절되는지.
+
+```bash
+cd engine
+uv sync --frozen
+uv run --frozen ruff check .
+uv run --frozen pytest -q
+cd ..
+```
+
+**Expect / 기대 결과:** `All checks passed!` and `844 passed, 113 skipped, 8 deselected` (skips need an isolated test database, see [engine/README.md](engine/README.md#database--데이터베이스); counts change as tests are added).
+`All checks passed!`와 `844 passed, 113 skipped, 8 deselected`(건너뜀은 격리 시험 DB가 필요하다, [engine/README.md](engine/README.md#database--데이터베이스). 시험이 늘면 숫자도 는다).
+
+The engine reads history as the SELECT-only role `antlab_engine`; create it once (after the schema exists), then call the container (`engine` profile, Step 2 started it):
+엔진은 SELECT 전용 역할 `antlab_engine`으로 이력을 읽는다. 스키마가 생긴 뒤 한 번 만들고, 컨테이너를 호출한다(`engine` 프로필, 2단계에서 켰다):
+
+```bash
+{ echo "SET antlab.expected_database = 'antlab_api';"; cat db/roles/antlab_engine.sql; } | docker compose --env-file .env.try -p antlab-try exec -T db psql -X -v ON_ERROR_STOP=1 -U "$USER" -d antlab_api
+ET=$(grep ^ANTLAB_ENGINE_TOKEN .env.try | cut -d= -f2)
+curl -sS http://127.0.0.1:18003/healthz
+curl -sS -i -X POST http://127.0.0.1:18003/v1/paths -H 'Content-Type: application/json' -d '{}'
+curl -sS -X POST http://127.0.0.1:18003/v1/paths -H "X-Antlab-Engine-Token: $ET" -H 'Content-Type: application/json' -d '{"engineVersion":"m2-sb6-v1","seed":"42","length":12,"baseDate":"2026-01-02"}'
+curl -sS -X POST http://127.0.0.1:18003/v1/projections -H "X-Antlab-Engine-Token: $ET" -H 'Content-Type: application/json' -d '{"seasonSeed":"42","baseDate":"2026-01-02","n":200,"horizonTurns":60,"riskLimit":"-0.30","portfolios":[{"key":"TEAM","cash":"0.5","weights":[{"asset":"KR:005930","weight":"0.25"},{"asset":"US:SPY","weight":"0.25"}]}]}' | jq -c '{projectionVersion,engineVersion,n,horizonTurns,first:.portfolios[0].bands[0]}'
+```
+
+**Expect / 기대 결과:** `SET` and `DO`; `{"status":"ok"}`; `HTTP/1.1 401 Unauthorized` with `{"title":"Unauthenticated","status":401,"detail":"A valid engine token is required.","instance":"/v1/paths","code":"UNAUTHENTICATED"}`; a path `{"engineVersion":"m2-sb6-v1","months":["2023-01",…,"2025-12"],"blocks":[…],"overlapMet":true,…,"historyDigest":"…"}` (12 months, same seed → same months); a projection `{"projectionVersion":"m2-pj-v1","engineVersion":"m2-sb6-v1","n":200,"horizonTurns":60,"first":{"turn":1,"p05":"0.98…","p25":…,"p50":…,"p75":…,"p95":…}}` (value multiples per turn; `key` must be upper case such as `TEAM`). The contract is [docs/api/engine.yaml](docs/api/engine.yaml). The engine has no route to the outside: it only reads the database.
+`SET`과 `DO`, `{"status":"ok"}`, `HTTP/1.1 401 Unauthorized`와 위 problem 본문, 경로 `{"engineVersion":"m2-sb6-v1","months":["2023-01",…,"2025-12"],"blocks":[…],"overlapMet":true,…,"historyDigest":"…"}`(12개 달, 같은 시드는 같은 달), 예상 분포 `{"projectionVersion":"m2-pj-v1","engineVersion":"m2-sb6-v1","n":200,"horizonTurns":60,"first":{"turn":1,"p05":"0.98…",…}}`(턴별 가치 배수, `key`는 `TEAM`처럼 대문자). 계약은 [docs/api/engine.yaml](docs/api/engine.yaml). 엔진은 바깥으로 나가는 경로가 없고 DB만 읽는다.
+
+**If it fails / 안 될 때:** 400 `INVALID_ARGUMENT` lists `errors[].field` (e.g. an unknown key such as `engineVersion` on `/v1/projections` or a lower-case `key`). A 5xx on `/v1/paths` → the role script was not run or the sample is not loaded. Engine container not healthy → `ANTLAB_ENGINE_TOKEN` missing in `.env.try`.
+400 `INVALID_ARGUMENT`은 `errors[].field`를 알려 준다(예: `/v1/projections`의 모르는 키 `engineVersion`, 소문자 `key`). `/v1/paths`의 5xx는 역할 스크립트를 안 돌렸거나 표본이 없다. 엔진 컨테이너가 healthy가 아니면 `.env.try`에 `ANTLAB_ENGINE_TOKEN`이 없다.
+
+- [ ] Step 7 confirmed / 7단계 확인됨: pytest passes · `/healthz` ok · 401 without token · `/v1/paths` and `/v1/projections` answer with the token.
+
+### Step 8. Agent runner, server side (에이전트 러너, 서버 쪽)
+
+**What it checks / 확인하는 것:** the internal `/internal/agent-runner/v1` routes: register an agent, start its season, read its turn view, submit a decision and advance. Only the API side exists; the runner service itself and every real model call are not built, so no model is called here. You hand-write the decision, and the engine validates it like a real one.
+내부 경로 `/internal/agent-runner/v1`: 에이전트 등록 → 시즌 시작 → 턴 화면 → 결정 제출 → 턴 넘기기. API 쪽만 있다. 러너 서비스 자체와 실제 모델 호출은 아직 없으므로 여기서는 모델을 부르지 않고, 결정은 손으로 쓴다(엔진은 실제 결정처럼 검사한다).
+
+The API needs the owner member id: the first member you signed up has id `1`. Add it and restart `api` (the token is already in `.env.try`):
+API가 소유자 회원 번호를 알아야 한다. 처음 가입한 회원의 id는 `1`이다. 추가하고 `api`를 다시 만든다(토큰은 `.env.try`에 이미 있다):
+
+```bash
+echo "ANTLAB_AGENT_RUNNER_OWNER_ID=1" >> .env.try
+docker compose --env-file .env.try -p antlab-try --profile api up -d --wait --no-deps api
+```
+
+```bash
+RT=$(grep ^ANTLAB_AGENT_RUNNER_TOKEN .env.try | cut -d= -f2)
+R=http://127.0.0.1:18083/internal/agent-runner/v1
+HR=(-H "X-Antlab-Runner-Token: $RT" -H 'Content-Type: application/json')
+Z=$(printf '0%.0s' $(seq 1 64))
+curl -sS -i -X POST $R/agents -H 'Content-Type: application/json' -d '{}'
+AGENT=$(curl -sS "${HR[@]}" -X POST $R/agents -d '{"personaKey":"value-investor","modelRoute":"OLLAMA","modelId":"example-model","displayName":"Example agent"}' | jq -r .agentId)
+SID=$(curl -sS "${HR[@]}" -X POST $R/agents/$AGENT/seasons -d "{\"riskLimit\":\"-0.20\",\"formation\":{\"goalkeeper\":10,\"defender\":30,\"midfielder\":30,\"forward\":30},\"pathLength\":12,\"config\":{\"personaVersion\":1,\"personaSha256\":\"$Z\",\"modelRequested\":\"example-model\",\"temperature\":\"0.2\",\"maxTokens\":2000,\"turnTimeoutMs\":60000,\"promptTemplateVersion\":\"t1\",\"runnerVersion\":\"r1\",\"budgetCalls\":100,\"budgetUsd\":\"1.00\"}}" | jq -r .id)
+echo "AGENT=$AGENT SID=$SID"
+curl -sS "${HR[@]}" $R/agents/$AGENT/seasons/$SID/turn-view | jq -c '{keys:keys, agent:.agent}'
+curl -sS -w ' [%{http_code}]\n' "${HR[@]}" -X POST $R/agents/$AGENT/seasons/$SID/turns -d '{"expectedTurnNo":0}'
+curl -sS -w ' [%{http_code}]\n' "${HR[@]}" -X POST $R/agents/$AGENT/seasons/$SID/turns/0/decision -d '{"outcome":"NO_RESPONSE","decision":null,"calls":[{"attemptNo":1,"kind":"TURN_DECISION","status":"TIMEOUT","modelRequested":"example-model","requestText":"hand-written, no model called","latencyMs":0}]}'
+curl -sS -w ' [%{http_code}]\n' "${HR[@]}" -X POST $R/agents/$AGENT/seasons/$SID/turns -d '{"expectedTurnNo":0}' | cut -c1-160
+curl -sS -w ' [%{http_code}]\n' "${HR[@]}" -X POST $R/agents/$AGENT/seasons/$SID/turns/1/decision -d '{"outcome":"DECISION","decision":{"schema":"turn-decision/1","formation_change":null,"orders":[{"asset":"KR:005930","side":"BUY","quantity":1,"position":"MIDFIELDER","source":{"kind":"DIRECT"}}],"theses":[],"reason":"hand-written example"},"calls":[{"attemptNo":1,"kind":"TURN_DECISION","status":"OK","modelRequested":"example-model","requestText":"hand-written","responseText":"hand-written","latencyMs":0}]}'
+```
+
+**Expect / 기대 결과** (ids come from the answers: `AGENT` is the agent member id, `SID` the agent's season id; a fresh project gives `2` and `2` after the Step 4 season): `401` `UNAUTHENTICATED` without the header; `AGENT=2 SID=…` (the registration answers `201`, then `200` when repeated); turn view keys `["agent","holdings","lastTurn","pool","prices","season"]` with `agent.schema` `turn-decision/1`; advancing without a decision → `409 DECISION_MISSING`; the `NO_RESPONSE` decision → `"outcome":"NO_RESPONSE","replayed":false` (200; a repeated `GET …/decision` says `"replayed":true`); advance → `"turnNo":1,"status":"IN_PROGRESS"`; the hand-written `DECISION` → `"orders":[{"index":0,"status":"APPLIED",…}]`. Registering the same persona and model again answers `200` instead of `201`. Contract: [docs/api/agent-runner.yaml](docs/api/agent-runner.yaml). A human access token is never read on these paths, and the runner token is never read on `/api/v1`.
+(id는 응답에서 읽는다. `AGENT`는 에이전트 회원 id, `SID`는 그 에이전트의 시즌 id이고, 4단계 시즌만 있는 새 프로젝트에서는 둘 다 `2`다.) 헤더 없으면 `401` `UNAUTHENTICATED`, `AGENT=2 SID=…`(등록은 `201`, 반복하면 `200`), 턴 화면 키 `["agent","holdings","lastTurn","pool","prices","season"]`와 `agent.schema` `turn-decision/1`, 결정 없이 넘기면 `409 DECISION_MISSING`, `NO_RESPONSE` 결정은 `"outcome":"NO_RESPONSE","replayed":false`(200. `GET …/decision`을 다시 부르면 `"replayed":true`), 넘기면 `"turnNo":1,"status":"IN_PROGRESS"`, 손으로 쓴 `DECISION`은 `"orders":[{"index":0,"status":"APPLIED",…}]`. 같은 페르소나·모델을 다시 등록하면 `201` 대신 `200`이다. 계약은 [docs/api/agent-runner.yaml](docs/api/agent-runner.yaml). 이 경로에서는 사람의 접근 토큰을 읽지 않고, `/api/v1`에서는 러너 토큰을 읽지 않는다.
+
+**If it fails / 안 될 때:** every call 401 → `ANTLAB_AGENT_RUNNER_TOKEN` is empty in the container (recreate `api` after editing `.env.try`). 404 `NOT_FOUND` → the owner id is wrong (`ANTLAB_AGENT_RUNNER_OWNER_ID`), or the agent or season id is not yours; one answer for all, by design. 400 `INVALID_ARGUMENT` → shape error in the body (the decision must match [docs/api/turn-decision-1.schema.json](docs/api/turn-decision-1.schema.json)). Live model calls (OpenRouter probe in `ai/`) need your key and cost money: not run here.
+모든 호출이 401 → 컨테이너의 `ANTLAB_AGENT_RUNNER_TOKEN`이 비었다(`.env.try`를 고친 뒤 `api`를 다시 만든다). 404 `NOT_FOUND` → 소유자 id(`ANTLAB_AGENT_RUNNER_OWNER_ID`)가 틀렸거나 에이전트·시즌 id가 내 것이 아니다(설계상 모두 같은 응답). 400 `INVALID_ARGUMENT` → 본문 모양 오류(결정은 [docs/api/turn-decision-1.schema.json](docs/api/turn-decision-1.schema.json)과 맞아야 한다). 실제 모델 호출(`ai/`의 OpenRouter 탐침)은 내 키와 비용이 필요해 실행하지 않았다.
+
+Offline checks of the Python side: `cd ai && uv sync --frozen && uv run --frozen pytest -q` → `333 passed, 1 skipped` (no network).
+Python 쪽 오프라인 확인: `cd ai && uv sync --frozen && uv run --frozen pytest -q` → `333 passed, 1 skipped`(네트워크 없음).
+
+- [ ] Step 8 confirmed / 8단계 확인됨: 401 without token · agent registered (201, then 200) · turn view · `DECISION_MISSING` before a decision · `APPLIED` after one.
+
+### Step 9. Collector job (수집 잡)
+
+**What it checks / 확인하는 것:** the KIS daily-price collector (M1-05, M1-06) works against fake responses and refuses to run unless explicitly switched on. **No live KIS call has been made so far**: the real run needs your KIS keys, and the live smoke is still waiting for your decision.
+KIS 일봉 수집기(M1-05·M1-06)가 가짜 응답으로 동작하고, 명시적으로 켜지 않으면 실행을 거부하는지. **라이브 KIS 호출은 아직 하지 않았다.** 실제 실행에는 내 KIS 키가 필요하고 라이브 스모크는 소유자 결정을 기다린다.
+
+```bash
+./gradlew test --tests 'antlab.collect.*' -PexcludeSqlGolden
+```
+
+**Expect / 기대 결과:** `BUILD SUCCESSFUL`; the tests use synthetic FAKE responses and a throwaway PostgreSQL container, no network and no KIS key (184 tests, 0 failures, `BUILD SUCCESSFUL`).
+`BUILD SUCCESSFUL`. 시험은 합성 FAKE 응답과 일회용 PostgreSQL 컨테이너만 쓰고 네트워크·KIS 키가 없다(184건, 실패 0, `BUILD SUCCESSFUL`).
+
+The one-run gate: a run is requested but the collector is not enabled, so nothing is sent.
+일회 실행 게이트: 실행을 요청했지만 수집기가 꺼져 있으면 아무것도 보내지 않는다.
+
+```bash
+./gradlew bootJar
+ANTLAB_DB_URL=jdbc:postgresql://127.0.0.1:55433/antlab_api ANTLAB_JWT_SECRET="$(grep ^ANTLAB_JWT_SECRET .env.try | cut -d= -f2-)" java -jar build/libs/app.jar --antlab.collect.run-once=KIS_DAILY_PRICE --server.port=0 --management.server.port=0
+echo "exit=$?"
+```
+
+**Expect / 기대 결과:** the process exits with `exit=1` and the log shows `IllegalStateException: antlab.collect.run-once needs antlab.collect.kis.enabled=true`; no request was sent, and `select count(*) from job_run` and `from asset_daily_price` stay `0`.
+프로세스가 `exit=1`로 끝나고 로그에 `IllegalStateException: antlab.collect.run-once needs antlab.collect.kis.enabled=true`가 보인다. 요청은 나가지 않았고 `select count(*) from job_run`, `from asset_daily_price`는 계속 `0`이다.
+
+The real run (`--antlab.collect.kis.enabled=true`, token, rate limits, throwaway database) is described in [KIS daily price collector](#kis-daily-price-collector-local-only-kis-일봉-수집기-로컬-전용): not run here (needs your KIS keys). The `prod` profile refuses to start with the collector on (`CollectProdGuard`).
+실제 실행(`--antlab.collect.kis.enabled=true`, 토큰, 속도 제한, 일회용 DB)은 [KIS 일봉 수집기](#kis-daily-price-collector-local-only-kis-일봉-수집기-로컬-전용)에 있다(내 KIS 키가 필요해 직접 실행 확인 안 함). `prod` 프로필은 수집기를 켠 채로 시작하기를 거부한다(`CollectProdGuard`).
+
+**If it fails / 안 될 때:** tests fail on «Docker 환경을 찾을 수 없음» → start Docker Desktop. The gate command connects to a database first: use the isolated port 55433, never `antlab-db-1`.
+시험이 «Docker 환경을 찾을 수 없음»으로 실패 → Docker Desktop을 켠다. 게이트 명령은 먼저 DB에 접속한다. 격리 포트 55433을 쓰고 `antlab-db-1`은 쓰지 않는다.
+
+- [ ] Step 9 confirmed / 9단계 확인됨: collector tests pass · gate refuses without `kis.enabled` · you know no live call was made.
+
+### Step 10. CI and security guards (CI·보안 가드)
+
+**What it checks / 확인하는 것:** the guards that fail closed: the firewall answers one fixed problem+json, the app database role cannot delete or change the schema, and the dev reconciliation endpoints exist only in the `local` profile.
+닫는 쪽으로 실패하는 가드: 방화벽이 고정된 problem+json 하나로 답하고, 앱 DB 역할이 삭제·스키마 변경을 못 하고, 개발용 대사 엔드포인트가 `local` 프로필에만 있는지.
+
+```bash
+B=http://127.0.0.1:18083
+curl -sS -i --path-as-is "$B//readyz"
+curl -sS -i --path-as-is "$B/api/v1/%ZZ"
+curl -sS -i -X FOO "$B/readyz"
+curl -sS -i $B/api/v1/seasons
+curl -sS -i -X POST $B/api/v1/dev/seasons/1/reconciliation/resume
+```
+
+**Expect / 기대 결과:** the first three answer `HTTP/1.1 400` with `{"title":"Bad Request","status":400,"detail":"요청의 주소나 헤더를 해석할 수 없다","instance":"/","code":"MALFORMED_REQUEST"}` (`Content-Type: application/problem+json`; the body echoes nothing of your request); the fourth `401` `UNAUTHENTICATED`; the fifth `401` (the container runs `prod`).
+앞의 셋은 `HTTP/1.1 400`과 위 본문(`Content-Type: application/problem+json`, 요청의 어떤 부분도 되풀이하지 않는다), 넷째는 `401` `UNAUTHENTICATED`, 다섯째는 `401`(컨테이너는 `prod`).
+
+```bash
+psql -X -U antlab_app -d antlab_api -c "DELETE FROM member"
+psql -X -U antlab_app -d antlab_api -c "CREATE TABLE t(x int)"
+psql -X -U antlab_app -d antlab_api -Atc "SELECT count(*) FROM member"
+{ echo "SET antlab.expected_database = 'antlab_api';"; cat db/roles/antlab_owner_app.sql; } | docker compose --env-file .env.try -p antlab-try exec -T db psql -X -v ON_ERROR_STOP=1 -U "$USER" -d antlab_api
+psql -X -d antlab_api -Atc "select rolname, rolsuper, rolcreatedb from pg_roles where rolname like 'antlab_%' order by 1"
+```
+
+**Expect / 기대 결과 (MVP-20):** `ERROR:  permission denied for table member`; `ERROR:  permission denied for schema public`; a row count (SELECT is allowed); the role script prints `SET` and `DO` (it is one atomic, repeatable statement; on a volume that already holds data, take a backup first as in [db/README.md «App roles»](db/README.md#app-roles-mvp-20--앱-역할-mvp-20)); roles `antlab_app|f|f`, `antlab_engine|f|f`, `antlab_owner|f|f` (none is a superuser).
+`ERROR:  permission denied for table member`, `ERROR:  permission denied for schema public`, 행 수(SELECT는 허용), 역할 스크립트는 `SET`·`DO`를 출력한다(문장 하나라 원자적이고 반복 실행해도 같다. 이미 데이터가 있는 볼륨이면 [db/README.md「App roles」](db/README.md#app-roles-mvp-20--앱-역할-mvp-20)처럼 먼저 백업한다), 역할 `antlab_app|f|f`·`antlab_engine|f|f`·`antlab_owner|f|f`(슈퍼유저 없음).
+
+The dev endpoints (profile `local`, `127.0.0.1` only, outside the contract) need an `ADMIN` member and the fixed header. Run the app as in Step 3 (`bootRun` on 18084), then:
+개발용 엔드포인트(`local` 프로필, `127.0.0.1` 전용, 계약 밖)는 `ADMIN` 회원과 고정 헤더가 필요하다. 3단계처럼 앱을 띄운 뒤(`bootRun`, 18084):
+
+```bash
+psql -X -d antlab_api -c "UPDATE member SET role='ADMIN' WHERE lower(email)=lower('player@example.test')"
+D=http://127.0.0.1:18084
+TOKEN=$(curl -sS -X POST $D/api/v1/auth/login -H 'Content-Type: application/json' -d '{"email":"player@example.test","password":"correct-horse-battery"}' | jq -r .accessToken)
+curl -sS -o /dev/null -w '%{http_code}\n' -X POST -H "Authorization: Bearer $TOKEN" $D/api/v1/dev/seasons/1/reconciliation/resume
+curl -sS -w ' [%{http_code}]\n' -X POST -H "Authorization: Bearer $TOKEN" -H 'X-Antlab-Dev: true' $D/api/v1/dev/seasons/1/reconciliation/resume
+curl -sS -X POST -H "Authorization: Bearer $TOKEN" -H 'X-Antlab-Dev: true' $D/api/v1/dev/seasons/1/reconciliation | jq -c '{seasonId,turnNo,result,mismatchRules}'
+```
+
+**Expect / 기대 결과:** `UPDATE 1`; without the header `403`; with it `{"seasonId":1,"status":"FINISHED","resumed":false} [200]` (a season that is not halted is left as it is); the manual reconciliation `{"seasonId":1,"turnNo":12,"result":"MATCH","mismatchRules":0}`. A season halted by repeated reconciliation failures (`HALTED`) answers `resumed:true` and gets one more try; producing a real halt needs a deliberately broken ledger, so that path is covered by `./gradlew test --tests 'antlab.api.dev.*' --tests 'antlab.scoring.*' -PexcludeSqlGolden` and was not reproduced by hand (직접 실행 확인 안 함 / not run by hand). Calls to a halted agent season are refused with `SEASON_HALTED`.
+`UPDATE 1`, 헤더 없이 `403`, 헤더를 붙이면 `{"seasonId":1,"status":"FINISHED","resumed":false} [200]`(멈추지 않은 시즌은 그대로 둔다), 수동 대사 `{"seasonId":1,"turnNo":12,"result":"MATCH","mismatchRules":0}`. 대사 실패가 거듭되어 `HALTED`가 된 시즌은 `resumed:true`로 답하고 한 번 더 시도한다. 실제 정지를 만들려면 일부러 원장을 깨야 해서 그 경로는 `./gradlew test --tests 'antlab.api.dev.*' --tests 'antlab.scoring.*' -PexcludeSqlGolden`이 다루고, 손으로 재현하지는 않았다(직접 실행 확인 안 함). 정지된 에이전트 시즌의 호출은 `SEASON_HALTED`로 거절된다.
+
+CI: GitHub Actions runs the Gradle tests (with a reviewed list of allowed skips, `scripts/ci_expected_skips.txt`), the SQL schema job, the image build and the web checks on every pull request; the workflows are in `.github/workflows/` and were not run locally (not run here). Local equivalents of the container checks: `scripts/runtime_smoke.sh startup-fail` and `scripts/runtime_smoke.sh graceful` (both ended with `runtime smoke (…): PASS`, about 2–4 s each after the image exists).
+CI: GitHub Actions가 모든 풀 리퀘스트에서 Gradle 시험(검토된 건너뜀 목록 `scripts/ci_expected_skips.txt`), SQL 스키마 job, 이미지 빌드, 웹 검사를 돌린다. 워크플로는 `.github/workflows/`에 있고 로컬에서 실행하지 않았다(직접 실행 확인 안 함). 컨테이너 검사의 로컬 대응은 `scripts/runtime_smoke.sh startup-fail`, `scripts/runtime_smoke.sh graceful`(둘 다 `runtime smoke (…): PASS`로 끝났다. 이미지가 있으면 각 2–4초).
+
+**If it fails / 안 될 때:** the firewall request shows the HTML error page → you are not talking to the API port (check `B`). Dev call 401 → login again (15 minutes), 403 → the member is not `ADMIN` or the header is missing, 404 → the app runs `prod` (use `bootRun`).
+방화벽 요청에 HTML 오류 페이지가 보이면 API 포트가 아니다(`B` 확인). 개발 호출 401 → 다시 로그인(15분), 403 → `ADMIN`이 아니거나 헤더가 없다, 404 → 앱이 `prod`로 떠 있다(`bootRun`을 쓴다).
+
+- [ ] Step 10 confirmed / 10단계 확인됨: three firewall 400s identical · `antlab_app` cannot DELETE or CREATE · dev endpoint 403 without header, 200 with it.
+
+### Clean up (정리)
+
+Remove only the guide's own project; it never touches `antlab-db-1`. Stop the dev servers with `Ctrl+C`.
+이 안내의 프로젝트만 지운다. `antlab-db-1`은 건드리지 않는다. 개발 서버는 `Ctrl+C`로 멈춘다.
+
+```bash
+docker compose --env-file .env.try -p antlab-try --profile api --profile monitoring --profile engine down -v --rmi local
+```
+
+**Expect / 기대 결과:** containers, network and the three volumes of `antlab-try` are removed; `docker ps` still lists `antlab-db-1`. `.env.try` stays (git-ignored); delete it by hand when you no longer need it.
+`antlab-try`의 컨테이너·네트워크·볼륨 셋이 지워지고 `docker ps`에는 `antlab-db-1`이 그대로 보인다. `.env.try`는 남는다(git 무시). 필요 없으면 직접 지운다.
+
 ## 기술 스택
 
 Java 21 · Spring Boot 4.1 · PostgreSQL 17 · JPA (리포트 쿼리에 MyBatis 선택) · springdoc-openapi(저장소 계약 `docs/api/openapi.yaml`) · Python (FastAPI, pandas, 시뮬레이션 엔진) · 모바일 앱 중심 + 데스크탑 앱 + 웹 페이지 (React Native, React — 웹은 WEB 단계, 앱은 이후) · RAG / LangChain / LangGraph (FastAPI·Python 서비스에서 실행, 이후) · Docker Compose(로컬 DB는 지금, 서버 배포는 OPS) · GitHub Actions · GHCR · 오라클 클라우드 인프라(OCI, Oracle Cloud Infrastructure) Ampere VM + Caddy (이후)
