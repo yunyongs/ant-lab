@@ -140,4 +140,69 @@ class ProdProfileConfigTest {
         // The env name is only a placeholder inside application.yml, which the imported file overrides.
         assertThat(both.getProperty("antlab.auth.jwt-secret")).isEqualTo("from-file");
     }
+
+    // ---- MVP-20: owner and app roles, secret file names, startup guard ----
+
+    private static final String URL = "jdbc:postgresql://db:5432/antlab_api";
+
+    @Test
+    void prod_defaults_to_the_app_role_for_the_datasource_and_the_owner_role_for_flyway() {
+        ConfigurableEnvironment env = prodEnvironment(Map.of("ANTLAB_DB_URL", URL));
+        assertThat(env.getProperty("spring.datasource.username")).isEqualTo("antlab_app");
+        assertThat(env.getProperty("spring.flyway.user")).isEqualTo("antlab_owner");
+        assertThat(env.getProperty("spring.flyway.password")).isEmpty();
+        assertThat(env.getProperty("spring.datasource.password")).isEmpty();
+        assertThat(env.getProperty("antlab.db.least-privilege-check")).isEqualTo("true");
+        assertThat(env.getProperty("spring.flyway.url")).as("Flyway uses the datasource URL").isNull();
+        assertThat(env.getProperty("spring.flyway.locations")).isEqualTo("classpath:db/migration,classpath:db/callback");
+    }
+
+    @Test
+    void prod_role_names_can_be_overridden_from_the_environment() {
+        ConfigurableEnvironment env = prodEnvironment(Map.of("ANTLAB_DB_URL", URL, "ANTLAB_DB_USER", "other_app",
+                "ANTLAB_DB_OWNER_USER", "other_owner", "ANTLAB_DB_PASSWORD", "app-pw", "ANTLAB_DB_OWNER_PASSWORD", "owner-pw"));
+        assertThat(env.getProperty("spring.datasource.username")).isEqualTo("other_app");
+        assertThat(env.getProperty("spring.flyway.user")).isEqualTo("other_owner");
+        assertThat(env.getProperty("spring.datasource.password")).isEqualTo("app-pw");
+        assertThat(env.getProperty("spring.flyway.password")).isEqualTo("owner-pw");
+    }
+
+    @Test
+    void both_database_passwords_come_from_configtree_files_and_an_environment_variable_beats_the_file(@TempDir Path secrets)
+            throws IOException {
+        // Throwaway test values; assertions never print them.
+        Files.writeString(secrets.resolve("spring.datasource.password"), "app-from-file");
+        Files.writeString(secrets.resolve("spring.flyway.password"), "owner-from-file");
+        String importValue = "optional:configtree:" + secrets + "/";
+
+        StandardEnvironment files = isolatedEnvironment();
+        files.getPropertySources().addFirst(new MapPropertySource("importOnly", Map.of("spring.config.import", importValue)));
+        files.getPropertySources().addFirst(new SystemEnvironmentPropertySource("envLike", Map.of("ANTLAB_DB_URL", URL)));
+        ConfigDataEnvironmentPostProcessor.applyTo(files, new DefaultResourceLoader(), null, "prod");
+        assertThat(files.getProperty("spring.datasource.password")).isEqualTo("app-from-file");
+        assertThat(files.getProperty("spring.flyway.password")).isEqualTo("owner-from-file");
+
+        StandardEnvironment both = isolatedEnvironment();
+        both.getPropertySources().addFirst(new MapPropertySource("importOnly", Map.of("spring.config.import", importValue)));
+        both.getPropertySources().addFirst(new SystemEnvironmentPropertySource("envLike",
+                Map.of("ANTLAB_DB_URL", URL, "SPRING_FLYWAY_PASSWORD", "owner-from-env")));
+        ConfigDataEnvironmentPostProcessor.applyTo(both, new DefaultResourceLoader(), null, "prod");
+        assertThat(both.getProperty("spring.flyway.password")).isEqualTo("owner-from-env");
+        assertThat(both.getProperty("spring.datasource.password")).isEqualTo("app-from-file");
+    }
+
+    @Test
+    void default_and_local_keep_the_single_user_defaults_and_the_guard_off() {
+        for (String profile : new String[] {"", "local"}) {
+            StandardEnvironment env = isolatedEnvironment();
+            if (profile.isEmpty()) {
+                ConfigDataEnvironmentPostProcessor.applyTo(env, new DefaultResourceLoader(), null);
+            } else {
+                ConfigDataEnvironmentPostProcessor.applyTo(env, new DefaultResourceLoader(), null, profile);
+            }
+            assertThat(env.getProperty("spring.datasource.username")).as("profile '%s'", profile).isEqualTo("antlab");
+            assertThat(env.getProperty("spring.flyway.user")).as("profile '%s'", profile).isNull();
+            assertThat(env.getProperty("antlab.db.least-privilege-check")).as("profile '%s'", profile).isEqualTo("false");
+        }
+    }
 }
