@@ -196,10 +196,15 @@ FROM (SELECT p.base_date, a.month_block_id, mb.month_start, a.asset_id, format('
       WHERE a.attention_index IS NOT NULL
         AND mb.month_start < make_date(EXTRACT(YEAR FROM p.base_date)::integer, 1, 1)) t;
 
--- 손 계산·경계 시험에 쓰는 종목(풀 첫 종목)과 가장 늦은 기준일
+-- Latest base date (for the hand-calculation and boundary tests) and the first asset in that base date's pool
 CREATE TEMP VIEW zz_s1 AS
-SELECT a.id AS asset_id, format('%s:%s', a.market, a.ticker) AS subject, (SELECT max(base_date) FROM asset_position) AS base_date
-FROM asset a WHERE a.id = (SELECT min(asset_id) FROM asset_position);
+SELECT a.id AS asset_id, format('%s:%s', a.market, a.ticker) AS subject, b.base_date
+FROM (SELECT max(base_date) AS base_date FROM asset_position) b
+JOIN asset a ON a.id = (SELECT min(p.asset_id) FROM asset_position p WHERE p.base_date = b.base_date);
+
+-- Base date that the cutoff test moves the latest base date to: June 2nd of the year of the last month in month_block.
+CREATE FUNCTION pg_temp.cutoff_target() RETURNS date
+LANGUAGE sql AS $$ SELECT make_date(EXTRACT(YEAR FROM max(month_start))::integer, 6, 2) FROM month_block $$;
 
 -- 그 종목의 3개월 창이 완전한 태그 달 (달마다 태그 행 하나). 합성 사건 유형으로 바꿔 쓸 행이다
 CREATE TEMP VIEW zz_anchor AS
@@ -304,8 +309,60 @@ BEGIN
     RETURN v;
 END $$;
 
--- 순위 대상이 줄어든 달(CEIL / FLOOR 구분, 4절 아닌 6절용): 가장 늦은 기준일 풀의 2024-01 지수 5개를 NULL 로 만들어 순위 대상을 줄이고
--- (z 는 그대로라 index_needs_z CHECK 통과) 정점 뷰의 그 달 is_peak·n_ranked 를 데이터 변경 뒤 다시 계산한 독립 판정과 비교한다. zz_peak_ind 는 낡으므로 쓰지 않는다.
+-- CEIL / FLOOR test month (section 6): the latest month before the year of the latest base date that has at least 15 ranked assets in that base date's pool.
+-- Zero rows = no such month (reported by the setup row, not as a definition mismatch).
+CREATE TEMP VIEW zz_ceil_t AS
+SELECT s.base_date, m.id AS month_block_id
+FROM zz_s1 s
+CROSS JOIN LATERAL (
+    SELECT mb.id FROM month_block mb
+    WHERE mb.month_start < date_trunc('year', s.base_date::timestamp)::date
+      AND (SELECT count(*) FROM asset_month_attention a JOIN asset_position p ON p.asset_id = a.asset_id AND p.base_date = s.base_date
+           WHERE a.month_block_id = mb.id AND a.attention_index IS NOT NULL) >= 15
+    ORDER BY mb.month_start DESC LIMIT 1) m;
+
+-- Setup only (independent of the definition under test; call inside a subtransaction): leave exactly 15 ranked assets in the test month.
+-- The 15 smallest asset_ids of the pool keep a value, overwritten by distinct synthetic values 1 + 0.01 * k (not prices), so the top two never tie; the rest of the
+-- pool gets NULL (z stays, so ck_asset_month_attention_index_needs_z holds). Returns the number of setup problems (0 = ready).
+CREATE FUNCTION pg_temp.peak_ceil_prep(p_bd date, p_m bigint) RETURNS bigint
+LANGUAGE plpgsql AS $$
+DECLARE
+    v_pool bigint;
+    v_left bigint;
+BEGIN
+    WITH pool AS (
+        SELECT a.id, row_number() OVER (ORDER BY a.asset_id) AS k
+        FROM asset_month_attention a JOIN asset_position p ON p.asset_id = a.asset_id AND p.base_date = p_bd
+        WHERE a.month_block_id = p_m AND a.attention_index IS NOT NULL)
+    UPDATE asset_month_attention a SET attention_index = CASE WHEN pool.k <= 15 THEN 1 + 0.01 * pool.k END
+    FROM pool WHERE a.id = pool.id;
+    GET DIAGNOSTICS v_pool = ROW_COUNT;
+    SELECT count(*) INTO v_left FROM asset_month_attention a JOIN asset_position p ON p.asset_id = a.asset_id AND p.base_date = p_bd
+    WHERE a.month_block_id = p_m AND a.attention_index IS NOT NULL;
+    RETURN (v_pool < 15)::integer + (v_left <> 15)::integer;
+END $$;
+
+-- Setup failures of the CEIL / FLOOR test month, rolled back (0 = a month with 15 ranked assets could be prepared)
+CREATE FUNCTION pg_temp.peak_ceil_setup() RETURNS bigint
+LANGUAGE plpgsql AS $$
+DECLARE
+    v      bigint;
+    v_bd   date;
+    v_m    bigint;
+BEGIN
+    SELECT base_date, month_block_id INTO v_bd, v_m FROM zz_ceil_t;
+    IF v_m IS NULL THEN RETURN 1; END IF;
+    BEGIN
+        v := pg_temp.peak_ceil_prep(v_bd, v_m);
+        RAISE EXCEPTION 'zz_undo' USING ERRCODE = 'P0001';
+    EXCEPTION WHEN OTHERS THEN
+        IF SQLERRM <> 'zz_undo' THEN RAISE; END IF;
+    END;
+    RETURN v;
+END $$;
+
+-- CEIL / FLOOR test (section 6): peak_ceil_prep makes the test month's ranked set 15 assets, then the peak view's is_peak and n_ranked
+-- are compared with an independent verdict recomputed after the data change. Returns only definition mismatches (setup failures are counted by peak_ceil_setup). zz_peak_ind is stale and not used.
 CREATE FUNCTION pg_temp.peak_ceil() RETURNS bigint
 LANGUAGE plpgsql AS $$
 DECLARE
@@ -314,19 +371,14 @@ DECLARE
     v_m    bigint;
     v_n    bigint;
 BEGIN
-    SELECT max(base_date) INTO v_bd FROM asset_position;
-    SELECT id INTO v_m FROM month_block WHERE month_start = DATE '2024-01-01';
+    SELECT base_date, month_block_id INTO v_bd, v_m FROM zz_ceil_t;
+    IF v_m IS NULL THEN RETURN 0; END IF;
     BEGIN
-        UPDATE asset_month_attention SET attention_index = NULL
-        WHERE month_block_id = v_m AND attention_index IS NOT NULL
-          AND asset_id IN (SELECT a.asset_id FROM asset_month_attention a JOIN asset_position p ON p.asset_id = a.asset_id AND p.base_date = v_bd
-                           WHERE a.month_block_id = v_m AND a.attention_index IS NOT NULL ORDER BY a.asset_id LIMIT 5);
-        GET DIAGNOSTICS v_n = ROW_COUNT;
-        v := v + abs(v_n - 5);
+        PERFORM pg_temp.peak_ceil_prep(v_bd, v_m);
         EXECUTE pg_temp.sub('SELECT count(*) FROM {pfx}_peak WHERE base_date = $1 AND month_block_id = $2 AND n_ranked <> 15') INTO v_n USING v_bd, v_m;
         v := v + v_n;
         EXECUTE pg_temp.sub('SELECT count(*) FROM {pfx}_peak WHERE base_date = $1 AND month_block_id = $2') INTO v_n USING v_bd, v_m;
-        v := v + CASE WHEN v_n = 15 THEN 0 ELSE 1 END;               -- 순위 대상이 실제로 15개가 되었는가 (헛돌지 않게)
+        v := v + CASE WHEN v_n = 15 THEN 0 ELSE 1 END;               -- the peak view also yields 15 ranked rows
         EXECUTE pg_temp.sub('SELECT count(*) FROM {pfx}_peak o WHERE o.base_date = $1 AND o.month_block_id = $2 AND o.is_peak IS DISTINCT FROM
                   ((1 + (SELECT count(*) FROM asset_month_attention a2 JOIN asset_position p2 ON p2.asset_id = a2.asset_id AND p2.base_date = o.base_date
                          WHERE a2.month_block_id = o.month_block_id AND a2.attention_index > o.attention_index)) <= CEIL(0.10 * 15))') INTO v_n USING v_bd, v_m;
@@ -338,14 +390,14 @@ BEGIN
     RETURN v;
 END $$;
 
--- 보드 한 행이 기대와 같은지. p_cols: 'MEAN' = n·평균, 'UP' = n_up·상승 확률, 'ALL' = 전부 (일화 표시 포함). 같으면 0, 다르면 1
-CREATE FUNCTION pg_temp.board_row_bad(p_cols text, p_kind text, p_key text, p_subject text, p_h integer, p_n integer, p_up integer, p_mean numeric, p_prob numeric, p_note text) RETURNS integer
+-- Whether a board row matches the expectation. p_cols: 'MEAN' = n and mean, 'UP' = n_up and up probability, 'ALL' = all columns (incl. the anecdote note). p_bd = base date to read. 0 if equal, 1 if not
+CREATE FUNCTION pg_temp.board_row_bad(p_cols text, p_kind text, p_key text, p_subject text, p_h integer, p_n integer, p_up integer, p_mean numeric, p_prob numeric, p_note text, p_bd date) RETURNS integer
 LANGUAGE plpgsql AS $$
 DECLARE
     v integer;
 BEGIN
-    EXECUTE pg_temp.sub('SELECT count(*) FROM {pfx}_board WHERE kind = $1 AND cond_key = $2 AND subject = $3 AND horizon = $4 AND n = $5 AND ($10 = ''UP'' OR mean_return = $7) AND ($10 = ''MEAN'' OR (n_up = $6 AND up_prob = $8)) AND sample_note IS NOT DISTINCT FROM $9')
-        INTO v USING p_kind, p_key, p_subject, p_h, p_n, p_up, p_mean, p_prob, p_note, p_cols;
+    EXECUTE pg_temp.sub('SELECT count(*) FROM {pfx}_board WHERE base_date = $11 AND kind = $1 AND cond_key = $2 AND subject = $3 AND horizon = $4 AND n = $5 AND ($10 = ''UP'' OR mean_return = $7) AND ($10 = ''MEAN'' OR (n_up = $6 AND up_prob = $8)) AND sample_note IS NOT DISTINCT FROM $9')
+        INTO v USING p_kind, p_key, p_subject, p_h, p_n, p_up, p_mean, p_prob, p_note, p_cols, p_bd;
     RETURN CASE WHEN v = 1 THEN 0 ELSE 1 END;
 END $$;
 
@@ -357,10 +409,11 @@ DECLARE
     v     bigint := 0;
     v_s1  text;
     v_a   bigint;
+    v_bd  date;
     v_upd bigint;
     v_c   bigint;
 BEGIN
-    SELECT subject, asset_id INTO v_s1, v_a FROM zz_s1;
+    SELECT subject, asset_id, base_date INTO v_s1, v_a, v_bd FROM zz_s1;
     BEGIN
         WITH a AS (SELECT row_number() OVER (ORDER BY month_start) AS rn, event_row_id FROM zz_anchor)
         UPDATE month_event e
@@ -371,11 +424,11 @@ BEGIN
         v := v + abs(v_upd - 28);                                   -- 바꿀 태그 달 28개가 모두 있었는가
         EXECUTE pg_temp.sub('SELECT count(*) FROM {pfx}_board WHERE kind = ''EVENT'' AND cond_key = ''ZZ_N4''') INTO v_c;
         v := v + v_c;                                               -- n = 4: 어느 시리즈에도 나오면 안 된다
-        EXECUTE pg_temp.sub('SELECT (count(*) FILTER (WHERE n = 5 AND sample_note = ''일화'')) FROM {pfx}_board WHERE kind = ''EVENT'' AND cond_key = ''ZZ_N5'' AND subject = $1 AND horizon = 3') INTO v_c USING v_s1;
+        EXECUTE pg_temp.sub('SELECT (count(*) FILTER (WHERE n = 5 AND sample_note = ''일화'')) FROM {pfx}_board WHERE kind = ''EVENT'' AND cond_key = ''ZZ_N5'' AND subject = $1 AND horizon = 3 AND base_date = $2') INTO v_c USING v_s1, v_bd;
         v := v + CASE WHEN v_c = 1 THEN 0 ELSE 1 END;
-        EXECUTE pg_temp.sub('SELECT (count(*) FILTER (WHERE n = 9 AND sample_note = ''일화'')) FROM {pfx}_board WHERE kind = ''EVENT'' AND cond_key = ''ZZ_N9'' AND subject = $1 AND horizon = 3') INTO v_c USING v_s1;
+        EXECUTE pg_temp.sub('SELECT (count(*) FILTER (WHERE n = 9 AND sample_note = ''일화'')) FROM {pfx}_board WHERE kind = ''EVENT'' AND cond_key = ''ZZ_N9'' AND subject = $1 AND horizon = 3 AND base_date = $2') INTO v_c USING v_s1, v_bd;
         v := v + CASE WHEN v_c = 1 THEN 0 ELSE 1 END;
-        EXECUTE pg_temp.sub('SELECT (count(*) FILTER (WHERE n = 10 AND sample_note IS NULL)) FROM {pfx}_board WHERE kind = ''EVENT'' AND cond_key = ''ZZ_N10'' AND subject = $1 AND horizon = 3') INTO v_c USING v_s1;
+        EXECUTE pg_temp.sub('SELECT (count(*) FILTER (WHERE n = 10 AND sample_note IS NULL)) FROM {pfx}_board WHERE kind = ''EVENT'' AND cond_key = ''ZZ_N10'' AND subject = $1 AND horizon = 3 AND base_date = $2') INTO v_c USING v_s1, v_bd;
         v := v + CASE WHEN v_c = 1 THEN 0 ELSE 1 END;
         RAISE EXCEPTION 'zz_undo' USING ERRCODE = 'P0001';
     EXCEPTION WHEN OTHERS THEN
@@ -385,10 +438,10 @@ BEGIN
     BEGIN
         DELETE FROM asset_month_return r USING month_block b
         WHERE r.asset_id = v_a AND b.id = r.month_block_id AND EXTRACT(MONTH FROM b.month_start) = 3
-          AND b.month_start < make_date(EXTRACT(YEAR FROM (SELECT base_date FROM zz_s1))::integer, 1, 1)
+          AND b.month_start < make_date(EXTRACT(YEAR FROM v_bd)::integer, 1, 1)
           AND b.month_start NOT IN (SELECT b2.month_start FROM asset_month_return r2 JOIN month_block b2 ON b2.id = r2.month_block_id
                                     WHERE r2.asset_id = v_a AND EXTRACT(MONTH FROM b2.month_start) = 3 ORDER BY b2.month_start LIMIT 4);
-        EXECUTE pg_temp.sub('SELECT count(*) FROM {pfx}_board WHERE kind = ''CALENDAR'' AND cond_key = ''03'' AND subject = $1') INTO v_c USING v_s1;
+        EXECUTE pg_temp.sub('SELECT count(*) FROM {pfx}_board WHERE kind = ''CALENDAR'' AND cond_key = ''03'' AND subject = $1 AND base_date = $2') INTO v_c USING v_s1, v_bd;
         v := v + v_c;
         RAISE EXCEPTION 'zz_undo' USING ERRCODE = 'P0001';
     EXCEPTION WHEN OTHERS THEN
@@ -398,10 +451,10 @@ BEGIN
     BEGIN
         DELETE FROM asset_month_return r USING month_block b
         WHERE r.asset_id = v_a AND b.id = r.month_block_id AND EXTRACT(MONTH FROM b.month_start) = 3
-          AND b.month_start < make_date(EXTRACT(YEAR FROM (SELECT base_date FROM zz_s1))::integer, 1, 1)
+          AND b.month_start < make_date(EXTRACT(YEAR FROM v_bd)::integer, 1, 1)
           AND b.month_start NOT IN (SELECT b2.month_start FROM asset_month_return r2 JOIN month_block b2 ON b2.id = r2.month_block_id
                                     WHERE r2.asset_id = v_a AND EXTRACT(MONTH FROM b2.month_start) = 3 ORDER BY b2.month_start LIMIT 5);
-        EXECUTE pg_temp.sub('SELECT count(*) FILTER (WHERE n = 5 AND sample_note = ''일화'') FROM {pfx}_board WHERE kind = ''CALENDAR'' AND cond_key = ''03'' AND subject = $1') INTO v_c USING v_s1;
+        EXECUTE pg_temp.sub('SELECT count(*) FILTER (WHERE n = 5 AND sample_note = ''일화'') FROM {pfx}_board WHERE kind = ''CALENDAR'' AND cond_key = ''03'' AND subject = $1 AND base_date = $2') INTO v_c USING v_s1, v_bd;
         v := v + CASE WHEN v_c = 1 THEN 0 ELSE 1 END;
         RAISE EXCEPTION 'zz_undo' USING ERRCODE = 'P0001';
     EXCEPTION WHEN OTHERS THEN
@@ -420,6 +473,7 @@ DECLARE
     v      bigint := 0;
     v_s1   text;
     v_a    bigint;
+    v_bd   date;
     v_cut  date;
     v_upd  bigint;
     v_jan  numeric[] := ARRAY[0.01, -0.02, 0.00, 0.03, 0.01, -0.01, 0.02, 0.00, 0.04];
@@ -427,7 +481,7 @@ DECLARE
     v_m    integer;
     v_vals numeric[];
 BEGIN
-    SELECT subject, asset_id, make_date(EXTRACT(YEAR FROM base_date)::integer, 1, 1) INTO v_s1, v_a, v_cut FROM zz_s1;
+    SELECT subject, asset_id, base_date, make_date(EXTRACT(YEAR FROM base_date)::integer, 1, 1) INTO v_s1, v_a, v_bd, v_cut FROM zz_s1;
     BEGIN
         FOREACH v_m IN ARRAY ARRAY[1, 2] LOOP
             v_vals := CASE WHEN v_m = 1 THEN v_jan ELSE v_feb END;
@@ -438,8 +492,8 @@ BEGIN
             GET DIAGNOSTICS v_upd = ROW_COUNT;
             v := v + abs(v_upd - 9);
         END LOOP;
-        v := v + pg_temp.board_row_bad(CASE WHEN p_part = 'MEAN' THEN 'MEAN' ELSE 'UP' END, 'CALENDAR', '01', v_s1, 0, 9, 5, 0.00888889, 0.55555556, '일화');
-        v := v + pg_temp.board_row_bad(CASE WHEN p_part = 'MEAN' THEN 'MEAN' ELSE 'UP' END, 'CALENDAR', '02', v_s1, 0, 9, 4, 0.00444444, 0.44444444, '일화');
+        v := v + pg_temp.board_row_bad(CASE WHEN p_part = 'MEAN' THEN 'MEAN' ELSE 'UP' END, 'CALENDAR', '01', v_s1, 0, 9, 5, 0.00888889, 0.55555556, '일화', v_bd);
+        v := v + pg_temp.board_row_bad(CASE WHEN p_part = 'MEAN' THEN 'MEAN' ELSE 'UP' END, 'CALENDAR', '02', v_s1, 0, 9, 4, 0.00444444, 0.44444444, '일화', v_bd);
         RAISE EXCEPTION 'zz_undo' USING ERRCODE = 'P0001';
     EXCEPTION WHEN OTHERS THEN
         IF SQLERRM <> 'zz_undo' THEN RAISE; END IF;
@@ -495,11 +549,11 @@ BEGIN
         END LOOP;
         v := v + abs(v_cnt - 5);                                    -- 서로 떨어진 태그 달 5개가 있었는가
         IF p_code = 'PRODUCT' THEN
-            v := v + pg_temp.board_row_bad('ALL', 'EVENT', v_type, v_s1, 3, 5, 4, 0.10495960, 0.80000000, '일화');
-            v := v + pg_temp.board_row_bad('ALL', 'EVENT', v_type, v_s1, 1, 5, 3, 0.03800000, 0.60000000, '일화');
+            v := v + pg_temp.board_row_bad('ALL', 'EVENT', v_type, v_s1, 3, 5, 4, 0.10495960, 0.80000000, '일화', v_bd);
+            v := v + pg_temp.board_row_bad('ALL', 'EVENT', v_type, v_s1, 1, 5, 3, 0.03800000, 0.60000000, '일화', v_bd);
         ELSE
-            v := v + pg_temp.board_row_bad('ALL', 'EVENT', v_type, v_s1, 3, 5, 5, 0.06000008, 1.00000000, '일화');
-            v := v + pg_temp.board_row_bad('ALL', 'EVENT', v_type, v_s1, 1, 5, 5, 0.06000000, 1.00000000, '일화');
+            v := v + pg_temp.board_row_bad('ALL', 'EVENT', v_type, v_s1, 3, 5, 5, 0.06000008, 1.00000000, '일화', v_bd);
+            v := v + pg_temp.board_row_bad('ALL', 'EVENT', v_type, v_s1, 1, 5, 5, 0.06000000, 1.00000000, '일화', v_bd);
         END IF;
         RAISE EXCEPTION 'zz_undo' USING ERRCODE = 'P0001';
     EXCEPTION WHEN OTHERS THEN
@@ -508,28 +562,31 @@ BEGIN
     RETURN v;
 END $$;
 
--- 기준일 해 경계(5절 CUTOFF_YEAR): 가장 늦은 기준일을 2025-06-02 로 옮기면(판정 8컬럼은 전부-또는-없음 CHECK 때문에 함께 NULL) 기준일이 속한 해(2025)의 달이 생긴다.
---   그 달들은 보드의 관측에 들어가면 안 된다. 관측의 마지막 창 달(anchor + horizon)이 2025-01-01 이상인 관측 수 + 시험이 헛돌지 않는지(2025 달이 실제로 있고 관측이 있는가)
+-- Year-boundary test (section 5, CUTOFF_YEAR): moving the latest base date to cutoff_target() (June 2 of the last month's year; 2025-06-02 in the sample)
+--   makes months of the base date's year appear (the 8 verdict columns are NULLed together by an all-or-nothing CHECK). Those months must not enter the moved base date's board observations.
+--   Counts observations whose last window month (anchor + horizon) is on or after January of that year, plus checks the test is not vacuous (that year has months and observations)
 CREATE FUNCTION pg_temp.cutoff_count() RETURNS bigint
 LANGUAGE plpgsql AS $$
 DECLARE
     v      bigint := 0;
     v_bd   date;
+    v_t    date := pg_temp.cutoff_target();
+    v_y    date := make_date(EXTRACT(YEAR FROM pg_temp.cutoff_target())::integer, 1, 1);
     v_c    bigint;
 BEGIN
-    SELECT max(base_date) INTO v_bd FROM asset_position;
+    SELECT base_date INTO v_bd FROM zz_s1;
     BEGIN
         UPDATE asset_position
-        SET base_date = DATE '2025-06-02', window_start = NULL, window_end = NULL, months_used = NULL,
+        SET base_date = v_t, window_start = NULL, window_end = NULL, months_used = NULL,
             up_participation = NULL, down_participation = NULL, volatility = NULL, max_drawdown = NULL, system_position = NULL
         WHERE base_date = v_bd;
-        EXECUTE pg_temp.sub('SELECT count(*) FROM {pfx}_obs WHERE (anchor_month + make_interval(months => horizon::integer))::date >= DATE ''2025-01-01''') INTO v_c;
+        EXECUTE pg_temp.sub('SELECT count(*) FROM {pfx}_obs WHERE base_date = $1 AND (anchor_month + make_interval(months => horizon::integer))::date >= $2') INTO v_c USING v_t, v_y;
         v := v + v_c;
-        EXECUTE pg_temp.sub('SELECT count(*) FROM {pfx}_peak WHERE month_start >= DATE ''2025-01-01''') INTO v_c;
+        EXECUTE pg_temp.sub('SELECT count(*) FROM {pfx}_peak WHERE base_date = $1 AND month_start >= $2') INTO v_c USING v_t, v_y;
         v := v + v_c;
-        SELECT count(*) INTO v_c FROM month_block WHERE month_start >= DATE '2025-01-01';
-        v := v + CASE WHEN v_c > 0 THEN 0 ELSE 1 END;               -- 2025 달이 DB 에 있어야 시험이 의미가 있다
-        EXECUTE pg_temp.sub('SELECT count(*) FROM {pfx}_obs WHERE kind = ''CALENDAR''') INTO v_c;
+        SELECT count(*) INTO v_c FROM month_block WHERE month_start >= v_y;
+        v := v + CASE WHEN v_c > 0 THEN 0 ELSE 1 END;               -- the DB must have months of that year for the test to mean anything
+        EXECUTE pg_temp.sub('SELECT count(*) FROM {pfx}_obs WHERE base_date = $1 AND kind = ''CALENDAR''') INTO v_c USING v_t;
         v := v + CASE WHEN v_c > 0 THEN 0 ELSE 1 END;
         RAISE EXCEPTION 'zz_undo' USING ERRCODE = 'P0001';
     EXCEPTION WHEN OTHERS THEN
@@ -669,8 +726,10 @@ FROM (VALUES
     ('11 적재가 끝나 있다 (month_event 에 START 행이 있다)', 'true', (SELECT (count(*) > 0)::text FROM month_event WHERE phase = 'START')),
     ('13 계산이 끝나 있다 (asset_month_attention 이 비어 있지 않다 — 빈 표로 헛 PASS 하지 않는다)', 'true', (SELECT (count(*) > 0)::text FROM asset_month_attention)),
     ('기준일(asset_position.base_date)이 하나 이상 있다', 'true', (SELECT (count(DISTINCT base_date) >= 1)::text FROM asset_position)),
-    ('기준일이 하나다 (표본 구조 전제 — 손 계산·경계·기준일 이동 시험이 기준일을 구분하지 않는다. 기준일이 늘면 이 시험들에 base_date 를 넘기도록 고친다)', '1',
-        (SELECT count(DISTINCT base_date)::text FROM asset_position)),
+    ('정의 글자(14·순위 정의 파일)에 변이·대조용 이름 접두사 zzi_·zzm_ 이 없다 (이름 치환 replace 가 문자열 리터럴까지 바꾸는 경로를 막는다)', '0',
+        (SELECT ((position('zzi_' IN txt) > 0)::int + (position('zzm_' IN txt) > 0)::int + (position('zzi_' IN rank_txt) > 0)::int + (position('zzm_' IN rank_txt) > 0)::int)::text FROM zz_def)),
+    ('CUTOFF_YEAR 시험이 옮겨 갈 기준일(마지막 달이 속한 해의 6월 2일)을 이미 가진 asset_position 행이 없다', '0',
+        (SELECT count(*)::text FROM asset_position WHERE base_date = pg_temp.cutoff_target())),
     ('A9 같은 (유형, 달)에 START 가 둘인 경우 0 (조용히 합치지 않는다 — 있으면 사건 n 이 이중으로 센다)', '0',
         (SELECT count(*)::text FROM (SELECT event_type, month_block_id FROM month_event WHERE phase = 'START' GROUP BY 1, 2 HAVING count(*) > 1) d)),
     ('독립 관측이 비어 있지 않다: 달력 / 사건 / 정점이 모두 있다 (빈 결과가 통과로 끝나지 않게)', 'true',
@@ -942,6 +1001,28 @@ BEGIN
         VALUES (r.section, '음성 [' || r.q || '] ' || r.label || ' 위반 ' || CASE WHEN r.cmp = 'ge' THEN r.expect || '건 이상' ELSE r.expect || '건' END,
                 CASE WHEN r.cmp = 'ge' THEN '≥ ' || r.expect ELSE r.expect END, v_n, v_ok);
     END LOOP;
+END $$;
+
+-- Section '6 정점' (peak) rows: CEIL / FLOOR test month (standalone rows, not rule codes). Setup failures are counted apart from definition mismatches; both rows below are exact-count checks.
+INSERT INTO zz_check_result (section, item, expected, actual, ok)
+SELECT '6 정점', '[PEAK_RULE] CEIL 시험 달 준비 실패 수 (순위 대상 15개인 달을 못 찾거나 만들지 못한 수) — 0건', '0', v.n, v.n IS NOT DISTINCT FROM '0'
+FROM (SELECT pg_temp.peak_ceil_setup()::text AS n) v;
+
+DO $$
+DECLARE
+    v_n text;
+BEGIN
+    BEGIN
+        CALL pg_temp.mutate(ARRAY['CEIL(k.top_q * t.n_ranked)', 'FLOOR(k.top_q * t.n_ranked)']);
+        v_n := pg_temp.peak_ceil()::text;
+        RAISE EXCEPTION 'zz_undo' USING ERRCODE = 'P0001';
+    EXCEPTION WHEN OTHERS THEN
+        IF SQLERRM <> 'zz_undo' THEN
+            v_n := 'ERROR ' || SQLSTATE || ' ' || left(SQLERRM, 60);
+        END IF;
+    END;
+    INSERT INTO zz_check_result (section, item, expected, actual, ok)
+    VALUES ('6 정점', '[PEAK_RULE] FLOOR 변이가 순위 대상 15개인 달의 정점 판정을 정확히 한 행 바꾼다 (CEIL 1.5 = 2, FLOOR = 1) — 1건', '1', v_n, v_n IS NOT DISTINCT FROM '1');
 END $$;
 
 -- 보고: 절별 결과를 아래 8절이 집계한다. 값(수익률·평균·확률)은 출력하지 않는다.

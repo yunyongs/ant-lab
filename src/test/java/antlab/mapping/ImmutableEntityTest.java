@@ -21,7 +21,7 @@ import org.springframework.test.context.jdbc.Sql;
 
 /** 불변 엔티티: setter·공개 생성자가 없고, 필드를 바꿔 flush 해도 DB 값이 그대로다. */
 @JpaMappingTest
-@Sql("/fixtures/history_pool.sql")
+@Sql({"/fixtures/history_pool.sql", "/fixtures/collected_data.sql"})
 class ImmutableEntityTest {
 
     @Autowired
@@ -30,9 +30,9 @@ class ImmutableEntityTest {
     @Autowired
     JdbcTemplate jdbc;
 
-    /** 읽기 전용 8개: 적재 SQL 이 만든 행을 읽기만 한다. 공개 생성자가 없다. */
+    /** 읽기 전용 10개: 적재 SQL·수집기가 만든 행을 읽기만 한다. 공개 생성자가 없다. */
     static final Set<String> READ_ONLY = Set.of("AssetGroup", "Asset", "AssetPosition", "MonthBlock",
-            "AssetMonthReturn", "FxMonth", "MonthEvent", "AssetMonthAttention");
+            "AssetMonthReturn", "FxMonth", "MonthEvent", "AssetMonthAttention", "JobRun", "AssetDailyPrice");
 
     /** 추가 전용 9개: 넣을 수는 있고 넣은 뒤 바뀌지 않는다. 공개 생성자가 정확히 하나다. */
     static final Set<String> APPEND_ONLY = Set.of("SeasonPath", "Turn", "TurnPrice", "FormationChange", "TurnFeed",
@@ -51,7 +51,7 @@ class ImmutableEntityTest {
     }
 
     @Test
-    void 엔티티_분류는_읽기_전용_8_추가_전용_9_가변_6이다() {
+    void 엔티티_분류는_읽기_전용_10_추가_전용_9_가변_6이다() {
         assertThat(immutableEntities().stream().map(Class::getSimpleName))
                 .containsExactlyInAnyOrderElementsOf(
                         java.util.stream.Stream.concat(READ_ONLY.stream(), APPEND_ONLY.stream()).toList());
