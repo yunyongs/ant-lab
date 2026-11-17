@@ -39,6 +39,11 @@ public record EngineProperties(
         if (!PATH_VERSIONS.contains(pathVersion)) {
             throw new IllegalArgumentException("antlab.engine.path-version must be one of " + PATH_VERSIONS);
         }
+        // any mode: a header value with a control or non-ASCII character makes the JDK echo the value in its exception
+        if (token.chars().anyMatch(c -> c < 33 || c > 126)) {
+            throw new IllegalArgumentException(
+                    "ANTLAB_ENGINE_TOKEN must be printable ASCII without whitespace, as the engine requires");
+        }
         if (pathSource == PathSourceMode.ENGINE) {
             if (url.isEmpty()) {
                 throw new IllegalArgumentException("antlab.engine.path-source=engine needs ANTLAB_ENGINE_URL");
@@ -46,10 +51,6 @@ public record EngineProperties(
             if (token.length() < MIN_TOKEN_LENGTH) {
                 throw new IllegalArgumentException(
                         "antlab.engine.path-source=engine needs ANTLAB_ENGINE_TOKEN of at least " + MIN_TOKEN_LENGTH + " characters");
-            }
-            if (token.chars().anyMatch(c -> c < 33 || c > 126)) {
-                throw new IllegalArgumentException(
-                        "ANTLAB_ENGINE_TOKEN must be printable ASCII without whitespace, as the engine requires");
             }
         }
     }

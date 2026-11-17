@@ -82,6 +82,9 @@ public final class EngineClient {
             throw EngineErrorMapper.transport(operation, e);
         } catch (RestClientException e) {
             throw EngineErrorMapper.badResponse(operation, 0);
+        } catch (RuntimeException e) {
+            // never let a transport message (URL, header value) reach a log or a response
+            throw EngineErrorMapper.badResponse(operation, 0);
         }
         return interpret(operation, raw, type);
     }

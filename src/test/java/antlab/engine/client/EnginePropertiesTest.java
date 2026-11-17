@@ -91,6 +91,16 @@ class EnginePropertiesTest {
     }
 
     @Test
+    void 기본_자바_경로에서도_제어_문자나_비ASCII_토큰은_기동이_실패하고_값은_메시지에_없다() {
+        for (String bad : new String[] { "secret\u0001value", "비밀토큰값" }) {
+            runner.withPropertyValues("antlab.engine.url=http://engine:8000", "antlab.engine.token=" + bad).run(context -> {
+                assertThat(context).hasFailed();
+                assertThat(failureText(context)).contains("printable ASCII").doesNotContain("secret").doesNotContain("비밀토큰값");
+            });
+        }
+    }
+
+    @Test
     void 엔진_경로에_URL과_32자_토큰이면_뜬다() {
         runner.withPropertyValues("antlab.engine.path-source=engine", "antlab.engine.url=http://engine:8000",
                 "antlab.engine.token=" + LONG_TOKEN).run(context -> {

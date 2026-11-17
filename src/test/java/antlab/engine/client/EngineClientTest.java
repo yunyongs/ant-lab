@@ -255,6 +255,21 @@ class EngineClientTest {
     }
 
     @Test
+    void 전송_계층의_예기치_못한_예외는_내용을_버리고_내부_오류로_바뀐다(CapturedOutput output) {
+        h.paths.expect(once(), requestTo(BASE + "/v1/paths")).andRespond(request -> {
+            throw new IllegalArgumentException("invalid header value: \"" + FAKE_TOKEN + "\"");
+        });
+
+        assertThatThrownBy(() -> h.client.createPath(EngineHarness.pathRequest())).isInstanceOfSatisfying(DomainException.class,
+                e -> {
+                    assertThat(e.getCode()).isEqualTo(ErrorCode.INTERNAL_ERROR);
+                    assertThat(e).hasNoCause();
+                    assertThat(String.valueOf(e)).doesNotContain(FAKE_TOKEN);
+                });
+        assertThat(output.getAll()).doesNotContain(FAKE_TOKEN);
+    }
+
+    @Test
     void 경로_응답의_달_형식_오류와_다이제스트_누락도_내부_오류다() {
         for (String bad : new String[] { "bad-path-month-13.json", "bad-path-no-digest.json" }) {
             EngineHarness each = new EngineHarness();
