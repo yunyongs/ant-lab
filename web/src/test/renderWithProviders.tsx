@@ -25,11 +25,13 @@ export function renderWithProviders(
   session: TestSession = 'authenticated',
 ) {
   seedSession(session);
-  return render(
-    <QueryClientProvider client={createTestQueryClient()}>
+  const queryClient = createTestQueryClient();
+  const result = render(
+    <QueryClientProvider client={queryClient}>
       <MemoryRouter initialEntries={[route]}>{ui}</MemoryRouter>
     </QueryClientProvider>,
   );
+  return { ...result, queryClient };
 }
 
 export function renderRoute(

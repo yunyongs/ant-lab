@@ -1562,11 +1562,13 @@ components:
 
             선언 포지션(매수 전용). 열린 구간이 없는 종목(처음 사거나 전량 매도 뒤)이면 필수, 있으면 생략할 수 있다. 매도에 보내면 400
         source:
-          $ref: '#/components/schemas/OrderSourceRequest'
           description: |-
             Where the order started. Omitted or null means DIRECT. A FEED or ALERT origin must name a feed item that was shown to this season at or before the current turn, otherwise 422 SOURCE_NOT_VISIBLE
 
             주문이 시작된 곳. 없거나 null이면 DIRECT. FEED·ALERT는 이 시즌의 현재 턴까지 보인 피드 항목을 가리켜야 하며 아니면 422 SOURCE_NOT_VISIBLE
+          oneOf:
+            - $ref: '#/components/schemas/OrderSourceRequest'
+            - type: 'null'
     OrderSourceRequest:
       type: object
       description: |-
@@ -1717,14 +1719,14 @@ components:
     TurnResultDto:
       type: object
       description: |-
-        Values of the stored turn row and the ratios computed from them. The advance-turn response and the turn lookup have the same shape. The sum of the four shares can differ from 1 by at most 2e-8, and status and pathLength are the season's values now. targetFormation is the target at the start of that turn. Reconciliation attempt number, status, seed, path, month block, year-month and return kind are not included. feed is the feed stored for that turn.
+        Values of the stored turn row and the ratios computed from them. The advance-turn response and the turn lookup have the same shape. The sum of the four shares can differ from 1 by at most 2e-8, and status and pathLength are the season's values now. targetFormation is the target at the start of that turn. Reconciliation attempt number, status, seed, path, month block, year-month and return kind are not included. feed is the feed stored for that turn and alerts are the nudge alerts stored for it.
 
-        저장한 턴 행의 값과 거기서 계산한 비율. 턴 전환 응답과 턴 조회가 같은 형이다. 비중 4개의 합은 1과 최대 2e-8 다를 수 있고, status·pathLength 는 시즌의 지금 값이다. targetFormation 은 그 턴 시작 시점의 목표다. 대사 시도 번호·상태·시드·경로·월 블록·연월·수익률 종류는 싣지 않는다. feed 는 그 턴에 저장된 피드다
+        저장한 턴 행의 값과 거기서 계산한 비율. 턴 전환 응답과 턴 조회가 같은 형이다. 비중 4개의 합은 1과 최대 2e-8 다를 수 있고, status·pathLength 는 시즌의 지금 값이다. targetFormation 은 그 턴 시작 시점의 목표다. 대사 시도 번호·상태·시드·경로·월 블록·연월·수익률 종류는 싣지 않는다. feed 는 그 턴에 저장된 피드이고 alerts 는 저장된 독려 알림이다
       required: [seasonId, turnNo, status, pathLength, cashBalance, holdingsValue, totalValue, goalkeeperValue,
                  defenderValue, midfielderValue, forwardValue, drawdown, previousTotalValue, valueChange, periodReturn,
                  riskLimit, riskHeadroom, riskBreached, goalkeeperWeight, defenderWeight, midfielderWeight,
                  forwardWeight, targetFormation, goalkeeperGap, defenderGap, midfielderGap, forwardGap,
-                 formationDeviation, feed]
+                 formationDeviation, feed, alerts]
       properties:
         seasonId:
           type: integer
@@ -1843,6 +1845,11 @@ components:
         feed:
           type: array
           description: The feed shown at this turn, in display order; empty when the turn has none / 이 턴에 보인 피드, 표시 순서. 없으면 빈 목록
+          items:
+            $ref: '#/components/schemas/FeedItemDto'
+        alerts:
+          type: array
+          description: The nudge alerts shown at this turn, in display order; empty when the turn has none. Their seq numbers continue after the feed's / 이 턴에 보인 독려 알림, 표시 순서. 없으면 빈 목록. seq 는 피드 뒤에서 이어진다
           items:
             $ref: '#/components/schemas/FeedItemDto'
     FeedItemDto:
