@@ -18,10 +18,12 @@ import org.springframework.stereotype.Component;
  * <ul>
  *   <li>{@link #orders} — {@code sr_report} 의 {@code po} CTE: 체결을 <b>주문별로 먼저 합친 뒤</b> 턴·출발점 조건으로 걸러 조인 증폭을 막는다.
  *       보고 범위 {@code turn_no < T}, 대금·독려는 1턴 이후, 수수료는 0턴 포함.</li>
- *   <li>{@link #holdings} — {@code sr_hold}: q(t) = turn_no &lt; t 인 체결의 매수 − 매도 수량, 값 = 수량 × 그 턴의 turn_price. 현재 보유로 과거를 만들지 않는다.</li>
+ *   <li>{@link #holdings} — {@code sr_hold}: q(t) = turn_no &lt; t 인 체결의 매수 − 매도 수량, 값 = 수량 × 그 턴의 turn_price. 현재 보유로 과거를 만들지 않는다.
+ *       Non-zero quantities only; negative ones are kept so the calculator can refuse them.</li>
  *   <li>{@link #benchmarkPrices} — {@code sr_baseline} 의 입력: 대용 두 종목의 0..T 턴 가격.</li>
  *   <li>{@link #recon} — {@code sr_report} 의 대사 부분: 불일치 행 수, 경로 길이를 넘는 턴의 행 수, (턴, 시도) 묶음 중 17행·15행 수.</li>
- *   <li>{@link #requireConsistent} — {@code sr_t} 의 경로·풀({@code asset_position(base_date)})·풀 가격 검사.</li>
+ *   <li>{@link #requireConsistent} — {@code sr_t} 의 경로·풀({@code asset_position(base_date)})·풀 가격 검사와,
+ *       가격과 무관한 모든 체결의 턴별 누적 수량 음수 검사.</li>
  * </ul>
  * 이 클래스에는 반올림이 없다. 쓰기와 잠금도 없다.
  */
@@ -69,7 +71,7 @@ public class SeasonReportQuery {
             JOIN turn_price tp ON tp.season_id = :seasonId AND tp.asset_id = x.asset_id AND tp.turn_no = g.n
             JOIN asset a ON a.id = x.asset_id
             GROUP BY a.market, a.ticker, g.n, tp.price
-            HAVING sum(po.dq) > 0
+            HAVING sum(po.dq) <> 0
             ORDER BY a.market, a.ticker, g.n""";
 
     private static final String BENCHMARK = """
@@ -104,7 +106,15 @@ public class SeasonReportQuery {
                         (SELECT t0.asset_id FROM turn_price t0 WHERE t0.season_id = :seasonId AND t0.turn_no = 0
                          EXCEPT SELECT ap.asset_id FROM asset_position ap
                          WHERE ap.base_date = (SELECT se.base_date FROM season se WHERE se.id = :seasonId))
-                    ) diff) AS pool_mismatch""";
+                    ) diff) AS pool_mismatch,
+                   (SELECT count(*) FROM (
+                        SELECT sum(x.dq) OVER (PARTITION BY x.asset_id ORDER BY x.turn_no) AS cum
+                        FROM (SELECT o.asset_id, o.turn_no,
+                                     sum(CASE WHEN o.side = 'BUY' THEN e.quantity ELSE -e.quantity END) AS dq
+                              FROM orders o JOIN execution e ON e.order_id = o.id
+                              WHERE o.season_id = :seasonId AND o.turn_no < :reportTurn
+                              GROUP BY o.asset_id, o.turn_no) x) y
+                    WHERE y.cum < 0) AS negative_cumulative""";
 
     private final JdbcClient jdbc;
 
@@ -124,7 +134,11 @@ public class SeasonReportQuery {
                 .single();
     }
 
-    /** 턴 1..T 의 보유 재구성(26 {@code sr_hold} 와 같은 식): 턴 t 시작 시점에 수량이 0보다 큰 (종목, 턴)과 평가액. */
+    /**
+     * 턴 1..T 의 보유 재구성(26 {@code sr_hold} 와 같은 식): 턴 t 시작 시점의 (종목, 턴)과 평가액.
+     * Rows with a non-zero quantity; a negative quantity is kept so that the calculator refuses it
+     * (SQL {@code sr_t} checks the running sum instead).
+     */
     public List<HoldingFact> holdings(long seasonId, int reportTurn) {
         return jdbc.sql(HOLDINGS).param("seasonId", seasonId).param("reportTurn", reportTurn)
                 .query((rs, n) -> new HoldingFact(new AssetKey(rs.getString("market"), rs.getString("ticker")),
@@ -163,7 +177,11 @@ public class SeasonReportQuery {
     public void requireConsistent(long seasonId, int reportTurn) {
         long[] counts = jdbc.sql(CONSISTENCY).param("seasonId", seasonId).param("reportTurn", reportTurn)
                 .query((rs, n) -> new long[] {rs.getLong("path_rows"), rs.getLong("missing_pool_prices"),
-                        rs.getLong("pool_mismatch")}).single();
+                        rs.getLong("pool_mismatch"), rs.getLong("negative_cumulative")}).single();
+        // Independent of turn_price: the holdings join only sees priced assets, this sees every fill (SQL sr_t does the same)
+        if (counts[3] != 0) {
+            throw new IllegalStateException("성적표 원천이 모순이다: 체결 이력의 누적 수량이 음수인 턴이 있다");
+        }
         if (counts[0] != reportTurn) {
             throw new IllegalStateException("성적표 원천이 모순이다: 경로가 처음부터 보고 턴까지 이어지지 않는다");
         }
