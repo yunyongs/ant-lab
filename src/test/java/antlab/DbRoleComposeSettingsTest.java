@@ -54,6 +54,17 @@ class DbRoleComposeSettingsTest {
     }
 
     @Test
+    void composeNeverPassesTheSecretsDirectoryHook() throws IOException {
+        // An empty ANTLAB_SECRETS_DIR would turn the prod import into "optional:configtree:" and silently skip the files.
+        for (String service : services().keySet()) {
+            Map<String, Object> env = environment(service);
+            if (env != null) {
+                assertThat(env).as(service).doesNotContainKey("ANTLAB_SECRETS_DIR");
+            }
+        }
+    }
+
+    @Test
     @SuppressWarnings("unchecked")
     void theDbMountsTheRoleScriptsReadOnly() throws IOException {
         List<String> volumes = (List<String>) services().get("db").get("volumes");

@@ -58,7 +58,8 @@ class ProfileDocumentTest {
     void prod_문서는_DB_주소에_기본값이_없고_비밀_디렉터리를_읽는다() throws IOException {
         PropertySource<?> prod = byProfile(documents(), "prod");
         assertThat(prod.getProperty("spring.datasource.url")).isEqualTo("${ANTLAB_DB_URL}");
-        assertThat(prod.getProperty("spring.config.import")).isEqualTo("optional:configtree:/run/secrets/");
+        assertThat(prod.getProperty("spring.config.import"))
+                .isEqualTo("optional:configtree:${ANTLAB_SECRETS_DIR:/run/secrets/}");
     }
 
     @Test

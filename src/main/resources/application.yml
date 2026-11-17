@@ -160,7 +160,8 @@ spring:
       on-profile: prod
     # 운영 비밀(DB 비밀번호 등)은 파일로 받는다: /run/secrets/spring.datasource.password -> spring.datasource.password.
     # 디렉터리가 없어도(로컬 compose) 기동한다. 같은 속성을 환경 변수(SPRING_DATASOURCE_PASSWORD)로도 주면 환경 변수가 이긴다.
-    import: optional:configtree:/run/secrets/
+    # ANTLAB_SECRETS_DIR exists only so a test can point the real import at a temporary directory.
+    import: optional:configtree:${ANTLAB_SECRETS_DIR:/run/secrets/}
   datasource:
     # 기본값 없음: 운영 프로필에서 ANTLAB_DB_URL 을 빠뜨리면 localhost 로 가지 않고 기동에 실패한다.
     url: ${ANTLAB_DB_URL}

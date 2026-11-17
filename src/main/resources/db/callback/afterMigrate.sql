@@ -21,6 +21,8 @@ DECLARE
     privileges constant text[] := ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER',
         'MAINTAIN'];
     unclassified text[];
+    foreign_owned text[];
+    routines text[];
     t text;
     p text;
     expected text[];
@@ -28,6 +30,29 @@ DECLARE
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'antlab_app') THEN
         RETURN;
+    END IF;
+
+    -- A migration run by a superuser (for example a local bootRun on the same database) leaves tables the owner role
+    -- does not own; the grants below would then fail with a bare "permission denied".
+    IF NOT (SELECT rolsuper FROM pg_roles WHERE rolname = current_user) THEN
+        SELECT coalesce(array_agg(c.relname::text ORDER BY c.relname), '{}') INTO foreign_owned
+        FROM pg_class c
+        WHERE c.relnamespace = 'public'::regnamespace AND c.relkind IN ('r', 'p', 'v', 'm', 'f', 'S')
+          AND c.relowner <> (SELECT oid FROM pg_roles WHERE rolname = current_user);
+        IF cardinality(foreign_owned) > 0 THEN
+            RAISE EXCEPTION 'afterMigrate: relation(s) in public not owned by %: %. Run db/roles/antlab_owner_app.sql again as a superuser',
+                current_user, array_to_string(foreign_owned, ', ');
+        END IF;
+    END IF;
+
+    -- Routines are outside the privilege classes (PUBLIC can EXECUTE by default, and a SECURITY DEFINER routine would
+    -- run with the owner's rights), so none may exist until this file decides their rights.
+    SELECT coalesce(array_agg(pr.oid::regprocedure::text ORDER BY pr.oid::regprocedure::text), '{}') INTO routines
+    FROM pg_proc pr
+    WHERE pr.pronamespace = 'public'::regnamespace;
+    IF cardinality(routines) > 0 THEN
+        RAISE EXCEPTION 'afterMigrate: routine(s) in public: %. Decide the rights of antlab_app on them in db/callback/afterMigrate.sql',
+            array_to_string(routines, ', ');
     END IF;
 
     SELECT coalesce(array_agg(c.relname::text ORDER BY c.relname), '{}') INTO unclassified
@@ -55,7 +80,7 @@ BEGIN
     -- Verify the effective result for every table, whatever the source of a right.
     FOR t IN
         SELECT c.relname::text FROM pg_class c
-        WHERE c.relnamespace = 'public'::regnamespace AND c.relkind IN ('r', 'p') ORDER BY c.relname
+        WHERE c.relnamespace = 'public'::regnamespace AND c.relkind IN ('r', 'p', 'v', 'm', 'f') ORDER BY c.relname
     LOOP
         expected := CASE
             WHEN t = ANY (read_tables) THEN ARRAY['SELECT']

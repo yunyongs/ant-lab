@@ -20,6 +20,19 @@ public final class DbPrivilegeGuard {
                 WHERE c.relnamespace = 'public'::regnamespace AND c.relkind IN ('r', 'p', 'v', 'm', 'f', 'S')
                   AND r.rolname = current_user)""";
 
+    /** Any right beyond SELECT/INSERT/UPDATE on a table, whatever its source (direct, PUBLIC, role membership). */
+    private static final String FORBIDDEN_TABLE_RIGHT = """
+            SELECT EXISTS (
+                SELECT 1 FROM pg_class c, unnest(ARRAY['DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER', 'MAINTAIN']) p
+                WHERE c.relnamespace = 'public'::regnamespace AND c.relkind IN ('r', 'p', 'v', 'm', 'f')
+                  AND has_table_privilege(current_user, c.oid, p))""";
+
+    private static final String MIGRATION_HISTORY_RIGHT = """
+            SELECT EXISTS (
+                SELECT 1 FROM unnest(ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER',
+                    'MAINTAIN']) p
+                WHERE has_table_privilege(current_user, to_regclass('public.flyway_schema_history'), p))""";
+
     private static final String OWNS_SCHEMA = """
             SELECT EXISTS (
                 SELECT 1 FROM pg_namespace n JOIN pg_roles r ON r.oid = n.nspowner
@@ -50,6 +63,9 @@ public final class DbPrivilegeGuard {
                 "the DB user can create objects in schema public");
         addIf(found, flag(jdbc, OWNS_RELATION), "the DB user owns relations in schema public");
         addIf(found, flag(jdbc, OWNS_SCHEMA), "the DB user owns schema public");
+        addIf(found, flag(jdbc, FORBIDDEN_TABLE_RIGHT),
+                "the DB user holds DELETE, TRUNCATE, REFERENCES, TRIGGER or MAINTAIN on a table in schema public");
+        addIf(found, flag(jdbc, MIGRATION_HISTORY_RIGHT), "the DB user has rights on flyway_schema_history");
         if (flywayUser == null || flywayUser.isBlank()) {
             found.add("spring.flyway.user is not set, so migrations would run as the DB user");
         } else {
