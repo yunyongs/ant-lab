@@ -166,6 +166,19 @@ describe('OrderSheet', () => {
     );
   });
 
+  it('sends no source key for an order that starts on the trade screen', async () => {
+    serveSeason({});
+    const spy = serveTeam();
+    serveOrder(spy, () =>
+      HttpResponse.json(orderResultFixture(), { status: 201 }),
+    );
+    const { user, dialog } = await openSheet();
+    await user.click(within(dialog).getByRole('button', { name: '1주 매수' }));
+    await within(dialog).findByText('체결가');
+    expect(spy.bodies).toHaveLength(1);
+    expect('source' in (spy.bodies[0] as object)).toBe(false);
+  });
+
   it('stays open under StrictMode', async () => {
     serveSeason({});
     serveTeam();

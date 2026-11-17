@@ -173,6 +173,15 @@ describe('TradePage', () => {
     expect(requests).toBe(0);
   });
 
+  it.each([
+    ['HALTED', '점검 중인 시즌은 매매할 수 없습니다.'],
+    ['ABANDONING', '정리 중인 시즌은 매매할 수 없습니다.'],
+  ] as const)('says why a %s season cannot trade', async (status, text) => {
+    serveSeason({ status, currentTurnNo: 3 });
+    renderRoute('/seasons/7/trade');
+    expect(await screen.findByText(text)).toBeVisible();
+  });
+
   it('shows not found for a bad season id without any request', async () => {
     let requests = 0;
     server.use(
@@ -354,6 +363,7 @@ describe('sell sheet', () => {
       { expectedTurnNo: 1, side: 'SELL', assetId: 101, quantity: 20 },
     ]);
     expect('declaredPosition' in (spy.bodies[0] as object)).toBe(false);
+    expect('source' in (spy.bodies[0] as object)).toBe(false);
     // The list shows the refetched numbers, not anything the browser derived.
     await waitFor(() => {
       expect(spy.holdingsCalls).toBe(2);

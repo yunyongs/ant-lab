@@ -1,13 +1,18 @@
 import { http, HttpResponse } from 'msw';
 import { parseWholeNumber } from '../features/format/integer.ts';
 import { problem } from './authHandlers.ts';
+import type { components } from '../api/schema';
 import { seasonFixture } from './fixtures/seasons.ts';
 import { turnResultFixture } from './fixtures/turns.ts';
 import { server } from './server.ts';
 
+type FeedItemDto = components['schemas']['FeedItemDto'];
+
 export interface TurnWorld {
   current: number;
-  status: 'IN_PROGRESS' | 'FINISHED';
+  status: 'IN_PROGRESS' | 'FINISHED' | 'ABANDONING' | 'HALTED';
+  // Feed of each served turn; empty unless a test sets it.
+  feed: (turnNo: number) => FeedItemDto[];
   posts: unknown[];
   seasonGets: number;
   turnGets: number[];
@@ -27,6 +32,7 @@ export function serveTurnWorld(
   const world: TurnWorld = {
     current: start.current,
     status: 'IN_PROGRESS',
+    feed: () => [],
     posts: [],
     seasonGets: 0,
     turnGets: [],
@@ -55,6 +61,7 @@ export function serveTurnWorld(
           turnNo,
           pathLength,
           status: world.status,
+          feed: world.feed(turnNo),
         }),
       );
     }),
@@ -69,6 +76,7 @@ export function serveTurnWorld(
           turnNo: world.current,
           pathLength,
           status: world.status,
+          feed: world.feed(world.current),
         }),
         { status: 201 },
       );

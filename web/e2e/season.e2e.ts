@@ -88,6 +88,8 @@ test('plays one 12-turn season from signup to review', async ({
   await page.getByRole('button', { name: '다음 턴 (1턴으로)' }).click();
   await expect(page.getByRole('heading', { name: '1턴 결과' })).toBeVisible();
   await expect(turnCard).toBeVisible();
+  // The feed region is always there: items, or the no-news sentence.
+  await expect(page.getByRole('region', { name: '소식' })).toBeVisible();
   await checkpoint(run, 'turn-1', { axe: 'turn-result' });
   await page.getByRole('button', { name: '다음 턴 (2턴으로)' }).click();
   await expect(page.getByRole('heading', { name: '2턴 결과' })).toBeVisible();
@@ -151,6 +153,9 @@ test('plays one 12-turn season from signup to review', async ({
     }
   }
   await expect(page.getByText('시즌이 끝났습니다')).toBeVisible();
+  // A finished season shows its feed read-only: no order button.
+  await expect(page.getByRole('region', { name: '소식' })).toBeVisible();
+  await expect(page.getByRole('button', { name: /매수|매도/ })).toHaveCount(0);
   await checkpoint(run, 'finished', { axe: 'finished' });
 
   // 12 report

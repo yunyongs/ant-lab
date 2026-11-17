@@ -1,0 +1,6 @@
+export const NO_NEWS_TEXT = '이번 턴은 소식이 없습니다';
+
+// Equal to the ACTIVE season_start.disclosure row of feed/notices.csv; a test
+// compares the two.
+export const SEASON_START_DISCLOSURE =
+  '이 게임의 피드·랭킹·알림은 실제 투자 환경처럼 매매를 부르도록 설계돼 있습니다. 무엇이 신호였는지는 시즌이 끝나면 공개됩니다.';
