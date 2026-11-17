@@ -21,7 +21,7 @@ public record FeedItemDto(
         @Schema(requiredMode = RequiredMode.REQUIRED, description = "Display order within the turn, from 1 / 턴 안의 표시 순서, 1부터")
         Integer seq,
         @ExposedFrom("turn_feed.asset_id")
-        @Schema(requiredMode = RequiredMode.NOT_REQUIRED, nullable = true, description = "Asset the sentence is about, "
+        @Schema(requiredMode = RequiredMode.REQUIRED, nullable = true, description = "Asset the sentence is about, "
                 + "null when it names none / 문장이 다루는 종목, 없으면 null")
         Long assetId,
         @ExposedFrom("turn_feed.body")

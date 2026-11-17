@@ -1412,7 +1412,7 @@ components:
         One feed item as shown. Event cards and noise share this shape; what was a real event is revealed in the review.
 
         보인 그대로의 피드 항목. 사건 카드와 소음은 같은 모양이며 무엇이 실제 사건이었는지는 복기에서 공개한다.
-      required: [turnNo, seq, body]
+      required: [turnNo, seq, assetId, body]
       properties:
         turnNo:
           type: integer

@@ -1,0 +1,8 @@
+{
+  "seasonSeed": "14",
+  "baseDate": "2026-01-02",
+  "horizonTurns": 36,
+  "team": {"cash": "1", "weights": []},
+  "benchmark": {"cash": "1", "weights": []},
+  "observed": {"endMultiple": "1", "sharpeDiff": "0"}
+}
