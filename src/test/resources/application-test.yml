@@ -8,7 +8,7 @@ spring:
   datasource:
     hikari:
       # Many Spring contexts stay cached in one JVM and share one PostgreSQL server: keep idle pools small so connections stay far below max_connections.
-      minimum-idle: 0
+      minimum-idle: 2
       idle-timeout: 10000
   jpa:
     properties:

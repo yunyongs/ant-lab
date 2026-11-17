@@ -77,7 +77,7 @@ class SharedPostgresTest {
     void connections_stay_below_the_server_limit() throws Exception {
         int max = Integer.parseInt(scalar(SharedPostgres.container().getDatabaseName(), "SHOW max_connections"));
         int used = Integer.parseInt(scalar(SharedPostgres.container().getDatabaseName(), "SELECT count(*) FROM pg_stat_activity"));
-        assertThat(max).isEqualTo(300);
+        assertThat(max).isEqualTo(400);
         assertThat(used).isLessThan(max / 2);
     }
 }

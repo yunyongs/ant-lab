@@ -52,10 +52,10 @@ public final class SharedPostgres {
                     // same server time zone as the compose db
                     .withEnv("TZ", "Asia/Seoul")
                     .withEnv("PGTZ", "Asia/Seoul")
-                    // Budget: cached contexts (cap 32) x Hikari pool (max 10, minimum-idle 0 and idle-timeout 10s in application-test.yml)
-                    // stay far below 300 only because idle connections are released; keep those two settings when changing this.
+                    // Budget: cached contexts (cap 32) x Hikari pool (max 10, minimum-idle 2 and idle-timeout 10s in application-test.yml)
+                    // stay far below 400 only because idle connections above 2 per pool are released; keep those two settings when changing this.
                     // many Spring contexts stay cached at once, each with its own pool; small buffers keep the container light
-                    .withCommand("postgres", "-c", "fsync=off", "-c", "max_connections=300", "-c", "shared_buffers=32MB");
+                    .withCommand("postgres", "-c", "fsync=off", "-c", "max_connections=400", "-c", "shared_buffers=32MB");
             created.start();
             container = created;
         }
