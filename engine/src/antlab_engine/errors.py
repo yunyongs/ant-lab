@@ -25,6 +25,7 @@ class ErrorCode(StrEnum):
     PATH_TOO_LONG = "PATH_TOO_LONG"
     POOL_NOT_FOUND = "POOL_NOT_FOUND"
     HISTORY_UNAVAILABLE = "HISTORY_UNAVAILABLE"
+    ENGINE_BUSY = "ENGINE_BUSY"
 
 
 class FieldViolation(BaseModel):
@@ -90,7 +91,9 @@ _DOMAIN_STATUS = {
     "PATH_TOO_LONG": 422,
     "POOL_NOT_FOUND": 404,
     "HISTORY_UNAVAILABLE": 503,
+    "ENGINE_BUSY": 503,
 }
+RETRY_AFTER_SECONDS = "1"
 _INTERNAL_DETAIL = "The engine could not process the request."
 
 
@@ -103,7 +106,10 @@ def register_handlers(app: FastAPI) -> None:
             return problem_response(
                 500, ErrorCode.INTERNAL_ERROR, _INTERNAL_DETAIL, request.url.path
             )
-        return problem_response(status, ErrorCode(exc.code), str(exc), request.url.path)
+        headers = {"Retry-After": RETRY_AFTER_SECONDS} if exc.code == "ENGINE_BUSY" else None
+        return problem_response(
+            status, ErrorCode(exc.code), str(exc), request.url.path, headers=headers
+        )
 
     @app.exception_handler(RequestValidationError)
     async def validation_handler(request: Request, exc: RequestValidationError) -> Response:

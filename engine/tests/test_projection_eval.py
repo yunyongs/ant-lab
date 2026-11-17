@@ -405,7 +405,7 @@ def test_a_history_that_allows_one_path_is_rejected_not_reported_as_many():
     team = [Portfolio("TEAM", {"KR:A": Decimal(1)}, Decimal(0))]
     kwargs = {"horizon": 12, "replay_start": date(2010, 1, 1), "n": 100}
     forced = stationary.BootstrapParams(mean_block_length=1, max_block_length=1, min_candidates=1)
-    with pytest.raises(InvalidArgument, match="only one projection path") as caught:
+    with pytest.raises(PathTooLong, match="only one projection path") as caught:
         run(panel, team, params=forced, **kwargs)
     assert not re.search(r"\d{4}-\d{2}", str(caught.value))
     default = run(panel, team, **kwargs)
