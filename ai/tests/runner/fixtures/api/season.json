@@ -1,0 +1,24 @@
+{
+  "cashBalance": "28000000",
+  "currentFormation": {
+    "defender": 30,
+    "forward": 30,
+    "goalkeeper": 10,
+    "midfielder": 30
+  },
+  "currentTurnNo": 1,
+  "feeRateKr": "0.00015",
+  "feeRateUs": "0.0025",
+  "fxSpreadRate": "0.0040",
+  "id": 7,
+  "initialCash": "30000000",
+  "pathLength": 12,
+  "riskLimit": "-0.20",
+  "startFormation": {
+    "defender": 30,
+    "forward": 30,
+    "goalkeeper": 10,
+    "midfielder": 30
+  },
+  "status": "IN_PROGRESS"
+}

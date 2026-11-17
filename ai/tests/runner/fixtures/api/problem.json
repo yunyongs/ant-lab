@@ -1,0 +1,8 @@
+{
+  "code": "TURN_MISMATCH",
+  "detail": "고정 문장",
+  "instance": "/x",
+  "status": 409,
+  "title": "Conflict",
+  "type": "about:blank"
+}

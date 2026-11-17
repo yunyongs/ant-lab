@@ -2,6 +2,7 @@
 # Runtime smoke (M1-03): two checks of the api image in a throwaway compose project (db + api from compose.yaml).
 #   startup-fail  prod profile without ANTLAB_DB_URL must exit non-zero fast and must not fall back to localhost (#171)
 #   graceful      docker stop while a signup waits on a table lock: the request must finish with 201 (#169)
+# The prod profile logs one JSON object per line (MVP-20), so log texts are read from the JSON fields, not grepped raw.
 # Exit codes: 0 pass, 1 assertion failed, 2 usage or preflight, 130 interrupted.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -105,11 +106,50 @@ if [ -n "$image" ]; then
   docker image inspect "$image" >/dev/null 2>&1 || die "image '$image' is not available locally"
 fi
 
+# Every non-empty line of FILE must be one JSON object; the first offender is reported on stderr.
+json_lines_only() {
+  python3 -c 'import json, sys
+for n, line in enumerate(open(sys.argv[1], encoding="utf-8", errors="replace"), 1):
+    if not line.strip():
+        continue
+    try:
+        ok = isinstance(json.loads(line), dict)
+    except ValueError:
+        ok = False
+    if not ok:
+        print("line %d is not a JSON object: %s" % (n, line.strip()[:200]), file=sys.stderr)
+        sys.exit(1)' "$1"
+}
+
+# Prints message, error.message and error.stack_trace of every JSON line of FILE, one value per line, unescaped.
+# Nested ("error": {"message": ...}) and flat ("error.message") spellings both work. Non-JSON lines are skipped.
+json_log_text() {
+  python3 -c 'import json, sys
+def field(event, dotted):
+    node = event
+    for part in dotted.split("."):
+        node = node.get(part) if isinstance(node, dict) else None
+    if node is None and isinstance(event, dict):
+        node = event.get(dotted)
+    return node if isinstance(node, str) else None
+for line in open(sys.argv[1], encoding="utf-8", errors="replace"):
+    try:
+        event = json.loads(line)
+    except ValueError:
+        continue
+    if not isinstance(event, dict):
+        continue
+    for name in ("message", "error.message", "error.stack_trace"):
+        value = field(event, name)
+        if value:
+            print(value)' "$1"
+}
+
 fail() {
   printf '\nruntime smoke (%s): FAIL - %s\n' "$mode" "$1" >&2
   dc ps >&2 || true
   dc logs --tail 60 api >&2 || true
-  for log in startfail.log stop.log request.out; do
+  for log in startfail.log stop.log request.out api.err; do
     if [ -f "$work/$log" ]; then printf -- '--- tail of %s\n' "$log" >&2; tail -n 30 "$work/$log" >&2 || true; fi
   done
   exit 1
@@ -144,12 +184,16 @@ startup_fail() {
   printf 'exited with code %s after %s s\n' "$rc" "$(( $(date +%s) - started_at ))"
   [ "$rc" != 0 ] || fail "exit code 0; the container must fail without ANTLAB_DB_URL"
   [ "$rc" = 1 ] || fail "exit code $rc, wanted 1 (an application start-up failure)"
-  grep -q 'Application run failed' "$work/startfail.log" || fail "log line 'Application run failed' is missing"
+  json_lines_only "$work/startfail.log" || fail "the start-up log has a line that is not a JSON object"
+  local startfail_text
+  startfail_text="$(json_log_text "$work/startfail.log")"
+  case "$startfail_text" in *"Application run failed"*) ;; *) fail "log line 'Application run failed' is missing" ;; esac
   # Measured: the unresolved ${ANTLAB_DB_URL} placeholder reaches the pool as the url and Hikari rejects it.
-  grep -q "'url' must start with \"jdbc\"" "$work/startfail.log" || fail "the missing-url message is not in the log"
+  # The quotes are escaped inside the JSON line, so the text is read from the decoded fields.
+  case "$startfail_text" in *"'url' must start with \"jdbc\""*) ;; *) fail "the missing-url message is not in the log" ;; esac
   if grep -Eq 'localhost:5432|Connection to .* refused' "$work/startfail.log"; then fail "the app fell back to a local database"; fi
   case "$(cat "$work/startfail.log")" in *"$jwt_key"*) fail "the log carries the signing key" ;; esac
-  printf 'PASS exit code 1, start-up failure logged, no fallback to localhost, no signing key in the log\n'
+  printf 'PASS exit code 1, start-up failure logged as JSON, no fallback to localhost, no signing key in the log\n'
 }
 
 graceful() {
@@ -230,8 +274,11 @@ graceful() {
   local exit_code
   exit_code="$(docker inspect --format '{{.State.ExitCode}}' "$project-api-1" 2>/dev/null || echo unknown)"
   local elapsed=$((stop_end - stop_start))
+  # --no-log-prefix: compose would put "api-1  | " in front of every JSON line.
+  dc logs --no-log-prefix api > "$work/api.log" 2> "$work/api.err" || fail "could not read the api log"
+  json_lines_only "$work/api.log" || fail "the api log has a line that is not a JSON object"
   local api_log
-  api_log="$(dc logs api 2>&1)" || fail "could not read the api log"
+  api_log="$(json_log_text "$work/api.log")"
   printf '%s\n' "$api_log" | grep -i 'graceful shutdown' | cut -c1-200 || true
   printf 'request status=%s, container exit code=%s, stop took %s s (stop_grace_period %s s), new connection not served during shutdown=%s\n' \
     "$status" "$exit_code" "$elapsed" "$grace" "$refused"

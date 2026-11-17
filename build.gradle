@@ -46,6 +46,8 @@ dependencies {
 }
 
 tasks.named('test') {
+    // The suite outgrew the default 512 MB test JVM heap (OutOfMemoryError in unrelated classes).
+    maxHeapSize = '1g'
     useJUnitPlatform {
         // 실제 표본 CSV 가 필요한 SQL 골든만 빼고 돌리려면 -PexcludeSqlGolden, 그것만 돌리려면 -PonlySqlGolden
         if (project.hasProperty('excludeSqlGolden')) {
