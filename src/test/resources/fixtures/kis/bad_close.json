@@ -1,0 +1,23 @@
+{
+  "_fixture": "FAKE - synthetic values, real KIS field names",
+  "rt_cd": "0",
+  "msg_cd": "MCA00000",
+  "msg1": "FAKE normal response",
+  "output1": {},
+  "output2": [
+    {
+      "stck_bsop_date": "20260109",
+      "stck_oprc": "1",
+      "stck_hgpr": "1",
+      "stck_lwpr": "1",
+      "acml_vol": "1",
+      "acml_tr_pbmn": "1",
+      "flng_cls_code": "00",
+      "prtt_rate": "0.00",
+      "mod_yn": "N",
+      "prdy_vrss_sign": "3",
+      "prdy_vrss": "0",
+      "revl_issu_reas": ""
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+{
+  "_fixture": "FAKE - synthetic values, real KIS field names",
+  "rt_cd": "1",
+  "msg_cd": "OPSQ0002",
+  "msg1": "FAKE rejected message"
+}

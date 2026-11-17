@@ -1,0 +1,7 @@
+{
+  "_fixture": "FAKE - synthetic values, real KIS field names",
+  "access_token": "FAKE-ACCESS-TOKEN-0001",
+  "token_type": "Bearer",
+  "expires_in": 86400,
+  "access_token_token_expired": "2099-01-01 00:00:00"
+}
