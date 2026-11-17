@@ -88,6 +88,26 @@ public class OpenApiConfig {
         };
     }
 
+    /**
+     * {@code PlaceOrderRequest.source} may be omitted or null (both mean DIRECT). The annotation cannot say "object or null" for a
+     * referenced record, so the property becomes {@code oneOf: [OrderSourceRequest, null]} here, like the runner contract's nullable parts.
+     */
+    @Bean
+    OpenApiCustomizer nullableOrderSourceCustomizer() {
+        return openApi -> {
+            Schema<?> request = openApi.getComponents() == null || openApi.getComponents().getSchemas() == null ? null
+                    : openApi.getComponents().getSchemas().get("PlaceOrderRequest");
+            if (request == null || request.getProperties() == null || request.getProperties().get("source") == null) {
+                return;
+            }
+            Schema<?> source = request.getProperties().get("source");
+            Schema<?> nullable = new Schema<>().description(source.getDescription());
+            nullable.addOneOfItem(new Schema<>().$ref("#/components/schemas/OrderSourceRequest"));
+            nullable.addOneOfItem(new Schema<>().types(Set.of("null")));
+            request.getProperties().put("source", nullable);
+        };
+    }
+
     /** The public description lists only the codes the public API can answer; the runner contract lists the rest. */
     private static void hideRunnerOnlyCodes(Components components) {
         Schema<?> codes = components.getSchemas() == null ? null : components.getSchemas().get("ErrorCode");

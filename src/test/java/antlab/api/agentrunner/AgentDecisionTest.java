@@ -546,19 +546,20 @@ class AgentDecisionTest {
     }
 
     @Test
-    void A4_a_reference_that_the_kind_does_not_use_is_ignored_and_ranking_needs_a_board() throws Exception {
+    void A4_a_reference_that_the_kind_does_not_use_is_ignored_and_ranking_needs_the_asset_on_the_board() throws Exception {
         long[] feed = new long[3];
         Agent a = agentAtTurnOneWithFeed(feed);
 
+        // both assets sit on the turn-1 board of this season, so RANKING passes; feed_seq and ranking_rank are never stored
         JsonNode result = decideOk(a, 1, decisionBody(dec(null,
                 sourced("KR:000660", "BUY", 1, "FORWARD_BREAKOUT", "DIRECT", SEQ_CHIP, null),
                 sourced("US:SPY", "BUY", 1, "DEFENDER", "RANKING", null, 3),
                 sourced("KR:069500", "BUY", 1, "MIDFIELDER", "RANKING", SEQ_CHIP, 1))));
 
-        assertThat(codes(result)).containsExactly("F:NONE:-", "0:APPLIED:-", "1:REJECTED:SOURCE_NOT_VISIBLE",
-                "2:REJECTED:SOURCE_NOT_VISIBLE", "T:NONE");
-        assertThat(lastOrderRow(a.season())).containsEntry("source", "DIRECT").containsEntry("turn_feed_id", null);
-        assertThat(count("orders", a.season())).isEqualTo(1);
+        assertThat(codes(result)).containsExactly("F:NONE:-", "0:APPLIED:-", "1:APPLIED:-", "2:APPLIED:-", "T:NONE");
+        assertThat(jdbc.queryForList("SELECT source || ':' || coalesce(turn_feed_id::text, '-') FROM orders WHERE season_id = ?"
+                + " AND turn_no = 1 ORDER BY id", String.class, a.season()))
+                .containsExactly("DIRECT:-", "RANKING:-", "RANKING:-");
     }
 
     /** The origin comes first, so an unknown asset only wins when the origin itself would pass. */

@@ -490,6 +490,32 @@ class RevealedRepositoryNamingTest {
         assertThat(mainSourcesContaining(PREFIX)).containsExactlyInAnyOrderElementsOf(CALLERS);
     }
 
+    /** The only reveal query the order path may call: it returns an id, a chip and an alert flag, never a [복기 전용] value. */
+    static final Set<String> ORDER_SERVICE_REVEAL_CALLS = Set.of("findRevealedSourceItem");
+
+    /** Every distinct {@code findRevealed…} name in a text. */
+    static Set<String> revealNames(String text) {
+        Matcher m = Pattern.compile("findRevealed\\w*").matcher(text);
+        Set<String> names = new java.util.TreeSet<>();
+        while (m.find()) {
+            names.add(m.group());
+        }
+        return names;
+    }
+
+    @Test
+    void 주문_서비스는_복기_조회_중_출발점_항목_조회_하나만_부른다() throws IOException {
+        String text = Files.readString(Path.of("src/main/java/antlab/account/OrderService.java"));
+        assertThat(revealNames(text)).isEqualTo(ORDER_SERVICE_REVEAL_CALLS);
+    }
+
+    @Test
+    void 주문_서비스_허용_목록_검사는_둘째_복기_조회를_잡는다() {
+        assertThat(revealNames("feedItems.findRevealedSourceItem(a);")).isEqualTo(ORDER_SERVICE_REVEAL_CALLS);
+        assertThat(revealNames("feedItems.findRevealedSourceItem(a); x.findRevealedMonths(b);"))
+                .isNotEqualTo(ORDER_SERVICE_REVEAL_CALLS).contains("findRevealedMonths");
+    }
+
     @Test
     void 엔진_예외_메서드는_엔진에서만_부른다() throws IOException {
         assertThat(mainSourcesContaining("findReplayMonths")).containsExactlyInAnyOrderElementsOf(ENGINE_CALLERS);
