@@ -1,0 +1,232 @@
+{
+ "schema": "turn-decision/1",
+ "files": [
+  {
+   "file": "good/minimal.json",
+   "valid": true
+  },
+  {
+   "file": "good/formation_only.json",
+   "valid": true
+  },
+  {
+   "file": "good/buy_and_sell.json",
+   "valid": true
+  },
+  {
+   "file": "good/quantity_zero.json",
+   "valid": true
+  },
+  {
+   "file": "good/quantity_negative.json",
+   "valid": true
+  },
+  {
+   "file": "good/formation_sum_off.json",
+   "valid": true
+  },
+  {
+   "file": "good/formation_no_goalkeeper.json",
+   "valid": true
+  },
+  {
+   "file": "good/unknown_asset.json",
+   "valid": true
+  },
+  {
+   "file": "good/theses_present.json",
+   "valid": true
+  },
+  {
+   "file": "good/source_ranking.json",
+   "valid": true
+  },
+  {
+   "file": "good/source_bench.json",
+   "valid": true
+  },
+  {
+   "file": "good/source_with_rank.json",
+   "valid": true
+  },
+  {
+   "file": "good/position_on_sell.json",
+   "valid": true
+  },
+  {
+   "file": "good/forty_orders.json",
+   "valid": true
+  },
+  {
+   "file": "good/korean_reason.json",
+   "valid": true
+  },
+  {
+   "file": "bad/wrong_schema_const.json",
+   "valid": false
+  },
+  {
+   "file": "bad/missing_reason.json",
+   "valid": false
+  },
+  {
+   "file": "bad/missing_orders.json",
+   "valid": false
+  },
+  {
+   "file": "bad/missing_theses.json",
+   "valid": false
+  },
+  {
+   "file": "bad/missing_formation_key.json",
+   "valid": false
+  },
+  {
+   "file": "bad/extra_top_key_price.json",
+   "valid": false
+  },
+  {
+   "file": "bad/extra_top_key_turn_price.json",
+   "valid": false
+  },
+  {
+   "file": "bad/extra_order_key_fee.json",
+   "valid": false
+  },
+  {
+   "file": "bad/extra_order_key_price.json",
+   "valid": false
+  },
+  {
+   "file": "bad/quantity_float.json",
+   "valid": false
+  },
+  {
+   "file": "bad/quantity_string.json",
+   "valid": false
+  },
+  {
+   "file": "bad/quantity_too_big.json",
+   "valid": false
+  },
+  {
+   "file": "bad/side_lowercase.json",
+   "valid": false
+  },
+  {
+   "file": "bad/asset_lowercase.json",
+   "valid": false
+  },
+  {
+   "file": "bad/asset_unknown_market.json",
+   "valid": false
+  },
+  {
+   "file": "bad/asset_too_long.json",
+   "valid": false
+  },
+  {
+   "file": "bad/position_unknown.json",
+   "valid": false
+  },
+  {
+   "file": "bad/source_missing.json",
+   "valid": false
+  },
+  {
+   "file": "bad/source_kind_unknown.json",
+   "valid": false
+  },
+  {
+   "file": "bad/source_extra_key.json",
+   "valid": false
+  },
+  {
+   "file": "bad/formation_missing_reason.json",
+   "valid": false
+  },
+  {
+   "file": "bad/formation_float.json",
+   "valid": false
+  },
+  {
+   "file": "bad/formation_string_share.json",
+   "valid": false
+  },
+  {
+   "file": "bad/formation_extra_key.json",
+   "valid": false
+  },
+  {
+   "file": "bad/formation_reason_too_long.json",
+   "valid": false
+  },
+  {
+   "file": "bad/orders_not_array.json",
+   "valid": false
+  },
+  {
+   "file": "bad/forty_one_orders.json",
+   "valid": false
+  },
+  {
+   "file": "bad/reason_too_long.json",
+   "valid": false
+  },
+  {
+   "file": "bad/reason_not_string.json",
+   "valid": false
+  },
+  {
+   "file": "bad/theses_not_array.json",
+   "valid": false
+  },
+  {
+   "file": "bad/theses_item_not_object.json",
+   "valid": false
+  },
+  {
+   "file": "bad/root_is_array.json",
+   "valid": false
+  },
+  {
+   "file": "bad/asset_trailing_newline.json",
+   "valid": false
+  },
+  {
+   "file": "bad/asset_ticker_lowercase.json",
+   "valid": false
+  },
+  {
+   "file": "bad/quantity_integral_float.json",
+   "valid": false,
+   "schemaFileMayDiffer": true
+  },
+  {
+   "file": "bad/quantity_exponent.json",
+   "valid": false,
+   "schemaFileMayDiffer": true
+  },
+  {
+   "file": "good/duplicate_key_last_wins.json",
+   "valid": true
+  },
+  {
+   "file": "envelope/nul_in_reason.json",
+   "valid": true,
+   "apiStatus": 400
+  },
+  {
+   "file": "envelope/nul_in_formation_reason.json",
+   "valid": true,
+   "apiStatus": 400
+  }
+ ],
+ "rules": [
+  "The verdict of the Java check of the API is the reference; a runner-side validator must give the same verdict for every file below.",
+  "A number written with a fraction or an exponent (3.0, 1e2) is not an integer, even if a JSON Schema validator accepts it: parse the reply and refuse floats where the schema says integer (entries marked schemaFileMayDiffer).",
+  "An asset ends at the last character: a trailing newline does not match. The schema file uses (?![\\s\\S]) instead of $ so Python re.search agrees.",
+  "A repeated object key keeps its last value (Python json.loads does the same).",
+  "Entries in envelope/ pass the shape check but the API answers 400 INVALID_ARGUMENT because a NUL character cannot be stored; the runner must not send them (apiStatus)."
+ ]
+}

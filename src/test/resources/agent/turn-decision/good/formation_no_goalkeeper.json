@@ -1,0 +1,13 @@
+{
+ "schema": "turn-decision/1",
+ "formation_change": {
+  "goalkeeper": 0,
+  "defender": 40,
+  "midfielder": 30,
+  "forward": 30,
+  "reason": "x"
+ },
+ "orders": [],
+ "theses": [],
+ "reason": "hold"
+}

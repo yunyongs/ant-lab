@@ -2,6 +2,7 @@ package antlab.support;
 
 import antlab.agent.AgentPartDto;
 import antlab.agent.RejectDto;
+import antlab.agent.decision.DecisionResultDto;
 import antlab.common.exposure.ExposedFrom;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.RecordComponent;
@@ -65,14 +66,21 @@ public final class ExposureRules {
      * by class, not by name: a record of another package with the same simple name gets nothing from this list. Any
      * other empty {@code @ExposedFrom} is a violation.
      */
-    public static final Map<Class<?>, Set<String>> CONSTANT_COMPONENTS = Map.of(AgentPartDto.class, Set.of("schema"));
+    public static final Map<Class<?>, Set<String>> CONSTANT_COMPONENTS = Map.of(AgentPartDto.class, Set.of("schema"),
+            DecisionResultDto.class, Set.of("turnNo", "outcome", "replayed"),
+            DecisionResultDto.FormationResultDto.class, Set.of("status"),
+            DecisionResultDto.OrderUnitResultDto.class, Set.of("index", "status"),
+            DecisionResultDto.ThesesResultDto.class, Set.of("status"),
+            DecisionResultDto.SchemaViolationDto.class, Set.of("pointer", "keyword"));
 
     /**
      * The engine's own record of what it rejected in the previous decision: {@code [내부]} in the DB, but the agent is
      * told the unit, index, code and pointer on purpose. Allowed only in this one record, by class.
      */
     public static final String ENGINE_REJECT_SOURCE = "agent_call.rejects";
-    public static final Class<?> ENGINE_REJECT_RECORD = RejectDto.class;
+    public static final Set<Class<?>> ENGINE_REJECT_RECORDS = Set.of(RejectDto.class,
+            DecisionResultDto.FormationResultDto.class, DecisionResultDto.OrderUnitResultDto.class,
+            DecisionResultDto.ThesesResultDto.class);
 
     private ExposureRules() {
     }
@@ -132,7 +140,7 @@ public final class ExposureRules {
                 }
             } else {
                 for (String source : from.value()) {
-                    if (source.equals(ENGINE_REJECT_SOURCE) && record == ENGINE_REJECT_RECORD
+                    if (source.equals(ENGINE_REJECT_SOURCE) && ENGINE_REJECT_RECORDS.contains(record)
                             && catalog.has(source)) {
                         continue;
                     }

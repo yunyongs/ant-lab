@@ -1,0 +1,25 @@
+{
+ "schema": "turn-decision/1",
+ "formation_change": null,
+ "orders": [
+  {
+   "asset": "KR:005930",
+   "side": "SELL",
+   "quantity": 2,
+   "source": {
+    "kind": "DIRECT"
+   }
+  },
+  {
+   "asset": "US:SPY",
+   "side": "BUY",
+   "quantity": 1,
+   "position": "DEFENDER",
+   "source": {
+    "kind": "DIRECT"
+   }
+  }
+ ],
+ "theses": [],
+ "reason": "rebalance"
+}

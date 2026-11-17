@@ -19,6 +19,7 @@ import antlab.season.TurnPriceRepository;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.Optional;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -55,11 +56,14 @@ public class OrderService {
     private final OrderRepository orders;
     private final ExecutionRepository executions;
     private final SeasonEventTime eventTime;
+    /** Largest share of one asset in the total value after a buy; null = not enforced (the default, for everyone). */
+    private final BigDecimal singleAssetLimit;
 
     public OrderService(CurrentMember currentMember, SeasonRepository seasons, CashAccountRepository accounts,
             CashLedgerRepository ledgers, TurnPriceRepository turnPrices, AssetRepository assets,
             HoldingRepository holdings, LineupRepository lineups, FormationChangeRepository formationChanges,
-            OrderRepository orders, ExecutionRepository executions, SeasonEventTime eventTime) {
+            OrderRepository orders, ExecutionRepository executions, SeasonEventTime eventTime,
+            @Value("${antlab.game.single-asset-limit:#{null}}") BigDecimal singleAssetLimit) {
         this.currentMember = currentMember;
         this.seasons = seasons;
         this.accounts = accounts;
@@ -72,6 +76,10 @@ public class OrderService {
         this.orders = orders;
         this.executions = executions;
         this.eventTime = eventTime;
+        if (singleAssetLimit != null && (singleAssetLimit.signum() <= 0 || singleAssetLimit.compareTo(BigDecimal.ONE) > 0)) {
+            throw new IllegalArgumentException("antlab.game.single-asset-limit must be in (0, 1]");
+        }
+        this.singleAssetLimit = singleAssetLimit;
     }
 
     @Transactional
@@ -80,15 +88,19 @@ public class OrderService {
         if (request.side() == OrderSide.SELL && request.declaredPosition() != null) {
             throw new DomainException(ErrorCode.INVALID_ARGUMENT, "매도에는 선언 포지션을 보내지 않는다");
         }
-        OrderContext ctx = open(seasonId, request);
-        return request.side() == OrderSide.SELL ? sell(ctx, request) : buy(ctx, request);
+        OrderScope scope = lock(seasonId, request.expectedTurnNo());
+        OrderCheck checked = check(scope, request);
+        if (checked.rejection() != null) {
+            throw checked.rejection().toException();
+        }
+        return apply(checked.plan());
     }
 
-    /** 매수·매도 공통 앞부분 — 시즌 잠금부터 전술 변경 번호까지. 쓰기는 하지 않는다. */
-    private OrderContext open(long seasonId, PlaceOrderRequest request) {
-        int turnNo = request.expectedTurnNo();
-        Long assetId = request.assetId();
-
+    /**
+     * 공통 앞부분 — 시즌 잠금부터 원장 확인까지. 쓰기는 하지 않는다. 여기서 던지는 예외는 모두 처리 못 할 상태(없는 시즌, 진행
+     * 중 아님, 턴 불일치, 원장 불일치)이며 호출한 트랜잭션 전체를 되돌린다. 에이전트 결정은 결정 하나에 한 번 부른다.
+     */
+    public OrderScope lock(long seasonId, int turnNo) {
         // 1. 시즌 — 소유 확인과 잠금을 한 조회로(첫 시즌 조회가 곧 잠금 조회). 회원은 만들지도 잠그지도 않는다.
         long memberId = currentMember.existingId().orElseThrow(OrderService::seasonNotFound);
         Season season = seasons.findByIdAndMemberIdForUpdate(seasonId, memberId)
@@ -108,40 +120,55 @@ public class OrderService {
         if (latest.getBalanceAfter().compareTo(account.getBalance()) != 0) {
             throw new DomainException(ErrorCode.LEDGER_MISMATCH, "원장과 계좌 잔액이 맞지 않는다");
         }
+        return new OrderScope(season, account, turnNo);
+    }
+
+    /**
+     * 한 건의 검증 — 쓰기는 하지 않는다. 거절은 던지지 않고 값으로 돌려준다(던지면 호출한 트랜잭션이 롤백 전용이 된다). 검증은
+     * 쓰기 앞에 모두 있으므로 거절된 건은 상태를 바꾸지 않는다. 손상 상태(라인업 불일치)는 거절이 아니라 예외다.
+     * 순서: 풀 → 수량 → 매도(선언 포지션 → 보유) 또는 매수(잔액 → 포지션 선언 → 단일 종목 한도).
+     */
+    public OrderCheck check(OrderScope scope, PlaceOrderRequest request) {
+        Season season = scope.season();
+        long seasonId = season.getId();
+        int turnNo = scope.turnNo();
+        Long assetId = request.assetId();
 
         // 4. 그 턴 가격(정본) — 다시 계산하지 않는다. 요율은 시즌 행의 값이다(매도도 같은 요율).
-        TurnPrice turnPrice = turnPrices.findBySeasonIdAndTurnNoAndAssetId(seasonId, turnNo, assetId)
-                .orElseThrow(() -> new DomainException(ErrorCode.ASSET_NOT_IN_POOL, "이 턴의 풀에 없는 종목이다"));
-        BigDecimal price = turnPrice.getPrice();
+        Optional<TurnPrice> turnPrice = turnPrices.findBySeasonIdAndTurnNoAndAssetId(seasonId, turnNo, assetId);
+        if (turnPrice.isEmpty()) {
+            return OrderCheck.rejected(OrderRejection.ASSET_NOT_IN_POOL);
+        }
+        BigDecimal price = turnPrice.get().getPrice();
         String market = assets.findById(assetId)
                 .orElseThrow(() -> new IllegalStateException("가격이 있는 종목이 종목 표에 없다")).getMarket().name();
         BigDecimal rate = MoneyMath.feeRate(market, season.getFeeRateKr(), season.getFeeRateUs(),
                 season.getFxSpreadRate());
-
-        // 같은 턴의 마지막 전술 변경(번호 기준)에 묶는다 — 주문은 불변이라 INSERT 때 넣는다.
-        Long changeId = formationChanges.findLastBySeasonIdAndTurnNo(seasonId, turnNo)
-                .map(FormationChange::getId).orElse(null);
-        return new OrderContext(season, account, turnNo, price, rate, changeId);
+        if (request.quantity() < 1) {
+            return OrderCheck.rejected(OrderRejection.QUANTITY_INVALID);
+        }
+        if (request.side() == OrderSide.SELL) {
+            return checkSell(scope, request, price, rate);
+        }
+        return checkBuy(scope, request, price, rate);
     }
 
-    private OrderResultDto buy(OrderContext ctx, PlaceOrderRequest request) {
-        Season season = ctx.season();
-        CashAccount account = ctx.account();
+    private OrderCheck checkBuy(OrderScope scope, PlaceOrderRequest request, BigDecimal price, BigDecimal rate) {
+        Season season = scope.season();
+        CashAccount account = scope.account();
         long seasonId = season.getId();
-        int turnNo = ctx.turnNo();
         int quantity = request.quantity();
         Long assetId = request.assetId();
-        BigDecimal price = ctx.price();
 
         // 5. 잔액 — 대금이 주문 가능 금액을 넘으면 수수료를 계산하기 전에 거절한다(큰 수량이 범위 예외로 새지 않게).
         BigDecimal available = account.getBalance().subtract(account.getReserved());
         if (price.multiply(BigDecimal.valueOf(quantity)).compareTo(available) > 0) {
-            throw insufficientCash();
+            return OrderCheck.rejected(OrderRejection.INSUFFICIENT_CASH);
         }
         BigDecimal notional = MoneyMath.valuation(price, quantity);
-        BigDecimal fee = MoneyMath.fee(price, quantity, ctx.rate());
+        BigDecimal fee = MoneyMath.fee(price, quantity, rate);
         if (!MoneyMath.affordable(available, notional, fee)) {
-            throw insufficientCash();
+            return OrderCheck.rejected(OrderRejection.INSUFFICIENT_CASH);
         }
 
         // 6. 보유와 열린 구간의 정합, 선언 포지션
@@ -153,16 +180,98 @@ public class OrderService {
         }
         Position declared = request.declaredPosition();
         if (open.isEmpty() && declared == null) {
-            throw new DomainException(ErrorCode.POSITION_REQUIRED, "새로 사는 종목은 선언 포지션이 필요하다");
+            return OrderCheck.rejected(OrderRejection.POSITION_REQUIRED);
         }
         if (open.isPresent() && declared != null && declared != open.get().getDeclaredPosition()) {
-            throw new DomainException(ErrorCode.POSITION_CONFLICT, "열린 구간의 선언 포지션과 다르다");
+            return OrderCheck.rejected(OrderRejection.POSITION_CONFLICT);
         }
+        if (exceedsSingleAssetLimit(scope, holding, price, quantity, notional, fee)) {
+            return OrderCheck.rejected(OrderRejection.SINGLE_ASSET_LIMIT);
+        }
+        return OrderCheck.passed(new OrderPlan(scope, request, price, changeId(seasonId, scope.turnNo()), holding, open.orElse(null),
+                notional, fee, null));
+    }
+
+    /** 매도 — SQL trade_sell 과 같은 순서(S1–S10). 매도 쪽 잔액 검사는 없다(SQL 과 같다). 합산 요율 < 1 이면 대금 ≥ 수수료이고, 미국 합산 요율(미국 + 환전)이 1 이상인 설정이면 계좌가 음수 잔액을 거부해 전부 되돌아간다. */
+    private OrderCheck checkSell(OrderScope scope, PlaceOrderRequest request, BigDecimal price, BigDecimal rate) {
+        long seasonId = scope.season().getId();
+        int quantity = request.quantity();
+        Long assetId = request.assetId();
+        if (request.declaredPosition() != null) {
+            return OrderCheck.rejected(OrderRejection.POSITION_ON_SELL);
+        }
+
+        // S1. 보유 — 없거나 모자라면 거절. 보유 0 인데 구간이 남은 손상 상태도 여기서 먼저 걸린다(SQL 과 같은 우선순위).
+        Optional<Holding> holding = holdings.findBySeasonIdAndAssetId(seasonId, assetId)
+                .filter(h -> h.getQuantity() >= quantity);
+        if (holding.isEmpty()) {
+            return OrderCheck.rejected(OrderRejection.INSUFFICIENT_HOLDING);
+        }
+        // S2. 열린 구간
+        Lineup open = lineups.findOpenBySeasonIdAndAssetId(seasonId, assetId)
+                .orElseThrow(() -> new DomainException(ErrorCode.LINEUP_MISMATCH, "보유와 라인업 구간이 맞지 않는다"));
+
+        // S3. 금액 — 보유 검사 뒤(큰 수량이 범위 예외로 새지 않게). 실현 손익은 보유를 바꾸기 전 평균단가로 계산한다.
+        BigDecimal notional = MoneyMath.valuation(price, quantity);
+        BigDecimal fee = MoneyMath.fee(price, quantity, rate);
+        BigDecimal pnl = MoneyMath.realizedPnl(price, holding.get().getAvgPrice(), quantity);
+        return OrderCheck.passed(new OrderPlan(scope, request, price, changeId(seasonId, scope.turnNo()), holding.get(), open,
+                notional, fee, pnl));
+    }
+
+    /** 같은 턴의 마지막 전술 변경(번호 기준)에 묶는다 — 주문은 불변이라 INSERT 때 넣는다. */
+    private Long changeId(long seasonId, int turnNo) {
+        return formationChanges.findLastBySeasonIdAndTurnNo(seasonId, turnNo).map(FormationChange::getId).orElse(null);
+    }
+
+    /**
+     * 단일 종목 한도(PLAN §4.16 검사 5) — 설정이 없으면 아무도 막지 않는다. 사고 난 뒤 그 종목 평가액이 총 평가액(남는 현금 +
+     * 모든 보유 평가액)의 한도 비율을 넘으면 거절한다. 나눗셈 없이 곱셈으로 비교한다.
+     */
+    private boolean exceedsSingleAssetLimit(OrderScope scope, Holding holding, BigDecimal price, int quantity,
+            BigDecimal notional, BigDecimal fee) {
+        if (singleAssetLimit == null) {
+            return false;
+        }
+        BigDecimal assetValue = price.multiply(BigDecimal.valueOf(holding.getQuantity() + (long) quantity));
+        BigDecimal total = scope.account().getBalance().subtract(notional).subtract(fee).add(assetValue);
+        for (HoldingViewRow row : holdings.findViewRows(scope.season().getId(), scope.turnNo())) {
+            if (!row.assetId().equals(holding.getAssetId())) {
+                total = total.add(row.price().multiply(BigDecimal.valueOf(row.quantity())));
+            }
+        }
+        return exceeds(assetValue, total, singleAssetLimit);
+    }
+
+    /** Strictly above the limit rejects; a value exactly on it is allowed. */
+    static boolean exceeds(BigDecimal assetValue, BigDecimal total, BigDecimal limit) {
+        return assetValue.compareTo(total.multiply(limit)) > 0;
+    }
+
+    /** 쓰기 — 검증이 끝난 계획을 그대로 적용한다. 매수·매도 모두 여기로 온다. */
+    public OrderResultDto apply(OrderPlan plan) {
+        return plan.request().side() == OrderSide.SELL ? sell(plan) : buy(plan);
+    }
+
+    private OrderResultDto buy(OrderPlan plan) {
+        OrderScope scope = plan.scope();
+        Season season = scope.season();
+        CashAccount account = scope.account();
+        long seasonId = season.getId();
+        int turnNo = scope.turnNo();
+        int quantity = plan.request().quantity();
+        Long assetId = plan.request().assetId();
+        BigDecimal price = plan.price();
+        BigDecimal notional = plan.notional();
+        BigDecimal fee = plan.fee();
+        Holding holding = plan.holding();
+        Lineup open = plan.open();
+        Position declared = plan.request().declaredPosition();
 
         // 8~13. 쓰기. 검증은 모두 위에서 끝났다.
         Instant at = eventTime.next(seasonId, turnNo);
         Order order = orders.save(new Order(seasonId, assetId, turnNo, OrderSide.BUY, OrderType.MARKET, quantity,
-                null, OrderStatus.FILLED, OrderSource.DIRECT, ctx.changeId(), null, at));
+                null, OrderStatus.FILLED, OrderSource.DIRECT, plan.changeId(), null, at));
         Execution execution = executions.save(new Execution(order.getId(), price, quantity, fee, BigDecimal.ZERO, null));
 
         holding.applyBuy(quantity, MoneyMath.avgPrice(holding.getQuantity(), holding.getAvgPrice(), quantity, price));
@@ -171,40 +280,31 @@ public class OrderService {
         recordLedger(account, LedgerType.BUY, notional.negate(), fee, order.getId());
         // 계좌 UPDATE 는 커밋 때 flush 되며 버전이 하나 오른다.
 
-        Position position = open.map(Lineup::getDeclaredPosition).orElse(declared);
-        if (open.isEmpty()) {
+        Position position = open != null ? open.getDeclaredPosition() : declared;
+        if (open == null) {
             lineups.save(new Lineup(season, assetId, declared, turnNo));
         }
         return OrderResultDto.of(order, execution, notional, account.getBalance(), holding, position);
     }
 
-    /** 매도 — SQL trade_sell 과 같은 순서(S1–S10). 매도 쪽 잔액 검사는 없다(SQL 과 같다). 합산 요율 < 1 이면 대금 ≥ 수수료이고, 미국 합산 요율(미국 + 환전)이 1 이상인 설정이면 계좌가 음수 잔액을 거부해 전부 되돌아간다. */
-    private OrderResultDto sell(OrderContext ctx, PlaceOrderRequest request) {
-        CashAccount account = ctx.account();
-        long seasonId = ctx.season().getId();
-        int turnNo = ctx.turnNo();
-        int quantity = request.quantity();
-        Long assetId = request.assetId();
-        BigDecimal price = ctx.price();
-
-        // S1. 보유 — 없거나 모자라면 거절. 보유 0 인데 구간이 남은 손상 상태도 여기서 먼저 걸린다(SQL 과 같은 우선순위).
-        Holding holding = holdings.findBySeasonIdAndAssetId(seasonId, assetId)
-                .filter(h -> h.getQuantity() >= quantity)
-                .orElseThrow(() -> new DomainException(ErrorCode.INSUFFICIENT_HOLDING, "보유 수량이 모자란다"));
-        // S2. 열린 구간
-        Lineup open = lineups.findOpenBySeasonIdAndAssetId(seasonId, assetId)
-                .orElseThrow(() -> new DomainException(ErrorCode.LINEUP_MISMATCH, "보유와 라인업 구간이 맞지 않는다"));
-
-        // S3. 금액 — 보유 검사 뒤(큰 수량이 범위 예외로 새지 않게). 실현 손익은 보유를 바꾸기 전 평균단가로 계산한다.
-        BigDecimal notional = MoneyMath.valuation(price, quantity);
-        BigDecimal fee = MoneyMath.fee(price, quantity, ctx.rate());
-        BigDecimal pnl = MoneyMath.realizedPnl(price, holding.getAvgPrice(), quantity);
+    private OrderResultDto sell(OrderPlan plan) {
+        OrderScope scope = plan.scope();
+        CashAccount account = scope.account();
+        long seasonId = scope.season().getId();
+        int turnNo = scope.turnNo();
+        int quantity = plan.request().quantity();
+        Long assetId = plan.request().assetId();
+        BigDecimal price = plan.price();
+        BigDecimal notional = plan.notional();
+        BigDecimal fee = plan.fee();
+        Holding holding = plan.holding();
+        Lineup open = plan.open();
 
         // S4~S9. 쓰기. 검증은 모두 위에서 끝났다.
         Instant at = eventTime.next(seasonId, turnNo);
         Order order = orders.save(new Order(seasonId, assetId, turnNo, OrderSide.SELL, OrderType.MARKET, quantity,
-                null, OrderStatus.FILLED, OrderSource.DIRECT, ctx.changeId(), null, at));
-        Execution execution = executions.save(new Execution(order.getId(), price, quantity, fee, BigDecimal.ZERO, pnl));
+                null, OrderStatus.FILLED, OrderSource.DIRECT, plan.changeId(), null, at));
+        Execution execution = executions.save(new Execution(order.getId(), price, quantity, fee, BigDecimal.ZERO, plan.pnl()));
 
         holding.applySell(quantity);
         holdings.save(holding);
@@ -232,16 +332,8 @@ public class OrderService {
         }
     }
 
-    /** 공통 앞부분의 결과 — 매수·매도 분기가 함께 읽는다. */
-    private record OrderContext(Season season, CashAccount account, int turnNo, BigDecimal price, BigDecimal rate,
-            Long changeId) {
-    }
-
     private static DomainException seasonNotFound() {
         return new DomainException(ErrorCode.NOT_FOUND, "시즌을 찾을 수 없다");
     }
 
-    private static DomainException insufficientCash() {
-        return new DomainException(ErrorCode.INSUFFICIENT_CASH, "현금이 모자란다");
-    }
 }
