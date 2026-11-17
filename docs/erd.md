@@ -23,7 +23,7 @@
 
 ## 2. 공통 규칙 (PostgreSQL 17)
 
-The rules of this section apply to every confirmed table (22 through P0-04, 23 from SEC-01 / Flyway V4, 25 from M1-05 / Flyway V5). / 이 절의 규칙은 확정 테이블 모두(P0-04까지 22개, SEC-01(Flyway V4)부터 23개, M1-05(Flyway V5)부터 25개)에 적용된다. 6절·7절의 정의서도 같은 규칙을 쓴다.
+The rules of this section apply to every confirmed table (22 through P0-04, 23 from SEC-01 / Flyway V4, 25 from M1-05 / Flyway V5, 28 from AG-02 / Flyway V6). / 이 절의 규칙은 확정 테이블 모두(P0-04까지 22개, SEC-01(Flyway V4)부터 23개, M1-05(Flyway V5)부터 25개, AG-02(Flyway V6)부터 28개)에 적용된다. 6절·7절의 정의서도 같은 규칙을 쓴다.
 
 - **DB:** PostgreSQL 17, 스키마는 `public` 하나(D21). DB는 `ENCODING 'UTF8'`로 만든다(구체 명령은 DDL 기능의 `db/README.md`).
 - **키:** 모든 테이블은 대리 키 `id BIGINT GENERATED ALWAYS AS IDENTITY`를 쓰고 PK 이름은 `pk_{테이블}`이다. 자연 키(적재에 쓰는 코드)는 `UNIQUE`로만 둔다. 예외는 `cash_account`(7.3, PK = `season_id`, 식별 1:1)이다(D12, v1 D6).
@@ -1193,9 +1193,9 @@ The `db/02_schema_season_check.sql` check covers the V2 state (it runs on a data
 
 | 테이블 | PK | UNIQUE(제약) | UNIQUE 인덱스(`uq_`) | FK | CHECK | INDEX(`idx_`) |
 |---|---|---|---|---|---|---|
-| member | 1 | 0 | 1 | 0 | 1 | 0 |
+| member | 1 | 1 | 1 | 0 | 4 | 0 |
 | refresh_token | 1 | 3 | 2 | 2 | 6 | 1 |
-| season | 1 | 0 | 0 | 1 | 19 | 1 |
+| season | 1 | 1 | 0 | 1 | 19 | 1 |
 | season_path | 1 | 1 | 0 | 2 | 1 | 1 |
 | turn | 1 | 1 | 0 | 1 | 7 | 0 |
 | turn_price | 1 | 1 | 0 | 2 | 3 | 1 |
@@ -1203,7 +1203,7 @@ The `db/02_schema_season_check.sql` check covers the V2 state (it runs on a data
 | formation_change | 1 | 1 | 0 | 1 | 8 | 1 |
 | turn_feed | 1 | 2 | 0 | 4 | 11 | 3 |
 | reconciliation_log | 1 | 1 | 0 | 1 | 9 | 0 |
-| **§6 소계** | **10** | **10** | **4** | **16** | **67** | **10** |
+| **§6 소계** | **10** | **12** | **4** | **16** | **70** | **10** |
 
 FK 16 = R9–R22 + R33–R34 (V4) = the 16 relation lines of 6.1. / FK 16개 = R9–R22 + R33–R34(V4) = 6.1 관계선 16개다. FK 컬럼 중 UNIQUE의 앞 컬럼이라 인덱스를 이미 갖는 것(`season_path.season_id`, `turn.season_id`, `turn_price.season_id`, `turn_feed.season_id`, `reconciliation_log.season_id`)과 `idx_lineup_season_asset`·`idx_formation_change_season_turn`이 앞 컬럼으로 덮는 것(`lineup.season_id`, `formation_change.season_id`)에는 별도 `idx_`를 만들지 않는다. `idx_` 10개는 FK 인덱스 8개(`refresh_token.member_id`, `season.member_id`, `season_path.month_block_id`, `turn_price.asset_id`, `lineup.asset_id`, `turn_feed.asset_id`·`asset_group_id`·`month_event_id`)와 조회 인덱스 2개(`idx_lineup_season_asset`, `idx_formation_change_season_turn`)다.
 
@@ -1475,11 +1475,11 @@ FK 10개 = 7.2의 R23–R32 = 7.1 관계선 10개다. `idx_` 8개는 FK 인덱�
 
 | 구분 | PK | UNIQUE(제약) | UNIQUE 인덱스 | FK | CHECK | INDEX(`idx_`) |
 |---|---|---|---|---|---|---|
-| §6 소계 | 10 | 10 | 4 | 16 | 67 | 10 |
+| §6 소계 | 10 | 12 | 4 | 16 | 70 | 10 |
 | §7 소계 | 5 | 2 | 0 | 10 | 28 | 8 |
-| **합** | **15** | **12** | **4** | **26** | **95** | **18** |
+| **합** | **15** | **14** | **4** | **26** | **98** | **18** |
 
-Together with 5.4, through P0-04 (V1–V3) the 22 confirmed tables have PK 22, UNIQUE 17, UNIQUE index 2, FK 32, CHECK 135, INDEX 22 (230); with SEC-01 (V4) the 23 tables have PK 23, UNIQUE 20, UNIQUE index 4, FK 34, CHECK 142, INDEX 23 (246). / 5.4와 합치면 P0-04(V1–V3)까지 확정 22개의 제약은 PK 22, UNIQUE 17, UNIQUE 인덱스 2, FK 32, CHECK 135, INDEX 22(230)이고, SEC-01(V4)을 포함한 23개는 PK 23, UNIQUE 20, UNIQUE 인덱스 4, FK 34, CHECK 142, INDEX 23(246)이다. With M1-05 (V5, 10.4) the 25 tables have PK 25, UNIQUE 21, UNIQUE index 5, FK 36, CHECK 156, INDEX 25 (268). / M1-05(V5, 10.4)를 포함한 25개는 PK 25, UNIQUE 21, UNIQUE 인덱스 5, FK 36, CHECK 156, INDEX 25(268)이다. **UNIQUE 인덱스 열**은 5.4의 개수 표에 없던 열이다 — 표현식·부분 유일 인덱스는 `pg_constraint`에 없고 `pg_indexes`에만 있어 DDL 검증이 다른 카탈로그를 봐야 하기 때문이다(2절 "대소문자 무시 유일성").
+Together with 5.4, through P0-04 (V1–V3) the 22 confirmed tables have PK 22, UNIQUE 17, UNIQUE index 2, FK 32, CHECK 135, INDEX 22 (230); with SEC-01 (V4) the 23 tables have PK 23, UNIQUE 20, UNIQUE index 4, FK 34, CHECK 142, INDEX 23 (246). / 5.4와 합치면 P0-04(V1–V3)까지 확정 22개의 제약은 PK 22, UNIQUE 17, UNIQUE 인덱스 2, FK 32, CHECK 135, INDEX 22(230)이고, SEC-01(V4)을 포함한 23개는 PK 23, UNIQUE 20, UNIQUE 인덱스 4, FK 34, CHECK 142, INDEX 23(246)이다. With M1-05 (V5, 10.4) the 25 tables have PK 25, UNIQUE 21, UNIQUE index 5, FK 36, CHECK 156, INDEX 25 (268). / M1-05(V5, 10.4)를 포함한 25개는 PK 25, UNIQUE 21, UNIQUE 인덱스 5, FK 36, CHECK 156, INDEX 25(268)이다. With AG-02 (V6) the 28 tables have PK 28, UNIQUE 26, UNIQUE index 6, FK 41, CHECK 193, INDEX 25 (319); the 6.4 count table above shows `member` and `season` at their V6 state. / AG-02(V6)를 포함한 28개는 PK 28, UNIQUE 26, UNIQUE 인덱스 6, FK 41, CHECK 193, INDEX 25(319)이고, 위 6.4 개수 표의 `member`·`season` 행은 V6 상태다. **UNIQUE 인덱스 열**은 5.4의 개수 표에 없던 열이다 — 표현식·부분 유일 인덱스는 `pg_constraint`에 없고 `pg_indexes`에만 있어 DDL 검증이 다른 카탈로그를 봐야 하기 때문이다(2절 "대소문자 무시 유일성").
 
 ### 7.5 DDL로 막지 못해 대사가 검사할 규칙
 
