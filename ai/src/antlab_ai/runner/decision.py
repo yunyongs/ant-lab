@@ -135,6 +135,8 @@ def _walk_strings(node: Any, path: tuple[Any, ...]):
 
 
 def serialize(decision: Any) -> str:
+    """Compact JSON for the size and key-shape checks only. Never send this: a fractional number in a free-form
+    thesis would come out as text here (``default=str``)."""
     return json.dumps(decision, ensure_ascii=False, separators=(",", ":"), default=str)
 
 
@@ -151,11 +153,30 @@ def _unsendable(decision: dict[str, Any]) -> list[Violation]:
     return found
 
 
+def _raw_violation(text: str) -> Violation | None:
+    """The API stores the raw reply text too (responseText): it must be storable as it was written."""
+    try:
+        size = len(text.encode("utf-8"))
+    except UnicodeEncodeError:
+        return (REPLY_POINTER, "json")
+    if size > MAX_TEXT_BYTES:
+        return (REPLY_POINTER, "size")
+    if "\x00" in text:
+        return (REPLY_POINTER, "nul")
+    if NO_KEYS.search(text):
+        return (REPLY_POINTER, "secret")
+    return None
+
+
 def _normalize(found: list[Violation]) -> tuple[Violation, ...]:
     return tuple(sorted(set(found)))[:MAX_VIOLATIONS]
 
 
 def parse_reply(text: str | None) -> Parsed | Rejected:
+    if text is not None:
+        raw = _raw_violation(text)
+        if raw is not None:
+            return Rejected((raw,))
     extracted = _extract(text)
     if isinstance(extracted, Rejected):
         return extracted
@@ -168,7 +189,10 @@ def parse_reply(text: str | None) -> Parsed | Rejected:
     ]
     if errors:
         return Rejected(_normalize(errors))
-    unsendable = _unsendable(value)
+    try:
+        unsendable = _unsendable(value)
+    except UnicodeEncodeError:
+        return Rejected(((REPLY_POINTER, "json"),))
     if unsendable:
         return Rejected(_normalize(unsendable))
     return Parsed(value)
@@ -176,10 +200,4 @@ def parse_reply(text: str | None) -> Parsed | Rejected:
 
 def is_storable(text: str | None) -> bool:
     """True when the API would store this text as a call record (no NUL, no key shape, within 256 KiB)."""
-    if text is None:
-        return True
-    return (
-        "\x00" not in text
-        and len(text.encode("utf-8")) <= MAX_TEXT_BYTES
-        and NO_KEYS.search(text) is None
-    )
+    return text is None or _raw_violation(text) is None

@@ -168,3 +168,8 @@ def test_violations_are_capped_at_twenty_and_sorted():
 def test_fence_with_another_language_is_rejected(lang):
     text = "```" + lang + "\n" + reply() + "\n```"
     assert _violations(text) == (("/reply", "extract"),)
+
+
+def test_nbsp_around_json_is_not_json_whitespace():
+    assert _violations(" " + reply()) == (("/reply", "json"),)
+    assert _violations(reply() + " ") == (("/reply", "json"),)
