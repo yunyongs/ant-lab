@@ -79,6 +79,17 @@ class EngineTransportTest {
     }
 
     @Test
+    void 헤더_뒤에_본문이_멈추어도_경로_시간_제한_안에_불가용으로_돌아온다() {
+        engine.respondFixture("/v1/paths", 200, "paths-response-m2.json").stallBody(Duration.ofSeconds(4));
+        EngineClient client = client(engine.url(), FAKE_TOKEN, Duration.ofSeconds(1), Duration.ofMillis(500), Duration.ofSeconds(15));
+        long start = System.nanoTime();
+
+        assertThatThrownBy(() -> client.createPath(EngineHarness.pathRequest())).isInstanceOf(EngineUnavailableException.class);
+
+        assertThat(Duration.ofNanos(System.nanoTime() - start)).isLessThan(Duration.ofMillis(2000));
+    }
+
+    @Test
     void 예상_분포_호출은_경로_호출보다_긴_자기_시간_제한을_쓴다() {
         engine.respondFixture("/v1/paths", 200, "paths-response-m2.json")
                 .respondFixture("/v1/projections", 200, "projection-response.json").delay(Duration.ofMillis(700));

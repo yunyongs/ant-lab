@@ -2,6 +2,8 @@ package antlab.engine.client;
 
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.time.Duration;
 import java.util.Set;
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -33,6 +35,7 @@ public record EngineProperties(
 
     public EngineProperties {
         url = url.strip();
+        requireHttpUrl(url);
         requirePositive("connect-timeout", connectTimeout);
         requirePositive("paths-timeout", pathsTimeout);
         requirePositive("projections-timeout", projectionsTimeout);
@@ -52,6 +55,25 @@ public record EngineProperties(
                 throw new IllegalArgumentException(
                         "antlab.engine.path-source=engine needs ANTLAB_ENGINE_TOKEN of at least " + MIN_TOKEN_LENGTH + " characters");
             }
+        }
+    }
+
+    /** A blank URL means "not configured". Otherwise it must be http(s)://host[:port] with no credentials; the value is never echoed. */
+    private static void requireHttpUrl(String url) {
+        if (url.isEmpty()) {
+            return;
+        }
+        boolean valid;
+        try {
+            URI uri = new URI(url);
+            valid = ("http".equals(uri.getScheme()) || "https".equals(uri.getScheme())) && uri.getHost() != null
+                    && uri.getUserInfo() == null && uri.getRawQuery() == null && uri.getRawFragment() == null;
+        } catch (URISyntaxException e) {
+            valid = false;
+        }
+        if (!valid) {
+            throw new IllegalArgumentException(
+                    "ANTLAB_ENGINE_URL must be http(s)://host[:port] without credentials, query or fragment");
         }
     }
 

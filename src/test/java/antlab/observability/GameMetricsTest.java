@@ -115,4 +115,18 @@ class GameMetricsTest {
             broken.orderRejected(ErrorCode.NOT_FOUND);
         }).doesNotThrowAnyException();
     }
+
+    @Test
+    void abandonCounterHasTwoSeriesAtZeroAndCountsEachOnItsOwn() {
+        assertThat(count("antlab.season.abandoned", "not_started", "true")).isZero();
+        assertThat(count("antlab.season.abandoned", "not_started", "false")).isZero();
+        assertThat(registry.find("antlab.season.abandoned").tags("not_started", "true").counter()).isNotNull();
+        assertThat(registry.find("antlab.season.abandoned").tags("not_started", "false").counter()).isNotNull();
+        metrics.seasonAbandoned(true);
+        metrics.seasonAbandoned(true);
+        metrics.seasonAbandoned(false);
+        assertThat(count("antlab.season.abandoned", "not_started", "true")).isEqualTo(2);
+        assertThat(count("antlab.season.abandoned", "not_started", "false")).isEqualTo(1);
+        assertThat(registry.find("antlab.season.abandoned").counters()).hasSize(2);
+    }
 }

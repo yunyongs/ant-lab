@@ -36,6 +36,7 @@ public final class FakeEngineServer implements AutoCloseable {
     private final Map<String, Canned> routes = new ConcurrentHashMap<>();
     private final List<Recorded> requests = new CopyOnWriteArrayList<>();
     private volatile Duration delay = Duration.ZERO;
+    private volatile Duration bodyStall = Duration.ZERO;
 
     private FakeEngineServer(HttpServer server) {
         this.server = server;
@@ -86,6 +87,21 @@ public final class FakeEngineServer implements AutoCloseable {
         return this;
     }
 
+    /** The answer's headers go out at once, the body only after this long (an engine that stalls after the headers). */
+    public FakeEngineServer stallBody(Duration stall) {
+        this.bodyStall = stall;
+        return this;
+    }
+
+    /** Forget the recorded requests, the canned answers and the delay (for a server shared by the tests of a class). */
+    public FakeEngineServer reset() {
+        routes.clear();
+        requests.clear();
+        delay = Duration.ZERO;
+        bodyStall = Duration.ZERO;
+        return this;
+    }
+
     public List<Recorded> requests() {
         return List.copyOf(requests);
     }
@@ -113,6 +129,14 @@ public final class FakeEngineServer implements AutoCloseable {
         }
         try {
             exchange.sendResponseHeaders(canned.status(), bytes.length == 0 ? -1 : bytes.length);
+            if (bytes.length > 0 && !bodyStall.isZero()) {
+                exchange.getResponseBody().flush();
+                try {
+                    Thread.sleep(bodyStall);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }
             if (bytes.length > 0) {
                 exchange.getResponseBody().write(bytes);
             }
