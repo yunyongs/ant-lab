@@ -19,7 +19,8 @@ def input_digest(observations: Iterable[Observation]) -> str:
     """SHA-256 over the label version and the adapted rows in canonical order (64 hex digits).
 
     Equal inputs give equal digests whatever the row order, so two runs can be compared
-    without printing any data.
+    without printing any data. Holiday calendars change the stale rule but are not rows, so
+    they are not part of the digest; a caller that varies them must compare them itself.
     """
     lines = sorted(
         f"{o.series.value}|{o.ref_date.isoformat()}|{o.available_on.isoformat()}|{_canonical_value(o)}"

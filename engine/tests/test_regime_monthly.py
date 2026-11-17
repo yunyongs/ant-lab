@@ -3,6 +3,7 @@
 import random
 import time
 from datetime import date, datetime, timedelta
+from decimal import Decimal
 
 import pytest
 from regime_synthetic import month_fingerprint, raw_panel
@@ -273,6 +274,59 @@ def test_a_value_available_before_the_last_step_of_the_month_does_change_it():
     changed = prints(rows)
     assert changed[UP_TO - 1] != LOOK_BASE[UP_TO - 1]
     assert changed[: UP_TO - 1] == LOOK_BASE[: UP_TO - 1]
+
+
+# --- TA10 with the legacy dollar index in the panel (audit C1, C2, C5) ---------------------------
+
+OTHER_ROWS = [r for r in ROWS if r.source is not SRC.US_DTWEXBGS]
+DOLLAR = [r for r in ROWS if r.source is SRC.US_DTWEXBGS]
+
+
+def old_index(last: date) -> list[RawObservation]:
+    return [
+        RawObservation(SRC.FRED_DTWEXM, r.ref_date, r.value * Decimal("0.8"), None)
+        for r in DOLLAR
+        if r.ref_date <= last
+    ]
+
+
+def usable_by(row: RawObservation, cutoff: date) -> bool:
+    floor = publication_floor(SOURCE_TO_CODE[row.source], row.ref_date)
+    return max(row.published_on or floor, floor) <= cutoff
+
+
+DOLLAR_MONTHS = [D(2020, m, 1) for m in (3, 6, 9, 12)] + [D(2021, m, 1) for m in range(1, 9)]
+
+
+def dollar_prints(rows) -> list:
+    return [month_fingerprint(m) for m in label_months(to_observations(rows), DOLLAR_MONTHS)]
+
+
+def test_an_old_index_that_the_new_one_joins_later_changes_nothing_before_the_join():
+    new = [r for r in DOLLAR if r.ref_date >= D(2021, 6, 1)]
+    rows = [*OTHER_ROWS, *old_index(D(2021, 12, 31)), *new]
+    cutoff, upto = D(2021, 5, 31), DOLLAR_MONTHS.index(D(2021, 5, 1)) + 1
+    full = dollar_prints(rows)
+    cut = dollar_prints([r for r in rows if usable_by(r, cutoff)])
+    assert full[:upto] == cut[:upto]
+    month = label_months(to_observations(rows), [D(2021, 3, 1)])[0]
+    assert month.indicator_z["11"] is not None  # the old index carries the dollar signal alone
+
+
+def test_a_new_index_published_late_leaves_the_dollar_signal_in_place():
+    late = D(2022, 6, 1)
+    new = [
+        RawObservation(r.source, r.ref_date, r.value, late)
+        for r in DOLLAR
+        if D(2019, 1, 2) <= r.ref_date <= D(2022, 5, 31)
+    ]
+    rows = [*OTHER_ROWS, *old_index(D(2022, 12, 31)), *new]
+    months = [D(2020, 6, 1), D(2021, 6, 1)]
+    both = label_months(to_observations(rows), months)
+    alone = label_months(to_observations([*OTHER_ROWS, *old_index(D(2022, 12, 31))]), months)
+    for linked, plain in zip(both, alone, strict=True):
+        assert linked.indicator_z["11"] is not None and "11" not in linked.unavailable
+        assert month_fingerprint(linked) == month_fingerprint(plain)
 
 
 # --- timing (slow) -------------------------------------------------------------------------------

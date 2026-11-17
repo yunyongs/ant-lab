@@ -190,11 +190,8 @@ def bad_rows() -> dict:
                 raw(SRC.US_CPILFESL, D(2024, 2, 1), "1", D(2024, 3, 20)),
             ]
         ),
-        "back-fill and a row dated on the floor": lambda: to_observations(
-            [
-                raw(SRC.KR_CPI, D(2024, 1, 1), MARKER),
-                raw(SRC.KR_CPI, D(2024, 1, 1), "1", D(2024, 2, 7)),
-            ]
+        "back-fill twice": lambda: to_observations(
+            [raw(SRC.KR_CPI, D(2024, 1, 1), MARKER), raw(SRC.KR_CPI, D(2024, 1, 1), "1")]
         ),
         "unknown source": lambda: RawObservation("NOPE", ref, Decimal(MARKER)),  # type: ignore[arg-type]
         "source as plain text": lambda: RawObservation("US_DGS2", ref, Decimal(MARKER)),  # type: ignore[arg-type]
@@ -355,17 +352,12 @@ def test_changing_the_new_index_at_the_link_date_changes_nothing_before_the_link
     assert steps and run_a == run_b
 
 
-def test_without_a_common_date_the_old_index_is_ignored():
+def test_without_a_common_date_both_indexes_stay_as_collected():
     new = index_rows(SRC.US_DTWEXBGS, D(2006, 1, 2), D(2007, 12, 31), 1.25)
     adapted = adapt(OLD[:300] + new)
     assert not adapted.dtwex_linked
-    assert [o.ref_date for o in adapted.observations] == [r.ref_date for r in new]
-    assert adapted.observations[0].value == new[0].value  # no rescale
-
-
-def test_the_old_index_alone_is_ignored():
-    adapted = adapt(OLD)
-    assert adapted.observations == () and not adapted.dtwex_linked
+    assert [o.ref_date for o in adapted.observations] == [r.ref_date for r in [*OLD[:300], *new]]
+    assert [o.value for o in adapted.observations] == [r.value for r in [*OLD[:300], *new]]
 
 
 def test_the_old_index_is_dated_by_the_same_rule_as_the_new_one():
@@ -383,8 +375,12 @@ def test_the_link_is_not_usable_before_both_rows_of_the_common_date_are():
     ]
     by_day = {o.ref_date: o for o in adapt(published_late + NEW).observations}
     assert by_day[D0].available_on == D(2005, 2, 1)
-    assert by_day[D(2005, 3, 1)].available_on == publication_floor(S.US_DTWEXBGS, D(2005, 3, 1))
-    assert all(o.available_on >= D(2005, 2, 1) for o in by_day.values() if o.ref_date >= D0)
+    early = by_day[D(2005, 1, 5)]  # usable before the factor is known: the old row, as collected
+    assert early.available_on == publication_floor(S.US_DTWEXBGS, D(2005, 1, 5))
+    assert early.value == next(r.value for r in OLD if r.ref_date == D(2005, 1, 5))
+    later = by_day[D(2005, 3, 1)]
+    assert later.available_on == publication_floor(S.US_DTWEXBGS, D(2005, 3, 1))
+    assert later.value != next(r.value for r in OLD if r.ref_date == D(2005, 3, 1))  # rescaled
 
 
 # --- shape of the result --------------------------------------------------------------------
@@ -405,3 +401,86 @@ def test_an_empty_input_gives_an_empty_result():
     assert not adapted.dtwex_linked
     assert set(adapted.rule_dated_rows) == set(SeriesCode)
     assert not any(adapted.rule_dated_rows.values())
+
+
+# --- audit round 1: no look-ahead through the link (C1, C2), vintage rules (C3, C4) ----------
+
+NEW_LATE = [  # a back-fill published in 2009 for every earlier date
+    RawObservation(r.source, r.ref_date, r.value, max(r.ref_date, D(2009, 6, 1))) for r in NEW
+]
+CUTOFFS = [D(2004, 6, 30), D(2004, 12, 31), D(2005, 1, 9), D(2005, 6, 30), D(2007, 6, 30)] + [
+    D(2008, 12, 31),
+    D(2009, 3, 1),
+    D(2009, 6, 5),
+]
+
+
+def usable_by(row: RawObservation, cutoff: date) -> bool:
+    floor = publication_floor(SOURCE_TO_CODE[row.source], row.ref_date)
+    return max(row.published_on or floor, floor) <= cutoff
+
+
+def known_at(rows, cutoff: date) -> list:
+    return [o for o in adapt(rows).observations if o.available_on <= cutoff]
+
+
+@pytest.mark.parametrize("cutoff", CUTOFFS)
+@pytest.mark.parametrize("name", ["old then new", "new published late", "old alone"])
+def test_dropping_rows_usable_only_after_a_date_changes_nothing_usable_by_it(name, cutoff):
+    rows = {"old then new": OLD + NEW, "new published late": OLD + NEW_LATE, "old alone": OLD}[name]
+    kept = [r for r in rows if usable_by(r, cutoff)]
+    assert len(kept) < len(rows) or name == "old alone"
+    assert known_at(kept, cutoff) == known_at(rows, cutoff)
+
+
+def test_the_old_index_alone_is_kept_as_it_is():
+    adapted = adapt(OLD)
+    assert not adapted.dtwex_linked
+    assert [o.value for o in adapted.observations] == [r.value for r in OLD]
+    assert {o.series for o in adapted.observations} == {S.US_DTWEXBGS}
+
+
+def test_a_new_index_published_late_leaves_no_gap_in_the_old_one():
+    by_day = {o.ref_date: o for o in adapt(OLD + NEW_LATE).observations}
+    assert adapt(OLD + NEW_LATE).dtwex_linked
+    old_days = [r for r in OLD if r.ref_date >= D0]
+    assert old_days
+    for r in old_days:  # old rows stay raw until the new index is usable
+        assert by_day[r.ref_date].value == r.value
+        assert by_day[r.ref_date].available_on == publication_floor(S.US_DTWEXBGS, r.ref_date)
+    after = by_day[D(2010, 1, 4)]
+    assert after.available_on == D(2010, 1, 11) and float(after.value) == pytest.approx(
+        0.8 * level(D(2010, 1, 4)), rel=1e-12
+    )
+    assert len(by_day) == len(adapt(OLD + NEW_LATE).observations)  # one row per reference date
+
+
+def test_a_backfill_never_beats_a_dated_collection_of_the_same_usable_date():
+    ref, floor = D(2024, 1, 1), D(2024, 2, 7)
+    for published in (D(2024, 2, 5), floor):  # before and on the floor
+        for rows in (
+            [raw(SRC.KR_CPI, ref, "999"), raw(SRC.KR_CPI, ref, "100", published)],
+            [raw(SRC.KR_CPI, ref, "100", published), raw(SRC.KR_CPI, ref, "999")],
+        ):
+            (item,) = to_observations(rows)
+            assert item.value == Decimal("100") and item.available_on == floor
+    both = to_observations(
+        [raw(SRC.KR_CPI, ref, "999"), raw(SRC.KR_CPI, ref, "100", D(2024, 3, 15))]
+    )
+    assert [(o.value, o.available_on) for o in both] == [
+        (Decimal("999"), floor),
+        (Decimal("100"), D(2024, 3, 15)),
+    ]
+
+
+def test_a_repeated_collection_is_rejected_in_every_row_order():
+    a = raw(SRC.KR_CPI, D(2024, 1, 1), "100", D(2024, 2, 2))
+    b = raw(SRC.KR_CPI, D(2024, 1, 1), "101", D(2024, 2, 4))
+    again = raw(SRC.KR_CPI, D(2024, 1, 1), "100", D(2024, 2, 2))
+    for rows in ([a, b, again], [a, again, b], [b, a, again], [again, b, a]):
+        with pytest.raises(InvalidArgument):
+            to_observations(rows)
+    backfill = raw(SRC.KR_CPI, D(2024, 1, 1), "5")
+    for rows in ([backfill, a, backfill], [a, backfill, backfill], [backfill, backfill, a]):
+        with pytest.raises(InvalidArgument):
+            to_observations(rows)

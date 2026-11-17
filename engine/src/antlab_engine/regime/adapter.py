@@ -131,25 +131,31 @@ def _row(raw: RawObservation, calendars: Calendars | None) -> _Row:
 def _dedupe(rows: Iterable[_Row]) -> list[_Row]:
     """One row per source and reference date; a revisable series keeps one per usable date.
 
-    Two collections of a revisable value that become usable on the same date are the same
-    vintage for the library: the later collection wins. An identical pair is a duplicate.
+    Collections of a revisable value that become usable on the same date are the same vintage
+    for the library. A collection with a publication date beats a back-fill, and of two dated
+    ones the later wins. Repeating a (back-fill or dated) collection is a duplicate whatever
+    the row order, so the same data is accepted or rejected alike.
     """
     kept: dict[tuple, _Row] = {}
+    seen: dict[tuple, set[tuple[bool, date]]] = {}
     for row in rows:
-        revisable = SERIES_SPECS[row.code].revisable
-        key = (
-            (row.source, row.ref_date, row.available_on)
-            if revisable
-            else (row.source, row.ref_date)
-        )
-        other = kept.get(key)
-        if other is None:
+        if not SERIES_SPECS[row.code].revisable:
+            key = (row.source, row.ref_date)
+            if key in kept:
+                raise InvalidArgument(f"duplicate row in {row.source}")
             kept[key] = row
-        elif revisable and other.original != row.original:
-            if row.original > other.original:
-                kept[key] = row
-        else:
+            continue
+        key = (row.source, row.ref_date, row.available_on)
+        identity = (row.rule_dated, row.original)
+        if identity in seen.setdefault(key, set()):
             raise InvalidArgument(f"duplicate row in {row.source}")
+        seen[key].add(identity)
+        other = kept.get(key)
+        if other is None or (not row.rule_dated, row.original) > (
+            not other.rule_dated,
+            other.original,
+        ):
+            kept[key] = row
     return list(kept.values())
 
 
@@ -179,21 +185,43 @@ def _link(rows: list[_Row]) -> _Link | None:
 
 
 def _apply_link(rows: list[_Row], link: _Link | None) -> list[_Row]:
-    if link is None:  # no common date: the old index is ignored
-        return [r for r in rows if r.source is not SourceSeries.FRED_DTWEXM]
+    """Rescale the newer index from the common date on and settle each reference date.
+
+    With no common date both indexes stay as collected. From the common date on, a date that
+    both indexes have uses the rescaled newer row when it is usable no later than the old row,
+    else the old row. That decision looks only at rows that are usable at the same time, so
+    removing rows that become usable later never changes an earlier answer, and the older
+    index covers the days before the newer one is usable. A newer row dated before the common
+    date (an index with gaps) stays as collected.
+    """
+    if link is None:
+        return rows
     context = Context(prec=DECIMAL_PRECISION)
+    scaled: dict[date, _Row] = {}
+    for r in rows:
+        if r.source is SourceSeries.US_DTWEXBGS and r.ref_date >= link.first_common:
+            value = context.multiply(r.value, link.factor)
+            available = max(r.available_on, link.available_on)
+            scaled[r.ref_date] = _Row(
+                r.source, r.code, r.ref_date, value, r.original, available, r.rule_dated
+            )
+    old_available = {
+        r.ref_date: r.available_on for r in rows if r.source is SourceSeries.FRED_DTWEXM
+    }
     out = []
     for r in rows:
         if r.source is SourceSeries.FRED_DTWEXM:
-            if r.ref_date < link.first_common:
+            newer = scaled.get(r.ref_date)
+            if (
+                r.ref_date < link.first_common
+                or newer is None
+                or newer.available_on > r.available_on
+            ):
                 out.append(r)
-        elif r.source is SourceSeries.US_DTWEXBGS:
-            if r.ref_date >= link.first_common:
-                value = context.multiply(r.value, link.factor)
-                available = max(r.available_on, link.available_on)
-                out.append(
-                    _Row(r.source, r.code, r.ref_date, value, r.original, available, r.rule_dated)
-                )
+        elif r.source is SourceSeries.US_DTWEXBGS and r.ref_date >= link.first_common:
+            old = old_available.get(r.ref_date)
+            if old is None or scaled[r.ref_date].available_on <= old:
+                out.append(scaled[r.ref_date])
         else:
             out.append(r)
     return out
