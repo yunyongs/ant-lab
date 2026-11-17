@@ -89,6 +89,7 @@ class PointInTime:
         array = np.array(values, dtype=np.float64)
         ordinals.setflags(write=False)
         array.setflags(write=False)
-        # the newest arrival of any reference date: how old the data is, not when it was revised
-        last = max(first_seen) if first_seen else None
+        # first arrival of the newest reference date: neither a revision nor a late back-fill
+        # of an older date makes a dead feed look fresh
+        last = first_seen[-1] if first_seen else None
         return SeriesView(series, tuple(dates), ordinals, array, last)

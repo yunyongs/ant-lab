@@ -1,7 +1,7 @@
 from datetime import date, timedelta
 
 import pytest
-from regime_synthetic import FAR, obs, panel
+from regime_synthetic import FAR, obs, panel, weekdays
 
 from antlab_engine.regime import (
     PointInTime,
@@ -126,3 +126,13 @@ def test_a_series_is_fresh_on_its_own_availability_date(code):
     pit = PointInTime([obs(code, ref, 1.0)])
     on_day = date(2024, 4, 7) if code is S.KR_CPI else MON
     assert series_state(pit.snapshot(code, on_day), on_day) is SeriesState.FRESH
+
+
+def test_a_late_back_fill_of_an_old_date_does_not_revive_a_dead_feed():
+    days = [d for d in weekdays(date(2024, 1, 1), 40) if d <= date(2024, 2, 2)]
+    hole = date(2024, 1, 17)
+    items = [obs(S.US_DGS2, d, 1.0) for d in days if d != hole]
+    items.append(obs(S.US_DGS2, hole, 1.0, available=date(2024, 2, 14)))
+    as_of = date(2024, 2, 15)
+    view = PointInTime(items).snapshot(S.US_DGS2, as_of)
+    assert series_state(view, as_of) is SeriesState.STALE

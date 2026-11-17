@@ -3,11 +3,11 @@ from datetime import date, timedelta
 
 import numpy as np
 import pytest
-from regime_synthetic import daily, monthly, obs, view_of, weekdays
+from regime_synthetic import daily, monthly, obs, view_of, weekdays, weekly
 
 from antlab_engine.regime import TERMS_BY_ID, SeriesCode
 from antlab_engine.regime import transforms as tf
-from antlab_engine.regime.pit import PointInTime
+from antlab_engine.regime.pit import PointInTime, add_months
 
 S = SeriesCode
 
@@ -175,3 +175,48 @@ def test_weekday_helper_skips_weekends():
     days = weekdays(date(2024, 1, 5), 3)  # a Friday
     assert days == [date(2024, 1, 5), date(2024, 1, 8), date(2024, 1, 9)]
     assert days[1] - days[0] == timedelta(days=3)
+
+
+# Catalog-level goldens: the window of each term as written in MACRO_ETF §2.3
+A, SLOPE, N = 10.0, 0.01, 400
+LATEST = A + SLOPE * (N - 1)
+
+
+def ramp(i):
+    return A + SLOPE * i
+
+
+def ma_last(n):
+    """Mean of the last n points of the ramp."""
+    return LATEST - SLOPE * (n - 1) / 2
+
+
+DAILY_GOLDEN = {
+    "1a": (S.US_DGS2, 63 * SLOPE),
+    "1b": (S.US_DGS2, SLOPE * (126 - 1) / 2),
+    "3a": (S.KR_KTB3Y, 63 * SLOPE),
+    "7a": (S.US_T10Y3M, LATEST),
+    "7b": (S.US_T10Y3M, 63 * SLOPE),
+    "14US": (S.US_BAA10Y, 63 * SLOPE),
+    "10a": (S.KR_USDKRW, LATEST / ma_last(200) - 1),
+    "10b": (S.KR_USDKRW, LATEST / (LATEST - 63 * SLOPE) - 1),
+    "11": (S.US_DTWEXBGS, LATEST / (LATEST - 63 * SLOPE) - 1),
+    "13a": (S.US_VIX, LATEST / ma_last(50) - 1),
+    "5": (S.US_ICSA, ma_last(4) / ma_last(26) - 1),
+}
+
+
+@pytest.mark.parametrize("term_id", sorted(DAILY_GOLDEN))
+def test_each_daily_or_weekly_term_uses_its_documented_window(term_id):
+    code, expected = DAILY_GOLDEN[term_id]
+    build = weekly if code is S.US_ICSA else daily
+    items = build(code, date(2020, 1, 6), N, ramp)
+    assert last(term_id, items) == pytest.approx(expected, abs=1e-12)
+
+
+def test_sahm_terms_use_calendar_months_and_skip_gaps():
+    items = monthly(S.US_SAHM, date(2018, 1, 1), 40, lambda i: 0.1 * i)
+    assert last("6a", items) == pytest.approx(3.9, abs=1e-12)
+    assert last("6b", items) == pytest.approx(0.3, abs=1e-12)  # 3 months, not 2
+    gap = [o for o in items if o.ref_date != add_months(date(2018, 1, 1), 36)]
+    assert math.isnan(last("6b", gap))  # month t-3 is missing

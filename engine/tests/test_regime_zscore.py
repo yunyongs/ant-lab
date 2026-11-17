@@ -5,10 +5,11 @@ from statistics import NormalDist
 
 import numpy as np
 import pytest
-from regime_synthetic import panel, weekdays
+from regime_synthetic import monthly, panel, weekdays
 
 from antlab_engine.engine_errors import InvalidArgument
 from antlab_engine.regime import (
+    TERMS_BY_ID,
     Observation,
     PointInTime,
     SeriesCode,
@@ -212,3 +213,29 @@ def test_nothing_published_after_as_of_changes_the_signals():
 def test_every_signal_is_finite_or_none():
     for found in full_panel_signals(panel(seed=9)):
         assert found.z is None or np.isfinite(found.z)
+
+
+def test_a_missing_point_inside_the_window_is_skipped_not_poisoning_the_z():
+    dates = [add_months(date(2017, 1, 1), i) for i in range(60)]
+    values = [float((i * 7) % 11) for i in range(60)]
+    holed = list(values)
+    holed[30] = float("nan")
+    found = z_of_latest(series(dates, holed), 1)
+    finite = [v for i, v in enumerate(values) if i != 30]
+    assert found.status is TermStatus.OK
+    assert found.z == pytest.approx(
+        (finite[-1] - statistics.mean(finite)) / statistics.stdev(finite), abs=1e-12
+    )
+
+
+def test_two_points_two_years_apart_are_still_warming():
+    sparse = series([date(2020, 3, 1), date(2022, 3, 1)], [1.0, 5.0])
+    assert z_of_latest(sparse, 1).status is TermStatus.WARMING
+
+
+def test_constant_growth_core_cpi_is_degenerate_not_float_noise():
+    items = monthly(S.US_CPILFESL, date(2017, 1, 1), 80, lambda i: 100 * 1.002**i)
+    views = {c: PointInTime(items).snapshot(c, date(2100, 1, 1)) for c in S}
+    accel = TERMS_BY_ID["2"].transform(views)
+    assert abs(accel.values[-1]) < 1e-12
+    assert z_of_latest(accel, 1).status is TermStatus.DEGENERATE

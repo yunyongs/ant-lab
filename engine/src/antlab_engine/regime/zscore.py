@@ -26,6 +26,8 @@ from antlab_engine.regime.stale import Calendars, SeriesState, series_states
 Z_WINDOW_YEARS = 5
 Z_MIN_YEARS = 2
 Z_CLIP = 3.0
+Z_MIN_POINTS = 3
+Z_TINY_STD = 1e-9  # relative: a window flat up to float noise has no signal
 
 
 def _clip(z: float, sign: int) -> float:
@@ -52,7 +54,7 @@ def z_of_latest(series: Transformed, sign: int, percentile: bool = False) -> Ter
     if found is None:
         return TermSignal("", None, TermStatus.MISSING)
     window, first = found
-    if first > years_before(series.ref_dates[-1], Z_MIN_YEARS):
+    if len(window) < Z_MIN_POINTS or first > years_before(series.ref_dates[-1], Z_MIN_YEARS):
         return TermSignal("", None, TermStatus.WARMING)
     latest = float(window[-1])
     if percentile:
@@ -64,7 +66,11 @@ def z_of_latest(series: Transformed, sign: int, percentile: bool = False) -> Ter
         return TermSignal("", None, TermStatus.DEGENERATE)
     with np.errstate(over="ignore", invalid="ignore"):
         mean, std = float(window.mean()), float(window.std(ddof=1))
-    z = (latest - mean) / std if math.isfinite(mean) and math.isfinite(std) and std > 0 else None
+    z = (
+        (latest - mean) / std
+        if math.isfinite(mean) and math.isfinite(std) and std > Z_TINY_STD * max(1.0, abs(mean))
+        else None
+    )
     if z is None or not math.isfinite(z):
         return TermSignal("", None, TermStatus.DEGENERATE)
     return TermSignal("", _clip(z, sign), TermStatus.OK)
