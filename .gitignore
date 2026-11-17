@@ -284,3 +284,6 @@ $RECYCLE.BIN/
 .directory
 .Trash-*
 .nfs*
+
+# Detailed local implementation notes (kept out of the public repo)
+impl.md

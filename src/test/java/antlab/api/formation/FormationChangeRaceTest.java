@@ -135,7 +135,7 @@ class FormationChangeRaceTest {
         long season = seasonAtTurnOne();
 
         MockHttpServletResponse change = holdWhileWaiting(() -> orderService.place(season,
-                new PlaceOrderRequest(1, OrderSide.BUY, assetId(jdbc, "069500"), 1, null)), () -> change(mvc, season, 1, A));
+                new PlaceOrderRequest(1, OrderSide.BUY, assetId(jdbc, "069500"), 1, null, null)), () -> change(mvc, season, 1, A));
 
         assertThat(change.getStatus()).isEqualTo(201);
         assertThat(jdbc.queryForObject("SELECT formation_change_id FROM orders WHERE season_id = ? AND turn_no = 1",

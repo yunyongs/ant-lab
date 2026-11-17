@@ -14,6 +14,8 @@ import antlab.season.SeasonEventTime;
 import antlab.season.Season;
 import antlab.season.SeasonRepository;
 import antlab.season.SeasonStatus;
+import antlab.season.FeedSourceRow;
+import antlab.season.TurnFeedRepository;
 import antlab.season.TurnPrice;
 import antlab.season.TurnPriceRepository;
 import java.math.BigDecimal;
@@ -34,6 +36,10 @@ import org.springframework.transaction.annotation.Transactional;
  * <p>매도(S1–S10): 보유 ≥ 수량(아니면 INSUFFICIENT_HOLDING) → 열린 구간 → 금액·실현 손익(체결 직전 평균단가, 보유를
  * 바꾸기 전에 계산) → orders → execution → holding → cash_ledger(SELL → FEE) → cash_account → 전량이면 구간 닫기.
  * 매도에는 선언 포지션을 받지 않고(잠금 전 400), 0턴 매도도 막지 않는다(SQL 의 0턴 거부는 파일 구조 때문이다).
+ *
+ * <p>출발점(source): 검증의 첫 단계다(가격 조회 앞). 종류 허용 → 참조 있음 → 피드 턴 ≤ 현재 턴 → 이 시즌의 항목 → 종류 일치 → 종목
+ * 일치(FEED·ALERT) 또는 순위판 위 종목(RANKING) 순이며, 보이지 않은 이유는 구분하지 않고 SOURCE_NOT_VISIBLE 하나로 답한다.
+ * 참조 모양(FEED·ALERT 는 턴과 순서 둘 다, 나머지는 없음)은 잠금 전에 400 으로 거른다. 거절은 아무것도 쓰지 않는다.
  *
  * <p>이벤트 시각: 검증이 끝난 뒤 첫 INSERT 직전에 {@link SeasonEventTime} 에서 시각을 확정하고(같은 턴의 앞선 주문·전술 변경보다
  * 엄격히 늦지 않으면 EVENT_TIME_CONFLICT), 그 값을 주문 INSERT 에 그대로 저장한다. 그래서 기존 검증 오류의 우선순위는 그대로다.
@@ -56,6 +62,8 @@ public class OrderService {
     private final OrderRepository orders;
     private final ExecutionRepository executions;
     private final SeasonEventTime eventTime;
+    private final TurnFeedRepository feedItems;
+    private final RankingVisibility ranking;
     /** Largest share of one asset in the total value after a buy; null = not enforced (the default, for everyone). */
     private final BigDecimal singleAssetLimit;
 
@@ -63,6 +71,7 @@ public class OrderService {
             CashLedgerRepository ledgers, TurnPriceRepository turnPrices, AssetRepository assets,
             HoldingRepository holdings, LineupRepository lineups, FormationChangeRepository formationChanges,
             OrderRepository orders, ExecutionRepository executions, SeasonEventTime eventTime,
+            TurnFeedRepository feedItems, RankingVisibility ranking,
             @Value("${antlab.game.single-asset-limit:#{null}}") BigDecimal singleAssetLimit) {
         this.currentMember = currentMember;
         this.seasons = seasons;
@@ -76,6 +85,8 @@ public class OrderService {
         this.orders = orders;
         this.executions = executions;
         this.eventTime = eventTime;
+        this.feedItems = feedItems;
+        this.ranking = ranking;
         if (singleAssetLimit != null && (singleAssetLimit.signum() <= 0 || singleAssetLimit.compareTo(BigDecimal.ONE) > 0)) {
             throw new IllegalArgumentException("antlab.game.single-asset-limit must be in (0, 1]");
         }
@@ -87,6 +98,9 @@ public class OrderService {
         // S0 — 잠금 전 입력 검사. 구간 선언 변경은 라인업 변경의 일이라 매도에 선언이 오면 거절한다.
         if (request.side() == OrderSide.SELL && request.declaredPosition() != null) {
             throw new DomainException(ErrorCode.INVALID_ARGUMENT, "매도에는 선언 포지션을 보내지 않는다");
+        }
+        if (request.source() != null && !request.source().shapeValid()) {
+            throw new DomainException(ErrorCode.INVALID_ARGUMENT, "출발점의 참조 형식이 맞지 않는다");
         }
         OrderScope scope = lock(seasonId, request.expectedTurnNo());
         OrderCheck checked = check(scope, request);
@@ -126,13 +140,19 @@ public class OrderService {
     /**
      * 한 건의 검증 — 쓰기는 하지 않는다. 거절은 던지지 않고 값으로 돌려준다(던지면 호출한 트랜잭션이 롤백 전용이 된다). 검증은
      * 쓰기 앞에 모두 있으므로 거절된 건은 상태를 바꾸지 않는다. 손상 상태(라인업 불일치)는 거절이 아니라 예외다.
-     * 순서: 풀 → 수량 → 매도(선언 포지션 → 보유) 또는 매수(잔액 → 포지션 선언 → 단일 종목 한도).
+     * 순서: 출발점 → 풀 → 수량 → 매도(선언 포지션 → 보유) 또는 매수(잔액 → 포지션 선언 → 단일 종목 한도).
      */
     public OrderCheck check(OrderScope scope, PlaceOrderRequest request) {
         Season season = scope.season();
         long seasonId = season.getId();
         int turnNo = scope.turnNo();
         Long assetId = request.assetId();
+
+        // 3a. Origin first (before the price lookup), so a refused origin tells nothing about the asset or the pool.
+        SourceCheck origin = checkSource(scope, request.source(), assetId);
+        if (origin.rejection() != null) {
+            return OrderCheck.rejected(origin.rejection());
+        }
 
         // 4. 그 턴 가격(정본) — 다시 계산하지 않는다. 요율은 시즌 행의 값이다(매도도 같은 요율).
         Optional<TurnPrice> turnPrice = turnPrices.findBySeasonIdAndTurnNoAndAssetId(seasonId, turnNo, assetId);
@@ -148,12 +168,13 @@ public class OrderService {
             return OrderCheck.rejected(OrderRejection.QUANTITY_INVALID);
         }
         if (request.side() == OrderSide.SELL) {
-            return checkSell(scope, request, price, rate);
+            return checkSell(scope, request, price, rate, origin);
         }
-        return checkBuy(scope, request, price, rate);
+        return checkBuy(scope, request, price, rate, origin);
     }
 
-    private OrderCheck checkBuy(OrderScope scope, PlaceOrderRequest request, BigDecimal price, BigDecimal rate) {
+    private OrderCheck checkBuy(OrderScope scope, PlaceOrderRequest request, BigDecimal price, BigDecimal rate,
+            SourceCheck origin) {
         Season season = scope.season();
         CashAccount account = scope.account();
         long seasonId = season.getId();
@@ -189,11 +210,12 @@ public class OrderService {
             return OrderCheck.rejected(OrderRejection.SINGLE_ASSET_LIMIT);
         }
         return OrderCheck.passed(new OrderPlan(scope, request, price, changeId(seasonId, scope.turnNo()), holding, open.orElse(null),
-                notional, fee, null));
+                notional, fee, null, origin.source(), origin.turnFeedId()));
     }
 
     /** 매도 — SQL trade_sell 과 같은 순서(S1–S10). 매도 쪽 잔액 검사는 없다(SQL 과 같다). 합산 요율 < 1 이면 대금 ≥ 수수료이고, 미국 합산 요율(미국 + 환전)이 1 이상인 설정이면 계좌가 음수 잔액을 거부해 전부 되돌아간다. */
-    private OrderCheck checkSell(OrderScope scope, PlaceOrderRequest request, BigDecimal price, BigDecimal rate) {
+    private OrderCheck checkSell(OrderScope scope, PlaceOrderRequest request, BigDecimal price, BigDecimal rate,
+            SourceCheck origin) {
         long seasonId = scope.season().getId();
         int quantity = request.quantity();
         Long assetId = request.assetId();
@@ -216,7 +238,57 @@ public class OrderService {
         BigDecimal fee = MoneyMath.fee(price, quantity, rate);
         BigDecimal pnl = MoneyMath.realizedPnl(price, holding.get().getAvgPrice(), quantity);
         return OrderCheck.passed(new OrderPlan(scope, request, price, changeId(seasonId, scope.turnNo()), holding.get(), open,
-                notional, fee, pnl));
+                notional, fee, pnl, origin.source(), origin.turnFeedId()));
+    }
+
+    /** Outcome of the origin check: a refusal, or the origin to store (and the internal id of the feed item it points at). */
+    private record SourceCheck(OrderRejection rejection, OrderSource source, Long turnFeedId) {
+
+        static SourceCheck refused(OrderRejection rejection) {
+            return new SourceCheck(rejection, null, null);
+        }
+
+        static SourceCheck accepted(OrderSource source, Long turnFeedId) {
+            return new SourceCheck(null, source, turnFeedId);
+        }
+    }
+
+    /**
+     * The origin rule shared by humans and agents. Every "not shown" reason answers with the same refusal, so a rejected order cannot
+     * be used to tell an event card from group noise or to probe which items exist. An item that names an asset starts orders for that
+     * asset only; an item that names none starts orders for any asset (no group rule, or a refusal would reveal what the item was).
+     * The feed is read under the season lock and is append-only, so "current turn" cannot move under this check.
+     */
+    private SourceCheck checkSource(OrderScope scope, OrderSourceRequest source, Long assetId) {
+        if (source == null || source.kind() == OrderSource.DIRECT) {
+            return SourceCheck.accepted(OrderSource.DIRECT, null);
+        }
+        switch (source.kind()) {
+            case BENCH:
+                return SourceCheck.refused(OrderRejection.SOURCE_NOT_ALLOWED);
+            case RANKING:
+                return ranking.onBoard(scope.season(), scope.turnNo(), assetId)
+                        ? SourceCheck.accepted(OrderSource.RANKING, null)
+                        : SourceCheck.refused(OrderRejection.SOURCE_NOT_VISIBLE);
+            default:
+                break;
+        }
+        Integer feedTurnNo = source.feedTurnNo();
+        Integer feedSeq = source.feedSeq();
+        // A turn after the current one has not been shown yet; seq/turn outside the column range cannot exist.
+        if (feedTurnNo == null || feedSeq == null || feedTurnNo < 1 || feedSeq < 1 || feedTurnNo > scope.turnNo()
+                || feedSeq > Short.MAX_VALUE) {
+            return SourceCheck.refused(OrderRejection.SOURCE_NOT_VISIBLE);
+        }
+        Optional<FeedSourceRow> item = feedItems.findRevealedSourceItem(scope.season().getId(), feedTurnNo, feedSeq);
+        if (item.isEmpty() || item.get().alert() != (source.kind() == OrderSource.ALERT)) {
+            return SourceCheck.refused(OrderRejection.SOURCE_NOT_VISIBLE);
+        }
+        Long chip = item.get().assetId();
+        if (chip != null && !chip.equals(assetId)) {
+            return SourceCheck.refused(OrderRejection.SOURCE_NOT_VISIBLE);
+        }
+        return SourceCheck.accepted(source.kind(), item.get().id());
     }
 
     /** 같은 턴의 마지막 전술 변경(번호 기준)에 묶는다 — 주문은 불변이라 INSERT 때 넣는다. */
@@ -271,7 +343,7 @@ public class OrderService {
         // 8~13. 쓰기. 검증은 모두 위에서 끝났다.
         Instant at = eventTime.next(seasonId, turnNo);
         Order order = orders.save(new Order(seasonId, assetId, turnNo, OrderSide.BUY, OrderType.MARKET, quantity,
-                null, OrderStatus.FILLED, OrderSource.DIRECT, plan.changeId(), null, at));
+                null, OrderStatus.FILLED, plan.source(), plan.changeId(), plan.turnFeedId(), at));
         Execution execution = executions.save(new Execution(order.getId(), price, quantity, fee, BigDecimal.ZERO, null));
 
         holding.applyBuy(quantity, MoneyMath.avgPrice(holding.getQuantity(), holding.getAvgPrice(), quantity, price));
@@ -303,7 +375,7 @@ public class OrderService {
         // S4~S9. 쓰기. 검증은 모두 위에서 끝났다.
         Instant at = eventTime.next(seasonId, turnNo);
         Order order = orders.save(new Order(seasonId, assetId, turnNo, OrderSide.SELL, OrderType.MARKET, quantity,
-                null, OrderStatus.FILLED, OrderSource.DIRECT, plan.changeId(), null, at));
+                null, OrderStatus.FILLED, plan.source(), plan.changeId(), plan.turnFeedId(), at));
         Execution execution = executions.save(new Execution(order.getId(), price, quantity, fee, BigDecimal.ZERO, plan.pnl()));
 
         holding.applySell(quantity);

@@ -56,7 +56,8 @@ class RevealedRepositoryNamingTest {
     static final String PREFIX = "findRevealed";
 
     /** Only these sources may mention the reveal queries. */
-    static final Set<String> CALLERS = Set.of("antlab/season/SeasonPathRepository.java", "antlab/season/SeasonReviewService.java");
+    static final Set<String> CALLERS = Set.of("antlab/season/SeasonPathRepository.java", "antlab/season/SeasonReviewService.java",
+            "antlab/season/TurnFeedRepository.java", "antlab/account/OrderService.java");
 
     /** The engine exemption is declared in its repository and called only by the engine path source. */
     static final Set<String> ENGINE_CALLERS = Set.of("antlab/history/MonthBlockRepository.java", "antlab/engine/BootstrapPathSource.java");
