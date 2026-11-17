@@ -129,3 +129,37 @@ jobs:
         run: |
           [ "$(docker image inspect --format '{{.Architecture}}' antlab-api:ci)" = arm64 ]
           [ "$(docker image inspect --format '{{.Config.User}}' antlab-api:ci)" = 10001:10001 ]
+      # Hand-off to job smoke (retention one day). The image holds no secret: the signing key is a run-time value only.
+      - name: Save the image for the runtime smoke
+        run: docker save --output api-image.tar antlab-api:ci
+      - name: Upload the image
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: api-image
+          path: api-image.tar
+          retention-days: 1
+          if-no-files-found: error
+
+  # Runs the image from job image (M1-03): start-up failure without ANTLAB_DB_URL and graceful shutdown with a request in flight.
+  # Same commands as local: scripts/runtime_smoke.sh {startup-fail,graceful}; throwaway compose project antlab-runtime, nothing secret.
+  smoke:
+    needs: image
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: api-image
+      - name: Load the image
+        run: docker load --input api-image.tar
+      - name: Tools the script needs
+        run: |
+          docker compose version
+          psql --version
+      - name: Start-up failure without ANTLAB_DB_URL
+        run: scripts/runtime_smoke.sh startup-fail --image antlab-api:ci
+      - name: Graceful shutdown with a request in flight
+        run: scripts/runtime_smoke.sh graceful --image antlab-api:ci

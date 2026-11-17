@@ -124,13 +124,13 @@ class ApiWorkflowTest {
             names.add(m.group(1));
         }
         assertThat(names).containsExactly(
-                "actions/checkout", "actions/setup-java", "actions/upload-artifact",
+                "actions/checkout", "actions/download-artifact", "actions/setup-java", "actions/upload-artifact",
                 "docker/build-push-action", "docker/setup-buildx-action", "gradle/actions/setup-gradle");
     }
 
     @Test
     void checkoutsDoNotPersistCredentials() throws IOException {
-        for (String job : List.of("test", "sql-schema", "image")) {
+        for (String job : List.of("test", "sql-schema", "image", "smoke")) {
             for (Map<String, Object> step : steps(job)) {
                 if (String.valueOf(step.get("uses")).startsWith("actions/checkout@")) {
                     assertThat(map(step.get("with")).get("persist-credentials")).isEqualTo(false);

@@ -65,6 +65,7 @@ tasks.named('test') {
     inputs.file('.github/workflows/api.yml').withPropertyName('apiWorkflow').withPathSensitivity(PathSensitivity.RELATIVE)
     inputs.file('Dockerfile').withPropertyName('dockerfile').withPathSensitivity(PathSensitivity.RELATIVE)
     inputs.file('build.gradle').withPropertyName('buildScript').withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.file('scripts/runtime_smoke.sh').withPropertyName('runtimeSmoke').withPathSensitivity(PathSensitivity.RELATIVE)
     inputs.file('scripts/ci_test_summary.py').withPropertyName('ciTestSummary').withPathSensitivity(PathSensitivity.RELATIVE)
     def sampleDir = System.getenv('ANTLAB_GOLDEN_SAMPLE_DIR')
     inputs.property('goldenSampleDir', sampleDir ?: '')
