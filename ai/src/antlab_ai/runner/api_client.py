@@ -122,12 +122,46 @@ def _refuse_constant(name: str) -> Any:
     raise ValueError(f"constant {name} is not JSON")
 
 
+def _refuse_floats(node: Any) -> None:
+    # json.dumps never calls ``default`` for a native float, so check explicitly.
+    if isinstance(node, float):
+        raise RunnerBodyError("float cannot be sent as JSON")
+    if isinstance(node, dict):
+        for value in node.values():
+            _refuse_floats(value)
+    elif isinstance(node, list):
+        for value in node:
+            _refuse_floats(value)
+
+
 def _dumps(body: Any) -> bytes:
     def refuse(value: Any) -> Any:
         raise RunnerBodyError(f"{type(value).__name__} cannot be sent as JSON")
 
-    # No float or Decimal is ever serialized: amounts travel as strings.
-    return json.dumps(body, ensure_ascii=False, separators=(",", ":"), default=refuse).encode()
+    # No float or Decimal is ever serialized: amounts travel as strings. The one exception is the
+    # model's own reply (``decision``): its numbers were parsed as Decimal and go out as the same numbers.
+    numbers: list[str] = []
+
+    def lift(node: Any) -> Any:
+        if isinstance(node, float):
+            raise RunnerBodyError("float cannot be sent as JSON")
+        if isinstance(node, Decimal):
+            numbers.append(str(node))
+            return f"\x00number-{len(numbers) - 1}\x00"
+        if isinstance(node, dict):
+            return {key: lift(value) for key, value in node.items()}
+        if isinstance(node, list):
+            return [lift(value) for value in node]
+        return node
+
+    if isinstance(body, dict) and isinstance(body.get("decision"), dict):
+        body = {**body, "decision": lift(body["decision"])}
+    _refuse_floats(body)
+    text = json.dumps(body, ensure_ascii=False, separators=(",", ":"), default=refuse)
+    for index, number in enumerate(numbers):
+        # A reply string cannot hold NUL (it is refused before sending), so the token is unique.
+        text = text.replace(f'"\\u0000number-{index}\\u0000"', number)
+    return text.encode()
 
 
 class RunnerBodyError(TypeError):

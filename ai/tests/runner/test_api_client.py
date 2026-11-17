@@ -285,6 +285,14 @@ def test_a_float_or_decimal_in_a_body_is_never_serialized():
         api_client._dumps({"x": Decimal("1")})
     with pytest.raises(RunnerBodyError):
         api_client._dumps({"x": object()})
+    for body in (
+        {"x": 1.5},
+        {"decision": {"a": 1.5}},
+        {"decision": {"a": [1.5]}},
+        {"calls": [{"c": 0.1}]},
+    ):
+        with pytest.raises(RunnerBodyError):
+            api_client._dumps(body)
     assert api_client._dumps({"a": "한글", "n": 1}) == '{"a":"한글","n":1}'.encode()
 
 
