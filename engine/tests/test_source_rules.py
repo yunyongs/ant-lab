@@ -271,7 +271,8 @@ def test_projection_modules_use_no_blas_routine():
 
 HISTORY_DIR = SRC / "history"
 SQL_START = re.compile(
-    r"^\s*(SELECT|WITH|INSERT|UPDATE|DELETE|TRUNCATE|COPY|CREATE|ALTER|GRANT|DROP)\s+\S"
+    r"^\s*(SELECT|WITH|INSERT|UPDATE|DELETE|TRUNCATE|COPY|CREATE|ALTER|GRANT|DROP)\s+\S",
+    re.IGNORECASE,
 )
 SQL_FORBIDDEN = re.compile(
     r"\b(INSERT|UPDATE|DELETE|TRUNCATE|COPY|CREATE|ALTER|GRANT|DROP)\b|SET\s+ROLE|\blo_|pg_read_file",
@@ -290,11 +291,17 @@ def string_constants(text: str) -> list[str]:
 def statement_problems(statements: list[str]) -> list[str]:
     problems = []
     for statement in statements:
-        if not re.match(r"^\s*(SELECT|WITH)\b", statement):
+        if not re.match(r"^\s*(SELECT|WITH)\b", statement, re.IGNORECASE):
             problems.append("not a SELECT/WITH statement")
         if SQL_FORBIDDEN.search(statement):
             problems.append("forbidden keyword")
     return problems
+
+
+def test_x2_collection_sees_lowercase_sql():
+    found = [s for s in string_constants('X = "delete from t"') if SQL_START.match(s)]
+    assert found == ["delete from t"]
+    assert statement_problems(found) != []
 
 
 def test_x2_scanner_flags_bad_statements():

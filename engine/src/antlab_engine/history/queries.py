@@ -39,11 +39,18 @@ SELECT current_user,
 """
 
 UNSAFE_ROLE_SQL = """
-SELECT (SELECT r.rolsuper FROM pg_roles r WHERE r.rolname = current_user)
+SELECT COALESCE(
+           (SELECT r.rolsuper OR r.rolcreaterole OR r.rolcreatedb OR r.rolbypassrls
+            FROM pg_roles r WHERE r.rolname = current_user),
+           TRUE)
        OR EXISTS (
            SELECT 1
-           FROM unnest(%(tables)s::text[]) AS t(name)
+           FROM pg_class c
+           JOIN pg_namespace n ON n.oid = c.relnamespace
            CROSS JOIN unnest(%(privileges)s::text[]) AS p(name)
-           WHERE has_table_privilege(current_user, 'public.' || t.name, p.name)
+           WHERE c.relkind IN ('r', 'p')
+             AND n.nspname NOT IN ('pg_catalog', 'information_schema')
+             AND n.nspname !~ '^pg_'
+             AND has_table_privilege(current_user, c.oid, p.name)
        )
 """

@@ -178,6 +178,32 @@ def test_h8_a_role_with_a_write_privilege_is_refused(history_db):
             admin.execute(f"DROP ROLE {role}")
 
 
+@pytest.mark.parametrize(
+    "grant",
+    [
+        "GRANT INSERT ON cash_ledger TO {role}",
+        "GRANT pg_write_all_data TO {role}",
+        "ALTER ROLE {role} CREATEROLE",
+        "ALTER ROLE {role} BYPASSRLS",
+    ],
+)
+def test_h8_a_role_that_can_write_other_tables_or_manage_roles_is_refused(history_db, grant):
+    role = f"antlab_engine_x_{secrets.token_hex(4)}"
+    with history_db.admin() as admin:
+        admin.execute(f"CREATE ROLE {role} LOGIN")
+        try:
+            admin.execute(
+                f"GRANT SELECT ON asset, asset_position, month_block, asset_month_return,"
+                f" fx_month TO {role}"
+            )
+            admin.execute(grant.format(role=role))
+            with pytest.raises(UnsafeDatabaseRole):
+                read(history_db, user=role)
+        finally:
+            admin.execute(f"DROP OWNED BY {role}")
+            admin.execute(f"DROP ROLE {role}")
+
+
 @pytest.mark.parametrize("privilege", ["UPDATE", "DELETE", "TRUNCATE"])
 def test_h8_a_role_with_only_one_write_privilege_is_refused(history_db, privilege):
     role = f"antlab_engine_{privilege.lower()}_{secrets.token_hex(4)}"
@@ -206,6 +232,8 @@ def test_h9_libpq_environment_does_not_change_the_connection(history_db, monkeyp
         "PGOPTIONS": "-c default_transaction_read_only=off",
         "PGSSLMODE": "require",
         "PGCONNECT_TIMEOUT": "99",
+        "PGHOSTADDR": "10.255.255.1",
+        "PGGSSENCMODE": "require",
     }.items():
         monkeypatch.setenv(name, value)
     session = read(history_db).session

@@ -4,7 +4,7 @@ Month starts are internal: they must not appear in logs or in any response befor
 No prices and no won amounts are read (the engine returns ratios; Java converts to won).
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal
 from typing import Literal, Protocol
@@ -13,7 +13,7 @@ from typing import Literal, Protocol
 @dataclass(frozen=True, slots=True)
 class HistoryMonth:
     month_block_id: int
-    month_start: date
+    month_start: date = field(repr=False)  # internal replay month: never in logs or reprs
 
 
 @dataclass(frozen=True, slots=True)
