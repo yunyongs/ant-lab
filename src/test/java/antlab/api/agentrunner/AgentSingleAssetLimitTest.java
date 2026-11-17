@@ -87,17 +87,18 @@ class AgentSingleAssetLimitTest {
                 """.formatted(quantity, java.util.UUID.randomUUID());
     }
 
-    private int sharesFor(long season, double portion) {
+    private int sharesFor(long season, String portion) {
         BigDecimal price = jdbc.queryForObject("SELECT price FROM turn_price tp JOIN asset s ON s.id = tp.asset_id "
                 + "WHERE tp.season_id = ? AND tp.turn_no = 0 AND s.ticker = '069500'", BigDecimal.class, season);
-        return (int) (30_000_000 * portion / price.doubleValue());
+        BigDecimal cash = jdbc.queryForObject("SELECT balance FROM cash_account WHERE season_id = ?", BigDecimal.class, season);
+        return cash.multiply(new BigDecimal(portion)).divide(price, 0, java.math.RoundingMode.DOWN).intValueExact();
     }
 
     @Test
     void a_buy_that_takes_more_than_the_limit_is_rejected_and_one_under_it_fills() throws Exception {
         long[] a = agentSeason();
         String uri = AGENTS + "/" + a[0] + "/seasons/" + a[1] + "/turns/0/decision";
-        JsonNode over = json(post(mvc, uri, buy(sharesFor(a[1], 0.12))));
+        JsonNode over = json(post(mvc, uri, buy(sharesFor(a[1], "0.12"))));
         assertThat(over.get("orders").get(0).get("code").asString()).isEqualTo("SINGLE_ASSET_LIMIT");
         assertThat(jdbc.queryForObject("SELECT count(*) FROM orders WHERE season_id = ?", Long.class, a[1])).isZero();
     }
@@ -106,7 +107,7 @@ class AgentSingleAssetLimitTest {
     void a_buy_under_the_limit_fills() throws Exception {
         long[] a = agentSeason();
         JsonNode under = json(post(mvc, AGENTS + "/" + a[0] + "/seasons/" + a[1] + "/turns/0/decision",
-                buy(sharesFor(a[1], 0.08))));
+                buy(sharesFor(a[1], "0.08"))));
         assertThat(under.get("orders").get(0).get("status").asString()).isEqualTo("APPLIED");
     }
 
@@ -115,7 +116,7 @@ class AgentSingleAssetLimitTest {
         long[] a = agentSeason();
         long asset = jdbc.queryForObject("SELECT id FROM asset WHERE ticker = '069500'", Long.class);
         SecurityContextHolder.getContext().setAuthentication(new AgentActingAuthentication(a[0]));
-        assertThatThrownBy(() -> orders.place(a[1], new PlaceOrderRequest(0, OrderSide.BUY, asset, sharesFor(a[1], 0.12),
+        assertThatThrownBy(() -> orders.place(a[1], new PlaceOrderRequest(0, OrderSide.BUY, asset, sharesFor(a[1], "0.12"),
                 Position.MIDFIELDER))).isInstanceOfSatisfying(DomainException.class,
                         e -> assertThat(e.getCode()).isEqualTo(ErrorCode.INVALID_ARGUMENT));
     }

@@ -35,8 +35,18 @@ public class AgentDecisionGuard {
             throw notFound();
         }
         Season season = seasons.findByIdAndMemberId(seasonId, agentId).orElseThrow(AgentDecisionGuard::notFound);
-        if (season.getStatus() == SeasonStatus.IN_PROGRESS && season.getCurrentTurnNo() == expectedTurnNo
-                && calls.findFinalBySeasonIdAndTurnNo(seasonId, expectedTurnNo, AgentCallKind.TURN_DECISION).isEmpty()) {
+        if (season.getStatus() != SeasonStatus.IN_PROGRESS) {
+            // ABANDONING and FINISHED never return to IN_PROGRESS, so the turn path may answer SEASON_NOT_ACTIVE.
+            // A PAUSED season (A5) can resume: it must be checked like IN_PROGRESS, not passed here.
+            return;
+        }
+        // A number ahead of the turn read here must not pass: another advance could commit before the facade locks the
+        // season, and the facade would then advance a turn that has no decision.
+        if (expectedTurnNo > season.getCurrentTurnNo()) {
+            throw new DomainException(ErrorCode.TURN_MISMATCH, "시즌의 현재 턴과 전환이 본 턴이 다르다");
+        }
+        // Final rows are never deleted, so every turn below the current one has one; only the current turn can lack it.
+        if (calls.findFinalBySeasonIdAndTurnNo(seasonId, expectedTurnNo, AgentCallKind.TURN_DECISION).isEmpty()) {
             throw new DomainException(ErrorCode.DECISION_MISSING, "이 턴에는 아직 최종 결정이 없다");
         }
     }

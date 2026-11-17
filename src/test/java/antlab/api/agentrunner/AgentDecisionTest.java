@@ -42,6 +42,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
@@ -309,6 +310,10 @@ class AgentDecisionTest {
                 .isEqualTo(ids);
         assertThat(result.get("formationChange").get("formationChangeId").asLong()).isEqualTo(jdbc.queryForObject(
                 "SELECT id FROM formation_change WHERE season_id = ?", Long.class, a.season()));
+        JsonNode readBack = json(get(a.turns() + "/1/decision"));
+        assertThat(readBack.get("orders")).isEqualTo(result.get("orders"));
+        assertThat(readBack.get("formationChange")).isEqualTo(result.get("formationChange"));
+        assertThat(turnOneTrades).allMatch(t -> "DIRECT".equals(t.get("source")));
         advanceApi(a, 1);
 
         // The same accepted units through the human services, in the same order, for another agent's season.
@@ -890,6 +895,84 @@ class AgentDecisionTest {
         Agent a = startAgent();
         JsonNode result = decideOk(a, 0, decisionBody(dec(formation(50, 50, 10, 0))));
         assertThat(codes(result)).containsExactly("F:REJECTED:TURN_ZERO_FORMATION", "T:NONE");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"risk-on-risk-off-rotation-regime", "Bearer securities are rare", "task-management-dashboard-v2",
+            "disk-space-utilization-alert", "bearer bonds-and-certificates-of-deposit", "risk-adjusted-return-profile", "task-managementdashboardoverview", "risk-assessmentframeworkreview"})
+    void ordinary_words_that_look_like_key_prefixes_are_not_secrets(String text) throws Exception {
+        Agent a = startAgent();
+        ObjectNode body = decisionBody(dec(null), call(1, "OK").put("responseText", text).put("requestText", text));
+        ((ObjectNode) body.get("decision")).put("reason", text);
+        assertThat(decide(a, 0, body).getStatus()).isEqualTo(200);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"sk-ant-api03-ABCDEFGHIJKLMNOPQRSTUVWXYZ", "sk-proj-ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+            "sk-ABCDEFGHIJKLMNOPQRSTUVWXYZ012345", "see sk-or-v1-0123456789abcdef0123456789abcdef", "Bearer abcdefghij123456"})
+    void key_shaped_tokens_are_refused(String text) throws Exception {
+        Agent a = startAgent();
+        ObjectNode body = decisionBody(dec(null), call(1, "OK").put("responseText", text));
+        MockHttpServletResponse r = decide(a, 0, body);
+        assertThat(r.getStatus()).isEqualTo(400);
+        assertThat(r.getContentAsString()).doesNotContain(text);
+    }
+
+    @Test
+    void a_turn_number_ahead_of_the_current_one_never_passes_the_guard() throws Exception {
+        Agent a = startAgent();
+        decideOk(a, 0, noResponseBody());
+        // turn 0 has a decision; turn 1 has none and must not be reachable by asking for it early
+        MockHttpServletResponse ahead = post(mvc, a.turns(), TOKEN, "{\"expectedTurnNo\": 1}", true);
+        assertThat(ahead.getStatus()).isEqualTo(409);
+        assertThat(json(ahead).get("code").asString()).isEqualTo("TURN_MISMATCH");
+        assertThat(jdbc.queryForObject("SELECT current_turn_no FROM season WHERE id = ?", Integer.class, a.season())).isZero();
+        advanceApi(a, 0);
+        assertThat(json(post(mvc, a.turns(), TOKEN, "{\"expectedTurnNo\": 2}", true)).get("code").asString())
+                .isEqualTo("TURN_MISMATCH");
+        assertThat(json(post(mvc, a.turns(), TOKEN, "{\"expectedTurnNo\": 1}", true)).get("code").asString())
+                .isEqualTo("DECISION_MISSING");
+    }
+
+    @Test
+    void a_ledger_call_id_used_twice_is_400_not_500() throws Exception {
+        Agent a = startAgent();
+        ObjectNode one = call(1, "TIMEOUT");
+        ObjectNode two = call(2, "OK");
+        two.put("ledgerCallId", one.get("ledgerCallId").asString());
+        assertThat(decide(a, 0, decisionBody(dec(null), one, two)).getStatus()).isEqualTo(400);
+
+        decideOk(a, 0, decisionBody(dec(null), call(1, "OK").put("ledgerCallId", one.get("ledgerCallId").asString())));
+        Agent b = startAgent();
+        MockHttpServletResponse reused = decide(b, 0, decisionBody(dec(null),
+                call(1, "OK").put("ledgerCallId", one.get("ledgerCallId").asString())));
+        assertThat(reused.getStatus()).isEqualTo(400);
+        assertThat(count("agent_call", b.season())).isZero();
+        ObjectNode flush = mapper.createObjectNode();
+        flush.putArray("calls").add(call(1, "TIMEOUT").put("ledgerCallId", one.get("ledgerCallId").asString()));
+        assertThat(post(mvc, b.turns() + "/0/calls", TOKEN, flush.toString(), true).getStatus()).isEqualTo(400);
+    }
+
+    @Test
+    void a_decision_or_a_body_over_the_size_bounds_is_400() throws Exception {
+        Agent a = startAgent();
+        ObjectNode big = dec(null);
+        ((ArrayNode) big.get("theses")).addObject().put("note", "x".repeat(262_200));
+        assertThat(decide(a, 0, decisionBody(big)).getStatus()).isEqualTo(400);
+        assertThat(count("agent_call", a.season())).isZero();
+
+        String huge = "{\"outcome\": \"NO_RESPONSE\", \"decision\": null, \"calls\": [], \"pad\": \""
+                + "x".repeat(13 * 1024 * 1024) + "\"}";
+        MockHttpServletResponse r = post(mvc, a.turns() + "/0/decision", TOKEN, huge, true);
+        assertThat(r.getStatus()).isEqualTo(400);
+        assertThat(json(r).get("code").asString()).isEqualTo("MALFORMED_REQUEST");
+    }
+
+    @Test
+    void a_sell_with_a_declared_position_and_no_holding_names_the_position_first() throws Exception {
+        Agent a = startAgent();
+        JsonNode result = decideOk(a, 0, decisionBody(dec(null, order("KR:000660", "SELL", 1, "DEFENDER"))));
+        assertThat(codes(result)).containsExactly("F:NONE:-", "0:REJECTED:POSITION_ON_SELL", "T:NONE");
     }
 
     private static List<String> keys(JsonNode node) {

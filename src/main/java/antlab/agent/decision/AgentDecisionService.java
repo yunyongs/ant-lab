@@ -42,7 +42,9 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.regex.Pattern;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -66,8 +68,10 @@ import tools.jackson.databind.node.ObjectNode;
 public class AgentDecisionService {
 
     static final int MAX_TEXT_BYTES = 262_144;
+    /** Key shapes only: a key starts a token (no letter, digit, '_' or '-' before "sk-"); a bearer value has a digit. */
     private static final Pattern NO_KEYS = Pattern.compile(
-            "sk-or-v1-[A-Za-z0-9_-]{8,}|sk-[A-Za-z0-9_-]{20,}|(?i:\\bbearer\\s+[A-Za-z0-9._~+/=-]{8,})");
+            "(?<![A-Za-z0-9_-])sk-(?:or-v1-[A-Za-z0-9]{16,}|ant-[A-Za-z0-9_-]{20,}|proj-[A-Za-z0-9_-]{20,}|[A-Za-z0-9]{20,})"
+            + "|(?i:\\bbearer\\s+(?=[A-Za-z0-9._~+/=-]*\\d)[A-Za-z0-9._~+/=-]{16,})");
     private static final String UNIT_FORMATION = "FORMATION";
     private static final String UNIT_ORDER = "ORDER";
     private static final String UNIT_THESES = "THESES";
@@ -120,6 +124,7 @@ public class AgentDecisionService {
         List<AgentCall> stored = calls.findAllBySeasonIdAndTurnNo(seasonId, turnNo);
         checkCalls(request.calls(), config, true, request.outcome());
         List<CallRecordRequest> fresh = reconcile(stored, request.calls(), true);
+        requireUnusedLedgerIds(fresh);
 
         Applied applied = decide(scope, turnNo, request);
         for (int i = 0; i < fresh.size(); i++) {
@@ -150,6 +155,7 @@ public class AgentDecisionService {
         checkCalls(records, config, false, null);
         List<AgentCall> stored = calls.findAllBySeasonIdAndTurnNo(seasonId, turnNo);
         List<CallRecordRequest> fresh = reconcile(stored, records, false);
+        requireUnusedLedgerIds(fresh);
         boolean decided = stored.stream().anyMatch(AgentCall::isFinalCall);
         if (decided && !fresh.isEmpty()) {
             throw new DomainException(ErrorCode.DECISION_CONFLICT, "이 턴은 이미 결정되어 호출을 더할 수 없다");
@@ -362,6 +368,9 @@ public class AgentDecisionService {
             if (request.decision() == null || !request.decision().isObject()) {
                 throw invalid("DECISION 에는 결정 객체가 필요하다");
             }
+            if (request.decision().toString().getBytes(StandardCharsets.UTF_8).length > MAX_TEXT_BYTES) {
+                throw invalid("결정이 너무 길다");
+            }
             if (hasNul(request.decision())) {
                 throw invalid("결정에 저장할 수 없는 문자가 있다");
             }
@@ -394,6 +403,10 @@ public class AgentDecisionService {
     /** Per-call rules; {@code decision} is true for the submit, where the last call is the final one. */
     private void checkCalls(List<CallRecordRequest> records, SeasonAgentConfig config, boolean decision,
             DecisionOutcome outcome) {
+        List<UUID> ledgerIds = records.stream().map(CallRecordRequest::ledgerCallId).filter(Objects::nonNull).toList();
+        if (ledgerIds.stream().distinct().count() != ledgerIds.size()) {
+            throw invalid("장부 호출 번호가 겹친다");
+        }
         for (int i = 0; i < records.size(); i++) {
             CallRecordRequest c = records.get(i);
             if (c.attemptNo() != records.get(0).attemptNo() + i) {
@@ -465,6 +478,15 @@ public class AgentDecisionService {
             throw invalid("마지막 호출이 이미 저장되어 있다");
         }
         return fresh;
+    }
+
+    /** A ledger call id belongs to one stored call (uq_agent_call_ledger); a repeat is an input error, not a 500. */
+    private void requireUnusedLedgerIds(List<CallRecordRequest> fresh) {
+        for (CallRecordRequest c : fresh) {
+            if (c.ledgerCallId() != null && calls.existsByLedgerCallId(c.ledgerCallId())) {
+                throw invalid("장부 호출 번호가 이미 다른 호출에 쓰였다");
+            }
+        }
     }
 
     private static boolean same(AgentCall s, CallRecordRequest c) {
