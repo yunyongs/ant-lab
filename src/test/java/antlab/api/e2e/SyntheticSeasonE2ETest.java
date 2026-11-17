@@ -283,6 +283,38 @@ class SyntheticSeasonE2ETest {
         }
     }
 
+    @Test
+    @Order(10)
+    @Timeout(value = 2, unit = TimeUnit.MINUTES)
+    void 턴마다_피드가_저장되고_조회가_같은_행을_돌려준다() {
+        int total = 0;
+        for (int turn = 1; turn <= TURNS; turn++) {
+            List<Map<String, Object>> rows = jdbc.queryForList(
+                    "SELECT seq, asset_id, body FROM turn_feed WHERE season_id = ? AND turn_no = ? ORDER BY seq", season, turn);
+            assertThat(rows.size()).as("turn " + turn).isLessThanOrEqualTo(15);
+            Reply reply = http.get(url("/turns/" + turn));
+            assertThat(reply.status()).as(reply.body()).isEqualTo(200);
+            JsonNode feed = reply.json().get("feed");
+            assertThat(feed.size()).as("turn " + turn).isEqualTo(rows.size());
+            for (int i = 0; i < rows.size(); i++) {
+                assertThat(((Number) rows.get(i).get("seq")).intValue()).as("no gap in seq").isEqualTo(i + 1);
+                assertThat(feed.get(i).get("turnNo").asInt()).isEqualTo(turn);
+                assertThat(feed.get(i).get("seq").asInt()).isEqualTo(i + 1);
+                assertThat(feed.get(i).get("body").asString()).isEqualTo(rows.get(i).get("body"));
+                Object asset = rows.get(i).get("asset_id");
+                assertThat(feed.get(i).get("assetId").isNull()).isEqualTo(asset == null);
+            }
+            total += rows.size();
+        }
+        assertThat(total).as("a season of twelve fake assets always has something to say").isPositive();
+        // The fixture puts one event in the first month of each block, so every such month of the path has an event card.
+        Long events = jdbc.queryForObject("SELECT count(*) FROM season_path sp JOIN month_event me ON me.month_block_id = "
+                + "sp.month_block_id WHERE sp.season_id = ?", Long.class, season);
+        assertThat(events).isPositive();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM turn_feed WHERE season_id = ? AND kind = 'EVENT'", Long.class, season))
+                .isEqualTo(events);
+    }
+
     // ---------------------------------------------------------------- helpers
 
     private String url(String suffix) {

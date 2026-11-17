@@ -22,7 +22,7 @@ class ExposureRulesTest {
         tags.put("fx_month.id", ExposureCatalog.INTERNAL);
         tags.put("fx_month.month_block_id", ExposureCatalog.INTERNAL);
         tags.put("asset.asset_group_id", ExposureCatalog.EXPOSED);
-        tags.put("turn_feed.asset_id", ExposureCatalog.EXPOSED);
+        tags.put("orders.asset_id", ExposureCatalog.EXPOSED);
         tags.put("season_path.month_block_id", ExposureCatalog.REVEAL_ONLY);
         tags.put("lineup.declared_position", ExposureCatalog.EXPOSED);
         tags.put("reconciliation_log.status", ExposureCatalog.INTERNAL);
@@ -98,7 +98,7 @@ class ExposureRulesTest {
     record GroupFk(@ExposedFrom("asset.asset_group_id") Long groupId) {
     }
 
-    record ExposedFk(@ExposedFrom("turn_feed.asset_id") Long assetId) {
+    record ExposedFk(@ExposedFrom("orders.asset_id") Long assetId) {
     }
 
     record UnknownColumn(@ExposedFrom("asset.nothing") String x) {

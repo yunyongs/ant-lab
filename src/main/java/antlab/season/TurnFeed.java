@@ -22,7 +22,7 @@ import org.hibernate.type.SqlTypes;
 
 /**
  * 턴 피드: 사용자가 본 그대로의 소음 피드 문장(PLAN §4.13). 추가 전용.
- * 이번 기능에서는 매핑만 있고 저장소는 없다 — P0 API 는 피드를 만들지도 읽지도 않는다(MVP 에서 더한다).
+ * 턴 전환이 {@code antlab.feed} 의 생성기 출력으로 넣고(MVP-11), {@link TurnFeedRepository} 가 읽는다.
  */
 @Entity
 @Immutable
@@ -48,6 +48,8 @@ public class TurnFeed extends CreatedEntity {
     @Column(name = "seq", nullable = false)
     private int seq;
 
+    /** [복기 전용]·[내부] columns have no getter, so a response cannot read them by accident (SPRING_JPA §4.6). */
+    @Getter(AccessLevel.NONE)
     @Enumerated(EnumType.STRING)
     @Column(name = "kind", length = 6, nullable = false)
     private FeedKind kind;
@@ -58,28 +60,36 @@ public class TurnFeed extends CreatedEntity {
     @Column(name = "asset_group_id", nullable = true)
     private Long assetGroupId;
 
+    /** [복기 전용]: no getter, see {@link #kind}. */
+    @Getter(AccessLevel.NONE)
     @Column(name = "month_event_id", nullable = true)
     private Long monthEventId;
 
+    @Getter(AccessLevel.NONE)
     @Column(name = "category_hidden", nullable = false)
     private boolean categoryHidden;
 
+    @Getter(AccessLevel.NONE)
     @Enumerated(EnumType.STRING)
     @Column(name = "direction", length = 4, nullable = true)
     private MoveDirection direction;
 
+    @Getter(AccessLevel.NONE)
     @JdbcTypeCode(SqlTypes.SMALLINT)
     @Column(name = "strength", nullable = true)
     private Integer strength;
 
+    @Getter(AccessLevel.NONE)
     @JdbcTypeCode(SqlTypes.SMALLINT)
     @Column(name = "repeat_count", nullable = false)
     private int repeatCount;
 
+    @Getter(AccessLevel.NONE)
     @Column(name = "template_id", length = 40, nullable = false)
     private String templateId;
 
     /** JSON 객체 문자열 그대로(jsonb 열). */
+    @Getter(AccessLevel.NONE)
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "template_vars", nullable = false)
     private String templateVars;

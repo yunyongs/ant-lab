@@ -3,6 +3,7 @@ package antlab.mapping;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import antlab.account.Order;
+import antlab.common.persistence.AppendOnlyRepository;
 import antlab.history.MonthBlock;
 import antlab.history.MonthEvent;
 import antlab.support.ExposureCatalog;
@@ -44,7 +45,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * Join keys ({@code *_id}) are not value columns, except that a projection must never carry {@code monthBlockId}.
  * The same holds for any method of a repository whose domain table carries such columns when its return type hides the selection
  * ({@code Object}, {@code Object[]}, {@code Tuple}, {@code Map}, a type variable) or when a query selects {@code *}.
- * Entity getters for these columns are removed on MonthBlock, MonthEvent, Asset and SeasonPath (TurnFeed has no repository until MVP), so projections are the only way out; this test guards their names and callers.
+ * Entity getters for these columns are removed on MonthBlock, MonthEvent, Asset and SeasonPath (TurnFeed since MVP-11, which also has a repository), so projections are the only way out; this test guards their names and callers.
  */
 @IntegrationTest
 class RevealedRepositoryNamingTest {
@@ -231,6 +232,11 @@ class RevealedRepositoryNamingTest {
                 if (m.getName().startsWith(PREFIX) || ENGINE_EXEMPT.contains(id)) {
                     continue;
                 }
+                if (m.getDeclaringClass() == AppendOnlyRepository.class) {
+                    // The inherited save and findById return the repository's own entity, whose [복기 전용] getters do not exist
+                    // (guarded by turn_feed_entity_has_no_getter_for_revealed_columns).
+                    continue;
+                }
                 Query query = m.getAnnotation(Query.class);
                 if (domainHasValues && untypedShape(m.getGenericReturnType())) {
                     out.add(id + " — untyped return type on " + domainTable + ", which has revealed value columns");
@@ -270,6 +276,15 @@ class RevealedRepositoryNamingTest {
         assertThat(values).as("value columns from the catalog").extracting(ValueColumn::column)
                 .contains("month_start", "event_summary", "title", "source", "hindsight", "listed_on");
         assertThat(violations(repositories(), values)).isEmpty();
+    }
+
+    @Test
+    void turn_feed_entity_has_no_getter_for_revealed_columns() {
+        assertThat(Arrays.stream(antlab.season.TurnFeed.class.getMethods()).map(Method::getName).filter(n -> n.startsWith("get")
+                && !n.equals("getClass")))
+                .as("only the shown columns and the technical ones can be read")
+                .containsExactlyInAnyOrder("getId", "getSeason", "getTurnNo", "getSeq", "getAssetId", "getAssetGroupId", "getBody",
+                        "getCreatedAt");
     }
 
     @Test

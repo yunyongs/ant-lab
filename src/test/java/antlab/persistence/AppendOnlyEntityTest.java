@@ -212,7 +212,8 @@ class AppendOnlyEntityTest {
         String dbText = jdbc.queryForObject("SELECT detail::text FROM reconciliation_log WHERE id = ?",
                 String.class, log.getId());
         assertThat(loadedLog.getDetail()).isEqualTo(dbText).startsWith("{");
-        assertThat(em.find(TurnFeed.class, feed.getId()).getTemplateVars()).startsWith("{").contains("\"x\"");
+        assertThat(jdbc.queryForObject("SELECT template_vars::text FROM turn_feed WHERE id = ?", String.class, feed.getId()))
+                .startsWith("{").contains("\"x\"");
     }
 
     @Test

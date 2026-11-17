@@ -11,7 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * 턴 결과 조회 — 읽기 전용, 잠금 없음. 불변 행({@code turn}, 그 턴 이전의 {@code formation_change})만 읽으므로 기본 격리로 충분하다.
  * 응답은 턴 전환과 같은 {@link TurnResultAssembler} 가 만든다. 다른 회원의 시즌은 없는 것과 같게 404 로 답한다.
- * 문장 수는 현재 회원 1 + 시즌 1 + 턴 행 1 + 전술 변경 1 = 4 이고 보유 종목 수와 무관하다.
+ * 문장 수는 현재 회원 1 + 시즌 1 + 턴 행 1 + 전술 변경 1 + 그 턴의 피드 1 = 5 이고 보유 종목 수와 무관하다.
  */
 @Service
 public class TurnQueryService {
@@ -20,13 +20,15 @@ public class TurnQueryService {
     private final SeasonRepository seasons;
     private final TurnRepository turns;
     private final FormationChangeRepository formationChanges;
+    private final TurnFeedRepository feeds;
 
     public TurnQueryService(CurrentMember currentMember, SeasonRepository seasons, TurnRepository turns,
-            FormationChangeRepository formationChanges) {
+            FormationChangeRepository formationChanges, TurnFeedRepository feeds) {
         this.currentMember = currentMember;
         this.seasons = seasons;
         this.turns = turns;
         this.formationChanges = formationChanges;
+        this.feeds = feeds;
     }
 
     /** 아직 진행하지 않은 턴(현재 턴 초과)은 409. 번호가 1 미만이면 호출 전에 400 이다. */
@@ -49,6 +51,7 @@ public class TurnQueryService {
         // 그 턴 시작 시점의 목표 = 그 턴 이전의 마지막 변경의 after, 없으면 시작 포메이션(db/26 sr_turn_base 와 같다).
         Formation target = formationChanges.findLastBefore(season.getId(), turnNo)
                 .map(FormationChange::getAfter).orElse(season.getStartFormation());
-        return TurnResultAssembler.assemble(season, turn, previousTotal, target);
+        return TurnResultAssembler.assemble(season, turn, previousTotal, target,
+                feeds.findBySeasonIdAndTurnNoOrderBySeq(season.getId(), turnNo));
     }
 }

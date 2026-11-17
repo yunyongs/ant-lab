@@ -76,6 +76,20 @@
   "defenderValue": "9000000",
   "defenderWeight": "0.3000",
   "drawdown": "-0.0200",
+  "feed": [
+   {
+    "assetId": null,
+    "body": "시장 전반 급변 — 이달 반응 -4%",
+    "seq": 1,
+    "turnNo": 1
+   },
+   {
+    "assetId": 1,
+    "body": "가짜 종목 이달 +6% 강세",
+    "seq": 2,
+    "turnNo": 1
+   }
+  ],
   "formationDeviation": "0",
   "forwardGap": "0",
   "forwardValue": "9000000",

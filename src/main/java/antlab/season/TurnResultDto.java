@@ -4,6 +4,7 @@ import antlab.common.exposure.ExposedFrom;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.media.Schema.RequiredMode;
 import java.math.BigDecimal;
+import java.util.List;
 
 /**
  * 턴 결과 — 저장한 {@code turn} 행의 값과 거기서 계산한 비율이다. 턴 전환 응답({@code POST …/turns})과 턴 조회({@code GET …/turns/{n}})가
@@ -11,17 +12,17 @@ import java.math.BigDecimal;
  * 비중 4개의 합은 각각 한 번 반올림해 1과 최대 2e-8 다를 수 있다. {@code status}·{@code pathLength} 는 시즌의 <em>지금</em> 값이다.
  *
  * {@code targetFormation} 은 그 턴 <b>시작 시점</b>의 목표(그 턴 이전의 마지막 전술 변경의 이후 값, 없으면 시작 포메이션)다.
- * 대사 시도 번호·상태·시드·경로·월 블록·연월·수익률 종류는 싣지 않는다.
+ * 대사 시도 번호·상태·시드·경로·월 블록·연월·수익률 종류는 싣지 않는다. {@code feed} 는 그 턴에 저장된 피드를 표시 순서로 담는다(MVP-11).
  */
 @Schema(description = "Values of the stored turn row and the ratios computed from them. The advance-turn "
         + "response and the turn lookup have the same shape. The sum of the four shares can differ from 1 by at "
         + "most 2e-8, and status and pathLength are the season's values now. targetFormation is the "
         + "target at the start of that turn. Reconciliation attempt number, status, seed, path, "
-        + "month block, year-month and return kind are not included.\n"
+        + "month block, year-month and return kind are not included. feed is the feed stored for that turn.\n"
         + "\n"
         + "저장한 턴 행의 값과 거기서 계산한 비율. 턴 전환 응답과 턴 조회가 같은 형이다. 비중 4개의 합은 1과 최대 2e-8 다를 수 있고, "
         + "status·pathLength 는 시즌의 지금 값이다. targetFormation 은 그 턴 시작 시점의 목표다. 대사 시도 번호·상태·시드·경로·월 "
-        + "블록·연월·수익률 종류는 싣지 않는다")
+        + "블록·연월·수익률 종류는 싣지 않는다. feed 는 그 턴에 저장된 피드다")
 public record TurnResultDto(
         @ExposedFrom("season.id")
         @Schema(requiredMode = RequiredMode.REQUIRED, description = "Season identifier / 시즌 식별자")
@@ -136,5 +137,8 @@ public record TurnResultDto(
                 "formation_change.after_goalkeeper", "formation_change.after_defender", "formation_change.after_midfielder", "formation_change.after_forward"})
         @Schema(requiredMode = RequiredMode.REQUIRED, description = "Formation deviation = sum of |share − "
                 + "target| over the positions, 8 decimal places / 포메이션 이탈 = 포지션별 |비중 − 목표|의 합, 소수 8자리")
-        BigDecimal formationDeviation) {
+        BigDecimal formationDeviation,
+        @Schema(requiredMode = RequiredMode.REQUIRED, description = "The feed shown at this turn, in display order; empty "
+                + "when the turn has none / 이 턴에 보인 피드, 표시 순서. 없으면 빈 목록")
+        List<FeedItemDto> feed) {
 }

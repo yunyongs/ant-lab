@@ -4,6 +4,11 @@ import antlab.account.CashAccount;
 import antlab.account.CashAccountRepository;
 import antlab.common.error.DomainException;
 import antlab.common.error.ErrorCode;
+import antlab.feed.FeedGenerationException;
+import antlab.feed.FeedGenerator;
+import antlab.feed.FeedInputReader;
+import antlab.feed.GeneratedFeedRow;
+import antlab.feed.TurnFeedWriter;
 import antlab.member.CurrentMember;
 import antlab.scoring.ReconciliationFailedException;
 import antlab.scoring.ReconciliationLogWriter;
@@ -14,6 +19,9 @@ import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,7 +29,7 @@ import org.springframework.transaction.annotation.Transactional;
  * 턴 전환 — 한 요청 = 한 트랜잭션(SPRING_JPA §5.1·§5.3). {@code db/23} 의 {@code ta_apply} + {@code turn_advance}(성공 경로)의 Java 짝이다.
  *
  * <p>순서: 시즌 잠금(회원 조건 포함, 첫 시즌 조회) → 상태·턴 확인 → 계좌 잠금 → 다음 블록 확인 → 풀 전체 턴 가격 INSERT →
- * 턴 스냅샷 INSERT → 대사 17개 → 하나라도 불일치면 예외로 전부 롤백 → 전부 일치면 로그 17행 → 마지막에 현재 턴 +1(마지막 턴이면 FINISHED).
+ * 턴 스냅샷 INSERT → 턴 피드 생성·저장(MVP-11, 스냅샷 뒤·대사 앞) → 대사 17개 → 하나라도 불일치면 예외로 전부 롤백 → 전부 일치면 로그 17행 → 마지막에 현재 턴 +1(마지막 턴이면 FINISHED).
  * <b>현재 턴 갱신은 대사·기록 뒤다</b>: 대사가 시작에 flush 를 하므로 앞에서 부르면 {@code current_turn_no = t+1} 이 대사 전에 DB 에 나가
  * 규칙 18(현재 턴 상한)의 판단이 SQL 과 갈린다. 가격 INSERT 와 턴 갱신이 같은 트랜잭션·시즌 락 아래라 "현재 턴인데 가격 행이 없다"는 상태는 생기지 않는다.
  * 계좌는 읽기만 한다(커밋 때 계좌 UPDATE 0건). 잠금은 season → cash_account 두 개뿐이다.
@@ -30,6 +38,8 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 public class TurnService {
+
+    private static final Logger log = LoggerFactory.getLogger(TurnService.class);
 
     private final CurrentMember currentMember;
     private final SeasonRepository seasons;
@@ -41,11 +51,15 @@ public class TurnService {
     private final TurnSnapshotCalculator snapshotCalculator;
     private final ReconciliationService reconciliation;
     private final ReconciliationLogWriter logWriter;
+    private final FeedInputReader feedReader;
+    private final FeedGenerator feedGenerator;
+    private final TurnFeedWriter feedWriter;
 
     public TurnService(CurrentMember currentMember, SeasonRepository seasons, CashAccountRepository accounts,
             SeasonPathRepository seasonPaths, TurnPriceRepository turnPrices, TurnRepository turns,
             TurnPriceCalculator priceCalculator, TurnSnapshotCalculator snapshotCalculator,
-            ReconciliationService reconciliation, ReconciliationLogWriter logWriter) {
+            ReconciliationService reconciliation, ReconciliationLogWriter logWriter, FeedInputReader feedReader,
+            FeedGenerator feedGenerator, TurnFeedWriter feedWriter) {
         this.currentMember = currentMember;
         this.seasons = seasons;
         this.accounts = accounts;
@@ -56,6 +70,9 @@ public class TurnService {
         this.snapshotCalculator = snapshotCalculator;
         this.reconciliation = reconciliation;
         this.logWriter = logWriter;
+        this.feedReader = feedReader;
+        this.feedGenerator = feedGenerator;
+        this.feedWriter = feedWriter;
     }
 
     @Transactional
@@ -100,6 +117,9 @@ public class TurnService {
                 snapshot.totalValue(), snapshot.goalkeeperValue(), snapshot.defenderValue(),
                 snapshot.midfielderValue(), snapshot.forwardValue(), snapshot.drawdown()));
 
+        // 7b. 턴 피드 — 이 턴까지의 데이터만 읽는다. 실패(FeedGenerationException)는 500 이고 같은 트랜잭션이라 턴 전체가 롤백된다.
+        List<TurnFeed> feed = storeFeed(season, next, priceByAsset);
+
         // 8~9. 대사 17개 — 하나라도 어긋나면 unchecked 예외로 전체 롤백
         List<RuleResult> results = reconciliation.evaluateTurn(seasonId, next);
         if (results.stream().anyMatch(r -> r.status() != ReconciliationStatus.MATCH)) {
@@ -119,7 +139,22 @@ public class TurnService {
 
         // 13. 응답 — 조회와 같은 조립기. 목표 포메이션은 시즌의 현재 값이다: 전환 시점에는 모든 변경의 turn_no ≤ next-1 < next 라
         //     마지막 변경의 after = 현재 포메이션이다(대사 규칙 15 가 같은 트랜잭션에서 확인).
-        return TurnResultAssembler.assemble(season, turn, previousTotal, season.getCurrentFormation());
+        return TurnResultAssembler.assemble(season, turn, previousTotal, season.getCurrentFormation(), feed);
+    }
+
+    private List<TurnFeed> storeFeed(Season season, int turnNo, Map<Long, BigDecimal> priceByAsset) {
+        try {
+            List<GeneratedFeedRow> rows = feedGenerator
+                    .generate(feedReader.read(season.getId(), season.getSeed(), turnNo, priceByAsset));
+            return feedWriter.write(season, turnNo, rows);
+        } catch (FeedGenerationException failed) {
+            log.error("피드 생성 실패: seasonId={} turnNo={} failure={}", season.getId(), turnNo, failed.failure());
+            throw failed;
+        } catch (DataAccessException stored) {
+            // A stored row broke a constraint (key, CHECK, length): log the code only, never a value.
+            log.error("피드 저장 실패: seasonId={} turnNo={} failure=FEED_STORE", season.getId(), turnNo);
+            throw stored;
+        }
     }
 
     private static DomainException seasonNotFound() {

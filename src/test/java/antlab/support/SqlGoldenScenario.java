@@ -296,11 +296,12 @@ public final class SqlGoldenScenario {
     public static final String RECONCILE_DEFINITIONS = "db/22_reconcile_season_def.sql";
 
     /**
-     * API DB(Flyway 로 V1–V3 이 이미 돈 DB)의 표본 적재 순서 — 스키마 단계는 건너뛰고 10 → 12 만 돌린다
-     * (db/README 「API DB 표본 적재」와 같은 순서).
+     * API DB(Flyway 로 V1–V3 이 이미 돈 DB)의 표본 적재 순서 — 스키마 단계는 건너뛰고 10 → 11 → 12 → 13 만 돌린다
+     * (db/README 「API DB 표본 적재」와 같은 순서). 턴 전환이 턴 피드를 만들기 시작해(MVP-11) 사건 편집 완료 표시(11)와 관심 지수(13)가 필요하다.
      */
     public static ScenarioPlan apiDbLoad() {
-        return new ScenarioPlan("API_DB_LOAD", List.of(run("10_load_sample"), run("12_calc_position")));
+        return new ScenarioPlan("API_DB_LOAD", List.of(run("10_load_sample"), run("11_load_events"), run("12_calc_position"),
+                run("13_calc_attention")));
     }
 
     /**

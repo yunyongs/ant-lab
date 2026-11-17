@@ -11,7 +11,7 @@ FROM asset a
 CROSS JOIN month_block mb
 WHERE a.name LIKE '가짜%'
   AND mb.month_start BETWEEN DATE '2006-12-01' AND DATE '2026-01-01'
-  AND mb.rate_dir IS NULL AND mb.events_reviewed = FALSE;
+  AND mb.rate_dir IS NULL AND mb.prob_p1 IS NULL AND mb.event_summary IS NULL AND mb.events_reviewed = TRUE;
 
 INSERT INTO fx_month (month_block_id, currency, fx_change)
 SELECT mb.id, 'USD',
@@ -19,4 +19,4 @@ SELECT mb.id, 'USD',
              + 0.00031579, 8)
 FROM month_block mb
 WHERE mb.month_start BETWEEN DATE '2006-12-01' AND DATE '2026-01-01'
-  AND mb.rate_dir IS NULL AND mb.events_reviewed = FALSE;
+  AND mb.rate_dir IS NULL AND mb.prob_p1 IS NULL AND mb.event_summary IS NULL AND mb.events_reviewed = TRUE;

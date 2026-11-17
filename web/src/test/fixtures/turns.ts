@@ -41,6 +41,7 @@ export function turnResultFixture(
     midfielderGap: '0.18160000',
     forwardGap: '0.11771998',
     formationDeviation: '0.59864000',
+    feed: [],
     ...overrides,
   };
 }

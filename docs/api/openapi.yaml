@@ -1251,14 +1251,14 @@ components:
     TurnResultDto:
       type: object
       description: |-
-        Values of the stored turn row and the ratios computed from them. The advance-turn response and the turn lookup have the same shape. The sum of the four shares can differ from 1 by at most 2e-8, and status and pathLength are the season's values now. targetFormation is the target at the start of that turn. Reconciliation attempt number, status, seed, path, month block, year-month and return kind are not included.
+        Values of the stored turn row and the ratios computed from them. The advance-turn response and the turn lookup have the same shape. The sum of the four shares can differ from 1 by at most 2e-8, and status and pathLength are the season's values now. targetFormation is the target at the start of that turn. Reconciliation attempt number, status, seed, path, month block, year-month and return kind are not included. feed is the feed stored for that turn.
 
-        저장한 턴 행의 값과 거기서 계산한 비율. 턴 전환 응답과 턴 조회가 같은 형이다. 비중 4개의 합은 1과 최대 2e-8 다를 수 있고, status·pathLength 는 시즌의 지금 값이다. targetFormation 은 그 턴 시작 시점의 목표다. 대사 시도 번호·상태·시드·경로·월 블록·연월·수익률 종류는 싣지 않는다
+        저장한 턴 행의 값과 거기서 계산한 비율. 턴 전환 응답과 턴 조회가 같은 형이다. 비중 4개의 합은 1과 최대 2e-8 다를 수 있고, status·pathLength 는 시즌의 지금 값이다. targetFormation 은 그 턴 시작 시점의 목표다. 대사 시도 번호·상태·시드·경로·월 블록·연월·수익률 종류는 싣지 않는다. feed 는 그 턴에 저장된 피드다
       required: [seasonId, turnNo, status, pathLength, cashBalance, holdingsValue, totalValue, goalkeeperValue,
                  defenderValue, midfielderValue, forwardValue, drawdown, previousTotalValue, valueChange, periodReturn,
                  riskLimit, riskHeadroom, riskBreached, goalkeeperWeight, defenderWeight, midfielderWeight,
                  forwardWeight, targetFormation, goalkeeperGap, defenderGap, midfielderGap, forwardGap,
-                 formationDeviation]
+                 formationDeviation, feed]
       properties:
         seasonId:
           type: integer
@@ -1374,6 +1374,34 @@ components:
           type: string
           format: decimal
           description: Formation deviation = sum of |share − target| over the positions, 8 decimal places / 포메이션 이탈 = 포지션별 |비중 − 목표|의 합, 소수 8자리
+        feed:
+          type: array
+          description: The feed shown at this turn, in display order; empty when the turn has none / 이 턴에 보인 피드, 표시 순서. 없으면 빈 목록
+          items:
+            $ref: '#/components/schemas/FeedItemDto'
+    FeedItemDto:
+      type: object
+      description: |-
+        One feed item as shown. Event cards and noise share this shape; what was a real event is revealed in the review.
+
+        보인 그대로의 피드 항목. 사건 카드와 소음은 같은 모양이며 무엇이 실제 사건이었는지는 복기에서 공개한다.
+      required: [turnNo, seq, body]
+      properties:
+        turnNo:
+          type: integer
+          format: int32
+          description: Turn the item was shown in / 보인 턴
+        seq:
+          type: integer
+          format: int32
+          description: Display order within the turn, from 1 / 턴 안의 표시 순서, 1부터
+        assetId:
+          type: [integer, 'null']
+          format: int64
+          description: Asset the sentence is about, null when it names none / 문장이 다루는 종목, 없으면 null
+        body:
+          type: string
+          description: The sentence as shown / 보인 문장
     SeasonReportDto:
       type: object
       description: Season report / 시즌 성적표

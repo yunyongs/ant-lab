@@ -115,6 +115,8 @@ class FakeSpring:
     def _result(self, turn_no):
         result = fixture("turn_result")
         result.update(turnNo=turn_no, status=self.status, pathLength=self.path_length)
+        for position, item in enumerate(result["feed"], start=1):
+            item.update(turnNo=turn_no, seq=position)
         return result
 
     def _getAgentTurnView(self, ids, body):  # noqa: N802

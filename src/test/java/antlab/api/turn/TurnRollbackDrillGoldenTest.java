@@ -49,7 +49,7 @@ import org.springframework.test.web.servlet.assertj.MockMvcTester;
  * 롤백 너머 기록 드릴 골든 — 실제 표본 CSV 가 있을 때만 돈다(없으면 건너뜀). SQL 기준은
  * {@code 20 → 21 → 23 × k → 23_turn_advance_drill(-v drill=1) → 23 × 나머지} 이고, API 시즌은 같은 재생 뒤
  * <b>같은 종목</b>의 라인업 구간을 닫고(드릴 3단계와 같은 문장) 전환 → 409 → 고치기 → 전환 201 → 나머지 전환을 보낸다.
- * 11개 표의 정규화 행 차이가 0이어야 한다. 대사 로그는 시도 번호를 보존해 비교하고 {@code detail} 은 대리 키를 정규화한다
+ * 12개 표(턴 피드 포함)의 정규화 행 차이가 0이어야 한다. 대사 로그는 시도 번호를 보존해 비교하고 {@code detail} 은 대리 키를 정규화한다
  * (종목은 자연 키, 나머지 번호는 표지). 실패 보고에는 표 이름·키·열 이름·건수만 나온다.
  */
 @Tag("sql-golden")
@@ -174,11 +174,11 @@ class TurnRollbackDrillGoldenTest {
             assertThat(advance(mvc, apiSeason, t).getStatus()).as("전환 " + t).isEqualTo(201);
         }
 
-        // 5. 열한 표 비교 (대사 로그는 detail 정규화)
+        // 5. 열두 표 비교 (대사 로그는 detail 정규화)
         RowSet sqlAssets = harness.readRows(sqlDb, GoldenRowQueries.assetKeys(), sqlSeason);
         RowSet apiAssets = harness.readRows(apiDb, GoldenRowQueries.assetKeys(), apiSeason);
         List<GoldenTable> tables = GoldenRowQueries.allForDrillGolden();
-        assertThat(tables).hasSize(11);
+        assertThat(tables).hasSize(12);
         for (GoldenTable table : tables) {
             RowSet expected = harness.readRows(sqlDb, table.query(), sqlSeason);
             RowSet actual = harness.readRows(apiDb, table.query(), apiSeason);

@@ -181,6 +181,15 @@ public final class MoneyMath {
         return exactScale(value, 4, "평균단가");
     }
 
+    /**
+     * A price in its stored form (scale 4, {@code NUMERIC(19,4)}), exactly. The turn advance holds this turn's prices at scale 0 until
+     * they are read back, and PostgreSQL's division scale depends on the input scales, so feed inputs are normalised first.
+     */
+    public static BigDecimal exactStoredPrice(BigDecimal value) {
+        require(value, "가격");
+        return exactScale(value, 4, "가격");
+    }
+
     /** 응답용 실현 손익 — scale 4 로 정확히 바꾼다(저장 형식과 같다). 값이 없으면(매수) null 이다. */
     public static BigDecimal exactPnl(BigDecimal value) {
         return value == null ? null : exactScale(value, 4, "실현 손익");
