@@ -4,8 +4,10 @@ from fastapi import Request
 
 from antlab_engine.engine_errors import HistoryUnavailable
 from antlab_engine.history.model import HistoryReader
+from antlab_engine.regime.source import RegimeSource
 
 NOT_CONFIGURED = "The history database is not configured."
+REGIME_NOT_CONFIGURED = "The regime data source is not configured."
 
 
 def projection_slots(request: Request) -> BoundedSemaphore:
@@ -17,3 +19,14 @@ def history_reader(request: Request) -> HistoryReader:
     if reader is None:
         raise HistoryUnavailable(NOT_CONFIGURED)
     return reader
+
+
+def regime_slot(request: Request) -> BoundedSemaphore:
+    return request.app.state.regime_slot
+
+
+def regime_source(request: Request) -> RegimeSource:
+    source = request.app.state.regime_source
+    if source is None:
+        raise HistoryUnavailable(REGIME_NOT_CONFIGURED)
+    return source
