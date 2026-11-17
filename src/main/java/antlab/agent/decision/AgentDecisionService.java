@@ -258,7 +258,7 @@ public class AgentDecisionService {
                     reject = Optional.of(DecisionRejectCode.ASSET_NOT_IN_POOL);
                 } else {
                     checked = orders.check(scope, new PlaceOrderRequest(turnNo, order.side(), asset.get().getId(),
-                            order.quantity(), order.position()));
+                            order.quantity(), order.position(), null));
                     if (checked.rejection() != null) {
                         reject = Optional.of(DecisionRejectCode.valueOf(checked.rejection().name()));
                     }
