@@ -21,7 +21,8 @@ spring:
       hibernate.jdbc.time_zone: Asia/Seoul
   flyway:
     enabled: true
-    locations: classpath:db/migration
+    # db/callback holds afterMigrate.sql (table rights of antlab_app, MVP-20); it does nothing when that role does not exist.
+    locations: classpath:db/migration,classpath:db/callback
     default-schema: public
     schemas: public
     baseline-on-migrate: false
@@ -38,6 +39,9 @@ server:
   shutdown: graceful
 
 antlab:
+  db:
+    # MVP-20: refuse to start when the DB user is not the least-privilege role. On in prod.
+    least-privilege-check: false
   pool:
     # 기준일 풀(PLAN §7 매년 1월 첫 거래일). 표본 = 2026-01-02(db/20_season_start.sql 설정 표와 같음)
     base-date: ${ANTLAB_POOL_BASE_DATE:2026-01-02}
@@ -157,6 +161,16 @@ spring:
   datasource:
     # 기본값 없음: 운영 프로필에서 ANTLAB_DB_URL 을 빠뜨리면 localhost 로 가지 않고 기동에 실패한다.
     url: ${ANTLAB_DB_URL}
+    # MVP-20: the app runs as antlab_app (DML only). Passwords: /run/secrets/spring.datasource.password and
+    # /run/secrets/spring.flyway.password (OPS mounts them).
+    username: ${ANTLAB_DB_USER:antlab_app}
+  flyway:
+    # Migrations run as the owner role; the URL is the datasource URL.
+    user: ${ANTLAB_DB_OWNER_USER:antlab_owner}
+    password: ${ANTLAB_DB_OWNER_PASSWORD:}
+antlab:
+  db:
+    least-privilege-check: true
 server:
   forward-headers-strategy: framework
 springdoc:
