@@ -8,9 +8,11 @@ info:
     시즌 한 판 REST API(Phase 0). 금액·비율은 지수 없는 문자열(소수 자릿수 유지),
     수량·턴 번호·포메이션 비중은 정수다. 오류는 application/problem+json(Problem).
     시즌 중 응답에는 실제 날짜·사건 이름·경로가 나가지 않는다.
-# Errors raised by the framework for any operation (wrong method, unsupported Accept or Content-Type). They are not
-# repeated per operation. / 프레임워크가 모든 연산에 공통으로 내는 오류(메서드·Accept·Content-Type). 연산마다 적지 않는다.
+# Errors raised by the framework for any operation (wrong method, unsupported Accept or Content-Type, and a request Tomcat
+# rejects while parsing it). They are not repeated per operation. / 프레임워크가 모든 연산에 공통으로 내는 오류(메서드·Accept·Content-Type,
+# Tomcat이 요청을 읽다 거절한 경우). 연산마다 적지 않는다.
 x-framework-errors:
+  '400': [MALFORMED_REQUEST]
   '405': [METHOD_NOT_ALLOWED]
   '406': [NOT_ACCEPTABLE]
   '415': [UNSUPPORTED_MEDIA_TYPE]
@@ -1826,7 +1828,7 @@ components:
     ErrorCode:
       type: string
       enum: [INVALID_ARGUMENT, NOT_FOUND, METHOD_NOT_ALLOWED, NOT_ACCEPTABLE,
-             UNSUPPORTED_MEDIA_TYPE, INTERNAL_ERROR, POOL_NOT_LOADED, POOL_NOT_JUDGED, PATH_TOO_LONG,
+             UNSUPPORTED_MEDIA_TYPE, MALFORMED_REQUEST, INTERNAL_ERROR, POOL_NOT_LOADED, POOL_NOT_JUDGED, PATH_TOO_LONG,
              SEASON_LIMIT, TURN_NOT_REACHED, SEASON_NOT_FINISHED, SEASON_NOT_ACTIVE, TURN_MISMATCH, LEDGER_MISMATCH,
              LINEUP_MISMATCH, ASSET_NOT_IN_POOL, INSUFFICIENT_CASH, INSUFFICIENT_HOLDING, POSITION_CONFLICT, POSITION_REQUIRED,
              INVALID_FORMATION, EVENT_TIME_CONFLICT, RECONCILIATION_FAILED, FORBIDDEN, EMAIL_TAKEN,

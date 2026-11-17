@@ -61,6 +61,16 @@ antlab:
     token: ${ANTLAB_AGENT_RUNNER_TOKEN:}
     owner-member-id: ${ANTLAB_AGENT_RUNNER_OWNER_ID:}
     max-seasons-per-week: 5
+  # KIS quote client (M1-06): quote lookup only, off by default. Keys come from the environment, never from this file.
+  # token-cache-dir shares the token file with tools/fetch (data/cache/kis); empty keeps the token in memory.
+  collect:
+    kis:
+      enabled: false
+      app-key: ${KIS_APP_KEY:}
+      app-secret: ${KIS_APP_SECRET:}
+      token-cache-dir: ${KIS_TOKEN_CACHE_DIR:}
+      rps: 2
+      max-requests-per-run: 60
 
 # springdoc 은 설정이 없으면 켜진다(matchIfMissing). 공통에서 끄고 local 에서만 켠다.
 springdoc:

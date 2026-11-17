@@ -13,10 +13,10 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
-/** Applying V5 to a V4 database keeps members, seasons and refresh tokens and marks every member HUMAN. */
+/** Applying V6 to a V5 database keeps members, seasons and refresh tokens and marks every member HUMAN. */
 @JpaMappingTest
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
-class FlywayV5UpgradeTest {
+class FlywayV6UpgradeTest {
 
     private static final String OLD_COLUMNS = "id, email, name, password, role, created_at, updated_at";
 
@@ -24,9 +24,9 @@ class FlywayV5UpgradeTest {
     PostgreSQLContainer postgres;
 
     @Test
-    void upgradeFromV4KeepsRowsAndDefaultsToHuman() {
-        try (FlywayScratchDatabase scratch = new FlywayScratchDatabase(postgres, "v5_upgrade")) {
-            scratch.migrateTo("4");
+    void upgradeFromV5KeepsRowsAndDefaultsToHuman() {
+        try (FlywayScratchDatabase scratch = new FlywayScratchDatabase(postgres, "v6_upgrade")) {
+            scratch.migrateTo("5");
             JdbcTemplate jdbc = new JdbcTemplate(scratch.dataSource());
             jdbc.update("INSERT INTO member (email, name, password) VALUES "
                     + "('player@example.invalid', 'p1', '!'), ('phase0@example.invalid', 'p2', 'x')");
@@ -44,7 +44,7 @@ class FlywayV5UpgradeTest {
             List<Map<String, Object>> seasons = jdbc.queryForList("SELECT * FROM season ORDER BY id");
             assertThat(members).hasSize(2);
 
-            assertThat(scratch.migrateTo("5").migrationsExecuted).isEqualTo(1);
+            assertThat(scratch.migrateTo("6").migrationsExecuted).isEqualTo(1);
 
             assertThat(jdbc.queryForList("SELECT " + OLD_COLUMNS + " FROM member ORDER BY id")).isEqualTo(members);
             assertThat(jdbc.queryForList("SELECT * FROM season ORDER BY id")).isEqualTo(seasons);
@@ -57,16 +57,16 @@ class FlywayV5UpgradeTest {
             assertThat(jdbc.queryForList("""
                     SELECT version FROM flyway_schema_history WHERE success AND checksum IS NOT NULL
                     ORDER BY installed_rank
-                    """, String.class)).containsExactly("1", "2", "3", "4", "5");
+                    """, String.class)).containsExactly("1", "2", "3", "4", "5", "6");
         }
     }
 
     @Test
-    void migratingV5AgainExecutesNothing() {
-        try (FlywayScratchDatabase scratch = new FlywayScratchDatabase(postgres, "v5_again")) {
-            scratch.migrateTo("5");
+    void migratingV6AgainExecutesNothing() {
+        try (FlywayScratchDatabase scratch = new FlywayScratchDatabase(postgres, "v6_again")) {
+            scratch.migrateTo("6");
 
-            assertThat(scratch.migrateTo("5").migrationsExecuted).isZero();
+            assertThat(scratch.migrateTo("6").migrationsExecuted).isZero();
         }
     }
 }

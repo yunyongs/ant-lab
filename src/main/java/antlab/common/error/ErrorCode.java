@@ -11,6 +11,8 @@ public enum ErrorCode {
     METHOD_NOT_ALLOWED,
     NOT_ACCEPTABLE,
     UNSUPPORTED_MEDIA_TYPE,
+    /** Tomcat rejected the request line or headers before Spring saw it (bad percent-encoding, encoded slash, oversized header). */
+    MALFORMED_REQUEST,
     INTERNAL_ERROR,
     /** 기준일 풀 행이 없다 — 풀 조회(P0-27)와 시즌 시작(P0-30)이 함께 쓴다. */
     POOL_NOT_LOADED,

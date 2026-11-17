@@ -94,14 +94,34 @@ def _build_opener(*extra: request.BaseHandler) -> request.OpenerDirector:
 _OPENER = _build_opener()
 
 
+def _arm_socket(response, remaining: float) -> None:
+    """Cap the next blocking socket read at the time left; fakes without a socket are skipped."""
+    holder = response
+    for _ in range(3):
+        raw = getattr(holder, "raw", None)
+        sock = getattr(raw, "_sock", None)
+        if sock is not None:
+            sock.settimeout(min(SOCKET_TIMEOUT_S, remaining))
+            return
+        holder = getattr(holder, "fp", None)
+        if holder is None:
+            return
+
+
 def _read_body(response, deadline: float) -> bytes:
-    """Read at most MAX_BODY_BYTES, giving up once the overall deadline has passed."""
+    """Read at most MAX_BODY_BYTES; every read is bounded by the time left to the overall deadline.
+
+    read1 does at most one socket read, so a server that drips bytes cannot keep one call alive
+    past the deadline the way a buffered read(n) can.
+    """
     chunks: list[bytes] = []
     size = 0
     while True:
-        if time.monotonic() > deadline:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
             raise TimeoutError("response deadline exceeded")
-        chunk = response.read(min(8192, MAX_BODY_BYTES + 1 - size))
+        _arm_socket(response, remaining)
+        chunk = response.read1(min(8192, MAX_BODY_BYTES + 1 - size))
         if not chunk:
             return b"".join(chunks)
         size += len(chunk)

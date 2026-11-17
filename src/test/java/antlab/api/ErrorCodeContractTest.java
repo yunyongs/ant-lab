@@ -84,7 +84,7 @@ class ErrorCodeContractTest {
             assertThat(byStatus).as(op).containsKey(500);
             byStatus.forEach((status, codes) -> assertThat(codes).as(op + " " + status).isNotEmpty());
         });
-        assertThat(ContractErrorCodes.framework(contract())).containsOnlyKeys(405, 406, 415);
+        assertThat(ContractErrorCodes.framework(contract())).containsOnlyKeys(400, 405, 406, 415);
     }
 
     @Test

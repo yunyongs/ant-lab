@@ -64,7 +64,7 @@ class AuthSchemaCatalogTest {
         return out;
     }
 
-    private static String[] cells(String line) {
+    static String[] cells(String line) {
         if (!line.startsWith("| ") || !line.endsWith(" |")) {
             return null;
         }
@@ -144,7 +144,7 @@ class AuthSchemaCatalogTest {
         assertThat(problems).isEmpty();
     }
 
-    private static void reparsedConstraint(Statement s, List<String> problems, Obj e, Obj a, String temp, String body)
+    static void reparsedConstraint(Statement s, List<String> problems, Obj e, Obj a, String temp, String body)
             throws SQLException {
         s.execute("ALTER TABLE " + temp + " ADD CONSTRAINT " + e.name() + " " + body);
         try (var rs = s.executeQuery("SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname = '"
@@ -156,7 +156,7 @@ class AuthSchemaCatalogTest {
         }
     }
 
-    private static void reparsedIndex(Statement s, List<String> problems, Obj e, Obj a, String temp, String prefix)
+    static void reparsedIndex(Statement s, List<String> problems, Obj e, Obj a, String temp, String prefix)
             throws SQLException {
         s.execute(prefix + e.name() + " ON " + temp + " " + e.definition());
         try (var rs = s.executeQuery("SELECT pg_get_indexdef('" + e.name() + "'::regclass)")) {
@@ -172,7 +172,7 @@ class AuthSchemaCatalogTest {
     private static final Pattern FK_DEFINITION = Pattern.compile(
             "^\\(([^)]*)\\) → (\\w+)(?:\\.(\\w+)| \\(([^)]*)\\)) \\(R(\\d+)\\)$");
 
-    private List<String> foreignKeyProblems(Connection c, Obj e) throws SQLException {
+    static List<String> foreignKeyProblems(Connection c, Obj e) throws SQLException {
         List<String> problems = new ArrayList<>();
         Matcher m = FK_DEFINITION.matcher(e.definition());
         if (!m.matches()) {
@@ -211,7 +211,7 @@ class AuthSchemaCatalogTest {
         return problems;
     }
 
-    private static Set<String> snapshot(JdbcTemplate j) {
+    static Set<String> snapshot(JdbcTemplate j) {
         Set<String> out = new TreeSet<>();
         j.query("""
                 SELECT 'constraint ' || conrelid::regclass::text || '.' || conname || ' ' || pg_get_constraintdef(oid)
@@ -242,14 +242,16 @@ class AuthSchemaCatalogTest {
 
     @Test
     void V3에서_V4로의_카탈로그_차이는_정확히_새_제약_열_표_하나뿐이다() throws Exception {
-        // Pinned to V4: later migrations have their own catalog tests.
+        // Both sides are scratch databases pinned to their version, so later migrations (V5 on) cannot leak into the diff.
         Set<String> v4;
+        try (FlywayScratchDatabase scratch = new FlywayScratchDatabase(postgres, "v4_catalog")) {
+            scratch.migrateTo("4");
+            v4 = snapshot(new JdbcTemplate(scratch.dataSource()));
+        }
         Set<String> v3;
         try (FlywayScratchDatabase scratch = new FlywayScratchDatabase(postgres, "v3_catalog")) {
             scratch.migrateTo("3");
             v3 = snapshot(new JdbcTemplate(scratch.dataSource()));
-            scratch.migrateTo("4");
-            v4 = snapshot(new JdbcTemplate(scratch.dataSource()));
         }
         Set<String> added = new TreeSet<>(v4);
         added.removeAll(v3);
