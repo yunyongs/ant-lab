@@ -1,0 +1,33 @@
+name: ai
+
+on:
+  pull_request:
+    paths: ['ai/**', 'personas/**', 'docs/api/agent-runner.yaml', 'docs/api/turn-decision-1.schema.json', 'src/test/resources/agent/turn-decision/**', '.env.example', '.github/workflows/ai.yml']
+  push:
+    branches: [main]
+    paths: ['ai/**', 'personas/**', 'docs/api/agent-runner.yaml', 'docs/api/turn-decision-1.schema.json', 'src/test/resources/agent/turn-decision/**', '.env.example', '.github/workflows/ai.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: ai
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: 0.12.13
+      - run: uv lock --check
+      - run: uv sync --frozen
+      - run: uv run --frozen ruff check .
+      - run: uv run --frozen ruff format --check .
+      # No secrets and no network: every model and API call in the tests is a fake.
+      - run: uv run --frozen pytest -q -rs
