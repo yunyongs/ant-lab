@@ -6,7 +6,7 @@ import json
 import random
 import re
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Protocol
@@ -24,6 +24,7 @@ MAX_BODY_BYTES = 1 << 20
 SOCKET_TIMEOUT_S = 15
 CHAT_DEADLINE_S = 120
 KEY_DEADLINE_S = 30
+MAX_SEED = 2**31 - 1
 
 _PRINTABLE = re.compile(r"[\x21-\x7e]{1,200}")
 
@@ -60,6 +61,25 @@ class CallResult:
     latency_ms: int
     status: str
     generation_id: str | None
+
+
+@dataclass(frozen=True)
+class AttemptOutcome:
+    """One sent request: the parsed result plus what a caller needs to record it."""
+
+    result: CallResult
+    call_id: str
+    http: int | None
+    retry_after_s: int | None
+    credit_refusal: bool
+    body: bytes
+
+
+def json_number(value: Decimal) -> int | float:
+    """A finite Decimal as a JSON number: whole values stay integers, others become floats."""
+    if type(value) is not Decimal or not value.is_finite():
+        raise ValueError("number must be a finite Decimal")
+    return int(value) if value == value.to_integral_value() else float(value)
 
 
 def map_status(code: int | None, body: object, timed_out: bool = False) -> str:
@@ -301,30 +321,28 @@ class OpenRouterClient:
         validate_model(model)
         if type(max_tokens) is not int or max_tokens < 1:
             raise ValueError("max_tokens must be a positive integer")
-        body = json.dumps(
-            {
-                "model": model,
-                "messages": [
-                    {"role": "system", "content": system},
-                    {"role": "user", "content": user},
-                ],
-                "temperature": 0,
-                "max_tokens": max_tokens,
-                "provider": {"data_collection": "deny"},
-                "usage": {"include": True},
-            }
-        ).encode()
+        messages = (("system", system), ("user", user))
         attempt_no = 0
         last: CallResult | None = None
         while True:
             attempt_no += 1
             if budget is not None and not budget.check(max_tokens, Decimal("0")):
                 raise BudgetExhausted("run budget exhausted")
-            if not self._take_send():
+            try:
+                outcome = self.attempt_once(
+                    model,
+                    messages,
+                    max_tokens=max_tokens,
+                    temperature=Decimal(0),
+                    seed=None,
+                    timeout_s=CHAT_DEADLINE_S,
+                    caller=caller,
+                )
+            except SendCapReached:
                 if last is None:
-                    raise SendCapReached("send cap reached")
+                    raise
                 return last
-            result, retry_after = self._attempt(model, body, max_tokens, caller)
+            result = outcome.result
             if budget is not None:
                 budget.consume(
                     max_tokens if result.tokens_out is None else result.tokens_out,
@@ -333,10 +351,51 @@ class OpenRouterClient:
             if result.status == "OK":
                 return result
             last = result
-            step = decide(result.status, attempt_no, retry_after, self.jitter())
+            step = decide(result.status, attempt_no, outcome.retry_after_s, self.jitter())
             if not isinstance(step, Retry):
                 return result
             self.sleep(step.delay_s)
+
+    def attempt_once(
+        self,
+        model: str,
+        messages: Sequence[tuple[str, str]],
+        *,
+        max_tokens: int,
+        temperature: Decimal,
+        seed: int | None,
+        timeout_s: int,
+        caller: str,
+        response_format: Mapping[str, object] | None = None,
+    ) -> AttemptOutcome:
+        """Exactly one reservation, one request and one outcome row; no retry, no wait.
+
+        Raises ValueError before anything is sent for a model outside the policy or a bad
+        parameter, RefusedLocal when the limiter refuses, and SendCapReached when the cap is spent.
+        """
+        validate_model(model)
+        if type(max_tokens) is not int or max_tokens < 1:
+            raise ValueError("max_tokens must be a positive integer")
+        if type(timeout_s) is not int or not 1 <= timeout_s <= CHAT_DEADLINE_S:
+            raise ValueError("timeout_s must be between 1 and the chat deadline")
+        if seed is not None and (type(seed) is not int or not 0 <= seed <= MAX_SEED):
+            raise ValueError("seed must be a non-negative integer or None")
+        body_obj: dict[str, object] = {
+            "model": model,
+            "messages": [{"role": role, "content": content} for role, content in messages],
+            "temperature": json_number(temperature),
+            "max_tokens": max_tokens,
+            "provider": {"data_collection": "deny"},
+            "usage": {"include": True},
+        }
+        if seed is not None:
+            body_obj["seed"] = seed
+        if response_format is not None:
+            body_obj["response_format"] = response_format
+        body = json.dumps(body_obj).encode()
+        if not self._take_send():
+            raise SendCapReached("send cap reached")
+        return self._attempt(model, body, max_tokens, caller, timeout_s)
 
     def key_info(self, caller: str = "product:ag01") -> KeyInfo:
         """One GET of the key endpoint: reserved and recorded like any other call, never retried."""
@@ -367,8 +426,8 @@ class OpenRouterClient:
         return info
 
     def _attempt(
-        self, model: str, body: bytes, max_tokens: int, caller: str
-    ) -> tuple[CallResult, int | None]:
+        self, model: str, body: bytes, max_tokens: int, caller: str, timeout_s: int
+    ) -> AttemptOutcome:
         call_id = self.limiter.reserve(caller, model, max_tokens=max_tokens)
         started = time.monotonic()
         headers = {
@@ -379,7 +438,7 @@ class OpenRouterClient:
         code: int | None = None
         header_wait: int | None = None
         try:
-            code, payload, response_headers = self.transport(body, headers, CHAT_DEADLINE_S)
+            code, payload, response_headers = self.transport(body, headers, timeout_s)
             status = map_status(code, payload)
             header_wait = _retry_after(response_headers)
             parsed = _parse_chat(payload) if status == "OK" else None
@@ -409,4 +468,5 @@ class OpenRouterClient:
             retry_after_s=header_wait,
         )
         # A 402 is a credit refusal: a Retry-After header must not turn it into a retry.
-        return result, None if code == 402 else header_wait
+        credit = code == 402
+        return AttemptOutcome(result, call_id, code, None if credit else header_wait, credit, body)
