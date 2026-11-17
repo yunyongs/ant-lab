@@ -98,8 +98,16 @@ services:
   engine:
     profiles: [engine]
     build: ./engine
+    # engine reads antlab_api as antlab_engine — run db/roles/antlab_engine.sql once (db/README.md)
+    depends_on:
+      db:
+        condition: service_healthy
     environment:
       ANTLAB_ENGINE_TOKEN: ${ANTLAB_ENGINE_TOKEN:-}
+      ANTLAB_ENGINE_DB_HOST: db
+      ANTLAB_ENGINE_DB_NAME: antlab_api
+      ANTLAB_ENGINE_DB_USER: antlab_engine
+      ANTLAB_ENGINE_DB_PASSWORD: ${ANTLAB_ENGINE_DB_PASSWORD:-}
     ports:
       - "127.0.0.1:${ANTLAB_ENGINE_PORT:-8000}:8000"
     networks: [backend]

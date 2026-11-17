@@ -61,6 +61,7 @@ PURE_ALLOWED_IMPORTS = {
     "collections",
     "dataclasses",
     "datetime",
+    "decimal",
     "enum",
     "fractions",
     "typing",
@@ -98,7 +99,7 @@ def disallowed_imports(text: str) -> set[str]:
 def pure_sources() -> dict[str, str]:
     return {
         str(p.relative_to(SRC)): p.read_text(encoding="utf-8")
-        for p in [*PURE_DIR.rglob("*.py"), SRC / "engine_errors.py"]
+        for p in [*PURE_DIR.rglob("*.py"), SRC / "engine_errors.py", SRC / "history" / "model.py"]
     }
 
 
@@ -129,6 +130,7 @@ def test_pure_modules_import_only_the_standard_library():
         "bootstrap/stationary.py",
         "bootstrap/rules.py",
         "engine_errors.py",
+        "history/model.py",
     }
     assert {
         n: disallowed_imports(t) for n, t in pure_sources().items() if disallowed_imports(t)
@@ -265,3 +267,80 @@ def test_projection_modules_use_no_blas_routine():
     sources = projection_sources()
     assert {n: find(BLAS_CALL, t) for n, t in sources.items() if find(BLAS_CALL, t)} == {}
     assert {n: matmul_operators(t) for n, t in sources.items() if matmul_operators(t)} == {}
+
+
+HISTORY_DIR = SRC / "history"
+SQL_START = re.compile(
+    r"^\s*(SELECT|WITH|INSERT|UPDATE|DELETE|TRUNCATE|COPY|CREATE|ALTER|GRANT|DROP)\s+\S",
+    re.IGNORECASE,
+)
+SQL_FORBIDDEN = re.compile(
+    r"\b(INSERT|UPDATE|DELETE|TRUNCATE|COPY|CREATE|ALTER|GRANT|DROP)\b|SET\s+ROLE|\blo_|pg_read_file",
+    re.IGNORECASE,
+)
+
+
+def string_constants(text: str) -> list[str]:
+    return [
+        node.value
+        for node in ast.walk(ast.parse(text))
+        if isinstance(node, ast.Constant) and isinstance(node.value, str)
+    ]
+
+
+def statement_problems(statements: list[str]) -> list[str]:
+    problems = []
+    for statement in statements:
+        if not re.match(r"^\s*(SELECT|WITH)\b", statement, re.IGNORECASE):
+            problems.append("not a SELECT/WITH statement")
+        if SQL_FORBIDDEN.search(statement):
+            problems.append("forbidden keyword")
+    return problems
+
+
+def test_x2_collection_sees_lowercase_sql():
+    found = [s for s in string_constants('X = "delete from t"') if SQL_START.match(s)]
+    assert found == ["delete from t"]
+    assert statement_problems(found) != []
+
+
+def test_x2_scanner_flags_bad_statements():
+    assert statement_problems(["SELECT 1", "WITH x AS (SELECT 1) SELECT * FROM x"]) == []
+    assert statement_problems(["DELETE FROM fx_month"]) != []
+    assert statement_problems(["SELECT 1; DROP TABLE x"]) != []
+    assert statement_problems(["SELECT lo_create(0)"]) != []
+    assert statement_problems(["SELECT 1 /* grant */"]) != []
+    assert statement_problems(["SELECT pg_read_file('x')"]) != []
+    assert statement_problems(["SET ROLE x"]) != []
+
+
+def test_x1_psycopg_is_imported_only_by_the_reader():
+    importers = {
+        name
+        for name, text in sources().items()
+        if any(m.split(".")[0] == "psycopg" for m in imported_modules(text))
+    }
+    assert importers == {"history/reader.py"}
+
+
+def test_x2_sql_text_lives_only_in_queries_and_is_read_only():
+    texts = sources()
+    statements = [s for s in string_constants(texts["history/queries.py"]) if SQL_START.match(s)]
+    assert len(statements) >= 6
+    assert statement_problems(statements) == []
+    outside = {
+        name: [s for s in string_constants(text) if SQL_START.match(s)]
+        for name, text in texts.items()
+        if name != "history/queries.py"
+    }
+    assert {name: found for name, found in outside.items() if found} == {}
+
+
+def test_x3_bootstrap_does_not_import_history():
+    texts = sources()
+    imports = {
+        name: {m for m in imported_modules(text) if m.startswith("antlab_engine.history")}
+        for name, text in texts.items()
+        if name.startswith("bootstrap/")
+    }
+    assert {n: found for n, found in imports.items() if found} == {}
