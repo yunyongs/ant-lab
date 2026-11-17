@@ -13,7 +13,11 @@ public record TurnDecision(FormationProposal formationChange, List<OrderProposal
     public record FormationProposal(int goalkeeper, int defender, int midfielder, int forward, String reason) {
     }
 
-    /** One order as sent: {@code asset} is {@code MARKET:TICKER}; the quantity may still be zero or negative. */
-    public record OrderProposal(String asset, OrderSide side, int quantity, Position position, OrderSource source) {
+    /**
+     * One order as sent: {@code asset} is {@code MARKET:TICKER}; the quantity may still be zero or negative.
+     * {@code feedSeq} is the reply's {@code source.feed_seq} when it was sent; whether the kind needs it is a unit check.
+     */
+    public record OrderProposal(String asset, OrderSide side, int quantity, Position position, OrderSource source,
+            Integer feedSeq) {
     }
 }

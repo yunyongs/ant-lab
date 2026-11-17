@@ -14,12 +14,13 @@
 | P0-04 | **회원·시즌·피드·대사** 9개(6절)와 **시즌 계좌** 5개(7절) 정의서, 대사 규칙의 v2 이전, v1 계좌 정의를 v2로 바꾸고 부록 삭제 | 완료 |
 | SEC-01 | Authentication schema: `member.role` and `refresh_token` (Flyway V4). / 인증 스키마: `member.role`과 `refresh_token`(Flyway V4). | 완료 |
 | M1-05 | Collected data: `job_run` and `asset_daily_price` (Flyway V5); FX and indicator tables sketched (10.6). / 수집 데이터: `job_run`과 `asset_daily_price`(Flyway V5), 환율·지표 테이블은 스케치(10.6). | 완료 |
+| MVP-18 | Season score and rating: `season_score` and `rating_history` (Flyway V8, the number is final at merge) in 11. / 시즌 점수와 레이팅: `season_score`와 `rating_history`(Flyway V8, 번호는 머지 때 확정), 11절. | 스키마 완료 |
 
 **정본 규칙:** 타입·키·제약 이름·구분값은 이 문서가 정본이다. [PLAN.md](PLAN.md)나 [SPRING_JPA.md](SPRING_JPA.md)와 어긋나면 이 문서를 따르고, 어긋난 문서를 같은 PR에서 고친다(PLAN §12).
 
 **표기(D10):** 소유자의 ERDCloud 노트 형식을 따른다. 약어: PK(Primary Key, 기본 키), FK(Foreign Key, 외래 키), UK(Unique Key, 유일 키), NN(NOT NULL, 빈 값 불가). 엔티티는 `논리명 (물리명)`, 컬럼은 `타입 물리명 키 "논리명 | NN | 기본값"`. 선에 붙은 기호는 최소(`o` 선택, `|` 필수), 엔티티 쪽 기호는 최대(`|` 1, `{` N)이고, `--`은 식별 관계, `..`은 비식별 관계이다. Mermaid는 선 모양이 키 구성과 맞는지 검사하지 않으므로 표로 따로 확인한다.
 
-**문서 구성:** 2 공통 규칙 → 3 전체 관계도 → 4 설계 질문 답 → 5 역사 데이터와 종목 풀 → 6 회원·시즌·피드·대사 → 7 시즌 계좌 → 8 설계 결정 → 9 하류 기능 약속 → 10 수집 데이터(M1). 부록은 없다 — v1 계좌 정의는 7절로 옮겨 v2로 바꿨고 v1과의 대응은 7.6에 있다.
+**문서 구성:** 2 공통 규칙 → 3 전체 관계도 → 4 설계 질문 답 → 5 역사 데이터와 종목 풀 → 6 회원·시즌·피드·대사 → 7 시즌 계좌 → 8 설계 결정 → 9 하류 기능 약속 → 10 수집 데이터(M1) → 11 시즌 점수와 레이팅(MVP-18). 부록은 없다 — v1 계좌 정의는 7절로 옮겨 v2로 바꿨고 v1과의 대응은 7.6에 있다.
 
 ## 2. 공통 규칙 (PostgreSQL 17)
 
@@ -65,11 +66,11 @@ The rules of this section apply to every confirmed table (22 through P0-04, 23 f
 
 ## 3. 전체 관계도
 
-확정 23개와 MVP 스케치 3개는 3.1에, EXT 이후 스케치 16개와 에이전트 스케치(PLAN v3) 6개는 3.2에 따로 그린다. Each diagram has at most 26 entities, so it stays readable. / 한 그림이 26개 이하라 읽히고, 확정과 스케치가 그림 단위로 구분된다. 같은 엔티티 이름이 여러 그림에 나오는 것은 앵커이다.
+확정 25개와 MVP 스케치 1개는 3.1에, EXT 이후 스케치 16개와 에이전트 스케치(PLAN v3) 6개는 3.2에 따로 그린다. Each diagram has at most 26 entities, so it stays readable. / 한 그림이 26개 이하라 읽히고, 확정과 스케치가 그림 단위로 구분된다. 같은 엔티티 이름이 여러 그림에 나오는 것은 앵커이다.
 
-### 3.1 확정 23개 + MVP 스케치 3개
+### 3.1 확정 25개 + MVP 스케치 1개
 
-컬럼 없이 이름과 관계선만 그린다(컬럼은 5절·6절·7절). R1–R8은 5절에서, R9–R22는 6절에서, R23–R32는 7절에서 확정한 관계이다. R33–R34 in §6 (SEC-01). / R33–R34는 6절(SEC-01)에서 확정한 관계이다. 바뀌면 이 그림과 4절 표를 같은 PR에서 고친다. MVP 스케치는 라벨에 "(스케치)"를 붙이며 MVP에서 컬럼을 확정한다.
+컬럼 없이 이름과 관계선만 그린다(컬럼은 5절·6절·7절). R1–R8은 5절에서, R9–R22는 6절에서, R23–R32는 7절에서 확정한 관계이다. R33–R34 in §6 (SEC-01). / R33–R34는 6절(SEC-01)에서, R37–R39는 11절(MVP-18)에서 확정한 관계이다. 바뀌면 이 그림과 4절 표를 같은 PR에서 고친다. MVP 스케치는 라벨에 "(스케치)"를 붙이며 MVP에서 컬럼을 확정한다.
 
 ```mermaid
 erDiagram
@@ -96,9 +97,9 @@ erDiagram
     EXECUTION["체결 (execution)"]
     HOLDING["보유 (holding)"]
     CASH_LEDGER["현금 원장 (cash_ledger)"]
-    SEASON_SCORE["시즌 점수 (season_score) (스케치)"]
+    SEASON_SCORE["시즌 점수 (season_score)"]
     PROJECTION["예상 분포 (projection) (스케치)"]
-    RATING_HISTORY["레이팅 이력 (rating_history) (스케치)"]
+    RATING_HISTORY["레이팅 이력 (rating_history)"]
     ASSET_GROUP ||..o{ ASSET : "R1 분류한다"
     ASSET ||..o{ ASSET_POSITION : "R2 기준일마다 판정된다"
     ASSET ||..o{ ASSET_MONTH_RETURN : "R3 달마다 수익률을 갖는다"
@@ -133,13 +134,13 @@ erDiagram
     ORDERS |o..o{ CASH_LEDGER : "R32 원장을 만든다"
     MEMBER ||..o{ REFRESH_TOKEN : "R33 토큰을 발급받는다"
     REFRESH_TOKEN |o..o| REFRESH_TOKEN : "R34 다음 토큰으로 회전한다"
-    SEASON ||..o| SEASON_SCORE : "스케치 점수를 받는다"
+    SEASON ||--o| SEASON_SCORE : "R37 점수를 받는다"
     SEASON ||..o{ PROJECTION : "스케치 예상을 남긴다"
-    MEMBER ||..o{ RATING_HISTORY : "스케치 레이팅을 갖는다"
-    SEASON ||..o| RATING_HISTORY : "스케치 레이팅을 만든다"
+    MEMBER ||..o{ RATING_HISTORY : "R38 레이팅을 갖는다"
+    SEASON_SCORE ||..o| RATING_HISTORY : "R39 레이팅을 만든다"
 ```
 
-R9–R22와 R33–R34의 관계 요약은 6.2에, R23–R32는 7.2에 있다. MVP 스케치 3개의 관계는 위 그림의 "스케치" 선이며 MVP에서 컬럼과 함께 확정한다.
+R9–R22와 R33–R34의 관계 요약은 6.2에, R23–R32는 7.2에, R37–R39는 11.2에 있다. MVP 스케치 1개(`projection`)의 관계는 위 그림의 "스케치" 선이며 MVP에서 컬럼과 함께 확정한다.
 
 ### 3.2 EXT 이후 스케치 관계도
 
@@ -1621,6 +1622,7 @@ v2에서 새로 생긴 FK는 R26·R27(`orders`의 복합 FK)과 6절의 14개다
 | D42 | `job_run` is mutable in the DB (one finishing UPDATE by the collector) but read-only in JPA, and carries `updated_at`. A partial unique index `uq_job_run_running` allows one `RUNNING` run per job; a stale `RUNNING` row is closed as `FAILED` / `ABANDONED` by the next run. / `job_run`은 DB에서 가변(수집기가 끝날 때 한 번 UPDATE)이고 JPA에서 읽기 전용이며 `updated_at`을 갖는다. 부분 유일 인덱스 `uq_job_run_running`이 잡마다 `RUNNING` 하나를 허용하고, 오래된 `RUNNING` 행은 다음 실행이 `FAILED`/`ABANDONED`로 닫는다. | One running instance per job without an external lock library (same device as D26 `uq_lineup_open`); the writer and the reader are split in code (SPRING_JPA §7). / 외부 잠금 라이브러리 없이 잡마다 한 실행(D26 `uq_lineup_open`과 같은 방식). 쓰는 쪽과 읽는 쪽을 코드에서 나눈다(SPRING_JPA §7). | ShedLock or an advisory lock, an append-only run log with a separate state table. / ShedLock이나 advisory lock, 추가 전용 실행 기록 + 별도 상태 테이블 |
 | D43 | `ck_asset_daily_price_after_session`: `trade_date < (observed_at AT TIME ZONE CASE WHEN exchange_code IS NULL THEN 'Asia/Seoul' ELSE 'America/New_York' END)::date`, so a session that has not finished in its own market's calendar is never stored: KR rows (`exchange_code` NULL) are judged by the Seoul date, US rows by the New York date (a US close at 16:00 ET falls on the next KST morning, so the Seoul date alone would pass an open US session). The check is date-level: the earliest accepted `observed_at` is local midnight after the trade date. The collector also stops its window at yesterday in the market's own zone. / `ck_asset_daily_price_after_session`: `trade_date < (observed_at AT TIME ZONE CASE WHEN exchange_code IS NULL THEN 'Asia/Seoul' ELSE 'America/New_York' END)::date`로 자기 시장의 달력에서 끝나지 않은 장은 저장하지 않는다. KR 행(`exchange_code` NULL)은 서울 날짜, US 행은 뉴욕 날짜로 판정한다(미국 장 마감 16:00 ET는 KST로 다음날 새벽이라 서울 날짜만 보면 진행 중인 미국 장이 통과한다). 날짜 단위 검사이며 가장 이른 허용 `observed_at`은 거래일 다음 현지 자정이다. 수집기도 시장 자체 시간대의 어제까지만 가져온다. | An in-progress close is a partial value that a later fetch would silently revise. / 진행 중인 종가는 나중에 조용히 바뀔 부분 값이다. | A Seoul-only check (passes open US sessions), no DB guard (application rule only), a CHECK against `now()` (not immutable, not allowed). / 서울 날짜만 보는 검사(진행 중인 미국 장을 통과시킴), DB 방어 없음(앱 규칙만), `now()` 대비 CHECK(불변이 아니라 불가) |
 | D44 | The collected tables live in the `public` schema (D21), not a separate `collected` schema; real dates and prices are `[복기 전용]` and the other columns `[내부]`, and they never feed a season DTO directly. / 수집 테이블은 별도 `collected` 스키마가 아니라 `public`(D21)에 두고, 실제 날짜·가격은 `[복기 전용]`, 나머지는 `[내부]`이며 시즌 DTO에 바로 나가지 않는다. | One schema keeps the role grants, `ExposureCatalog` and the catalog tests on a single namespace; only M1-09's derived month rows reach the game. / 스키마가 하나라 역할 권한·`ExposureCatalog`·카탈로그 시험이 한 이름 공간에 머문다. 게임에 닿는 것은 M1-09가 만드는 달 단위 파생 행뿐이다. | A `collected` schema (MACRO_ETF §6.1) needing Flyway `schemas`, role and test changes for no current benefit. / `collected` 스키마(MACRO_ETF §6.1)는 Flyway `schemas`·역할·시험 변경이 필요하고 지금 얻는 것이 없다. |
+| D45 | Season score and rating (MVP-18): `season_score` (PK `season_id`, one row per finished season) and `rating_history` (one row per counted season) are append-only. A formula change is a new `score_version` for new rows; stored rows are never rewritten. The nine item scores are columns (SQL-queryable, a CHECK per item); the values the score was computed from are one `inputs` JSONB (`[내부]`). Missing items are NULL and the process score is the mean of the others; a missing path distribution leaves `result_score`, `score` and both percentiles NULL together (`ck_season_score_score_pair`, `ck_season_score_percentile_pair`) and the row carries `rating_exclusion`. The rating is stored from the first counted season and shown from the third. The four baseline portfolios' per-turn values are not stored: they are recomputed from `turn_price`. / 시즌 점수와 레이팅(MVP-18): `season_score`(PK `season_id`, 끝난 시즌마다 한 행)와 `rating_history`(집계 시즌마다 한 행)는 추가 전용이다. 공식이 바뀌면 새 행에 새 `score_version`을 쓰고 저장한 행은 다시 쓰지 않는다. 항목 점수 아홉은 컬럼(SQL로 조회, 항목마다 CHECK)이고 계산에 쓴 값은 `inputs` JSONB 하나(`[내부]`)다. 값이 없는 항목은 NULL이고 과정 점수는 나머지의 평균이다. 경로 분포가 없으면 `result_score`·`score`·두 백분위가 함께 NULL이며 행에 `rating_exclusion`이 붙는다. 레이팅은 첫 집계 시즌부터 저장하고 셋째부터 보인다. 기준 포트폴리오 4개의 턴별 값은 저장하지 않고 `turn_price`에서 다시 계산한다. | PLAN §6.3·§6.4. The score formula is a draft that M3-03 validates, so the version is stored per row; storing from season 1 keeps the history complete with one display rule. / 점수 공식은 M3-03이 검증하는 초안이라 버전을 행마다 저장한다. 첫 시즌부터 저장하면 이력이 빠지지 않고 표시 규칙이 하나다. | One JSONB `items` column (no per-item CHECK, harder analysis); neutral 50 for a missing item (pulls every score to the middle); rating rows only from season 3. / 항목을 JSONB 한 컬럼에 두기(항목 CHECK 없음, 분석이 어렵다), 없는 항목에 중립 50(모든 점수가 가운데로 쏠린다), 3시즌째부터만 레이팅 행. |
 
 **문서 구성 결정:** 관계도는 확정 22개(SEC-01 이후 23개) + MVP 스케치 3개(컬럼 없음), EXT 이후 스케치, 영역 상세(컬럼 있음)의 셋으로 나눴다 — 한 그림이 26개 이하라 읽힌다(each diagram has at most 26 entities)(탈락: 42개를 한 `erDiagram`에 그리기는 배치가 읽기 어렵고 PR diff가 커짐, 전체를 `flowchart`로 그리기는 카디널리티 표기가 D10과 어긋남). v1 계좌 정의는 P0-03에서 MySQL 타입 그대로 부록에 옮겨 두었다가 P0-04에서 7절로 v2로 바꿔 쓰고 부록을 지웠다 — v1과의 대응은 7.6 대조표가 남긴다. 시즌 영역(6절 9개)과 시즌 계좌(7절 5개)를 둘로 나눈 것은 DDL ②·③의 분할과 1:1이라 각 DDL 기능이 한 절만 읽으면 되기 때문이다(탈락: 14개를 한 절에 두기는 한 그림에 14개 + 앵커 4개가 되어 읽기 어렵다).
 
@@ -1631,7 +1633,7 @@ v2에서 새로 생긴 FK는 R26·R27(`orders`의 복합 FK)과 6절의 14개다
 - 역사 행 정정 정책(제자리 갱신 vs 정정 버전, 데이터 스냅샷 날짜 PLAN §4.2). 시즌이 참조한 행은 FK `RESTRICT`로 지울 수 없다.
 - 축 방향 결정 규칙(히스테리시스 여부)과 강도 상한(±3 절단이면 `CHECK (… <= 3)`).
 - `lineup` 구간 비겹침(열린 구간 포함)을 `EXCLUDE` 제약으로 막기(`btree_gist` 확장, D26 — 지금은 대사 규칙 18).
-- 기준 포트폴리오 4개의 턴별 값의 저장 위치(SPRING_JPA §5.3 8단계, `season_score` 확정 때).
+- ~~기준 포트폴리오 4개의 턴별 값의 저장 위치~~ — 저장하지 않는다(D45, MVP-18). 불변인 `turn_price`에서 다시 계산한다. MVP-17이 자기 계획에서 뒤집을 수 있다.
 - 단일 종목 비중 한도를 `season` 컬럼으로 둘지(PLAN §7, 6.5의 서비스 규칙).
 - 원장·이력 테이블의 UPDATE/DELETE를 DB 역할 권한으로 막기(대사 규칙 10).
 - `season.status`에 채점 단계(`SCORING`)를 더할지(SPRING_JPA §12-1).
@@ -1668,6 +1670,7 @@ v2에서 새로 생긴 FK는 R26·R27(`orders`의 복합 FK)과 6절의 14개다
 | SEC (SEC-01–SEC-06, v0.1) | **SEC-02 (signup):** inserts `member` through `new Member(...)` (role `USER`); a duplicate email is detected by the unique violation on `uq_member_email` (SQLSTATE 23505 + constraint name, not message text) → 409 `EMAIL_TAKEN`; the stored password is the `DelegatingPasswordEncoder` output (`{bcrypt}…`, 68 chars ≤ 255). **SEC-03 (login, refresh, logout):** login inserts a root (`parent_id` NULL, new `UUID`). Every write to a family (refresh, reuse handling, logout) first locks that family's root row (`WHERE family_id = ? AND parent_id IS NULL`, `PESSIMISTIC_WRITE`; exactly one per family by `uq_refresh_token_family_root`) and only then reads the presented row — locking the presented row alone does not serialise a refresh of the live token against a replay of an older token of the same family. Refresh: look up the presented hash (not found → 401, no write), lock the family root, re-read the presented row, then decide in this order: revoked with `ROTATED` → revoke the family's live token with `REUSE_DETECTED` and answer 401, even if the presented token has expired; revoked otherwise → 401; expired → 401 with no write; live → `revoke(ROTATED)`, **`flush()`**, insert the child (same member and family). The `REUSE_DETECTED` revoke must commit: the service returns the outcome and the 401 is produced after the transaction commits (a domain exception would roll it back, SPRING_JPA §5.1). Logout takes the same family lock and revokes the live token with `LOGOUT`. SEC-03 done criteria include: a two-connection race (refresh of the live token vs. replay of its rotated parent, both orders — afterwards the family has no live token), a replay of an expired rotated token, a read from a separate transaction showing the `REUSE_DETECTED` revoke committed after the 401, and a fixed raw value → `token_hash` vector. `expires_at` and all times come from the `Clock` bean and tests use `ScriptedClock`, not `Clock.fixed` (§9 Phase 0 API ⑤). The fixed member's `'!'` password yields the same 401 as a wrong password (confirmed in SEC-03). `RefreshTokenRepository` follows the mutable shape (`Repository`, `save`, `findById`, queries; no delete); `SeasonAccountCleaner` deletes a member's tokens before the member; SEC-03 chose a sliding lifetime: each child gets the full refresh lifetime from its rotation time. Logout uses the same decision order: a presented `ROTATED` token revokes the live token with `REUSE_DETECTED`, otherwise the live token (also when expired) is revoked with `LOGOUT`; logout always answers 204. A revoke time is never earlier than the revoked token's `created_at` (the request clock can precede a token a concurrent request just issued, `ck_refresh_token_revoked_at`). **SEC-04 (authorization):** `member.role` in the DB is the source of truth; if it goes into the access token, a change applies at the next refresh (≤ 15 min); in v0.1 a member becomes `ADMIN` only by a documented manual SQL update in `local` (no API). SEC-04 reads the role from the token's `role` claim (`ROLE_USER`/`ROLE_ADMIN`) and authorizes with URL rules: anonymous → 401, `USER` on a dev path → 403. The SQL is `UPDATE member SET role = 'ADMIN' WHERE lower(email) = lower('<email>')`, then log in again. **SEC-05 (fixed member removal):** `JwtCurrentMember` is the only current member in every profile (token `sub` = `member.id`; a missing row → 401). No migration deletes the old fixed member row (`player@example.invalid`, password `'!'`; its seasons hold it via RESTRICT FKs); it stays as data that cannot log in, and its seasons are no longer reachable from the API. Tests use a committed default member with the same email per test context. The local manual reconciliation stays owner-checked: an `ADMIN` reconciles only their own seasons. **SEC-06:** an E2E over a real port runs signup → login → full season → refresh → logout → refresh 401 with real tokens and cookies; no schema change. **AG-02:** adds `member.kind` by `ALTER TABLE` in V5+ with default `'HUMAN'`, plus `ck_member_kind_role`; agent members never get refresh tokens (enforced by the token service — cross-table). **Lock order:** any flow that locks both locks `member` before `refresh_token`, and inside `refresh_token` the family root before any other row (extends SPRING_JPA §5.1 member → season → cash_account). **OPS:** cleanup of expired/revoked families may delete a whole family with one `DELETE … WHERE family_id = …` (SEC-01 measured a three-token chain: 3 rows deleted, no 23503; re-measure on long chains and under concurrent refreshes) — the cleanup locks the family root `FOR UPDATE` first and deletes only families without a live token, so it cannot deadlock with a refresh or logout that holds the root; optional HMAC pepper for `token_hash`. / **SEC-02(가입):** `new Member(...)`로 `member`를 넣고(역할 `USER`), 이메일 중복은 `uq_member_email` 유일 위반(SQLSTATE 23505 + 제약 이름, 메시지 문구 아님)으로 잡아 409 `EMAIL_TAKEN`을 낸다. 저장 비밀번호는 `DelegatingPasswordEncoder` 출력(`{bcrypt}…`, 68자 ≤ 255)이다. **SEC-03(로그인·갱신·로그아웃):** 로그인은 뿌리(`parent_id` NULL, 새 `UUID`)를 넣는다. 묶음에 쓰는 모든 흐름(갱신·재사용 처리·로그아웃)은 먼저 그 묶음의 뿌리 행(`WHERE family_id = ? AND parent_id IS NULL`, `PESSIMISTIC_WRITE`, `uq_refresh_token_family_root`로 묶음마다 정확히 하나)을 잠그고 그다음에 제시된 행을 읽는다 — 제시된 행만 잠그면 살아 있는 토큰의 갱신과 같은 묶음의 이전 토큰 재사용이 직렬화되지 않는다. 갱신: 제시된 해시를 찾고(없으면 쓰기 없이 401) 묶음 뿌리를 잠근 뒤 제시된 행을 다시 읽어 이 순서로 정한다: `ROTATED`로 폐기됨 → 제시된 토큰이 만료됐어도 묶음의 살아 있는 토큰을 `REUSE_DETECTED`로 폐기하고 401; 그 밖의 폐기 → 401; 만료 → 쓰기 없이 401; 살아 있음 → `revoke(ROTATED)`, **`flush()`**, 자식 INSERT(같은 회원·같은 묶음). `REUSE_DETECTED` 폐기는 커밋되어야 한다: 서비스는 결과를 돌려주고 401은 트랜잭션이 커밋된 뒤 만든다(도메인 예외를 던지면 폐기가 롤백된다, SPRING_JPA §5.1). 로그아웃도 같은 묶음 잠금을 얻고 살아 있는 토큰을 `LOGOUT`으로 폐기한다. SEC-03 완료 조건: 두 연결 경합 시험(살아 있는 토큰의 갱신 대 그 부모 토큰의 재사용, 두 순서 모두 — 끝나면 묶음에 살아 있는 토큰이 없다), 만료된 회전 토큰의 재사용 사례, 401 뒤 별도 트랜잭션에서 `REUSE_DETECTED` 폐기가 커밋됐음을 읽는 시험, 고정 원본 값 → `token_hash` 벡터. `expires_at` 등 시각은 `Clock` 빈에서 오고 시험은 `Clock.fixed`가 아니라 `ScriptedClock`을 쓴다(9절 Phase 0 API ⑤). 고정 회원의 비밀번호 `'!'`는 틀린 비밀번호와 같은 401이다(SEC-03에서 확인함). `RefreshTokenRepository`는 가변 모양(`Repository`, `save`, `findById`, 질의, 삭제 없음)을 따르고, `SeasonAccountCleaner`는 회원보다 먼저 그 회원의 토큰을 지운다. SEC-03은 수명을 회전마다 늘린다: 자식은 회전한 시각부터 갱신 토큰 수명 전체를 받는다. 로그아웃도 같은 판정 순서를 쓴다: 제시된 토큰이 `ROTATED`면 살아 있는 토큰을 `REUSE_DETECTED`로, 아니면 살아 있는 토큰(만료됐어도)을 `LOGOUT`으로 폐기하고 언제나 204로 답한다. 폐기 시각은 폐기하는 토큰의 `created_at`보다 앞서지 않는다(요청이 읽은 시계가 동시 요청이 방금 발급한 토큰보다 앞설 수 있다, `ck_refresh_token_revoked_at`). **SEC-04(인가):** DB의 `member.role`이 정본이고, 접근 토큰에 넣으면 변경은 다음 갱신(≤ 15분)에 반영된다. v0.1에서 `ADMIN`은 `local`의 문서화된 수동 SQL로만 된다(API 없음). SEC-04는 토큰의 `role` 클레임(`ROLE_USER`/`ROLE_ADMIN`)으로 역할을 읽고 URL 규칙으로 허가한다: 익명은 401, 개발 경로의 `USER`는 403. SQL은 `UPDATE member SET role = 'ADMIN' WHERE lower(email) = lower('<email>')`이고, 그 뒤 다시 로그인한다. **SEC-05(고정 회원 제거):** 모든 프로필에서 현재 회원은 `JwtCurrentMember` 하나다(토큰 `sub` = `member.id`, 행이 없으면 401). 어떤 마이그레이션도 예전 고정 회원 행(`player@example.invalid`, 비밀번호 `'!'`)을 지우지 않는다(시즌이 RESTRICT FK로 잡고 있다). 로그인할 수 없는 데이터로 남고, 그 시즌은 API로 더는 닿지 않는다. 시험은 시험 문맥마다 같은 이메일의 기본 회원 행을 커밋해 쓴다. 로컬 수동 대사는 소유자 검사를 그대로 둔다: `ADMIN`도 자기 시즌만 대사한다. **SEC-06:** 실제 포트 E2E가 진짜 토큰과 쿠키로 가입 → 로그인 → 한 시즌 → 갱신 → 로그아웃 → 갱신 401을 확인한다. 스키마 변경 없음. **AG-02:** V5 이후 `ALTER TABLE`로 `member.kind`(기본값 `'HUMAN'`)와 `ck_member_kind_role`을 더하고, 에이전트 회원은 갱신 토큰을 받지 않는다(토큰 서비스가 지킨다 — 테이블 간 규칙). **락 순서:** 둘 다 잠그는 흐름은 `member`를 `refresh_token`보다 먼저 잠그고, `refresh_token` 안에서는 묶음 뿌리를 다른 행보다 먼저 잠근다(SPRING_JPA §5.1의 member → season → cash_account를 늘린다). **OPS:** 만료·폐기된 묶음 정리는 `DELETE … WHERE family_id = …` 한 문장으로 묶음을 통째로 지울 수 있다(SEC-01이 토큰 셋짜리 사슬로 측정: 3행 삭제, 23503 없음. 긴 사슬과 동시 갱신 중에는 다시 측정) — 정리도 먼저 묶음 뿌리를 `FOR UPDATE`로 잠그고 살아 있는 토큰이 없는 묶음만 지워서, 뿌리를 쥔 갱신·로그아웃과 교착하지 않는다. `token_hash`의 HMAC pepper는 선택. |
 | MVP | 엔티티 분류(불변/가변, P0-28에서 불변 9·가변 5로 확정)·`[복기 전용]`/`[내부]` DTO 규칙·복합 FK 매핑·`orders`의 `@Immutable` 여부는 2026-11-09에 위의 "Phase 0 API" 행으로 앞당겨졌다(EXT 지정가가 오면 `orders` 상태가 바뀌므로 그때 다시 본다). MVP에서: `turn_feed` 쪽 DTO 테스트로 공개 필드 조합(대상 NULL 여부 포함)으로 `EVENT`를 판별할 수 없는지 확인한다. 확장 구간(PLAN §4.7)에서 실제 이력이 없는 달(상장 전, 또는 상장 뒤라도 출처에 시세가 없는 달)은 대체 수익률을 쓴다 — 개별 주식은 같은 시장의 대표 지수, ETF는 추종 지수가 먼저이고 없을 때 대표 지수다(PLAN §4.7). 그래서 MVP Flyway에서 함께 고친다: `ck_asset_proxy_etf`와 `proxy_index_name`의 뜻(개별 주식도 대체 지수명을 가지고, 추종 지수가 없는 ETF는 대표 지수 이름을 가짐), 검증 규칙 H7의 '개별 주식은 전부 `ACTUAL`'과 'ETF 상장 후는 `ACTUAL`'(확장 구간의 시세 없는 달은 예외), `PROXY_INDEX`의 뜻(상장 전 달뿐 아니라 확장 구간의 시세 없는 달도, 추종 지수 또는 대표 지수의 수익률 — 보수/12 차감은 지수로 채운 ETF 달만, PLAN §4.6), 재생 범위 조건(검증 규칙 S1)의 시작. `return_kind` 값 목록은 그대로다. 5.3·5.5의 정의는 Phase 0 표본(2007-01부터) 기준이라 그대로 둔다. 관심 지수는 Java 계산기가 같은 규칙(5.3 확정 공식, 상수 5개)을 `BigDecimal`로 구현하고 Phase 0 SQL 결과를 골든으로 병행 대사한다(8자리 일치). 확장 구간(1997–2006)을 적재하면 2007년 구간 시작 달들의 값이 바뀌어 `db/13_calc_attention.sql`의 값 비교가 멈추므로 전체를 새로 계산한다. 창이 12개월 미만인 달은 준비 구간으로 재생에서 뺀다. DTO는 순위·등급만 내고 8자리 정밀값을 내지 않는다. 통계 보드 API는 `db/14_stats_calendar_def.sql`의 `stat_board`와 같은 정의(Java/MyBatis 읽기 쿼리)를 구현하고 Phase 0 SQL 결과를 골든으로 소수 8자리까지 대사한다. n 규칙은 서버에서 적용하고 n 필터 전 값·관측값(`stat_obs`)은 API에 내지 않는다. 확장 구간 적재 뒤 n이 바뀌므로 보드는 데이터 스냅샷 단위로 캐시한다. **Done (MVP-09):** `antlab.history.AttentionCalculator` implements the 5.3 formula with the five constants in `AttentionRules` (pinned to `db/13_calc_attention_def.sql`). Mean, sample standard deviation and division follow PostgreSQL `numeric` scales in `MoneyMath`, and every `asset_month_attention` row equals `db/13` exactly on the local sample (`AttentionCalculatorGoldenTest`) and on a synthetic history in CI (`AttentionCalculatorSqlParityTest`). The calculator writes nothing; the writers are MVP-06 and M1-09, and the SQL stays the reference until then. / **완료(MVP-09):** `antlab.history.AttentionCalculator`가 5.3 확정 공식을 상수 5개(`AttentionRules`, `db/13_calc_attention_def.sql`과 대조)로 구현한다. 평균·표본 표준편차·나눗셈은 `MoneyMath`에서 PostgreSQL `numeric` 자릿수 규칙을 따르고, 모든 `asset_month_attention` 행이 로컬 표본(`AttentionCalculatorGoldenTest`)과 CI의 합성 이력(`AttentionCalculatorSqlParityTest`)에서 `db/13`과 정확히 같다. 계산기는 아무것도 쓰지 않는다. 쓰는 쪽은 MVP-06·M1-09이고 그때까지 SQL이 정본이다. / **Done (MVP-10):** `antlab.scoring.BaseDatePositionCalculator` builds the D35 window, the 50/50 market series over every month block in the window and the FX-joined KRW returns from the history tables, stops on a missing in-window FX or proxy return, and reuses `PositionMeter` for the metrics, ranking and `pos_classify`. The eight judgement columns, and the reason for unjudgeable rows, equal `db/12` for every `asset_position` row (`BaseDatePositionGoldenTest`, `BaseDatePositionSqlParityTest`). The market proxies stay `069500`/`SPY` until the swap in promise ④ of the P0-10 row is scheduled. / **완료(MVP-10):** `antlab.scoring.BaseDatePositionCalculator`가 역사 테이블에서 D35 창, 창 안 모든 월 블록의 50/50 시장 수익률, 환율을 결합한 원화 수익률을 만들고, 창 안 환율·대용 수익률이 없으면 멈추며, 지표·순위·`pos_classify`는 `PositionMeter`를 재사용한다. 판정 8컬럼과 판정 불능 사유가 모든 `asset_position` 행에서 `db/12`와 같다(`BaseDatePositionGoldenTest`·`BaseDatePositionSqlParityTest`). 시장 대용은 P0-10 행 약속 ④의 교체가 잡힐 때까지 `069500`·`SPY`다. **Done (MVP-15):** `ck_season_status` gains `HALTED`; failed attempts are counted per pending turn from `reconciliation_log`; the halt is written in the after-rollback record transaction (`ReconciliationFailureRecorder`). / **완료(MVP-15):** `ck_season_status`에 `HALTED`를 더했다. 실패 시도는 대기 중인 턴마다 `reconciliation_log`에서 세고, 정지는 롤백 뒤 기록 트랜잭션(`ReconciliationFailureRecorder`)에서 쓴다. **Done (MVP-11):** the turn advance stores `turn_feed` from `antlab.feed.FeedGenerator` (`p0-18:v2`, equal to `db/24` on a synthetic season in CI and on the practice season), and `GET`/`POST …/turns` return `feed` items `{turnNo, seq, assetId, body}` only; `FeedSameClothesTest` and `FeedItemDtoExposureTest` show an event card cannot be told from noise by public fields. / **완료(MVP-11):** 턴 전환이 `antlab.feed.FeedGenerator`(`p0-18:v2`, CI 합성 시즌과 연습 시즌에서 `db/24`와 같음)로 `turn_feed`를 저장하고, `GET`·`POST …/turns`는 `feed` 항목 `{turnNo, seq, assetId, body}`만 낸다. `FeedSameClothesTest`·`FeedItemDtoExposureTest`가 공개 필드로 사건 카드와 소음을 가를 수 없음을 보인다. |
 | M1-06 · M1-09 · M1-10 · MVP-20 · M2-08 | M1-06 writes only through `JdbcTemplate` with change-only vintage inserts and never UPDATE/DELETE on `asset_daily_price`; M1-09 reads with the as-of rule and refetches an asset's history when a revision appears on an adjusted series; M1-10 adds `SCHEDULED` runs and the metric; MVP-20 revokes UPDATE/DELETE on `asset_daily_price` from `antlab_app`; M2-08 grants `antlab_engine` SELECT when it needs collected data. The as-of read selects `[복기 전용]` columns, so it is added as a `findRevealed…` method with its first consumer and needs the reveal-caller list of `RevealedRepositoryNamingTest` settled first. / M1-06은 `JdbcTemplate`으로 값이 바뀐 빈티지만 추가하고 `asset_daily_price`에 UPDATE·DELETE를 하지 않는다. M1-09는 시점 기준 규칙으로 읽고, 수정주가 계열에 정정이 생긴 종목은 이력을 다시 받는다. M1-10은 `SCHEDULED` 실행과 지표를 더한다. MVP-20은 `antlab_app`의 `asset_daily_price` UPDATE·DELETE 권한을 거둔다. M2-08은 수집 데이터가 필요할 때 `antlab_engine`에 SELECT를 준다. 시점 기준 읽기는 `[복기 전용]` 열을 고르므로 첫 소비자와 함께 `findRevealed…` 메서드로 더하며, `RevealedRepositoryNamingTest`의 호출 허용 목록을 먼저 정해야 한다. MVP-20 done: `antlab_app` has SELECT/INSERT only on `asset_daily_price` (and on every append-only table), no DELETE anywhere (`AppPrivilegeMatrixTest`). / MVP-20 완료: `antlab_app`은 `asset_daily_price`(와 모든 추가 전용 테이블)에 SELECT·INSERT만 있고 어디에도 DELETE가 없다(`AppPrivilegeMatrixTest`). |
+| MVP-18 · MVP-19 · AG-02 A5 · AG-06 · MVP-23 · M3-03 | MVP-18 PR B writes `season_score` and `rating_history` through the append-only repositories (INSERT only) and checks that a rating row's `member_id` is the score row's member and that `seq_no` is the member's counted seasons in finish order (11.5). MVP-19 fills `noise_score` with a new `score_version`; AG-02 A5 adds the `INVALID` value to `ck_season_score_rating_exclusion` in its own migration; AG-06 reads `process_score` (the S/L leaderboard is its own); MVP-23 shows `rating` only where `seq_no >= 3`; M3-03 re-fits the formula from `inputs`. `consistency_score` stays NULL until a follow-up feature owns per-turn projections. / MVP-18 PR B가 추가 전용 저장소로 `season_score`·`rating_history`를 INSERT만 하고, 레이팅 행의 `member_id`가 점수 행의 회원과 같은지, `seq_no`가 끝난 순서의 집계 시즌 수인지 확인한다(11.5). MVP-19는 새 `score_version`으로 `noise_score`를 채우고, AG-02 A5는 자기 마이그레이션에서 `ck_season_score_rating_exclusion`에 `INVALID`를 더하며, AG-06은 `process_score`를 읽고(S/L 리더보드는 그쪽 몫), MVP-23은 `seq_no >= 3`일 때만 `rating`을 보이고, M3-03은 `inputs`로 공식을 다시 맞춘다. `consistency_score`는 시즌 중 턴별 예상 분포를 맡을 후속 기능이 생길 때까지 NULL이다. |
 | MVP-16/18 점수·레이팅 | Rating excludes a season whose `notStarted` is true (`AbandonRules.notStarted`, one function); reaction scores ignore turns above `abandoned_turn_no` (auto turns still write `turn_feed` and nudges that nobody played). / 레이팅은 `notStarted`가 true인 시즌을 뺀다(`AbandonRules.notStarted`, 함수 하나). 반응 점수는 `abandoned_turn_no`보다 큰 턴을 무시한다(자동 턴도 `turn_feed`와 독려 알림을 쓰지만 아무도 하지 않은 턴이다). |
 | M4 프로필 | The profile shows the count of not-started abandons, taken from the same derived value. / 프로필은 같은 계산값으로 미시작 포기 횟수를 보여 준다. |
 | AG-02 A5 | The runner abandon route is a thin route over `SeasonAbandonService` (no member-kind refusal there). / 러너의 포기 경로는 `SeasonAbandonService` 위의 얇은 경로다(서비스에는 회원 종류 거절이 없다). |
@@ -1833,3 +1836,127 @@ Not created in V5. FRED/ECOS keys do not exist yet, so the observation tables ar
 
 - `series`: code, source (`FRED`/`ECOS`), source series id, unit, frequency, `release_lag_days`, revisable flag. FX `DEXKOUS` is one series.
 - `series_observation`: series, `ref_date`, `value` (`NUMERIC(24,8)` — raw indicator levels exceed `NUMERIC(12,8)`), `realtime_start` (ALFRED) or `available_on` (ECOS lag), `observed_at`, `vintage_no`, `job_run_id`.
+
+## 11. Season score and rating / 시즌 점수와 레이팅
+
+MVP-18 (Flyway V8; the number is final at merge) adds two append-only tables to the `public` schema: `season_score` holds one immutable score per finished season and `rating_history` one immutable rating per counted season. Both follow the common rules of 2. The formula is versioned (`score_version`, first value `s63-v1`), so a later formula writes new rows and never rewrites stored ones (D45). / MVP-18(Flyway V8, 번호는 머지 때 확정)은 `public` 스키마에 추가 전용 테이블 둘을 더한다: `season_score`는 끝난 시즌마다 불변 점수 한 행을, `rating_history`는 집계 시즌마다 불변 레이팅 한 행을 둔다. 둘 다 2절의 공통 규칙을 따른다. 공식은 버전(`score_version`, 첫 값 `s63-v1`)이 있어 나중 공식은 새 행을 쓰고 저장한 행을 다시 쓰지 않는다(D45).
+
+### 11.1 Relationship diagram / 관계도
+
+`season` and `member` are parents from other sections, so only their names are drawn. / `season`과 `member`는 다른 절의 부모라 이름만 그린다.
+
+```mermaid
+erDiagram
+    MEMBER ||..o{ SEASON : "R9"
+    SEASON ||--o| SEASON_SCORE : "R37"
+    MEMBER ||..o{ RATING_HISTORY : "R38"
+    SEASON_SCORE ||..o| RATING_HISTORY : "R39"
+```
+
+### 11.2 Relationship summary / 관계 요약
+
+| # | 부모 → 자식 | 카디널리티 | 선 | 근거 |
+|---|---|---|---|---|
+| R37 | `season` → `season_score` | 1 : 0..1 | 식별 `--` | `fk_season_score_season` is the composite FK `(season_id, member_id)` → `season (id, member_id)` (`uq_season_id_member`, D29 pattern), so the score row's member is always the season's member. The key is `season_id`. / 합성 FK라 점수 행의 회원은 늘 시즌의 회원이다. 키는 `season_id`다. |
+| R38 | `member` → `rating_history` | 1 : 0..N | 비식별 `..` | `fk_rating_history_member`. One row per counted season and pillar. / 집계 시즌·기둥마다 한 행. |
+| R39 | `season_score` → `rating_history` | 1 : 0..1 | 비식별 `..` | `fk_rating_history_score` (`season_id`, unique by `uq_rating_history_season`): a season is rated at most once and only after it is scored. / 한 시즌은 많아야 한 번, 점수가 난 뒤에만 레이팅된다. |
+
+### 11.3 Entity definitions / 엔티티 정의서
+
+The exposure tag (`[노출]`/`[내부]`) leads each comment. Every FK is `ON DELETE RESTRICT ON UPDATE RESTRICT` (2). Both tables are append-only: the application role may only SELECT and INSERT (`db/callback/afterMigrate.sql`), and the JPA entities are `@Immutable` with no setters. / 코멘트 맨 앞에 노출 태그를 둔다. 모든 FK는 `ON DELETE RESTRICT ON UPDATE RESTRICT`이다. 둘 다 추가 전용이다: 앱 역할은 SELECT와 INSERT만 하고, JPA 엔티티는 `@Immutable`이며 setter가 없다.
+
+#### Season score / 시즌 점수 (season_score)
+
+| 키 | 논리명 | 물리명 | 타입 | NULL | 기본값 | 코멘트 |
+| --- | --- | --- | --- | --- | --- | --- |
+| PK, FK | 시즌번호 | season_id | BIGINT | NN |  | `[내부]` → season.id (R37). `pk_season_score`; with `member_id` the composite FK `fk_season_score_season`. |
+| FK | 회원번호 | member_id | BIGINT | NN |  | `[내부]` Part of the composite FK (R37); `idx_season_score_member`. |
+|  | 점수 공식 버전 | score_version | VARCHAR(20) | NN |  | `[노출]` `ck_season_score_version`: `score_version <> ''`. First value `s63-v1`. |
+|  | 시즌 점수 | score | NUMERIC(5,2) | NULL |  | `[노출]` 0–100 (`ck_season_score_score`, with a NaN guard) = 0.5 × result + 0.5 × process, rounded once. NULL exactly when `result_score` is NULL (`ck_season_score_score_pair`). / 결과·과정 점수의 절반씩, 한 번 반올림. `result_score`가 NULL일 때만 NULL이다. |
+|  | 결과 점수 | result_score | NUMERIC(5,2) | NULL |  | `[노출]` 0–100 (`ck_season_score_result`) = 100 × the mid-rank percentile of the Sharpe difference among the engine paths. NULL when no path distribution exists. / 엔진 경로 안에서 샤프 차이가 차지하는 중간 순위 백분위의 100배. 경로 분포가 없으면 NULL. |
+|  | 과정 점수 | process_score | NUMERIC(5,2) | NN |  | `[노출]` 0–100 (`ck_season_score_process`) = the equal-weight mean of the item scores that have a value. |
+|  | 샤프 | sharpe | NUMERIC(14,8) | NN |  | `[노출]` Monthly, not annualised, risk-free rate 0; 0 when the deviation is 0. `ck_season_score_sharpe` rejects NaN for the three Sharpe columns. |
+|  | 기준선 샤프 | bench_sharpe | NUMERIC(14,8) | NN |  | `[노출]` The benchmark's Sharpe on the same base. |
+|  | 샤프 차이 | sharpe_diff | NUMERIC(14,8) | NN |  | `[노출]` `sharpe - bench_sharpe`, rounded once. |
+|  | 샤프 차이 경로 백분위 | sharpe_diff_percentile | NUMERIC(9,8) | NULL |  | `[노출]` 0–1 (`ck_season_score_diff_percentile`); NULL together with `result_score` and `luck_percentile` (`ck_season_score_percentile_pair`). |
+|  | 운 백분위 | luck_percentile | NUMERIC(9,8) | NULL |  | `[노출]` 0–1 (`ck_season_score_luck_percentile`): where the start team held unchanged ends on the season path among the engine paths. Shown, not scored. / 시작 팀을 그대로 보유했을 때 시즌 경로의 최종 값이 엔진 경로 안에서 차지하는 위치. 보여 주기만 하고 점수에 넣지 않는다. |
+|  | 위험 관리 점수 | risk_score | NUMERIC(5,2) | NULL |  | `[노출]` `ck_season_score_risk`: 0–100. |
+|  | 매매 규율 점수 | discipline_score | NUMERIC(5,2) | NULL |  | `[노출]` `ck_season_score_discipline`: 0–100. NULL until a feature measures discipline. / 규율을 재는 기능이 생길 때까지 NULL. |
+|  | 분산 점수 | diversification_score | NUMERIC(5,2) | NULL |  | `[노출]` `ck_season_score_diversification`: 0–100. |
+|  | 회전율 점수 | turnover_score | NUMERIC(5,2) | NULL |  | `[노출]` `ck_season_score_turnover`: 0–100. |
+|  | 일관성 점수 | consistency_score | NUMERIC(5,2) | NULL |  | `[노출]` `ck_season_score_consistency`: 0–100. NULL in `s63-v1` (no owner of per-turn projections yet). / `s63-v1`에서는 NULL(턴별 예상 분포를 맡은 기능이 아직 없다). |
+|  | 포메이션 준수 점수 | formation_score | NUMERIC(5,2) | NULL |  | `[노출]` `ck_season_score_formation`: 0–100. |
+|  | 역할 수행 점수 | role_score | NUMERIC(5,2) | NULL |  | `[노출]` `ck_season_score_role`: 0–100. |
+|  | 소음 반응 점수 | noise_score | NUMERIC(5,2) | NULL |  | `[노출]` `ck_season_score_noise`: 0–100. NULL until MVP-19. |
+|  | 넛지 의존 점수 | nudge_score | NUMERIC(5,2) | NULL |  | `[노출]` `ck_season_score_nudge`: 0–100. NULL when the season had no trades. / 매매가 없던 시즌이면 NULL. |
+|  | 값이 있는 과정 항목 수 | process_items | SMALLINT | NN |  | `[노출]` `ck_season_score_process_items`: 1–9 and equal to `num_nonnulls` of the nine item scores. |
+|  | 레이팅 제외 사유 | rating_exclusion | VARCHAR(11) | NULL |  | `[노출]` `ck_season_score_rating_exclusion`: `rating_exclusion IN ('NOT_STARTED','NO_SCORE')`; `ck_season_score_no_score`: `score IS NOT NULL OR rating_exclusion IS NOT NULL`; `ck_season_score_no_score_null`: a `NO_SCORE` row has no score. `NOT_STARTED` wins over `NO_SCORE`. AG-02 A5 adds `INVALID` in its own migration. / `NOT_STARTED`가 `NO_SCORE`보다 앞선다. `INVALID`는 AG-02 A5가 자기 마이그레이션에서 더한다. |
+|  | 계산 입력 | inputs | JSONB | NN |  | `[내부]` `ck_season_score_inputs`: `jsonb_typeof(inputs) = 'object'`. The values the score was computed from, for re-fitting and audits; never in a DTO. / 점수 계산에 쓴 값. 공식을 다시 맞추거나 감사할 때 쓰며 DTO에 나가지 않는다. |
+|  | 생성일시 | created_at | TIMESTAMPTZ | NN | now() | `[내부]` |
+
+#### Rating history / 레이팅 이력 (rating_history)
+
+| 키 | 논리명 | 물리명 | 타입 | NULL | 기본값 | 코멘트 |
+| --- | --- | --- | --- | --- | --- | --- |
+| PK | 이력번호 | id | BIGINT | NN | IDENTITY | `[내부]` `pk_rating_history` |
+| FK | 회원번호 | member_id | BIGINT | NN |  | `[내부]` → member.id (R38). `fk_rating_history_member`; the leading column of `uq_rating_history_member_pillar_seq`, so no extra index (2). |
+|  | 레이팅 기둥 | pillar | VARCHAR(10) | NN |  | `[노출]` `ck_rating_history_pillar`: `pillar IN ('MANAGER')`. One rating per pillar (PLAN §6.4); later pillars add values in their own migration. / 기둥마다 레이팅 하나. 뒤따르는 기둥은 자기 마이그레이션에서 값을 더한다. |
+|  | 집계 시즌 순번 | seq_no | INTEGER | NN |  | `[노출]` `ck_rating_history_seq_no`: `seq_no >= 1`; `uq_rating_history_member_pillar_seq`: `(member_id, pillar, seq_no)`. The member's counted seasons in finish order. |
+| FK | 시즌번호 | season_id | BIGINT | NN |  | `[내부]` → season_score.season_id (R39). `fk_rating_history_score`; `uq_rating_history_season`. |
+|  | 레이팅 | rating | NUMERIC(5,2) | NN |  | `[노출]` `ck_rating_history_rating`: 0–100 with a NaN guard. Weighted mean of the last five counted scores, weights 5·4·3·2·1 newest first. Stored from the first counted season, shown only where `seq_no >= 3`. / 집계한 점수 최근 다섯의 가중 평균(가중치 최근부터 5·4·3·2·1). 첫 집계 시즌부터 저장하고 `seq_no >= 3`일 때만 보인다. |
+|  | 평균에 쓴 시즌 수 | seasons_used | SMALLINT | NN |  | `[노출]` `ck_rating_history_used`: `seasons_used BETWEEN 1 AND 5 AND seasons_used = LEAST(seq_no, 5)`. |
+|  | 생성일시 | created_at | TIMESTAMPTZ | NN | now() | `[내부]` |
+
+### 11.4 Constraints and indexes / 제약과 인덱스
+
+Notation follows 6.4 (표기는 6.4와 같다). `ScoreSchemaCatalogTest` compares this list with `pg_catalog`, and `ScoreConstraintTest` breaks each rule once. / `ScoreSchemaCatalogTest`가 이 목록을 `pg_catalog`와 대조하고 `ScoreConstraintTest`가 규칙마다 한 번씩 깬다.
+
+| 이름 | 종류 | 테이블 | 정의 |
+|---|---|---|---|
+| pk_season_score | PK | season_score | (season_id) |
+| fk_season_score_season | FK | season_score | (season_id, member_id) → season (id, member_id) (R37) |
+| idx_season_score_member | IDX | season_score | (member_id) |
+| ck_season_score_version | CK | season_score | score_version <> '' |
+| ck_season_score_score | CK | season_score | score IS NULL OR (score >= 0 AND score <= 100 AND score <> 'NaN'::numeric) |
+| ck_season_score_result | CK | season_score | result_score IS NULL OR (result_score >= 0 AND result_score <= 100 AND result_score <> 'NaN'::numeric) |
+| ck_season_score_process | CK | season_score | process_score >= 0 AND process_score <= 100 AND process_score <> 'NaN'::numeric |
+| ck_season_score_score_pair | CK | season_score | (score IS NULL) = (result_score IS NULL) |
+| ck_season_score_sharpe | CK | season_score | sharpe, bench_sharpe and sharpe_diff are not 'NaN' |
+| ck_season_score_diff_percentile | CK | season_score | sharpe_diff_percentile IS NULL OR 0 <= value <= 1 (not NaN) |
+| ck_season_score_luck_percentile | CK | season_score | luck_percentile IS NULL OR 0 <= value <= 1 (not NaN) |
+| ck_season_score_percentile_pair | CK | season_score | (sharpe_diff_percentile IS NULL) = (luck_percentile IS NULL) AND (sharpe_diff_percentile IS NULL) = (result_score IS NULL) |
+| ck_season_score_risk … ck_season_score_nudge (9) | CK | season_score | one per item column (`ck_season_score_risk`, `_discipline`, `_diversification`, `_turnover`, `_consistency`, `_formation`, `_role`, `_noise`, `_nudge`): value IS NULL OR 0 <= value <= 100 (not NaN) |
+| ck_season_score_process_items | CK | season_score | process_items BETWEEN 1 AND 9 AND process_items = num_nonnulls(the nine item scores) |
+| ck_season_score_rating_exclusion | CK | season_score | rating_exclusion IN ('NOT_STARTED','NO_SCORE') |
+| ck_season_score_no_score | CK | season_score | score IS NOT NULL OR rating_exclusion IS NOT NULL |
+| ck_season_score_no_score_null | CK | season_score | rating_exclusion IS DISTINCT FROM 'NO_SCORE' OR score IS NULL |
+| ck_season_score_inputs | CK | season_score | jsonb_typeof(inputs) = 'object' |
+| pk_rating_history | PK | rating_history | (id) |
+| uq_rating_history_member_pillar_seq | UQ | rating_history | (member_id, pillar, seq_no) |
+| uq_rating_history_season | UQ | rating_history | (season_id) |
+| fk_rating_history_member | FK | rating_history | (member_id) → member.id (R38) |
+| fk_rating_history_score | FK | rating_history | (season_id) → season_score.season_id (R39) |
+| ck_rating_history_pillar | CK | rating_history | pillar IN ('MANAGER') |
+| ck_rating_history_seq_no | CK | rating_history | seq_no >= 1 |
+| ck_rating_history_rating | CK | rating_history | rating >= 0 AND rating <= 100 AND rating <> 'NaN'::numeric |
+| ck_rating_history_used | CK | rating_history | seasons_used BETWEEN 1 AND 5 AND seasons_used = LEAST(seq_no, 5) |
+
+**Counts / 개수:**
+
+| 테이블 | PK | UNIQUE(제약) | UNIQUE 인덱스(`uq_`) | FK | CHECK | INDEX(`idx_`) |
+|---|---|---|---|---|---|---|
+| season_score | 1 | 0 | 0 | 1 | 23 | 1 |
+| rating_history | 1 | 2 | 0 | 2 | 4 | 0 |
+| **§11 소계** | **2** | **2** | **0** | **3** | **27** | **1** |
+
+### 11.5 Rules DDL cannot enforce / DDL로 막지 못해 검사할 규칙
+
+A `CHECK` sees one row only. The writer (MVP-18 PR B) keeps these rules and its tests check them. / `CHECK`는 한 행 안만 본다. 아래 규칙은 쓰는 쪽(MVP-18 PR B)이 지키고 그 시험이 검사한다.
+
+| # | 규칙 | 검사하는 기능 |
+|---|---|---|
+| S1 | A `season_score` row exists only for a `FINISHED` season. / `season_score` 행은 `FINISHED` 시즌에만 있다. | MVP-18 PR B |
+| S3 | A rating row's `member_id` is its score row's member. / 레이팅 행의 `member_id`는 점수 행의 회원이다. | MVP-18 PR B |
+| S4 | `seq_no` is contiguous per (member, pillar) and follows the finish order of the counted seasons (the finish time of the last turn, then the season id). / `seq_no`는 (회원, 기둥)마다 빈틈이 없고 집계 시즌의 끝난 순서를 따른다(마지막 턴의 기록 시각, 그다음 시즌 번호). | MVP-18 PR B |
+| S5 | A score row with a `rating_exclusion` has no rating row; a row without one has exactly one. / 제외 사유가 있는 점수 행에는 레이팅 행이 없고, 없는 행에는 정확히 하나 있다. | MVP-18 PR B |
+| S6 | `rating_history.rating` equals the weighted mean of the member's last `seasons_used` counted scores (`RatingCalculator`). / `rating_history.rating`은 회원의 집계 점수 최근 `seasons_used`개의 가중 평균과 같다. | MVP-18 PR B |
