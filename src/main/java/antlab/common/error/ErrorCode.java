@@ -57,5 +57,7 @@ public enum ErrorCode {
     /** The request has no valid credentials; answered by the security layer. */
     UNAUTHENTICATED,
     /** Login: the email or password does not match; the same answer whichever is wrong. */
-    INVALID_CREDENTIALS
+    INVALID_CREDENTIALS,
+    /** The agent is retired and cannot start a season (agent runner). */
+    AGENT_RETIRED
 }

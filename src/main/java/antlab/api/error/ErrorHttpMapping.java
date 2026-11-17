@@ -44,6 +44,7 @@ public final class ErrorHttpMapping {
             case EMAIL_TAKEN -> HttpStatus.CONFLICT;
             case UNAUTHENTICATED -> HttpStatus.UNAUTHORIZED;
             case INVALID_CREDENTIALS -> HttpStatus.UNAUTHORIZED;
+            case AGENT_RETIRED -> HttpStatus.CONFLICT;
         };
     }
 

@@ -172,7 +172,8 @@ class SecretHygieneTest {
     @Test
     void env_예시는_비밀값을_비워_둔다() throws IOException {
         List<String> lines = Files.readAllLines(Path.of(".env.example"));
-        for (String name : List.of("ANTLAB_JWT_SECRET", "GF_SECURITY_ADMIN_PASSWORD")) {
+        for (String name : List.of("ANTLAB_JWT_SECRET", "GF_SECURITY_ADMIN_PASSWORD", "ANTLAB_AGENT_RUNNER_TOKEN",
+                "ANTLAB_AGENT_RUNNER_OWNER_ID")) {
             assertThat(lines).as(name).contains(name + "=");
             assertThat(lines).filteredOn(l -> l.startsWith(name + "=")).containsOnly(name + "=");
         }

@@ -55,6 +55,12 @@ antlab:
     jwt-secret: ${ANTLAB_JWT_SECRET:}
     access-token-ttl: PT15M
     refresh-token-ttl: P14D
+  # Agent runner service (AG-02). Neither value has a default: without a token of at least 32 characters and an owner
+  # member id, every runner request answers 401. Generate the token with: openssl rand -hex 32
+  agent-runner:
+    token: ${ANTLAB_AGENT_RUNNER_TOKEN:}
+    owner-member-id: ${ANTLAB_AGENT_RUNNER_OWNER_ID:}
+    max-seasons-per-week: 5
   # KIS quote client (M1-06): quote lookup only, off by default. Keys come from the environment, never from this file.
   # token-cache-dir shares the token file with tools/fetch (data/cache/kis); empty keeps the token in memory.
   collect:

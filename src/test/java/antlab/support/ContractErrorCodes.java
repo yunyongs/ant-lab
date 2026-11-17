@@ -66,10 +66,25 @@ public final class ContractErrorCodes {
         return perOp.contains(code) || framework(doc).getOrDefault(status, List.of()).contains(code);
     }
 
-    /** Every problem in the error layer; empty when the contract is consistent with {@link ErrorHttpMapping}. */
-    public static List<String> violations(JsonNode doc) {
+    /**
+     * Every problem in the error layer of the given contract files taken together; empty when they are consistent with
+     * {@link ErrorHttpMapping}. A code listed in any one file counts as listed.
+     */
+    public static List<String> violations(JsonNode... docs) {
         List<String> out = new ArrayList<>();
         Set<String> listed = new TreeSet<>();
+        for (JsonNode doc : docs) {
+            collect(doc, listed, out);
+        }
+        for (ErrorCode code : ErrorCode.values()) {
+            if (!UNLISTED_ALLOWED.contains(code) && !listed.contains(code.name())) {
+                out.add("ErrorCode " + code + " is not listed in any x-error-codes or x-framework-errors");
+            }
+        }
+        return out;
+    }
+
+    private static void collect(JsonNode doc, Set<String> listed, List<String> out) {
         for (Map.Entry<String, JsonNode> path : doc.path("paths").properties()) {
             for (Map.Entry<String, JsonNode> op : path.getValue().properties()) {
                 for (Map.Entry<String, JsonNode> response : op.getValue().path("responses").properties()) {
@@ -92,12 +107,6 @@ public final class ContractErrorCodes {
                 listed.addAll(codes);
             }
         }
-        for (ErrorCode code : ErrorCode.values()) {
-            if (!UNLISTED_ALLOWED.contains(code) && !listed.contains(code.name())) {
-                out.add("ErrorCode " + code + " is not listed in any x-error-codes or x-framework-errors");
-            }
-        }
-        return out;
     }
 
     private static void checkResponse(String where, int status, JsonNode response, JsonNode list, Set<String> listed,
