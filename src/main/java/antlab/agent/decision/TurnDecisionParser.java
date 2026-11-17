@@ -147,29 +147,37 @@ public final class TurnDecisionParser {
         if (node.has("position")) {
             position = enumValue(node.get("position"), at + "/position", Position.class);
         }
-        OrderSource source = source(node.get("source"), at + "/source");
-        return new TurnDecision.OrderProposal(asset, side, quantity, position, source);
+        SourceRef source = source(node.get("source"), at + "/source");
+        return new TurnDecision.OrderProposal(asset, side, quantity, position, source.kind(), source.feedSeq());
     }
 
-    private OrderSource source(JsonNode node, String at) {
+    /** The origin of one order as sent; {@code ranking_rank} is validated but not kept (the board check uses the asset). */
+    private record SourceRef(OrderSource kind, Integer feedSeq) {
+    }
+
+    private SourceRef source(JsonNode node, String at) {
         if (node == null) {
-            return null;
+            return new SourceRef(null, null);
         }
         if (!node.isObject()) {
             violate(at, "type");
-            return null;
+            return new SourceRef(null, null);
         }
         unknownKeys(node, SOURCE, at);
         if (!node.has("kind")) {
             violate(at + "/kind", "required");
         }
         OrderSource kind = enumValue(node.get("kind"), at + "/kind", OrderSource.class);
+        Integer feedSeq = null;
         for (String key : List.of("feed_seq", "ranking_rank")) {
             if (node.has(key)) {
-                integer(node.get(key), at + "/" + key, false);
+                int value = integer(node.get(key), at + "/" + key, false);
+                if (key.equals("feed_seq")) {
+                    feedSeq = value;
+                }
             }
         }
-        return kind;
+        return new SourceRef(kind, feedSeq);
     }
 
     private int theses(JsonNode node) {

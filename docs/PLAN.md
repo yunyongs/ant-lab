@@ -526,7 +526,7 @@ default_formation: [10, 30, 30, 30]
 }
 ```
 
-`asset`은 "시장:티커"다(풀의 `asset`을 가리킨다). `formation_change`는 null일 수 있고 `orders`는 빈 배열일 수 있다(매매 없이 넘김). `source.kind`는 `orders.source`의 값(`RANKING`·`FEED`·`ALERT`·`BENCH`·`DIRECT`)과 같고, `FEED`·`ALERT`는 그 턴에 보인 항목의 `seq`가 있어야 한다. `theses`는 전망 모드에서 §4.9 형식(주장·수치·기한·범주)이다. `orders.source`에 `AGENT` 값은 **넣지 않는다** — `source`는 주문의 출발점이고 "누가"는 시즌의 참가자 종류가 이미 안다. `AGENT`를 넣으면 출발점이 사라져 에이전트의 독려 반응·소음 반응(§6.2)을 잴 수 없다. 에이전트의 출발점은 모델의 자기 보고다. 그래서 독려·소음 반응을 사람과 비교할 때의 한계는 AG-06에서 검사하고, 출발점과 별개로 주문을 그 턴 피드·랭킹·가격 방향과 대조한 지표도 함께 본다. `RANKING`은 주문 종목이 그 턴 랭킹 보드에 있었는지로 검사한다. 에이전트 입력에는 벤치가 없으므로 `BENCH`는 거부한다(벤치를 입력에 넣을지는 APP 뒤 결정).
+`asset`은 "시장:티커"다(풀의 `asset`을 가리킨다). `formation_change`는 null일 수 있고 `orders`는 빈 배열일 수 있다(매매 없이 넘김). `source.kind`는 `orders.source`의 값(`RANKING`·`FEED`·`ALERT`·`BENCH`·`DIRECT`)과 같고, `FEED`·`ALERT`는 그 턴에 보인 항목의 `seq`가 있어야 한다. An agent refers to this turn's items only; a missing `feed_seq` rejects that order unit (`SOURCE_NOT_VISIBLE`), and `ranking_rank` is not used for the check. / 에이전트는 이번 턴의 항목만 가리킬 수 있다. `feed_seq`가 없으면 그 주문 단위만 거절하고(`SOURCE_NOT_VISIBLE`), `ranking_rank`는 검사에 쓰지 않는다. `theses`는 전망 모드에서 §4.9 형식(주장·수치·기한·범주)이다. `orders.source`에 `AGENT` 값은 **넣지 않는다** — `source`는 주문의 출발점이고 "누가"는 시즌의 참가자 종류가 이미 안다. `AGENT`를 넣으면 출발점이 사라져 에이전트의 독려 반응·소음 반응(§6.2)을 잴 수 없다. 에이전트의 출발점은 모델의 자기 보고다. 그래서 독려·소음 반응을 사람과 비교할 때의 한계는 AG-06에서 검사하고, 출발점과 별개로 주문을 그 턴 피드·랭킹·가격 방향과 대조한 지표도 함께 본다. `RANKING`은 주문 종목이 그 턴 랭킹 보드에 있었는지로 검사한다. 에이전트 입력에는 벤치가 없으므로 `BENCH`는 거부한다(벤치를 입력에 넣을지는 APP 뒤 결정).
 
 **실패·거부·시간 초과.**
 
