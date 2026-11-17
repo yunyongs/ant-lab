@@ -19,6 +19,9 @@ class DbPrivilegeGuardTest {
 
     private static final RoleTestServer SERVER = RoleTestServer.scripts();
 
+    private static final String TABLE_RIGHT =
+            "the DB user holds DELETE, TRUNCATE, REFERENCES, TRIGGER or MAINTAIN on a table in schema public";
+
     private static List<String> violations(RoleTestServer.Db db, String user) {
         return DbPrivilegeGuard.violations(db.as(user), "antlab_owner");
     }
@@ -50,7 +53,8 @@ class DbPrivilegeGuardTest {
         try (var db = prepared("g3")) {
             assertThat(violations(db, "antlab_owner")).contains("the DB user owns relations in schema public",
                     "the DB user owns schema public", "the DB user can create objects in schema public",
-                    "the DB user is, or is a member of, the Flyway user (antlab_owner)");
+                    "the DB user is, or is a member of, the Flyway user (antlab_owner)", TABLE_RIGHT,
+                    "the DB user has rights on flyway_schema_history");
         }
     }
 
@@ -90,7 +94,99 @@ class DbPrivilegeGuardTest {
         try (var db = prepared("g7")) {
             db.superuserExecute("ALTER TABLE member OWNER TO antlab_app");
 
+            assertThat(violations(db, "antlab_app")).containsExactly("the DB user owns relations in schema public",
+                    TABLE_RIGHT);
+        }
+    }
+
+    @Test
+    void ownershipOfASequenceOrAViewAloneIsRefused() throws SQLException {
+        try (var db = prepared("g7s")) {
+            db.superuserExecute("CREATE SEQUENCE probe_seq");
+            db.superuserExecute("ALTER SEQUENCE probe_seq OWNER TO antlab_app");
+
             assertThat(violations(db, "antlab_app")).containsExactly("the DB user owns relations in schema public");
+        }
+        try (var db = prepared("g7v")) {
+            db.superuserExecute("CREATE VIEW probe_view AS SELECT 1 AS i");
+            db.superuserExecute("ALTER VIEW probe_view OWNER TO antlab_app");
+
+            // The owner of a view holds DELETE on it, which the table-right check now also reports.
+            assertThat(violations(db, "antlab_app")).containsExactly("the DB user owns relations in schema public",
+                    TABLE_RIGHT);
+        }
+    }
+
+    @Test
+    void aHandGrantedDeleteOnATableIsRefusedEvenForAnotherAppRoleName() throws SQLException {
+        try (var db = prepared("g13")) {
+            db.superuserExecute("GRANT DELETE ON holding TO antlab_app");
+
+            assertThat(violations(db, "antlab_app")).containsExactly(TABLE_RIGHT);
+        }
+        try (var db = prepared("g13b")) {
+            db.superuserExecute("CREATE ROLE legacy_app LOGIN PASSWORD '" + RoleTestServer.PASSWORD + "'");
+            db.superuserExecute("GRANT USAGE ON SCHEMA public TO legacy_app");
+            db.superuserExecute("GRANT ALL ON ALL TABLES IN SCHEMA public TO legacy_app");
+
+            assertThat(violations(db, "legacy_app")).containsExactly(TABLE_RIGHT,
+                    "the DB user has rights on flyway_schema_history");
+        } finally {
+            SERVER.execute(SERVER.container().getDatabaseName(), "DROP ROLE IF EXISTS legacy_app");
+        }
+    }
+
+    @Test
+    void everyForbiddenTableRightIsRefusedOnItsOwn() throws SQLException {
+        for (String right : List.of("DELETE", "TRUNCATE", "REFERENCES", "TRIGGER", "MAINTAIN")) {
+            try (var db = prepared("g14")) {
+                db.superuserExecute("GRANT " + right + " ON asset TO antlab_app");
+
+                assertThat(violations(db, "antlab_app")).as(right).containsExactly(TABLE_RIGHT);
+            }
+        }
+    }
+
+    @Test
+    void aDeleteRightOnAViewIsRefused() throws SQLException {
+        try (var db = prepared("g18")) {
+            db.superuserExecute("CREATE VIEW v_ledger AS SELECT * FROM cash_ledger");
+            db.superuserExecute("GRANT DELETE, SELECT ON v_ledger TO antlab_app");
+
+            assertThat(violations(db, "antlab_app")).containsExactly(TABLE_RIGHT);
+        }
+    }
+
+    @Test
+    void membershipOfAWriteAllDataRoleIsRefused() throws SQLException {
+        try (var db = prepared("g15")) {
+            db.superuserExecute("GRANT pg_write_all_data TO antlab_app");
+
+            assertThat(violations(db, "antlab_app")).containsExactly(TABLE_RIGHT,
+                    "the DB user has rights on flyway_schema_history");
+        }
+    }
+
+    @Test
+    void anyRightOnTheMigrationHistoryIsRefused() throws SQLException {
+        try (var db = prepared("g16")) {
+            db.superuserExecute("GRANT SELECT ON flyway_schema_history TO antlab_app");
+
+            assertThat(violations(db, "antlab_app")).containsExactly("the DB user has rights on flyway_schema_history");
+        }
+        try (var db = prepared("g16b")) {
+            db.superuserExecute("GRANT pg_read_all_data TO antlab_app");
+
+            assertThat(violations(db, "antlab_app")).containsExactly("the DB user has rights on flyway_schema_history");
+        }
+    }
+
+    @Test
+    void aDatabaseWithoutTheMigrationHistoryDoesNotBreakTheCheck() throws SQLException {
+        try (var db = prepared("g17")) {
+            db.superuserExecute("DROP TABLE flyway_schema_history");
+
+            assertThat(violations(db, "antlab_app")).isEmpty();
         }
     }
 

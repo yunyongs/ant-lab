@@ -60,7 +60,7 @@ class RoleScriptTest {
                     Map.of("rolname", "antlab_app", "rolcanlogin", true, "rolsuper", false, "rolcreatedb", false,
                             "rolcreaterole", false, "rolreplication", false, "rolbypassrls", false, "rolconnlimit", 20),
                     Map.of("rolname", "antlab_owner", "rolcanlogin", true, "rolsuper", false, "rolcreatedb", false,
-                            "rolcreaterole", false, "rolreplication", false, "rolbypassrls", false, "rolconnlimit", 3));
+                            "rolcreaterole", false, "rolreplication", false, "rolbypassrls", false, "rolconnlimit", 5));
             assertThat(jdbc.queryForList("""
                     SELECT setrole::regrole::text || ' ' || array_to_string(setconfig, ',') FROM pg_db_role_setting
                     WHERE setrole IN (SELECT oid FROM pg_roles WHERE rolname LIKE 'antlab\\_%') ORDER BY 1""", String.class))
