@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { MAX_ROUTE_ID, parseWholeNumber } from '../features/format/integer.ts';
 import { FeedSection } from '../features/feed/FeedSection.tsx';
+import { RankingSection } from '../features/ranking/RankingSection.tsx';
 import { QueryError } from '../features/seasons/QueryError.tsx';
 import { useSeason } from '../features/seasons/queries.ts';
 import { useTurn } from '../features/turn/queries.ts';
@@ -97,6 +98,13 @@ export function TurnPage() {
               items={turn.data.feed}
               season={season.data}
               onNotice={setNotice}
+            />
+          )}
+          {turn.data && (
+            <RankingSection
+              seasonId={season.data.id}
+              turnNo={k}
+              currentTurnNo={season.data.currentTurnNo}
             />
           )}
           <nav aria-label="턴 이동" className={turnStyles.links}>

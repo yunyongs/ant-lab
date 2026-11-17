@@ -14,11 +14,14 @@ import { parseWholeNumber } from '../features/format/integer.ts';
 import { problem } from '../test/authHandlers.ts';
 import { feedOfTurn } from '../test/fixtures/feed.ts';
 import { renderRoute } from '../test/renderWithProviders.tsx';
+import { rankingFixture } from '../test/fixtures/ranking.ts';
 import { serveFeedWorld } from '../test/serveFeed.ts';
 import { server } from '../test/server.ts';
 import { serveReport } from '../test/serveReport.ts';
 import { serveProjection } from '../test/serveProjection.ts';
 import { serveReview } from '../test/serveReview.ts';
+import { serveTurnWorld } from '../test/serveTurns.ts';
+import { settle } from '../test/settle.ts';
 
 // Real dates exist on exactly one screen: the review of a finished season.
 describe('reveal boundary', () => {
@@ -105,6 +108,24 @@ describe('reveal boundary', () => {
     expect(world.turnGets.every((n) => n <= 3)).toBe(true);
     expect(world.turnGets).toContain(3);
     expect(reviewGets).toBe(0);
+  });
+
+  it('keeps a non-empty ranking board free of dates and of any later-turn request', async () => {
+    const world = serveTurnWorld({ current: 3 });
+    world.ranking = (turnNo) => rankingFixture(turnNo);
+    const { router, container, queryClient } = renderRoute('/seasons/7');
+    await screen.findByRole('region', { name: '순위' });
+    await screen.findByText('종목 나');
+    expectNoDatePattern(container);
+    for (const path of ['/seasons/7/turns/2', '/seasons/7/turns/4']) {
+      await act(async () => {
+        await router.navigate(path);
+      });
+      await settle(queryClient);
+      expectNoDatePattern(container);
+    }
+    expect(world.rankingGets).toContain(3);
+    expect(world.rankingGets.every((n) => n <= 3)).toBe(true);
   });
 
   it('P12: the projection page of a running season asks for no review and no later turn', async () => {
