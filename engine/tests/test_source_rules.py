@@ -344,3 +344,86 @@ def test_x3_bootstrap_does_not_import_history():
         if name.startswith("bootstrap/")
     }
     assert {n: found for n, found in imports.items() if found} == {}
+
+
+REGIME_DIR = SRC / "regime"
+REGIME_ALLOWED_IMPORTS = {
+    "__future__",
+    "bisect",
+    "collections",
+    "dataclasses",
+    "datetime",
+    "decimal",
+    "enum",
+    "math",
+    "numpy",
+    "statistics",
+    "types",
+    "typing",
+    "antlab_engine",
+}
+REGIME_ALLOWED_FIRST_PARTY = {"antlab_engine.regime", "antlab_engine.engine_errors"}
+REGIME_BLOCKED = ("fastapi", "starlette", "pydantic", "psycopg", "pandas")
+
+
+def regime_sources() -> dict[str, str]:
+    return {
+        str(p.relative_to(SRC)): p.read_text(encoding="utf-8") for p in REGIME_DIR.rglob("*.py")
+    }
+
+
+def regime_disallowed_imports(text: str) -> set[str]:
+    bad = set()
+    for module in imported_modules(text):
+        first_party = module.startswith("antlab_engine")
+        allowed_first_party = any(
+            module == ok or module.startswith(ok + ".") for ok in REGIME_ALLOWED_FIRST_PARTY
+        )
+        if module.split(".")[0] not in REGIME_ALLOWED_IMPORTS or (
+            first_party and not allowed_first_party
+        ):
+            bad.add(module)
+    return bad
+
+
+def test_regime_scanner_flags_outside_imports():
+    assert regime_disallowed_imports("import numpy\nimport pandas\nimport os\n") == {"pandas", "os"}
+    assert regime_disallowed_imports("from antlab_engine.history import model\n") == {
+        "antlab_engine.history"
+    }
+    assert regime_disallowed_imports("from antlab_engine.regime import model\n") == set()
+
+
+def test_regime_imports_only_numpy_and_the_standard_library():
+    texts = regime_sources()
+    assert texts.keys() >= {
+        "regime/model.py",
+        "regime/catalog.py",
+        "regime/pit.py",
+        "regime/transforms.py",
+        "regime/zscore.py",
+        "regime/stale.py",
+    }
+    found = {n: regime_disallowed_imports(t) for n, t in texts.items()}
+    assert {n: bad for n, bad in found.items() if bad} == {}
+
+
+def test_regime_reads_no_clock_and_has_no_random_or_output():
+    texts = regime_sources()
+    assert {n: find(CLOCK_CALL, t) for n, t in texts.items() if find(CLOCK_CALL, t)} == {}
+    assert {n: output_uses(t) for n, t in texts.items() if output_uses(t)} == {}
+    assert [n for n, t in texts.items() if "numpy.random" in t or "np.random" in t] == []
+
+
+def test_regime_imports_without_the_web_stack_database_or_pandas():
+    blocked = ", ".join(repr(name) for name in REGIME_BLOCKED)
+    code = (
+        "import sys\n"
+        f"for name in ({blocked}):\n"
+        "    sys.modules[name] = None\n"
+        "import antlab_engine.regime\n"
+    )
+    result = subprocess.run(  # noqa: S603
+        [sys.executable, "-I", "-c", code], capture_output=True, text=True, check=False
+    )
+    assert result.returncode == 0, result.stderr
