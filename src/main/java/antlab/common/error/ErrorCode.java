@@ -36,6 +36,8 @@ public enum ErrorCode {
     LINEUP_MISMATCH,
     /** 현재 턴 가격 목록(풀)에 없는 종목이다(P0-31). */
     ASSET_NOT_IN_POOL,
+    /** The order names an origin (feed item, alert or ranking) that was not shown to this season at or before the current turn (MVP-13). */
+    SOURCE_NOT_VISIBLE,
     /** 대금과 수수료를 낼 현금이 모자란다(P0-31). */
     INSUFFICIENT_CASH,
     /** 보유 수량보다 많이 팔려 하거나 보유가 없다(P0-36). */

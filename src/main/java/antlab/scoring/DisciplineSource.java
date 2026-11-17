@@ -8,5 +8,5 @@ import java.util.Optional;
  */
 public interface DisciplineSource {
 
-    Optional<DisciplineFacts> of(long seasonId);
+    Optional<DisciplineRatios> of(long seasonId);
 }

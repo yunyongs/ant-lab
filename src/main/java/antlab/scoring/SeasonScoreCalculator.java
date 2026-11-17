@@ -83,7 +83,7 @@ public final class SeasonScoreCalculator {
     }
 
     /** 100 x (1 - mean of the measured panic-sell and chase-buy ratios). */
-    private static BigDecimal discipline(DisciplineFacts facts) {
+    private static BigDecimal discipline(DisciplineRatios facts) {
         if (facts == null) {
             return null;
         }

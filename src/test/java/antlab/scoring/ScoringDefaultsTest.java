@@ -32,7 +32,7 @@ class ScoringDefaultsTest {
     static class RealSource {
         @Bean
         DisciplineSource real() {
-            return seasonId -> Optional.of(new DisciplineFacts(null, null));
+            return seasonId -> Optional.of(new DisciplineRatios(null, null));
         }
     }
 }

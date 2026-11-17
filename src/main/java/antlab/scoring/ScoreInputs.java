@@ -35,7 +35,7 @@ public record ScoreInputs(
         BigDecimal formationDeviation,
         BigDecimal roleFit,
         BigDecimal nudgeShare,
-        DisciplineFacts discipline,
+        DisciplineRatios discipline,
         RankCounts sharpeDiffCounts,
         RankCounts endMultipleCounts) {
 }

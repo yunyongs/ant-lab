@@ -54,7 +54,7 @@ class SeasonScoreCalculatorTest {
         BigDecimal formation = d("0.10");
         BigDecimal role = d("0.6");
         BigDecimal nudge = d("0.25");
-        DisciplineFacts discipline = new DisciplineFacts(d("0.2"), d("0.4"));
+        DisciplineRatios discipline = new DisciplineRatios(d("0.2"), d("0.4"));
         RankCounts diffCounts = new RankCounts(1200, 100, 2000);
         RankCounts endCounts = new RankCounts(900, 0, 2000);
 
@@ -178,9 +178,9 @@ class SeasonScoreCalculatorTest {
     @Test
     void discipline_averages_only_the_measured_ratios() {
         Builder oneRatio = fixture();
-        oneRatio.discipline = new DisciplineFacts(d("0.5"), null);
+        oneRatio.discipline = new DisciplineRatios(d("0.5"), null);
         Builder neither = fixture();
-        neither.discipline = new DisciplineFacts(null, null);
+        neither.discipline = new DisciplineRatios(null, null);
 
         assertThat(oneRatio.run().disciplineScore()).isEqualByComparingTo("50.00");
         assertThat(neither.run().disciplineScore()).isNull();
@@ -348,7 +348,7 @@ class SeasonScoreCalculatorTest {
 
     @Test
     void discipline_ratios_outside_zero_to_one_are_refused() {
-        assertThatThrownBy(() -> new DisciplineFacts(d("1.1"), null)).isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> new DisciplineFacts(null, d("-0.1"))).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new DisciplineRatios(d("1.1"), null)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new DisciplineRatios(null, d("-0.1"))).isInstanceOf(IllegalArgumentException.class);
     }
 }

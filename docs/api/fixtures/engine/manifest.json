@@ -1,0 +1,13 @@
+{
+  "note": "Engine POST /v1/percentiles fixtures. engine/tests/test_percentile_fixtures.py reads them with the engine models and docs/api/engine.yaml; the Spring client tests (MVP-18 PR B) read the same files. Valid entries must pass the engine.yaml schema and the engine model. Invalid entries must fail the engine model; the response fixture that breaks `below + equal <= n` is valid against the schema (a JSON schema cannot express it), so a client rejects it by its own check.",
+  "files": [
+    {"file": "percentile-request.json", "kind": "request", "valid": true},
+    {"file": "percentile-response.json", "kind": "response", "status": 200, "valid": true},
+    {"file": "percentile-response-edge.json", "kind": "response", "status": 200, "valid": true},
+    {"file": "bad-percentile-request-number.json", "kind": "request", "valid": false},
+    {"file": "bad-percentile-request-horizon-36.json", "kind": "request", "valid": false},
+    {"file": "bad-percentile-response-overcount.json", "kind": "response", "status": 200, "valid": false},
+    {"file": "bad-percentile-response-fraction.json", "kind": "response", "status": 200, "valid": false},
+    {"file": "bad-percentile-response-n-zero.json", "kind": "response", "status": 200, "valid": false}
+  ]
+}
