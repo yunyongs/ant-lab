@@ -1,7 +1,10 @@
 package antlab.api.dev;
 
+import antlab.observability.GameMetrics;
 import antlab.scoring.ManualReconciliationDto;
 import antlab.scoring.ManualReconciliationService;
+import antlab.season.DevResumeDto;
+import antlab.season.SeasonResumeService;
 import io.swagger.v3.oas.annotations.Hidden;
 import org.springframework.context.annotation.Profile;
 import org.springframework.http.MediaType;
@@ -28,9 +31,14 @@ public class DevReconciliationController {
     public static final String DEV_HEADER_VALUE = "true";
 
     private final ManualReconciliationService manual;
+    private final SeasonResumeService resumes;
+    private final GameMetrics metrics;
 
-    public DevReconciliationController(ManualReconciliationService manual) {
+    public DevReconciliationController(ManualReconciliationService manual, SeasonResumeService resumes,
+            GameMetrics metrics) {
         this.manual = manual;
+        this.resumes = resumes;
+        this.metrics = metrics;
     }
 
     @PostMapping(value = "/api/v1/dev/seasons/{seasonId}/reconciliation", produces = MediaType.APPLICATION_JSON_VALUE)
@@ -40,5 +48,22 @@ public class DevReconciliationController {
             throw new DomainException(ErrorCode.FORBIDDEN, "개발용 헤더가 없다");
         }
         return manual.run(seasonId);
+    }
+
+    /**
+     * Resumes a season halted by repeated reconciliation failures (MVP-15). Idempotent: a season that is not halted is left
+     * as it is and answers {@code resumed: false}. The counter is incremented here, after the service transaction committed.
+     */
+    @PostMapping(value = "/api/v1/dev/seasons/{seasonId}/reconciliation/resume", produces = MediaType.APPLICATION_JSON_VALUE)
+    public DevResumeDto resume(@PathVariable Long seasonId,
+            @RequestHeader(value = DEV_HEADER, required = false) String devHeader) {
+        if (!DEV_HEADER_VALUE.equals(devHeader)) {
+            throw new DomainException(ErrorCode.FORBIDDEN, "개발용 헤더가 없다");
+        }
+        DevResumeDto result = resumes.resume(seasonId);
+        if (result.resumed()) {
+            metrics.seasonResumed();
+        }
+        return result;
     }
 }

@@ -225,7 +225,8 @@ class AgentRunnerSchemaParityTest {
                 .path("x-error-codes"))).containsExactlyInAnyOrder("TURN_MISMATCH", "SEASON_NOT_ACTIVE", "DECISION_CONFLICT",
                 "LEDGER_MISMATCH", "LINEUP_MISMATCH", "INVALID_FORMATION", "EVENT_TIME_CONFLICT");
         assertThat(names(paths.path(turn).path("post").path("responses").path("409").path("x-error-codes")))
-                .containsExactlyInAnyOrder("SEASON_NOT_ACTIVE", "TURN_MISMATCH", "RECONCILIATION_FAILED", "DECISION_MISSING");
+                .containsExactlyInAnyOrder("SEASON_NOT_ACTIVE", "SEASON_HALTED", "TURN_MISMATCH", "RECONCILIATION_FAILED",
+                        "DECISION_MISSING");
         assertThat(names(paths.path(turn + "/{turnNo}/calls").path("post").path("responses").path("409").path("x-error-codes")))
                 .containsExactlyInAnyOrder("SEASON_NOT_ACTIVE", "TURN_MISMATCH", "DECISION_CONFLICT");
         assertThat(names(paths.path(turn + "/{turnNo}/decision").path("get").path("responses").path("409")

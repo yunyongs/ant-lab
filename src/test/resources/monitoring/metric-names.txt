@@ -2,6 +2,7 @@
 # "  # lazy: <reason>" marks a name that a fresh JVM exports only after an event. Add a name only from a real scrape; DashboardMetricNamesScrapeTest then proves it exists in the running app.
 antlab_order_rejected_total
 antlab_reconciliation_mismatch_rules_total
+antlab_season_halted_total
 antlab_season_start_total
 antlab_turn_advance_total
 application_ready_time_seconds

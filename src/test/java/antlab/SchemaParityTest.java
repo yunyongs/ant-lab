@@ -45,7 +45,8 @@ class SchemaParityTest {
             "V3__schema_account.sql", "3fe8c700cd613bc0b3f5eba6e4a9524e8a9839da48da64cc580f851d5b55aa05",
             "V4__auth.sql", "3b1552c91557615f39cb4037fc4b19995fd79ac03fe4b8d63155a72bc43ec1f8",
             "V5__collected_data.sql", "ecb49d1eb1daa4bd8614b31b00bd7f8521ea09e9465c42a0d4e7a6abf2b321ed",
-            "V6__agent.sql", "e4b6102f5ff7f048bd4c96e88f70f8266dad60b5e9ed0d00df4574fe47e75c34");
+            "V6__agent.sql", "e4b6102f5ff7f048bd4c96e88f70f8266dad60b5e9ed0d00df4574fe47e75c34",
+            "V7__season_halted.sql", "2d3830b78cd533eee550ac6622957df8f32173a0464b7addafa5bea422fda1a4");
 
     private static final Path MIGRATION_DIR = Path.of("src/main/resources/db/migration");
 

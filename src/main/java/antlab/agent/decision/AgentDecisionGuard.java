@@ -37,7 +37,7 @@ public class AgentDecisionGuard {
         Season season = seasons.findByIdAndMemberId(seasonId, agentId).orElseThrow(AgentDecisionGuard::notFound);
         if (season.getStatus() != SeasonStatus.IN_PROGRESS) {
             // ABANDONING and FINISHED never return to IN_PROGRESS, so the turn path may answer SEASON_NOT_ACTIVE.
-            // A PAUSED season (A5) can resume: it must be checked like IN_PROGRESS, not passed here.
+            // A HALTED season passes too: the turn path answers SEASON_HALTED first, and that outranks a missing decision.
             return;
         }
         // A number ahead of the turn read here must not pass: another advance could commit before the facade locks the

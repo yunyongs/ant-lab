@@ -52,9 +52,10 @@ public class TurnController {
     @ApiResponse(responseCode = "404", description = "The season does not exist — NOT_FOUND / 시즌이 없다 — NOT_FOUND",
             content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ApiProblem.class)))
     @ApiResponse(responseCode = "409",
-            description = "The turn cannot be advanced now — SEASON_NOT_ACTIVE, TURN_MISMATCH, "
-                    + "RECONCILIATION_FAILED / 지금은 넘길 수 없다 — SEASON_NOT_ACTIVE, TURN_MISMATCH, "
-                    + "RECONCILIATION_FAILED",
+            description = "The turn cannot be advanced now — SEASON_NOT_ACTIVE, SEASON_HALTED (stopped after repeated "
+                    + "reconciliation failures; an administrator resumes it), TURN_MISMATCH, RECONCILIATION_FAILED / "
+                    + "지금은 넘길 수 없다 — SEASON_NOT_ACTIVE, SEASON_HALTED(대사 실패가 거듭되어 멈춤, 관리자가 재개), "
+                    + "TURN_MISMATCH, RECONCILIATION_FAILED",
             content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ApiProblem.class)))
     public ResponseEntity<TurnResultDto> advance(@PathVariable Long seasonId,
             @Valid @RequestBody AdvanceTurnRequest request) {
