@@ -41,6 +41,7 @@ dependencies {
     testImplementation 'org.springframework.boot:spring-boot-testcontainers'
     testImplementation 'org.testcontainers:testcontainers-postgresql'
     testImplementation 'org.yaml:snakeyaml'
+    testImplementation 'com.networknt:json-schema-validator:3.0.1'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
@@ -59,6 +60,7 @@ tasks.named('test') {
     inputs.dir('events').withPropertyName('eventFiles').withPathSensitivity(PathSensitivity.RELATIVE)
     inputs.dir('feed').withPropertyName('feedFiles').withPathSensitivity(PathSensitivity.RELATIVE)
     inputs.file('docs/api/openapi.yaml').withPropertyName('openApiContract').withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.file('docs/api/engine.yaml').withPropertyName('engineContract').withPathSensitivity(PathSensitivity.RELATIVE)
     inputs.file('compose.yaml').withPropertyName('composeFile').withPathSensitivity(PathSensitivity.RELATIVE)
     inputs.dir('monitoring').withPropertyName('monitoringFiles').withPathSensitivity(PathSensitivity.RELATIVE)
     inputs.file('.env.example').withPropertyName('envExample').withPathSensitivity(PathSensitivity.RELATIVE)
