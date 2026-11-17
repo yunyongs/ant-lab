@@ -76,16 +76,20 @@ class TurnFacadeTransactionTest {
         Class<?> controller = Class.forName("antlab.api.turn.TurnController");
         List<Class<?>> params = new ArrayList<>(List.of(controller.getDeclaredConstructors()[0].getParameterTypes()));
         // 전환(쓰기)은 퍼사드로만 간다 — 트랜잭션 서비스(TurnService)를 직접 받지 않는다. 읽기 전용 턴 조회 서비스는 함께 받는다(P0-35).
-        assertThat(params).containsExactlyInAnyOrder(TurnFacade.class, antlab.season.TurnQueryService.class);
+        // 순위판 읽기 서비스(RankingQueryService)도 읽기 전용이라 허용한다 — 아래에서 같은 읽기 전용 단정을 건다(MVP-12).
+        assertThat(params).containsExactlyInAnyOrder(TurnFacade.class, antlab.season.TurnQueryService.class,
+                antlab.ranking.RankingQueryService.class);
         assertThat(params).doesNotContain(antlab.season.TurnService.class);
         // 컨트롤러가 받는 조회 서비스는 쓰기를 못 한다 — 공개 메서드마다 읽기 전용 트랜잭션이 걸려 있다.
-        for (Method m : antlab.season.TurnQueryService.class.getDeclaredMethods()) {
-            if (!java.lang.reflect.Modifier.isPublic(m.getModifiers())) {
-                continue;
+        for (Class<?> reader : List.of(antlab.season.TurnQueryService.class, antlab.ranking.RankingQueryService.class)) {
+            for (Method m : reader.getDeclaredMethods()) {
+                if (!java.lang.reflect.Modifier.isPublic(m.getModifiers())) {
+                    continue;
+                }
+                Transactional tx = m.getAnnotation(Transactional.class);
+                assertThat(tx).as(reader.getSimpleName() + "." + m.getName() + " @Transactional").isNotNull();
+                assertThat(tx.readOnly()).as(reader.getSimpleName() + "." + m.getName() + " readOnly").isTrue();
             }
-            Transactional tx = m.getAnnotation(Transactional.class);
-            assertThat(tx).as(m.getName() + " @Transactional").isNotNull();
-            assertThat(tx.readOnly()).as(m.getName() + " readOnly").isTrue();
         }
     }
 
