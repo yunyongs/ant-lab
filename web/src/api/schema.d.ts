@@ -201,6 +201,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/seasons/{seasonId}/projection": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Projection of the team / 팀의 예상 분포
+         * @description Shows how the value of the season's team could spread over the coming turns: percentile bands per turn, and for a few horizons the end value, the worst drawdown and the chance of breaching the risk limit. phase CURRENT (default) is computed now for the current team. START is the team after the turn-0 team building and END the final team of a finished season; each is computed once and kept. Won values come from the engine's multiples with one rounding.
+         *
+         *     시즌 팀의 가치가 앞으로 어떻게 퍼질 수 있는지 보여 준다: 턴별 백분위 구간, 몇 개 기간의 끝 가치·최악의 낙폭·위험 선언을 넘을 확률. phase 가 CURRENT(기본)면 현재 팀을 지금 계산한다. START 는 0턴 팀 구성 뒤의 팀, END 는 끝난 시즌의 마지막 팀이며 각각 한 번 계산해 보관한다. 원화 값은 엔진의 배수에서 한 번만 반올림해 만든다.
+         */
+        get: operations["getSeasonProjection"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/seasons/{seasonId}/orders": {
         parameters: {
             query?: never;
@@ -691,6 +713,147 @@ export interface components {
              * @description Price, whole KRW / 가격, 원 단위 정수
              */
             price: string;
+        };
+        /**
+         * @description Spread of a team's value over the coming turns. Seed, months, versions and the request are not included
+         *
+         *     팀 가치가 앞으로 어떻게 퍼질 수 있는지. 시드·달·버전·요청은 싣지 않는다
+         */
+        ProjectionDto: {
+            /** @description CURRENT is computed on request; START and END are stored once / CURRENT 는 요청 때 계산하고 START·END 는 한 번 저장한다 */
+            phase: components["schemas"]["ProjectionMoment"];
+            /**
+             * Format: int32
+             * @description Turn the team is valued at (turn counts below are turns ahead of it) / 팀을 평가한 턴(아래 turn 은 이 턴으로부터 앞으로 센 턴)
+             */
+            turnNo: number;
+            /**
+             * Format: decimal
+             * @description Total value at turnNo, whole KRW / turnNo 의 총 평가액, 원 단위 정수
+             */
+            totalValue: string;
+            /**
+             * Format: int32
+             * @description Number of turns looked ahead / 내다본 턴 수
+             */
+            horizonTurns: number;
+            /**
+             * Format: int32
+             * @description Number of simulated paths / 모의 경로 수
+             */
+            pathCount: number;
+            /**
+             * Format: decimal
+             * @description Risk limit, 8 decimal places / 위험 선언, 소수 8자리
+             */
+            riskLimit: string;
+            bands: components["schemas"]["ProjectionBand"][];
+            summaries: components["schemas"]["ProjectionSummary"][];
+        };
+        ProjectionBand: {
+            /**
+             * Format: int32
+             * @description Turns ahead / 앞으로 센 턴
+             */
+            turn: number;
+            /**
+             * Format: decimal
+             * @description 5th percentile value, whole KRW / 하위 5% 가치, 원 단위 정수
+             */
+            p05: string;
+            /**
+             * Format: decimal
+             * @description 25th percentile value, whole KRW / 하위 25% 가치, 원 단위 정수
+             */
+            p25: string;
+            /**
+             * Format: decimal
+             * @description Median value, whole KRW / 중앙값, 원 단위 정수
+             */
+            p50: string;
+            /**
+             * Format: decimal
+             * @description 75th percentile value, whole KRW / 상위 25% 가치, 원 단위 정수
+             */
+            p75: string;
+            /**
+             * Format: decimal
+             * @description 95th percentile value, whole KRW / 상위 5% 가치, 원 단위 정수
+             */
+            p95: string;
+        };
+        ProjectionSummary: {
+            /**
+             * Format: int32
+             * @description Turns ahead / 앞으로 센 턴
+             */
+            turn: number;
+            end: components["schemas"]["ProjectionEnd"];
+            mdd: components["schemas"]["ProjectionMdd"];
+            /**
+             * Format: decimal
+             * @description Chance the risk limit is breached on the way, 8 decimal places / 도중에 위험 선언을 넘을 확률, 소수 8자리
+             */
+            breachProbability: string;
+        };
+        ProjectionEnd: {
+            /**
+             * Format: decimal
+             * @description 5th percentile, whole KRW / 하위 5%, 원 단위 정수
+             */
+            p05: string;
+            /**
+             * Format: decimal
+             * @description 25th percentile, whole KRW / 하위 25%, 원 단위 정수
+             */
+            p25: string;
+            /**
+             * Format: decimal
+             * @description Median, whole KRW / 중앙값, 원 단위 정수
+             */
+            p50: string;
+            /**
+             * Format: decimal
+             * @description 75th percentile, whole KRW / 상위 25%, 원 단위 정수
+             */
+            p75: string;
+            /**
+             * Format: decimal
+             * @description 95th percentile, whole KRW / 상위 5%, 원 단위 정수
+             */
+            p95: string;
+        };
+        ProjectionMdd: {
+            /**
+             * Format: decimal
+             * @description 5th percentile, 8 decimal places / 하위 5%, 소수 8자리
+             */
+            p05: string;
+            /**
+             * Format: decimal
+             * @description 10th percentile, 8 decimal places / 하위 10%, 소수 8자리
+             */
+            p10: string;
+            /**
+             * Format: decimal
+             * @description 25th percentile, 8 decimal places / 하위 25%, 소수 8자리
+             */
+            p25: string;
+            /**
+             * Format: decimal
+             * @description Median, 8 decimal places / 중앙값, 소수 8자리
+             */
+            p50: string;
+            /**
+             * Format: decimal
+             * @description 75th percentile, 8 decimal places / 상위 25%, 소수 8자리
+             */
+            p75: string;
+            /**
+             * Format: decimal
+             * @description 95th percentile, 8 decimal places / 상위 5%, 소수 8자리
+             */
+            p95: string;
         };
         /**
          * @description One market buy or sell. The server decides the fill price, fee and rates; the origin is DIRECT unless a source is sent
@@ -1550,6 +1713,8 @@ export interface components {
         /** @enum {string} */
         OrderSide: "BUY" | "SELL";
         /** @enum {string} */
+        ProjectionMoment: "CURRENT" | "START" | "END";
+        /** @enum {string} */
         OrderSource: "RANKING" | "FEED" | "ALERT" | "BENCH" | "DIRECT";
         /** @enum {string} */
         SeasonStatus: "IN_PROGRESS" | "ABANDONING" | "FINISHED" | "HALTED";
@@ -2046,6 +2211,81 @@ export interface operations {
                 };
             };
             500: components["responses"]["InternalError"];
+        };
+    };
+    getSeasonProjection: {
+        parameters: {
+            query?: {
+                phase?: components["schemas"]["ProjectionMoment"];
+            };
+            header?: never;
+            path: {
+                seasonId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Projection / 예상 분포 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectionDto"];
+                };
+            };
+            /** @description phase or the season number is wrong — INVALID_ARGUMENT / phase 또는 시즌 번호가 틀렸다 — INVALID_ARGUMENT */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description The season does not exist — NOT_FOUND / 시즌이 없다 — NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /**
+             * @description That moment is not available — TURN_NOT_REACHED (START before turn 1), SEASON_NOT_FINISHED (END of a season still running), SEASON_NOT_ACTIVE (CURRENT of a finished season)
+             *
+             *     그 시점은 볼 수 없다 — TURN_NOT_REACHED(1턴 전의 START), SEASON_NOT_FINISHED(진행 중 시즌의 END), SEASON_NOT_ACTIVE(끝난 시즌의 CURRENT)
+             */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The history cannot carry a projection this long — PATH_TOO_LONG / 이 길이의 예상 분포를 이력이 받쳐 주지 못한다 — PATH_TOO_LONG */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+            /** @description The engine is busy or not reachable; try again later — ENGINE_UNAVAILABLE / 엔진이 바쁘거나 연결되지 않는다. 잠시 뒤 다시 시도한다 — ENGINE_UNAVAILABLE */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
         };
     };
     placeOrder: {

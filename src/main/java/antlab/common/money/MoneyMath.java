@@ -353,6 +353,35 @@ public final class MoneyMath {
         return value.setScale(8, RoundingMode.HALF_UP);
     }
 
+    /** Fractional digits of a portfolio share sent to the engine (the wire allows 12). */
+    public static final int SHARE_SCALE = 12;
+
+    /**
+     * Share of one holding in the total value, rounded DOWN at {@link #SHARE_SCALE} digits. Rounding down keeps the sum of
+     * the shares at or below 1, so the cash share (the exact remainder) is never negative. Both inputs are whole won.
+     */
+    public static BigDecimal shareDown(BigDecimal valuation, BigDecimal totalValue) {
+        nonNegativeInteger(valuation, "평가액");
+        positiveInteger(totalValue, "총 평가액");
+        if (valuation.compareTo(totalValue) > 0) {
+            throw invalid("평가액이 총 평가액보다 클 수 없다");
+        }
+        return valuation.divide(totalValue, SHARE_SCALE, RoundingMode.DOWN);
+    }
+
+    /**
+     * Whole won of a value multiple: {@code totalValue × multiple}, HALF_UP once (PLAN §5.2). The engine's eight-digit
+     * rounding is a ratio rounding on the wire; this is the one money rounding. A negative multiple is a bug.
+     */
+    public static BigDecimal scaleByMultiple(BigDecimal totalValue, BigDecimal multiple) {
+        positiveInteger(totalValue, "총 평가액");
+        require(multiple, "배수");
+        if (multiple.signum() < 0) {
+            throw invalid("배수는 음수일 수 없다");
+        }
+        return storedMoney(totalValue.multiply(multiple).setScale(0, RoundingMode.HALF_UP), "예상 평가액");
+    }
+
     /** Working scale of unrounded score arithmetic (season score, rating): 30 decimals, far below any stored scale. */
     public static final int SCORE_WORK_SCALE = 30;
     private static final MathContext SCORE_ROOT = new MathContext(60, RoundingMode.HALF_UP);

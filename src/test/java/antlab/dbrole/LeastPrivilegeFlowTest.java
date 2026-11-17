@@ -67,8 +67,8 @@ class LeastPrivilegeFlowTest {
         {"ZZUS03", "40", "FORWARD_DEFENSIVE"},
     };
 
-    /** Tables nothing in the application writes yet: agent_call (AG-02 part 3), season_score and rating_history (MVP-18 schema). turn_feed is written by the turn advance since MVP-11. */
-    private static final List<String> WITHOUT_WRITER = List.of("agent_call", "season_score", "rating_history");
+    /** Tables nothing in the application writes yet: agent_call (AG-02 part 3), season_score and rating_history (MVP-18 schema), projection (written only by a call to the engine, which this flow has none of). turn_feed is written by the turn advance since MVP-11. */
+    private static final List<String> WITHOUT_WRITER = List.of("agent_call", "season_score", "rating_history", "projection");
 
     private static AppRoleDatabase database;
 

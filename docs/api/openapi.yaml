@@ -430,6 +430,79 @@ paths:
                 $ref: '#/components/schemas/Problem'
         '500':
           $ref: '#/components/responses/InternalError'
+  /api/v1/seasons/{seasonId}/projection:
+    get:
+      tags: [season]
+      operationId: getSeasonProjection
+      summary: Projection of the team / 팀의 예상 분포
+      description: |-
+        Shows how the value of the season's team could spread over the coming turns: percentile bands per turn, and for a few horizons the end value, the worst drawdown and the chance of breaching the risk limit. phase CURRENT (default) is computed now for the current team. START is the team after the turn-0 team building and END the final team of a finished season; each is computed once and kept. Won values come from the engine's multiples with one rounding.
+
+        시즌 팀의 가치가 앞으로 어떻게 퍼질 수 있는지 보여 준다: 턴별 백분위 구간, 몇 개 기간의 끝 가치·최악의 낙폭·위험 선언을 넘을 확률. phase 가 CURRENT(기본)면 현재 팀을 지금 계산한다. START 는 0턴 팀 구성 뒤의 팀, END 는 끝난 시즌의 마지막 팀이며 각각 한 번 계산해 보관한다. 원화 값은 엔진의 배수에서 한 번만 반올림해 만든다.
+      parameters:
+        - name: seasonId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+        - name: phase
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/ProjectionMoment'
+            default: CURRENT
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Projection / 예상 분포
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectionDto'
+        '400':
+          description: phase or the season number is wrong — INVALID_ARGUMENT / phase 또는 시즌 번호가 틀렸다 — INVALID_ARGUMENT
+          x-error-codes: [INVALID_ARGUMENT]
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          description: The season does not exist — NOT_FOUND / 시즌이 없다 — NOT_FOUND
+          x-error-codes: [NOT_FOUND]
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: |-
+            That moment is not available — TURN_NOT_REACHED (START before turn 1), SEASON_NOT_FINISHED (END of a season still running), SEASON_NOT_ACTIVE (CURRENT of a finished season)
+
+            그 시점은 볼 수 없다 — TURN_NOT_REACHED(1턴 전의 START), SEASON_NOT_FINISHED(진행 중 시즌의 END), SEASON_NOT_ACTIVE(끝난 시즌의 CURRENT)
+          x-error-codes: [TURN_NOT_REACHED, SEASON_NOT_FINISHED, SEASON_NOT_ACTIVE]
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          description: The history cannot carry a projection this long — PATH_TOO_LONG / 이 길이의 예상 분포를 이력이 받쳐 주지 못한다 — PATH_TOO_LONG
+          x-error-codes: [PATH_TOO_LONG]
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          description: The engine is busy or not reachable; try again later — ENGINE_UNAVAILABLE / 엔진이 바쁘거나 연결되지 않는다. 잠시 뒤 다시 시도한다 — ENGINE_UNAVAILABLE
+          x-error-codes: [ENGINE_UNAVAILABLE]
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
   /api/v1/seasons/{seasonId}/orders:
     post:
       tags: [order]
@@ -1271,6 +1344,141 @@ components:
           type: string
           format: decimal
           description: Price, whole KRW / 가격, 원 단위 정수
+    ProjectionDto:
+      type: object
+      description: |-
+        Spread of a team's value over the coming turns. Seed, months, versions and the request are not included
+
+        팀 가치가 앞으로 어떻게 퍼질 수 있는지. 시드·달·버전·요청은 싣지 않는다
+      required: [phase, turnNo, totalValue, horizonTurns, pathCount, riskLimit, bands, summaries]
+      properties:
+        phase:
+          $ref: '#/components/schemas/ProjectionMoment'
+          description: CURRENT is computed on request; START and END are stored once / CURRENT 는 요청 때 계산하고 START·END 는 한 번 저장한다
+        turnNo:
+          type: integer
+          format: int32
+          description: Turn the team is valued at (turn counts below are turns ahead of it) / 팀을 평가한 턴(아래 turn 은 이 턴으로부터 앞으로 센 턴)
+        totalValue:
+          type: string
+          format: decimal
+          description: Total value at turnNo, whole KRW / turnNo 의 총 평가액, 원 단위 정수
+        horizonTurns:
+          type: integer
+          format: int32
+          description: Number of turns looked ahead / 내다본 턴 수
+        pathCount:
+          type: integer
+          format: int32
+          description: Number of simulated paths / 모의 경로 수
+        riskLimit:
+          type: string
+          format: decimal
+          description: Risk limit, 8 decimal places / 위험 선언, 소수 8자리
+        bands:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProjectionBand'
+        summaries:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProjectionSummary'
+    ProjectionBand:
+      type: object
+      required: [turn, p05, p25, p50, p75, p95]
+      properties:
+        turn:
+          type: integer
+          format: int32
+          description: Turns ahead / 앞으로 센 턴
+        p05:
+          type: string
+          format: decimal
+          description: 5th percentile value, whole KRW / 하위 5% 가치, 원 단위 정수
+        p25:
+          type: string
+          format: decimal
+          description: 25th percentile value, whole KRW / 하위 25% 가치, 원 단위 정수
+        p50:
+          type: string
+          format: decimal
+          description: Median value, whole KRW / 중앙값, 원 단위 정수
+        p75:
+          type: string
+          format: decimal
+          description: 75th percentile value, whole KRW / 상위 25% 가치, 원 단위 정수
+        p95:
+          type: string
+          format: decimal
+          description: 95th percentile value, whole KRW / 상위 5% 가치, 원 단위 정수
+    ProjectionSummary:
+      type: object
+      required: [turn, end, mdd, breachProbability]
+      properties:
+        turn:
+          type: integer
+          format: int32
+          description: Turns ahead / 앞으로 센 턴
+        end:
+          $ref: '#/components/schemas/ProjectionEnd'
+        mdd:
+          $ref: '#/components/schemas/ProjectionMdd'
+        breachProbability:
+          type: string
+          format: decimal
+          description: Chance the risk limit is breached on the way, 8 decimal places / 도중에 위험 선언을 넘을 확률, 소수 8자리
+    ProjectionEnd:
+      type: object
+      required: [p05, p25, p50, p75, p95]
+      properties:
+        p05:
+          type: string
+          format: decimal
+          description: 5th percentile, whole KRW / 하위 5%, 원 단위 정수
+        p25:
+          type: string
+          format: decimal
+          description: 25th percentile, whole KRW / 하위 25%, 원 단위 정수
+        p50:
+          type: string
+          format: decimal
+          description: Median, whole KRW / 중앙값, 원 단위 정수
+        p75:
+          type: string
+          format: decimal
+          description: 75th percentile, whole KRW / 상위 25%, 원 단위 정수
+        p95:
+          type: string
+          format: decimal
+          description: 95th percentile, whole KRW / 상위 5%, 원 단위 정수
+    ProjectionMdd:
+      type: object
+      required: [p05, p10, p25, p50, p75, p95]
+      properties:
+        p05:
+          type: string
+          format: decimal
+          description: 5th percentile, 8 decimal places / 하위 5%, 소수 8자리
+        p10:
+          type: string
+          format: decimal
+          description: 10th percentile, 8 decimal places / 하위 10%, 소수 8자리
+        p25:
+          type: string
+          format: decimal
+          description: 25th percentile, 8 decimal places / 하위 25%, 소수 8자리
+        p50:
+          type: string
+          format: decimal
+          description: Median, 8 decimal places / 중앙값, 소수 8자리
+        p75:
+          type: string
+          format: decimal
+          description: 75th percentile, 8 decimal places / 상위 25%, 소수 8자리
+        p95:
+          type: string
+          format: decimal
+          description: 95th percentile, 8 decimal places / 상위 5%, 소수 8자리
     PlaceOrderRequest:
       type: object
       description: |-
@@ -2122,6 +2330,9 @@ components:
     OrderSide:
       type: string
       enum: [BUY, SELL]
+    ProjectionMoment:
+      type: string
+      enum: [CURRENT, START, END]
     OrderSource:
       type: string
       enum: [RANKING, FEED, ALERT, BENCH, DIRECT]
