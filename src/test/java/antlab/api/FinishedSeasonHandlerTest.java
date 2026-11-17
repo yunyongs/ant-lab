@@ -37,7 +37,7 @@ import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandl
 class FinishedSeasonHandlerTest {
 
     /** The path ends every {@code @FinishedSeasonOnly} handler is expected to have today (a new one must be added on purpose). */
-    private static final Set<String> EXPECTED_SUFFIXES = Set.of("/report", "/review");
+    private static final Set<String> EXPECTED_SUFFIXES = Set.of("/report", "/report/analysis", "/review");
     private static final String SEASON_PREFIX = "/api/v1/seasons/{seasonId}";
 
     @Autowired

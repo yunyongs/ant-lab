@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { FeedSection } from '../feed/FeedSection.tsx';
+import { ProjectionLink } from '../projection/ProjectionLink.tsx';
 import { QueryError } from '../seasons/QueryError.tsx';
 import type { Season } from '../seasons/labels.ts';
 import { canTrade } from '../seasons/seasonGate.ts';
@@ -67,6 +68,7 @@ export function TurnView({
           </Link>
         </div>
       )}
+      <ProjectionLink seasonId={season.id} />
       {canTrade(season) && (
         <AdvanceTurnButton
           season={season}
