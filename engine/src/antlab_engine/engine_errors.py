@@ -10,3 +10,17 @@ class PathTooLong(EngineError):  # noqa: N818 - the name mirrors the Java error 
 
 class InvalidArgument(EngineError):  # noqa: N818
     code = "INVALID_ARGUMENT"
+
+
+class HistoryUnavailable(EngineError):  # noqa: N818
+    """The history database could not be reached or queried; the cause is never echoed."""
+
+    code = "HISTORY_UNAVAILABLE"
+
+
+class PoolNotFound(EngineError):  # noqa: N818
+    code = "POOL_NOT_FOUND"
+
+
+class UnsafeDatabaseRole(EngineError):  # noqa: N818
+    code = "UNSAFE_DB_ROLE"
