@@ -8,11 +8,12 @@ from fractions import Fraction
 import pytest
 from conftest import ENGINE_DIR
 from fastapi.testclient import TestClient
-from synthetic_months import BASE_DATE, half_recent, history, sample_shape
+from synthetic_months import BASE_DATE, half_recent, history, month_range, sample_shape
 from test_vectors import read_vectors
 
 from antlab_engine.api.paths import create_path
 from antlab_engine.app import create_app
+from antlab_engine.bootstrap import stationary
 from antlab_engine.engine_errors import HistoryUnavailable, PoolNotFound, UnsafeDatabaseRole
 from antlab_engine.history.model import HistoryMonth, HistorySnapshot, SessionFacts
 from antlab_engine.settings import Settings
@@ -153,6 +154,23 @@ def test_p3_m2_sb6_v1_reproduces_vector_rows_over_http(token):
         assert blocks == row["blocks"], where
         assert str(body["overlapMonths"]) == row["overlap_months"], where
         assert str(body["attempt"]) == row["attempt"], where
+        direct = stationary.generate(
+            months,
+            BASE_DATE,
+            int(row["length"]),
+            int(row["seed"]),
+            recent_months=recent,
+            max_overlap=Fraction(row["max_overlap"]),
+        )
+        assert body["blocks"] == [
+            {
+                "startTurn": b.start_turn,
+                "drawnLength": b.drawn_length,
+                "length": b.length,
+                "tier": b.tier.value,
+            }
+            for b in direct.blocks
+        ], where
     assert seen_recent == {"none", "half"}  # "all" rows exist for ext348 only
 
 
@@ -220,6 +238,11 @@ INVALID = {
     "unknown version": request(engineVersion="m9-x-v1"),
     "bad base date": request(baseDate="2026-13-40"),
     "extra field": {**request(), "attempts": 256},
+    "base date as number": request(baseDate=1767312000),
+    "conditional as string": request(conditional="yes"),
+    "conditional as number": request(conditional=1),
+    "conditional false as string": request(conditional="no"),
+    "conditional false as number": request(conditional=0),
     "missing seed": {k: v for k, v in request().items() if k != "seed"},
 }
 
@@ -348,3 +371,66 @@ def test_months_come_back_only_as_year_month_and_no_pool_data(paths):
     }
     assert all(re.fullmatch(r"\d{4}-\d{2}", m) for m in body["months"])
     assert len(body["months"]) == 12
+
+
+def test_no_month_of_the_base_year_or_later_comes_back(token):
+    months = month_range(date(2007, 1, 1), date(2027, 12, 1))  # the base year is fully present
+    client = make_client(token, FakeReader(months))
+    headers = {"X-Antlab-Engine-Token": token}
+    for version in ("p0-boot6-v1", "m2-sb6-v1"):
+        for length in (12, 60):
+            for seed in range(50):
+                body = client.post(
+                    "/v1/paths",
+                    headers=headers,
+                    json=request(engineVersion=version, seed=str(seed), length=length),
+                ).json()
+                assert len(body["months"]) == length
+                assert all(m < "2026-01" for m in body["months"]), (version, length, seed)
+
+
+def test_a_decimal_threshold_is_exact_over_http(token):
+    months = month_range(date(2007, 1, 1), date(2025, 12, 1))
+    recent_dates = month_range(date(2007, 1, 1), date(2016, 12, 1))
+    recent = [f"{m:%Y-%m}" for m in recent_dates]
+    client = make_client(token, FakeReader(months))
+    overlaps = set()
+    for seed in range(60):
+        expected = stationary.generate(
+            months,
+            BASE_DATE,
+            60,
+            seed,
+            recent_months=recent_dates,
+            max_overlap=Fraction(7, 10),
+        )
+        body = client.post(
+            "/v1/paths",
+            headers={"X-Antlab-Engine-Token": token},
+            json=request(seed=str(seed), recentMonths=recent, maxOverlap="0.7"),
+        ).json()
+        assert (body["overlapMonths"], body["overlapMet"], body["attempt"]) == (
+            expected.overlap_months,
+            expected.overlap_met,
+            expected.attempt,
+        )
+        assert " ".join(body["months"]) == " ".join(f"{m:%Y-%m}" for m in expected.months)
+        overlaps.add(body["overlapMonths"])
+    assert overlaps  # the float mutation is pinned by test_source_rules (no float in api/paths.py)
+
+
+@pytest.mark.parametrize("version", ["p0-boot6-v1", "m2-sb6-v1"])
+def test_a_bad_request_is_400_even_without_a_configured_history(token, version):
+    client = make_client(token, None)
+    response = client.post(
+        "/v1/paths",
+        json=request(engineVersion=version, seed="1.0"),
+        headers={"X-Antlab-Engine-Token": token},
+    )
+    problem(response, 400, "INVALID_ARGUMENT")
+    response = client.post(
+        "/v1/paths",
+        json=request(engineVersion=version, seed="9223372036854775808"),
+        headers={"X-Antlab-Engine-Token": token},
+    )
+    problem(response, 400, "INVALID_ARGUMENT")

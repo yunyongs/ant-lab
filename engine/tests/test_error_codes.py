@@ -25,11 +25,36 @@ STATUS_NUMBERS = {
 }
 
 
+def enum_constants(source: str) -> set[str]:
+    """Constant names of a Java enum: comments are removed, a name may carry arguments or a tail."""
+    text = re.sub(r"/\*.*?\*/", "", source, flags=re.S)
+    text = re.sub(r"//[^\n]*", "", text)
+    body = text[text.index("{") + 1 : text.rindex("}")]
+    names = set()
+    for line in body.splitlines():
+        match = re.match(r"^\s*([A-Z][A-Z0-9_]*)\s*(?:[,;(]|$)", line)
+        if match:
+            names.add(match.group(1))
+    return names
+
+
+def test_the_enum_reader_survives_comments_arguments_and_digits():
+    source = """
+    public enum Sample {
+        /** doc */
+        PLAIN,
+        TAILED, // note
+        WITH_ARGS(1, "x"),
+        V2_CODE, /* inline */ LAST;
+        private final int n = 0;
+    }
+    """
+    assert enum_constants(source) >= {"PLAIN", "TAILED", "WITH_ARGS", "V2_CODE"}
+
+
 def java_codes() -> set[str]:
     assert JAVA_CODES.is_file(), f"the Java error codes are missing: {JAVA_CODES}"
-    text = re.sub(r"/\*.*?\*/", "", JAVA_CODES.read_text(encoding="utf-8"), flags=re.S)
-    body = text[text.index("{") + 1 : text.rindex("}")]
-    return set(re.findall(r"^\s*([A-Z][A-Z_]+)\s*[,;]?\s*$", body, flags=re.M))
+    return enum_constants(JAVA_CODES.read_text(encoding="utf-8"))
 
 
 def java_statuses() -> dict[str, str]:

@@ -10,13 +10,12 @@ from decimal import Decimal
 from fractions import Fraction
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Request
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from antlab_engine.bootstrap import simple, stationary
 from antlab_engine.engine_errors import InvalidArgument
 from antlab_engine.errors import Problem
-from antlab_engine.history.model import HistoryReader
 
 from . import PROBLEM_RESPONSES
 from .deps import history_reader
@@ -31,12 +30,12 @@ router = APIRouter()
 
 
 class PathRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", strict=True)
 
     engineVersion: Literal["p0-boot6-v1", "m2-sb6-v1"]
     seed: Annotated[str, Field(pattern=SEED_PATTERN)]
     length: Literal[12, 24, 60, 120]
-    baseDate: date
+    baseDate: Annotated[date, Field(strict=False)]  # an ISO string; see _iso_date
     conditional: bool = False
     recentMonths: list[Annotated[str, Field(pattern=MONTH_PATTERN)]] = Field(
         default_factory=list,
@@ -44,6 +43,13 @@ class PathRequest(BaseModel):
         json_schema_extra={"uniqueItems": True},
     )
     maxOverlap: Annotated[str, Field(pattern=OVERLAP_PATTERN)] = "1"
+
+    @field_validator("baseDate", mode="before")
+    @classmethod
+    def _iso_date(cls, value: object) -> object:
+        if not isinstance(value, str):
+            raise ValueError("baseDate must be an ISO date string")
+        return value
 
     @field_validator("recentMonths")
     @classmethod
@@ -153,10 +159,10 @@ def _stationary_path(
         503: {"model": Problem, "description": "History unavailable"},
     },
 )
-def create_path(
-    request: PathRequest, reader: Annotated[HistoryReader, Depends(history_reader)]
-) -> PathResult:
+def create_path(request: PathRequest, http_request: Request) -> PathResult:
     seed, threshold = _check(request)
+    # resolved after the checks: a bad request is 400 even without a configured database
+    reader = history_reader(http_request)
     snapshot = reader.read(request.baseDate)
     months = [m.month_start for m in snapshot.months]
     digest = history_digest(request.engineVersion, months, request.baseDate)

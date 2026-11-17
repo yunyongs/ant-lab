@@ -156,7 +156,7 @@ def test_bootstrap_imports_without_the_web_stack():
     assert result.returncode == 0, result.stderr
 
 
-PATH_MODULES = ("bootstrap/stationary.py", "bootstrap/rules.py")
+PATH_MODULES = ("bootstrap/stationary.py", "bootstrap/rules.py", "api/paths.py")
 
 
 def float_uses(text: str) -> list[str]:
