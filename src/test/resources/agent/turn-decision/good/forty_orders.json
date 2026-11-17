@@ -1,0 +1,368 @@
+{
+ "schema": "turn-decision/1",
+ "formation_change": null,
+ "orders": [
+  {
+   "asset": "KR:005930",
+   "side": "BUY",
+   "quantity": 1,
+   "position": "MIDFIELDER",
+   "source": {
+    "kind": "DIRECT"
+   }
+  },
+  {
+   "asset": "KR:005930",
+   "side": "BUY",
+   "quantity": 1,
+   "position": "MIDFIELDER",
+   "source": {
+    "kind": "DIRECT"
+   }
+  },
+  {
+   "asset": "KR:005930",
+   "side": "BUY",
+   "quantity": 1,
+   "position": "MIDFIELDER",
+   "source": {
+    "kind": "DIRECT"
+   }
+  },
+  {
+   "asset": "KR:005930",
+   "side": "BUY",
+   "quantity": 1,
+   "position": "MIDFIELDER",
+   "source": {
+    "kind": "DIRECT"
+   }
+  },
+  {
+   "asset": "KR:005930",
+   "side": "BUY",
+   "quantity": 1,
+   "position": "MIDFIELDER",
+   "source": {
+    "kind": "DIRECT"
+   }
+  },
+  {
+   "asset": "KR:005930",
+   "side": "BUY",
+   "quantity": 1,
+   "position": "MIDFIELDER",
+   "source": {
+    "kind": "DIRECT"
+   }
+  },
+  {
+   "asset": "KR:005930",
+   "side": "BUY",
+   "quantity": 1,
+   "position": "MIDFIELDER",
+   "source": {
+    "kind": "DIRECT"
+   }
+  },
+  {
+   "asset": "KR:005930",
+   "side": "BUY",
+   "quantity": 1,
+   "position": "MIDFIELDER",
+   "source": {
+    "kind": "DIRECT"
+   }
+  },
+  {
+   "asset": "KR:005930",
+   "side": "BUY",
+   "quantity": 1,
+   "position": "MIDFIELDER",
+   "source": {
+    "kind": "DIRECT"
+   }
+  },
+  {
+   "asset": "KR:005930",
+   "side": "BUY",
+   "quantity": 1,
+   "position": "MIDFIELDER",
+   "source": {
+    "kind": "DIRECT"
+   }
+  },
+  {
+   "asset": "KR:005930",
+   "side": "BUY",
+   "quantity": 1,
+   "position": "MIDFIELDER",
+   "source": {
+    "kind": "DIRECT"
+   }
+  },
+  {
+   "asset": "KR:005930",
+   "side": "BUY",
+   "quantity": 1,
+   "position": "MIDFIELDER",
+   "source": {
+    "kind": "DIRECT"
+   }
+  },
+  {
+   "asset": "KR:005930",
+   "side": "BUY",
+   "quantity": 1,
+   "position": "MIDFIELDER",
+   "source": {
+    "kind": "DIRECT"
+   }
+  },
+  {
+   "asset": "KR:005930",
+   "side": "BUY",
+   "quantity": 1,
+   "position": "MIDFIELDER",
+   "source": {
+    "kind": "DIRECT"
+   }
+  },
+  {
+   "asset": "KR:005930",
+   "side": "BUY",
+   "quantity": 1,
+   "position": "MIDFIELDER",
+   "source": {
+    "kind": "DIRECT"
+   }
+  },
+  {
+   "asset": "KR:005930",
+   "side": "BUY",
+   "quantity": 1,
+   "position": "MIDFIELDER",
+   "source": {
+    "kind": "DIRECT"
+   }
+  },
+  {
+   "asset": "KR:005930",
+   "side": "BUY",
+   "quantity": 1,
+   "position": "MIDFIELDER",
+   "source": {
+    "kind": "DIRECT"
+   }
+  },
+  {
+   "asset": "KR:005930",
+   "side": "BUY",
+   "quantity": 1,
+   "position": "MIDFIELDER",
+   "source": {
+    "kind": "DIRECT"
+   }
+  },
+  {
+   "asset": "KR:005930",
+   "side": "BUY",
+   "quantity": 1,
+   "position": "MIDFIELDER",
+   "source": {
+    "kind": "DIRECT"
+   }
+  },
+  {
+   "asset": "KR:005930",
+   "side": "BUY",
+   "quantity": 1,
+   "position": "MIDFIELDER",
+   "source": {
+    "kind": "DIRECT"
+   }
+  },
+  {
+   "asset": "KR:005930",
+   "side": "BUY",
+   "quantity": 1,
+   "position": "MIDFIELDER",
+   "source": {
+    "kind": "DIRECT"
+   }
+  },
+  {
+   "asset": "KR:005930",
+   "side": "BUY",
+   "quantity": 1,
+   "position": "MIDFIELDER",
+   "source": {
+    "kind": "DIRECT"
+   }
+  },
+  {
+   "asset": "KR:005930",
+   "side": "BUY",
+   "quantity": 1,
+   "position": "MIDFIELDER",
+   "source": {
+    "kind": "DIRECT"
+   }
+  },
+  {
+   "asset": "KR:005930",
+   "side": "BUY",
+   "quantity": 1,
+   "position": "MIDFIELDER",
+   "source": {
+    "kind": "DIRECT"
+   }
+  },
+  {
+   "asset": "KR:005930",
+   "side": "BUY",
+   "quantity": 1,
+   "position": "MIDFIELDER",
+   "source": {
+    "kind": "DIRECT"
+   }
+  },
+  {
+   "asset": "KR:005930",
+   "side": "BUY",
+   "quantity": 1,
+   "position": "MIDFIELDER",
+   "source": {
+    "kind": "DIRECT"
+   }
+  },
+  {
+   "asset": "KR:005930",
+   "side": "BUY",
+   "quantity": 1,
+   "position": "MIDFIELDER",
+   "source": {
+    "kind": "DIRECT"
+   }
+  },
+  {
+   "asset": "KR:005930",
+   "side": "BUY",
+   "quantity": 1,
+   "position": "MIDFIELDER",
+   "source": {
+    "kind": "DIRECT"
+   }
+  },
+  {
+   "asset": "KR:005930",
+   "side": "BUY",
+   "quantity": 1,
+   "position": "MIDFIELDER",
+   "source": {
+    "kind": "DIRECT"
+   }
+  },
+  {
+   "asset": "KR:005930",
+   "side": "BUY",
+   "quantity": 1,
+   "position": "MIDFIELDER",
+   "source": {
+    "kind": "DIRECT"
+   }
+  },
+  {
+   "asset": "KR:005930",
+   "side": "BUY",
+   "quantity": 1,
+   "position": "MIDFIELDER",
+   "source": {
+    "kind": "DIRECT"
+   }
+  },
+  {
+   "asset": "KR:005930",
+   "side": "BUY",
+   "quantity": 1,
+   "position": "MIDFIELDER",
+   "source": {
+    "kind": "DIRECT"
+   }
+  },
+  {
+   "asset": "KR:005930",
+   "side": "BUY",
+   "quantity": 1,
+   "position": "MIDFIELDER",
+   "source": {
+    "kind": "DIRECT"
+   }
+  },
+  {
+   "asset": "KR:005930",
+   "side": "BUY",
+   "quantity": 1,
+   "position": "MIDFIELDER",
+   "source": {
+    "kind": "DIRECT"
+   }
+  },
+  {
+   "asset": "KR:005930",
+   "side": "BUY",
+   "quantity": 1,
+   "position": "MIDFIELDER",
+   "source": {
+    "kind": "DIRECT"
+   }
+  },
+  {
+   "asset": "KR:005930",
+   "side": "BUY",
+   "quantity": 1,
+   "position": "MIDFIELDER",
+   "source": {
+    "kind": "DIRECT"
+   }
+  },
+  {
+   "asset": "KR:005930",
+   "side": "BUY",
+   "quantity": 1,
+   "position": "MIDFIELDER",
+   "source": {
+    "kind": "DIRECT"
+   }
+  },
+  {
+   "asset": "KR:005930",
+   "side": "BUY",
+   "quantity": 1,
+   "position": "MIDFIELDER",
+   "source": {
+    "kind": "DIRECT"
+   }
+  },
+  {
+   "asset": "KR:005930",
+   "side": "BUY",
+   "quantity": 1,
+   "position": "MIDFIELDER",
+   "source": {
+    "kind": "DIRECT"
+   }
+  },
+  {
+   "asset": "KR:005930",
+   "side": "BUY",
+   "quantity": 1,
+   "position": "MIDFIELDER",
+   "source": {
+    "kind": "DIRECT"
+   }
+  }
+ ],
+ "theses": [],
+ "reason": "hold"
+}

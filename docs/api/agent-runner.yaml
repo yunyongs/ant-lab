@@ -166,6 +166,198 @@ paths:
                 $ref: '#/components/schemas/Problem'
         '500':
           $ref: '#/components/responses/InternalError'
+  /internal/agent-runner/v1/agents/{agentId}/seasons/{seasonId}/turns/{turnNo}/calls:
+    post:
+      tags: [agent]
+      operationId: flushAgentCalls
+      summary: Store attempts made before the decision / 결정 전에 한 시도를 저장한다
+      description: |-
+        Stores model calls of the current turn as non-final attempts (before a pause or a wait). Attempts are numbered one after another; one that is already stored and identical is skipped, a different one under a stored number is DECISION_CONFLICT. Nothing can be added to a turn that already has a final decision.
+
+        현재 턴의 모델 호출을 최종이 아닌 시도로 저장한다(멈춤이나 기다림 전에). 시도 번호는 이어져야 하고, 이미 저장된 같은 내용은 건너뛰며, 저장된 번호에 다른 내용이 오면 DECISION_CONFLICT 다. 이미 최종 결정이 있는 턴에는 더할 수 없다.
+      parameters:
+        - $ref: '#/components/parameters/AgentId'
+        - $ref: '#/components/parameters/SeasonId'
+        - $ref: '#/components/parameters/TurnNo'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CallsRequest'
+      responses:
+        '204':
+          description: Stored (or already stored) / 저장했다(이미 저장되어 있었다)
+        '400':
+          description: The request is wrong — INVALID_ARGUMENT (empty or too long list, numbers that do not follow one another, text over 256 KiB, a character that cannot be stored, something that looks like a secret, a model other than the season's, a missing ledger call id on an OPENROUTER season) / 요청이 틀렸다 — INVALID_ARGUMENT(빈 목록·너무 긴 목록, 이어지지 않는 번호, 256 KiB 를 넘는 원문, 저장할 수 없는 문자, 비밀값처럼 보이는 문자열, 시즌과 다른 모델, OPENROUTER 시즌의 장부 호출 번호 누락)
+          x-error-codes: [INVALID_ARGUMENT]
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          description: The agent, the season or the agent config does not exist for this owner. One answer for all — NOT_FOUND / 에이전트·시즌·에이전트 설정이 이 소유자에게 없다. 모두 같은 응답이다 — NOT_FOUND
+          x-error-codes: [NOT_FOUND]
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: The season is not in progress, the turn is not the current one, or the stored attempts differ — SEASON_NOT_ACTIVE, TURN_MISMATCH, DECISION_CONFLICT / 시즌이 진행 중이 아니거나 현재 턴이 아니거나 저장된 시도와 다르다 — SEASON_NOT_ACTIVE, TURN_MISMATCH, DECISION_CONFLICT
+          x-error-codes: [SEASON_NOT_ACTIVE, TURN_MISMATCH, DECISION_CONFLICT]
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /internal/agent-runner/v1/agents/{agentId}/seasons/{seasonId}/turns/{turnNo}/decision:
+    post:
+      tags: [agent]
+      operationId: submitAgentDecision
+      summary: Submit the decision of a turn / 한 턴의 결정을 낸다
+      description: |-
+        Submits the runner's verdict on the model reply, the reply itself (a turn-decision/1 object, only with DECISION) and the model calls of the turn; the last call is the final one. The engine checks the reply as a whole against docs/api/turn-decision-1.schema.json (a shape error records the outcome INVALID and applies nothing), then unit by unit in a fixed order: the formation change, the sells in the reply's order, the buys in the reply's order. A unit that fails its check is rejected alone with a code and the other units still run; this is a 200 result, not an HTTP error. Applied units are written exactly as human orders and formation changes. A broken state (ledger, lineup, formation chain, event time) aborts the whole decision with a 409 and records nothing. A NUL character anywhere in the reply, or text that looks like a secret, is a 400. The last call of a NO_RESPONSE may have any status except OK and INVALID. The same decision sent again answers the stored result with replayed = true; a different decision for a decided turn is DECISION_CONFLICT.
+
+        러너가 모델 응답에 내린 판정, 응답 자체(turn-decision/1 객체, DECISION 일 때만), 그 턴의 모델 호출을 낸다. 마지막 호출이 최종 호출이다. 엔진은 먼저 응답 전체를 docs/api/turn-decision-1.schema.json 으로 검사하고(모양 오류는 결과를 INVALID 로 기록하고 아무것도 적용하지 않는다), 이어 정해진 순서로 단위별 검사한다: 전술 변경, 응답 순서대로 매도, 응답 순서대로 매수. 검사에 걸린 단위는 코드와 함께 그 단위만 거부하고 나머지는 계속하며, 이것은 HTTP 오류가 아니라 200 결과다. 적용한 단위는 사람의 주문·전술 변경과 똑같이 기록한다. 손상 상태(원장·라인업·포메이션 사슬·이벤트 시각)는 결정 전체를 409 로 되돌리고 아무것도 기록하지 않는다. 같은 결정을 다시 보내면 저장된 결과를 replayed = true 로 돌려주고, 이미 결정된 턴에 다른 결정을 보내면 DECISION_CONFLICT 다.
+      parameters:
+        - $ref: '#/components/parameters/AgentId'
+        - $ref: '#/components/parameters/SeasonId'
+        - $ref: '#/components/parameters/TurnNo'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DecisionRequest'
+      responses:
+        '200':
+          description: What the engine did with each unit / 엔진이 단위마다 한 일
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DecisionResultDto'
+        '400':
+          description: The envelope is wrong — INVALID_ARGUMENT (a decision with an outcome other than DECISION, or none with DECISION; attempt numbers that do not follow one another; a last call whose status does not fit the outcome; the rules of the calls endpoint). Nothing is recorded / 봉투가 틀렸다 — INVALID_ARGUMENT(DECISION 이 아닌데 결정이 있거나 DECISION 인데 없음, 이어지지 않는 시도 번호, 결과와 맞지 않는 마지막 호출 상태, 호출 저장 연산의 규칙). 아무것도 기록하지 않는다
+          x-error-codes: [INVALID_ARGUMENT]
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          description: The agent, the season or the agent config does not exist for this owner. One answer for all — NOT_FOUND / 에이전트·시즌·에이전트 설정이 이 소유자에게 없다. 모두 같은 응답이다 — NOT_FOUND
+          x-error-codes: [NOT_FOUND]
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: The decision cannot be taken now — TURN_MISMATCH, SEASON_NOT_ACTIVE, DECISION_CONFLICT; a broken state aborts the whole decision — LEDGER_MISMATCH, LINEUP_MISMATCH, INVALID_FORMATION, EVENT_TIME_CONFLICT / 지금은 받을 수 없다 — TURN_MISMATCH, SEASON_NOT_ACTIVE, DECISION_CONFLICT. 손상 상태는 결정 전체를 되돌린다 — LEDGER_MISMATCH, LINEUP_MISMATCH, INVALID_FORMATION, EVENT_TIME_CONFLICT
+          x-error-codes: [TURN_MISMATCH, SEASON_NOT_ACTIVE, DECISION_CONFLICT, LEDGER_MISMATCH, LINEUP_MISMATCH, INVALID_FORMATION, EVENT_TIME_CONFLICT]
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    get:
+      tags: [agent]
+      operationId: getAgentDecision
+      summary: Read the stored result of a turn's decision / 한 턴 결정의 저장된 결과를 읽는다
+      description: |-
+        Returns the stored result of a decided turn with replayed = true, for a runner that restarted. Not found while the turn has no final decision.
+
+        다시 시작한 러너를 위해 결정된 턴의 저장된 결과를 replayed = true 로 돌려준다. 최종 결정이 없는 턴은 없는 것과 같다.
+      parameters:
+        - $ref: '#/components/parameters/AgentId'
+        - $ref: '#/components/parameters/SeasonId'
+        - $ref: '#/components/parameters/TurnNo'
+      responses:
+        '200':
+          description: The stored result / 저장된 결과
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DecisionResultDto'
+        '400':
+          description: The turn number is not a number or below 0 — INVALID_ARGUMENT / 턴 번호가 숫자가 아니거나 0 미만이다 — INVALID_ARGUMENT
+          x-error-codes: [INVALID_ARGUMENT]
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          description: The agent or the season does not exist for this owner, or the turn has no final decision. One answer for all — NOT_FOUND / 에이전트·시즌이 이 소유자에게 없거나 그 턴에 최종 결정이 없다. 모두 같은 응답이다 — NOT_FOUND
+          x-error-codes: [NOT_FOUND]
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: That turn has not been played yet — TURN_NOT_REACHED / 아직 진행하지 않은 턴이다 — TURN_NOT_REACHED
+          x-error-codes: [TURN_NOT_REACHED]
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /internal/agent-runner/v1/agents/{agentId}/seasons/{seasonId}/turns:
+    post:
+      tags: [agent]
+      operationId: advanceAgentTurn
+      summary: Advance the turn of an agent season / 에이전트 시즌의 턴을 넘긴다
+      description: |-
+        Advances the season through the same path as the human turn advance (prices, snapshot, reconciliation), but only when the current turn has a final decision (any outcome, including NO_RESPONSE, which means no trades that turn). Without one the answer is DECISION_MISSING and nothing changes.
+
+        사람의 턴 전환과 같은 경로(가격·스냅샷·대사)로 시즌을 넘기되, 현재 턴에 최종 결정이 있을 때만 한다(NO_RESPONSE 도 결정이며 그 턴은 거래가 없다). 없으면 DECISION_MISSING 이고 아무것도 바뀌지 않는다.
+      parameters:
+        - $ref: '#/components/parameters/AgentId'
+        - $ref: '#/components/parameters/SeasonId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdvanceTurnRequest'
+      responses:
+        '201':
+          description: The result of the new turn / 새 턴의 결과
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TurnResultDto'
+        '400':
+          description: The request is wrong — INVALID_ARGUMENT / 요청이 틀렸다 — INVALID_ARGUMENT
+          x-error-codes: [INVALID_ARGUMENT]
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          description: The agent or the season does not exist for this owner. One answer for both — NOT_FOUND / 에이전트·시즌이 이 소유자에게 없다. 둘 다 같은 응답이다 — NOT_FOUND
+          x-error-codes: [NOT_FOUND]
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: The turn cannot be advanced now — SEASON_NOT_ACTIVE, TURN_MISMATCH, RECONCILIATION_FAILED, DECISION_MISSING / 지금은 넘길 수 없다 — SEASON_NOT_ACTIVE, TURN_MISMATCH, RECONCILIATION_FAILED, DECISION_MISSING
+          x-error-codes: [SEASON_NOT_ACTIVE, TURN_MISMATCH, RECONCILIATION_FAILED, DECISION_MISSING]
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '500':
+          $ref: '#/components/responses/InternalError'
 components:
   securitySchemes:
     runnerToken:
@@ -189,6 +381,15 @@ components:
       schema:
         type: integer
         format: int64
+    TurnNo:
+      name: turnNo
+      in: path
+      required: true
+      description: Turn number, 0 or more / 턴 번호, 0 이상
+      schema:
+        type: integer
+        format: int32
+        minimum: 0
   responses:
     Unauthenticated:
       description: |-
@@ -843,6 +1044,195 @@ components:
     OrderSource:
       type: string
       enum: [RANKING, FEED, ALERT, BENCH, DIRECT]
+    AdvanceTurnRequest:
+      type: object
+      required: [expectedTurnNo]
+      properties:
+        expectedTurnNo:
+          type: integer
+          format: int32
+          minimum: 0
+          description: The current turn before the advance; 409 if it differs / 전환 전의 현재 턴, 다르면 409
+    CallsRequest:
+      type: object
+      required: [calls]
+      properties:
+        calls:
+          type: array
+          minItems: 1
+          maxItems: 20
+          items:
+            $ref: '#/components/schemas/CallRecordRequest'
+    DecisionRequest:
+      type: object
+      description: |-
+        The runner's verdict, the reply and the calls of the turn. decision is a turn-decision/1 object and is present exactly when outcome is DECISION. The last call is the final one: its status must fit the outcome (DECISION needs OK; INVALID needs OK or INVALID; NO_RESPONSE needs a status other than OK and INVALID)
+
+        러너의 판정, 응답, 그 턴의 호출. decision 은 turn-decision/1 객체이며 outcome 이 DECISION 일 때만 있다. 마지막 호출이 최종 호출이고 그 상태는 결과와 맞아야 한다(DECISION 은 OK, INVALID 는 OK 또는 INVALID, NO_RESPONSE 는 OK·INVALID 가 아닌 상태)
+      required: [outcome, decision, calls]
+      properties:
+        outcome:
+          $ref: '#/components/schemas/DecisionOutcome'
+        decision:
+          description: The reply as a turn-decision/1 object (docs/api/turn-decision-1.schema.json); null unless outcome is DECISION / turn-decision/1 객체 응답, outcome 이 DECISION 이 아니면 null
+          type: [object, 'null']
+        calls:
+          type: array
+          minItems: 1
+          maxItems: 20
+          items:
+            $ref: '#/components/schemas/CallRecordRequest'
+    CallRecordRequest:
+      type: object
+      description: |-
+        One model call (an attempt) as the runner made it. Attempt numbers follow one another; texts are stored as sent and received (at most 256 KiB each, no secret-looking strings)
+
+        러너가 한 모델 호출(시도) 하나. 시도 번호는 이어지고, 원문은 보낸 그대로 저장한다(각 256 KiB 이하, 비밀값처럼 보이는 문자열 금지)
+      required: [attemptNo, kind, status, modelRequested, requestText, latencyMs]
+      properties:
+        attemptNo:
+          type: integer
+          format: int32
+          minimum: 1
+          maximum: 32767
+        kind:
+          type: string
+          enum: [TURN_DECISION]
+        ledgerCallId:
+          type: [string, 'null']
+          format: uuid
+          description: Call id of the account-wide call ledger; required on an OPENROUTER season / 계정 전체 호출 장부의 호출 번호, OPENROUTER 시즌에서는 필수
+        status:
+          $ref: '#/components/schemas/AgentCallStatus'
+        httpStatus:
+          type: [integer, 'null']
+          format: int32
+          minimum: 100
+          maximum: 599
+        modelRequested:
+          type: string
+          maxLength: 200
+          description: Must equal the model of the season config / 시즌 설정의 모델과 같아야 한다
+        modelActual:
+          type: [string, 'null']
+          maxLength: 200
+        provider:
+          type: [string, 'null']
+          maxLength: 100
+        requestText:
+          type: string
+        responseText:
+          type: [string, 'null']
+        tokensIn:
+          type: [integer, 'null']
+          format: int32
+          minimum: 0
+        tokensOut:
+          type: [integer, 'null']
+          format: int32
+          minimum: 0
+        costUsd:
+          type: [string, 'null']
+          format: decimal
+          description: Cost in USD as a decimal string, up to 8 decimals / USD 비용, 소수 8자리까지의 십진 문자열
+        latencyMs:
+          type: integer
+          format: int32
+          minimum: 0
+    AgentCallStatus:
+      type: string
+      enum: [OK, UPSTREAM, TIMEOUT, LIMITED, POLICY_REFUSED, ERROR, INVALID]
+    DecisionOutcome:
+      type: string
+      enum: [DECISION, NO_RESPONSE, INVALID]
+    UnitStatus:
+      type: string
+      enum: [APPLIED, REJECTED, NONE]
+    DecisionResultDto:
+      type: object
+      description: |-
+        What the engine did with each unit. Unit rejects are results, not errors. A formation change that is rejected leaves the old formation, and the orders of that turn are then not linked to it
+
+        엔진이 단위마다 한 일. 단위 거부는 오류가 아니라 결과다. 거부된 전술 변경은 이전 포메이션을 그대로 두고, 그 턴의 주문은 그 변경에 묶이지 않는다
+      required: [seasonId, turnNo, outcome, replayed, formationChange, orders, theses, schemaViolations]
+      properties:
+        seasonId:
+          type: integer
+          format: int64
+        turnNo:
+          type: integer
+          format: int32
+        outcome:
+          $ref: '#/components/schemas/DecisionOutcome'
+        replayed:
+          type: boolean
+          description: True when the stored result of an earlier identical submit is returned / 앞서 낸 같은 결정의 저장된 결과이면 true
+        formationChange:
+          $ref: '#/components/schemas/FormationResultDto'
+        orders:
+          type: array
+          description: One entry per order of the reply, in the reply's order / 응답의 주문마다 하나, 응답 순서대로
+          items:
+            $ref: '#/components/schemas/OrderUnitResultDto'
+        theses:
+          $ref: '#/components/schemas/ThesesResultDto'
+        schemaViolations:
+          type: array
+          description: Where the reply broke the shape when the outcome is INVALID; empty otherwise / 결과가 INVALID 일 때 응답이 모양을 어긴 곳, 아니면 빈 목록
+          items:
+            $ref: '#/components/schemas/SchemaViolationDto'
+    FormationResultDto:
+      type: object
+      required: [status, code, formationChangeId]
+      properties:
+        status:
+          $ref: '#/components/schemas/UnitStatus'
+        code:
+          type: [string, 'null']
+          description: Reject code when REJECTED / 거부일 때의 코드
+          enum: [TURN_ZERO_FORMATION, FORMATION_UNCHANGED, FORMATION_INVALID, null]
+        formationChangeId:
+          type: [integer, 'null']
+          format: int64
+    OrderUnitResultDto:
+      type: object
+      required: [index, status, code, orderId]
+      properties:
+        index:
+          type: integer
+          format: int32
+          minimum: 0
+        status:
+          $ref: '#/components/schemas/UnitStatus'
+        code:
+          type: [string, 'null']
+          description: Reject code when REJECTED / 거부일 때의 코드
+          enum: [ASSET_NOT_IN_POOL, QUANTITY_INVALID, INSUFFICIENT_HOLDING, INSUFFICIENT_CASH, SINGLE_ASSET_LIMIT, POSITION_REQUIRED, POSITION_CONFLICT, POSITION_ON_SELL, SOURCE_NOT_VISIBLE, SOURCE_NOT_ALLOWED, null]
+        orderId:
+          type: [integer, 'null']
+          format: int64
+    ThesesResultDto:
+      type: object
+      required: [status, code]
+      properties:
+        status:
+          $ref: '#/components/schemas/UnitStatus'
+        code:
+          type: [string, 'null']
+          enum: [THESES_NOT_SUPPORTED, null]
+    SchemaViolationDto:
+      type: object
+      description: |-
+        Where the reply broke the shape: a JSON pointer and the schema keyword. It never carries the offending value or a key chosen by the model
+
+        응답이 모양을 어긴 곳: JSON 포인터와 스키마 키워드. 어긴 값이나 모델이 고른 키는 싣지 않는다
+      required: [pointer, keyword]
+      properties:
+        pointer:
+          type: string
+        keyword:
+          type: string
+          enum: [type, required, additionalProperties, const, enum, pattern, maxLength, maxItems, minimum, maximum]
     Problem:
       type: object
       description: RFC 9457 problem details + a top-level code / RFC 9457 문제 상세 + 최상위 code
@@ -881,4 +1271,4 @@ components:
              SEASON_LIMIT, TURN_NOT_REACHED, SEASON_NOT_FINISHED, SEASON_NOT_ACTIVE, TURN_MISMATCH, LEDGER_MISMATCH,
              LINEUP_MISMATCH, ASSET_NOT_IN_POOL, INSUFFICIENT_CASH, INSUFFICIENT_HOLDING, POSITION_CONFLICT, POSITION_REQUIRED,
              INVALID_FORMATION, EVENT_TIME_CONFLICT, RECONCILIATION_FAILED, FORBIDDEN, EMAIL_TAKEN,
-             UNAUTHENTICATED, INVALID_CREDENTIALS, AGENT_RETIRED]
+             UNAUTHENTICATED, INVALID_CREDENTIALS, AGENT_RETIRED, DECISION_CONFLICT, DECISION_MISSING]
