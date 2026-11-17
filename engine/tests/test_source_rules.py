@@ -61,6 +61,8 @@ PURE_ALLOWED_IMPORTS = {
     "collections",
     "dataclasses",
     "datetime",
+    "enum",
+    "fractions",
     "typing",
     "antlab_engine",
 }
@@ -124,6 +126,8 @@ def test_pure_modules_import_only_the_standard_library():
     assert pure_sources().keys() >= {
         "bootstrap/simple.py",
         "bootstrap/splitmix64.py",
+        "bootstrap/stationary.py",
+        "bootstrap/rules.py",
         "engine_errors.py",
     }
     assert {
@@ -141,8 +145,123 @@ def test_bootstrap_imports_without_the_web_stack():
         "for name in ('fastapi', 'starlette', 'pydantic', 'numpy', 'pandas'):\n"
         "    sys.modules[name] = None\n"
         "import antlab_engine.bootstrap.simple\n"
+        "import antlab_engine.bootstrap.stationary\n"
+        "import antlab_engine.bootstrap.rules\n"
     )
     result = subprocess.run(  # noqa: S603
         [sys.executable, "-I", "-c", code], capture_output=True, text=True, check=False
     )
     assert result.returncode == 0, result.stderr
+
+
+PATH_MODULES = ("bootstrap/stationary.py", "bootstrap/rules.py")
+
+
+def float_uses(text: str) -> list[str]:
+    found = []
+    for node in ast.walk(ast.parse(text)):
+        if isinstance(node, ast.Constant) and isinstance(node.value, float):
+            found.append("float literal")
+        elif isinstance(node, ast.Call) and getattr(node.func, "id", "") == "float":
+            found.append("float()")
+        elif isinstance(node, ast.BinOp) and isinstance(node.op, ast.Div):
+            found.append("true division")
+    return found
+
+
+def output_uses(text: str) -> list[str]:
+    found = []
+    for node in ast.walk(ast.parse(text)):
+        if isinstance(node, ast.Call) and getattr(node.func, "id", "") in {"print", "breakpoint"}:
+            found.append("print")
+    found += [m for m in imported_modules(text) if m.split(".")[0] in {"logging", "warnings"}]
+    return found
+
+
+def test_float_scanner_flags_float_arithmetic():
+    assert float_uses("x = 0.5\ny = float(3)\nz = 1 / 2\n") == [
+        "float literal",
+        "float()",
+        "true division",
+    ]
+    assert float_uses("x = 7 // 2\ny = Fraction(1, 2)\n") == []
+
+
+def test_output_scanner_flags_print_and_logging():
+    assert output_uses("import logging\nprint('x')\n") == ["print", "logging"]
+    assert output_uses("from datetime import date\n") == []
+
+
+def test_path_modules_use_no_float_arithmetic():
+    texts = sources()
+    assert {name: float_uses(texts[name]) for name in PATH_MODULES if float_uses(texts[name])} == {}
+
+
+def test_bootstrap_modules_never_print_or_log():
+    texts = sources()
+    bad = {n: output_uses(t) for n, t in texts.items() if n.startswith("bootstrap/")}
+    assert {n: hits for n, hits in bad.items() if hits} == {}
+
+
+PROJECTION_DIR = SRC / "projection"
+PROJECTION_ALLOWED_IMPORTS = PURE_ALLOWED_IMPORTS | {"decimal", "numpy", "re", "types"}
+BLAS_CALL = re.compile(r"\.dot\(|einsum|matmul|tensordot|\.inner\(|numpy\.linalg|\blinalg\b")
+
+
+def projection_sources() -> dict[str, str]:
+    return {
+        str(p.relative_to(SRC)): p.read_text(encoding="utf-8") for p in PROJECTION_DIR.rglob("*.py")
+    }
+
+
+def matmul_operators(text: str) -> int:
+    return sum(
+        isinstance(node, ast.BinOp) and isinstance(node.op, ast.MatMult)
+        for node in ast.walk(ast.parse(text))
+    )
+
+
+def projection_disallowed(text: str) -> set[str]:
+    bad = set()
+    for module in imported_modules(text):
+        first = module.split(".")[0]
+        if first == "antlab_engine":
+            ok = any(module == a or module.startswith(a + ".") for a in PURE_ALLOWED_FIRST_PARTY)
+            if not (ok or module.startswith("antlab_engine.projection")):
+                bad.add(module)
+        elif first not in PROJECTION_ALLOWED_IMPORTS:
+            bad.add(module)
+    return bad
+
+
+def test_projection_scanners_flag_what_they_should():
+    assert projection_disallowed(
+        "import numpy\nimport pandas\nfrom antlab_engine.api import x\n"
+    ) == {
+        "pandas",
+        "antlab_engine.api",
+    }
+    assert matmul_operators("c = a @ b\n") == 1 and matmul_operators("c = a * b\n") == 0
+    assert find(BLAS_CALL, "x = a.dot(b)\ny = np.einsum('i', a)\nz = np.matmul(a, b)") != []
+    assert find(BLAS_CALL, "np.cumprod(a, axis=1)") == []
+
+
+def test_projection_modules_import_only_numpy_and_the_pure_core():
+    sources = projection_sources()
+    assert sources.keys() >= {"projection/api.py", "projection/evaluate.py", "projection/stats.py"}
+    assert {
+        n: projection_disallowed(t) for n, t in sources.items() if projection_disallowed(t)
+    } == {}
+
+
+def test_projection_modules_read_no_clock_random_source_or_output():
+    sources = projection_sources()
+    assert {n: find(CLOCK_CALL, t) for n, t in sources.items() if find(CLOCK_CALL, t)} == {}
+    assert {n: output_uses(t) for n, t in sources.items() if output_uses(t)} == {}
+    assert [n for n, t in sources.items() if "default_rng" in t or "RandomState" in t] == []
+
+
+def test_projection_modules_use_no_blas_routine():
+    sources = projection_sources()
+    assert {n: find(BLAS_CALL, t) for n, t in sources.items() if find(BLAS_CALL, t)} == {}
+    assert {n: matmul_operators(t) for n, t in sources.items() if matmul_operators(t)} == {}

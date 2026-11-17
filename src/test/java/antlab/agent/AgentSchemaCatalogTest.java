@@ -14,7 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /**
- * Every constraint and index V5 adds, by name, plus the exact V4 to V5 difference. The erd tables for the agent
+ * Every constraint and index V6 adds, by name, plus the exact V5 to V6 difference. The erd tables for the agent
  * schema are written in the docs step of the AG-02 stack, so the expected list lives here until then.
  */
 @JpaMappingTest
@@ -74,19 +74,19 @@ class AgentSchemaCatalogTest {
     }
 
     @Test
-    void v5AddsExactlyTheNamedConstraintsAndIndexes() {
-        Set<String> v4;
+    void v6AddsExactlyTheNamedConstraintsAndIndexes() {
         Set<String> v5;
-        try (FlywayScratchDatabase scratch = new FlywayScratchDatabase(postgres, "v5_catalog")) {
-            scratch.migrateTo("4");
-            v4 = objects(new JdbcTemplate(scratch.dataSource()));
+        Set<String> v6;
+        try (FlywayScratchDatabase scratch = new FlywayScratchDatabase(postgres, "v6_catalog")) {
             scratch.migrateTo("5");
             v5 = objects(new JdbcTemplate(scratch.dataSource()));
+            scratch.migrateTo("6");
+            v6 = objects(new JdbcTemplate(scratch.dataSource()));
         }
-        Set<String> added = new TreeSet<>(v5);
-        added.removeAll(v4);
+        Set<String> added = new TreeSet<>(v6);
+        added.removeAll(v5);
 
-        assertThat(v4).isSubsetOf(v5);
+        assertThat(v5).isSubsetOf(v6);
         assertThat(added).containsExactlyInAnyOrderElementsOf(EXPECTED);
         assertThat(objects(jdbc)).containsAll(EXPECTED);
     }
