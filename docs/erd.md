@@ -1886,8 +1886,8 @@ The exposure tag (`[노출]`/`[내부]`) leads each comment. Every FK is `ON DEL
 |  | 역할 수행 점수 | role_score | NUMERIC(5,2) | NULL |  | `[노출]` `ck_season_score_role`: 0–100. |
 |  | 소음 반응 점수 | noise_score | NUMERIC(5,2) | NULL |  | `[노출]` `ck_season_score_noise`: 0–100. NULL until MVP-19. |
 |  | 넛지 의존 점수 | nudge_score | NUMERIC(5,2) | NULL |  | `[노출]` `ck_season_score_nudge`: 0–100. NULL when the season had no trades. / 매매가 없던 시즌이면 NULL. |
-|  | 값이 있는 과정 항목 수 | process_items | SMALLINT | NN |  | `[노출]` `ck_season_score_process_items`: 1–9. The count of non-NULL item scores is checked by the writer (11.5). |
-|  | 레이팅 제외 사유 | rating_exclusion | VARCHAR(11) | NULL |  | `[노출]` `ck_season_score_rating_exclusion`: `rating_exclusion IN ('NOT_STARTED','NO_SCORE')`; `ck_season_score_no_score`: `score IS NOT NULL OR rating_exclusion IS NOT NULL`. `NOT_STARTED` wins over `NO_SCORE`. AG-02 A5 adds `INVALID` in its own migration. / `NOT_STARTED`가 `NO_SCORE`보다 앞선다. `INVALID`는 AG-02 A5가 자기 마이그레이션에서 더한다. |
+|  | 값이 있는 과정 항목 수 | process_items | SMALLINT | NN |  | `[노출]` `ck_season_score_process_items`: 1–9 and equal to `num_nonnulls` of the nine item scores. |
+|  | 레이팅 제외 사유 | rating_exclusion | VARCHAR(11) | NULL |  | `[노출]` `ck_season_score_rating_exclusion`: `rating_exclusion IN ('NOT_STARTED','NO_SCORE')`; `ck_season_score_no_score`: `score IS NOT NULL OR rating_exclusion IS NOT NULL`; `ck_season_score_no_score_null`: a `NO_SCORE` row has no score. `NOT_STARTED` wins over `NO_SCORE`. AG-02 A5 adds `INVALID` in its own migration. / `NOT_STARTED`가 `NO_SCORE`보다 앞선다. `INVALID`는 AG-02 A5가 자기 마이그레이션에서 더한다. |
 |  | 계산 입력 | inputs | JSONB | NN |  | `[내부]` `ck_season_score_inputs`: `jsonb_typeof(inputs) = 'object'`. The values the score was computed from, for re-fitting and audits; never in a DTO. / 점수 계산에 쓴 값. 공식을 다시 맞추거나 감사할 때 쓰며 DTO에 나가지 않는다. |
 |  | 생성일시 | created_at | TIMESTAMPTZ | NN | now() | `[내부]` |
 
@@ -1901,7 +1901,7 @@ The exposure tag (`[노출]`/`[내부]`) leads each comment. Every FK is `ON DEL
 |  | 집계 시즌 순번 | seq_no | INTEGER | NN |  | `[노출]` `ck_rating_history_seq_no`: `seq_no >= 1`; `uq_rating_history_member_pillar_seq`: `(member_id, pillar, seq_no)`. The member's counted seasons in finish order. |
 | FK | 시즌번호 | season_id | BIGINT | NN |  | `[내부]` → season_score.season_id (R39). `fk_rating_history_score`; `uq_rating_history_season`. |
 |  | 레이팅 | rating | NUMERIC(5,2) | NN |  | `[노출]` `ck_rating_history_rating`: 0–100 with a NaN guard. Weighted mean of the last five counted scores, weights 5·4·3·2·1 newest first. Stored from the first counted season, shown only where `seq_no >= 3`. / 집계한 점수 최근 다섯의 가중 평균(가중치 최근부터 5·4·3·2·1). 첫 집계 시즌부터 저장하고 `seq_no >= 3`일 때만 보인다. |
-|  | 평균에 쓴 시즌 수 | seasons_used | SMALLINT | NN |  | `[노출]` `ck_rating_history_used`: `seasons_used BETWEEN 1 AND 5 AND seasons_used <= seq_no`. |
+|  | 평균에 쓴 시즌 수 | seasons_used | SMALLINT | NN |  | `[노출]` `ck_rating_history_used`: `seasons_used BETWEEN 1 AND 5 AND seasons_used = LEAST(seq_no, 5)`. |
 |  | 생성일시 | created_at | TIMESTAMPTZ | NN | now() | `[내부]` |
 
 ### 11.4 Constraints and indexes / 제약과 인덱스
@@ -1923,9 +1923,10 @@ Notation follows 6.4 (표기는 6.4와 같다). `ScoreSchemaCatalogTest` compare
 | ck_season_score_luck_percentile | CK | season_score | luck_percentile IS NULL OR 0 <= value <= 1 (not NaN) |
 | ck_season_score_percentile_pair | CK | season_score | (sharpe_diff_percentile IS NULL) = (luck_percentile IS NULL) AND (sharpe_diff_percentile IS NULL) = (result_score IS NULL) |
 | ck_season_score_risk … ck_season_score_nudge (9) | CK | season_score | one per item column (`ck_season_score_risk`, `_discipline`, `_diversification`, `_turnover`, `_consistency`, `_formation`, `_role`, `_noise`, `_nudge`): value IS NULL OR 0 <= value <= 100 (not NaN) |
-| ck_season_score_process_items | CK | season_score | process_items BETWEEN 1 AND 9 |
+| ck_season_score_process_items | CK | season_score | process_items BETWEEN 1 AND 9 AND process_items = num_nonnulls(the nine item scores) |
 | ck_season_score_rating_exclusion | CK | season_score | rating_exclusion IN ('NOT_STARTED','NO_SCORE') |
 | ck_season_score_no_score | CK | season_score | score IS NOT NULL OR rating_exclusion IS NOT NULL |
+| ck_season_score_no_score_null | CK | season_score | rating_exclusion IS DISTINCT FROM 'NO_SCORE' OR score IS NULL |
 | ck_season_score_inputs | CK | season_score | jsonb_typeof(inputs) = 'object' |
 | pk_rating_history | PK | rating_history | (id) |
 | uq_rating_history_member_pillar_seq | UQ | rating_history | (member_id, pillar, seq_no) |
@@ -1935,15 +1936,15 @@ Notation follows 6.4 (표기는 6.4와 같다). `ScoreSchemaCatalogTest` compare
 | ck_rating_history_pillar | CK | rating_history | pillar IN ('MANAGER') |
 | ck_rating_history_seq_no | CK | rating_history | seq_no >= 1 |
 | ck_rating_history_rating | CK | rating_history | rating >= 0 AND rating <= 100 AND rating <> 'NaN'::numeric |
-| ck_rating_history_used | CK | rating_history | seasons_used BETWEEN 1 AND 5 AND seasons_used <= seq_no |
+| ck_rating_history_used | CK | rating_history | seasons_used BETWEEN 1 AND 5 AND seasons_used = LEAST(seq_no, 5) |
 
 **Counts / 개수:**
 
 | 테이블 | PK | UNIQUE(제약) | UNIQUE 인덱스(`uq_`) | FK | CHECK | INDEX(`idx_`) |
 |---|---|---|---|---|---|---|
-| season_score | 1 | 0 | 0 | 1 | 22 | 1 |
+| season_score | 1 | 0 | 0 | 1 | 23 | 1 |
 | rating_history | 1 | 2 | 0 | 2 | 4 | 0 |
-| **§11 소계** | **2** | **2** | **0** | **3** | **26** | **1** |
+| **§11 소계** | **2** | **2** | **0** | **3** | **27** | **1** |
 
 ### 11.5 Rules DDL cannot enforce / DDL로 막지 못해 검사할 규칙
 
@@ -1952,7 +1953,6 @@ A `CHECK` sees one row only. The writer (MVP-18 PR B) keeps these rules and its 
 | # | 규칙 | 검사하는 기능 |
 |---|---|---|
 | S1 | A `season_score` row exists only for a `FINISHED` season. / `season_score` 행은 `FINISHED` 시즌에만 있다. | MVP-18 PR B |
-| S2 | `process_items` equals the number of non-NULL item scores. / `process_items`는 NULL이 아닌 항목 점수의 개수와 같다. | MVP-18 PR A calculator test, PR B |
 | S3 | A rating row's `member_id` is its score row's member. / 레이팅 행의 `member_id`는 점수 행의 회원이다. | MVP-18 PR B |
 | S4 | `seq_no` is contiguous per (member, pillar) and follows the finish order of the counted seasons (the finish time of the last turn, then the season id). / `seq_no`는 (회원, 기둥)마다 빈틈이 없고 집계 시즌의 끝난 순서를 따른다(마지막 턴의 기록 시각, 그다음 시즌 번호). | MVP-18 PR B |
 | S5 | A score row with a `rating_exclusion` has no rating row; a row without one has exactly one. / 제외 사유가 있는 점수 행에는 레이팅 행이 없고, 없는 행에는 정확히 하나 있다. | MVP-18 PR B |

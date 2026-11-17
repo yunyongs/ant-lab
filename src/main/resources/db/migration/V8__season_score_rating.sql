@@ -67,9 +67,13 @@ CREATE TABLE season_score (
         noise_score IS NULL OR (noise_score >= 0 AND noise_score <= 100 AND noise_score <> 'NaN'::numeric)),
     CONSTRAINT ck_season_score_nudge CHECK (
         nudge_score IS NULL OR (nudge_score >= 0 AND nudge_score <= 100 AND nudge_score <> 'NaN'::numeric)),
-    CONSTRAINT ck_season_score_process_items CHECK (process_items BETWEEN 1 AND 9),
+    CONSTRAINT ck_season_score_process_items CHECK (
+        process_items BETWEEN 1 AND 9
+        AND process_items = num_nonnulls(risk_score, discipline_score, diversification_score, turnover_score,
+            consistency_score, formation_score, role_score, noise_score, nudge_score)),
     CONSTRAINT ck_season_score_rating_exclusion CHECK (rating_exclusion IN ('NOT_STARTED','NO_SCORE')),
     CONSTRAINT ck_season_score_no_score CHECK (score IS NOT NULL OR rating_exclusion IS NOT NULL),
+    CONSTRAINT ck_season_score_no_score_null CHECK (rating_exclusion IS DISTINCT FROM 'NO_SCORE' OR score IS NULL),
     CONSTRAINT ck_season_score_inputs CHECK (jsonb_typeof(inputs) = 'object')
 );
 CREATE INDEX idx_season_score_member ON season_score (member_id);
@@ -118,7 +122,7 @@ CREATE TABLE rating_history (
     CONSTRAINT ck_rating_history_pillar CHECK (pillar IN ('MANAGER')),
     CONSTRAINT ck_rating_history_seq_no CHECK (seq_no >= 1),
     CONSTRAINT ck_rating_history_rating CHECK (rating >= 0 AND rating <= 100 AND rating <> 'NaN'::numeric),
-    CONSTRAINT ck_rating_history_used CHECK (seasons_used BETWEEN 1 AND 5 AND seasons_used <= seq_no)
+    CONSTRAINT ck_rating_history_used CHECK (seasons_used BETWEEN 1 AND 5 AND seasons_used = LEAST(seq_no, 5))
 );
 COMMENT ON TABLE rating_history IS '레이팅 이력';
 COMMENT ON COLUMN rating_history.id IS '[내부] 번호';

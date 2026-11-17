@@ -237,6 +237,31 @@ class SeasonScoreCalculatorTest {
     }
 
     @Test
+    void rank_counts_from_different_path_numbers_are_refused() {
+        Builder b = fixture();
+        b.endCounts = new RankCounts(900, 0, 1000);
+
+        assertThatThrownBy(b::run).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void a_tiny_but_nonzero_deviation_is_capped_to_the_column_range() {
+        // 11 returns of 0.003 and one of 0.00300001: the deviation is about 3e-8, so the ratio is far above 10^6
+        Builder b = fixture();
+        List<BigDecimal> spiky = new java.util.ArrayList<>(Collections.nCopies(11, d("0.003")));
+        spiky.add(d("0.0030000000000000001"));
+        b.returns = spiky;
+        b.bench = new java.util.ArrayList<>(Collections.nCopies(11, d("-0.003")));
+        b.bench.add(d("-0.0030000000000000001"));
+
+        SeasonScoreResult r = b.run();
+
+        assertThat(r.sharpe()).isEqualByComparingTo("999999.99999999");
+        assertThat(r.benchSharpe()).isEqualByComparingTo("-999999.99999999");
+        assertThat(r.sharpeDiff()).isEqualByComparingTo("999999.99999999");
+    }
+
+    @Test
     void rank_counts_must_come_together() {
         Builder b = fixture();
         b.endCounts = null;

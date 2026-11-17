@@ -34,6 +34,19 @@ class Phase0MarketBaselineTest {
     }
 
     @Test
+    void the_first_return_is_measured_against_the_initial_cash_not_the_turn_zero_value() {
+        SeasonReportSources src = SeasonReportFixtures.threeTurns();
+
+        List<BigDecimal> returns = series.returns(src);
+
+        assertThat(returns).hasSize(3);
+        // (30,820,570 - 30,000,000) / 30,000,000 = 0.0273523333...; against values[0] it would be 0.03094...
+        assertThat(returns.get(0).setScale(8, java.math.RoundingMode.HALF_UP)).isEqualByComparingTo("0.02735233");
+        // (28,970,570 - 30,820,570) / 30,820,570 = -0.0600...
+        assertThat(returns.get(1).setScale(4, java.math.RoundingMode.HALF_UP)).isEqualByComparingTo("-0.0600");
+    }
+
+    @Test
     void the_value_at_turn_zero_is_the_initial_cash_less_the_purchase_fees() {
         SeasonReportSources src = SeasonReportFixtures.threeTurns();
 

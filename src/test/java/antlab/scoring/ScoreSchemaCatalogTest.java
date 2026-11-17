@@ -32,6 +32,7 @@ class ScoreSchemaCatalogTest {
             "season_score.ck_season_score_role", "season_score.ck_season_score_noise",
             "season_score.ck_season_score_nudge", "season_score.ck_season_score_process_items",
             "season_score.ck_season_score_rating_exclusion", "season_score.ck_season_score_no_score",
+            "season_score.ck_season_score_no_score_null",
             "season_score.ck_season_score_inputs",
             "rating_history.pk_rating_history", "rating_history.uq_rating_history_member_pillar_seq",
             "rating_history.uq_rating_history_season", "rating_history.fk_rating_history_member",

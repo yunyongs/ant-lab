@@ -16,6 +16,7 @@ public final class SeasonScoreCalculator {
     public static final String VERSION = "s63-v1";
 
     private static final BigDecimal HUNDRED = BigDecimal.valueOf(100);
+    private static final BigDecimal SHARPE_CAP = new BigDecimal("999999.99999999");
     private static final BigDecimal HALF = new BigDecimal("0.5");
     private static final BigDecimal DIVERSIFICATION_FREE = new BigDecimal("0.10");
     private static final BigDecimal DIVERSIFICATION_SPAN = new BigDecimal("0.40");
@@ -57,7 +58,7 @@ public final class SeasonScoreCalculator {
             luckPercentile = Percentile.stored(in.endMultipleCounts());
         }
         return new SeasonScoreResult(VERSION, score, resultExact == null ? null : round2(resultExact), round2(process),
-                round8(sharpe), round8(benchSharpe), round8(sharpeDiff), diffPercentile, luckPercentile,
+                capSharpe(sharpe), capSharpe(benchSharpe), capSharpe(sharpeDiff), diffPercentile, luckPercentile,
                 round2(risk), round2(discipline), round2(diversification), round2(turnover),
                 null, round2(formation), round2(role), null, round2(nudge), items.size());
     }
@@ -170,6 +171,14 @@ public final class SeasonScoreCalculator {
         return value == null ? null : MoneyMath.round2(value);
     }
 
+    /**
+     * Rounds a Sharpe value to its column scale and caps it to the column range (NUMERIC(14,8) holds under 10^6), so a
+     * tiny but non-zero deviation cannot make the INSERT fail for ever. The raw value belongs in the inputs record.
+     */
+    private static BigDecimal capSharpe(BigDecimal value) {
+        return round8(value).max(SHARPE_CAP.negate()).min(SHARPE_CAP);
+    }
+
     private static BigDecimal round8(BigDecimal value) {
         return MoneyMath.round8(value);
     }
@@ -198,6 +207,9 @@ public final class SeasonScoreCalculator {
         }
         if ((in.sharpeDiffCounts() == null) != (in.endMultipleCounts() == null)) {
             throw new IllegalArgumentException("rank counts must be given together or not at all");
+        }
+        if (in.sharpeDiffCounts() != null && in.sharpeDiffCounts().n() != in.endMultipleCounts().n()) {
+            throw new IllegalArgumentException("both rank counts must come from the same number of paths");
         }
         if (in.riskBreachTurns() != null && (in.riskBreachTurns() < 0 || in.riskBreachTurns() > in.reportTurns())) {
             throw new IllegalArgumentException("risk breach turns out of range");

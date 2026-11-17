@@ -32,6 +32,11 @@ import org.springframework.transaction.annotation.Transactional;
 class ScoreConstraintTest {
 
     private static final AtomicInteger SEQ = new AtomicInteger();
+    private static final java.util.List<String> ITEMS = java.util.List.of("risk", "discipline", "diversification",
+            "turnover", "consistency", "formation", "role", "noise", "nudge");
+    /** Items that carry a value in the default valid row (consistency and noise stay empty, as in s63-v1). */
+    private static final java.util.Set<String> ITEMS_SET = java.util.Set.of("risk", "discipline", "diversification",
+            "turnover", "formation", "role", "nudge");
     private static final String CHECK = "23514";
     private static final String FK = "23503";
     private static final String UNIQUE = "23505";
@@ -82,9 +87,15 @@ class ScoreConstraintTest {
             v.put("sharpe_diff", "-0.06002159");
             v.put("sharpe_diff_percentile", "0.62500000");
             v.put("luck_percentile", "0.45000000");
-            v.put("process_items", "7");
+            for (String item : ITEMS) {
+                v.put(item + "_score", ITEMS_SET.contains(item) ? "70.00" : "NULL");
+            }
             v.put("inputs", "'{}'::jsonb");
             v.putAll(overrides);
+            // process_items follows the item columns unless a test sets it on purpose
+            if (!overrides.containsKey("process_items")) {
+                v.put("process_items", String.valueOf(ITEMS.stream().filter(i -> !"NULL".equals(v.get(i + "_score"))).count()));
+            }
             return "INSERT INTO season_score (" + String.join(", ", v.keySet()) + ") VALUES ("
                     + String.join(", ", v.values()) + ")";
         }
@@ -244,6 +255,24 @@ class ScoreConstraintTest {
     }
 
     @Test
+    void processItemsMustEqualTheNumberOfNonNullItemScores() throws Exception {
+        // seven item columns are filled; claiming 4 or 8 is refused, claiming 7 is accepted
+        rejects(CHECK, "ck_season_score_process_items",
+                tx -> tx.scoreSql(tx.season, tx.member, Map.of("process_items", "4")));
+        rejects(CHECK, "ck_season_score_process_items",
+                tx -> tx.scoreSql(tx.season, tx.member, Map.of("process_items", "8")));
+        try (Tx tx = new Tx()) {
+            tx.exec(tx.scoreSql(tx.season, tx.member, Map.of("process_items", "7")));
+        }
+    }
+
+    @Test
+    void aNoScoreRowMustNotCarryAScore() throws Exception {
+        rejects(CHECK, "ck_season_score_no_score_null",
+                tx -> tx.scoreSql(tx.season, tx.member, Map.of("rating_exclusion", "'NO_SCORE'")));
+    }
+
+    @Test
     void unknownExclusionIsRefused() throws Exception {
         rejects(CHECK, "ck_season_score_rating_exclusion",
                 tx -> tx.scoreSql(tx.season, tx.member, Map.of("rating_exclusion", "'INVALID'")));
@@ -303,6 +332,15 @@ class ScoreConstraintTest {
         rejects(CHECK, "ck_rating_history_used", tx -> {
             tx.score(tx.season, tx.member);
             return tx.ratingSql(tx.member, "MANAGER", 2, tx.season, "50", 3);
+        });
+        // a value below LEAST(seq_no, 5) is refused too: seq 7 must cover five seasons, seq 2 must cover two
+        rejects(CHECK, "ck_rating_history_used", tx -> {
+            tx.score(tx.season, tx.member);
+            return tx.ratingSql(tx.member, "MANAGER", 7, tx.season, "50", 2);
+        });
+        rejects(CHECK, "ck_rating_history_used", tx -> {
+            tx.score(tx.season, tx.member);
+            return tx.ratingSql(tx.member, "MANAGER", 2, tx.season, "50", 1);
         });
     }
 
