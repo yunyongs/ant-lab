@@ -88,6 +88,32 @@ public class OpenApiConfig {
         };
     }
 
+    /**
+     * A property that is a reference and may be null (an OpenAPI 3.1 union): springdoc writes only the {@code $ref}, so the
+     * schema is rewritten to {@code oneOf: [$ref, null]} and keeps its description. Listed by schema and property name.
+     */
+    @Bean
+    OpenApiCustomizer nullableReferenceCustomizer() {
+        return openApi -> {
+            if (openApi.getComponents() == null || openApi.getComponents().getSchemas() == null) {
+                return;
+            }
+            Schema<?> owner = openApi.getComponents().getSchemas().get("SeasonAnalysisDto");
+            if (owner == null || owner.getProperties() == null) {
+                return;
+            }
+            Schema<?> property = (Schema<?>) owner.getProperties().get("decomposition");
+            if (property == null || property.get$ref() == null) {
+                return;
+            }
+            Schema<Object> union = new Schema<>();
+            union.setDescription(property.getDescription());
+            union.addOneOfItem(new Schema<>().$ref(property.get$ref()));
+            union.addOneOfItem(new Schema<>().types(Set.of("null")));
+            owner.getProperties().put("decomposition", union);
+        };
+    }
+
     /** The public description lists only the codes the public API can answer; the runner contract lists the rest. */
     private static void hideRunnerOnlyCodes(Components components) {
         Schema<?> codes = components.getSchemas() == null ? null : components.getSchemas().get("ErrorCode");

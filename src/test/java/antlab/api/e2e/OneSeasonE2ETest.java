@@ -2,6 +2,7 @@ package antlab.api.e2e;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import antlab.api.report.AnalysisAssertions;
 import antlab.api.report.ReportApiSupport;
 import antlab.api.review.ReviewApiSupport;
 import antlab.support.E2eHttp;
@@ -206,6 +207,7 @@ class OneSeasonE2ETest {
         expectProblem(http.post(url("/turns"), "{\"expectedTurnNo\": 2}"), 409, "TURN_MISMATCH");
         expectProblem(http.get(url("/prices?turnNo=4")), 409, "TURN_NOT_REACHED");
         expectProblem(http.get(url("/report")), 409, "SEASON_NOT_FINISHED");
+        expectProblem(http.get(url("/report/analysis")), 409, "SEASON_NOT_FINISHED");
         expectProblem(http.get(url("/review")), 409, "SEASON_NOT_FINISHED");
 
         assertThat(state()).as("rejections change nothing").isEqualTo(before);
@@ -425,6 +427,25 @@ class OneSeasonE2ETest {
             }
         }
         assertThat(blocks).as("the path exists to hide").hasSize(TURNS);
+    }
+
+    /**
+     * The analysis of the sample season after the report. Which baselines exist depends on the representative assets the
+     * sample pool holds, so the count is read from the answer; the market baseline always exists.
+     */
+    @Test
+    @Order(11)
+    @Timeout(value = 2, unit = TimeUnit.MINUTES)
+    void 분석이_성적표와_맞고_3분해가_정확히_더해진다() {
+        Reply report = http.get(url("/report"));
+        Reply analysis = http.get(url("/report/analysis"));
+        assertThat(analysis.status()).as(analysis.body()).isEqualTo(200);
+        int available = 0;
+        for (JsonNode baseline : analysis.json().get("baselines")) {
+            available += baseline.get("available").asBoolean() ? 1 : 0;
+        }
+        assertThat(available).as("at least the market baseline").isPositive();
+        AnalysisAssertions.assertConsistent(analysis.json(), report.json(), available);
     }
 
     // ---------------------------------------------------------------- helpers
