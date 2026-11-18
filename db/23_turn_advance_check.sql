@@ -477,9 +477,10 @@ SELECT pg_temp.check_eq('01 진행 상태', '로그 ⑦ 규칙 11·19 코드가 
 SELECT pg_temp.check_eq('01 진행 상태', '로그 ⑧ 17개 시도의 행 수 = 17 이고 MATCH 행은 분류가 NULL, MISMATCH 행은 INVESTIGATE 다 (어긋난 행 수)', '0',
     (SELECT count(*) FROM reconciliation_log l JOIN zz_cur c ON c.id = l.season_id JOIN zz_att17 a ON a.turn_no = l.turn_no AND a.attempt_no = l.attempt_no
      WHERE (l.status = 'MATCH') <> (l.classification IS NULL) OR (l.status = 'MISMATCH' AND l.classification <> 'INVESTIGATE'))::text);
-SELECT pg_temp.check_eq('01 진행 상태', '피드 ① 피드가 있는 턴마다 1–15행·seq 연속이다 (0행 턴은 이 질의에 보이지 않는다 — 피드 누락은 24 검증 ② 저장 = 재생성이 본다)', '0',
+SELECT pg_temp.check_eq('01 진행 상태', '피드 ① 피드가 있는 턴마다 NUDGE 를 뺀 행이 1–15이고 seq 는 NUDGE 를 포함해 연속이다 (0행 턴은 이 질의에 보이지 않는다 — 피드 누락은 24 검증 ② 저장 = 재생성이 본다)', '0',
     (SELECT count(*) FROM (SELECT f.turn_no FROM turn_feed f JOIN zz_cur c ON c.id = f.season_id
-                           GROUP BY f.turn_no HAVING count(*) > 15 OR min(f.seq) <> 1 OR max(f.seq) <> count(*)) x)::text);
+                           GROUP BY f.turn_no
+                           HAVING count(*) FILTER (WHERE f.kind <> 'NUDGE') > 15 OR min(f.seq) <> 1 OR max(f.seq) <> count(*)) x)::text);
 SELECT pg_temp.check_eq('01 진행 상태', '피드 ② 0턴·현재 턴 이후 행이 없다', '0',
     (SELECT count(*) FROM turn_feed f JOIN zz_cur c ON c.id = f.season_id
       WHERE f.turn_no < 1 OR f.turn_no > c.current_turn_no)::text);
