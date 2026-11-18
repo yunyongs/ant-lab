@@ -2,7 +2,7 @@
 
 Hand-edited pool files for the MVP history (180 assets x 360 month blocks). This folder holds the candidate list, the selection rule and, since 02-B, the selected pool (`asset.csv`) and the fetch targets. No price or return value is tracked here.
 
-> **Status: selection for approval (02-B).** 216 candidates, 180 `SELECTED`, 34 `RESERVE`, 2 `FAILED_CHECK`. Merging this PR is the pool approval, but approval is blocked until the 28 `TO_CONFIRM` ETF listing dates are confirmed from issuer pages and the `CHECK_PENDING` row is resolved (see "Open items"). Listing dates marked `TO_CONFIRM` are best public knowledge, not verified against a primary page (see "Open items").
+> **Status: selection for approval (02-B).** 216 candidates, 180 `SELECTED`, 34 `RESERVE`, 2 `FAILED_CHECK`. Merging this PR is the pool approval, but approval is blocked until the 21 remaining `TO_CONFIRM` selected-ETF listing dates are confirmed from issuer or KRX pages and the `CHECK_PENDING` row is resolved (see "Open items"). Listing dates marked `TO_CONFIRM` are best public knowledge, not verified against a primary page (see "Open items").
 
 ## Files
 
@@ -80,7 +80,7 @@ Hand-edited pool files for the MVP history (180 assets x 360 month blocks). This
 ### Open items for the owner
 
 - **`CHECK_PENDING` rows (all of them).** Selected: `BRK.B` (US stock rank 7), `SELECTED` but not yet passed: `has_2006_12` is blank and `note` has `CHECK_PENDING: YF_PENDING` because its yfinance file (`BRK-B`) is not fetched; the KIS symbol form works (first KIS month 2012-09, continuous). The test requires every selected stock to be `has_2006_12 = Y` or explicitly `CHECK_PENDING`. Resolve it before or right after merge: if the yfinance run shows no 2006-12 close or a gap, the first US reserve (`PWR`, rank 101, also pending) takes its place. Reserves: `PWR`, `CMCSA`, `PNC`, `WAT`, `CTAS`, `EMR`, `SPG`, `MNST`, `MSI`, `INTU`, `AMT`, `ECL`, `MDLZ`, `WMB`, `CDNS`, `MCO`, `SNPS`, `SHW`, `RCL`, `TRV`. 20 US reserves and all 18 US ETFs have no `yf_first_month` yet; 78 KR rows have no yfinance measurement (cross-check only).
-- **`TO_CONFIRM` listing dates — blocks approval for ETFs.** 28 of the 30 selected ETFs are still `TO_CONFIRM` (only `069500` and `411060` are `CONFIRMED`), and 150 selected stocks (review-only). No network was used in 02-B, so no date was checked against an issuer page; the issuer confirmation required before approval (see "How `listed_check` works") is still to be done. A wrong listing month moves the ACTUAL/proxy boundary. The sweep only shows that each KR ETF's first KIS bar falls in the listed month. ETFs to confirm, because `listed_on` sets their proxy months: `360750` (sources differ by one day), `133690`, `458730`, `476850`, `426030`, `0019K0`, `476760`, `148070`, `114260` (`DATE_APPROX`), `329750`, `459580`, `160580`, `261220`, `091160` and the 14 US ETFs.
+- **`TO_CONFIRM` listing dates — blocks approval for ETFs.** Checked 2026-11-19: `GLD`, `DIA`, `XLE`, `XLF`, `XLV`, `XLK`, `XLP`, `XLU` (SSGA listing date) and `QQQ` (Invesco inception = listing) are now `CONFIRMED`. Still open, 21 selected ETFs: the 14 KR ETFs (`360750`, `133690`, `458730`, `476850`, `426030`, `0019K0`, `476760`, `148070`, `114260`, `329750`, `459580`, `160580`, `261220`, `091160`), whose dates match funetf.co.kr (a distributor) but no issuer or KRX page was reachable (`114260` may be 2009-07-29, not 07-01); `SPY` (SSGA lists 1993-01-22, file has the first trade 01-29, owner picks the definition); and `TLT`, `SHY`, `IEF`, `IWM`, `EFA`, `EEM` (iShares pages give inception only, not first trade). Reserves `091170`, `102110`, `LQD`, `AGG` are also open. The 6 stocks with bars before `listed_on` (`009540`, `024110`, `003550`, `021240`, `071050`, `006800`) could not be confirmed on a KRX or issuer page; they stay review-only.
 - **`LISTED_ON_CONFLICT` (6 KR stocks):** `009540`, `024110`, `003550`, `021240`, `071050`, `006800` have KIS bars from a month before their approximate `listed_on`. The measured month is the one that counts for the history; the `listed_on` of these rows is wrong or approximate.
 - The `BRK.B` `note` still says "KIS symbol form to be measured (M9)"; it is measured now.
 
@@ -94,7 +94,7 @@ Hand-edited pool files for the MVP history (180 assets x 360 month blocks). This
 
 MVP 이력(종목 180 × 월 블록 360)을 위한 손 편집 풀 파일이다. 이 폴더에는 후보 목록, 선정 규칙, 그리고 02-B부터 선정된 풀(`asset.csv`)과 수집 대상 파일이 있다. 가격이나 수익률 값은 추적하지 않는다.
 
-> **상태: 승인용 선정 결과(02-B).** 후보 216종 중 `SELECTED` 180, `RESERVE` 34, `FAILED_CHECK` 2. 이 PR의 머지가 풀 승인이지만, `TO_CONFIRM`인 ETF 상장일 28종을 운용사 페이지로 확인하고 `CHECK_PENDING` 행을 해소하기 전에는 승인할 수 없다("남은 확인" 참고). `TO_CONFIRM`인 상장일은 공개 자료에 따른 최선의 값이며 1차 페이지로 확인하지 않았다("남은 확인" 참고).
+> **상태: 승인용 선정 결과(02-B).** 후보 216종 중 `SELECTED` 180, `RESERVE` 34, `FAILED_CHECK` 2. 이 PR의 머지가 풀 승인이지만, `TO_CONFIRM`으로 남은 선정 ETF 상장일 21종을 운용사·KRX 페이지로 확인하고 `CHECK_PENDING` 행을 해소하기 전에는 승인할 수 없다("남은 확인" 참고). `TO_CONFIRM`인 상장일은 공개 자료에 따른 최선의 값이며 1차 페이지로 확인하지 않았다("남은 확인" 참고).
 
 ## 파일
 
@@ -172,7 +172,7 @@ MVP 이력(종목 180 × 월 블록 360)을 위한 손 편집 풀 파일이다. 
 ### 소유자가 볼 남은 확인
 
 - **`CHECK_PENDING` 행 전부.** 선정: `BRK.B`(미국 주식 7위)는 `SELECTED`이지만 아직 통과하지 않았다. yfinance 파일(`BRK-B`)을 받지 않아 `has_2006_12`가 비어 있고 `note`에 `CHECK_PENDING: YF_PENDING`이 있다. KIS 심볼 형식은 통하고 첫 KIS 달 2012-09부터 끊김이 없다. 테스트는 선정 주식이 `has_2006_12 = Y`이거나 명시적 `CHECK_PENDING`일 것을 요구한다. 머지 전후에 해소하라: yfinance 실행에서 2006-12 종가가 없거나 빠진 달이 있으면 미국 예비 1순위(`PWR`, 101위, 이것도 보류)가 자리를 채운다. 예비: `PWR`, `CMCSA`, `PNC`, `WAT`, `CTAS`, `EMR`, `SPG`, `MNST`, `MSI`, `INTU`, `AMT`, `ECL`, `MDLZ`, `WMB`, `CDNS`, `MCO`, `SNPS`, `SHW`, `RCL`, `TRV`. 미국 예비 20종과 미국 ETF 18종 전부 `yf_first_month`가 아직 없고, 국내 78행은 yfinance 측정이 없다(교차 확인용일 뿐).
-- **`TO_CONFIRM` 상장일 — ETF는 승인을 막는다.** 선정 ETF 30종 중 28종이 아직 `TO_CONFIRM`이고(`069500`, `411060`만 `CONFIRMED`) 선정 주식 150종도 그렇다(주식은 검토용). 02-B는 네트워크를 쓰지 않아 운용사 페이지로 확인한 날짜가 없고, 승인 전에 필요한 운용사 확인("`listed_check`의 뜻" 참고)은 아직 남았다. 상장 달이 틀리면 ACTUAL/대체 경계가 움직인다. 훑기는 국내 ETF의 첫 KIS 봉이 상장 달에 있음을 보일 뿐이다. `listed_on`이 ETF의 대체 달을 정하므로 확인할 ETF: `360750`(출처마다 하루 차이), `133690`, `458730`, `476850`, `426030`, `0019K0`, `476760`, `148070`, `114260`(`DATE_APPROX`), `329750`, `459580`, `160580`, `261220`, `091160`, 미국 ETF 14종.
+- **`TO_CONFIRM` 상장일 — ETF는 승인을 막는다.** 2026-11-19 확인: `GLD`, `DIA`, `XLE`, `XLF`, `XLV`, `XLK`, `XLP`, `XLU`(SSGA 상장일)와 `QQQ`(Invesco 설정일 = 상장일)는 `CONFIRMED`가 됐다. 남은 선정 ETF 21종: 국내 14종(`360750`, `133690`, `458730`, `476850`, `426030`, `0019K0`, `476760`, `148070`, `114260`, `329750`, `459580`, `160580`, `261220`, `091160`)은 유통사 funetf.co.kr 날짜와는 일치하지만 운용사·KRX 페이지에 접근하지 못했다(`114260`은 2009-07-29일 수 있음); `SPY`(SSGA는 1993-01-22, 파일은 첫 거래 01-29, 정의는 소유자가 정함); `TLT`, `SHY`, `IEF`, `IWM`, `EFA`, `EEM`(iShares 페이지는 설정일만 제시). 예비 `091170`, `102110`, `LQD`, `AGG`도 남았다. `listed_on`보다 KIS 봉이 먼저 시작하는 주식 6종(`009540`, `024110`, `003550`, `021240`, `071050`, `006800`)은 KRX·운용사 페이지로 확인하지 못했고 검토용으로 남는다.
 - **`LISTED_ON_CONFLICT`(국내 주식 6종):** `009540`, `024110`, `003550`, `021240`, `071050`, `006800`은 KIS 봉이 근사 `listed_on`보다 앞선 달에 시작한다. 이력에는 측정한 달이 쓰이며, 이 행들의 `listed_on`은 틀렸거나 근사값이다.
 - `BRK.B`의 `note`에 "KIS symbol form to be measured (M9)"가 남아 있다. 지금은 측정되었다.
 
