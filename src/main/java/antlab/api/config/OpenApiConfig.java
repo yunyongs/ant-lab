@@ -94,6 +94,7 @@ public class OpenApiConfig {
     private static final Map<String, List<String>> NULLABLE_REFERENCES = Map.of(
             "PlaceOrderRequest", List.of("source"),
             "SeasonAnalysisDto", List.of("decomposition"),
+            "SeasonScoreDto", List.of("ratingExclusion"),
             "ReviewFeedItemDto", List.of("event"));
 
     /**
