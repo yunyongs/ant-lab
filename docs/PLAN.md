@@ -185,7 +185,7 @@ Releases are bundles of scope, not dates (owner, 2026-11-07; redefined 2026-11-1
 - **표본 집합:** 데이터 시작 연도부터 **작년 말**까지 실제로 있었던 달. 올해는 뺀다(기준일 이후의 달은 "미래"에 해당하므로 재생에 쓰지 않는다 — 사용자가 올해의 실제 움직임을 알고 있을 수 있다).
 - **한 달 = 한 묶음:** 그 달의 모든 자산 수익률(배당 포함 총수익률), USD/KRW 변화, 거시 지표 변환값(§4.4), 국면 라벨을 함께 가져온다. 종목끼리의 상관관계(폭락장에서 같이 빠지고 채권이 버티는 것)가 그대로 유지된다.
 - **블록 길이:** 한 달씩 독립으로 뽑으면 추세와 국면 지속성이 사라진다. 연속된 달을 **블록**으로 뽑되 길이를 확률적으로 정한다(정상 부트스트랩, 평균 길이 6개월 초안). 블록 안에서는 실제 순서를 따르고, 블록 사이는 무작위로 정한다.
-- **국면 조건부 전이(초안):** 다음 블록을 고를 때 국면 전이 확률(과거에 P1 다음에 P2가 올 확률 등)을 따른다. 이렇게 하면 시즌에 "거시 전망"이 생기고, 복기에서 "P3(금리 상승·성장 둔화)에서 P4로 넘어가는 구간이었다"처럼 설명할 수 있다. 완전 무작위 전이와의 차이는 백테스트(§11 M3)에서 확인한 뒤 기본값을 정한다.
+- **국면 조건부 전이(초안):** 다음 블록을 고를 때 국면 전이 확률(과거에 P1 다음에 P2가 올 확률 등)을 따른다. 이렇게 하면 시즌에 "거시 전망"이 생기고, 복기에서 "P3(금리 상승·성장 확장)에서 P4(금리 상승·성장 둔화)로 넘어가는 구간이었다"처럼 설명할 수 있다 (can be explained as "this was the stretch from P3 (rates up, growth up) to P4 (rates up, growth slowing)"). 완전 무작위 전이와의 차이는 백테스트(§11 M3)에서 확인한 뒤 기본값을 정한다.
 - **달력 정렬:** 블록의 첫 달은 가상 달력에서 같은 월(1–12월)의 실제 달 중에서만 뽑는다. 블록 안은 연속이므로 저절로 맞는다. 이렇게 해야 연말·연초·분기 말의 계절 패턴이 재조합 뒤에도 남는다(§4.11). 정치 주기(대선 4년)는 정렬하지 않는다 — 후보가 너무 줄어 경로가 역사 그 자체가 된다.
 - **가격 적용:** 시즌 시작 가격은 기준일 실제 가격이고, 그 뒤로는 월 블록의 수익률을 곱한다. 그래서 화면의 가격은 "그럴듯한 현재 가격"이며 과거 가격 수준을 드러내지 않는다.
 - **날짜 표시:** 화면에는 "1년차 7월"처럼 시즌 기준 상대 시간만 쓴다. 블록의 실제 날짜, 뉴스, 사건의 이름·고유명사는 시즌 종료 전까지 어디에도 나오지 않는다. 사건은 §4.11의 카드로 **범주와 방향만** 보인다.
@@ -202,7 +202,7 @@ Releases are bundles of scope, not dates (owner, 2026-11-07; redefined 2026-11-1
 ### 4.4 거시 환경과 국면
 
 - 지표와 변환은 이전 설계의 14개 지표(`MACRO_ETF.md` §2.3)를 그대로 쓴다. 국면 라벨은 금리(R)와 성장(G)의 방향으로 정한 4개 풀(P1–P4, `MACRO_ETF.md` §2)이고, 각 월 블록은 그 시점까지 공개된 데이터로 계산한 국면 확률을 가진다.
-- 사용자에게 매 턴 보여 주는 것: 국면 확률 4개, 금리·성장·환율·심리 축의 방향(상승/하락/중립)과 강도. 국면 확률은 Python 엔진(M2)부터 제공하고, MVP에서는 Java로 계산한 축별 방향·강도(이동 z-score)까지만 보여 준다. **수치의 절대값(예: "기준금리 5.25%")은 보여 주지 않는다** — 날짜를 드러내기 때문이다. 변환값(z-score, 변화 방향)만 보여 준다.
+- 사용자에게 매 턴 보여 주는 것: 국면 확률 4개, 금리·성장·환율·심리 축의 방향(상승/하락/중립)과 강도. Both come from the Python engine: the regime label job (M2-08) stores them in `month_block` and the turn result (MVP-16) shows the stored values. No Java z-score calculator is built (decided 2026-11-17). A month the engine could not evaluate shows no value. / 둘 다 Python 엔진이 계산한다. 국면 라벨 잡(M2-08)이 `month_block`에 저장하고 턴 결과(MVP-16)가 저장된 값을 그대로 보여 준다. Java z-score 계산기는 만들지 않는다(2026-11-17 결정). 엔진이 평가하지 못한 달은 값을 보여 주지 않는다. **수치의 절대값(예: "기준금리 5.25%")은 보여 주지 않는다** — 날짜를 드러내기 때문이다. 변환값(z-score, 변화 방향)만 보여 준다.
 - 복기에서는 국면 경로 전체와 각 달의 실제 날짜·사건을 공개한다. 사건 설명은 AI 단계(§11)에서 RAG로 만들고, 그 전에는 월 블록에 미리 적은 한 줄 요약(예: "리먼 파산, 신용 경색")을 쓴다.
 - 확장 구간(§4.7)의 달도 같은 지표의 그 달 값을 가진다. 1990년대에 없는 지표는 `MACRO_ETF.md` §4.1의 연결 방식(예: `DTWEXBGS` 앞은 `DTWEXM`)으로 잇고, 이을 수 없으면 확장 구간의 시작을 늦춘다.
 
@@ -508,7 +508,7 @@ default_formation: [10, 30, 30, 30]
 - 페르소나는 `style_master`로 대가 라이브러리(§4.12)를 참조할 수 있지만 대가 본인을 연기하지 않고, 표시 이름에 실명을 쓰지 않는다.
 
 **턴 입력과 출력.**
-- **입력(사람의 턴 화면과 같은 출처):** 시즌 설정(상대 시간 "1년차 7월", 남은 턴, 위험 선언, 현재 포메이션), 팀(보유·현금·평가액·포지션별 비중·낙폭과 위험 선언 대비 위치), 풀의 그 턴 가격·이번 달 수익률·시스템 판정 포지션, 거시 축 방향·강도(변환값만), 소음 피드 항목(`seq`와 렌더된 문장), 랭킹 보드, 독려 알림, 지금까지의 자기 매매와 사유(최근 k턴), 메모리(아래 "지식 축적").
+- **입력(사람의 턴 화면과 같은 출처):** 시즌 설정(상대 시간 "1년차 7월", 남은 턴, 위험 선언, 현재 포메이션), 팀(보유·현금·평가액·포지션별 비중·낙폭과 위험 선언 대비 위치), 풀의 그 턴 가격·이번 달 수익률·시스템 판정 포지션, macro axis direction and strength and the four regime probabilities (transformed values only) / 거시 축 방향·강도와 국면 확률 4개(변환값만), 소음 피드 항목(`seq`와 렌더된 문장), 랭킹 보드, 독려 알림, 지금까지의 자기 매매와 사유(최근 k턴), 메모리(아래 "지식 축적").
 - **넣지 않는 것:** 날짜·월 블록 id·사건 실명·거시 절대값(§4.4), `[복기 전용]`·`[내부]` 컬럼, 다른 참가자의 매매(리그 알림은 사람에게 보이는 그대로), 외부 검색 도구(§4.13 — **도구 없는 호출**이 기본).
 - 전망 모드는 실명·실제 날짜·실제 가격이며 사람과 같다.
 - **출력(`turn-decision/1`, 네 경로가 같은 스키마 파일을 쓴다):**
@@ -1051,6 +1051,7 @@ ERD 확정 범위(Gate 0 결정 2): Phase 0 SQL이 쓰는 22개 테이블(역사
 - **Nudge alerts in the turn advance (builder, 2026-11-18, MVP-12 PR 2). / 턴 전환의 독려 알림(빌더, 2026-11-18, MVP-12 2번 PR).** Builder values (MVP-12): board top 5, streak from 2 turns; alerts 1 + idle intervals (max 4), cash alert from 20 %; alerts are Java-only at `mvp-12:v1` while feed rows stay `p0-18:v2`. The turn result lists them in `alerts`, the other rows in `feed`. / 작성자 값(MVP-12): 보드 상위 5, 연속은 2턴부터. 알림은 1 + 매매 없는 구간 수(최대 4), 현금 알림은 20%부터. 알림은 Java 전용 `mvp-12:v1`이고 피드 행은 `p0-18:v2` 그대로다. 턴 결과는 알림을 `alerts`로, 나머지 행을 `feed`로 돌려준다.
 
 - **MVP-21 web feed (builder, 2026-11-18). / MVP-21 웹 피드(빌더, 2026-11-18).** The turn screen lists every stored feed item in the stored order as plain text; nothing on the screen is derived from the sentence. An order started from an item sends that item's reference; the app never changes or retries a source. An item that names no asset has no order button. The season-start disclosure sentence is fixed in the web app and tested against `feed/notices.csv`; no endpoint serves it. The ranking board is shown in four tabs and is read-only for now; orders started from a board row follow later with the source `RANKING`. / 턴 화면은 저장된 피드 항목을 저장된 순서대로 모두 일반 텍스트로 보여 주고, 문장에서 파생한 표시는 두지 않는다. 항목에서 시작한 주문은 그 항목의 참조를 보내며, 앱은 출발점을 바꾸거나 다시 보내지 않는다. 종목이 없는 항목에는 주문 버튼이 없다. 시즌 시작 고지 문장은 웹 앱에 고정하고 `feed/notices.csv`와 시험으로 대조한다. 이 문장을 주는 엔드포인트는 없다. 순위판은 탭 네 개로 보이고 지금은 읽기 전용이다. 순위판 줄에서 시작하는 주문은 출발점 `RANKING`과 함께 뒤에 들어온다.
+- **Macro environment on the turn result (builder, 2026-11-18, MVP-16). / 턴 결과의 거시 환경(빌더, 2026-11-18, MVP-16).** The turn result carries `macro` — four axes (direction, strength) and four regime probabilities read from `month_block` for that turn's month only. No indicator level, label or date; a missing part is null (no data). / 턴 결과가 `macro`를 싣는다 — 그 턴의 달에 대해 `month_block`에서 읽은 네 축(방향·강도)과 국면 확률 네 개. 지표 수준·라벨·날짜는 없고, 없는 부분은 null(자료 없음)이다.
 
 ## 14. 빌더에게 맡기는 것
 
