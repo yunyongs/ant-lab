@@ -70,11 +70,21 @@ public final class SeriesObservationWriter {
         return jdbc.queryForObject("SELECT max(ref_date) FROM series_observation WHERE series_id = ?", LocalDate.class, seriesId);
     }
 
+    /** Reads the stored vintages from the earliest incoming date; use the overload with {@code from} for a history read. */
     public Result write(long jobRunId, Instant observedAt, long seriesId, Mode mode, List<Incoming> incoming) {
-        if (incoming.isEmpty()) {
+        LocalDate from = incoming.stream().map(Incoming::refDate).min(Comparator.naturalOrder()).orElse(null);
+        return write(jobRunId, observedAt, seriesId, mode, from, incoming);
+    }
+
+    /**
+     * @param from the first reference date the source was asked for; in history mode every stored date from it on must
+     *             be in the answer, so a vanished leading date or an empty answer fails instead of committing the rest
+     */
+    public Result write(long jobRunId, Instant observedAt, long seriesId, Mode mode, LocalDate from, List<Incoming> incoming) {
+        if (incoming.isEmpty() && (mode == Mode.LATEST || from == null)) {
             return new Result(0, 0, 0);
         }
-        LocalDate earliest = incoming.stream().map(Incoming::refDate).min(Comparator.naturalOrder()).orElseThrow();
+        LocalDate earliest = from;
         return tx.execute(status -> {
             List<String> state = jdbc.queryForList(RUN_STATUS, String.class, jobRunId);
             if (state.size() != 1 || !"RUNNING".equals(state.getFirst())) {

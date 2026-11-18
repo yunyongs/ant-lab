@@ -277,7 +277,7 @@ public final class FredSeriesJob implements FredJob {
         List<FredObservation> fetched = client.observations(def.sourceSeriesId(), start, history);
         List<Incoming> rows = history ? historyRows(def, fetched) : latestRows(fetched);
         SeriesObservationWriter.Result result = writer.write(runId, startedAt, resolved.id(),
-                history ? Mode.HISTORY : Mode.LATEST, rows);
+                history ? Mode.HISTORY : Mode.LATEST, start, rows);
         totals.inserted += result.inserted();
         totals.revised += result.revised();
         totals.unchanged += result.unchanged();

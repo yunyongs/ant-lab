@@ -111,11 +111,19 @@ class FredClientTest {
     }
 
     @Test
-    void 빈_쪽이_오면_총수가_남아도_멈춘다() {
+    void 빈_쪽이_총수에_닿기_전에_오면_읽기_실패다() {
         var h = new FredHarness();
         h.respond(page(10, 0));
+        assertFails(() -> h.factory.newClient().observations("DGS2", START, false), "FRED_PARSE");
 
-        assertThat(h.factory.newClient().observations("DGS2", START, false)).isEmpty();
+        var partial = new FredHarness();
+        partial.respond(page(10, 0, row("2025-01-01", "1", "2025-01-02", "9999-12-31")));
+        partial.respond(page(10, 1));
+        assertFails(() -> partial.factory.newClient().observations("DGS2", START, false), "FRED_PARSE");
+
+        var none = new FredHarness();
+        none.respond(page(0, 0));
+        assertThat(none.factory.newClient().observations("DGS2", START, false)).as("a series with no values is not an error").isEmpty();
     }
 
     @Test

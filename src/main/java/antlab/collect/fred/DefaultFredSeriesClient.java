@@ -76,8 +76,11 @@ final class DefaultFredSeriesClient implements FredSeriesClient {
             int received = out.size() - before;
             offset += received;
             long total = json.path("count").asLong(0);
-            if (received == 0 || offset >= total) {
+            if (offset >= total) {
                 return out;
+            }
+            if (received == 0) {
+                throw parseError("an empty page before the announced count was reached");
             }
         }
         throw new FredException("PAGE_CAP", "FRED paging stopped after " + PAGE_CAP + " pages without reaching the last row");

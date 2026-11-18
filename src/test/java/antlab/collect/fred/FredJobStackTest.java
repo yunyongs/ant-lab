@@ -351,4 +351,20 @@ class FredJobStackTest {
         assertThat(asOf("US_DGS2", "2025-11-03", "2026-11-19")).isEqualByComparingTo("3.7");
         assertRulesHold();
     }
+
+    @Test
+    void 공표_하한_전에_모은_두_빈티지는_하한_당일부터_최신이_보인다() {
+        // ref 2026-11-19 is stored at once on 2026-11-18 and 2026-11-19 (a same-day value): floor = ref + 1 = 2026-11-20
+        harness.respond(page(1, 0, row("2026-11-19", "3.60", "2026-11-18", "2026-11-18")));
+        run("US_DGS2");
+        harness.server.reset();
+        harness.respond(page(1, 0, row("2026-11-19", "3.70", "2026-11-19", "2026-11-19")));
+        clock.advance(Duration.ofDays(1));
+
+        run("US_DGS2");
+
+        assertThat(asOf("US_DGS2", "2026-11-19", "2026-11-19")).as("both stored before the floor").isNull();
+        assertThat(asOf("US_DGS2", "2026-11-19", "2026-11-20")).as("the latest from the floor day").isEqualByComparingTo("3.7");
+        assertRulesHold();
+    }
 }

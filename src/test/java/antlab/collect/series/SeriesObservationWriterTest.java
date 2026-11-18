@@ -201,4 +201,29 @@ class SeriesObservationWriterTest {
                 .isInstanceOf(ClockSkewException.class);
         assertThat(count()).isEqualTo(1);
     }
+
+    @Test
+    void 이력_방식에서_요청_범위_앞쪽_날짜가_사라지면_뒤쪽도_쓰지_않는다() {
+        LocalDate from = LocalDate.of(2022, 1, 1);
+        writer.write(run, T1, series, Mode.HISTORY, from, List.of(in("2022-12-01", "300.974", "2023-01-12"), in("2023-01-01", "302.7", "2023-02-14")));
+        close(run);
+        long second = openRun(T2);
+
+        assertThatThrownBy(() -> writer.write(second, T2, series, Mode.HISTORY, from,
+                List.of(in("2023-01-01", "302.7", "2023-02-14"), in("2023-02-01", "304.1", "2023-03-14"))))
+                .isInstanceOf(VintageMismatchException.class);
+        assertThat(count()).isEqualTo(2);
+    }
+
+    @Test
+    void 이력_방식에서_답이_통째로_비면_저장된_이력이_있을_때_실패한다() {
+        LocalDate from = LocalDate.of(2022, 1, 1);
+        writer.write(run, T1, series, Mode.HISTORY, from, List.of(in("2022-12-01", "300.974", "2023-01-12")));
+        close(run);
+        long second = openRun(T2);
+
+        assertThatThrownBy(() -> writer.write(second, T2, series, Mode.HISTORY, from, List.of())).isInstanceOf(VintageMismatchException.class);
+        assertThat(count()).isEqualTo(1);
+        assertThat(writer.write(second, T2, series, Mode.HISTORY, LocalDate.of(2030, 1, 1), List.of())).as("nothing stored in range").isEqualTo(new Result(0, 0, 0));
+    }
 }
