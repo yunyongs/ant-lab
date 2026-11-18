@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { MacroPanel } from '../macro/MacroPanel.tsx';
 import { FeedSection } from '../feed/FeedSection.tsx';
 import { RankingSection } from '../ranking/RankingSection.tsx';
 import { ProjectionLink } from '../projection/ProjectionLink.tsx';
@@ -52,6 +53,7 @@ export function TurnView({
         />
       )}
       {turn.data && <TurnResultCard turn={turn.data} />}
+      {turn.data && <MacroPanel macro={turn.data.macro} />}
       {turn.data && (
         <FeedSection
           items={turn.data.feed}

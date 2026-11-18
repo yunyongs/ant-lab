@@ -1,0 +1,90 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+}
+
+.title,
+.subtitle {
+  margin: 0;
+  font-size: var(--font-base);
+}
+
+.note {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+.axes {
+  display: flex;
+  margin: 0;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.axisRow {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-3);
+}
+
+.axisRow dt {
+  color: var(--color-text-muted);
+}
+
+.axisRow dd {
+  margin: 0;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.regimes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.list {
+  display: flex;
+  margin: 0;
+  padding: 0;
+  flex-direction: column;
+  gap: var(--space-2);
+  list-style: none;
+}
+
+.regimeRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+}
+
+.bar {
+  position: relative;
+  display: block;
+  grid-column: 1 / -1;
+  grid-row: 2;
+  height: 0.75rem;
+  border-radius: 999px;
+  background: var(--color-border);
+  overflow: hidden;
+}
+
+.fill {
+  display: block;
+  height: 100%;
+  background: var(--color-primary);
+}
+
+.percent {
+  grid-row: 1;
+  grid-column: 2;
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+}
