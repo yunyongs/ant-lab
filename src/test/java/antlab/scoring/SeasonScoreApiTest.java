@@ -62,7 +62,7 @@ class SeasonScoreApiTest extends ScoreApiTestBase {
         JsonNode body = json(r);
         assertThat(names(body)).containsExactlyInAnyOrderElementsOf(KEYS);
         assertThat(names(body.get("items"))).containsExactlyInAnyOrderElementsOf(ITEM_KEYS);
-        assertThat(body.get("scoreVersion").asString()).isEqualTo("s63-v2");
+        assertThat(body.get("scoreVersion").asString()).isEqualTo("s63-v3");
         Map<String, Object> row = scoreRow(season);
         assertThat(body.get("score").asString()).isEqualTo(((BigDecimal) row.get("score")).toPlainString()).matches("\\d{1,3}\\.\\d{2}");
         assertThat(body.get("resultScore").asString()).isEqualTo("50.00");
@@ -87,7 +87,7 @@ class SeasonScoreApiTest extends ScoreApiTestBase {
                 .doesNotContain("m2-pj-v1").doesNotContain("m2-sb6-v1").doesNotContain("inputs").doesNotContain("seed")
                 .doesNotContain("historyDigest").doesNotContain("engineVersion").doesNotContain("projectionVersion")
                 .doesNotContainPattern("\\d{4}-\\d{2}");
-        assertThat(text).as("only the formula version is a version").containsOnlyOnce("s63-v2");
+        assertThat(text).as("only the formula version is a version").containsOnlyOnce("s63-v3");
     }
 
     @Test

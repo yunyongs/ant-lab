@@ -11,11 +11,13 @@ import java.math.BigDecimal;
 import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * The noise item of the season score (MVP-19 PR D, formula {@code s63-v2}). The source is a spy over the real bean, so a
+ * The noise item of the season score (MVP-19 PR D, formula {@code s63-v3}). The source is a spy over the real bean, so a
  * test either pins the share by hand or lets the real calculation run on rows written straight into the tables.
  */
 class SeasonScoreNoiseTest extends ScoreApiTestBase {
@@ -24,14 +26,14 @@ class SeasonScoreNoiseTest extends ScoreApiTestBase {
     NoiseReactionSource noise;
 
     @Test
-    void 소음_비중_0_25는_소음_점수_75와_s63_v2_행이_된다() throws Exception {
+    void 소음_비중_0_25는_소음_점수_75와_s63_v3_행이_된다() throws Exception {
         long season = finishedSeason();
         doReturn(Optional.of(new BigDecimal("0.25000000"))).when(noise).noiseShare(season);
 
         scoring.ensureMember(memberId());
 
         Map<String, Object> row = scoreRow(season);
-        assertThat(row.get("score_version")).isEqualTo("s63-v2");
+        assertThat(row.get("score_version")).isEqualTo("s63-v3");
         assertThat((BigDecimal) row.get("noise_score")).isEqualByComparingTo("75.00");
         long items = ((Number) row.get("process_items")).longValue();
         long nonNull = java.util.List.of("risk_score", "discipline_score", "diversification_score", "turnover_score",
@@ -47,7 +49,8 @@ class SeasonScoreNoiseTest extends ScoreApiTestBase {
         long withNoise = finishedSeason();
         doReturn(Optional.of(new BigDecimal("0.50000000"))).when(noise).noiseShare(withNoise);
         scoring.ensureMember(memberId());
-        int itemsWith = ((Number) scoreRow(withNoise).get("process_items")).intValue();
+        Map<String, Object> rowWith = scoreRow(withNoise);
+        assertThat(rowWith.get("noise_score")).isNotNull();
 
         long without = finishedSeason();
         doReturn(Optional.empty()).when(noise).noiseShare(without);
@@ -55,10 +58,20 @@ class SeasonScoreNoiseTest extends ScoreApiTestBase {
         Map<String, Object> row = scoreRow(without);
 
         assertThat(row.get("noise_score")).isNull();
-        assertThat(((Number) row.get("process_items")).intValue()).isEqualTo(itemsWith - 1);
-        assertThat(row.get("score_version")).isEqualTo("s63-v2");
+        // role fit is empty in some random seasons, so the two seasons are compared on the items they share
+        assertThat(((Number) row.get("process_items")).intValue()).isEqualTo(filled(row));
+        assertThat(((Number) rowWith.get("process_items")).intValue()).isEqualTo(filled(rowWith));
+        assertThat(filled(rowWith) - (rowWith.get("role_score") != null ? 1 : 0))
+                .isEqualTo(filled(row) - (row.get("role_score") != null ? 1 : 0) + 1);
+        assertThat(row.get("score_version")).isEqualTo("s63-v3");
         String inputs = jdbc.queryForObject("SELECT inputs::text FROM season_score WHERE season_id = ?", String.class, without);
         assertThat(JsonMapper.shared().readTree(inputs).get("noiseShare").isNull()).isTrue();
+    }
+
+    private static int filled(Map<String, Object> row) {
+        return (int) java.util.List.of("risk_score", "discipline_score", "diversification_score", "turnover_score",
+                "consistency_score", "formation_score", "role_score", "noise_score", "nudge_score").stream()
+                .filter(c -> row.get(c) != null).count();
     }
 
     @Test
@@ -71,29 +84,30 @@ class SeasonScoreNoiseTest extends ScoreApiTestBase {
 
         Map<String, Object> row = scoreRow(season);
         BigDecimal share = noise.noiseShare(season).orElseThrow();
-        assertThat(row.get("score_version")).isEqualTo("s63-v2");
+        assertThat(row.get("score_version")).isEqualTo("s63-v3");
         assertThat((BigDecimal) row.get("noise_score"))
                 .isEqualByComparingTo(BigDecimal.valueOf(100).multiply(BigDecimal.ONE.subtract(share)).setScale(2,
                         java.math.RoundingMode.HALF_UP));
     }
 
-    @Test
-    void 이미_s63_v1로_저장된_시즌은_다시_채점하지_않고_행도_그대로다() throws Exception {
+    @ParameterizedTest
+    @ValueSource(strings = {"s63-v1", "s63-v2"})
+    void 이미_저장된_이전_버전_시즌은_다시_채점하지_않고_행도_그대로다(String version) throws Exception {
         long season = finishedSeason();
         jdbc.update("""
                 INSERT INTO season_score (season_id, member_id, score_version, score, result_score, process_score, sharpe,
                     bench_sharpe, sharpe_diff, sharpe_diff_percentile, luck_percentile, risk_score, process_items, inputs)
-                VALUES (?, ?, 's63-v1', 60.00, 50.00, 70.00, 0.1, 0.1, 0, 0.5, 0.5, 70.00, 1, '{}'::jsonb)""", season,
-                memberId());
+                VALUES (?, ?, ?, 60.00, 50.00, 70.00, 0.1, 0.1, 0, 0.5, 0.5, 70.00, 1, '{}'::jsonb)""", season,
+                memberId(), version);
+        Map<String, Object> before = scoreRow(season);
         doReturn(Optional.of(new BigDecimal("0.25000000"))).when(noise).noiseShare(season);
 
         SeasonScoreService.Ensured ensured = scoring.ensureMember(memberId());
 
         assertThat(ensured.pendingSeasons()).isZero();
         assertThat(scoreRows()).isEqualTo(1);
-        Map<String, Object> row = scoreRow(season);
-        assertThat(row.get("score_version")).isEqualTo("s63-v1");
-        assertThat(row.get("noise_score")).isNull();
+        assertThat(scoreRow(season)).isEqualTo(before);
+        assertThat(scoreRow(season).get("score_version")).isEqualTo(version);
         assertThat(percentileCalls()).isZero();
     }
 
@@ -110,7 +124,7 @@ class SeasonScoreNoiseTest extends ScoreApiTestBase {
 
         assertThat(ensured.pendingSeasons()).isZero();
         Map<String, Object> row = scoreRow(season);
-        assertThat(row.get("score_version")).isEqualTo("s63-v2");
+        assertThat(row.get("score_version")).isEqualTo("s63-v3");
         assertThat(row.get("noise_score")).isNull();
         assertThat(row.get("score")).isNotNull();
         assertThat(ratingRows()).isEqualTo(1);
@@ -128,7 +142,7 @@ class SeasonScoreNoiseTest extends ScoreApiTestBase {
         assertThat(ratingRows()).isZero();
         org.mockito.Mockito.reset(noise);
         scoring.ensureMember(memberId());
-        assertThat(scoreRow(season).get("score_version")).isEqualTo("s63-v2");
+        assertThat(scoreRow(season).get("score_version")).isEqualTo("s63-v3");
     }
 
     @Test

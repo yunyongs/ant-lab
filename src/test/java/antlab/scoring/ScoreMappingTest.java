@@ -59,7 +59,7 @@ class ScoreMappingTest {
 
         assertThat(loaded.getSeasonId()).isEqualTo(s);
         assertThat(loaded.getMemberId()).isEqualTo(m);
-        assertThat(loaded.getScoreVersion()).isEqualTo("s63-v2");
+        assertThat(loaded.getScoreVersion()).isEqualTo("s63-v3");
         assertThat(loaded.getScore()).isEqualByComparingTo("65.89");
         assertThat(loaded.getResultScore()).isEqualByComparingTo("62.50");
         assertThat(loaded.getProcessScore()).isEqualByComparingTo("69.29");

@@ -6,14 +6,14 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Season score, formula {@code s63-v2}: score = 0.5 x result + 0.5 x process, a pure function of {@link ScoreInputs}.
+ * Season score, formula {@code s63-v3}: score = 0.5 x result + 0.5 x process, a pure function of {@link ScoreInputs}.
  * Result = 100 x the mid-rank percentile of the Sharpe difference among the engine paths. Process = the equal-weight
  * mean of the item scores that have a value. Every part is kept unrounded at working scale; each stored value is
  * rounded HALF_UP once, from the unrounded parts. The thresholds are builder values (validated later), kept here.
  */
 public final class SeasonScoreCalculator {
 
-    public static final String VERSION = "s63-v2";
+    public static final String VERSION = "s63-v3";
 
     private static final BigDecimal HUNDRED = BigDecimal.valueOf(100);
     private static final BigDecimal SHARPE_CAP = new BigDecimal("999999.99999999");
@@ -39,7 +39,7 @@ public final class SeasonScoreCalculator {
         BigDecimal discipline = collect(items, discipline(in.discipline()));
         BigDecimal diversification = collect(items, diversification(in.maxSingleWeight()));
         BigDecimal turnover = collect(items, turnover(in.turnoverAnnual()));
-        BigDecimal formation = collect(items, formation(in.formationDeviation()));
+        BigDecimal formation = collect(items, formation(in.measuredFormationDeviation()));
         BigDecimal role = collect(items, role(in.roleFit()));
         BigDecimal noise = collect(items, noise(in.noiseShare()));
         BigDecimal nudge = collect(items, nudge(in.nudgeShare()));
