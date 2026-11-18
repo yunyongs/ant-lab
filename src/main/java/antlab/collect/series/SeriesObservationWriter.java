@@ -75,7 +75,10 @@ public final class SeriesObservationWriter {
      *             be in the answer, so a vanished leading date or an empty answer fails instead of committing the rest
      */
     public Result write(long jobRunId, Instant observedAt, long seriesId, Mode mode, LocalDate from, List<Incoming> incoming) {
-        if (incoming.isEmpty() && (mode == Mode.LATEST || from == null)) {
+        if (mode == Mode.HISTORY) {
+            Objects.requireNonNull(from, "a history write needs the requested start");
+        }
+        if (incoming.isEmpty() && mode == Mode.LATEST) {
             return new Result(0, 0, 0);
         }
         LocalDate earliest = from;

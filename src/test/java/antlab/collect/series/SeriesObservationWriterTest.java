@@ -239,4 +239,12 @@ class SeriesObservationWriterTest {
         assertThat(count()).isEqualTo(1);
         assertThat(writer.write(second, T2, series, Mode.HISTORY, LocalDate.of(2030, 1, 1), List.of())).as("nothing stored in range").isEqualTo(new Result(0, 0, 0));
     }
+
+    @Test
+    void 이력_방식은_시작일이_없으면_빈_입력도_있는_입력도_쓰기_전에_거절한다() {
+        assertThatThrownBy(() -> writer.write(run, T1, series, Mode.HISTORY, null, List.of())).isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> writer.write(run, T1, series, Mode.HISTORY, null, List.of(in("2022-12-01", "300.974", "2023-01-12"))))
+                .isInstanceOf(NullPointerException.class);
+        assertThat(count()).isZero();
+    }
 }
