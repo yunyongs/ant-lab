@@ -1,6 +1,7 @@
 import { http, HttpResponse } from 'msw';
 import { parseWholeNumber } from '../features/format/integer.ts';
 import { authHandlers } from './authHandlers.ts';
+import { analysisFixture } from './fixtures/analysis.ts';
 import { holdingsFixture } from './fixtures/holdings.ts';
 import { pricesFixture } from './fixtures/prices.ts';
 import { ratingFixture } from './fixtures/rating.ts';
@@ -33,6 +34,9 @@ export const handlers = [
     HttpResponse.json(
       emptyBoard(parseWholeNumber(String(params.turnNo), 1000) ?? 0),
     ),
+  ),
+  http.get('*/api/v1/seasons/:seasonId/report/analysis', () =>
+    HttpResponse.json(analysisFixture()),
   ),
   http.get('*/api/v1/seasons/:seasonId/projection', ({ request }) => {
     const phase = new URL(request.url).searchParams.get('phase');

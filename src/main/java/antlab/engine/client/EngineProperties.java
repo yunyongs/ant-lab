@@ -23,6 +23,7 @@ public record EngineProperties(
         @DefaultValue("1s") Duration connectTimeout,
         @DefaultValue("3s") Duration pathsTimeout,
         @DefaultValue("15s") Duration projectionsTimeout,
+        @DefaultValue("60s") Duration regimeTimeout,
         @DefaultValue("java") PathSourceMode pathSource,
         @DefaultValue("m2-sb6-v1") String pathVersion,
         @Min(100) @Max(5000) @DefaultValue("2000") int projectionPaths) {
@@ -39,6 +40,7 @@ public record EngineProperties(
         requirePositive("connect-timeout", connectTimeout);
         requirePositive("paths-timeout", pathsTimeout);
         requirePositive("projections-timeout", projectionsTimeout);
+        requirePositive("regime-timeout", regimeTimeout);
         if (!PATH_VERSIONS.contains(pathVersion)) {
             throw new IllegalArgumentException("antlab.engine.path-version must be one of " + PATH_VERSIONS);
         }
@@ -91,7 +93,8 @@ public record EngineProperties(
     @Override
     public String toString() {
         return "EngineProperties[url=" + url + ", token=" + (token.isEmpty() ? "" : "****") + ", connectTimeout=" + connectTimeout
-                + ", pathsTimeout=" + pathsTimeout + ", projectionsTimeout=" + projectionsTimeout + ", pathSource=" + pathSource
+                + ", pathsTimeout=" + pathsTimeout + ", projectionsTimeout=" + projectionsTimeout + ", regimeTimeout=" + regimeTimeout
+                + ", pathSource=" + pathSource
                 + ", pathVersion=" + pathVersion + ", projectionPaths=" + projectionPaths + "]";
     }
 }

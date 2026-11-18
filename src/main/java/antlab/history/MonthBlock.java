@@ -13,6 +13,8 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.Immutable;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 /**
  * 월 블록 — 읽기 전용 매핑(month_block). 적재 SQL 이 만든 행을 읽기만 한다.
@@ -74,6 +76,16 @@ public class MonthBlock {
 
     @Column(name = "prob_p4", precision = 5, scale = 4, nullable = true)
     private BigDecimal probP4;
+
+    // [내부]: the hysteresis label is written once by the regime label job and read by a later feature, never by a DTO.
+    @Getter(AccessLevel.NONE)
+    @Enumerated(EnumType.STRING)
+    @Column(name = "regime_label", length = 2, nullable = true)
+    private RegimePool regimeLabel;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "indicator_z", nullable = true)
+    private String indicatorZ;
 
     @Getter(AccessLevel.NONE)
     @Column(name = "event_summary", length = 200, nullable = true)

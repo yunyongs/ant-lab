@@ -5,12 +5,13 @@ import styles from './Review.module.css';
 
 type ReviewEvent = components['schemas']['ReviewEventDto'];
 
-// Whitelisted fields only: `eventType` codes stay out of the screen.
-export function EventTag({ event }: { event: ReviewEvent }) {
+// Whitelisted fields only: `eventType` codes stay out of the screen. The
+// content is a fragment so a feed item can reuse it without a nested `<li>`.
+export function EventTagContent({ event }: { event: ReviewEvent }) {
   const parts = sourceParts(event.source);
   const linkCount = parts.filter((part) => part.kind === 'link').length;
   return (
-    <li className={styles.event}>
+    <>
       <span className={styles.pill}>
         {`${CATEGORY_LABEL[event.category]} · ${PHASE_LABEL[event.phase]}`}
       </span>
@@ -42,6 +43,14 @@ export function EventTag({ event }: { event: ReviewEvent }) {
           })}
         </span>
       )}
+    </>
+  );
+}
+
+export function EventTag({ event }: { event: ReviewEvent }) {
+  return (
+    <li className={styles.event}>
+      <EventTagContent event={event} />
     </li>
   );
 }

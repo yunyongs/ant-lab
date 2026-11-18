@@ -146,6 +146,34 @@ class TurnAdvanceAlertTest {
         assertThat(playerFacts.read(season, 1, cash, BigDecimal.ZERO).cashWeight()).as("no total, no share").isNull();
     }
 
+    @Test
+    void a_season_that_never_traded_is_idle_from_interval_zero() throws Exception {
+        long season = startSeason(mvc);
+        BigDecimal cash = new BigDecimal("30000000");
+        // no order at all: turn 1 follows the idle interval 0, turn 2 follows 0 and 1
+        assertFacts(playerFacts.read(season, 1, cash, cash), 0, 1);
+        assertFacts(playerFacts.read(season, 2, cash, cash), 0, 2);
+        assertFacts(playerFacts.read(season, 3, cash, cash), 0, 3);
+    }
+
+    @Test
+    void an_order_that_never_filled_is_not_a_trade() throws Exception {
+        long season = seasonWithTeam();
+        advanced(season, 0);
+        Long asset = jdbc.queryForObject("SELECT id FROM asset WHERE ticker = '069500'", Long.class);
+        // interval 1 holds one pending order and one rejected order, neither with an execution row
+        for (String status : new String[] {"PENDING", "REJECTED"}) {
+            jdbc.update("INSERT INTO orders (season_id, asset_id, turn_no, side, quantity, status, source)"
+                    + " VALUES (?, ?, 1, 'BUY', 1, ?, 'DIRECT')", season, asset, status);
+        }
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM orders o JOIN execution e ON e.order_id = o.id"
+                + " WHERE o.season_id = ? AND o.turn_no = 1", Integer.class, season)).isZero();
+        BigDecimal cash = new BigDecimal("28000000");
+        BigDecimal total = new BigDecimal("30000000");
+        assertFacts(playerFacts.read(season, 2, cash, total), 0, 1);
+        assertFacts(playerFacts.read(season, 3, cash, total), 0, 2);
+    }
+
     private static void assertFacts(PlayerFacts facts, int tradeCount, int idleTurns) {
         assertThat(facts.tradeCount()).as("trade count at turn " + facts.asOfTurn()).isEqualTo(tradeCount);
         assertThat(facts.idleTurns()).as("idle intervals at turn " + facts.asOfTurn()).isEqualTo(idleTurns);

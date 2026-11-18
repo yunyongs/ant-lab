@@ -15,7 +15,7 @@ class PathSourceSwitchTest {
 
     private static EngineProperties properties(EngineProperties.PathSourceMode mode) {
         return new EngineProperties("http://engine.test", "a".repeat(32), Duration.ofSeconds(1), Duration.ofSeconds(3),
-                Duration.ofSeconds(15), mode, "m2-sb6-v1", 2000);
+                Duration.ofSeconds(15), Duration.ofSeconds(60), mode, "m2-sb6-v1", 2000);
     }
 
     private ApplicationContextRunner runner(EngineProperties.PathSourceMode mode) {

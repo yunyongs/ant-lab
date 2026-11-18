@@ -1,6 +1,7 @@
 import { Link } from 'react-router';
 import { isNavEnabled } from '../../app/navItems.ts';
 import { ScoreCard } from '../score/ScoreCard.tsx';
+import { AnalysisReportBlocks } from '../analysis/AnalysisReportBlocks.tsx';
 import type { Season } from '../seasons/labels.ts';
 import type { Report } from './queries.ts';
 import { ReportGroup } from './ReportGroup.tsx';
@@ -28,6 +29,7 @@ export function ReportView({
       {GROUPS.map((group) => (
         <ReportGroup key={group.id} group={group} report={report} />
       ))}
+      <AnalysisReportBlocks seasonId={season.id} />
       <details className={styles.limits}>
         <summary className={styles.summary}>{LIMITS_TITLE}</summary>
         <ul className={styles.limitList}>
