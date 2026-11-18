@@ -6,9 +6,13 @@ import {
   expectNoDatePattern,
 } from '../test/expectNoDatePattern.ts';
 import {
+  feedOfReviewTurn,
+  poisonedFeedStrings,
   poisonedReviewStrings,
   reviewFixture,
+  reviewTurn,
 } from '../test/fixtures/review.ts';
+import { projectionFixture } from '../test/fixtures/projection.ts';
 import { seasonFixture } from '../test/fixtures/seasons.ts';
 import { parseWholeNumber } from '../features/format/integer.ts';
 import { problem } from '../test/authHandlers.ts';
@@ -148,6 +152,49 @@ describe('reveal boundary', () => {
     expectNoDatePattern(container);
     expect(reviewGets).toBe(0);
     expect(turnGets.every((n) => n <= 3)).toBe(true);
+  });
+
+  it('R10: keeps the review feed strings off every other screen after the review was cached', async () => {
+    serveReview({
+      review: reviewFixture({
+        turns: [
+          reviewTurn(1, { feed: feedOfReviewTurn() }),
+          ...Array.from({ length: 11 }, (_, i) => reviewTurn(i + 2)),
+        ],
+      }),
+    });
+    serveReport();
+    server.use(
+      http.get('*/api/v1/seasons/7/projection', () =>
+        HttpResponse.json(projectionFixture()),
+      ),
+    );
+    const { router, container } = renderRoute('/seasons/7/review');
+    await screen.findByRole('heading', { name: '시즌 7 복기' });
+    for (const shown of poisonedFeedStrings) {
+      expect(container.innerHTML).toContain(shown);
+    }
+    for (const path of [
+      '/seasons/7',
+      '/seasons/7/turns/3',
+      '/seasons/7/trade',
+      '/seasons/7/formation',
+      '/seasons/7/projection',
+      '/seasons/7/report',
+    ]) {
+      await act(async () => {
+        await router.navigate(path);
+      });
+      await waitFor(() => {
+        expect(
+          screen.queryByRole('heading', { name: '시즌 7 복기' }),
+        ).toBeNull();
+      });
+      await new Promise((resolve) => setTimeout(resolve, 60));
+      for (const leaked of poisonedFeedStrings) {
+        expect(container.innerHTML).not.toContain(leaked);
+      }
+    }
   });
 
   it('a review fixture really carries the poisoned strings', () => {
