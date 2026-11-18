@@ -9,6 +9,7 @@ import { server } from './server.ts';
 
 type FeedItemDto = components['schemas']['FeedItemDto'];
 type RankingBoardDto = components['schemas']['RankingBoardDto'];
+type MacroDto = components['schemas']['MacroDto'];
 
 export interface TurnWorld {
   current: number;
@@ -19,6 +20,8 @@ export interface TurnWorld {
   alerts: (turnNo: number) => FeedItemDto[];
   // Ranking board of each served turn; empty unless a test sets it.
   ranking: (turnNo: number) => RankingBoardDto;
+  // Macro environment of each served turn; the no-data default unless a test sets it.
+  macro: (turnNo: number) => MacroDto | undefined;
   rankingGets: number[];
   posts: unknown[];
   seasonGets: number;
@@ -42,6 +45,7 @@ export function serveTurnWorld(
     feed: () => [],
     alerts: () => [],
     ranking: (turnNo) => emptyBoard(turnNo),
+    macro: () => undefined,
     rankingGets: [],
     posts: [],
     seasonGets: 0,
@@ -72,6 +76,7 @@ export function serveTurnWorld(
           pathLength,
           status: world.status,
           feed: world.feed(turnNo),
+          ...macroOf(world.macro(turnNo)),
           alerts: world.alerts(turnNo),
         }),
       );
@@ -93,6 +98,7 @@ export function serveTurnWorld(
           pathLength,
           status: world.status,
           feed: world.feed(world.current),
+          ...macroOf(world.macro(world.current)),
           alerts: world.alerts(world.current),
         }),
         { status: 201 },
@@ -100,6 +106,10 @@ export function serveTurnWorld(
     }),
   );
   return world;
+}
+
+function macroOf(macro: MacroDto | undefined): { macro?: MacroDto } {
+  return macro === undefined ? {} : { macro };
 }
 
 export function failWithProblem(status: number, code: string): () => Response {

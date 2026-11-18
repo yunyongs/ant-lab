@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { Link } from 'react-router';
 import { isNavEnabled } from '../../app/navItems.ts';
+import { MacroPanel } from '../macro/MacroPanel.tsx';
 import { AlertList } from '../feed/AlertList.tsx';
 import { FeedSection } from '../feed/FeedSection.tsx';
 import { RankingSection } from '../ranking/RankingSection.tsx';
@@ -89,6 +90,7 @@ export function FinishedView({
         />
       )}
       {turn.data && <TurnResultCard turn={turn.data} />}
+      {turn.data && <MacroPanel macro={turn.data.macro} />}
       {turn.data && <FeedSection items={turn.data.feed} season={season} />}
       {turn.data && (
         <RankingSection
