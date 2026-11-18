@@ -312,7 +312,7 @@ public record SeasonAnalysisDto(
     @Schema(description = "Orders, traded amount and fees of one order source / 한 출발점의 주문 수·매매 금액·수수료")
     public record SourceFeeDto(
             @ExposedFrom({"orders.source"})
-            @Schema(requiredMode = RequiredMode.REQUIRED, description = "Order source (RANKING, FEED, ALERT, BENCH, DIRECT) / "
+            @Schema(requiredMode = RequiredMode.REQUIRED, description = "Order source / "
                     + "주문 출발점")
             OrderSource source,
             @ExposedFrom({"orders.source", "orders.turn_no"})
