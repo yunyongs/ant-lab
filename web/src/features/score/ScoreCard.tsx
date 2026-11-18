@@ -19,6 +19,7 @@ import {
   NOT_READY_TEXT,
   pointsText,
   PROCESS_NOTE,
+  formationBasisText,
   SCORE_LOADING_TEXT,
   SCORE_RETRY_LABEL,
   SCORE_TITLE,
@@ -80,6 +81,9 @@ function ScoreBody({ score }: { score: SeasonScore }) {
         ))}
       </dl>
       <p className={styles.note}>{PROCESS_NOTE}</p>
+      {score.items.formation != null && (
+        <p className={styles.note}>{formationBasisText(score.scoreVersion)}</p>
+      )}
       <dl className={styles.rows}>
         <Row label="운 백분위" value={percentile(score.luckPercentile)} />
         <Row

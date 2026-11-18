@@ -16,7 +16,7 @@ import java.util.List;
  * @param riskLimit          the declared drawdown limit (negative), null if unknown
  * @param maxSingleWeight    the largest single-asset weight over the season, 0..1
  * @param turnoverAnnual     annualised turnover as a ratio (1 = 100 %)
- * @param formationDeviation mean deviation from the target formation, a fraction in 0..2
+ * @param measuredFormationDeviation mean deviation from the target formation on season-measured positions, a fraction in 0..2
  * @param roleFit            share of exposure whose declared position matched the measured one, 0..1
  * @param nudgeShare         share of traded value that followed a platform nudge, 0..1, null with no trades
  * @param noiseShare         share of traded value that followed the noise, 0..1, null with no trades or when it could not be read
@@ -33,7 +33,7 @@ public record ScoreInputs(
         BigDecimal riskLimit,
         BigDecimal maxSingleWeight,
         BigDecimal turnoverAnnual,
-        BigDecimal formationDeviation,
+        BigDecimal measuredFormationDeviation,
         BigDecimal roleFit,
         BigDecimal nudgeShare,
         BigDecimal noiseShare,

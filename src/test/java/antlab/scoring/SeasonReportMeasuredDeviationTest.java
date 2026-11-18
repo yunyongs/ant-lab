@@ -234,4 +234,75 @@ class SeasonReportMeasuredDeviationTest {
         assertThatThrownBy(() -> calc(SeasonReportFixtures.withMarket(base, pool, base.benchmarkPrices())))
                 .isInstanceOf(IllegalStateException.class).hasMessageContaining("경로 수익률");
     }
+
+    private static ScoreInputs scoreInputs(SeasonReportSources src, SeasonReportDto report) {
+        List<BigDecimal> flat = new ArrayList<>();
+        for (int i = 0; i < report.reportTurns(); i++) {
+            flat.add(new BigDecimal(i % 2 == 0 ? "0.010000" : "-0.004000"));
+        }
+        ScoreAssembler.Observation observation = new ScoreAssembler.Observation(flat, flat, BigDecimal.ONE, BigDecimal.ZERO,
+                BigDecimal.ONE, BigDecimal.ONE);
+        ScoreBasis basis = new ScoreBasis(1L, 1L, 1L, java.time.LocalDate.of(2026, 1, 2), 8, false, src, null, null, null,
+                BigDecimal.ONE);
+        return ScoreAssembler.inputs(report, observation, basis, null, null);
+    }
+
+    @Test
+    void 점수_입력의_포메이션_항목은_실측_이탈이고_선언_기준_이탈이_아니다() {
+        SeasonReportSources src = scenario(Position.GOALKEEPER, Position.DEFENDER, holdings(Position.FORWARD_TARGET, 300_000));
+        SeasonReportDto report = calc(src);
+        assertThat(report.measuredFormationDeviation()).isNotEqualByComparingTo(report.formationDeviation());
+        assertThat(scoreInputs(src, report).measuredFormationDeviation()).isEqualByComparingTo(report.measuredFormationDeviation());
+    }
+
+    /** Target 94/3/1/2 keeps the measured deviation well under 0.50, so the formation score is not floored at zero. */
+    private static SeasonReportSources lowDeviation(SeasonReportSources s) {
+        SeasonFacts f = s.season();
+        return SeasonReportFixtures.withSeason(s, new SeasonFacts(f.status(), f.pathLength(), f.currentTurnNo(), f.initialCash(),
+                f.riskLimit(), f.feeRateKr(), f.feeRateUs(), f.fxSpreadRate(), 94, 3, 1, 2));
+    }
+
+    /** The stored snapshot groups the holdings of B and C by the declared position; the rest is goalkeeper. */
+    private static SeasonReportSources declaredAs(SeasonReportSources s, boolean midfield) {
+        List<TurnFact> turns = new ArrayList<>();
+        for (TurnFact t : s.turns()) {
+            long moved = 1_500_000L;
+            long total = t.totalValue().longValueExact();
+            turns.add(SeasonReportFixtures.turn(t.turnNo(), total, "0.00000000", total - moved, 0, midfield ? moved : 0,
+                    midfield ? 0 : moved));
+        }
+        return SeasonReportFixtures.withTurns(s, turns);
+    }
+
+    @Test
+    void 선언만_바꾼_두_성적표는_선언_기준_이탈이_다르고_포메이션_점수는_같다() {
+        SeasonReportSources base = lowDeviation(scenario(Position.GOALKEEPER, Position.DEFENDER,
+                holdings(Position.FORWARD_TARGET, 300_000)));
+        SeasonReportSources asMidfield = declaredAs(base, true);
+        SeasonReportSources asForward = declaredAs(base, false);
+        SeasonReportDto r1 = calc(asMidfield);
+        SeasonReportDto r2 = calc(asForward);
+        assertThat(r1.formationDeviation()).as("the declared basis moves").isNotEqualByComparingTo(r2.formationDeviation());
+        assertThat(r1.measuredFormationDeviation()).isEqualByComparingTo(r2.measuredFormationDeviation());
+        BigDecimal s1 = SeasonScoreCalculator.calculate(scoreInputs(asMidfield, r1)).formationScore();
+        BigDecimal s2 = SeasonScoreCalculator.calculate(scoreInputs(asForward, r2)).formationScore();
+        assertThat(s1).as("not floored").isGreaterThan(BigDecimal.ZERO);
+        assertThat(s1).isEqualByComparingTo(s2);
+    }
+
+    @Test
+    void 입력_기록은_채점한_실측_값과_참고용_선언_값을_둘_다_남긴다() {
+        SeasonReportSources src = scenario(Position.GOALKEEPER, Position.DEFENDER, holdings(Position.FORWARD_TARGET, 300_000));
+        SeasonReportDto report = calc(src);
+        ScoreAssembler.Observation observation = new ScoreAssembler.Observation(List.of(), List.of(), BigDecimal.ONE,
+                BigDecimal.ZERO, BigDecimal.ONE, BigDecimal.ONE);
+        ScoreBasis basis = new ScoreBasis(1L, 1L, 1L, java.time.LocalDate.of(2026, 1, 2), 8, false, src, null, null, null,
+                BigDecimal.ONE);
+        tools.jackson.databind.JsonNode node = tools.jackson.databind.json.JsonMapper.shared()
+                .readTree(ScoreInputsJson.of(report, observation, basis, null, null, null));
+        assertThat(node.at("/report/measuredFormationDeviation").asString())
+                .isEqualTo(report.measuredFormationDeviation().toPlainString());
+        assertThat(node.at("/report/formationDeviation").asString()).isEqualTo(report.formationDeviation().toPlainString());
+        assertThat(node.at("/scoreVersion").asString()).isEqualTo("s63-v3");
+    }
 }
