@@ -93,7 +93,9 @@ public class OpenApiConfig {
     /** Properties that hold a reference and may be null, as schema name → property names. */
     private static final Map<String, List<String>> NULLABLE_REFERENCES = Map.of(
             "PlaceOrderRequest", List.of("source"),
-            "SeasonAnalysisDto", List.of("decomposition"));
+            "SeasonAnalysisDto", List.of("decomposition"),
+            "MacroAxesDto", List.of("rate", "growth", "fx", "sentiment"),
+            "MacroDto", List.of("probabilities"));
 
     /**
      * A property that is a reference and may be null (an OpenAPI 3.1 union): springdoc writes only the {@code $ref}, so the

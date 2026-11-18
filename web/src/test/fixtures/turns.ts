@@ -43,6 +43,10 @@ export function turnResultFixture(
     formationDeviation: '0.59864000',
     feed: [],
     alerts: [],
+    macro: {
+      axes: { rate: null, growth: null, fx: null, sentiment: null },
+      probabilities: null,
+    },
     ...overrides,
   };
 }
