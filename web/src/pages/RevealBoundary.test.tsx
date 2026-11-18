@@ -12,7 +12,7 @@ import {
 import { seasonFixture } from '../test/fixtures/seasons.ts';
 import { parseWholeNumber } from '../features/format/integer.ts';
 import { problem } from '../test/authHandlers.ts';
-import { feedOfTurn } from '../test/fixtures/feed.ts';
+import { alertsOfTurn, feedOfTurn } from '../test/fixtures/feed.ts';
 import { renderRoute } from '../test/renderWithProviders.tsx';
 import { rankingFixture } from '../test/fixtures/ranking.ts';
 import { serveFeedWorld } from '../test/serveFeed.ts';
@@ -88,6 +88,7 @@ describe('reveal boundary', () => {
   it('keeps a non-empty feed free of dates and of any review or later-turn request', async () => {
     const world = serveFeedWorld({ current: 3 });
     world.feed = (turnNo) => feedOfTurn(turnNo);
+    world.alerts = (turnNo) => alertsOfTurn(turnNo);
     let reviewGets = 0;
     server.use(
       http.get('*/api/v1/seasons/7/review', () => {
@@ -97,6 +98,7 @@ describe('reveal boundary', () => {
     );
     const { router, container } = renderRoute('/seasons/7');
     await screen.findByRole('region', { name: '소식' });
+    await screen.findByRole('region', { name: '알림' });
     expectNoDatePattern(container);
     for (const path of ['/seasons/7/turns/2', '/seasons/7/turns/4']) {
       await act(async () => {

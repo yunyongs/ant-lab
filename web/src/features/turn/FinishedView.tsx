@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { Link } from 'react-router';
 import { isNavEnabled } from '../../app/navItems.ts';
+import { AlertList } from '../feed/AlertList.tsx';
 import { FeedSection } from '../feed/FeedSection.tsx';
 import { RankingSection } from '../ranking/RankingSection.tsx';
 import { ProjectionLink } from '../projection/ProjectionLink.tsx';
@@ -78,6 +79,13 @@ export function FinishedView({
           onRetry={() => {
             void turn.refetch();
           }}
+        />
+      )}
+      {turn.data && (
+        <AlertList
+          items={turn.data.alerts}
+          feed={turn.data.feed}
+          season={season}
         />
       )}
       {turn.data && <TurnResultCard turn={turn.data} />}

@@ -40,10 +40,13 @@ interface Selection {
 export function SourcedOrder({
   season,
   onNotice,
+  showLoadError = true,
   children,
 }: {
   season: Season;
   onNotice: (text: string | null) => void;
+  // Only one list per page reports a failed load.
+  showLoadError?: boolean;
   children: (order: OrderStarter) => ReactNode;
 }) {
   const queryClient = useQueryClient();
@@ -92,7 +95,7 @@ export function SourcedOrder({
           setSelected({ side, assetId, source });
         },
       })}
-      {!ready && (holdings.isError || pool.isError) && (
+      {showLoadError && !ready && (holdings.isError || pool.isError) && (
         <QueryError
           error={holdings.error ?? pool.error}
           onRetry={() => {
