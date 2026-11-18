@@ -4,7 +4,6 @@ import antlab.account.OrderSide;
 import antlab.common.money.MoneyMath;
 import java.math.BigDecimal;
 import java.math.BigInteger;
-import java.math.RoundingMode;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -107,8 +106,7 @@ public final class AttentionFollowingCalculator {
             if (count == 0) {
                 return null;
             }
-            return new BigDecimal(numerator).divide(new BigDecimal(denominator.multiply(notional.toBigIntegerExact())), 8,
-                    RoundingMode.HALF_UP);
+            return MoneyMath.ratio(new BigDecimal(numerator), new BigDecimal(denominator.multiply(notional.toBigIntegerExact())));
         }
     }
 
