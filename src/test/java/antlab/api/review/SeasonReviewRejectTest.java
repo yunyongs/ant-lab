@@ -37,7 +37,8 @@ import org.springframework.test.web.servlet.assertj.MockMvcTester;
 @Sql(scripts = "/fixtures/cleanup_season_start.sql", executionPhase = ExecutionPhase.AFTER_TEST_METHOD)
 class SeasonReviewRejectTest {
 
-    private static final List<String> REVEAL_COLUMNS = List.of("month_start", "event_summary", "title", "hindsight", "source");
+    private static final List<String> REVEAL_COLUMNS = List.of("month_start", "event_summary", "title", "hindsight", "source",
+            "turn_feed");
 
     @Autowired
     MockMvcTester mvc;
@@ -50,7 +51,14 @@ class SeasonReviewRejectTest {
     @Autowired
     CashAccountRepository accounts;
 
+    private void plantFeed(long season) {
+        Long event = jdbc.queryForObject("SELECT id FROM month_event WHERE event_key = 'FAKE_EVENT_01'", Long.class);
+        jdbc.update("INSERT INTO turn_feed (season_id, turn_no, seq, kind, month_event_id, template_id, body) "
+                + "VALUES (?, 1, 1, 'EVENT', ?, 'TEST_ROW', '가짜 피드 문장')", season, event);
+    }
+
     private void assertNotFinished(long season) throws Exception {
+        plantFeed(season);
         SqlRecorder.start();
         MockHttpServletResponse r = ReviewApiSupport.getReview(mvc, season);
         List<String> sqls = SqlRecorder.stop();
@@ -61,6 +69,7 @@ class SeasonReviewRejectTest {
         String body = ProblemBodyAssert.withoutInstance(r.getContentAsString());
         assertThat(body).doesNotContainPattern("\\d{4}-\\d{2}");
         ProblemBodyAssert.assertAbsent(r.getContentAsString(), ReviewApiSupport.FIXTURE_TEXTS.toArray(String[]::new));
+        assertThat(body).doesNotContain("\"kind\"", "\"feed\"", "\"signal\"", "NUDGE", "EVENT");
         ProblemBodyAssert.assertInstanceShape(r.getContentAsString(), "review");
         Map<String, Object> repro = jdbc.queryForMap("SELECT seed::text AS seed, engine_version FROM season WHERE id = ?", season);
         assertThat(body).doesNotContain((String) repro.get("seed")).doesNotContain((String) repro.get("engine_version"));
@@ -80,6 +89,13 @@ class SeasonReviewRejectTest {
     void 포기_중_시즌은_409이고_본문에_연월과_사건이_없다() throws Exception {
         long season = ReviewApiSupport.seasonWithFixturePath(mvc, jdbc, 12);
         jdbc.update("UPDATE season SET status = 'ABANDONING', abandoned_turn_no = current_turn_no WHERE id = ?", season);
+        assertNotFinished(season);
+    }
+
+    @Test
+    void 정지_시즌은_409이고_본문에_연월과_사건이_없다() throws Exception {
+        long season = ReviewApiSupport.seasonWithFixturePath(mvc, jdbc, 12);
+        jdbc.update("UPDATE season SET status = 'HALTED' WHERE id = ?", season);
         assertNotFinished(season);
     }
 
@@ -112,7 +128,7 @@ class SeasonReviewRejectTest {
 
     @Test
     void 보안_문맥에_토큰이_없으면_401_UNAUTHENTICATED이다() {
-        SeasonReviewService service = new SeasonReviewService(new JwtCurrentMember(null), null, null, null);
+        SeasonReviewService service = new SeasonReviewService(new JwtCurrentMember(null), null, null, null, null);
         assertThatThrownBy(() -> service.get(1L)).isInstanceOfSatisfying(DomainException.class,
                 e -> assertThat(ErrorHttpMapping.status(e.getCode())).isEqualTo(HttpStatus.UNAUTHORIZED));
     }

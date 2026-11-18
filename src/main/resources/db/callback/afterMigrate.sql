@@ -6,6 +6,9 @@
 --   READ    SELECT                  history and pool
 --   APPEND  SELECT, INSERT          ledger and every other append-only table: never UPDATE, DELETE or TRUNCATE
 --   MUTABLE SELECT, INSERT, UPDATE  state rows the services change (SELECT ... FOR UPDATE needs UPDATE)
+-- One exception to the class of a table: month_block stays READ and gets a column-level UPDATE on its regime columns
+-- (M2-08, the regime label job fills them from NULL once). Nothing else of the table can be updated and nobody can
+-- INSERT or DELETE there.
 -- Nobody but the owner gets DELETE, TRUNCATE, REFERENCES, TRIGGER or MAINTAIN. Sequences get no grant: identity columns
 -- need none.
 
@@ -18,8 +21,14 @@ DECLARE
         'agent_call', 'season_score', 'rating_history', 'projection'];
     mutable_tables constant text[] := ARRAY['member', 'season', 'cash_account', 'holding', 'lineup', 'refresh_token',
         'agent_profile', 'job_run'];
+    regime_table constant text := 'month_block';
+    regime_columns constant text[] := ARRAY['rate_dir', 'growth_dir', 'fx_dir', 'sentiment_dir', 'rate_strength',
+        'growth_strength', 'fx_strength', 'sentiment_strength', 'prob_p1', 'prob_p2', 'prob_p3', 'prob_p4', 'regime_label',
+        'indicator_z'];
     privileges constant text[] := ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER',
         'MAINTAIN'];
+    col text;
+    column_rights boolean;
     unclassified text[];
     foreign_owned text[];
     routines text[];
@@ -76,6 +85,8 @@ BEGIN
     FOREACH t IN ARRAY mutable_tables LOOP
         EXECUTE format('GRANT SELECT, INSERT, UPDATE ON TABLE public.%I TO antlab_app', t);
     END LOOP;
+    EXECUTE format('GRANT UPDATE (%s) ON TABLE public.%I TO antlab_app',
+        (SELECT string_agg(quote_ident(c), ', ') FROM unnest(regime_columns) AS c), regime_table);
 
     -- Verify the effective result for every table, whatever the source of a right.
     FOR t IN
@@ -88,13 +99,28 @@ BEGIN
             WHEN t = ANY (mutable_tables) THEN ARRAY['SELECT', 'INSERT', 'UPDATE']
             ELSE ARRAY[]::text[] END;
         FOREACH p IN ARRAY privileges LOOP
-            IF (has_table_privilege('antlab_app', format('public.%I', t)::regclass, p)
-                    OR (p IN ('SELECT', 'INSERT', 'UPDATE', 'REFERENCES')
-                        AND has_any_column_privilege('antlab_app', format('public.%I', t)::regclass, p)))
-               <> (p = ANY (expected)) THEN
+            -- table level: the regime table has no table-level UPDATE either
+            IF has_table_privilege('antlab_app', format('public.%I', t)::regclass, p) <> (p = ANY (expected)) THEN
                 problems := problems || format('%s on %s should be %s', p, t, CASE WHEN p = ANY (expected) THEN 'granted' ELSE 'denied' END);
             END IF;
+            -- column level: any column holding the right counts, so the one allowed exception is named here
+            column_rights := p = ANY (expected) OR (t = regime_table AND p = 'UPDATE');
+            IF p IN ('SELECT', 'INSERT', 'UPDATE', 'REFERENCES')
+               AND has_any_column_privilege('antlab_app', format('public.%I', t)::regclass, p) <> column_rights THEN
+                problems := problems || format('%s on a column of %s should be %s', p, t, CASE WHEN column_rights THEN 'granted' ELSE 'denied' END);
+            END IF;
         END LOOP;
+    END LOOP;
+    -- exactly the regime columns can be updated, and no other column carries any right of its own
+    FOR col IN
+        SELECT a.attname::text FROM pg_attribute a
+        WHERE a.attrelid = format('public.%I', regime_table)::regclass AND a.attnum > 0 AND NOT a.attisdropped
+        ORDER BY a.attnum
+    LOOP
+        IF has_column_privilege('antlab_app', format('public.%I', regime_table)::regclass, col, 'UPDATE') <> (col = ANY (regime_columns)) THEN
+            problems := problems || format('UPDATE on %s.%s should be %s', regime_table, col,
+                CASE WHEN col = ANY (regime_columns) THEN 'granted' ELSE 'denied' END);
+        END IF;
     END LOOP;
     IF cardinality(problems) > 0 THEN
         RAISE EXCEPTION 'afterMigrate: antlab_app rights differ from the classes: %', array_to_string(problems, '; ');

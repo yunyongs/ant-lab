@@ -57,7 +57,7 @@ public final class AnalysisAssertions {
      */
     public static void assertConsistent(JsonNode analysis, JsonNode report, int availableBaselines) {
         assertThat(keys(analysis)).as("top-level keys and order").containsExactlyElementsOf(components(SeasonAnalysisDto.class));
-        assertThat(analysis.get("analysisVersion").asString()).isEqualTo("mvp17-v1");
+        assertThat(analysis.get("analysisVersion").asString()).isEqualTo("mvp19-v1");
         assertThat(analysis.get("representativeVersion").asString()).isEqualTo("rep-v1");
         int turns = analysis.get("reportTurns").asInt();
         assertThat(turns).isEqualTo(report.get("reportTurns").asInt());
@@ -151,9 +151,67 @@ public final class AnalysisAssertions {
         assertThat(disc.get("formationChanges").asInt()).isEqualTo(report.get("formationChanges").asInt());
         assertThat(disc.get("panicFormationChanges").asInt()).isLessThanOrEqualTo(disc.get("formationChanges").asInt());
 
+        assertNoiseAndPlatform(analysis, report);
+
         String body = analysis.toString();
         assertThat(body).doesNotContainPattern("\\d{4}-\\d{2}");
         allKeys(analysis).forEach(k -> assertThat(FORBIDDEN_KEYS).as("forbidden key " + k).doesNotContain(k));
+    }
+
+    /** Identities of the noise and platform blocks with the 37-column report of the same season (MVP-19). */
+    static void assertNoiseAndPlatform(JsonNode analysis, JsonNode report) {
+        JsonNode noise = analysis.get("noise");
+        assertThat(keys(noise)).containsExactly("noiseShare", "tradingTurns", "followedBuyNotional", "followedSellNotional",
+                "tradeNotional");
+        ratio(noise.get("noiseShare"), "noiseShare");
+        assertThat(noise.get("noiseShare").isNull()).as("a share exists exactly when some turn traded")
+                .isEqualTo(noise.get("tradingTurns").asInt() == 0);
+        assertThat(noise.get("tradingTurns").asInt()).isBetween(0, analysis.get("reportTurns").asInt() - 1);
+        assertThat(won(noise.get("tradeNotional"))).as("same trade amount as the report")
+                .isEqualByComparingTo(won(report.get("tradeNotional")));
+        assertThat(won(noise.get("followedBuyNotional")).add(won(noise.get("followedSellNotional"))))
+                .isLessThanOrEqualTo(won(noise.get("tradeNotional")));
+        assertThat(won(noise.get("followedBuyNotional")).signum()).isGreaterThanOrEqualTo(0);
+        assertThat(won(noise.get("followedSellNotional")).signum()).isGreaterThanOrEqualTo(0);
+        if (!noise.get("noiseShare").isNull()) {
+            BigDecimal share = new BigDecimal(noise.get("noiseShare").asString());
+            assertThat(share.signum()).isGreaterThanOrEqualTo(0);
+            assertThat(share).isLessThanOrEqualTo(BigDecimal.ONE);
+        }
+
+        JsonNode platform = analysis.get("platform");
+        assertThat(keys(platform)).containsExactly("totalFee", "teamFee", "bySource", "nudgedFee", "nudgedFeeShare");
+        JsonNode rows = platform.get("bySource");
+        assertThat(rows.size()).isEqualTo(5);
+        List<String> sources = List.of("RANKING", "FEED", "ALERT", "BENCH", "DIRECT");
+        BigDecimal fees = BigDecimal.ZERO;
+        BigDecimal notionals = BigDecimal.ZERO;
+        BigDecimal nudged = BigDecimal.ZERO;
+        for (int i = 0; i < 5; i++) {
+            JsonNode row = rows.get(i);
+            assertThat(keys(row)).containsExactly("source", "orders", "tradeNotional", "fee");
+            assertThat(row.get("source").asString()).as("fixed order of sources").isEqualTo(sources.get(i));
+            assertThat(row.get("orders").asInt()).isGreaterThanOrEqualTo(0);
+            fees = fees.add(won(row.get("fee")));
+            notionals = notionals.add(won(row.get("tradeNotional")));
+            if (i == 0 || i == 2) {
+                nudged = nudged.add(won(row.get("fee")));
+            }
+        }
+        assertThat(rows.get(3).get("orders").asInt()).as("BENCH is reserved and refused, so it never has an order").isZero();
+        assertThat(won(platform.get("teamFee"))).isEqualByComparingTo(won(report.get("teamFee")));
+        assertThat(won(platform.get("totalFee"))).isEqualByComparingTo(won(report.get("totalFee")));
+        assertThat(fees.add(won(platform.get("teamFee")))).as("sources + team = total").isEqualByComparingTo(won(platform.get("totalFee")));
+        assertThat(won(platform.get("nudgedFee"))).as("RANKING + ALERT only, equal to the report's platform fee")
+                .isEqualByComparingTo(won(report.get("platformNudgeFee"))).isEqualByComparingTo(nudged);
+        assertThat(notionals).as("the sources split the trade amount").isEqualByComparingTo(won(noise.get("tradeNotional")));
+        ratio(platform.get("nudgedFeeShare"), "nudgedFeeShare");
+        assertThat(platform.get("nudgedFeeShare").isNull()).isEqualTo(won(platform.get("totalFee")).signum() == 0);
+        if (!platform.get("nudgedFeeShare").isNull()) {
+            assertThat(platform.get("nudgedFeeShare").asString()).as("one division")
+                    .isEqualTo(won(platform.get("nudgedFee")).divide(won(platform.get("totalFee")), 8,
+                            java.math.RoundingMode.HALF_UP).toPlainString());
+        }
     }
 
     private static List<String> allKeys(JsonNode node) {

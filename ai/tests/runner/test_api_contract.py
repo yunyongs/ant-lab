@@ -1,7 +1,9 @@
 """C1, C2: the client's operations and bodies against docs/api/agent-runner.yaml."""
 
 import copy
+import json
 from decimal import Decimal
+from pathlib import Path
 
 import pytest
 from api_helpers import FakeTransport, contract_errors, fixture, settings, yaml_operations
@@ -36,6 +38,17 @@ FIXTURE_SCHEMAS = [
 @pytest.mark.parametrize(("name", "schema"), FIXTURE_SCHEMAS)
 def test_response_fixtures_match_their_schema(name, schema):
     assert contract_errors(schema, fixture(name)) == []
+
+
+@pytest.mark.parametrize("name", ["turn_view_small", "turn_view_pool180"])
+def test_runner_turn_view_fixtures_carry_a_contract_valid_last_turn(name):
+    fixtures = Path(__file__).resolve().parent / "fixtures"
+    view = json.loads((fixtures / f"{name}.json").read_text(encoding="utf-8"))
+    assert contract_errors("TurnResultDto", view["lastTurn"]) == []
+    assert "alerts" in view["lastTurn"]
+    broken = copy.deepcopy(view["lastTurn"])
+    del broken["alerts"]
+    assert contract_errors("TurnResultDto", broken) != []
 
 
 def _calls(n=1, first=1):

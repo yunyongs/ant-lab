@@ -132,6 +132,54 @@ class KisQuoteClientTest {
     }
 
     @Test
+    void 국내_응답의_오늘_행은_창_밖이라_돌려주지_않는다() {
+        var h = new KisHarness();
+        h.expectTokenOk();
+        h.respondDomestic("kr_daily_today");
+
+        List<DailyClose> rows = h.factory.newClient().domesticDaily("900001", D07, D09, PriceBasis.ADJUSTED);
+
+        assertThat(rows).extracting(DailyClose::tradeDate).doesNotContain(LocalDate.of(2026, 1, 10)).hasSize(3);
+        h.server.verify();
+    }
+
+    @Test
+    void 해외_응답이_시작일을_무시하고_백_행을_줘도_창_안의_행만_돌려주고_한_번만_요청한다() {
+        var h = new KisHarness();
+        h.expectTokenOk();
+        h.expectGet(KisEndpoint.OVERSEAS_DAILY).andExpect(queryParam("BYMD", "20260109"))
+                .andRespond(withSuccess(fixture("us_daily_100rows"), MediaType.APPLICATION_JSON));
+        var client = h.factory.newClient();
+
+        List<DailyClose> rows = client.overseasDaily("FAKEA", KisExchange.NAS, D05, D09);
+
+        assertThat(rows).extracting(DailyClose::tradeDate).containsExactly(D05, LocalDate.of(2026, 1, 6),
+                D07, LocalDate.of(2026, 1, 8), D09).isSorted();
+        assertThat(client.requestsMade()).isEqualTo(2);
+        h.server.verify();
+    }
+
+    @Test
+    void 해외_쪽매김도_스무_쪽을_넘으면_실패한다() {
+        var h = new KisHarness(KisHarness.properties("", 2, 100));
+        h.expectTokenOk();
+        LocalDate newest = LocalDate.of(2026, 12, 31);
+        for (int page = 0; page < DefaultKisQuoteClient.PAGE_CAP; page++) {
+            LocalDate top = newest.minusDays(100L * page);
+            StringBuilder out = new StringBuilder("{\"rt_cd\":\"0\",\"msg_cd\":\"MCA00000\",\"output2\":[");
+            for (int i = 0; i < 100; i++) {
+                out.append(i > 0 ? "," : "").append("{\"xymd\":\"").append(KisResponseParser.COMPACT_DATE.format(top.minusDays(i)))
+                        .append("\",\"clos\":\"").append(100 + i).append("\"}");
+            }
+            h.expectGet(KisEndpoint.OVERSEAS_DAILY).andRespond(withSuccess(out.append("]}").toString(), MediaType.APPLICATION_JSON));
+        }
+
+        assertThatThrownBy(() -> h.factory.newClient().overseasDaily("FAKEA", KisExchange.NAS, LocalDate.of(2000, 1, 1), newest))
+                .isInstanceOfSatisfying(KisException.class, e -> assertThat(e.code()).isEqualTo("PAGE_CAP"));
+        h.server.verify();
+    }
+
+    @Test
     void 같은_날짜에_다른_종가가_오면_파싱_오류다() {
         var h = new KisHarness();
         h.expectTokenOk();
