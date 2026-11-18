@@ -91,8 +91,15 @@ final class KisHarness {
         this(properties("", 2, 60));
     }
 
+    KisHarness(RestClient.Builder builder) {
+        this(properties("", 2, 3), builder);
+    }
+
     KisHarness(KisProperties properties) {
-        RestClient.Builder builder = RestClient.builder();
+        this(properties, RestClient.builder());
+    }
+
+    KisHarness(KisProperties properties, RestClient.Builder builder) {
         this.server = MockRestServiceServer.bindTo(builder).build();
         this.properties = properties;
         this.factory = new KisQuoteClientFactory(builder, KisEndpoint.BASE_URI, properties, clock, sleeper);
