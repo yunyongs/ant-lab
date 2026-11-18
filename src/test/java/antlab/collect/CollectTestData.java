@@ -50,6 +50,8 @@ public final class CollectTestData {
 
     public void cleanUp() {
         jdbc.update("DELETE FROM asset_daily_price");
+        jdbc.update("DELETE FROM series_observation");
+        jdbc.update("DELETE FROM series");
         jdbc.update("DELETE FROM job_run");
         assetIds.forEach(id -> jdbc.update("DELETE FROM asset WHERE id = ?", id));
         groupIds.forEach(id -> jdbc.update("DELETE FROM asset_group WHERE id = ?", id));
