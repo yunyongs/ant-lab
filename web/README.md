@@ -89,6 +89,8 @@ Only `/api` is forwarded, unchanged, to `http://127.0.0.1:8080`. For an API on a
 - **성적표**는 마지막 턴 뒤에 열린다. 기준선 대비 결과, 위험 준수, 과정(회전율·포메이션 이탈·역할 수행·독려 매매·전술 변경), 비용, 대사 기록을 서버가 계산한 값 그대로 보여 준다. 계산할 수 없는 칸에는 이유가 나온다. 시즌이 끝나기 전에는 시즌이 어디까지 왔는지만 알려 준다.
 - **복기** opens after the last turn and is the only screen with real dates: the year-month behind each turn, that month's summary and events with sources, the value at each turn, your formation changes with their reasons, and the seed, engine version and data date that reproduce the path. Before the season ends it stays closed, because knowing the months would change your decisions.
 - **복기**는 마지막 턴 뒤에 열리며 실제 날짜가 나오는 유일한 화면이다. 각 턴의 실제 연월, 그 달의 요약과 사건(출처 포함), 턴마다의 평가액, 전술 변경과 그 사유, 경로를 다시 만드는 시드·엔진 버전·데이터 기준일이 나온다. 달을 알면 판단이 달라지므로 시즌이 끝나기 전에는 닫혀 있다.
+- Report: season score with its nine process items. Season list: manager rating, shown by the server from the third counted season.
+- 성적표: 시즌 점수와 과정 항목 아홉 개. 시즌 목록: 매니저 레이팅(서버가 집계 시즌 셋째부터 보여 준다).
 
 ## End-to-end check / 종단 확인
 

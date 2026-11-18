@@ -2,6 +2,7 @@ import { useMutation, useQuery, type QueryClient } from '@tanstack/react-query';
 import { apiClient } from '../../api/client.ts';
 import { UnreachableError } from '../../api/problem.ts';
 import type { components } from '../../api/schema';
+import { ratingKey } from '../rating/queries.ts';
 import type { Season } from './labels.ts';
 
 export type StartSeasonRequest = components['schemas']['StartSeasonRequest'];
@@ -62,5 +63,6 @@ export async function invalidateSeasonState(
     // Only the current team's distribution moves with an order or a turn.
     queryClient.invalidateQueries({ queryKey: ['projection', id, 'CURRENT'] }),
     queryClient.invalidateQueries({ queryKey: seasonsKey }),
+    queryClient.invalidateQueries({ queryKey: ratingKey }),
   ]);
 }
