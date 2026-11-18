@@ -18,9 +18,10 @@ import java.time.LocalDate;
  * @param notStarted     a human season abandoned before turn 3 (left out of the rating)
  * @param sources        the report sources, as the season report reads them
  * @param discipline     panic-sell and chase-buy ratios, null when absent
+ * @param noiseShare     share of traded value that followed the noise, null when the season never traded or it could not be read
  * @param startTeam      the team after the turn-0 team building, as shares of its total value
  * @param startEndValue  cash plus the start quantities at the last turn's prices, in won
  */
 public record ScoreBasis(long seasonId, long memberId, long seed, LocalDate baseDate, int pathLength, boolean notStarted,
-        SeasonReportSources sources, DisciplineRatios discipline, ProjectionInput startTeam, BigDecimal startEndValue) {
+        SeasonReportSources sources, DisciplineRatios discipline, BigDecimal noiseShare, ProjectionInput startTeam, BigDecimal startEndValue) {
 }

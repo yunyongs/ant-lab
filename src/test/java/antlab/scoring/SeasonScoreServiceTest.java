@@ -50,7 +50,7 @@ class SeasonScoreServiceTest extends ScoreApiTestBase {
         assertThat(ratingRows()).isEqualTo(1);
         assertThat(percentileCalls()).isEqualTo(1);
         Map<String, Object> row = scoreRow(season);
-        assertThat(row.get("score_version")).isEqualTo("s63-v1");
+        assertThat(row.get("score_version")).isEqualTo("s63-v2");
         // 999 below + 2 equal of 2000: mid-rank (999 + 1) / 2000 = 0.5 exactly; the luck count is 500 below, none equal
         assertThat((BigDecimal) row.get("sharpe_diff_percentile")).isEqualByComparingTo("0.5");
         assertThat((BigDecimal) row.get("luck_percentile")).isEqualByComparingTo("0.25");
@@ -89,7 +89,7 @@ class SeasonScoreServiceTest extends ScoreApiTestBase {
         String inputs = jdbc.queryForObject("SELECT inputs::text FROM season_score WHERE season_id = ?", String.class, season);
         JsonNode node = tree(inputs);
 
-        assertThat(node.get("scoreVersion").asString()).isEqualTo("s63-v1");
+        assertThat(node.get("scoreVersion").asString()).isEqualTo("s63-v2");
         assertThat(node.at("/engine/n").asInt()).isEqualTo(PATHS);
         assertThat(node.at("/engine/endMultiple/below").asInt()).isEqualTo(500);
         assertThat(node.at("/engine/sharpeDiff/below").asInt()).isEqualTo(999);

@@ -57,6 +57,7 @@ final class ScoreInputsJson {
             discipline.put("chaseBuyRatio", basis.discipline().chaseBuyRatio());
         }
         root.put("discipline", discipline);
+        root.put("noiseShare", basis.noiseShare());
         Map<String, Object> sharpe = new LinkedHashMap<>();
         sharpe.put("sharpe", observation.sharpe());
         sharpe.put("benchSharpe", observation.benchSharpe());

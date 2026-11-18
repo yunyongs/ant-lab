@@ -14,31 +14,38 @@ import antlab.season.SeasonStatus;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Reads everything one season score needs in a single read-only {@code REPEATABLE_READ} snapshot (the report sources, the
- * discipline ratios, the start team and its prices at the last turn must come from one commit). It holds no lock, writes
+ * discipline ratios, the noise share, the start team and its prices at the last turn must come from one commit; the noise
+ * share costs four statements per judged turn). It holds no lock, writes
  * nothing and ends before the engine is called, so no connection is held while the engine works.
  */
 @Component
 public class ScoreInputReader {
 
+    private static final Logger LOG = LoggerFactory.getLogger(ScoreInputReader.class);
+
     private final SeasonRepository seasons;
     private final MemberRepository members;
     private final SeasonReportService reports;
     private final DisciplineSource discipline;
+    private final NoiseReactionSource noise;
     private final ProjectionInputQuery projectionInputs;
     private final ScoreInputQuery prices;
 
     public ScoreInputReader(SeasonRepository seasons, MemberRepository members, SeasonReportService reports,
-            DisciplineSource discipline, ProjectionInputQuery projectionInputs, ScoreInputQuery prices) {
+            DisciplineSource discipline, NoiseReactionSource noise, ProjectionInputQuery projectionInputs, ScoreInputQuery prices) {
         this.seasons = seasons;
         this.members = members;
         this.reports = reports;
         this.discipline = discipline;
+        this.noise = noise;
         this.projectionInputs = projectionInputs;
         this.prices = prices;
     }
@@ -52,13 +59,30 @@ public class ScoreInputReader {
         Member member = members.findById(season.getMemberId()).orElseThrow(() -> new IllegalStateException("score.member_missing"));
         SeasonReportSources sources = reports.sources(season);
         DisciplineRatios ratios = discipline.of(seasonId).orElse(null);
+        BigDecimal noiseShare = noiseShare(seasonId);
 
         ProjectionBasis start = projectionInputs.start(seasonId);
         ProjectionInput startTeam = ProjectionInput.of(start.cash(), start.holdings());
         BigDecimal startEndValue = valueAtLastTurn(seasonId, season.getCurrentTurnNo(), start);
         boolean notStarted = AbandonRules.notStarted(member.getKind(), season.getAbandonedTurnNo());
         return new ScoreBasis(seasonId, season.getMemberId(), season.getSeed(), season.getBaseDate(), season.getPathLength(),
-                notStarted, sources, ratios, startTeam, startEndValue);
+                notStarted, sources, ratios, noiseShare, startTeam, startEndValue);
+    }
+
+    /**
+     * The noise item is one of nine; a season whose rows contradict each other must not keep the other eight from being
+     * scored for ever, so the failure is logged with the season id and the item stays empty (a never-traded season stores
+     * the same null). Only {@link IllegalStateException}, the contradiction signal, is caught: a transient database failure
+     * must fail the call so that nothing is stored and a later request scores the season. The source is plain JDBC and opens
+     * no transaction, so catching here cannot mark this snapshot rollback-only.
+     */
+    private BigDecimal noiseShare(long seasonId) {
+        try {
+            return noise.noiseShare(seasonId).orElse(null);
+        } catch (IllegalStateException inconsistent) {
+            LOG.error("score.noise_unreadable seasonId={}", seasonId, inconsistent);
+            return null;
+        }
     }
 
     /** Cash of the start team plus its start quantities at the last turn's stored prices, in won (no rounding). */

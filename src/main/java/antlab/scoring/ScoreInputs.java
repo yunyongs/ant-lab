@@ -19,6 +19,7 @@ import java.util.List;
  * @param formationDeviation mean deviation from the target formation, a fraction in 0..2
  * @param roleFit            share of exposure whose declared position matched the measured one, 0..1
  * @param nudgeShare         share of traded value that followed a platform nudge, 0..1, null with no trades
+ * @param noiseShare         share of traded value that followed the noise, 0..1, null with no trades or when it could not be read
  * @param discipline         trade discipline facts, null when nothing measures them
  * @param sharpeDiffCounts   rank of the observed Sharpe difference among the path distribution, null if none
  * @param endMultipleCounts  rank of the held start team's end multiple among the path distribution, null if none
@@ -35,6 +36,7 @@ public record ScoreInputs(
         BigDecimal formationDeviation,
         BigDecimal roleFit,
         BigDecimal nudgeShare,
+        BigDecimal noiseShare,
         DisciplineRatios discipline,
         RankCounts sharpeDiffCounts,
         RankCounts endMultipleCounts) {

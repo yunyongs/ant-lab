@@ -46,7 +46,7 @@ class ScoreAssemblerTest {
     }
 
     private static ScoreBasis basis(SeasonReportSources src, String startEndValue) {
-        return new ScoreBasis(7L, 3L, -4611686018427387904L, LocalDate.of(2026, 1, 2), 12, false, src, null, team(),
+        return new ScoreBasis(7L, 3L, -4611686018427387904L, LocalDate.of(2026, 1, 2), 12, false, src, null, null, team(),
                 d(startEndValue));
     }
 
@@ -137,7 +137,7 @@ class ScoreAssemblerTest {
     @Test
     void an_unsupported_horizon_is_refused_before_a_request_exists() {
         SeasonReportSources src = sources("1000000", 1_100_000, 990_000);
-        ScoreBasis odd = new ScoreBasis(7L, 3L, 14L, LocalDate.of(2026, 1, 2), 36, false, src, null, team(), d("1250000"));
+        ScoreBasis odd = new ScoreBasis(7L, 3L, 14L, LocalDate.of(2026, 1, 2), 36, false, src, null, null, team(), d("1250000"));
         ScoreAssembler.Observation o = ScoreAssembler.observe(odd, List.of(d("0.02"), d("0.04")));
 
         assertThat(EnginePercentileRequest.supportsHorizon(36)).isFalse();

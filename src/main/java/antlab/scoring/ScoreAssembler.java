@@ -72,7 +72,7 @@ final class ScoreAssembler {
             RankCounts endMultipleCounts) {
         return new ScoreInputs(season.returns(), season.benchmarkReturns(), report.reportTurns(), report.riskBreachTurns(),
                 report.riskBreachDepth(), report.riskLimit(), report.maxSingleWeight(), report.turnoverAnnual(),
-                report.formationDeviation(), report.roleFit(), report.nudgeShare(), basis.discipline(), sharpeDiffCounts,
-                endMultipleCounts);
+                report.formationDeviation(), report.roleFit(), report.nudgeShare(), basis.noiseShare(), basis.discipline(),
+                sharpeDiffCounts, endMultipleCounts);
     }
 }
