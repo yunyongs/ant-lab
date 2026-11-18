@@ -634,6 +634,78 @@ paths:
                 $ref: '#/components/schemas/Problem'
         '500':
           $ref: '#/components/responses/InternalError'
+  /api/v1/seasons/{seasonId}/lineup-changes:
+    post:
+      tags: [formation]
+      operationId: changeLineup
+      summary: Position-only change / 포지션 단독 변경
+      description: |-
+        Changes the declared position of a held asset without any trade: the open span is closed at the current turn and a new span opens, so the next turn values the asset under the new position. No order, fee or formation change is created. If the position is already the requested one the answer is 200 with changed = false and nothing is written. It cannot be changed at turn 0 while the team is being built.
+
+        거래 없이 보유 종목의 선언 포지션만 바꾼다. 열린 구간을 현재 턴에 닫고 새 구간을 열어 다음 턴부터 새 포지션으로 평가한다. 주문·수수료·전술 변경은 만들지 않는다. 이미 그 포지션이면 changed = false 로 200 을 답하고 아무것도 쓰지 않는다. 팀 구성 중인 0턴에는 바꿀 수 없다.
+      parameters:
+        - name: seasonId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangeLineupRequest'
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: The open span after the call and whether it changed / 호출 뒤의 열린 구간과 변경 여부
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LineupChangeDto'
+        '400':
+          description: |-
+            The input is invalid (missing required value, unknown position, asset number below 1) — INVALID_ARGUMENT
+
+            입력이 틀렸다(필수값 누락, 알 수 없는 포지션, 종목 번호 1 미만) — INVALID_ARGUMENT
+          x-error-codes: [INVALID_ARGUMENT]
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          description: The season does not exist — NOT_FOUND / 시즌이 없다 — NOT_FOUND
+          x-error-codes: [NOT_FOUND]
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: |-
+            It cannot be changed now — SEASON_NOT_ACTIVE (not in progress), TURN_MISMATCH (including turn 0), LINEUP_MISMATCH
+
+            지금은 바꿀 수 없다 — SEASON_NOT_ACTIVE(진행 중이 아님), TURN_MISMATCH(0턴 포함), LINEUP_MISMATCH
+          x-error-codes: [SEASON_NOT_ACTIVE, TURN_MISMATCH, LINEUP_MISMATCH]
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          description: |-
+            The asset is not held (never bought, sold out or not in the pool) — INSUFFICIENT_HOLDING
+
+            보유 중인 종목이 아니다(산 적 없음, 전량 매도, 풀에 없음) — INSUFFICIENT_HOLDING
+          x-error-codes: [INSUFFICIENT_HOLDING]
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /api/v1/seasons/{seasonId}/turns:
     post:
       tags: [turn]
@@ -1795,6 +1867,49 @@ components:
           type: integer
           format: int32
           description: 'Turns still to run: pathLength - currentTurnNo / 남은 턴: pathLength - currentTurnNo'
+    ChangeLineupRequest:
+      type: object
+      description: |-
+        Changes the declared position of a held asset without any trade
+
+        거래 없이 보유 종목의 선언 포지션만 바꾼다
+      required: [expectedTurnNo, assetId, declaredPosition]
+      properties:
+        expectedTurnNo:
+          type: integer
+          format: int32
+          minimum: 0
+          description: The turn the change applies to. 409 TURN_MISMATCH if it differs from the season's current turn. At turn 0 (team being built) a position is set by the buy order, so 409 / 변경이 보는 턴. 시즌의 현재 턴과 다르면 409 TURN_MISMATCH. 0턴(팀 구성 중)의 포지션은 매수 주문으로 정하므로 409
+        assetId:
+          type: integer
+          format: int64
+          minimum: 1
+          description: Asset identifier (the same as assetId in the pool response). The asset must be held / 종목 식별자(풀 응답의 assetId 와 같다). 보유 중이어야 한다
+        declaredPosition:
+          $ref: '#/components/schemas/Position'
+          description: The new declared position. If it equals the current one nothing is written / 새 선언 포지션. 현재와 같으면 아무것도 쓰지 않는다
+    LineupChangeDto:
+      type: object
+      description: |-
+        Position-only change result: the open span after the call. Span number, season number and recorded time are not included
+
+        포지션 단독 변경 결과: 호출 뒤의 열린 구간. 구간 번호·시즌 번호·기록 시각은 싣지 않는다
+      required: [assetId, declaredPosition, startTurn, changed]
+      properties:
+        assetId:
+          type: integer
+          format: int64
+          description: Asset identifier / 종목 식별자
+        declaredPosition:
+          $ref: '#/components/schemas/Position'
+          description: Declared position of the open span now / 지금 열린 구간의 선언 포지션
+        startTurn:
+          type: integer
+          format: int32
+          description: The turn the open span started / 열린 구간이 시작한 턴
+        changed:
+          type: boolean
+          description: false when the position was already the requested one and no row was written / 이미 그 포지션이라 행을 쓰지 않았으면 false
     TurnResultDto:
       type: object
       description: |-

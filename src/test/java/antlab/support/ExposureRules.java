@@ -33,9 +33,10 @@ public final class ExposureRules {
      * orders.id 는 시즌 안의 주문 생성 순서일 뿐 역사 달과 무관하다. orders.formation_change_id 는 시즌 안의 전술 변경 순서로,
      * 주문이 어느 변경에 묶였는지만 알려 주고 역사 날짜 단서가 없다(P0-31).
      * member.id is signup order with no history-date clue; returned only to the member who just signed up.
+     * lineup.asset_id is the same value as the already allowed asset.id (MVP-14).
      */
     public static final Set<String> IDENTIFIER_ALLOWED = Set.of("asset.id", "asset.asset_group_id", "season.id",
-            "turn_price.asset_id", "turn_feed.asset_id", "orders.id", "orders.formation_change_id", "member.id");
+            "turn_price.asset_id", "turn_feed.asset_id", "orders.id", "orders.formation_change_id", "member.id", "lineup.asset_id");
 
     /**
      * Identifiers only a review handler may expose. In season, a feed item with neither asset nor group is an event card,
@@ -85,7 +86,8 @@ public final class ExposureRules {
             Map.entry(SeasonAnalysisDto.BaselineDto.class, Set.of("key")),
             Map.entry(SeasonAnalysisDto.LegDto.class, Set.of("slot", "sharePercent")),
             Map.entry(SeasonAnalysisDto.AttentionFollowingDto.class, Set.of("windowTurns")),
-            Map.entry(antlab.season.AbandonResultDto.class, Set.of("advancedTurns")));
+            Map.entry(antlab.season.AbandonResultDto.class, Set.of("advancedTurns")),
+            Map.entry(antlab.season.LineupChangeDto.class, Set.of("changed")));
 
     /**
      * The engine's own record of what it rejected in the previous decision: {@code [내부]} in the DB, but the agent is
