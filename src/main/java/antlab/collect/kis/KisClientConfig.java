@@ -12,7 +12,7 @@ import org.springframework.web.client.RestClient;
 
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties(KisProperties.class)
-class KisClientConfig {
+public class KisClientConfig {
 
     private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(5);
     private static final Duration READ_TIMEOUT = Duration.ofSeconds(30);
@@ -24,7 +24,7 @@ class KisClientConfig {
     }
 
     /** JDK HTTP client that never follows a redirect and never uses a system proxy. */
-    static RestClient.Builder transportBuilder() {
+    public static RestClient.Builder transportBuilder() {
         HttpClient http = HttpClient.newBuilder()
                 .followRedirects(HttpClient.Redirect.NEVER)
                 .proxy(HttpClient.Builder.NO_PROXY)

@@ -6,6 +6,10 @@ import antlab.collect.CollectTestData.TestClock;
 import antlab.collect.JobStatus;
 import antlab.collect.PriceBasis;
 import antlab.collect.RunTrigger;
+import antlab.collect.fred.FakeFredClient;
+import antlab.collect.fred.FredProperties;
+import antlab.collect.fred.FredSeriesJob;
+import antlab.collect.series.SeriesCatalog;
 import antlab.collect.kis.DailyClose;
 import antlab.collect.kis.KisExchange;
 import antlab.collect.kis.KisQuoteClient;
@@ -23,6 +27,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
@@ -125,6 +130,7 @@ class LeastPrivilegeFlowTest {
         playTheSeason();
         runTheAgent();
         runTheCollector();
+        runTheFredCollector();
 
         JdbcTemplate superuser = new JdbcTemplate(database.superuser());
         List<String> empty = new ArrayList<>();
@@ -249,5 +255,24 @@ class LeastPrivilegeFlowTest {
 
         assertThat(summary.status()).as(summary.toString()).isEqualTo(JobStatus.SUCCEEDED);
         assertThat(summary.insertedCount()).isEqualTo(2);
+    }
+    private void runTheFredCollector() {
+        FakeFredClient fake = new FakeFredClient()
+                .answer("DGS2", FakeFredClient.obs("2026-01-09", "3.6", "2026-01-13", "2026-01-13"),
+                        FakeFredClient.obs("2026-01-12", "3.7", "2026-01-13", "2026-01-13"))
+                .answer("CPILFESL", FakeFredClient.obs("2025-12-01", "330.1", "2026-01-13", "2026-02-12"),
+                        FakeFredClient.obs("2025-12-01", "330.2", "2026-02-13", "9999-12-31"));
+        FredSeriesJob job = FredSeriesJob.create(() -> fake, SeriesCatalog.fromCsv("""
+                code,source,source_series_id,unit,frequency,release_lag_days,revisable
+                US_DGS2,FRED,DGS2,PERCENT,DAILY,1,false
+                US_CPILFESL,FRED,CPILFESL,INDEX,MONTHLY,10,true
+                """), jdbc, transactions, new TestClock(Instant.parse("2026-01-13T08:30:00Z")),
+                new FredProperties(true, "FAKE-FRED-KEY-0001", 1, 30, 100000, LocalDate.of(1990, 1, 1), 60, Duration.ofHours(2)));
+
+        var summary = job.run(RunTrigger.MANUAL, Set.of());
+
+        assertThat(summary.status()).as(summary.toString()).isEqualTo(JobStatus.SUCCEEDED);
+        assertThat(summary.insertedCount()).isEqualTo(4);
+        assertThat(summary.revisedCount()).isEqualTo(1);
     }
 }

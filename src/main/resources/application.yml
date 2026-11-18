@@ -100,6 +100,18 @@ antlab:
       lookback-days: 10
       initial-days: 30
       stale-after: 2h
+    # FRED/ALFRED macro series collector (M1-07): observations only, off by default. The key comes from the environment.
+    # history-start is where a first run begins; a later run re-reads lookback-days behind the latest stored date of a
+    # non-revisable series, and the whole vintage history of a revisable one.
+    fred:
+      enabled: false
+      api-key: ${FRED_API_KEY:}
+      rps: 1
+      max-requests-per-run: 30
+      page-limit: 100000
+      history-start: 1990-01-01
+      lookback-days: 60
+      stale-after: 2h
 
 # springdoc 은 설정이 없으면 켜진다(matchIfMissing). 공통에서 끄고 local 에서만 켠다.
 springdoc:

@@ -46,9 +46,12 @@ public final class JobRunLog {
                 int abandoned = jdbc.update("""
                         UPDATE job_run
                         SET status = 'FAILED', finished_at = ?, request_count = 0,
-                            inserted_count = (SELECT count(*) FROM asset_daily_price p WHERE p.job_run_id = job_run.id),
+                            inserted_count = (SELECT count(*) FROM asset_daily_price p WHERE p.job_run_id = job_run.id)
+                                           + (SELECT count(*) FROM series_observation o WHERE o.job_run_id = job_run.id),
                             revised_count = (SELECT count(*) FROM asset_daily_price p
-                                             WHERE p.job_run_id = job_run.id AND p.vintage_no > 1),
+                                             WHERE p.job_run_id = job_run.id AND p.vintage_no > 1)
+                                          + (SELECT count(*) FROM series_observation o
+                                             WHERE o.job_run_id = job_run.id AND o.vintage_no > 1),
                             unchanged_count = 0, failed_target_count = 0, error_code = ?,
                             error_detail = 'the run never finished; request and unchanged counts are lost', updated_at = ?
                         WHERE job_name = ? AND status = 'RUNNING' AND started_at < ?
