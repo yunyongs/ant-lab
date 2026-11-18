@@ -19,6 +19,7 @@ import { serveFeedWorld } from '../test/serveFeed.ts';
 import { server } from '../test/server.ts';
 import { serveReport } from '../test/serveReport.ts';
 import { serveProjection } from '../test/serveProjection.ts';
+import { serveScore } from '../test/serveScore.ts';
 import { serveReview } from '../test/serveReview.ts';
 import { serveTurnWorld } from '../test/serveTurns.ts';
 import { settle } from '../test/settle.ts';
@@ -148,6 +149,22 @@ describe('reveal boundary', () => {
     expectNoDatePattern(container);
     expect(reviewGets).toBe(0);
     expect(turnGets.every((n) => n <= 3)).toBe(true);
+  });
+
+  it('keeps the score and rating screens free of dates and of score requests while a season runs', async () => {
+    const world = serveScore({
+      season: { status: 'IN_PROGRESS', currentTurnNo: 3 },
+    });
+    const { router, container, queryClient } = renderRoute('/seasons/7');
+    await screen.findByRole('heading', { name: '시즌 7' });
+    for (const path of ['/seasons/7/report', '/seasons/7/review', '/']) {
+      await act(async () => {
+        await router.navigate(path);
+      });
+      await settle(queryClient);
+      expectNoDatePattern(container);
+    }
+    expect(world.scoreGets).toBe(0);
   });
 
   it('a review fixture really carries the poisoned strings', () => {
