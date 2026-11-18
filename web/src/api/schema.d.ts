@@ -463,6 +463,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/seasons/{seasonId}/score": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Season score lookup / 시즌 점수 조회
+         * @description Returns the score of a finished season: 0.5 x the result score (the season's Sharpe difference against the market benchmark, ranked among engine paths of the season-start team held still) + 0.5 x the process score (the mean of the item scores that have a value). The score is computed on the first request after the season finished, in finish order together with the member's earlier seasons, and then kept; a later request returns the stored row. The result and the score are null when the history cannot carry a path distribution for the season; such a season, and a human season abandoned before turn 3, is left out of the rating (ratingExclusion). While the engine cannot answer, nothing is stored and the answer is 503 ENGINE_UNAVAILABLE; try again later. The luck percentile is shown and is not part of the score. The response has no money, month, seed or engine detail.
+         *
+         *     끝난 시즌의 점수를 준다: 0.5 × 결과 점수(시즌의 샤프 차이를 시장 기준선과 비교해, 시즌 시작 팀을 그대로 보유한 엔진 경로들 안에서 순위를 매긴 값) + 0.5 × 과정 점수(값이 있는 항목 점수의 평균). 점수는 시즌이 끝난 뒤 첫 요청에서 회원의 앞선 시즌과 함께 끝난 순서대로 계산해 보관하고, 이후 요청은 보관한 행을 준다. 이력이 시즌의 경로 분포를 받쳐 주지 못하면 결과 점수와 점수는 null 이고, 그런 시즌과 3턴 전에 포기한 사람의 시즌은 레이팅에서 빠진다(ratingExclusion). 엔진이 답하지 못하는 동안에는 아무것도 저장하지 않고 503 ENGINE_UNAVAILABLE 로 답하니 나중에 다시 시도한다. 운 백분위는 보여 주기만 하고 점수에 들어가지 않는다. 응답에는 금액·달·시드·엔진 세부가 없다.
+         */
+        get: operations["getSeasonScore"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/members/me/rating": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * My manager rating / 내 매니저 레이팅
+         * @description Returns the manager rating of the signed-in member: the weighted mean of the last five counted season scores (weights 5, 4, 3, 2, 1 from the newest), seasons ordered by when they finished. The rating is null until three seasons are counted (seasonsUntilPublic says how many are missing). Seasons left out of the rating are only counted: notStartedCount (a human abandoned before turn 3) and noScoreCount (no path distribution). Finished seasons are scored first; if the engine cannot answer, the answer is still 200 and pendingSeasons counts the seasons scored on a later request. history lists the counted seasons newest first, at most 20.
+         *
+         *     로그인한 회원의 매니저 레이팅을 준다: 집계된 최근 다섯 시즌 점수의 가중 평균(최근부터 5·4·3·2·1)이며 시즌 순서는 끝난 순서다. 세 시즌이 집계되기 전에는 레이팅이 null 이다(seasonsUntilPublic 은 모자란 시즌 수). 레이팅에서 빠진 시즌은 횟수만 센다: notStartedCount(사람이 3턴 전에 포기), noScoreCount(경로 분포 없음). 끝난 시즌은 먼저 채점하며, 엔진이 답하지 못해도 200 으로 답하고 pendingSeasons 가 나중 요청에서 채점할 시즌 수를 센다. history 는 집계된 시즌을 최근 것부터 최대 20개 준다.
+         */
+        get: operations["getMyRating"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2259,6 +2303,146 @@ export interface components {
         };
         /** @enum {string} */
         ErrorCode: "INVALID_ARGUMENT" | "NOT_FOUND" | "METHOD_NOT_ALLOWED" | "NOT_ACCEPTABLE" | "UNSUPPORTED_MEDIA_TYPE" | "MALFORMED_REQUEST" | "INTERNAL_ERROR" | "POOL_NOT_LOADED" | "POOL_NOT_JUDGED" | "PATH_TOO_LONG" | "ENGINE_UNAVAILABLE" | "SEASON_LIMIT" | "TURN_NOT_REACHED" | "SEASON_NOT_FINISHED" | "SEASON_NOT_ACTIVE" | "TURN_MISMATCH" | "LEDGER_MISMATCH" | "LINEUP_MISMATCH" | "ASSET_NOT_IN_POOL" | "SOURCE_NOT_VISIBLE" | "INSUFFICIENT_CASH" | "INSUFFICIENT_HOLDING" | "POSITION_CONFLICT" | "POSITION_REQUIRED" | "INVALID_FORMATION" | "EVENT_TIME_CONFLICT" | "RECONCILIATION_FAILED" | "SEASON_HALTED" | "FORBIDDEN" | "EMAIL_TAKEN" | "UNAUTHENTICATED" | "INVALID_CREDENTIALS";
+        /** @description Season score / 시즌 점수 */
+        SeasonScoreDto: {
+            /** @description Formula version the score was computed with / 점수를 계산한 공식 버전 */
+            scoreVersion: string;
+            /**
+             * Format: decimal
+             * @description Season score 0.00-100.00 = 0.5 x result + 0.5 x process; null when the season has no path distribution
+             *
+             *     시즌 점수 0.00~100.00 = 0.5 × 결과 + 0.5 × 과정. 경로 분포가 없으면 null
+             */
+            score: string | null;
+            /**
+             * Format: decimal
+             * @description Result score = 100 x the mid-rank percentile of the Sharpe difference among the engine paths of the season-start team held still; null without a distribution
+             *
+             *     결과 점수 = 100 × (시즌 시작 팀을 그대로 보유한 엔진 경로들 안에서 샤프 차이의 중간 순위 백분위). 분포가 없으면 null
+             */
+            resultScore: string | null;
+            /**
+             * Format: decimal
+             * @description Process score: the equal-weight mean of the item scores that have a value, 0.00-100.00 / 과정 점수: 값이 있는 항목 점수의 같은 가중 평균, 0.00~100.00
+             */
+            processScore: string;
+            /**
+             * Format: decimal
+             * @description Where the end value of the start team, held still, sits among the engine paths, 0-1, 8 decimals; shown, not scored
+             *
+             *     시작 팀을 그대로 보유했을 때의 최종 가치가 엔진 경로 안에서 놓이는 자리, 0~1, 소수 8자리. 보여 주기만 하고 점수에는 넣지 않는다
+             */
+            luckPercentile: string | null;
+            /**
+             * Format: decimal
+             * @description Mid-rank percentile of the Sharpe difference among the engine paths, 0-1, 8 decimals
+             *
+             *     샤프 차이의 경로 안 중간 순위 백분위, 0~1, 소수 8자리
+             */
+            sharpeDiffPercentile: string | null;
+            /** @description The nine process item scores; all nine keys are always present, null where the input does not exist yet / 과정 항목 점수 아홉 개. 키는 항상 아홉 개이고 입력이 아직 없으면 null */
+            items: components["schemas"]["SeasonScoreItemsDto"];
+            /**
+             * Format: int32
+             * @description How many item scores have a value (1-9) / 값이 있는 항목 점수의 수(1~9)
+             */
+            processItems: number;
+            /** @description Whether the season counts in the manager rating / 시즌이 매니저 레이팅에 집계되는지 */
+            countedInRating: boolean;
+            /**
+             * @description Why the season is left out of the rating: NOT_STARTED (abandoned before turn 3 by a human) or NO_SCORE (no path distribution); null when it counts
+             *
+             *     레이팅에서 빠진 이유: NOT_STARTED(사람이 3턴 전에 포기), NO_SCORE(경로 분포 없음). 집계되면 null
+             */
+            ratingExclusion: components["schemas"]["RatingExclusion"] | null;
+        };
+        /** @description Process item scores / 과정 항목 점수 */
+        SeasonScoreItemsDto: {
+            /** Format: decimal */
+            risk: string | null;
+            /** Format: decimal */
+            discipline: string | null;
+            /** Format: decimal */
+            diversification: string | null;
+            /** Format: decimal */
+            turnover: string | null;
+            /** Format: decimal */
+            consistency: string | null;
+            /** Format: decimal */
+            formation: string | null;
+            /** Format: decimal */
+            role: string | null;
+            /** Format: decimal */
+            noise: string | null;
+            /** Format: decimal */
+            nudge: string | null;
+        };
+        /** @description Manager rating / 매니저 레이팅 */
+        RatingDto: {
+            /** @description Rating pillar; only MANAGER exists now / 레이팅 기둥. 지금은 MANAGER 하나 */
+            pillar: components["schemas"]["RatingPillar"];
+            /**
+             * Format: decimal
+             * @description Current rating 0.00-100.00: the weighted mean of the last five counted season scores (weights 5, 4, 3, 2, 1 from the newest); null until three seasons are counted
+             *
+             *     현재 레이팅 0.00~100.00: 집계된 최근 다섯 시즌 점수의 가중 평균(최근부터 5·4·3·2·1). 세 시즌이 집계되기 전에는 null
+             */
+            rating: string | null;
+            /**
+             * Format: int32
+             * @description Number of counted seasons / 집계된 시즌 수
+             */
+            countedSeasons: number;
+            /**
+             * Format: int32
+             * @description Counted seasons still missing before the rating is shown (0 once shown) / 레이팅이 보이기까지 더 필요한 집계 시즌 수(보이면 0)
+             */
+            seasonsUntilPublic: number;
+            /**
+             * Format: int32
+             * @description Seasons abandoned before turn 3 by a human, left out of the rating / 사람이 3턴 전에 포기해 레이팅에서 뺀 시즌 수
+             */
+            notStartedCount: number;
+            /**
+             * Format: int32
+             * @description Seasons without a path distribution, left out of the rating / 경로 분포가 없어 레이팅에서 뺀 시즌 수
+             */
+            noScoreCount: number;
+            /**
+             * Format: int32
+             * @description Finished seasons not scored yet because the engine could not answer; they are scored on a later request / 엔진이 답하지 못해 아직 점수가 없는 끝난 시즌 수. 다음 요청에서 채점한다
+             */
+            pendingSeasons: number;
+            /** @description Counted seasons, newest first, at most 20 / 집계된 시즌, 최근 것부터 최대 20개 */
+            history: components["schemas"]["RatingEntryDto"][];
+        };
+        /** @description Rating history entry / 레이팅 이력 한 줄 */
+        RatingEntryDto: {
+            /**
+             * Format: int32
+             * @description Position among the counted seasons, from 1 / 집계된 시즌 중 순번(1부터)
+             */
+            seqNo: number;
+            /**
+             * Format: int64
+             * @description The season / 시즌 번호
+             */
+            seasonId: number;
+            /**
+             * Format: decimal
+             * @description The season score / 시즌 점수
+             */
+            score: string;
+            /**
+             * Format: decimal
+             * @description The rating after this season; null where seqNo is below 3 / 이 시즌 뒤의 레이팅. seqNo 가 3 미만이면 null
+             */
+            rating: string | null;
+        };
+        /** @enum {string} */
+        RatingExclusion: "NOT_STARTED" | "NO_SCORE";
+        /** @enum {string} */
+        RatingPillar: "MANAGER";
     };
     responses: {
         /**
@@ -3285,6 +3469,88 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getSeasonScore: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                seasonId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Season score / 시즌 점수 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeasonScoreDto"];
+                };
+            };
+            /** @description The season number is not a number — INVALID_ARGUMENT / 시즌 번호가 숫자가 아니다 — INVALID_ARGUMENT */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description The season does not exist or is another member's — NOT_FOUND / 시즌이 없거나 다른 회원의 것이다 — NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The season is not finished — SEASON_NOT_FINISHED / 끝나지 않은 시즌이다 — SEASON_NOT_FINISHED */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+            /** @description The score cannot be computed now because the engine is busy or not reachable; nothing is stored, try again later — ENGINE_UNAVAILABLE / 엔진이 바쁘거나 연결되지 않아 지금은 점수를 계산할 수 없다. 아무것도 저장하지 않았으니 나중에 다시 시도한다 — ENGINE_UNAVAILABLE */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    getMyRating: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Manager rating / 매니저 레이팅 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RatingDto"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
             500: components["responses"]["InternalError"];
         };
     };

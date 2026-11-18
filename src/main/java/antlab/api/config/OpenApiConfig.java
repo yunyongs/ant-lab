@@ -96,6 +96,7 @@ public class OpenApiConfig {
             "SeasonAnalysisDto", List.of("decomposition"),
             "MacroAxesDto", List.of("rate", "growth", "fx", "sentiment"),
             "MacroDto", List.of("probabilities"),
+            "SeasonScoreDto", List.of("ratingExclusion"),
             "ReviewFeedItemDto", List.of("event"));
 
     /**

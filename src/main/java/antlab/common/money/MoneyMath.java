@@ -412,6 +412,12 @@ public final class MoneyMath {
         return value.sqrt(SCORE_ROOT);
     }
 
+    /** Twelve decimals HALF_UP once: the scale of an observed value sent to the engine (the wire allows 12). */
+    public static BigDecimal round12(BigDecimal value) {
+        require(value, "값");
+        return value.setScale(SHARE_SCALE, RoundingMode.HALF_UP);
+    }
+
     /** Two decimals HALF_UP once: the stored scale of scores and ratings. */
     public static BigDecimal round2(BigDecimal value) {
         require(value, "값");

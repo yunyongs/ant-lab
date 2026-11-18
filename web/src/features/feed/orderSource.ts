@@ -14,3 +14,7 @@ export function fromFeed(item: Pick<FeedItem, 'turnNo' | 'seq'>): OrderSource {
 export function fromRanking(): OrderSource {
   return { kind: 'RANKING' };
 }
+
+export function fromAlert(item: Pick<FeedItem, 'turnNo' | 'seq'>): OrderSource {
+  return { kind: 'ALERT', feedTurnNo: item.turnNo, feedSeq: item.seq };
+}

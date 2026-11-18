@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 import { problem } from '../test/authHandlers.ts';
 import { expectNoDatePattern } from '../test/expectNoDatePattern.ts';
-import { feedOfTurn } from '../test/fixtures/feed.ts';
+import { alertsOfTurn, feedOfTurn } from '../test/fixtures/feed.ts';
 import { renderRoute } from '../test/renderWithProviders.tsx';
 import { serveFeedWorld } from '../test/serveFeed.ts';
 
@@ -69,5 +69,53 @@ describe('feed on a past-turn page', () => {
     await user.click(screen.getByRole('button', { name: '종목 가 매수' }));
     await screen.findByRole('dialog', { name: '종목 가' });
     expect(screen.queryByRole('alert')).toBeNull();
+  });
+});
+
+describe('alerts on a past-turn page', () => {
+  it('orders from an earlier alert at the current turn with that alert as the source', async () => {
+    const world = serveFeedWorld({ current: 5 });
+    world.alerts = (turnNo) => alertsOfTurn(turnNo);
+    const { container } = renderRoute('/seasons/7/turns/3');
+    const region = await screen.findByRole('region', { name: '알림' });
+    const user = userEvent.setup();
+    await user.click(
+      await within(region).findByRole('button', { name: '종목 나 매수' }),
+    );
+    const dialog = await screen.findByRole('dialog', { name: '종목 나' });
+    await user.click(within(dialog).getByRole('button', { name: '1주 매수' }));
+    await within(dialog).findByText('체결가');
+    expect(world.orders[0]).toStrictEqual({
+      expectedTurnNo: 5,
+      side: 'BUY',
+      assetId: 102,
+      quantity: 1,
+      declaredPosition: 'FORWARD_BREAKOUT',
+      source: { kind: 'ALERT', feedTurnNo: 3, feedSeq: 4 },
+    });
+    expectNoDatePattern(container);
+  });
+});
+
+describe('alert orders on a past-turn page', () => {
+  it('shows the stale-screen notice when an alert order meets TURN_MISMATCH (empty feed)', async () => {
+    const world = serveFeedWorld({ current: 5 });
+    world.alerts = (turnNo) => alertsOfTurn(turnNo);
+    world.orderAnswer = () =>
+      problem(409, { code: 'TURN_MISMATCH', status: 409 });
+    renderRoute('/seasons/7/turns/3');
+    const user = userEvent.setup();
+    const region = await screen.findByRole('region', { name: '알림' });
+    await user.click(
+      await within(region).findByRole('button', { name: '종목 나 매수' }),
+    );
+    const dialog = await screen.findByRole('dialog', { name: '종목 나' });
+    await user.click(within(dialog).getByRole('button', { name: '1주 매수' }));
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).toBeNull();
+    });
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      '화면의 턴이 지난 턴입니다.',
+    );
   });
 });
