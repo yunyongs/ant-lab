@@ -18,8 +18,7 @@ import tools.jackson.databind.annotation.JsonDeserialize;
 public record ChangeLineupRequest(
         @Schema(requiredMode = RequiredMode.REQUIRED,
                 description = "The turn the change applies to. 409 TURN_MISMATCH if it differs from the season's "
-                        + "current turn. At turn 0 (team being built) a position is set by the buy order, so 409\n"
-                        + "\n"
+                        + "current turn. At turn 0 (team being built) a position is set by the buy order, so 409 / "
                         + "변경이 보는 턴. 시즌의 현재 턴과 다르면 409 TURN_MISMATCH. 0턴(팀 구성 중)의 포지션은 매수 주문으로 정하므로 409")
         @NotNull @Min(0)
         Integer expectedTurnNo,
