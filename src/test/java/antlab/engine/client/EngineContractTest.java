@@ -3,6 +3,7 @@ package antlab.engine.client;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import antlab.history.RegimePool;
 import antlab.support.FakeEngineServer;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.networknt.schema.Schema;
@@ -124,7 +125,12 @@ class EngineContractTest {
 
     private static Class<?> javaTypeOf(Entry e) {
         if (e.kind().equals("request")) {
-            return e.operation().equals("createPath") ? EnginePathRequest.class : EngineProjectionRequest.class;
+            return switch (e.operation()) {
+                case "createPath" -> EnginePathRequest.class;
+                case "createProjection" -> EngineProjectionRequest.class;
+                case "evaluateRegime" -> EngineRegimeRequest.class;
+                default -> throw new AssertionError("no Java request type for " + e.operation());
+            };
         }
         if (e.status() != 200) {
             return EngineProblem.class;
@@ -132,6 +138,7 @@ class EngineContractTest {
         return switch (e.operation()) {
             case "createPath" -> EnginePathResult.class;
             case "createProjection" -> EngineProjectionResult.class;
+            case "evaluateRegime" -> EngineRegimeResult.class;
             default -> EngineInfo.class;
         };
     }
@@ -169,13 +176,32 @@ class EngineContractTest {
         }
         assertThat(listed).isEqualTo(onDisk);
 
-        for (String operationId : List.of("createPath", "createProjection", "getEngineInfo")) {
+        assertThat(manifestOperations()).as("operations of the yaml the client calls, and the manifest").isEqualTo(clientOperations());
+        for (String operationId : clientOperations()) {
             Set<Integer> declared = new TreeSet<>();
             operation(operationId).get("responses").propertyNames().forEach(s -> declared.add(Integer.parseInt(s)));
             Set<Integer> covered = manifest().stream().filter(e -> operationId.equals(e.operation()) && e.kind().equals("response")
                     && e.valid()).map(Entry::status).collect(Collectors.toCollection(TreeSet::new));
             assertThat(covered).as(operationId).isEqualTo(declared);
         }
+    }
+
+    /** Yaml operations the Java client never calls (the health probe and the percentile route belong to other callers). */
+    private static final Set<String> NOT_CALLED_BY_JAVA = Set.of("healthz", "createPercentile");
+
+    private static Set<String> clientOperations() {
+        Set<String> operations = new TreeSet<>();
+        for (var path : YAML.get("paths").properties()) {
+            for (var method : path.getValue().properties()) {
+                operations.add(method.getValue().get("operationId").asString());
+            }
+        }
+        operations.removeAll(NOT_CALLED_BY_JAVA);
+        return operations;
+    }
+
+    private static Set<String> manifestOperations() {
+        return manifest().stream().map(Entry::operation).filter(java.util.Objects::nonNull).collect(Collectors.toCollection(TreeSet::new));
     }
 
     // --- C1: the requests the client builds ---------------------------------------------------------------------------
@@ -185,7 +211,8 @@ class EngineContractTest {
         Map<String, Object> built = Map.of(
                 "paths-request-p0.json", EnginePathRequest.of("p0-boot6-v1", 14, 12, LocalDate.of(2026, 1, 2)),
                 "paths-request-m2.json", EnginePathRequest.of("m2-sb6-v1", Long.MIN_VALUE, 12, LocalDate.of(2026, 1, 2)),
-                "projection-request.json", EngineHarness.projectionRequest());
+                "projection-request.json", EngineHarness.projectionRequest(),
+                "regime-request.json", EngineHarness.regimeRequest());
         for (Entry e : manifest().stream().filter(x -> x.kind().equals("request")).toList()) {
             JsonNode sent = MAPPER.readTree(EngineWire.write(built.get(e.file())));
 
@@ -233,12 +260,20 @@ class EngineContractTest {
             Map.entry(EngineProjectionResult.Summary.class, "ProjectionSummary"),
             Map.entry(EngineProjectionResult.EndQuantiles.class, "EndQuantiles"),
             Map.entry(EngineProjectionResult.MddQuantiles.class, "MddQuantiles"),
+            Map.entry(EngineRegimeRequest.class, "RegimeRequest"),
+            Map.entry(EngineRegimeResult.class, "RegimeResult"),
+            Map.entry(EngineRegimeResult.Month.class, "RegimeMonth"),
+            Map.entry(EngineRegimeResult.Axes.class, "Axes"),
+            Map.entry(EngineRegimeResult.AxisReading.class, "AxisReading"),
+            Map.entry(EngineRegimeResult.Probabilities.class, "Probabilities"),
+            Map.entry(EngineRegimeResult.Quality.class, "Quality"),
+            Map.entry(EngineRegimeResult.Coverage.class, "RegimeCoverage"),
             Map.entry(EngineInfo.class, "EngineInfo"),
             Map.entry(EngineProblem.class, "Problem"),
             Map.entry(EngineProblem.FieldViolation.class, "FieldViolation"));
 
     private static final Set<Class<?>> REQUESTS = Set.of(EnginePathRequest.class, EngineProjectionRequest.class,
-            EngineProjectionRequest.Portfolio.class, EngineProjectionRequest.Holding.class);
+            EngineProjectionRequest.Portfolio.class, EngineProjectionRequest.Holding.class, EngineRegimeRequest.class);
 
     /** Optional yaml properties the client deliberately does not send (overlap avoidance, plan O-4). */
     private static final Map<Class<?>, Set<String>> NOT_SENT = Map.of(EnginePathRequest.class, Set.of("recentMonths", "maxOverlap"));
@@ -265,7 +300,23 @@ class EngineContractTest {
         }
     }
 
-    private static void assertKind(String where, Type type, JsonNode property) {
+    /** {@code anyOf: [X, {type: 'null'}]} is a nullable X: the Java type is the same, so look at X. */
+    private static JsonNode withoutNull(JsonNode property) {
+        if (!property.has("anyOf")) {
+            return property;
+        }
+        List<JsonNode> branches = new ArrayList<>();
+        property.get("anyOf").forEach(branch -> {
+            if (!"null".equals(branch.path("type").asString())) {
+                branches.add(branch);
+            }
+        });
+        assertThat(branches).as("anyOf is X or null").hasSize(1);
+        return branches.getFirst();
+    }
+
+    private static void assertKind(String where, Type type, JsonNode declared) {
+        JsonNode property = withoutNull(declared);
         Class<?> raw = type instanceof ParameterizedType p ? (Class<?>) p.getRawType() : (Class<?>) type;
         if (property.has("$ref")) {
             String target = last(property.get("$ref").asString());
@@ -291,6 +342,10 @@ class EngineContractTest {
         } else if (raw == List.class) {
             assertThat(yamlType).as(where).isEqualTo("array");
             assertKind(where + "[]", ((ParameterizedType) type).getActualTypeArguments()[0], property.get("items"));
+        } else if (raw == Map.class) {
+            assertThat(yamlType).as(where).isEqualTo("object");
+            assertThat(((ParameterizedType) type).getActualTypeArguments()[0]).as(where + " keys").isEqualTo(String.class);
+            assertKind(where + "{}", ((ParameterizedType) type).getActualTypeArguments()[1], property.get("additionalProperties"));
         } else {
             throw new AssertionError(where + " has an unmapped Java type " + raw);
         }
@@ -376,6 +431,39 @@ class EngineContractTest {
     }
 
     @Test
+    void 국면_요청_한도와_정규식_열거는_yaml_과_글자_단위로_같다() {
+        JsonNode request = COMPONENTS.at("/schemas/RegimeRequest/properties");
+        assertThat(request.at("/labelVersion/const").asString()).isEqualTo(EngineRegimeRequest.LABEL_VERSION);
+        assertThat(request.at("/months/maxItems").asInt()).isEqualTo(EngineRegimeRequest.MAX_MONTHS);
+        assertThat(request.at("/months/minItems").asInt()).isEqualTo(1);
+        assertThat(request.at("/months/items/pattern").asString()).isEqualTo(EngineRegimeRequest.REQUEST_MONTH.pattern());
+        assertThat(COMPONENTS.at("/schemas/RegimeResult/properties/labelVersion/const").asString()).isEqualTo(EngineRegimeRequest.LABEL_VERSION);
+        assertThat(COMPONENTS.at("/schemas/RegimeResult/properties/inputDigest/pattern").asString()).isEqualTo(EngineWire.DIGEST.pattern());
+
+        JsonNode month = COMPONENTS.at("/schemas/RegimeMonth/properties");
+        assertThat(month.at("/month/pattern").asString()).isEqualTo(EngineRegimeRequest.REQUEST_MONTH.pattern());
+        assertThat(enumOf(month.at("/indicators/propertyNames"))).isEqualTo(new TreeSet<>(EngineRegimeResult.INDICATOR_KEYS));
+        assertThat(month.at("/indicators/additionalProperties/anyOf/0/pattern").asString())
+                .isEqualTo(EngineRegimeResult.INDICATOR_VALUE.pattern());
+        assertThat(COMPONENTS.at("/schemas/AxisReading/properties/strength/pattern").asString()).isEqualTo(EngineRegimeResult.STRENGTH.pattern());
+        for (String name : List.of("p1", "p2", "p3", "p4")) {
+            assertThat(COMPONENTS.at("/schemas/Probabilities/properties/" + name + "/pattern").asString())
+                    .isEqualTo(EngineRegimeResult.PROBABILITY.pattern());
+        }
+        JsonNode coverage = COMPONENTS.at("/schemas/RegimeCoverage/properties");
+        assertThat(enumOf(coverage.at("/indicators/propertyNames"))).isEqualTo(new TreeSet<>(EngineRegimeResult.INDICATOR_KEYS));
+        assertThat(enumOf(coverage.at("/ruleDatedRows/propertyNames"))).isEqualTo(new TreeSet<>(EngineRegimeResult.RULE_DATED_SERIES));
+    }
+
+    @Test
+    void 국면_연산의_URI와_상태_조합은_yaml_과_같다() {
+        JsonNode regime = YAML.at("/paths/~1v1~1regime~1evaluate/post");
+        assertThat(regime.get("operationId").asString()).isEqualTo("evaluateRegime");
+        assertThat(EngineClient.REGIME_URI).isEqualTo("/v1/regime/evaluate");
+        assertThat(operation("evaluateRegime")).isEqualTo(regime);
+    }
+
+    @Test
     void 토큰_헤더_이름은_yaml_보안_스키마와_같다() {
         JsonNode scheme = COMPONENTS.at("/securitySchemes/EngineToken");
         assertThat(scheme.get("type").asString()).isEqualTo("apiKey");
@@ -394,6 +482,26 @@ class EngineContractTest {
         Set<String> mapped = new TreeSet<>();
         EngineErrorMapper.knownCodes().forEach(code -> mapped.add(code.name()));
         assertThat(mapped).isEqualTo(yaml);
+    }
+
+    private record MapProbe(Map<String, String> text, Map<String, Integer> counts, String plain) {
+    }
+
+    @Test
+    void 계약_검사는_nullable과_Map_드리프트도_잡는다() {
+        Type text = MapProbe.class.getRecordComponents()[0].getGenericType();
+        Type counts = MapProbe.class.getRecordComponents()[1].getGenericType();
+        assertKind("ok", text, MAPPER.readTree("{\"type\":\"object\",\"additionalProperties\":{\"anyOf\":[{\"type\":\"string\"},{\"type\":\"null\"}]}}"));
+        assertKind("ok", counts, MAPPER.readTree("{\"type\":\"object\",\"additionalProperties\":{\"type\":\"integer\"}}"));
+        assertKind("ok", String.class, MAPPER.readTree("{\"anyOf\":[{\"type\":\"string\"},{\"type\":\"null\"}]}"));
+        assertThatThrownBy(() -> assertKind("x", text, MAPPER.readTree("{\"type\":\"object\",\"additionalProperties\":{\"type\":\"integer\"}}")))
+                .isInstanceOf(AssertionError.class);
+        assertThatThrownBy(() -> assertKind("x", counts, MAPPER.readTree("{\"type\":\"array\",\"items\":{\"type\":\"integer\"}}")))
+                .isInstanceOf(AssertionError.class);
+        assertThatThrownBy(() -> assertKind("x", String.class, MAPPER.readTree("{\"anyOf\":[{\"type\":\"string\"},{\"type\":\"integer\"}]}")))
+                .isInstanceOf(AssertionError.class);
+        assertThatThrownBy(() -> assertKind("x", RegimePool.class, MAPPER.readTree("{\"type\":\"string\",\"enum\":[\"P1\",\"P2\"]}")))
+                .isInstanceOf(AssertionError.class);
     }
 
     @Test

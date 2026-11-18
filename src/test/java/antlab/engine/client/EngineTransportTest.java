@@ -35,14 +35,18 @@ class EngineTransportTest {
         engine.close();
     }
 
-    private EngineClient client(String url, String token, Duration connect, Duration paths, Duration projections) {
-        var properties = new EngineProperties(url, token, connect, paths, projections, EngineProperties.PathSourceMode.JAVA,
+    private EngineClient client(String url, String token, Duration connect, Duration paths, Duration projections, Duration regime) {
+        var properties = new EngineProperties(url, token, connect, paths, projections, regime, EngineProperties.PathSourceMode.JAVA,
                 "m2-sb6-v1", 2000);
         return EngineClientConfig.newClient(properties, ObservationRegistry.NOOP);
     }
 
+    private EngineClient client(String url, String token, Duration connect, Duration paths, Duration projections) {
+        return client(url, token, connect, paths, projections, Duration.ofSeconds(60));
+    }
+
     private EngineClient client() {
-        return client(engine.url(), FAKE_TOKEN, Duration.ofSeconds(1), Duration.ofSeconds(3), Duration.ofSeconds(15));
+        return client(engine.url(), FAKE_TOKEN, Duration.ofSeconds(1), Duration.ofSeconds(3), Duration.ofSeconds(15), Duration.ofSeconds(60));
     }
 
     @Test
@@ -99,6 +103,31 @@ class EngineTransportTest {
                 .isInstanceOfSatisfying(EngineUnavailableException.class,
                         e -> assertThat(e.reason()).isEqualTo(EngineUnavailableException.Reason.TIMEOUT));
         assertThat(client.createProjection(EngineHarness.projectionRequest()).portfolios()).hasSize(2);
+    }
+
+    @Test
+    void 국면_호출은_실제_전송으로_나가고_자기_시간_제한을_쓴다() {
+        engine.respondFixture("/v1/paths", 200, "paths-response-m2.json")
+                .respondFixture("/v1/regime/evaluate", 200, "regime-response.json").delay(Duration.ofMillis(700));
+        EngineClient client = client(engine.url(), FAKE_TOKEN, Duration.ofSeconds(1), Duration.ofMillis(300), Duration.ofSeconds(15),
+                Duration.ofSeconds(5));
+
+        assertThatThrownBy(() -> client.createPath(EngineHarness.pathRequest()))
+                .isInstanceOfSatisfying(EngineUnavailableException.class,
+                        e -> assertThat(e.reason()).isEqualTo(EngineUnavailableException.Reason.TIMEOUT));
+        assertThat(client.evaluateRegime(EngineHarness.regimeRequest()).months()).hasSize(2);
+        assertThat(engine.requests().getLast().header(EngineClient.TOKEN_HEADER)).containsExactly(FAKE_TOKEN);
+    }
+
+    @Test
+    void 국면_호출이_자기_시간_제한을_넘기면_불가용이고_다른_제한은_따르지_않는다() {
+        engine.respondFixture("/v1/regime/evaluate", 200, "regime-response.json").delay(Duration.ofMillis(1500));
+        EngineClient client = client(engine.url(), FAKE_TOKEN, Duration.ofSeconds(1), Duration.ofSeconds(30), Duration.ofSeconds(30),
+                Duration.ofMillis(300));
+
+        assertThatThrownBy(() -> client.evaluateRegime(EngineHarness.regimeRequest()))
+                .isInstanceOfSatisfying(EngineUnavailableException.class,
+                        e -> assertThat(e.reason()).isEqualTo(EngineUnavailableException.Reason.TIMEOUT));
     }
 
     @Test

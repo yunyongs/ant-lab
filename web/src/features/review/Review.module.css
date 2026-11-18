@@ -204,3 +204,68 @@
   align-items: center;
   color: var(--color-primary);
 }
+
+.feedFold > *:not(summary),
+.muted > *:not(summary) {
+  margin-top: var(--space-2);
+}
+
+.muted {
+  padding-left: var(--space-2);
+  border-left: 3px dashed var(--color-border);
+  color: var(--color-text-muted);
+}
+
+.feedSummary {
+  display: list-item;
+  min-height: 44px;
+  padding: var(--space-3) 0;
+  box-sizing: border-box;
+  cursor: pointer;
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.feedGroup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.feedHeading {
+  margin: 0;
+  font-size: 0.875rem;
+}
+
+.feedList {
+  display: flex;
+  margin: 0;
+  padding: 0;
+  flex-direction: column;
+  gap: var(--space-3);
+  list-style: none;
+}
+
+.feedItem {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
+}
+
+.signal {
+  border-color: var(--color-primary);
+  color: var(--color-primary-strong);
+  font-weight: 700;
+}
+
+.feedBody {
+  margin: 0;
+  overflow-wrap: anywhere;
+}

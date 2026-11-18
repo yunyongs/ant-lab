@@ -37,11 +37,11 @@ FROM asset a WHERE a.market = 'KR' AND a.ticker = '000660';
 -- 월 블록 2개
 INSERT INTO month_block (month_start, rate_dir, growth_dir, fx_dir, sentiment_dir,
                          rate_strength, growth_strength, fx_strength, sentiment_strength,
-                         prob_p1, prob_p2, prob_p3, prob_p4, event_summary, events_reviewed) VALUES
+                         prob_p1, prob_p2, prob_p3, prob_p4, regime_label, event_summary, events_reviewed) VALUES
     (DATE '2001-02-01', 'UP', 'DOWN', 'NEUTRAL', 'UP', 0.50000000, 1.25000000, 0.00000000, 0.75000000,
-     0.2500, 0.2500, 0.2500, 0.2500, '가짜 사건 요약', TRUE),
+     0.2500, 0.2500, 0.2500, 0.2500, 'P2', '가짜 사건 요약', TRUE),
     (DATE '2001-03-01', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
-     NULL, NULL, NULL, NULL, NULL, FALSE);
+     NULL, NULL, NULL, NULL, NULL, NULL, FALSE);
 
 INSERT INTO asset_month_return (asset_id, month_block_id, local_return, return_kind)
 SELECT a.id, b.id, -0.05000000, 'ACTUAL'

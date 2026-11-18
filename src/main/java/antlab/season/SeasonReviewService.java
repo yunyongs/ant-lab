@@ -14,7 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * Season review: the real month and events of each turn of a finished season (P0-39). Read-only, no locks; the path,
  * month blocks and events of a finished season never change, so the default isolation is enough.
- * Check order: member → season (another member's season is 404) → status (409) → the two reveal queries. No reveal
+ * Check order: member → season (another member's season is 404) → status (409) → the three reveal queries. No reveal
  * value is read before the status check. The statement count does not depend on the number of turns.
  */
 @Service
@@ -27,13 +27,15 @@ public class SeasonReviewService {
     private final SeasonRepository seasons;
     private final SeasonPathRepository paths;
     private final FormationChangeRepository changes;
+    private final TurnFeedRepository feeds;
 
     public SeasonReviewService(CurrentMember currentMember, SeasonRepository seasons, SeasonPathRepository paths,
-            FormationChangeRepository changes) {
+            FormationChangeRepository changes, TurnFeedRepository feeds) {
         this.currentMember = currentMember;
         this.seasons = seasons;
         this.paths = paths;
         this.changes = changes;
+        this.feeds = feeds;
     }
 
     @Transactional(readOnly = true)
@@ -52,9 +54,14 @@ public class SeasonReviewService {
         for (RevealedEventRow e : paths.findRevealedEvents(id)) {
             eventsByTurn.computeIfAbsent(e.turnNo(), t -> new ArrayList<>()).add(ReviewEventDto.from(e));
         }
+        Map<Integer, List<ReviewFeedItemDto>> feedByTurn = new TreeMap<>();
+        for (RevealedFeedRow f : feeds.findRevealedFeed(id)) {
+            feedByTurn.computeIfAbsent(f.turnNo(), t -> new ArrayList<>()).add(ReviewFeedItemDto.from(f));
+        }
         List<ReviewTurnDto> turns = months.stream()
                 .map(m -> new ReviewTurnDto(m.turnNo(), YEAR_MONTH.format(m.monthStart()), m.eventSummary(),
-                        eventsByTurn.getOrDefault(m.turnNo(), List.of())))
+                        eventsByTurn.getOrDefault(m.turnNo(), List.of()),
+                        feedByTurn.getOrDefault(m.turnNo(), List.of())))
                 .toList();
         List<FormationChangeDto> formationChanges = changes.findAllBySeasonId(id).stream()
                 .map(FormationChangeDto::from).toList();
