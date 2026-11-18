@@ -20,7 +20,7 @@ public final class ReviewApiSupport {
             "/fixtures/replay_months.sql"};
 
     /** Every text the fixture stores in a reveal-only column. None may appear in a rejected response. */
-    static final List<String> FIXTURE_TEXTS = List.of("가짜 사건 제목", "가짜 출처", "가짜 사후 설명", "가짜 사건 요약", "TARIFF");
+    static final List<String> FIXTURE_TEXTS = List.of("가짜 사건 제목", "가짜 출처", "가짜 사후 설명", "가짜 사건 요약", "TARIFF", "가짜 피드 문장");
 
     /** The oracle: path joined to month and events straight from the tables, event_key order. */
     private static final String ORACLE = """

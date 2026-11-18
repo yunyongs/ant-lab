@@ -31,6 +31,7 @@ export function reviewTurn(
     yearMonth: `${String(year)}-${String(month).padStart(2, '0')}`,
     eventSummary: `Invented summary ${String(turnNo)}`,
     events: [],
+    feed: [],
     ...overrides,
   };
 }
