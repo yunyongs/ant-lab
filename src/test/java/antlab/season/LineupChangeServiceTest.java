@@ -33,7 +33,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * 라인업 변경(내부 서비스, 공개 HTTP 경로 없음) — SQL {@code lineup_change} 와 같은 동작: 단독 변경, 같은 포지션 무변경,
+ * 라인업 변경(서비스) — SQL {@code lineup_change} 와 같은 동작: 단독 변경, 같은 포지션 무변경,
  * 미보유·구간 불일치 거절, 같은 턴 여러 구간, 거절·실패 시 쓰기 없음, 전환과의 경합.
  * 팀(국내 공격·미드필더, 미국 수비·골키퍼 각 한 종목)을 사고 실제 전환으로 1턴까지 진행한 시즌에서 시작한다.
  */
@@ -87,7 +87,7 @@ class LineupChangeServiceTest {
         long season = seasonAtTurnOne();
         Map<String, Object> before = others(season);
 
-        Lineup opened = service.change(season, 1, assetId(jdbc, "069500"), Position.DEFENDER);
+        Lineup opened = service.change(season, 1, assetId(jdbc, "069500"), Position.DEFENDER).lineup();
 
         assertThat(opened.getDeclaredPosition()).isEqualTo(Position.DEFENDER);
         assertThat(opened.getStartTurn()).isEqualTo(1);
@@ -100,7 +100,7 @@ class LineupChangeServiceTest {
     void 같은_포지션이면_기존_구간을_돌려주고_새_행이_없다() throws Exception {
         long season = seasonAtTurnOne();
         Map<String, Object> before = others(season);
-        Lineup same = service.change(season, 1, assetId(jdbc, "069500"), Position.MIDFIELDER);
+        Lineup same = service.change(season, 1, assetId(jdbc, "069500"), Position.MIDFIELDER).lineup();
         assertThat(same.getStartTurn()).isZero();
         assertThat(lineupRows(season, "069500")).isEqualTo("MIDFIELDER:0:-");
         assertThat(others(season)).isEqualTo(before);
