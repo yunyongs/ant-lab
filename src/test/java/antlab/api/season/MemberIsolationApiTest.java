@@ -143,6 +143,9 @@ class MemberIsolationApiTest {
                 return "{\"expectedTurnNo\": 1, \"formation\": {\"goalkeeper\": 10, \"defender\": 20,"
                         + " \"midfielder\": 30, \"forward\": 40}}";
             }
+            if (template.endsWith("/lineup-changes")) {
+                return "{\"expectedTurnNo\": 1, \"assetId\": 1, \"declaredPosition\": \"DEFENDER\"}";
+            }
             return "{\"expectedTurnNo\": 0}";
         }
     }

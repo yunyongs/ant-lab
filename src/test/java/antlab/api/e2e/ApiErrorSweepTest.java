@@ -97,6 +97,9 @@ class ApiErrorSweepTest {
                 return "{\"expectedTurnNo\": 1, \"formation\": {\"goalkeeper\": 10, \"defender\": 20,"
                         + " \"midfielder\": 30, \"forward\": 40}}";
             }
+            if (template.endsWith("/lineup-changes")) {
+                return "{\"expectedTurnNo\": 1, \"assetId\": 1, \"declaredPosition\": \"DEFENDER\"}";
+            }
             if (template.endsWith("/auth/login")) {
                 return "{\"email\":\"sweep@example.test\",\"password\":\"correct-horse-battery\"}";
             }

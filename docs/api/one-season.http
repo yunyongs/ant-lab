@@ -201,6 +201,15 @@ Content-Type: application/json
 { "expectedTurnNo": 5, "formation": { "goalkeeper": 10, "defender": 20, "midfielder": 30, "forward": 40 }, "reason": "Less defence, more attack / 방어를 줄이고 공격을 늘린다" }
 
 ###
+# Position-only change: relabel a held asset without any trade. The answer is 200; changed is false if it already had that position.
+# 거래 없이 보유 종목의 선언 포지션만 바꾼다. 응답은 200이고, 이미 그 포지션이면 changed 가 false 다.
+POST {{base}}/api/v1/seasons/{{season}}/lineup-changes
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "expectedTurnNo": 5, "assetId": {{holdings5.response.body.$.holdings[0].assetId}}, "declaredPosition": "DEFENDER" }
+
+###
 # The ninth pool asset was not bought at turn 0; this buy comes after the change, so the server binds it to the change.
 # 풀의 아홉 번째 종목은 0턴에 사지 않았다. 이 매수는 전술 변경 뒤라서 서버가 변경에 묶는다.
 POST {{base}}/api/v1/seasons/{{season}}/orders

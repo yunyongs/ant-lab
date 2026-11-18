@@ -267,6 +267,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/seasons/{seasonId}/lineup-changes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Position-only change / 포지션 단독 변경
+         * @description Changes the declared position of a held asset without any trade: the open span is closed at the current turn and a new span opens, so the next turn values the asset under the new position. No order, fee or formation change is created. If the position is already the requested one the answer is 200 with changed = false and nothing is written. It cannot be changed at turn 0 while the team is being built.
+         *
+         *     거래 없이 보유 종목의 선언 포지션만 바꾼다. 열린 구간을 현재 턴에 닫고 새 구간을 열어 다음 턴부터 새 포지션으로 평가한다. 주문·수수료·전술 변경은 만들지 않는다. 이미 그 포지션이면 changed = false 로 200 을 답하고 아무것도 쓰지 않는다. 팀 구성 중인 0턴에는 바꿀 수 없다.
+         */
+        post: operations["changeLineup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/seasons/{seasonId}/turns": {
         parameters: {
             query?: never;
@@ -1108,6 +1130,46 @@ export interface components {
              * @description Turns still to run: pathLength - currentTurnNo / 남은 턴: pathLength - currentTurnNo
              */
             remainingTurns: number;
+        };
+        /**
+         * @description Changes the declared position of a held asset without any trade
+         *
+         *     거래 없이 보유 종목의 선언 포지션만 바꾼다
+         */
+        ChangeLineupRequest: {
+            /**
+             * Format: int32
+             * @description The turn the change applies to. 409 TURN_MISMATCH if it differs from the season's current turn. At turn 0 (team being built) a position is set by the buy order, so 409 / 변경이 보는 턴. 시즌의 현재 턴과 다르면 409 TURN_MISMATCH. 0턴(팀 구성 중)의 포지션은 매수 주문으로 정하므로 409
+             */
+            expectedTurnNo: number;
+            /**
+             * Format: int64
+             * @description Asset identifier (the same as assetId in the pool response). The asset must be held / 종목 식별자(풀 응답의 assetId 와 같다). 보유 중이어야 한다
+             */
+            assetId: number;
+            /** @description The new declared position. If it equals the current one nothing is written / 새 선언 포지션. 현재와 같으면 아무것도 쓰지 않는다 */
+            declaredPosition: components["schemas"]["Position"];
+        };
+        /**
+         * @description Position-only change result: the open span after the call. Span number, season number and recorded time are not included
+         *
+         *     포지션 단독 변경 결과: 호출 뒤의 열린 구간. 구간 번호·시즌 번호·기록 시각은 싣지 않는다
+         */
+        LineupChangeDto: {
+            /**
+             * Format: int64
+             * @description Asset identifier / 종목 식별자
+             */
+            assetId: number;
+            /** @description Declared position of the open span now / 지금 열린 구간의 선언 포지션 */
+            declaredPosition: components["schemas"]["Position"];
+            /**
+             * Format: int32
+             * @description The turn the open span started / 열린 구간이 시작한 턴
+             */
+            startTurn: number;
+            /** @description false when the position was already the requested one and no row was written / 이미 그 포지션이라 행을 쓰지 않았으면 false */
+            changed: boolean;
         };
         /**
          * @description Values of the stored turn row and the ratios computed from them. The advance-turn response and the turn lookup have the same shape. The sum of the four shares can differ from 1 by at most 2e-8, and status and pathLength are the season's values now. targetFormation is the target at the start of that turn. Reconciliation attempt number, status, seed, path, month block, year-month and return kind are not included. feed is the feed stored for that turn and alerts are the nudge alerts stored for it. macro is the macro environment of that turn's month.
@@ -3104,6 +3166,82 @@ export interface operations {
              *     지금은 바꿀 수 없다 — SEASON_NOT_ACTIVE, TURN_MISMATCH(0턴 포함), INVALID_FORMATION, EVENT_TIME_CONFLICT
              */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    changeLineup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                seasonId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChangeLineupRequest"];
+            };
+        };
+        responses: {
+            /** @description The open span after the call and whether it changed / 호출 뒤의 열린 구간과 변경 여부 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LineupChangeDto"];
+                };
+            };
+            /**
+             * @description The input is invalid (missing required value, unknown position, asset number below 1) — INVALID_ARGUMENT
+             *
+             *     입력이 틀렸다(필수값 누락, 알 수 없는 포지션, 종목 번호 1 미만) — INVALID_ARGUMENT
+             */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description The season does not exist — NOT_FOUND / 시즌이 없다 — NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /**
+             * @description It cannot be changed now — SEASON_NOT_ACTIVE (not in progress), TURN_MISMATCH (including turn 0), LINEUP_MISMATCH
+             *
+             *     지금은 바꿀 수 없다 — SEASON_NOT_ACTIVE(진행 중이 아님), TURN_MISMATCH(0턴 포함), LINEUP_MISMATCH
+             */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /**
+             * @description The asset is not held (never bought, sold out or not in the pool) — INSUFFICIENT_HOLDING
+             *
+             *     보유 중인 종목이 아니다(산 적 없음, 전량 매도, 풀에 없음) — INSUFFICIENT_HOLDING
+             */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
