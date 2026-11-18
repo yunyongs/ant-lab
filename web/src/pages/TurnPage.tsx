@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { MAX_ROUTE_ID, parseWholeNumber } from '../features/format/integer.ts';
+import { AlertList } from '../features/feed/AlertList.tsx';
 import { FeedSection } from '../features/feed/FeedSection.tsx';
 import { RankingSection } from '../features/ranking/RankingSection.tsx';
 import { QueryError } from '../features/seasons/QueryError.tsx';
@@ -90,6 +91,14 @@ export function TurnPage() {
               onRetry={() => {
                 void turn.refetch();
               }}
+            />
+          )}
+          {turn.data && (
+            <AlertList
+              items={turn.data.alerts}
+              feed={turn.data.feed}
+              season={season.data}
+              onNotice={setNotice}
             />
           )}
           {turn.data && <TurnResultCard turn={turn.data} />}

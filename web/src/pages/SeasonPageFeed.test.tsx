@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 import { problem } from '../test/authHandlers.ts';
 import { expectNoDatePattern } from '../test/expectNoDatePattern.ts';
-import { feedOfTurn } from '../test/fixtures/feed.ts';
+import { alertsOfTurn, feedOfTurn } from '../test/fixtures/feed.ts';
 import { turnResultFixture } from '../test/fixtures/turns.ts';
 import { heldMidfielder, holdingsFixture } from '../test/fixtures/holdings.ts';
 import { orderResultFixture } from '../test/fixtures/orders.ts';
@@ -284,5 +284,223 @@ describe('HALTED now page', () => {
       await screen.findByRole('heading', { name: '5턴 결과' }),
     ).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /턴|매수|매도/ })).toBeNull();
+  });
+});
+
+describe('alerts on the now page', () => {
+  it('sends the tapped alert as an ALERT source', async () => {
+    const world = openWorld();
+    world.alerts = (turnNo) => alertsOfTurn(turnNo);
+    const { container } = renderRoute('/seasons/7');
+    const region = await screen.findByRole('region', { name: '알림' });
+    expect(within(region).getAllByRole('listitem')).toHaveLength(2);
+    const user = userEvent.setup();
+    await user.click(
+      await within(region).findByRole('button', { name: '종목 나 매수' }),
+    );
+    const dialog = await screen.findByRole('dialog', { name: '종목 나' });
+    await user.click(within(dialog).getByRole('button', { name: '1주 매수' }));
+    await within(dialog).findByText('체결가');
+    expect(world.orders).toHaveLength(1);
+    expect(world.orders[0]).toStrictEqual({
+      expectedTurnNo: 5,
+      side: 'BUY',
+      assetId: 102,
+      quantity: 1,
+      declaredPosition: 'FORWARD_BREAKOUT',
+      source: { kind: 'ALERT', feedTurnNo: 5, feedSeq: 4 },
+    });
+    expectNoDatePattern(container);
+  });
+
+  it('gives an alert that names no asset no button, and no alert is an ARIA alert', async () => {
+    const world = openWorld();
+    world.alerts = (turnNo) => alertsOfTurn(turnNo);
+    renderRoute('/seasons/7');
+    const region = await screen.findByRole('region', { name: '알림' });
+    await within(region).findByRole('button', { name: '종목 나 매수' });
+    const rows = within(region).getAllByRole('listitem');
+    expect(within(rows[1] as HTMLElement).queryByRole('button')).toBeNull();
+    expect(screen.queryAllByRole('alert')).toHaveLength(0);
+  });
+
+  it('keeps the no-news sentence for an empty feed with alerts', async () => {
+    const world = serveFeedWorld({ current: 5 });
+    world.alerts = (turnNo) => alertsOfTurn(turnNo);
+    renderRoute('/seasons/7');
+    expect(
+      await screen.findByText('이번 턴은 소식이 없습니다'),
+    ).toBeInTheDocument();
+    const news = screen.getByRole('region', { name: '소식' });
+    expect(within(news).queryByText(/알림:/)).toBeNull();
+    expect(
+      within(screen.getByRole('region', { name: '알림' })).getAllByRole(
+        'listitem',
+      ),
+    ).toHaveLength(2);
+  });
+
+  it('shows no alert region when the turn has none', async () => {
+    openWorld();
+    renderRoute('/seasons/7');
+    await screen.findByRole('region', { name: '소식' });
+    expect(screen.queryByRole('region', { name: '알림' })).toBeNull();
+  });
+
+  it('refuses without resending when the alert is not visible', async () => {
+    const world = openWorld();
+    world.alerts = (turnNo) => alertsOfTurn(turnNo);
+    world.orderAnswer = () =>
+      problem(422, { code: 'SOURCE_NOT_VISIBLE', status: 422 });
+    renderRoute('/seasons/7');
+    const user = userEvent.setup();
+    const region = await screen.findByRole('region', { name: '알림' });
+    await user.click(
+      await within(region).findByRole('button', { name: '종목 나 매수' }),
+    );
+    const dialog = await screen.findByRole('dialog', { name: '종목 나' });
+    await user.click(within(dialog).getByRole('button', { name: '1주 매수' }));
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      '화면에 보인 항목에서 시작한 주문이 아닙니다.',
+    );
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(world.orders).toHaveLength(1);
+  });
+});
+
+describe.each([
+  ['FINISHED', 12],
+  ['ABANDONING', 5],
+  ['HALTED', 5],
+] as const)('alerts of a %s season', (status, current) => {
+  it('are listed read-only with no order data requested', async () => {
+    const world = openWorld(current);
+    world.alerts = (turnNo) => alertsOfTurn(turnNo);
+    world.status = status;
+    renderRoute('/seasons/7');
+    const region = await screen.findByRole('region', { name: '알림' });
+    expect(within(region).getAllByRole('listitem')).toHaveLength(2);
+    expect(screen.queryByRole('button', { name: /매수|매도/ })).toBeNull();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(world.holdingsGets).toBe(0);
+  });
+});
+
+describe('alert orders and page-level notices', () => {
+  it('shows the stale-screen notice when an alert order meets TURN_MISMATCH (empty feed)', async () => {
+    const world = serveFeedWorld({ current: 5 });
+    world.alerts = (turnNo) => alertsOfTurn(turnNo);
+    world.orderAnswer = () =>
+      problem(409, { code: 'TURN_MISMATCH', status: 409 });
+    renderRoute('/seasons/7');
+    const user = userEvent.setup();
+    const region = await screen.findByRole('region', { name: '알림' });
+    await user.click(
+      await within(region).findByRole('button', { name: '종목 나 매수' }),
+    );
+    const dialog = await screen.findByRole('dialog', { name: '종목 나' });
+    await user.click(within(dialog).getByRole('button', { name: '1주 매수' }));
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).toBeNull();
+    });
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      '화면의 턴이 지난 턴입니다.',
+    );
+  });
+
+  it('keeps FEED and ALERT sources apart when both lists are orderable', async () => {
+    const world = openWorld();
+    world.alerts = (turnNo) => alertsOfTurn(turnNo);
+    renderRoute('/seasons/7');
+    const user = userEvent.setup();
+    const alerts = await screen.findByRole('region', { name: '알림' });
+    const news = screen.getByRole('region', { name: '소식' });
+    await user.click(
+      await within(alerts).findByRole('button', { name: '종목 나 매수' }),
+    );
+    let dialog = await screen.findByRole('dialog', { name: '종목 나' });
+    expect(screen.getAllByRole('dialog')).toHaveLength(1);
+    await user.click(within(dialog).getByRole('button', { name: '1주 매수' }));
+    await within(dialog).findByText('체결가');
+    await user.click(within(dialog).getByRole('button', { name: '닫기' }));
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).toBeNull();
+    });
+    await user.click(
+      await within(news).findByRole('button', { name: '종목 가 매수' }),
+    );
+    dialog = await screen.findByRole('dialog', { name: '종목 가' });
+    expect(screen.getAllByRole('dialog')).toHaveLength(1);
+    await user.click(within(dialog).getByRole('button', { name: '1주 매수' }));
+    await within(dialog).findByText('체결가');
+    expect(world.orders).toHaveLength(2);
+    expect(world.orders[0]).toStrictEqual({
+      expectedTurnNo: 5,
+      side: 'BUY',
+      assetId: 102,
+      quantity: 1,
+      declaredPosition: 'FORWARD_BREAKOUT',
+      source: { kind: 'ALERT', feedTurnNo: 5, feedSeq: 4 },
+    });
+    expect(world.orders[1]).toStrictEqual({
+      expectedTurnNo: 5,
+      side: 'BUY',
+      assetId: 101,
+      quantity: 1,
+      declaredPosition: 'MIDFIELDER',
+      source: { kind: 'FEED', feedTurnNo: 5, feedSeq: 3 },
+    });
+  });
+});
+
+describe('alerts and feed together', () => {
+  it('reports a failed order-data load once, outside the alert region', async () => {
+    const world = openWorld();
+    world.alerts = (turnNo) => alertsOfTurn(turnNo);
+    server.use(
+      http.get('*/api/v1/seasons/7/holdings', () =>
+        problem(500, { code: 'INTERNAL_ERROR', status: 500 }),
+      ),
+    );
+    renderRoute('/seasons/7');
+    const alerts = await screen.findByRole('region', { name: '알림' });
+    await screen.findByRole('alert');
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    expect(screen.getAllByRole('alert')).toHaveLength(1);
+    expect(
+      screen.getAllByRole('button', { name: '다시 불러오기' }),
+    ).toHaveLength(1);
+    expect(within(alerts).queryByRole('alert')).toBeNull();
+  });
+
+  it('still reports it once when only the alerts can start orders', async () => {
+    const world = serveFeedWorld({ current: 5 });
+    world.alerts = (turnNo) => alertsOfTurn(turnNo);
+    server.use(
+      http.get('*/api/v1/seasons/7/holdings', () =>
+        problem(500, { code: 'INTERNAL_ERROR', status: 500 }),
+      ),
+    );
+    renderRoute('/seasons/7');
+    await screen.findByRole('alert');
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    expect(screen.getAllByRole('alert')).toHaveLength(1);
+  });
+
+  it('places the alerts above the turn result and the feed', async () => {
+    const world = openWorld();
+    world.alerts = (turnNo) => alertsOfTurn(turnNo);
+    renderRoute('/seasons/7');
+    const alerts = await screen.findByRole('region', { name: '알림' });
+    const news = screen.getByRole('region', { name: '소식' });
+    const card = screen.getByText('총 평가액').closest('section, div, dl');
+    expect(
+      alerts.compareDocumentPosition(news) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(card).not.toBeNull();
+    expect(
+      alerts.compareDocumentPosition(card as Element) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 });

@@ -15,6 +15,8 @@ export interface TurnWorld {
   status: 'IN_PROGRESS' | 'FINISHED' | 'ABANDONING' | 'HALTED';
   // Feed of each served turn; empty unless a test sets it.
   feed: (turnNo: number) => FeedItemDto[];
+  // Alerts of each served turn; empty unless a test sets it.
+  alerts: (turnNo: number) => FeedItemDto[];
   // Ranking board of each served turn; empty unless a test sets it.
   ranking: (turnNo: number) => RankingBoardDto;
   rankingGets: number[];
@@ -38,6 +40,7 @@ export function serveTurnWorld(
     current: start.current,
     status: 'IN_PROGRESS',
     feed: () => [],
+    alerts: () => [],
     ranking: (turnNo) => emptyBoard(turnNo),
     rankingGets: [],
     posts: [],
@@ -69,6 +72,7 @@ export function serveTurnWorld(
           pathLength,
           status: world.status,
           feed: world.feed(turnNo),
+          alerts: world.alerts(turnNo),
         }),
       );
     }),
@@ -89,6 +93,7 @@ export function serveTurnWorld(
           pathLength,
           status: world.status,
           feed: world.feed(world.current),
+          alerts: world.alerts(world.current),
         }),
         { status: 201 },
       );
