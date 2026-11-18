@@ -133,6 +133,6 @@ class ReportExclusionListTest {
             assertThat(operation).contains(entry);
         }
         assertThat(operation).contains("X5 Trading discipline (panic, chasing) and formation change right after a fall: not in "
-                + "these 37 columns. Defined in PLAN §6.2; Java computes them at GET …/report/analysis (MVP-17).");
+                + "these 38 columns. Defined in PLAN §6.2; Java computes them at GET …/report/analysis (MVP-17).");
     }
 }

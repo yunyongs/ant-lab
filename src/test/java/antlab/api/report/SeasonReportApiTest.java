@@ -32,14 +32,14 @@ class SeasonReportApiTest {
     JdbcTemplate jdbc;
 
     @Test
-    void 끝난_시즌은_200과_서른일곱_키를_레코드_순서대로_준다() throws Exception {
+    void 끝난_시즌은_200과_서른여덟_키를_레코드_순서대로_준다() throws Exception {
         long season = ReportApiSupport.finishedSeason(mvc, jdbc);
         MockHttpServletResponse r = ReportApiSupport.getReport(mvc, season);
         assertThat(r.getStatus()).isEqualTo(200);
         assertThat(r.getContentType()).startsWith("application/json");
         JsonNode o = json(r);
         List<String> expected = Arrays.stream(SeasonReportDto.class.getRecordComponents()).map(RecordComponent::getName).toList();
-        assertThat(expected).hasSize(37);
+        assertThat(expected).hasSize(38);
         List<String> actual = new ArrayList<>();
         o.propertyNames().forEach(actual::add);
         assertThat(actual).as("키와 순서").containsExactlyElementsOf(expected);

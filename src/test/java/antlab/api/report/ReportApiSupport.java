@@ -20,7 +20,7 @@ public final class ReportApiSupport {
             "totalFee", "teamFee", "formationChangeFee", "platformNudgeFee");
     /** 비율 열: 소수 8자리 문자열(값이 없으면 null). */
     public static final Set<String> RATIO = Set.of("totalReturn", "monthlyVolatility", "maxDrawdown", "baselineReturn",
-            "excessReturn", "riskLimit", "riskBreachDepth", "maxSingleWeight", "turnoverAnnual", "formationDeviation",
+            "excessReturn", "riskLimit", "riskBreachDepth", "maxSingleWeight", "turnoverAnnual", "formationDeviation", "measuredFormationDeviation",
             "roleFit", "nudgeShare", "nudgeSameTurnShare");
     public static final String MONEY_FORMAT = "-?\\d+";
     public static final String RATIO_FORMAT = "-?\\d+\\.\\d{8}";
