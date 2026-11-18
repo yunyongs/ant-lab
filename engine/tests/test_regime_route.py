@@ -43,7 +43,10 @@ MONTH_TEXT = re.compile(r"(19|20)\d{2}-\d{2}")
 ROWS = tuple(raw_panel(8, 3))
 MONTHS = ["2021-06", "2022-06", "2023-06"]
 REQUIRED_KEYS = {"title", "status", "detail", "instance", "code"}
-FIXTURES = Path(__file__).resolve().parent / "fixtures"
+# shared with the Java contract tests: one manifest, one set of files
+FIXTURES = (
+    Path(__file__).resolve().parents[2] / "src" / "test" / "resources" / "engine" / "contract"
+)
 
 
 class FakeSource:
@@ -269,8 +272,8 @@ def test_tb2_a_value_outside_the_wire_range_is_refused(bad):
 
 
 def test_tb3_the_fixtures_parse_with_the_engine_models():
-    request = json.loads((FIXTURES / "regime_request.json").read_text(encoding="utf-8"))
-    result = json.loads((FIXTURES / "regime_result.json").read_text(encoding="utf-8"))
+    request = json.loads((FIXTURES / "regime-request.json").read_text(encoding="utf-8"))
+    result = json.loads((FIXTURES / "regime-response.json").read_text(encoding="utf-8"))
     RegimeRequest.model_validate(request)
     parsed = RegimeResult.model_validate(result)
     assert parsed.labelVersion == request["labelVersion"]
@@ -278,7 +281,7 @@ def test_tb3_the_fixtures_parse_with_the_engine_models():
 
 
 def test_tb3_a_broken_result_fixture_is_refused():
-    result = json.loads((FIXTURES / "regime_result.json").read_text(encoding="utf-8"))
+    result = json.loads((FIXTURES / "regime-response.json").read_text(encoding="utf-8"))
     result["months"][0]["probabilities"]["p1"] = "0.27310000"
     with pytest.raises(ValidationError):
         RegimeResult.model_validate(result)
@@ -556,7 +559,7 @@ def test_tb10_row_order_does_not_change_the_answer(token):
 
 
 def valid_month() -> dict:
-    result = json.loads((FIXTURES / "regime_result.json").read_text(encoding="utf-8"))
+    result = json.loads((FIXTURES / "regime-response.json").read_text(encoding="utf-8"))
     return result["months"][0]
 
 

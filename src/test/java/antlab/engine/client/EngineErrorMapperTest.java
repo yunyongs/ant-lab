@@ -37,6 +37,22 @@ class EngineErrorMapperTest {
     }
 
     @Test
+    void 쓸_수_없는_수집_관측값_코드는_422일_때만_이_이름으로_기록되고_내부_오류가_된다(CapturedOutput output) {
+        EngineProblem problem = EngineWire.read(EngineProblem.class,
+                antlab.support.FakeEngineServer.fixture("problem-regime-data-invalid.json").getBytes());
+
+        RuntimeException mapped = EngineErrorMapper.fromProblem("evaluateRegime", 422, problem);
+        assertThat(mapped).isInstanceOfSatisfying(DomainException.class, e -> assertThat(e.getCode()).isEqualTo(ErrorCode.INTERNAL_ERROR));
+        assertThat(output.getAll()).contains("engine.regime_data_invalid").doesNotContain("engine.bad_response");
+
+        // the same code with any other HTTP status is contract drift, not a data problem
+        for (int status : new int[] { 400, 500, 503 }) {
+            EngineErrorMapper.fromProblem("evaluateRegime", status, problem);
+        }
+        assertThat(output.getAll().split("engine.bad_response", -1).length - 1).isEqualTo(3);
+    }
+
+    @Test
     void 연결_시간_초과는_연결_불가이고_읽기_시간_초과는_시간_초과다(CapturedOutput output) {
         RuntimeException connect = EngineErrorMapper.transport("createPath", new ResourceAccessException("x", new HttpConnectTimeoutException("c")));
         RuntimeException read = EngineErrorMapper.transport("createPath", new ResourceAccessException("x", new HttpTimeoutException("r")));

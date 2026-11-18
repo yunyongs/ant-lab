@@ -99,7 +99,7 @@ Flyway는 Spring 챕터의 범위를 조금 넘는 도구다. 처음에는 `V1__
 |---|---|---|
 | `cash_ledger`, `execution`, `orders` | 추가 전용 원장. 정정은 반대 부호 `ADJUSTMENT` 행. `orders`는 접수와 체결이 한 번에 일어나고(§5.2 5단계) 넣은 뒤 바뀌지 않으므로 불변이다 — 지정가(EXT)가 오면 다시 본다(erd 7.5 규칙 16) | `@Immutable`(Hibernate), setter 없음, 생성자만. `@Immutable`은 UPDATE를 무시하고 경고하므로, 테스트에서 "원장 수정 시도 → 변경 없음"을 확인한다 |
 | `season_path`, `turn`, `turn_price`, `formation_change`, `reconciliation_log`, `turn_feed` | 이력·턴 스냅샷·정본 가격·"사용자가 본 그대로"의 피드(PLAN §4.13) | 같음 |
-| `asset_group`, `asset`, `month_block`, `asset_month_return`, `fx_month`, `month_event`, `asset_position`, `asset_month_attention` | 읽기 전용 역사·종목 풀 데이터(적재 스크립트가 쓴다 — Phase 0는 SQL, 이후 Java 배치. Python은 읽기만, PLAN §10) | `@Immutable` + 리포지토리는 조회 메서드만(`save` 없음 — `Repository<T, ID>`를 직접 상속해 `findBy…`만 선언) |
+| `asset_group`, `asset`, `month_block`, `asset_month_return`, `fx_month`, `month_event`, `asset_position`, `asset_month_attention` | 읽기 전용 역사·종목 풀 데이터(적재 스크립트가 쓴다 — Phase 0는 SQL, 이후 Java 배치. Python은 읽기만, PLAN §10) | `@Immutable` + 리포지토리는 조회 메서드만(`save` 없음 — `Repository<T, ID>`를 직접 상속해 `findBy…`만 선언). `month_block` regime columns are written once by `MonthRegimeWriter` (`JdbcClient`); the entity stays `@Immutable`. / `month_block`의 국면 열은 `MonthRegimeWriter`(`JdbcClient`)가 한 번 쓴다. 엔티티는 `@Immutable` 그대로다. |
 
 `RefreshToken` (SEC-01) is a mutable entity whose only state change is the named method `revoke(RevokeReason, Instant)`; its repository (SEC-03) follows the mutable shape plus the family-root lock query `findFamilyRootForUpdate`. / `RefreshToken`(SEC-01)은 가변 엔티티이고 상태 변경은 이름 있는 메서드 `revoke(RevokeReason, Instant)` 하나뿐이며, 리포지토리(SEC-03)는 가변 모양에 묶음 뿌리 잠금 질의 `findFamilyRootForUpdate`를 더한 것이다.
 
@@ -305,7 +305,8 @@ spring.flyway:
   clean-disabled: true
   validate-on-migrate: true
 # 블록 길이(6)·허용 경로 길이·재생 시작·엔진 판은 설정이 아니라 SimpleBootstrap 상수다(P0-29) — 설정으로 두면 같은 engine_version 이 다른 경로를 낼 수 있어 재현성이 깨진다.
-# antlab.engine.* (M2-06): URL, token, timeouts (connect 1 s, paths 3 s, projections 15 s), path-source (java default | engine), path-version, projection-paths 2000. With path-source=engine the URL and token are required at startup. / URL, 토큰, 시간 제한(연결 1초, 경로 3초, 예상 분포 15초), path-source(기본 java | engine), path-version, projection-paths 2000. path-source=engine이면 URL과 토큰이 없을 때 기동하지 않는다.
+# antlab.engine.* (M2-06): URL, token, timeouts (connect 1 s, paths 3 s, projections 15 s, regime 60 s), path-source (java default | engine), path-version, projection-paths 2000. With path-source=engine the URL and token are required at startup. / URL, 토큰, 시간 제한(연결 1초, 경로 3초, 예상 분포 15초, 국면 60초), path-source(기본 java | engine), path-version, projection-paths 2000. path-source=engine이면 URL과 토큰이 없을 때 기동하지 않는다.
+# antlab.engine.regime-timeout (M2-08, default 60 s); run the label job with antlab.regime.run-once=LABEL_MONTHS. / 국면 호출 시간 제한 `antlab.engine.regime-timeout`(기본 60초), 라벨 잡은 `antlab.regime.run-once=LABEL_MONTHS`로 돌린다.
 antlab.pool.base-date: ${ANTLAB_POOL_BASE_DATE:2026-01-02}   # P0-27: 기준일 풀(매년 1월 첫 거래일). P0-30 시즌 시작도 같은 값을 쓴다
 # P0-30: 새 시즌에 적는 설정(요청에서 받지 않는다). 시즌 행의 8개 설정 컬럼은 DB 기본값이 없으므로 값이 빠지면 기동 실패(@Validated)
 antlab.season.initial-cash: 30000000        # PLAN §4.1-1 기본 초기 자금

@@ -36,7 +36,7 @@ class FlywayMigrationTest {
     TestMembers testMembers;
 
     @Test
-    void V1부터_V10까지_업무_테이블과_성공_이력이_생긴다() {
+    void V1부터_V11까지_업무_테이블과_성공_이력이_생긴다() {
         Integer tableCount = jdbc.queryForObject("""
                 SELECT count(*)
                 FROM information_schema.tables
@@ -48,12 +48,12 @@ class FlywayMigrationTest {
         assertThat(tableCount).isEqualTo(31);
         assertThat(jdbc.queryForObject("""
                 SELECT count(*) FROM public.flyway_schema_history
-                WHERE success AND version IN ('1', '2', '3', '4', '5', '6', '7', '8', '9', '10')
-                """, Integer.class)).isEqualTo(10);
+                WHERE success AND version IN ('1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11')
+                """, Integer.class)).isEqualTo(11);
         assertThat(jdbc.queryForObject("""
                 SELECT count(*) FROM public.flyway_schema_history
-                WHERE version IN ('1', '2', '3', '4', '5', '6', '7', '8', '9', '10') AND checksum IS NOT NULL
-                """, Integer.class)).isEqualTo(10);
+                WHERE version IN ('1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11') AND checksum IS NOT NULL
+                """, Integer.class)).isEqualTo(11);
     }
 
     @Test
@@ -67,7 +67,7 @@ class FlywayMigrationTest {
     }
 
     @Test
-    void 업무_테이블은_비어_있고_이력은_열_건이다() {
+    void 업무_테이블은_비어_있고_이력은_열한_건이다() {
         // the committed default test member (TestMembers) is the only business row
         assertThat(jdbc.queryForObject(
                 "SELECT count(*) FROM public.member WHERE id <> ?", Integer.class, testMembers.defaultId())).isZero();
@@ -75,7 +75,7 @@ class FlywayMigrationTest {
                 "SELECT count(*) FROM public.cash_account", Integer.class)).isZero();
         assertThat(jdbc.queryForObject(
                 "SELECT count(*) FROM public.flyway_schema_history WHERE installed_by IS NOT NULL", Integer.class))
-                .isEqualTo(10);
+                .isEqualTo(11);
     }
 
     @Test
