@@ -10,23 +10,23 @@ import java.util.regex.Pattern;
  * shaped like a bearer token or a secret-named JSON/query value. Last line of defence — messages are built without
  * secrets in the first place.
  */
-final class SecretMasker {
+public final class SecretMasker {
 
-    static final String MASK = "****";
+    public static final String MASK = "****";
     private static final int MIN_SECRET_LENGTH = 4;
     private static final Pattern BEARER = Pattern.compile("(?i)(bearer\\s+)[A-Za-z0-9._\\-]+");
     private static final Pattern NAMED = Pattern.compile(
-            "(?i)((?:app[-_]?key|app[-_]?secret|access[-_]?token|token|secret|authorization)[\"']?\\s*(?::|=|%3D)\\s*[\"']?)[^\\s\"',&}]+");
+            "(?i)((?:api[-_]?key|app[-_]?key|app[-_]?secret|access[-_]?token|token|secret|authorization)[\"']?\\s*(?::|=|%3D)\\s*[\"']?)[^\\s\"',&}]+");
 
     private final Set<String> secrets = new CopyOnWriteArraySet<>();
 
-    void register(String secret) {
+    public void register(String secret) {
         if (secret != null && secret.length() >= MIN_SECRET_LENGTH) {
             secrets.add(secret);
         }
     }
 
-    String mask(String text) {
+    public String mask(String text) {
         String out = text;
         for (String secret : secrets) {
             out = out.replace(secret, MASK);
