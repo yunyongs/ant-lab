@@ -28,6 +28,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 class SeriesObservationWriterTest {
 
+    private static final LocalDate FROM = LocalDate.of(1980, 1, 1);
     private static final Instant T1 = Instant.parse("2026-11-18T10:00:00Z");
     private static final Instant T2 = Instant.parse("2026-11-19T10:00:00Z");
 
@@ -74,17 +75,17 @@ class SeriesObservationWriterTest {
 
     @Test
     void 빈_입력은_아무것도_하지_않고_실행_상태도_보지_않는다() {
-        assertThat(writer.write(-1, T1, series, Mode.LATEST, List.of())).isEqualTo(new Result(0, 0, 0));
+        assertThat(writer.write(-1, T1, series, Mode.LATEST, FROM, List.of())).isEqualTo(new Result(0, 0, 0));
     }
 
     @Test
     void 최신_값_방식은_새_날짜는_1번_같은_값은_변동_없음_다른_값은_다음_번호다() {
-        assertThat(writer.write(run, T1, series, Mode.LATEST, List.of(in("2025-11-17", "3.6", null), in("2025-11-18", "3.5", null))))
+        assertThat(writer.write(run, T1, series, Mode.LATEST, FROM, List.of(in("2025-11-17", "3.6", null), in("2025-11-18", "3.5", null))))
                 .isEqualTo(new Result(2, 0, 0));
         close(run);
         long second = openRun(T2);
 
-        Result result = writer.write(second, T2, series, Mode.LATEST,
+        Result result = writer.write(second, T2, series, Mode.LATEST, FROM,
                 List.of(in("2025-11-17", "3.60", null), in("2025-11-18", "3.4", null), in("2025-11-19", "3.3", null)));
 
         assertThat(result).isEqualTo(new Result(2, 1, 1));
@@ -95,7 +96,7 @@ class SeriesObservationWriterTest {
 
     @Test
     void 최신_값_방식에서_한_날짜에_값이_둘이면_아무것도_쓰지_않는다() {
-        assertThatThrownBy(() -> writer.write(run, T1, series, Mode.LATEST,
+        assertThatThrownBy(() -> writer.write(run, T1, series, Mode.LATEST, FROM,
                 List.of(in("2025-11-16", "1", null), in("2025-11-17", "3.6", null), in("2025-11-17", "3.7", null))))
                 .isInstanceOf(VintageMismatchException.class);
 
@@ -104,11 +105,11 @@ class SeriesObservationWriterTest {
 
     @Test
     void 이력_방식은_저장된_빈티지를_앞부분으로_보고_나머지만_더한다() {
-        writer.write(run, T1, series, Mode.HISTORY, List.of(in("2022-12-01", "300.974", "2023-01-12"), in("2022-12-01", "301.460", "2023-02-10")));
+        writer.write(run, T1, series, Mode.HISTORY, FROM, List.of(in("2022-12-01", "300.974", "2023-01-12"), in("2022-12-01", "301.460", "2023-02-10")));
         close(run);
         long second = openRun(T2);
 
-        Result result = writer.write(second, T2, series, Mode.HISTORY, List.of(
+        Result result = writer.write(second, T2, series, Mode.HISTORY, FROM, List.of(
                 in("2022-12-01", "301.423", "2024-02-09"), in("2022-12-01", "300.974", "2023-01-12"), in("2022-12-01", "301.460", "2023-02-10")));
 
         assertThat(result).as("incoming order does not matter").isEqualTo(new Result(1, 1, 2));
@@ -118,18 +119,18 @@ class SeriesObservationWriterTest {
 
     @Test
     void 이력_방식에서_날짜_없는_첫_빈티지는_날짜_없는_첫_빈티지와_맞는다() {
-        writer.write(run, T1, series, Mode.HISTORY, List.of(in("1990-01-01", "132.3", null)));
+        writer.write(run, T1, series, Mode.HISTORY, FROM, List.of(in("1990-01-01", "132.3", null)));
         close(run);
         long second = openRun(T2);
 
-        Result result = writer.write(second, T2, series, Mode.HISTORY, List.of(in("1990-01-01", "132.3", null), in("1990-01-01", "132.1", "2002-02-20")));
+        Result result = writer.write(second, T2, series, Mode.HISTORY, FROM, List.of(in("1990-01-01", "132.3", null), in("1990-01-01", "132.1", "2002-02-20")));
 
         assertThat(result).isEqualTo(new Result(1, 1, 1));
     }
 
     @Test
     void 이력_방식에서_저장된_빈티지가_바뀌었거나_빠졌거나_날짜가_다르면_그_계열은_아무것도_쓰지_않는다() {
-        writer.write(run, T1, series, Mode.HISTORY, List.of(in("2022-12-01", "300.974", "2023-01-12"), in("2022-12-01", "301.460", "2023-02-10")));
+        writer.write(run, T1, series, Mode.HISTORY, FROM, List.of(in("2022-12-01", "300.974", "2023-01-12"), in("2022-12-01", "301.460", "2023-02-10")));
         close(run);
         long second = openRun(T2);
         int before = count();
@@ -141,7 +142,7 @@ class SeriesObservationWriterTest {
                 List.of(in("2022-12-01", "300.974", null), in("2022-12-01", "301.460", "2023-02-10")),
                 List.of(in("2023-01-01", "9", "2023-02-14"), in("2022-12-01", "300.974", "2023-01-12"), in("2022-12-01", "301.460", "2023-02-10"),
                         in("2022-12-01", "301.5", "2023-02-10")))) {
-            assertThatThrownBy(() -> writer.write(second, T2, series, Mode.HISTORY, bad)).isInstanceOf(VintageMismatchException.class)
+            assertThatThrownBy(() -> writer.write(second, T2, series, Mode.HISTORY, FROM, bad)).isInstanceOf(VintageMismatchException.class)
                     .hasMessageNotContaining("300").hasMessageNotContaining("301");
             assertThat(count()).as("nothing was written").isEqualTo(before);
         }
@@ -149,13 +150,13 @@ class SeriesObservationWriterTest {
 
     @Test
     void 값이_바뀌었는데_관측일시가_앞서면_시계_오류다() {
-        writer.write(run, T2, series, Mode.LATEST, List.of(in("2025-11-17", "3.6", null)));
+        writer.write(run, T2, series, Mode.LATEST, FROM, List.of(in("2025-11-17", "3.6", null)));
         close(run);
         long second = openRun(T1);
 
-        assertThatThrownBy(() -> writer.write(second, T1, series, Mode.LATEST, List.of(in("2025-11-17", "3.7", null))))
+        assertThatThrownBy(() -> writer.write(second, T1, series, Mode.LATEST, FROM, List.of(in("2025-11-17", "3.7", null))))
                 .isInstanceOf(ClockSkewException.class);
-        assertThat(writer.write(second, T1, series, Mode.LATEST, List.of(in("2025-11-17", "3.6", null)))).as("an unchanged value never skews")
+        assertThat(writer.write(second, T1, series, Mode.LATEST, FROM, List.of(in("2025-11-17", "3.6", null)))).as("an unchanged value never skews")
                 .isEqualTo(new Result(0, 0, 1));
     }
 
@@ -163,15 +164,15 @@ class SeriesObservationWriterTest {
     void 실행이_더_이상_RUNNING이_아니거나_없으면_쓰지_않는다() {
         close(run);
 
-        assertThatThrownBy(() -> writer.write(run, T1, series, Mode.LATEST, List.of(in("2025-11-17", "3.6", null)))).isInstanceOf(RunLostException.class);
-        assertThatThrownBy(() -> writer.write(run + 1000, T1, series, Mode.LATEST, List.of(in("2025-11-17", "3.6", null))))
+        assertThatThrownBy(() -> writer.write(run, T1, series, Mode.LATEST, FROM, List.of(in("2025-11-17", "3.6", null)))).isInstanceOf(RunLostException.class);
+        assertThatThrownBy(() -> writer.write(run + 1000, T1, series, Mode.LATEST, FROM, List.of(in("2025-11-17", "3.6", null))))
                 .isInstanceOf(RunLostException.class);
         assertThat(count()).isZero();
     }
 
     @Test
     void 표_제약이_거절하는_행이_섞이면_계열_전체가_롤백된다() {
-        assertThatThrownBy(() -> writer.write(run, T1, series, Mode.HISTORY,
+        assertThatThrownBy(() -> writer.write(run, T1, series, Mode.HISTORY, FROM,
                 List.of(in("2025-11-17", "3.6", "2025-11-18"), in("2025-11-18", "3.7", "2025-11-17"))))
                 .isInstanceOf(DataIntegrityViolationException.class);
 
@@ -180,11 +181,11 @@ class SeriesObservationWriterTest {
 
     @Test
     void 이력_방식에서_저장된_날짜가_답에서_빠지면_아무것도_쓰지_않는다() {
-        writer.write(run, T1, series, Mode.HISTORY, List.of(in("2022-12-01", "300.974", "2023-01-12"), in("2023-01-01", "302.7", "2023-02-14")));
+        writer.write(run, T1, series, Mode.HISTORY, FROM, List.of(in("2022-12-01", "300.974", "2023-01-12"), in("2023-01-01", "302.7", "2023-02-14")));
         close(run);
         long second = openRun(T2);
 
-        assertThatThrownBy(() -> writer.write(second, T2, series, Mode.HISTORY,
+        assertThatThrownBy(() -> writer.write(second, T2, series, Mode.HISTORY, FROM,
                 List.of(in("2022-12-01", "300.974", "2023-01-12"), in("2023-02-01", "304.1", "2023-03-14"))))
                 .isInstanceOf(VintageMismatchException.class);
         assertThat(count()).isEqualTo(2);
@@ -192,11 +193,11 @@ class SeriesObservationWriterTest {
 
     @Test
     void 이력_방식에서_새_빈티지의_관측일시가_앞서면_시계_오류다() {
-        writer.write(run, T2, series, Mode.HISTORY, List.of(in("2022-12-01", "300.974", "2023-01-12")));
+        writer.write(run, T2, series, Mode.HISTORY, FROM, List.of(in("2022-12-01", "300.974", "2023-01-12")));
         close(run);
         long second = openRun(T1);
 
-        assertThatThrownBy(() -> writer.write(second, T1, series, Mode.HISTORY,
+        assertThatThrownBy(() -> writer.write(second, T1, series, Mode.HISTORY, FROM,
                 List.of(in("2022-12-01", "300.974", "2023-01-12"), in("2022-12-01", "301.460", "2023-02-10"))))
                 .isInstanceOf(ClockSkewException.class);
         assertThat(count()).isEqualTo(1);
@@ -213,6 +214,18 @@ class SeriesObservationWriterTest {
                 List.of(in("2023-01-01", "302.7", "2023-02-14"), in("2023-02-01", "304.1", "2023-03-14"))))
                 .isInstanceOf(VintageMismatchException.class);
         assertThat(count()).isEqualTo(2);
+    }
+
+    @Test
+    void 비어_있는_답은_저장된_날짜가_있으면_어느_쓰기_경로로도_이력_방식에서_실패한다() {
+        writer.write(run, T1, series, Mode.HISTORY, FROM, List.of(in("2022-12-01", "300.974", "2023-01-12")));
+        close(run);
+        long second = openRun(T2);
+
+        assertThatThrownBy(() -> writer.write(second, T2, series, Mode.HISTORY, FROM, List.of())).isInstanceOf(VintageMismatchException.class);
+        assertThat(java.util.Arrays.stream(SeriesObservationWriter.class.getMethods()).filter(m -> m.getName().equals("write")).map(m -> m.getParameterCount()))
+                .as("every public write path takes the requested start").containsOnly(6);
+        assertThat(count()).isEqualTo(1);
     }
 
     @Test
