@@ -9,10 +9,11 @@ import antlab.collect.job.RunLostException;
 import antlab.collect.series.ClockSkewException;
 import antlab.collect.series.SeriesCatalog;
 import antlab.collect.series.SeriesDef;
-import antlab.collect.series.SeriesFrequency;
 import antlab.collect.series.SeriesObservationWriter;
 import antlab.collect.series.SeriesObservationWriter.Incoming;
 import antlab.collect.series.SeriesObservationWriter.Mode;
+import antlab.collect.series.SeriesTable;
+import antlab.collect.series.SeriesTable.Resolved;
 import antlab.collect.series.SeriesSource;
 import antlab.collect.series.VintageMismatchException;
 import java.time.Clock;
@@ -31,7 +32,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataAccessException;
 import org.springframework.dao.DuplicateKeyException;
-import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
 
@@ -56,9 +56,6 @@ public final class FredSeriesJob implements FredJob {
 
     private static final Logger LOG = LoggerFactory.getLogger(FredSeriesJob.class);
 
-    private record Resolved(SeriesDef def, long id) {
-    }
-
     private static final class Totals {
         int inserted;
         int revised;
@@ -80,17 +77,17 @@ public final class FredSeriesJob implements FredJob {
 
     private final Supplier<FredSeriesClient> clients;
     private final SeriesCatalog catalog;
-    private final JdbcTemplate jdbc;
+    private final SeriesTable seriesTable;
     private final SeriesObservationWriter writer;
     private final JobRunLog runLog;
     private final Clock clock;
     private final FredProperties properties;
 
-    private FredSeriesJob(Supplier<FredSeriesClient> clients, SeriesCatalog catalog, JdbcTemplate jdbc,
+    private FredSeriesJob(Supplier<FredSeriesClient> clients, SeriesCatalog catalog, SeriesTable seriesTable,
             SeriesObservationWriter writer, JobRunLog runLog, Clock clock, FredProperties properties) {
         this.clients = clients;
         this.catalog = catalog;
-        this.jdbc = jdbc;
+        this.seriesTable = seriesTable;
         this.writer = writer;
         this.runLog = runLog;
         this.clock = clock;
@@ -100,7 +97,7 @@ public final class FredSeriesJob implements FredJob {
     /** {@code clients} hands out one client per run (its request counter and cap are per run). */
     public static FredSeriesJob create(Supplier<FredSeriesClient> clients, SeriesCatalog catalog, JdbcTemplate jdbc,
             PlatformTransactionManager transactions, Clock clock, FredProperties properties) {
-        return new FredSeriesJob(clients, catalog, jdbc, new SeriesObservationWriter(jdbc, transactions),
+        return new FredSeriesJob(clients, catalog, new SeriesTable(jdbc), new SeriesObservationWriter(jdbc, transactions),
                 new JobRunLog(jdbc, transactions, properties.staleAfter()), clock, properties);
     }
 
@@ -115,7 +112,7 @@ public final class FredSeriesJob implements FredJob {
             List<SeriesDef> selected = select(codes);
             totals.targets = selected.size();
             List<String> problems = new ArrayList<>();
-            List<Resolved> resolved = resolve(selected, problems);
+            List<Resolved> resolved = seriesTable.resolve(selected, problems);
             if (!problems.isEmpty()) {
                 totals.failed = selected.size();
                 totals.runLevel = true;
@@ -173,62 +170,6 @@ public final class FredSeriesJob implements FredJob {
     private static final class TargetsInvalid extends RuntimeException {
         TargetsInvalid(String message) {
             super(message, null, false, false);
-        }
-    }
-
-    /** Every selected series gets its row in the series table, or must match the one stored (rows are never changed). */
-    private List<Resolved> resolve(List<SeriesDef> selected, List<String> problems) {
-        List<Resolved> out = new ArrayList<>();
-        for (SeriesDef def : selected) {
-            Long id = findMatching(def, problems);
-            if (id != null) {
-                out.add(new Resolved(def, id));
-            }
-        }
-        return out;
-    }
-
-    private Long findMatching(SeriesDef def, List<String> problems) {
-        SeriesDef stored = load(def.code());
-        if (stored == null) {
-            try {
-                jdbc.update("""
-                        INSERT INTO series (code, source, source_series_id, unit, frequency, release_lag_days, revisable)
-                        VALUES (?, ?, ?, ?, ?, ?, ?)
-                        """, def.code(), def.source().name(), def.sourceSeriesId(), def.unit(), def.frequency().name(),
-                        def.releaseLagDays(), def.revisable());
-            } catch (DuplicateKeyException e) {
-                // another process added it first; compare with what it stored
-            } catch (DataAccessException e) {
-                problems.add(def.code() + " could not be added to the series table: " + e.getClass().getSimpleName());
-                return null;
-            }
-            stored = load(def.code());
-        }
-        if (stored == null || !sameIdentity(stored, def)) {
-            problems.add(def.code() + " differs from the catalog row stored in the series table");
-            return null;
-        }
-        return jdbc.queryForObject("SELECT id FROM series WHERE code = ?", Long.class, def.code());
-    }
-
-    /** Identity columns only: unit and release lag are informational and may be corrected in the file without stopping every run. */
-    private static boolean sameIdentity(SeriesDef a, SeriesDef b) {
-        return a.source() == b.source() && a.sourceSeriesId().equals(b.sourceSeriesId()) && a.frequency() == b.frequency()
-                && a.revisable() == b.revisable();
-    }
-
-    private SeriesDef load(String code) {
-        try {
-            return jdbc.queryForObject("""
-                    SELECT code, source, source_series_id, unit, frequency, release_lag_days, revisable
-                    FROM series WHERE code = ?
-                    """, (rs, n) -> new SeriesDef(rs.getString("code"), SeriesSource.valueOf(rs.getString("source")),
-                            rs.getString("source_series_id"), rs.getString("unit"),
-                            SeriesFrequency.valueOf(rs.getString("frequency")),
-                            rs.getInt("release_lag_days"), rs.getBoolean("revisable")), code);
-        } catch (EmptyResultDataAccessException e) {
-            return null;
         }
     }
 

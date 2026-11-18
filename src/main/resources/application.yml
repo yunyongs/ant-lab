@@ -112,6 +112,19 @@ antlab:
       history-start: 1990-01-01
       lookback-days: 60
       stale-after: 2h
+    # ECOS (Bank of Korea) macro series collector (M1-08): statistic values only, off by default. The key comes from the
+    # environment and is a URL path segment at ECOS, so no URL is ever logged. history-start is where a first run begins;
+    # a later run re-reads lookback-days behind the latest stored date of a daily series and the whole history of a
+    # revisable (monthly) one, because ECOS publishes no vintages and a revision is only seen by reading again.
+    ecos:
+      enabled: false
+      api-key: ${ECOS_API_KEY:}
+      rps: 1
+      max-requests-per-run: 20
+      page-limit: 100000
+      history-start: 1990-01-01
+      lookback-days: 60
+      stale-after: 2h
 
 # springdoc 은 설정이 없으면 켜진다(matchIfMissing). 공통에서 끄고 local 에서만 켠다.
 springdoc:
