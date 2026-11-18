@@ -110,17 +110,21 @@ def _bdays_between(a: date, b: date) -> int:
     return n
 
 
-def check_edges(rows: list[dict], tg: Target, start: date, end: date, n: int = EDGE_BDAYS) -> list[dict]:
+def check_edges(rows: list[dict], tg: Target, start: date, end: date, n: int = EDGE_BDAYS,
+                listing_month: bool = False) -> list[dict]:
     """일별 응답이 비었거나, 첫 날짜가 start + n 영업일보다 늦거나, 끝 날짜가 end − n 영업일보다 이르면 KisError.
 
     KIS 는 너무 먼 과거를 오류가 아니라 일부만/빈 응답으로 준다. 그 부분 응답이 조용히 저장되면 안 된다.
+    listing_month=True 면 start 는 "KIS 가 가진 첫 달"의 1일이다(상장·시작이 달 중간일 수 있다): 첫 날짜가 그 달 안이면 통과하고,
+    그다음 달 이후면 영업일 수와 무관하게 부분 응답이다.
     """
     where = f"{tg.market}:{tg.ticker} {start}~{end}"
     if not rows:
         raise KisError(f"{where}: 받은 행이 0이다 — 필드 이름·종목 코드·거래소 코드·과거 깊이 확인")
     first = datetime.strptime(rows[0]["date"], "%Y%m%d" if "-" not in rows[0]["date"] else "%Y-%m-%d").date()
     last = datetime.strptime(rows[-1]["date"], "%Y%m%d" if "-" not in rows[-1]["date"] else "%Y-%m-%d").date()
-    if _bdays_between(start, first) > n:
+    in_listing_month = listing_month and (first.year, first.month) == (start.year, start.month)
+    if _bdays_between(start, first) > n and not in_listing_month:
         raise KisError(f"{where}: 받은 첫 날짜가 {first} 로 구간 시작보다 {_bdays_between(start, first)}영업일 늦다 (허용 {n}) — 부분 응답")
     if _bdays_between(last, end) > n:
         raise KisError(f"{where}: 받은 끝 날짜가 {last} 로 구간 끝보다 {_bdays_between(last, end)}영업일 이르다 (허용 {n}) — 부분 응답")
