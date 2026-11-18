@@ -1,7 +1,7 @@
 import json
 import os
 import stat
-from datetime import date
+from datetime import date, datetime, timedelta
 
 import pytest
 
@@ -289,3 +289,52 @@ def test_path_chars_check_is_overlapping_defense():
     for bad in (DOMESTIC_DAILY + "\x00", DOMESTIC_DAILY + " ", DOMESTIC_DAILY + "%2e", DOMESTIC_DAILY + "?x=1"):
         with pytest.raises(ForbiddenPath, match="경로 모양"):
             check_path(bad)
+
+
+# -- class-share symbol and monthly stop --------------------------------------------
+def test_class_share_ticker_sent_with_slash_and_cache_name_unchanged(tmp_path):
+    seen = []
+
+    def rows(n, k):
+        seen.append(k["params"]["SYMB"])
+        return Resp({"rt_cd": "0", "output2": [{"xymd": "20251231", "clos": "1.5"}]})
+    cl, _, _ = make(tmp_path, quote_handler(rows))
+    cl.overseas_page("BRK.B", "NYS", date(2025, 12, 31), True, "M")
+    cl.overseas_page("AAPL", "NAS", date(2025, 12, 31), True, "M")
+    assert seen == ["BRK/B", "AAPL"]
+    assert (tmp_path / "raw" / "kis_us_BRK.B_NYS_g2_20251231_modp1.json").exists()
+
+
+def test_us_monthly_short_page_ends_the_sweep(tmp_path):
+    """Real KIS: history starts 2007-08; asking before it returns one partial bar per day."""
+    first = date(2007, 8, 31)
+
+    def month_ends(upto):
+        out, y, m = [], 2007, 8
+        while (y, m) <= (upto.year, upto.month):
+            nxt = date(y + (m == 12), m % 12 + 1, 1)
+            e = nxt - timedelta(days=1)
+            if e <= upto:
+                out.append(e)
+            y, m = nxt.year, nxt.month
+        return sorted(out, reverse=True)
+
+    def rows(n, k):
+        by = datetime.strptime(k["params"]["BYMD"], "%Y%m%d").date()
+        if by < first:
+            return Resp({"rt_cd": "0", "output2": [{"xymd": f"{by:%Y%m%d}", "clos": "9"}] if by.day > 1 else []})
+        return Resp({"rt_cd": "0", "output2": [{"xymd": f"{d:%Y%m%d}", "clos": "9"} for d in month_ends(by)[:100]]})
+    cl, sess, _ = make(tmp_path, quote_handler(rows))
+    out = cl.daily_range("US", "AAPL", date(1995, 12, 1), date(2025, 12, 31), adjusted=True, excd="NAS", period="M")
+    assert len([c for c in sess.calls if "quotations" in c["url"]]) == 3
+    assert out[0]["date"] == "2007-08-31" and out[-1]["date"] == "2025-12-31" and len(out) == 221
+
+
+def test_us_monthly_full_pages_keep_paging(tmp_path):
+    def rows(n, k):
+        by = datetime.strptime(k["params"]["BYMD"], "%Y%m%d").date()
+        ds = [by - timedelta(days=30 * i) for i in range(100)]
+        return Resp({"rt_cd": "0", "output2": [{"xymd": f"{d:%Y%m%d}", "clos": "1"} for d in ds]})
+    cl, sess, _ = make(tmp_path, quote_handler(rows))
+    cl.daily_range("US", "XOM", date(2015, 1, 1), date(2025, 12, 31), adjusted=True, excd="NYS", period="M")
+    assert len([c for c in sess.calls if "quotations" in c["url"]]) == 2

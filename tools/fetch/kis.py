@@ -38,6 +38,7 @@ TOKEN_RETRY_WAIT = 65  # 토큰 재발급은 1분에 1회
 RATE_LIMIT_CODE = "EGW00201"
 RATE_RETRY_WAITS = (1, 2, 4)
 DOMESTIC_PAGE = 100
+OVERSEAS_PAGE = 100
 
 
 class KisError(RuntimeError):
@@ -100,6 +101,11 @@ class Clock:
 
     now: Callable[[], float] = time.time
     sleep: Callable[[float], None] = time.sleep
+
+
+def kis_symbol(ticker: str) -> str:
+    """KIS spells US class shares with a slash (BRK/B); tracked tickers use a dot (BRK.B)."""
+    return ticker.replace(".", "/")
 
 
 class KisClient:
@@ -277,7 +283,7 @@ class KisClient:
         params = {
             "AUTH": "",
             "EXCD": excd,
-            "SYMB": ticker,
+            "SYMB": kis_symbol(ticker),
             "GUBN": gubn,
             "BYMD": f"{by_date:%Y%m%d}",
             "MODP": "1" if adjusted else "0",
@@ -327,6 +333,9 @@ class KisClient:
             if reached or earliest > cursor:
                 break
             if market == "KR" and len(rows) < DOMESTIC_PAGE:
+                break
+            # A short US monthly page means KIS history is exhausted; asking further only returns one partial bar per day.
+            if market != "KR" and period == "M" and len(rows) < OVERSEAS_PAGE:
                 break
             nxt = earliest - timedelta(days=1)
             if nxt >= cursor:
