@@ -1536,7 +1536,7 @@ export interface components {
              */
             reconOutOfRangeRows: number;
         };
-        /** @description Season analysis: baselines, three-way split, trading discipline / 시즌 분석: 기준선·3분해·매매 규율 */
+        /** @description Season analysis: baselines, three-way split, trading discipline, noise reaction, platform revenue by order source / 시즌 분석: 기준선·3분해·매매 규율·소음 반응·출발점별 플랫폼 수익 */
         SeasonAnalysisDto: {
             /** @description Version of the analysis rules / 분석 규칙 버전 */
             analysisVersion: string;

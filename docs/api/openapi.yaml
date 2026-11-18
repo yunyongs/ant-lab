@@ -2179,7 +2179,7 @@ components:
           description: Number of reconciliation rows for turns beyond the path length / 경로 길이를 넘는 턴의 대사 행 수
     SeasonAnalysisDto:
       type: object
-      description: 'Season analysis: baselines, three-way split, trading discipline / 시즌 분석: 기준선·3분해·매매 규율'
+      description: 'Season analysis: baselines, three-way split, trading discipline, noise reaction, platform revenue by order source / 시즌 분석: 기준선·3분해·매매 규율·소음 반응·출발점별 플랫폼 수익'
       required: [analysisVersion, representativeVersion, reportTurns, baselines, decomposition, discipline, noise, platform]
       properties:
         analysisVersion:

@@ -54,6 +54,24 @@ class SeasonSignalReaderTest {
     }
 
     @Test
+    void 다른_시즌의_같은_턴_피드_행은_신호에_섞이지_않는다() throws Exception {
+        long first = playedSeason(mvc, jdbc, TURNS);
+        List<TurnSignals> alone = reader.read(first, TURNS);
+        long second = playedSeason(mvc, jdbc, TURNS);
+        List<TurnSignals> secondBefore = reader.read(second, TURNS);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM turn_feed WHERE season_id = ?", Integer.class, second))
+                .as("the other season has feed rows at the same turns").isPositive();
+
+        jdbc.update("""
+                UPDATE turn_feed SET kind = CASE kind WHEN 'RISE' THEN 'FALL' WHEN 'FALL' THEN 'RISE' ELSE kind END,
+                       direction = CASE direction WHEN 'UP' THEN 'DOWN' WHEN 'DOWN' THEN 'UP' END
+                WHERE season_id = ?""", second);
+
+        assertThat(reader.read(second, TURNS)).as("the flip is visible in its own season").isNotEqualTo(secondBefore);
+        assertThat(reader.read(first, TURNS)).isEqualTo(alone);
+    }
+
+    @Test
     void 피드_행이_하나도_없으면_순위판만으로_신호가_만들어진다() throws Exception {
         long season = playedSeason(mvc, jdbc, TURNS);
         List<TurnSignals> withFeed = reader.read(season, TURNS);

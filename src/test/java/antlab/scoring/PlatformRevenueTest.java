@@ -40,11 +40,12 @@ class PlatformRevenueTest {
 
     @Test
     void theNudgedFeeIsRankingPlusAlertAndNeverFeed() {
-        PlatformRevenue.Result r = PlatformRevenue.of(4, List.of(order(1, OrderSource.RANKING, 1000, 10),
-                order(1, OrderSource.ALERT, 1000, 20), order(2, OrderSource.FEED, 1000, 40), order(2, OrderSource.DIRECT, 1000, 80)));
+        PlatformRevenue.Result r = PlatformRevenue.of(5, List.of(order(1, OrderSource.RANKING, 1000, 10),
+                order(1, OrderSource.ALERT, 1000, 20), order(2, OrderSource.FEED, 1000, 40), order(2, OrderSource.DIRECT, 1000, 80),
+                order(3, OrderSource.BENCH, 1000, 10)));
         assertThat(r.nudgedFee().toPlainString()).isEqualTo("30");
-        assertThat(r.nudgedFeeShare().toPlainString()).isEqualTo("0.20000000");
-        assertThat(r.totalFee().toPlainString()).isEqualTo("150");
+        assertThat(r.nudgedFeeShare().toPlainString()).isEqualTo("0.18750000");
+        assertThat(r.totalFee().toPlainString()).isEqualTo("160");
         assertThat(r.teamFee().toPlainString()).isEqualTo("0");
     }
 
