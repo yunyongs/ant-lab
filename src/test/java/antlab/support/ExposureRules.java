@@ -44,9 +44,10 @@ public final class ExposureRules {
      * 끝난 시즌 전용 원천(P0-38): 경로의 달 순서로 잰 집계 값(역할 수행)이 나오는 열. 이 열을 쓰는 응답은 핸들러에
      * {@code @FinishedSeasonOnly} 가 있어야 하고(진행 중 시즌은 409), 다른 핸들러는 여전히 영구 금지다. 구성 요소는 ① 형이
      * {@code BigDecimal}·{@code Integer}·{@code int} 이고 ② 같은 {@code @ExposedFrom} 에 이 목록 밖의 원천이 하나 이상이어야 한다 —
-     * 경로 순서는 집계의 입력일 뿐 단독 값이 아니다(블록 번호 그대로의 노출은 SPRING_JPA §4.6 의 영구 금지). P0-39 복기가 같은 장치를 넓혀 쓴다.
+     * 경로 순서는 집계의 입력일 뿐 단독 값이 아니다(블록 번호 그대로의 노출은 SPRING_JPA §4.6 의 영구 금지). P0-39 복기가 같은 장치를 넓혀 쓴다. MVP-19: the feed's kind and direction ([복기 전용] and [내부]) enter the noise-reaction share the same way, as numbers aggregated with other sources; the review handler stays the only one that returns them as values.
      */
-    public static final Set<String> FINISHED_ONLY_ALLOWED = Set.of("season_path.month_block_id");
+    public static final Set<String> FINISHED_ONLY_ALLOWED = Set.of("season_path.month_block_id", "turn_feed.kind",
+            "turn_feed.direction");
 
     /**
      * 건수 전용 원천(P0-38): 대사 로그의 상태·턴·시도는 [내부]이지만 성적표는 행·묶음 <b>개수</b>만 낸다(값·detail 없음).
