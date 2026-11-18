@@ -91,6 +91,8 @@ Only `/api` is forwarded, unchanged, to `http://127.0.0.1:8080`. For an API on a
 - **복기**는 마지막 턴 뒤에 열리며 실제 날짜가 나오는 유일한 화면이다. 각 턴의 실제 연월, 그 달의 요약과 사건(출처 포함), 턴마다의 평가액, 전술 변경과 그 사유, 경로를 다시 만드는 시드·엔진 버전·데이터 기준일이 나온다. 달을 알면 판단이 달라지므로 시즌이 끝나기 전에는 닫혀 있다.
 - Report: noise reaction, the platform's revenue by order source and the 6-turn effect of each formation change. Review: attention following and defender goals (not part of the score). All values are the server's.
 - 성적표: 소음 반응, 주문 출발점별 플랫폼 수익, 전술 변경마다의 6턴 효과. 복기: 관심 추종과 수비수 득점(점수에는 들어가지 않는다). 값은 모두 서버가 준 그대로다.
+- Review: each turn lists the feed items as shown and what each one was — generated noise, nudge alert or a real event card. Items generated after an abandon are marked as never shown.
+- 복기: 턴마다 보인 그대로의 피드 항목과 그 정체(생성된 소음·독려 알림·실제 사건 카드)를 보여 준다. 포기 뒤에 만들어진 항목은 보이지 않았던 것으로 표시한다.
 
 ## End-to-end check / 종단 확인
 

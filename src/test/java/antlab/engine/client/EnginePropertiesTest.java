@@ -39,6 +39,7 @@ class EnginePropertiesTest {
             assertThat(properties.connectTimeout()).isEqualTo(Duration.ofSeconds(1));
             assertThat(properties.pathsTimeout()).isEqualTo(Duration.ofSeconds(3));
             assertThat(properties.projectionsTimeout()).isEqualTo(Duration.ofSeconds(15));
+            assertThat(properties.regimeTimeout()).isEqualTo(Duration.ofSeconds(60));
             assertThat(properties.pathVersion()).isEqualTo("m2-sb6-v1");
             assertThat(properties.projectionPaths()).isEqualTo(2000);
             org.assertj.core.api.Assertions.assertThatThrownBy(() -> context.getBean(EngineClient.class).info())
@@ -56,6 +57,7 @@ class EnginePropertiesTest {
                     assertThat(properties.connectTimeout()).isEqualTo(Duration.ofSeconds(1));
                     assertThat(properties.pathsTimeout()).isEqualTo(Duration.ofSeconds(3));
                     assertThat(properties.projectionsTimeout()).isEqualTo(Duration.ofSeconds(15));
+                    assertThat(properties.regimeTimeout()).isEqualTo(Duration.ofSeconds(60));
                     assertThat(properties.pathVersion()).isEqualTo("m2-sb6-v1");
                     assertThat(properties.projectionPaths()).isEqualTo(2000);
                 });
@@ -112,7 +114,8 @@ class EnginePropertiesTest {
     @Test
     void 잘못된_값은_기동을_막는다() {
         for (String bad : new String[] { "antlab.engine.path-version=m9", "antlab.engine.connect-timeout=0s",
-                "antlab.engine.paths-timeout=-1s", "antlab.engine.projections-timeout=5m", "antlab.engine.projection-paths=99",
+                "antlab.engine.paths-timeout=-1s", "antlab.engine.projections-timeout=5m", "antlab.engine.regime-timeout=0s",
+                "antlab.engine.regime-timeout=3m", "antlab.engine.projection-paths=99",
                 "antlab.engine.projection-paths=5001", "antlab.engine.path-source=other" }) {
             runner.withPropertyValues(bad).run(context -> assertThat(context).as(bad).hasFailed());
         }

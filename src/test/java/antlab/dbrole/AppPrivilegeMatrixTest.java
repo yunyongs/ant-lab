@@ -32,6 +32,12 @@ class AppPrivilegeMatrixTest {
     static final List<String> PRIVILEGES = List.of("SELECT", "INSERT", "UPDATE", "DELETE", "TRUNCATE", "REFERENCES", "TRIGGER",
             "MAINTAIN");
 
+    /** The one column-level right (M2-08): the regime label job fills these columns of month_block. An independent copy of the callback list. */
+    static final String REGIME_TABLE = "month_block";
+    static final Set<String> REGIME_COLUMNS = Set.of("rate_dir", "growth_dir", "fx_dir", "sentiment_dir", "rate_strength",
+            "growth_strength", "fx_strength", "sentiment_strength", "prob_p1", "prob_p2", "prob_p3", "prob_p4", "regime_label",
+            "indicator_z");
+
     private static Set<String> expected(String table) {
         if (READ.contains(table)) {
             return Set.of("SELECT");
@@ -43,6 +49,16 @@ class AppPrivilegeMatrixTest {
             return Set.of("SELECT", "INSERT", "UPDATE");
         }
         return Set.of();
+    }
+
+    /** What {@code has_any_column_privilege} reports: the table-level rights, plus UPDATE on a column of the regime table. */
+    private static boolean expectedOnSomeColumn(String table, String privilege) {
+        return expected(table).contains(privilege) || (table.equals(REGIME_TABLE) && privilege.equals("UPDATE"));
+    }
+
+    private static List<String> columnsOf(JdbcTemplate jdbc, String table) {
+        return jdbc.queryForList("SELECT attname FROM pg_attribute WHERE attrelid = ?::regclass AND attnum > 0 AND NOT attisdropped "
+                + "ORDER BY attnum", String.class, "public." + table);
     }
 
     private static List<String> tables(JdbcTemplate jdbc) {
@@ -94,7 +110,7 @@ class AppPrivilegeMatrixTest {
     }
 
     @Test
-    void p1_everyTableHasExactlyItsClassRightsAndNoColumnLevelGrant() throws SQLException {
+    void p1_everyTableHasExactlyItsClassRightsAndNoColumnLevelGrantBesidesTheRegimeColumns() throws SQLException {
         try (RoleTestServer.Db db = new RoleTestServer.Db(SERVER, "p1")) {
             JdbcTemplate jdbc = prepare(db);
 
@@ -112,7 +128,7 @@ class AppPrivilegeMatrixTest {
                             "SELECT has_any_column_privilege('antlab_app', ?::regclass, ?)", Boolean.class,
                             "public." + table, columnPrivilege));
                     assertThat(anyColumn).as("column-level " + columnPrivilege + " on " + table)
-                            .isEqualTo(expected(table).contains(columnPrivilege));
+                            .isEqualTo(expectedOnSomeColumn(table, columnPrivilege));
                 }
             }
             assertThat(wrong).isEmpty();
@@ -123,6 +139,36 @@ class AppPrivilegeMatrixTest {
             assertThat(jdbc.queryForObject("SELECT count(*) FROM pg_class c, aclexplode(c.relacl) x "
                     + "WHERE c.relnamespace = 'public'::regnamespace AND c.relkind = 'S' AND x.grantee <> c.relowner",
                     Integer.class)).as("no sequence grant").isZero();
+        }
+    }
+
+    @Test
+    void p10_exactlyTheRegimeColumnsCanBeUpdatedAndNoOtherColumnHasARightOfItsOwn() throws SQLException {
+        try (RoleTestServer.Db db = new RoleTestServer.Db(SERVER, "p10")) {
+            JdbcTemplate jdbc = prepare(db);
+
+            List<String> columns = columnsOf(jdbc, REGIME_TABLE);
+            assertThat(columns).as("the listed regime columns exist").containsAll(REGIME_COLUMNS);
+            assertThat(columns).as("the table has columns that stay read-only").hasSizeGreaterThan(REGIME_COLUMNS.size());
+            List<String> wrong = new ArrayList<>();
+            for (String column : columns) {
+                for (String privilege : List.of("UPDATE", "INSERT", "REFERENCES")) {
+                    boolean has = Boolean.TRUE.equals(jdbc.queryForObject("SELECT has_column_privilege('antlab_app', ?::regclass, ?, ?)",
+                            Boolean.class, "public." + REGIME_TABLE, column, privilege));
+                    boolean should = privilege.equals("UPDATE") && REGIME_COLUMNS.contains(column);
+                    if (has != should) {
+                        wrong.add(privilege + " on " + column + " is " + has);
+                    }
+                }
+            }
+            assertThat(wrong).isEmpty();
+            // only UPDATE is granted per column: the column ACLs hold nothing else and nobody else
+            assertThat(jdbc.queryForList("SELECT DISTINCT x.privilege_type FROM pg_attribute a, aclexplode(a.attacl) x "
+                    + "WHERE a.attrelid = ?::regclass AND a.attacl IS NOT NULL AND x.grantee = 'antlab_app'::regrole",
+                    String.class, "public." + REGIME_TABLE)).containsExactly("UPDATE");
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM pg_attribute a, aclexplode(a.attacl) x WHERE a.attrelid = ?::regclass "
+                    + "AND a.attacl IS NOT NULL AND x.grantee <> 'antlab_app'::regrole AND x.grantee <> (SELECT relowner FROM pg_class "
+                    + "WHERE oid = a.attrelid)", Integer.class, "public." + REGIME_TABLE)).as("no other grantee").isZero();
         }
     }
 
@@ -153,6 +199,14 @@ class AppPrivilegeMatrixTest {
                     "INSERT INTO asset DEFAULT VALUES",
                     "UPDATE asset SET name = name",
                     "UPDATE asset_month_return SET asset_id = asset_id",
+                    "UPDATE month_block SET month_start = month_start",
+                    "UPDATE month_block SET event_summary = event_summary",
+                    "UPDATE month_block SET events_reviewed = events_reviewed",
+                    "UPDATE month_block SET created_at = created_at",
+                    "UPDATE month_block SET regime_label = regime_label, month_start = month_start",
+                    "INSERT INTO month_block (month_start) VALUES ('2000-01-01')",
+                    "DELETE FROM month_block",
+                    "TRUNCATE month_block",
                     "SELECT * FROM flyway_schema_history",
                     "INSERT INTO flyway_schema_history DEFAULT VALUES",
                     "SET ROLE antlab_owner",
@@ -182,6 +236,11 @@ class AppPrivilegeMatrixTest {
             assertThat(sqlState(app, "UPDATE member SET name = 'p3b'")).isEqualTo("no error");
             assertThat(sqlState(app, "SELECT * FROM job_run FOR SHARE")).isEqualTo("no error");
             assertThat(sqlState(app, "SELECT count(*) FROM asset")).isEqualTo("no error");
+            assertThat(sqlState(app, "SELECT * FROM month_block FOR UPDATE")).as("the label job locks the rows it fills").isEqualTo("no error");
+            for (String column : REGIME_COLUMNS) {
+                assertThat(sqlState(app, "UPDATE month_block SET " + column + " = " + column)).as(column).isEqualTo("no error");
+            }
+            assertThat(sqlState(app, "UPDATE month_block SET rate_dir = 'UP' WHERE month_start = '2000-01-01'")).isEqualTo("no error");
             assertThat(sqlState(app, "SELECT current_user")).isEqualTo("no error");
         }
     }
@@ -242,6 +301,11 @@ class AppPrivilegeMatrixTest {
                 s.execute("GRANT INSERT (name) ON asset TO antlab_app");
                 s.execute("GRANT REFERENCES (name) ON asset TO antlab_app");
                 s.execute("GRANT SELECT (name) ON member TO antlab_app");
+                s.execute("GRANT UPDATE (month_start) ON month_block TO antlab_app");
+                s.execute("GRANT INSERT (regime_label) ON month_block TO antlab_app");
+                s.execute("GRANT SELECT (regime_label) ON month_block TO antlab_app");
+                s.execute("GRANT UPDATE ON month_block TO antlab_app");
+                s.execute("REVOKE UPDATE (prob_p1) ON month_block FROM antlab_app");
             }
             assertThat(aclSnapshot(jdbc)).isNotEqualTo(converged);
 
@@ -252,6 +316,10 @@ class AppPrivilegeMatrixTest {
                 assertThat(jdbc.queryForObject("SELECT has_any_column_privilege('antlab_app', 'asset'::regclass, ?)",
                         Boolean.class, privilege)).as("column " + privilege).isFalse();
             }
+            assertThat(jdbc.queryForObject("SELECT has_column_privilege('antlab_app', 'month_block'::regclass, 'month_start', 'UPDATE')",
+                    Boolean.class)).as("a planted right on another column is taken back").isFalse();
+            assertThat(jdbc.queryForObject("SELECT has_column_privilege('antlab_app', 'month_block'::regclass, 'prob_p1', 'UPDATE')",
+                    Boolean.class)).as("a revoked regime column is granted again").isTrue();
         }
     }
 
@@ -307,6 +375,35 @@ class AppPrivilegeMatrixTest {
             assertThatThrownBy(() -> SERVER.migrate(db.name, "antlab_owner", true))
                     .isInstanceOf(FlywayException.class).hasMessageContaining("routine(s) in public")
                     .hasMessageContaining("probe_routine");
+        }
+    }
+
+    @Test
+    void p11_aRightThatComesInThroughAGroupRoleOnAnotherColumnStopsTheCallbackAndNamesTheColumn() throws SQLException {
+        try (RoleTestServer.Db db = new RoleTestServer.Db(SERVER, "p11")) {
+            prepare(db);
+            db.superuserExecute("CREATE ROLE probe_group NOLOGIN");
+            db.superuserExecute("GRANT UPDATE (month_start) ON month_block TO probe_group");
+            db.superuserExecute("GRANT probe_group TO antlab_app");
+
+            assertThatThrownBy(() -> SERVER.migrate(db.name, "antlab_owner", true))
+                    .isInstanceOf(FlywayException.class).hasMessageContaining("UPDATE on month_block.month_start should be denied");
+        } finally {
+            SERVER.execute(SERVER.container().getDatabaseName(), "DROP ROLE IF EXISTS probe_group");
+        }
+    }
+
+    @Test
+    void p12_theRoleScriptAcceptsTheRegimeColumnGrantOfTheCallbackAndKeepsIt() throws SQLException {
+        try (RoleTestServer.Db db = new RoleTestServer.Db(SERVER, "p12")) {
+            JdbcTemplate jdbc = prepare(db);
+            String converged = aclSnapshot(jdbc);
+
+            SERVER.runRoleScript(db.name);
+
+            assertThat(aclSnapshot(jdbc)).as("the script does not touch table or column rights").isEqualTo(converged);
+            assertThat(jdbc.queryForObject("SELECT has_column_privilege('antlab_app', 'month_block'::regclass, 'regime_label', 'UPDATE')",
+                    Boolean.class)).isTrue();
         }
     }
 }
