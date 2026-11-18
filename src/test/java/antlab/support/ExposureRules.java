@@ -37,6 +37,12 @@ public final class ExposureRules {
     public static final Set<String> IDENTIFIER_ALLOWED = Set.of("asset.id", "asset.asset_group_id", "season.id",
             "turn_price.asset_id", "turn_feed.asset_id", "orders.id", "orders.formation_change_id", "member.id");
 
+    /**
+     * Identifiers only a review handler may expose. In season, a feed item with neither asset nor group is an event card,
+     * so turn_feed.asset_group_id must not reach any in-season response.
+     */
+    public static final Set<String> REVIEW_IDENTIFIER_ALLOWED = Set.of("turn_feed.asset_group_id");
+
     /** 영구 금지: 적재 순서가 달 순서라 번호 자체가 날짜 단서다(erd §2, SPRING_JPA §4.6). */
     public static final Set<String> FORBIDDEN = Set.of("month_block.id", "month_event.id", "turn_feed.month_event_id");
 
@@ -44,16 +50,17 @@ public final class ExposureRules {
      * 끝난 시즌 전용 원천(P0-38): 경로의 달 순서로 잰 집계 값(역할 수행)이 나오는 열. 이 열을 쓰는 응답은 핸들러에
      * {@code @FinishedSeasonOnly} 가 있어야 하고(진행 중 시즌은 409), 다른 핸들러는 여전히 영구 금지다. 구성 요소는 ① 형이
      * {@code BigDecimal}·{@code Integer}·{@code int} 이고 ② 같은 {@code @ExposedFrom} 에 이 목록 밖의 원천이 하나 이상이어야 한다 —
-     * 경로 순서는 집계의 입력일 뿐 단독 값이 아니다(블록 번호 그대로의 노출은 SPRING_JPA §4.6 의 영구 금지). P0-39 복기가 같은 장치를 넓혀 쓴다.
+     * 경로 순서는 집계의 입력일 뿐 단독 값이 아니다(블록 번호 그대로의 노출은 SPRING_JPA §4.6 의 영구 금지). P0-39 복기가 같은 장치를 넓혀 쓴다. MVP-19: the feed's kind and direction ([복기 전용] and [내부]) enter the noise-reaction share the same way, as numbers aggregated with other sources; the review handler stays the only one that returns them as values.
      */
-    public static final Set<String> FINISHED_ONLY_ALLOWED = Set.of("season_path.month_block_id");
+    public static final Set<String> FINISHED_ONLY_ALLOWED = Set.of("season_path.month_block_id", "turn_feed.kind",
+            "turn_feed.direction");
 
     /**
      * 건수 전용 원천(P0-38): 대사 로그의 상태·턴·시도는 [내부]이지만 성적표는 행·묶음 <b>개수</b>만 낸다(값·detail 없음).
      * 이 열을 쓰는 구성 요소는 형이 {@code Integer}(또는 {@code int})여야 하고, 핸들러에 {@code @FinishedSeasonOnly} 가 있어야 한다.
      */
     public static final Set<String> COUNT_ONLY_ALLOWED = Set.of("reconciliation_log.status", "reconciliation_log.turn_no",
-            "reconciliation_log.attempt_no");
+            "reconciliation_log.attempt_no", "orders.turn_feed_id");
 
     /**
      * Reproducibility triple of a season. Tagged {@code [내부]} in the DB (true while the season runs) but allowed on the
@@ -162,7 +169,8 @@ public final class ExposureRules {
     /** 끝난 시즌 전용·건수 전용 원천은 표지와 형 조건으로만 통과시키고, 나머지는 {@link #checkSource} 로 보낸다. */
     static List<String> checkRestricted(String where, String source, String[] sources, Class<?> type, ExposureCatalog catalog,
             boolean finishedSeasonOnly, boolean reviewReveal) {
-        if (finishedSeasonOnly && reviewReveal && revealed(source, catalog)) {
+        if (finishedSeasonOnly && reviewReveal
+                && (revealed(source, catalog) || (REVIEW_IDENTIFIER_ALLOWED.contains(source) && catalog.has(source)))) {
             return List.of();
         }
         boolean finishedOnly = FINISHED_ONLY_ALLOWED.contains(source);

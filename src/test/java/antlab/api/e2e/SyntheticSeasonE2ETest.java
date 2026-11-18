@@ -448,6 +448,23 @@ class SyntheticSeasonE2ETest {
         // The turn-5 sell of 50 shares of ZZ0003 is the only sell; it fills at that turn's price.
         BigDecimal sold = prices(5).get("ZZ0003").multiply(BigDecimal.valueOf(50));
         assertThat(new BigDecimal(a.get("discipline").get("sellNotional").asString())).isEqualByComparingTo(sold);
+
+        // Only turn 5 traded: a DIRECT sell, a DIRECT buy and a FEED buy. The nudged part of the platform's fee is RANKING + ALERT,
+        // so the FEED fee is in the total and in no nudged figure.
+        JsonNode noise = a.get("noise");
+        assertThat(noise.get("tradingTurns").asInt()).isEqualTo(1);
+        BigDecimal followed = money(noise.get("followedBuyNotional")).add(money(noise.get("followedSellNotional")));
+        assertThat(noise.get("noiseShare").asString())
+                .isEqualTo(followed.divide(money(noise.get("tradeNotional")), 8, java.math.RoundingMode.HALF_UP).toPlainString());
+        JsonNode bySource = a.get("platform").get("bySource");
+        assertThat(bySource.get(0).get("orders").asInt()).as("RANKING").isZero();
+        assertThat(bySource.get(1).get("orders").asInt()).as("FEED").isEqualTo(1);
+        assertThat(money(bySource.get(1).get("fee")).signum()).isPositive();
+        assertThat(bySource.get(4).get("orders").asInt()).as("DIRECT").isEqualTo(2);
+        assertThat(a.get("platform").get("nudgedFee").asString()).isEqualTo("0");
+        assertThat(report.json().get("platformNudgeFee").asString()).isEqualTo("0");
+        assertThat(a.get("platform").get("nudgedFeeShare").asString()).isEqualTo("0.00000000");
+        assertThat(money(a.get("platform").get("teamFee"))).isEqualByComparingTo(money(report.json().get("teamFee")));
     }
 
     private static BigDecimal money(JsonNode node) {
