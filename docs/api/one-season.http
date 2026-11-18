@@ -302,6 +302,15 @@ Authorization: Bearer {{token}}
 GET {{base}}/api/v1/seasons/{{season}}/projection?phase=END
 Authorization: Bearer {{token}}
 
+### 12b. Optional: the season score and the manager rating. The first read after the season finished scores it (with your earlier seasons, in the order they finished); that needs the engine, and 503 ENGINE_UNAVAILABLE means it is not running (nothing is stored; read again later). The rating shows from the third counted season.
+# 선택: 시즌 점수와 매니저 레이팅. 시즌이 끝난 뒤 처음 읽을 때 앞선 시즌과 함께 끝난 순서대로 채점한다. 엔진이 필요하고 503 ENGINE_UNAVAILABLE 이면 엔진이 떠 있지 않다(저장하지 않으니 나중에 다시 읽는다). 레이팅은 세 번째 집계 시즌부터 보인다.
+GET {{base}}/api/v1/seasons/{{season}}/score
+Authorization: Bearer {{token}}
+
+###
+GET {{base}}/api/v1/members/me/rating
+Authorization: Bearer {{token}}
+
 ###
 GET {{base}}/api/v1/seasons
 Authorization: Bearer {{token}}

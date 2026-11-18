@@ -12,7 +12,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
 /**
- * Hand-computed fixture for formula s63-v1. Worked values (independent decimal arithmetic, not this code):
+ * Hand-computed fixture for formula s63-v2. Worked values (independent decimal arithmetic, not this code):
  * <pre>
  * sharpe 0.34412360, bench 0.40414519, diff -0.06002159
  * items  risk 75 (3 of 12 turns, depth 0.05 of limit 0.20), discipline 70 (mean of 0.2 and 0.4), diversification 50
@@ -54,13 +54,14 @@ class SeasonScoreCalculatorTest {
         BigDecimal formation = d("0.10");
         BigDecimal role = d("0.6");
         BigDecimal nudge = d("0.25");
+        BigDecimal noise = null;
         DisciplineRatios discipline = new DisciplineRatios(d("0.2"), d("0.4"));
         RankCounts diffCounts = new RankCounts(1200, 100, 2000);
         RankCounts endCounts = new RankCounts(900, 0, 2000);
 
         ScoreInputs build() {
             return new ScoreInputs(returns, bench, reportTurns, breachTurns, depth, limit, weight, turnover, formation,
-                    role, nudge, discipline, diffCounts, endCounts);
+                    role, nudge, noise, discipline, diffCounts, endCounts);
         }
 
         SeasonScoreResult run() {
@@ -72,7 +73,7 @@ class SeasonScoreCalculatorTest {
     void the_worked_fixture_gives_every_stored_value() {
         SeasonScoreResult r = fixture().run();
 
-        assertThat(r.scoreVersion()).isEqualTo("s63-v1");
+        assertThat(r.scoreVersion()).isEqualTo("s63-v2");
         assertThat(r.sharpe()).isEqualByComparingTo("0.34412360");
         assertThat(r.benchSharpe()).isEqualByComparingTo("0.40414519");
         assertThat(r.sharpeDiff()).isEqualByComparingTo("-0.06002159");
@@ -173,6 +174,33 @@ class SeasonScoreCalculatorTest {
         assertThat(low.run().nudgeScore()).isEqualByComparingTo("0.00");
         assertThat(high.run().roleScore()).isEqualByComparingTo("100.00");
         assertThat(high.run().nudgeScore()).isEqualByComparingTo("100.00");
+    }
+
+    @Test
+    void noise_item_is_one_hundred_times_one_minus_the_share() {
+        Builder none = fixture();
+        none.noise = d("0");
+        Builder quarter = fixture();
+        quarter.noise = d("0.25");
+        Builder all = fixture();
+        all.noise = d("1");
+
+        assertThat(none.run().noiseScore()).isEqualByComparingTo("100.00");
+        assertThat(quarter.run().noiseScore()).isEqualByComparingTo("75.00");
+        assertThat(all.run().noiseScore()).isEqualByComparingTo("0.00");
+    }
+
+    @Test
+    void a_noise_item_joins_the_process_mean_and_a_missing_one_leaves_it_one_lower() {
+        Builder without = fixture();
+        Builder with = fixture();
+        with.noise = d("0.25");
+
+        // the worked fixture's 7 items sum to 485 (mean 69.29); a noise item of 75 makes 560 / 8 = 70
+        assertThat(without.run().processItems()).isEqualTo(7);
+        assertThat(without.run().noiseScore()).isNull();
+        assertThat(with.run().processItems()).isEqualTo(8);
+        assertThat(with.run().processScore()).isEqualByComparingTo("70.00");
     }
 
     @Test
@@ -329,7 +357,7 @@ class SeasonScoreCalculatorTest {
 
     @ParameterizedTest
     @CsvSource({"weight, 1.01", "weight, -0.01", "turnover, -0.5", "formation, 2.01", "role, 1.01", "role, -0.1",
-            "nudge, 1.5", "nudge, -0.2"})
+            "nudge, 1.5", "nudge, -0.2", "noise, 1.01", "noise, -0.01"})
     void item_inputs_outside_their_range_are_refused(String field, String value) {
         Builder b = fixture();
         switch (field) {
@@ -337,6 +365,7 @@ class SeasonScoreCalculatorTest {
             case "turnover" -> b.turnover = d(value);
             case "formation" -> b.formation = d(value);
             case "role" -> b.role = d(value);
+            case "noise" -> b.noise = d(value);
             default -> b.nudge = d(value);
         }
 

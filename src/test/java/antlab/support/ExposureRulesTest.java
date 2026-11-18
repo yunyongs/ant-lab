@@ -22,6 +22,7 @@ class ExposureRulesTest {
         tags.put("fx_month.id", ExposureCatalog.INTERNAL);
         tags.put("fx_month.month_block_id", ExposureCatalog.INTERNAL);
         tags.put("asset.asset_group_id", ExposureCatalog.EXPOSED);
+        tags.put("turn_feed.asset_group_id", ExposureCatalog.EXPOSED);
         tags.put("orders.asset_id", ExposureCatalog.EXPOSED);
         tags.put("season_path.month_block_id", ExposureCatalog.REVEAL_ONLY);
         tags.put("lineup.declared_position", ExposureCatalog.EXPOSED);
@@ -43,6 +44,9 @@ class ExposureRulesTest {
         }
         tags.put("agent_call.request_text", ExposureCatalog.INTERNAL);
         return new ExposureCatalog(tags);
+    }
+
+    record GroupLink(@ExposedFrom("turn_feed.asset_group_id") Long groupId) {
     }
 
     record Good(@ExposedFrom("asset.id") Long id, @ExposedFrom("asset.name") String name) {
@@ -319,5 +323,14 @@ class ExposureRulesTest {
         assertThat(ExposureRules.check(VoidMemory.class, catalog())).isEmpty();
         assertThat(ExposureRules.check(ObjectMemory.class, catalog())).singleElement().asString()
                 .contains("@ExposedFrom 없음");
+    }
+
+    @Test
+    void the_feed_group_id_passes_only_in_a_review_handler() {
+        assertThat(ExposureRules.check(GroupLink.class, catalog(), true, true)).isEmpty();
+        assertThat(ExposureRules.check(GroupLink.class, catalog(), true, false)).singleElement().asString()
+                .contains("turn_feed.asset_group_id").contains("식별자 허용 목록");
+        assertThat(ExposureRules.check(GroupLink.class, catalog())).singleElement().asString()
+                .contains("turn_feed.asset_group_id");
     }
 }

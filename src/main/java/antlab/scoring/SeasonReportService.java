@@ -78,7 +78,11 @@ public class SeasonReportService {
         return SeasonReportCalculator.calculate(sources(season));
     }
 
-    private SeasonReportSources sources(Season season) {
+    /**
+     * The report sources of a finished season, also read by the season score. The caller owns the snapshot: it must run
+     * in a read-only {@code REPEATABLE_READ} transaction, because the statements below must see one commit.
+     */
+    public SeasonReportSources sources(Season season) {
         long id = season.getId();
         int t = season.getCurrentTurnNo();
         // 보고 턴이 범위를 벗어난 시즌은 계산기의 정합 검사가 멈춘다. 그 전에 조회 입력이 음수가 되지 않게 한다.

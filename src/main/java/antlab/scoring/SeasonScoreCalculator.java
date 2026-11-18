@@ -6,14 +6,14 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Season score, formula {@code s63-v1}: score = 0.5 x result + 0.5 x process, a pure function of {@link ScoreInputs}.
+ * Season score, formula {@code s63-v2}: score = 0.5 x result + 0.5 x process, a pure function of {@link ScoreInputs}.
  * Result = 100 x the mid-rank percentile of the Sharpe difference among the engine paths. Process = the equal-weight
  * mean of the item scores that have a value. Every part is kept unrounded at working scale; each stored value is
  * rounded HALF_UP once, from the unrounded parts. The thresholds are builder values (validated later), kept here.
  */
 public final class SeasonScoreCalculator {
 
-    public static final String VERSION = "s63-v1";
+    public static final String VERSION = "s63-v2";
 
     private static final BigDecimal HUNDRED = BigDecimal.valueOf(100);
     private static final BigDecimal SHARPE_CAP = new BigDecimal("999999.99999999");
@@ -41,6 +41,7 @@ public final class SeasonScoreCalculator {
         BigDecimal turnover = collect(items, turnover(in.turnoverAnnual()));
         BigDecimal formation = collect(items, formation(in.formationDeviation()));
         BigDecimal role = collect(items, role(in.roleFit()));
+        BigDecimal noise = collect(items, noise(in.noiseShare()));
         BigDecimal nudge = collect(items, nudge(in.nudgeShare()));
         if (items.isEmpty()) {
             throw new IllegalArgumentException("at least one process item is needed");
@@ -60,7 +61,7 @@ public final class SeasonScoreCalculator {
         return new SeasonScoreResult(VERSION, score, resultExact == null ? null : round2(resultExact), round2(process),
                 capSharpe(sharpe), capSharpe(benchSharpe), capSharpe(sharpeDiff), diffPercentile, luckPercentile,
                 round2(risk), round2(discipline), round2(diversification), round2(turnover),
-                null, round2(formation), round2(role), null, round2(nudge), items.size());
+                null, round2(formation), round2(role), round2(noise), round2(nudge), items.size());
     }
 
     /** Why the season stays out of the rating, if it does; not-started wins over no-score. */
@@ -132,6 +133,15 @@ public final class SeasonScoreCalculator {
         }
         requireRange(roleFit, BigDecimal.ONE);
         return HUNDRED.multiply(roleFit);
+    }
+
+    /** 100 x (1 - noise share): zero when every trade followed the noise. */
+    private static BigDecimal noise(BigDecimal noiseShare) {
+        if (noiseShare == null) {
+            return null;
+        }
+        requireRange(noiseShare, BigDecimal.ONE);
+        return HUNDRED.multiply(BigDecimal.ONE.subtract(noiseShare));
     }
 
     private static BigDecimal nudge(BigDecimal nudgeShare) {

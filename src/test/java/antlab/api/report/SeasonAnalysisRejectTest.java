@@ -53,7 +53,8 @@ class SeasonAnalysisRejectTest {
         assertThat(r.getContentType()).startsWith("application/problem+json");
         assertThat(code(r)).isEqualTo("SEASON_NOT_FINISHED");
         assertThat(r.getContentAsString()).contains("끝난 시즌만 분석을 볼 수 있다");
-        ProblemBodyAssert.assertAbsent(r.getContentAsString(), "baselines", "discipline", "initialCash");
+        ProblemBodyAssert.assertAbsent(r.getContentAsString(), "baselines", "discipline", "initialCash", "noise", "platform",
+                "noiseShare", "nudgedFee", "bySource");
         ProblemBodyAssert.assertInstanceShape(r.getContentAsString(), "report/analysis");
     }
 
@@ -108,7 +109,7 @@ class SeasonAnalysisRejectTest {
     @Test
     void 보안_문맥에_토큰이_없으면_401_UNAUTHENTICATED이다() {
         SeasonAnalysisService unauthenticated = new SeasonAnalysisService(new JwtCurrentMember(null), null, null, null, null,
-                null, null, null);
+                null, null, null, null, null, null);
         assertThatThrownBy(() -> unauthenticated.get(1L)).isInstanceOfSatisfying(DomainException.class,
                 e -> assertThat(ErrorHttpMapping.status(e.getCode())).isEqualTo(HttpStatus.UNAUTHORIZED));
     }

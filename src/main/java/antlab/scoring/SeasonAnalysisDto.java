@@ -1,5 +1,6 @@
 package antlab.scoring;
 
+import antlab.account.OrderSource;
 import antlab.common.exposure.ExposedFrom;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.media.Schema.RequiredMode;
@@ -8,11 +9,13 @@ import java.util.List;
 
 /**
  * Season analysis (MVP-17): the four baselines simulated on the season's own turn prices, the three-way split of the excess over the
- * market and the trading-discipline item. Computed on read from stored, immutable rows and never stored; separate from the 37-column
- * {@link SeasonReportDto}. Money is a whole-won integer string, ratios are strings with 8 decimals, and a value that cannot be
- * computed is null (the key is never omitted). No date, month block, seed, event or asset name: an asset is only {@code MARKET:TICKER}.
+ * market, the trading-discipline item, the reaction to noise, the platform's fees by order source and three review facts: attention
+ * following, defender goals and the 6-turn effect of each formation change (MVP-19). Computed on read from stored, immutable rows and
+ * never stored; separate from the 37-column {@link SeasonReportDto}. Money is a whole-won integer string,
+ * ratios are strings with 8 decimals, and a value that cannot be computed is null (the key is never omitted). No date, month block,
+ * seed, event or asset name: an asset is only {@code MARKET:TICKER}.
  */
-@Schema(description = "Season analysis: baselines, three-way split, trading discipline / 시즌 분석: 기준선·3분해·매매 규율")
+@Schema(description = "Season analysis: baselines, three-way split, trading discipline, noise reaction, platform revenue by order source / 시즌 분석: 기준선·3분해·매매 규율·소음 반응·출발점별 플랫폼 수익")
 public record SeasonAnalysisDto(
         @ExposedFrom({})
         @Schema(requiredMode = RequiredMode.REQUIRED, description = "Version of the analysis rules / 분석 규칙 버전")
@@ -33,7 +36,24 @@ public record SeasonAnalysisDto(
                         + "unavailable / 시장 대비 초과분의 3분해. 포메이션 기준선이 없으면 null")
         DecompositionDto decomposition,
         @Schema(requiredMode = RequiredMode.REQUIRED, description = "Trading discipline / 매매 규율")
-        DisciplineDto discipline) {
+        DisciplineDto discipline,
+        @Schema(requiredMode = RequiredMode.REQUIRED, description = "Reaction to noise (process item) / 소음 반응(과정 항목)")
+        NoiseDto noise,
+        @Schema(requiredMode = RequiredMode.REQUIRED, description = "Platform revenue split by order source / 출발점별 "
+                + "플랫폼 수익")
+        PlatformDto platform,
+        @Schema(requiredMode = RequiredMode.REQUIRED, description = "Attention following: buys of top-attention assets "
+                + "against all other buys over the next 6 turns (review fact) / 관심 추종: 관심 상위 종목 매수와 그 밖의 매수의 "
+                + "뒤 6턴 성과(복기 사실)")
+        AttentionFollowingDto attentionFollowing,
+        @Schema(requiredMode = RequiredMode.REQUIRED, description = "Defender goals in down-market turns (review fact) / "
+                + "시장이 내린 턴의 수비수 득점(복기 사실)")
+        DefenderGoalsDto defenderGoals,
+        @Schema(requiredMode = RequiredMode.REQUIRED, nullable = true,
+                description = "6-turn effect of each formation change in id order, empty when there is none; null when a "
+                        + "formation baseline is unavailable / 전술 변경마다의 6턴 효과(변경 번호 순, 없으면 빈 목록). "
+                        + "포메이션 기준선이 없으면 null")
+        List<ChangeEffectDto> changeEffects) {
 
     /** One baseline. When it is unavailable, {@code reason} is set and every value is null (the legs list is empty). */
     @Schema(description = "One baseline portfolio simulated on the season prices / 시즌 가격으로 시뮬레이션한 기준선 하나")
@@ -240,5 +260,180 @@ public record SeasonAnalysisDto(
                     + "not by turn / 패닉 턴(팀 평가액이 8% 이상 내렸고 공격 목표가 시작보다 낮게 끝난 턴)에 속한 전술 변경 행 수. "
                     + "턴이 아니라 행 기준")
             Integer panicFormationChanges) {
+    }
+
+    /** Reaction to noise of turns 1..T-1 (PLAN §6.2); the definition is on the controller. */
+    @Schema(description = "Reaction to noise: how much of what was traded followed what the feed and the boards pointed at / "
+            + "소음 반응: 매매 가운데 피드와 순위판이 가리킨 쪽을 따른 몫")
+    public record NoiseDto(
+            @ExposedFrom({"orders.turn_no", "orders.side", "execution.fill_price", "execution.quantity", "turn_price.price",
+                    "asset_month_attention.attention_index", "turn_feed.asset_id", "turn_feed.kind", "turn_feed.direction"})
+            @Schema(requiredMode = RequiredMode.REQUIRED, nullable = true,
+                    description = "Mean over the turns that traded of (followed buys + followed sells) ÷ the turn's traded "
+                            + "amount, 8 decimal places; null when no turn traded / 매매가 있던 턴마다 (따른 매수 + 따른 매도) ÷ "
+                            + "그 턴 매매 금액의 평균, 소수 8자리. 거래가 없으면 null")
+            BigDecimal noiseShare,
+            @ExposedFrom({"orders.turn_no", "execution.quantity"})
+            @Schema(requiredMode = RequiredMode.REQUIRED, description = "Turns of 1..T-1 with at least one filled order / "
+                    + "턴 1..T-1 가운데 체결된 주문이 있는 턴 수")
+            Integer tradingTurns,
+            @ExposedFrom({"orders.turn_no", "orders.side", "execution.fill_price", "execution.quantity", "turn_price.price",
+                    "asset_month_attention.attention_index", "turn_feed.asset_id", "turn_feed.kind", "turn_feed.direction"})
+            @Schema(requiredMode = RequiredMode.REQUIRED, description = "Buys that followed the noise, whole KRW / 소음을 "
+                    + "따른 매수 대금, 원 단위 정수")
+            BigDecimal followedBuyNotional,
+            @ExposedFrom({"orders.turn_no", "orders.side", "execution.fill_price", "execution.quantity", "turn_price.price",
+                    "asset_month_attention.attention_index", "turn_feed.asset_id", "turn_feed.kind", "turn_feed.direction"})
+            @Schema(requiredMode = RequiredMode.REQUIRED, description = "Sells that followed the noise, whole KRW / 소음을 "
+                    + "따른 매도 대금, 원 단위 정수")
+            BigDecimal followedSellNotional,
+            @ExposedFrom({"execution.fill_price", "execution.quantity", "orders.turn_no"})
+            @Schema(requiredMode = RequiredMode.REQUIRED, description = "Sells plus buys of turns 1..T-1, equal to the "
+                    + "report's traded amount, whole KRW / 턴 1..T-1의 매도 + 매수, 성적표의 매매 대금과 같다, 원 단위 정수")
+            BigDecimal tradeNotional) {
+    }
+
+    /** Fees by order source. The nudged part is {@code RANKING} and {@code ALERT} only (PLAN §13 P0-20 Q2). */
+    @Schema(description = "Platform revenue: fees split by where the order came from / 플랫폼 수익: 주문의 출발점별 수수료")
+    public record PlatformDto(
+            @ExposedFrom({"execution.fee", "orders.turn_no"})
+            @Schema(requiredMode = RequiredMode.REQUIRED, description = "Fees of every fill including the team purchase, "
+                    + "equal to the report's total fee, whole KRW / 팀 구성을 포함한 모든 체결의 수수료, 성적표의 총 수수료와 "
+                    + "같다, 원 단위 정수")
+            BigDecimal totalFee,
+            @ExposedFrom({"execution.fee", "orders.turn_no"})
+            @Schema(requiredMode = RequiredMode.REQUIRED, description = "Fees of the team purchase (turn 0), whole KRW / "
+                    + "팀 구성(0턴)의 수수료, 원 단위 정수")
+            BigDecimal teamFee,
+            @Schema(requiredMode = RequiredMode.REQUIRED, description = "Five rows in the fixed order RANKING, FEED, ALERT, "
+                    + "BENCH, DIRECT, turns 1..T-1; a source with no order has zeros / 다섯 행, 순서 고정(RANKING, FEED, "
+                    + "ALERT, BENCH, DIRECT), 턴 1..T-1. 주문이 없는 출발점은 0")
+            List<SourceFeeDto> bySource,
+            @ExposedFrom({"execution.fee", "orders.turn_no", "orders.source"})
+            @Schema(requiredMode = RequiredMode.REQUIRED, description = "Fees of RANKING and ALERT orders, the part the "
+                    + "platform earned by nudging; FEED is not included, whole KRW / RANKING·ALERT 주문의 수수료, 플랫폼이 "
+                    + "독려로 번 몫. FEED 는 넣지 않는다, 원 단위 정수")
+            BigDecimal nudgedFee,
+            @ExposedFrom({"execution.fee", "orders.turn_no", "orders.source"})
+            @Schema(requiredMode = RequiredMode.REQUIRED, nullable = true,
+                    description = "Nudged fee ÷ total fee, 8 decimal places; null when the total fee is 0 / 독려 수수료 ÷ "
+                            + "총 수수료, 소수 8자리. 총 수수료가 0이면 null")
+            BigDecimal nudgedFeeShare) {
+    }
+
+    /** One row of the per-source split. */
+    @Schema(description = "Orders, traded amount and fees of one order source / 한 출발점의 주문 수·매매 금액·수수료")
+    public record SourceFeeDto(
+            @ExposedFrom({"orders.source"})
+            @Schema(requiredMode = RequiredMode.REQUIRED, description = "Order source / 주문 출발점")
+            OrderSource source,
+            @ExposedFrom({"orders.source", "orders.turn_no"})
+            @Schema(requiredMode = RequiredMode.REQUIRED, description = "Filled orders of turns 1..T-1 from this source / "
+                    + "이 출발점의 턴 1..T-1 체결 주문 수")
+            Integer orders,
+            @ExposedFrom({"orders.source", "orders.turn_no", "execution.fill_price", "execution.quantity"})
+            @Schema(requiredMode = RequiredMode.REQUIRED, description = "Buys plus sells from this source, whole KRW / 이 "
+                    + "출발점의 매수 + 매도 대금, 원 단위 정수")
+            BigDecimal tradeNotional,
+            @ExposedFrom({"orders.source", "orders.turn_no", "execution.fee"})
+            @Schema(requiredMode = RequiredMode.REQUIRED, description = "Fees of this source's orders, whole KRW / 이 "
+                    + "출발점 주문의 수수료, 원 단위 정수")
+            BigDecimal fee) {
+    }
+
+    /** Attention following of turns 1..T-1; a buy whose 6-turn window runs past the last turn is only counted. */
+    @Schema(description = "Attention following: how buys of top-attention assets and other buys fared over the next 6 turns / "
+            + "관심 추종: 관심 상위 종목 매수와 그 밖의 매수가 뒤 6턴 동안 어떻게 됐는지")
+    public record AttentionFollowingDto(
+            @ExposedFrom({})
+            @Schema(requiredMode = RequiredMode.REQUIRED, description = "Window length in turns (6) / 창 길이, 턴 수(6)")
+            Integer windowTurns,
+            @ExposedFrom({"orders.turn_no", "orders.side", "asset_month_attention.attention_index"})
+            @Schema(requiredMode = RequiredMode.REQUIRED, description = "Buys of top-attention assets (top 10 %, ties "
+                    + "included) at the buying turn with a complete window / 매수 턴에 관심 상위(10%, 동률 포함)였고 창이 끝난 "
+                    + "종목의 매수 수")
+            Integer attentionBuys,
+            @ExposedFrom({"orders.turn_no", "orders.side", "execution.fill_price", "execution.quantity",
+                    "asset_month_attention.attention_index"})
+            @Schema(requiredMode = RequiredMode.REQUIRED, description = "Their amount, whole KRW / 그 매수 대금, 원 단위 정수")
+            BigDecimal attentionBuyNotional,
+            @ExposedFrom({"orders.turn_no", "orders.side", "execution.fill_price", "execution.quantity", "turn_price.price",
+                    "asset_month_attention.attention_index"})
+            @Schema(requiredMode = RequiredMode.REQUIRED, nullable = true,
+                    description = "Amount-weighted mean of price(k+6) ÷ price(k) − 1 over those buys, 8 decimal places; "
+                            + "null when there is none / 그 매수들의 price(k+6) ÷ price(k) − 1 의 금액 가중 평균, 소수 8자리. "
+                            + "없으면 null")
+            BigDecimal attentionReturn,
+            @ExposedFrom({"orders.turn_no", "orders.side", "asset_month_attention.attention_index"})
+            @Schema(requiredMode = RequiredMode.REQUIRED, description = "All other buys with a complete window (an asset "
+                    + "with no attention index is \"other\") / 창이 끝난 그 밖의 매수 수(관심 지수가 없는 종목은 \"그 밖\")")
+            Integer otherBuys,
+            @ExposedFrom({"orders.turn_no", "orders.side", "execution.fill_price", "execution.quantity",
+                    "asset_month_attention.attention_index"})
+            @Schema(requiredMode = RequiredMode.REQUIRED, description = "Their amount, whole KRW / 그 매수 대금, 원 단위 정수")
+            BigDecimal otherBuyNotional,
+            @ExposedFrom({"orders.turn_no", "orders.side", "execution.fill_price", "execution.quantity", "turn_price.price",
+                    "asset_month_attention.attention_index"})
+            @Schema(requiredMode = RequiredMode.REQUIRED, nullable = true,
+                    description = "Amount-weighted mean return of the other buys, 8 decimal places; null when there is none / "
+                            + "그 밖의 매수의 금액 가중 평균 수익률, 소수 8자리. 없으면 null")
+            BigDecimal otherReturn,
+            @ExposedFrom({"orders.turn_no", "orders.side"})
+            @Schema(requiredMode = RequiredMode.REQUIRED, description = "Buys of turns 1..T-1 whose 6-turn window ends after "
+                    + "the last turn; counted, in neither group / 6턴 창이 마지막 턴 뒤로 넘어가는 턴 1..T-1의 매수 수. 세기만 "
+                    + "하고 어느 쪽에도 넣지 않는다")
+            Integer incompleteBuys) {
+    }
+
+    /** Defender goals: won gains of defender and goalkeeper holdings in turns where the market pair fell. */
+    @Schema(description = "Defender goals: gains of holdings declared defender or goalkeeper in turns where the market fell / "
+            + "수비수 득점: 시장이 내린 턴에 수비수·골키퍼로 선언한 보유 종목의 이익")
+    public record DefenderGoalsDto(
+            @ExposedFrom({"turn_price.price"})
+            @Schema(requiredMode = RequiredMode.REQUIRED, description = "Turns of 1..T where the market pair (069500 and SPY, "
+                    + "50/50) fell from the turn before / 시장 대용 두 종목(069500·SPY 50/50)이 직전 턴보다 내린 턴 1..T의 수")
+            Integer downMarketTurns,
+            @ExposedFrom({"orders.turn_no", "orders.side", "execution.quantity", "turn_price.price", "lineup.declared_position",
+                    "lineup.start_turn", "lineup.end_turn"})
+            @Schema(requiredMode = RequiredMode.REQUIRED, description = "Goals: holdings at the start of a down-market turn, "
+                    + "declared defender or goalkeeper as of the turn before, whose price rose / 득점 수: 시장이 내린 턴 시작에 "
+                    + "보유했고 직전 턴 기준 수비수·골키퍼로 선언했으며 가격이 오른 종목의 수")
+            Integer goals,
+            @ExposedFrom({"orders.turn_no", "orders.side", "execution.quantity", "turn_price.price", "lineup.declared_position",
+                    "lineup.start_turn", "lineup.end_turn"})
+            @Schema(requiredMode = RequiredMode.REQUIRED, description = "Sum of quantity × price rise of the goals, whole "
+                    + "KRW / 득점의 수량 × 가격 상승분 합계, 원 단위 정수")
+            BigDecimal goalWon,
+            @ExposedFrom({"orders.turn_no", "orders.side", "execution.quantity", "turn_price.price", "lineup.declared_position",
+                    "lineup.start_turn", "lineup.end_turn", "season.initial_cash"})
+            @Schema(requiredMode = RequiredMode.REQUIRED, description = "Goal won ÷ initial capital, divided once, 8 decimal "
+                    + "places / 득점 금액 ÷ 초기 자금, 한 번 나눔, 소수 8자리")
+            BigDecimal goalReturn) {
+    }
+
+    /** The effect of one formation change, in the representative-baseline world of the three-way split. */
+    @Schema(description = "Effect of one formation change over the next 6 turns, net of simulated fees / 전술 변경 하나의 뒤 "
+            + "6턴 효과, 시뮬레이션 수수료를 뺀 값")
+    public record ChangeEffectDto(
+            @ExposedFrom({"formation_change.turn_no"})
+            @Schema(requiredMode = RequiredMode.REQUIRED, description = "Turn of the change / 변경한 턴")
+            Integer turnNo,
+            @ExposedFrom({"formation_change.turn_no"})
+            @Schema(requiredMode = RequiredMode.REQUIRED, description = "Turns from the change to the measuring turn, 1 to 6 "
+                    + "(shorter near the season end) / 변경부터 잰 턴까지의 턴 수, 1~6(시즌 끝 가까이에서는 짧다)")
+            Integer windowTurns,
+            @ExposedFrom({"turn_price.price", "formation_change.turn_no", "formation_change.after_goalkeeper",
+                    "formation_change.after_defender", "formation_change.after_midfielder", "formation_change.after_forward",
+                    "season.initial_cash", "season.fee_rate_kr", "season.fee_rate_us", "season.fx_spread_rate"})
+            @Schema(requiredMode = RequiredMode.REQUIRED, description = "Following baseline with this change minus the same "
+                    + "baseline without it, at the measuring turn, whole KRW / 이 변경을 따른 기준선에서 이 변경이 없는 같은 "
+                    + "기준선을 뺀 값을 잰 턴에 잰 것, 원 단위 정수")
+            BigDecimal effectWon,
+            @ExposedFrom({"turn_price.price", "formation_change.turn_no", "formation_change.after_goalkeeper",
+                    "formation_change.after_defender", "formation_change.after_midfielder", "formation_change.after_forward",
+                    "season.initial_cash", "season.fee_rate_kr", "season.fee_rate_us", "season.fx_spread_rate"})
+            @Schema(requiredMode = RequiredMode.REQUIRED, description = "Effect ÷ initial capital, divided once, 8 decimal "
+                    + "places / 효과 ÷ 초기 자금, 한 번 나눔, 소수 8자리")
+            BigDecimal effectReturn) {
     }
 }
