@@ -2,6 +2,7 @@ import { formatWon } from '../format/money.ts';
 import { ratioWithPercent } from '../format/ratio.ts';
 import type { Review, TurnValues } from './queries.ts';
 import { EventTag } from './EventTag.tsx';
+import { TurnFeedList } from './TurnFeedList.tsx';
 import {
   NO_SUMMARY_TEXT,
   NOT_PLAYED_TEXT,
@@ -74,6 +75,14 @@ export function TurnReviewList({
                   ))}
                 </ul>
               )}
+              <TurnFeedList
+                turnNo={turn.turnNo}
+                feed={turn.feed}
+                neverShown={
+                  review.abandonedTurnNo !== null &&
+                  turn.turnNo > review.abandonedTurnNo
+                }
+              />
             </div>
           </li>
         ))}

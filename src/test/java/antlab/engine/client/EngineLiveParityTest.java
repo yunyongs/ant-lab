@@ -69,7 +69,7 @@ class EngineLiveParityTest {
         requireIsolated("ANTLAB_ENGINE_LIVE_DB_URL", dbUrl.replaceFirst("^jdbc:", ""));
 
         EngineProperties properties = new EngineProperties(url, token, Duration.ofSeconds(2), Duration.ofSeconds(10),
-                Duration.ofSeconds(60), EngineProperties.PathSourceMode.JAVA, "m2-sb6-v1", 2000);
+                Duration.ofSeconds(60), Duration.ofSeconds(60), EngineProperties.PathSourceMode.JAVA, "m2-sb6-v1", 2000);
         client = EngineClientConfig.newClient(properties, ObservationRegistry.NOOP);
         String date = System.getenv("ANTLAB_ENGINE_LIVE_BASE_DATE");
         baseDate = date == null || date.isBlank() ? LocalDate.of(2026, 1, 2) : LocalDate.parse(date);

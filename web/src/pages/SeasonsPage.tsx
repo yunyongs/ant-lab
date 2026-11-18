@@ -1,4 +1,5 @@
 import { Link } from 'react-router';
+import { RatingCard } from '../features/rating/RatingCard.tsx';
 import { QueryError } from '../features/seasons/QueryError.tsx';
 import { SeasonCard } from '../features/seasons/SeasonCard.tsx';
 import { useSeasons } from '../features/seasons/queries.ts';
@@ -37,6 +38,7 @@ export function SeasonsPage() {
       )}
       {query.data && query.data.length > 0 && (
         <>
+          <RatingCard />
           <Link to="/seasons/new" className={seasons.primary}>
             새 시즌 시작
           </Link>

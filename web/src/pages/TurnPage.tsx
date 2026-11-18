@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { MAX_ROUTE_ID, parseWholeNumber } from '../features/format/integer.ts';
+import { MacroPanel } from '../features/macro/MacroPanel.tsx';
+import { AlertList } from '../features/feed/AlertList.tsx';
 import { FeedSection } from '../features/feed/FeedSection.tsx';
 import { RankingSection } from '../features/ranking/RankingSection.tsx';
 import { QueryError } from '../features/seasons/QueryError.tsx';
@@ -92,7 +94,16 @@ export function TurnPage() {
               }}
             />
           )}
+          {turn.data && (
+            <AlertList
+              items={turn.data.alerts}
+              feed={turn.data.feed}
+              season={season.data}
+              onNotice={setNotice}
+            />
+          )}
           {turn.data && <TurnResultCard turn={turn.data} />}
+          {turn.data && <MacroPanel macro={turn.data.macro} />}
           {turn.data && (
             <FeedSection
               items={turn.data.feed}

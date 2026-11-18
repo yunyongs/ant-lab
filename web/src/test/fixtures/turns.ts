@@ -43,6 +43,10 @@ export function turnResultFixture(
     formationDeviation: '0.59864000',
     feed: [],
     alerts: [],
+    macro: {
+      axes: { rate: null, growth: null, fx: null, sentiment: null },
+      probabilities: null,
+    },
     ...overrides,
   };
 }
@@ -71,4 +75,21 @@ export function poisoned(dto: TurnResultDto): TurnResultDto {
     monthBlock: 987654,
     seed: 'SEED-XYZ',
   } as TurnResultDto;
+}
+
+type MacroDto = components['schemas']['MacroDto'];
+
+// Opt-in macro environment with every part present; the default fixture has
+// no data. Values are invented.
+export function macroFixture(overrides: Partial<MacroDto> = {}): MacroDto {
+  return {
+    axes: {
+      rate: { direction: 'UP', strength: '0.41000000' },
+      growth: { direction: 'DOWN', strength: '1.20500000' },
+      fx: { direction: 'NEUTRAL', strength: '0.05000000' },
+      sentiment: { direction: 'UP', strength: '0.77000000' },
+    },
+    probabilities: { p1: '0.1000', p2: '0.2500', p3: '0.6000', p4: '0.0500' },
+    ...overrides,
+  };
 }

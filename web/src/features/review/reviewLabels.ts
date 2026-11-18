@@ -19,3 +19,15 @@ export const PHASE_LABEL = {
   ONGOING: '진행',
   END: '끝',
 } as const satisfies Record<EventPhase, string>;
+
+type FeedKind = components['schemas']['FeedKind'];
+
+export const FEED_KIND_LABEL = {
+  RISE: '상승 뉴스',
+  FALL: '하락 뉴스',
+  ECHO: '재생산',
+  SPREAD: '확대',
+  FADE: '소모',
+  EVENT: '사건 카드',
+  NUDGE: '독려 알림',
+} as const satisfies Record<FeedKind, string>;

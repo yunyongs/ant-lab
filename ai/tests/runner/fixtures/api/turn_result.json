@@ -34,6 +34,15 @@
   "goalkeeperValue": "3000000",
   "goalkeeperWeight": "0.1000",
   "holdingsValue": "2000000",
+  "macro": {
+    "axes": {
+      "fx": null,
+      "growth": null,
+      "rate": null,
+      "sentiment": null
+    },
+    "probabilities": null
+  },
   "midfielderGap": "0",
   "midfielderValue": "9000000",
   "midfielderWeight": "0.3000",

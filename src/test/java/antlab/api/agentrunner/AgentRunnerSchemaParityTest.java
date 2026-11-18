@@ -112,7 +112,7 @@ class AgentRunnerSchemaParityTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"SeasonDto", "FormationDto", "TurnResultDto", "HoldingsDto", "HoldingDto", "TurnPricesDto",
-            "TurnPriceDto", "PoolAssetDto", "FeedItemDto"})
+            "TurnPriceDto", "PoolAssetDto", "FeedItemDto", "MacroDto", "MacroAxesDto", "MacroAxisDto", "RegimeProbabilitiesDto"})
     void the_shared_schemas_equal_the_public_ones(String schema) throws Exception {
         JsonNode runnerSchemas = schemas(RUNNER);
         JsonNode openSchemas = schemas(PUBLIC);
@@ -122,6 +122,14 @@ class AgentRunnerSchemaParityTest {
         assertThat(withoutDescriptions(inlineEnums(runner.path("properties"), runnerSchemas)))
                 .isEqualTo(withoutDescriptions(inlineEnums(open.path("properties"), openSchemas)));
         assertThat(names(runner.path("required"))).isEqualTo(names(open.path("required")));
+    }
+
+    @Test
+    void the_axis_direction_enum_is_the_java_one_in_both_contracts() throws Exception {
+        Set<String> java = new TreeSet<>();
+        Arrays.stream(antlab.history.AxisDirection.values()).map(Enum::name).forEach(java::add);
+        assertThat(names(schemas(RUNNER).path("AxisDirection").path("enum"))).isEqualTo(java);
+        assertThat(names(schemas(PUBLIC).path("AxisDirection").path("enum"))).isEqualTo(java);
     }
 
     @Test

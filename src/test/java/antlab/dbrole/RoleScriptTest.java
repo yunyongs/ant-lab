@@ -237,6 +237,34 @@ class RoleScriptTest {
     }
 
     @Test
+    void r8_onlyTheRegimeColumnUpdateOfMonthBlockIsToleratedAsAColumnGrantToTheAppRole() throws SQLException {
+        String regimeUpdate = "GRANT UPDATE (rate_dir, growth_dir, fx_dir, sentiment_dir, rate_strength, growth_strength, fx_strength,"
+                + " sentiment_strength, prob_p1, prob_p2, prob_p3, prob_p4, regime_label, indicator_z) ON month_block TO antlab_app";
+        try (RoleTestServer.Db db = new RoleTestServer.Db(SERVER, "r8m")) {
+            SERVER.migrate(db.name, SERVER.container().getUsername(), false);
+            SERVER.runRoleScript(db.name);
+            SERVER.execute(db.name, regimeUpdate);
+
+            SERVER.runRoleScript(db.name);
+        }
+        for (String other : new String[] { "GRANT UPDATE (month_start) ON month_block TO antlab_app",
+                "GRANT UPDATE (event_summary) ON month_block TO antlab_app", "GRANT UPDATE (events_reviewed) ON month_block TO antlab_app",
+                "GRANT INSERT (regime_label) ON month_block TO antlab_app", "GRANT SELECT (regime_label) ON month_block TO antlab_app",
+                "GRANT REFERENCES (regime_label) ON month_block TO antlab_app",
+                "GRANT UPDATE (name) ON asset TO antlab_app", "GRANT UPDATE (rate_dir) ON month_block TO PUBLIC" }) {
+            try (RoleTestServer.Db db = new RoleTestServer.Db(SERVER, "r8n")) {
+                SERVER.migrate(db.name, SERVER.container().getUsername(), false);
+                SERVER.runRoleScript(db.name);
+                SERVER.execute(db.name, regimeUpdate);
+                SERVER.execute(db.name, other);
+
+                assertThatThrownBy(() -> SERVER.runRoleScript(db.name)).as(other)
+                        .hasMessageContaining("column-level rights are granted on public.");
+            }
+        }
+    }
+
+    @Test
     void r8_defaultPrivilegesForPublicOrTheAppRoleAreRefused() throws SQLException {
         try (RoleTestServer.Db db = new RoleTestServer.Db(SERVER, "r8d")) {
             SERVER.runRoleScript(db.name);

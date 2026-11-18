@@ -14,7 +14,7 @@ import org.springframework.test.context.jdbc.Sql;
 import org.springframework.test.context.jdbc.Sql.ExecutionPhase;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
 
-/** The statement count of a review does not depend on the number of turns, and nothing writes or locks. */
+/** The statement count of a review does not depend on the number of turns or feed rows, and nothing writes or locks. */
 @IntegrationTest
 @Sql(scripts = {"/fixtures/cleanup_season_start.sql", "/fixtures/history_pool.sql", "/fixtures/replay_months.sql"})
 @Sql(scripts = "/fixtures/cleanup_season_start.sql", executionPhase = ExecutionPhase.AFTER_TEST_METHOD)
@@ -47,12 +47,17 @@ class SeasonReviewQueryCountTest {
         long s24 = ReviewApiSupport.finishedSeason(mvc, jdbc, 24);
         addChanges(s12, 3);
         addChanges(s24, 3, 5, 7);
+        long asset = jdbc.queryForObject("SELECT id FROM asset WHERE ticker = '000660'", Long.class);
+        for (int seq = 1; seq <= 6; seq++) {
+            jdbc.update("INSERT INTO turn_feed (season_id, turn_no, seq, kind, asset_id, template_id, body) "
+                    + "VALUES (?, ?, ?, 'RISE', ?, 'TEST_ROW', '문장')", s24, 1 + seq % 3, seq, asset);
+        }
         List<String> twelve = measure(s12);
         List<String> twentyFour = measure(s24);
         System.out.println("[M] review Hibernate statements: 12 turns = " + twelve.size() + ", 24 turns = " + twentyFour.size());
         assertThat(twelve).hasSameSizeAs(twentyFour);
-        // member, season, months, events, formation changes
-        assertThat(twelve).hasSize(5);
+        // member, season, months, events, feed, formation changes
+        assertThat(twelve).hasSize(6);
         for (String sql : twelve) {
             String s = sql.toLowerCase(Locale.ROOT);
             assertThat(s).doesNotStartWith("insert").doesNotStartWith("update").doesNotStartWith("delete");

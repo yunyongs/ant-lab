@@ -18,18 +18,21 @@ final class EngineHarness {
 
     final MockRestServiceServer paths;
     final MockRestServiceServer projections;
+    final MockRestServiceServer regime;
     final EngineClient client;
 
     EngineHarness() {
         RestClient.Builder pathsBuilder = RestClient.builder();
         RestClient.Builder projectionsBuilder = RestClient.builder();
+        RestClient.Builder regimeBuilder = RestClient.builder();
         this.paths = MockRestServiceServer.bindTo(pathsBuilder).build();
         this.projections = MockRestServiceServer.bindTo(projectionsBuilder).build();
-        this.client = new EngineClient(properties(BASE, FAKE_TOKEN), pathsBuilder, projectionsBuilder);
+        this.regime = MockRestServiceServer.bindTo(regimeBuilder).build();
+        this.client = new EngineClient(properties(BASE, FAKE_TOKEN), pathsBuilder, projectionsBuilder, regimeBuilder);
     }
 
     static EngineProperties properties(String url, String token) {
-        return new EngineProperties(url, token, Duration.ofSeconds(1), Duration.ofSeconds(3), Duration.ofSeconds(15),
+        return new EngineProperties(url, token, Duration.ofSeconds(1), Duration.ofSeconds(3), Duration.ofSeconds(15), Duration.ofSeconds(60),
                 EngineProperties.PathSourceMode.JAVA, "m2-sb6-v1", 2000);
     }
 
@@ -43,6 +46,10 @@ final class EngineHarness {
                         new EngineProjectionRequest.Holding("KR:A001", "0.333333333333"),
                         new EngineProjectionRequest.Holding("US:C003", "0.400000000000"))),
                 new EngineProjectionRequest.Portfolio("CASH", "1", List.of())));
+    }
+
+    static EngineRegimeRequest regimeRequest() {
+        return new EngineRegimeRequest(EngineRegimeRequest.LABEL_VERSION, List.of("1997-01", "1997-02"));
     }
 
     /** A fixture with its engine {@code detail} replaced by a marker that must never come back out. */

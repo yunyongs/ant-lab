@@ -1,4 +1,6 @@
 import { useEffect, useRef } from 'react';
+import { MacroPanel } from '../macro/MacroPanel.tsx';
+import { AlertList } from '../feed/AlertList.tsx';
 import { FeedSection } from '../feed/FeedSection.tsx';
 import { RankingSection } from '../ranking/RankingSection.tsx';
 import { ProjectionLink } from '../projection/ProjectionLink.tsx';
@@ -51,7 +53,16 @@ export function TurnView({
           }}
         />
       )}
+      {turn.data && (
+        <AlertList
+          items={turn.data.alerts}
+          feed={turn.data.feed}
+          season={season}
+          onNotice={onNotice}
+        />
+      )}
       {turn.data && <TurnResultCard turn={turn.data} />}
+      {turn.data && <MacroPanel macro={turn.data.macro} />}
       {turn.data && (
         <FeedSection
           items={turn.data.feed}

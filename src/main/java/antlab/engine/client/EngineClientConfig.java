@@ -27,7 +27,7 @@ class EngineClientConfig {
                 .connectTimeout(properties.connectTimeout())
                 .build();
         return new EngineClient(properties, builder(http, properties.pathsTimeout(), observations),
-                builder(http, properties.projectionsTimeout(), observations));
+                builder(http, properties.projectionsTimeout(), observations), builder(http, properties.regimeTimeout(), observations));
     }
 
     /** One builder per operation family: the read timeout belongs to the request factory. */
