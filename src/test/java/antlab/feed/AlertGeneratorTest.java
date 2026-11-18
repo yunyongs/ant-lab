@@ -16,6 +16,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -296,6 +297,53 @@ class AlertGeneratorTest {
         }
         AlertGenerator bare = new AlertGenerator(FeedTemplateCatalog.fromDirectory(dir));
         assertThat(bare.generate(new AlertInput(1, TURN, assets(), player(3, CASH_HIGH)), 1)).isEmpty();
+    }
+
+    // ---- attention weight of the asset draw ----
+
+    @Test
+    void the_first_asset_is_the_candidate_with_the_smallest_ticket_where_a_higher_attention_grade_buys_more_tickets() {
+        List<AssetFacts> pool = assets();
+        RankingBoard board = RankingBoardCalculator.board(new RankingInput(TURN, pool));
+        Set<Long> ids = new LinkedHashSet<>();
+        board.gainers().stream().limit(AlertRules.CANDIDATES_PER_LIST).forEach(r -> ids.add(r.assetId()));
+        board.losers().stream().limit(AlertRules.CANDIDATES_PER_LIST).forEach(r -> ids.add(r.assetId()));
+        board.attention().stream().limit(AlertRules.CANDIDATES_PER_LIST).forEach(r -> ids.add(r.assetId()));
+        Set<Long> firsts = new HashSet<>();
+        long topAttentionAsset = pool.stream().filter(a -> a.attentionRank() != null && a.attentionRank() == 1).findFirst().orElseThrow()
+                .assetId();
+        int topWins = 0;
+        for (long seed = 1; seed <= 300; seed++) {
+            long bestTicket = Long.MAX_VALUE;
+            String bestRef = null;
+            long bestId = -1;
+            for (AssetFacts a : pool) {
+                if (!ids.contains(a.assetId())) {
+                    continue;
+                }
+                Integer grade = FeedRules.grade(a.attentionRank(), a.attentionN());
+                int weight = Math.max(1, grade == null ? 1 : grade);
+                String ref = a.market() + ":" + a.ticker();
+                long ticket = Long.MAX_VALUE;
+                for (int i = 1; i <= weight; i++) {
+                    ticket = Math.min(ticket, AlertRules.pick(seed, TURN, "alert-pick", "asset:" + ref + ":" + i));
+                }
+                if (ticket < bestTicket || (ticket == bestTicket && FeedHash.compareBytes(ref, bestRef) < 0)) {
+                    bestTicket = ticket;
+                    bestRef = ref;
+                    bestId = a.assetId();
+                }
+            }
+            long first = rows(seed, 0, CASH_HIGH).get(0).assetId();
+            assertThat(first).as("seed " + seed + ": the asset of the smallest weighted ticket").isEqualTo(bestId);
+            firsts.add(first);
+            if (first == topAttentionAsset) {
+                topWins++;
+            }
+        }
+        assertThat(firsts.size()).as("the draw is not constant").isGreaterThan(2);
+        // grade 3 holds three tickets, a grade 1 or 2 asset one or two of them
+        assertThat(topWins).as("the top-attention asset wins more than a fair share").isGreaterThan(300 / ids.size());
     }
 
     // ---- T-A10 text safety of what is generated ----
