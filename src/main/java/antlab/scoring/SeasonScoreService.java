@@ -115,14 +115,14 @@ public class SeasonScoreService {
                     noDistribution = ScoreInputsJson.PATH_TOO_LONG;
                 } else if (refused.getCode() == ErrorCode.ENGINE_UNAVAILABLE || refused.getCode() == ErrorCode.INTERNAL_ERROR) {
                     // transient or a contract fault: nothing is stored, so an engine fix scores the season later
-                    LOG.warn("score.pending code={}", refused.getCode());
+                    LOG.warn("score.pending seasonId={} code={}", seasonId, refused.getCode());
                     return false;
                 } else {
                     throw refused;
                 }
             }
             if (result != null && (result.n() != request.n() || result.horizonTurns() != request.horizonTurns())) {
-                LOG.error("engine.bad_response rule=percentile_shape");
+                LOG.error("engine.bad_response seasonId={} rule=percentile_shape", seasonId);
                 return false;
             }
         }

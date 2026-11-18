@@ -2787,7 +2787,9 @@ components:
           type: boolean
           description: Whether the season counts in the manager rating / 시즌이 매니저 레이팅에 집계되는지
         ratingExclusion:
-          $ref: '#/components/schemas/RatingExclusion'
+          oneOf:
+            - $ref: '#/components/schemas/RatingExclusion'
+            - type: 'null'
           description: |-
             Why the season is left out of the rating: NOT_STARTED (abandoned before turn 3 by a human) or NO_SCORE (no path distribution); null when it counts
 

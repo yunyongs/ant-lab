@@ -2067,7 +2067,7 @@ export interface components {
              *
              *     레이팅에서 빠진 이유: NOT_STARTED(사람이 3턴 전에 포기), NO_SCORE(경로 분포 없음). 집계되면 null
              */
-            ratingExclusion: components["schemas"]["RatingExclusion"];
+            ratingExclusion: components["schemas"]["RatingExclusion"] | null;
         };
         /** @description Process item scores / 과정 항목 점수 */
         SeasonScoreItemsDto: {
