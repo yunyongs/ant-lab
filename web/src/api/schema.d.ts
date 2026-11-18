@@ -1791,8 +1791,8 @@ export interface components {
         };
         /** @description Orders, traded amount and fees of one order source / 한 출발점의 주문 수·매매 금액·수수료 */
         SourceFeeDto: {
-            /** @description Order source (RANKING, FEED, ALERT, BENCH, DIRECT) / 주문 출발점 */
-            source: string;
+            /** @description Order source / 주문 출발점 */
+            source: components["schemas"]["OrderSource"];
             /**
              * Format: int32
              * @description Filled orders of turns 1..T-1 from this source / 이 출발점의 턴 1..T-1 체결 주문 수

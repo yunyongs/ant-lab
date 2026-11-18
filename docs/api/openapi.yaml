@@ -2437,8 +2437,8 @@ components:
       required: [source, orders, tradeNotional, fee]
       properties:
         source:
-          type: string
-          description: Order source (RANKING, FEED, ALERT, BENCH, DIRECT) / 주문 출발점
+          $ref: '#/components/schemas/OrderSource'
+          description: Order source / 주문 출발점
         orders:
           type: integer
           format: int32

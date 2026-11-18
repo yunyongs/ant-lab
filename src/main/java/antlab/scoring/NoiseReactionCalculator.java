@@ -31,6 +31,11 @@ public final class NoiseReactionCalculator {
             BigDecimal followedSellNotional, BigDecimal tradeNotional) {
     }
 
+    /** The one place that drops the team purchase (turn 0) before judging; the analysis and the score both call it. */
+    public static Result ofSeason(int reportTurn, List<TurnSignals> signals, List<BehaviourOrder> allOrders) {
+        return calculate(reportTurn, signals, allOrders.stream().filter(o -> o.turnNo() >= 1).toList());
+    }
+
     /** @throws IllegalStateException when an order is outside turns 1..T-1, has no positive whole-won amount or has no signals */
     public static Result calculate(int reportTurn, List<TurnSignals> signals, List<BehaviourOrder> orders) {
         if (reportTurn < 1) {

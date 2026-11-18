@@ -2,6 +2,7 @@ package antlab.api.report;
 
 import static antlab.api.turn.TurnApiSupport.assetId;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import antlab.account.OrderSide;
 import antlab.account.OrderSource;
@@ -70,6 +71,15 @@ class BehaviourQueryTest {
         BehaviourFixtures.fill(jdbc, season, brk, 12, "BUY", "DIRECT", 1, 1000, 1);
         assertThat(query.orders(season, 12)).allSatisfy(o -> assertThat(o.turnNo()).isLessThan(12));
         assertThat(query.orders(season, 12)).hasSize(4);
+    }
+
+    @Test
+    void 주문_턴의_가격이_없으면_시즌을_거절한다() throws Exception {
+        long season = ReportApiSupport.finishedSeason(mvc, jdbc);
+        long brk = assetId(jdbc, "BRK.B");
+        BehaviourFixtures.fill(jdbc, season, brk, 5, "BUY", "DIRECT", 1, 1000, 1);
+        jdbc.update("DELETE FROM turn_price WHERE season_id = ? AND asset_id = ? AND turn_no = 5", season, brk);
+        assertThatThrownBy(() -> query.orders(season, 12)).isInstanceOf(IllegalStateException.class);
     }
 
     @Test

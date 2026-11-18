@@ -55,6 +55,9 @@ public final class PlatformRevenue {
                 continue;
             }
             int i = SOURCE_ORDER.indexOf(order.source());
+            if (i < 0) {
+                throw inconsistent("출발점이 고정 목록에 없다");
+            }
             counts[i]++;
             notionals[i] = notionals[i].add(order.notional());
             fees[i] = fees[i].add(order.fee());

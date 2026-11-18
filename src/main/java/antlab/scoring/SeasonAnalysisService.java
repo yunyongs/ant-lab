@@ -133,8 +133,8 @@ public class SeasonAnalysisService {
         DisciplineCalculator.Result discipline = DisciplineCalculator.calculate(new DisciplineFacts(reportTurn, initialCash,
                 teamValues, facts, disciplineOrders.orders(id, reportTurn)));
         List<BehaviourOrder> behaviour = behaviourOrders.orders(id, reportTurn);
-        NoiseReactionCalculator.Result noise = NoiseReactionCalculator.calculate(reportTurn, signals.read(id, reportTurn),
-                behaviour.stream().filter(o -> o.turnNo() >= 1).toList());
+        NoiseReactionCalculator.Result noise = NoiseReactionCalculator.ofSeason(reportTurn, signals.read(id, reportTurn),
+                behaviour);
         return new SeasonAnalysisDto(ANALYSIS_VERSION, resolution.version(), reportTurn, baselines, decomposition,
                 disciplineDto(discipline), noiseDto(noise), platformDto(PlatformRevenue.of(reportTurn, behaviour)));
     }
@@ -216,7 +216,7 @@ public class SeasonAnalysisService {
 
     private static PlatformDto platformDto(PlatformRevenue.Result r) {
         return new PlatformDto(r.totalFee(), r.teamFee(),
-                r.bySource().stream().map(row -> new SourceFeeDto(row.source().name(), row.orders(), row.tradeNotional(),
+                r.bySource().stream().map(row -> new SourceFeeDto(row.source(), row.orders(), row.tradeNotional(),
                         row.fee())).toList(),
                 r.nudgedFee(), r.nudgedFeeShare());
     }

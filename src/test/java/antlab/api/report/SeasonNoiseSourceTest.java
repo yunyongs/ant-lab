@@ -4,6 +4,7 @@ import static antlab.api.turn.RankingSupport.playedSeason;
 import static antlab.api.turn.TurnApiSupport.assetId;
 import static antlab.api.turn.TurnApiSupport.json;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import antlab.scoring.NoiseReactionSource;
 import antlab.scoring.SeasonNoiseSource;
@@ -47,6 +48,15 @@ class SeasonNoiseSourceTest {
         Optional<BigDecimal> value = source.noiseShare(season);
         assertThat(value).isPresent();
         assertThat(value.get().toPlainString()).isEqualTo(noise.get("noiseShare").asString());
+    }
+
+    @Test
+    void 모순이_있는_끝난_시즌은_빈_값이_아니라_예외다() throws Exception {
+        long season = playedSeason(mvc, jdbc, 12);
+        long brk = assetId(jdbc, "BRK.B");
+        ReportApiSupport.fill(jdbc, season, brk, 4, "BUY", 2);
+        jdbc.update("DELETE FROM turn_price WHERE season_id = ? AND asset_id = ? AND turn_no = 4", season, brk);
+        assertThatThrownBy(() -> source.noiseShare(season)).isInstanceOf(IllegalStateException.class);
     }
 
     @Test

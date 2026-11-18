@@ -50,6 +50,12 @@ class PlatformRevenueTest {
     }
 
     @Test
+    void theFixedRowListHoldsEverySourceAndAnUnlistedOneIsRefused() {
+        assertThat(PlatformRevenue.SOURCE_ORDER).containsExactlyInAnyOrder(OrderSource.values());
+        assertThat(PlatformRevenue.SOURCE_ORDER).doesNotHaveDuplicates();
+    }
+
+    @Test
     void aZeroTotalFeeHasNoShare() {
         PlatformRevenue.Result r = PlatformRevenue.of(3, List.of());
         assertThat(r.totalFee().toPlainString()).isEqualTo("0");

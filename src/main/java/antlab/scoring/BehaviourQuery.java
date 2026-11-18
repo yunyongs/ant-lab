@@ -9,8 +9,8 @@ import org.springframework.stereotype.Component;
 /**
  * Source of the behaviour items (noise reaction, per-source platform revenue): one read-only native statement whatever the number of
  * orders. Fills are summed per order first (the same range and join as the report's {@code po} CTE, with turn 0 included for the team
- * fee), then each order meets its asset's price at its turn and {@link BehaviourRules#WINDOW_TURNS} turns later. A missing price stays
- * null so that the calculators can refuse the season. No rounding and no write here.
+ * fee), then each order meets its asset's price at its turn and {@link BehaviourRules#WINDOW_TURNS} turns later. A missing price at the order's turn
+ * refuses the season here; a missing later price stays null (the window is cut at the last turn). No rounding and no write here.
  */
 @Component
 public class BehaviourQuery {
@@ -37,10 +37,16 @@ public class BehaviourQuery {
     public List<BehaviourOrder> orders(long seasonId, int reportTurn) {
         return jdbc.sql(ORDERS).param("seasonId", seasonId).param("reportTurn", reportTurn)
                 .param("window", BehaviourRules.WINDOW_TURNS)
-                .query((rs, n) -> new BehaviourOrder(rs.getLong("order_id"), rs.getInt("turn_no"),
-                        OrderSide.valueOf(rs.getString("side")), rs.getLong("asset_id"),
-                        OrderSource.valueOf(rs.getString("source")), rs.getBigDecimal("notional"), rs.getBigDecimal("fee"),
-                        rs.getBigDecimal("price"), rs.getBigDecimal("price_after")))
+                .query((rs, n) -> row(rs))
                 .list();
+    }
+
+    private static BehaviourOrder row(java.sql.ResultSet rs) throws java.sql.SQLException {
+        if (rs.getBigDecimal("price") == null) {
+            throw new IllegalStateException("주문 종목의 그 턴 가격이 없다: order " + rs.getLong("order_id"));
+        }
+        return new BehaviourOrder(rs.getLong("order_id"), rs.getInt("turn_no"), OrderSide.valueOf(rs.getString("side")),
+                rs.getLong("asset_id"), OrderSource.valueOf(rs.getString("source")), rs.getBigDecimal("notional"),
+                rs.getBigDecimal("fee"), rs.getBigDecimal("price"), rs.getBigDecimal("price_after"));
     }
 }

@@ -1,5 +1,6 @@
 package antlab.scoring;
 
+import antlab.account.OrderSource;
 import antlab.common.exposure.ExposedFrom;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.media.Schema.RequiredMode;
@@ -313,7 +314,7 @@ public record SeasonAnalysisDto(
             @ExposedFrom({"orders.source"})
             @Schema(requiredMode = RequiredMode.REQUIRED, description = "Order source (RANKING, FEED, ALERT, BENCH, DIRECT) / "
                     + "주문 출발점")
-            String source,
+            OrderSource source,
             @ExposedFrom({"orders.source", "orders.turn_no"})
             @Schema(requiredMode = RequiredMode.REQUIRED, description = "Filled orders of turns 1..T-1 from this source / "
                     + "이 출발점의 턴 1..T-1 체결 주문 수")
