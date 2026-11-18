@@ -1,5 +1,6 @@
 import { Link } from 'react-router';
 import { isNavEnabled } from '../../app/navItems.ts';
+import { ScoreCard } from '../score/ScoreCard.tsx';
 import { AnalysisReportBlocks } from '../analysis/AnalysisReportBlocks.tsx';
 import type { Season } from '../seasons/labels.ts';
 import type { Report } from './queries.ts';
@@ -24,6 +25,7 @@ export function ReportView({
       <p className={styles.meta}>
         {`${String(report.reportTurns)}/${String(report.pathLength)}턴 보고 · 보류 주문 ${String(report.pendingOrders)}건 · 보류 전술 변경 ${String(report.pendingChanges)}건`}
       </p>
+      <ScoreCard seasonId={season.id} />
       {GROUPS.map((group) => (
         <ReportGroup key={group.id} group={group} report={report} />
       ))}
