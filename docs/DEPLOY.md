@@ -39,7 +39,7 @@
 - 웹(React)은 **별도 컨테이너를 두지 않는다.** CI에서 `vite build` → 결과를 Caddy 이미지 `/srv`에 굽고 Caddy가 `file_server`로 준다. 데스크탑(Tauri)·모바일(Expo)은 서버 배포 대상이 아니다(같은 REST API를 `https://{도메인}/api`로 부른다, PLAN §10). 대안 — 웹을 `nginx` 컨테이너로 따로: 컨테이너와 메모리가 늘고 TLS와 정적 파일을 Caddy 하나로 하는 이점이 없어 택하지 않았다.
 - Phase 0–M1의 Java 적재·수집기 잡은 `api` 프로세스 안의 `@Scheduled`로 둔다(MACRO_ETF §6.2·부록 A.3 "Airflow 과함" 유지). 별도 워커 컨테이너는 만들지 않는다.
 - `tools/fetch`(P0-08)는 **소유자 기기 전용 CLI**로 남는다 — 컨테이너로 만들지 않는다(KIS 실전 키를 서버에 두지 않음, M1 수집기는 Java, PLAN §11).
-- M1-06 (2026-11): the KIS daily price job lives in `api`, is off by default, and the `prod` profile refuses to enable it until OPS decides where the real key may live; locally it runs as a one-shot (`--antlab.collect.run-once`) until M1-10 schedules it. / M1-06(2026-11): KIS 일봉 잡은 `api` 안에 있고 기본은 꺼져 있으며, `prod` 프로필은 OPS가 실전 키의 위치를 정할 때까지 켜기를 거부한다. 로컬에서는 M1-10이 일정을 붙이기 전까지 한 번 실행(`--antlab.collect.run-once`)으로 돈다.
+- M1-06 (2026-11): the KIS daily price job lives in `api`, is off by default, and the `prod` profile refuses to enable it until OPS decides where the real key may live; locally it runs as a one-shot (`--antlab.collect.run-once`) until M1-10 schedules it. The collector never stores the current day's row (an intraday value): the window ends yesterday in the market's own time zone. / M1-06(2026-11): KIS 일봉 잡은 `api` 안에 있고 기본은 꺼져 있으며, `prod` 프로필은 OPS가 실전 키의 위치를 정할 때까지 켜기를 거부한다. 로컬에서는 M1-10이 일정을 붙이기 전까지 한 번 실행(`--antlab.collect.run-once`)으로 돈다. 수집기는 당일 행(장중 값)을 저장하지 않는다. 요청 구간은 그 시장 현지 시간대의 어제까지다.
 
 ## 3. compose 파일 구조와 실행 명령
 
