@@ -12,7 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 선언 포지션 단독 변경(내부 서비스) — SQL {@code lineup_change} 와 같은 동작이다. 공개 HTTP 경로는 만들지 않는다(소유자 결정: 내부만).
+ * 선언 포지션 단독 변경 — SQL {@code lineup_change} 와 같은 동작이다. 공개 경로는 {@code POST /api/v1/seasons/{id}/lineup-changes}.
  *
  * <p>순서: 시즌 잠금(회원 조건 포함, 첫 시즌 조회) → 진행 중·현재 턴·0턴 거절 → 보유 양수 → 열린 구간 → 같은 포지션이면 기존 구간을
  * 그대로 돌려주고 새 행 없음 → 다르면 기존 구간을 현재 턴에 닫고 새 구간을 연다. 같은 턴에 열린 뒤 닫힌 길이 없는 구간도 그대로 둔다.
@@ -38,12 +38,12 @@ public class LineupChangeService {
     }
 
     /**
-     * <p>새 포지션이 null 이면 NullPointerException 이다 — 공개 경로를 만들 때 400(INVALID_ARGUMENT)으로 바꾼다.
+     * <p>새 포지션이 null 이면 NullPointerException 이다 — 컨트롤러의 요청 검증이 먼저 400(INVALID_ARGUMENT)으로 막는다.
      * <p>시즌·보유를 먼저 읽은 트랜잭션 안에서 부르지 않는다 — 잠금 조회가 영속성 컨텍스트의 옛 엔티티를 돌려줄 수 있다(SPRING_JPA §5.2 ①).
-     * @return 바꾼 뒤 열린 구간(같은 포지션이면 기존 구간)
+     * @return 바꾼 뒤 열린 구간(같은 포지션이면 기존 구간, changed = false)
      */
     @Transactional
-    public Lineup change(long seasonId, int expectedTurnNo, long assetId, Position newPosition) {
+    public LineupChangeResult change(long seasonId, int expectedTurnNo, long assetId, Position newPosition) {
         Objects.requireNonNull(newPosition, "newPosition");
         long memberId = currentMember.existingId().orElseThrow(LineupChangeService::seasonNotFound);
         Season season = seasons.findByIdAndMemberIdForUpdate(seasonId, memberId)
@@ -63,13 +63,12 @@ public class LineupChangeService {
         Lineup open = lineups.findOpenBySeasonIdAndAssetId(seasonId, assetId)
                 .orElseThrow(() -> new DomainException(ErrorCode.LINEUP_MISMATCH, "보유와 라인업 구간이 맞지 않는다"));
         if (open.getDeclaredPosition() == newPosition) {
-            return open;
+            return new LineupChangeResult(open, false);
         }
         open.close(turnNo);
         // 열린 구간은 종목당 하나만 둘 수 있다(부분 유일 인덱스) — 닫는 UPDATE 를 새 구간 INSERT 보다 먼저 내보낸다.
         entityManager.flush();
-        Lineup opened = lineups.save(new Lineup(season, holding.getAssetId(), newPosition, turnNo));
-        return opened;
+        return new LineupChangeResult(lineups.save(new Lineup(season, holding.getAssetId(), newPosition, turnNo)), true);
     }
 
     private static DomainException seasonNotFound() {
