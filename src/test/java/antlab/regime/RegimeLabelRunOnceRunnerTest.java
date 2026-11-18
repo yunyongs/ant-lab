@@ -127,11 +127,11 @@ class RegimeLabelRunOnceRunnerTest {
             runner.run(null);
 
             assertThat(EXIT_CODES).containsExactly(0);
-            assertThat(output.getAll()).contains("regime.labelled rows=2 filled=2 unchanged=0")
+            assertThat(output.getAll()).contains("regime.labelled rows=2 evaluated=1 filled=1 unchanged=1")
                     .doesNotContain("1997").doesNotContain("0.2731").doesNotContain("0.4125");
             runner.run(null);
             assertThat(EXIT_CODES).containsExactly(0, 0);
-            assertThat(output.getAll()).contains("regime.labelled rows=2 filled=0 unchanged=2");
+            assertThat(output.getAll()).contains("regime.labelled rows=2 evaluated=1 filled=0 unchanged=2");
         }
 
         @Test
@@ -177,6 +177,7 @@ class RegimeLabelRunOnceRunnerTest {
                 list.removeAll();
                 list.add(first.put("month", "1996-12"));
                 list.add(second.put("month", "1997-01"));
+                ((ObjectNode) n.get("coverage")).put("evaluated", 2).put("noData", 0);
             }).toString());
 
             runner.run(null);

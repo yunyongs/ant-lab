@@ -14,8 +14,11 @@ import org.springframework.stereotype.Component;
 @Component
 class RegimeLabelJob {
 
-    /** What a successful run did; counts only, because months and values are replay-only. */
-    record Outcome(int rows, int filled, int unchanged) {
+    /**
+     * What a successful run did; counts only, because months and values are replay-only. {@code unchanged} includes months the
+     * engine could not evaluate; their columns stay NULL.
+     */
+    record Outcome(int rows, int evaluated, int filled, int unchanged) {
     }
 
     /** The months of the table cannot go into one request (more than the engine takes, or outside 1900-2099). */
@@ -37,7 +40,7 @@ class RegimeLabelJob {
     Outcome run() {
         List<String> months = writer.months();
         if (months.isEmpty()) {
-            return new Outcome(0, 0, 0);
+            return new Outcome(0, 0, 0, 0);
         }
         EngineRegimeRequest request;
         try {
@@ -48,6 +51,7 @@ class RegimeLabelJob {
         EngineRegimeResult answer = engine.evaluateRegime(request);
         List<MonthRegime> checked = RegimeAnswerCheck.check(request, answer);
         MonthRegimeWriter.Result result = writer.fill(checked);
-        return new Outcome(months.size(), result.filled(), result.unchanged());
+        int evaluated = (int) checked.stream().filter(m -> m.label() != null).count();
+        return new Outcome(months.size(), evaluated, result.filled(), result.unchanged());
     }
 }

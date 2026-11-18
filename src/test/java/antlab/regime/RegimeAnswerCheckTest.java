@@ -51,11 +51,12 @@ class RegimeAnswerCheckTest {
         assertThat(first.indicators().get("14US")).isEqualByComparingTo("-0.30000000");
 
         MonthRegime second = months.get(1);
+        assertThat(second.month()).isEqualTo("1997-02");
         assertThat(second.rate()).isNull();
-        assertThat(second.fx().direction()).isEqualTo(AxisDirection.NEUTRAL);
+        assertThat(second.fx()).isNull();
         assertThat(second.probabilities()).isNull();
         assertThat(second.label()).isNull();
-        assertThat(second.indicators().values()).containsOnlyNulls();
+        assertThat(second.indicators()).isNull();
     }
 
     @Test
@@ -93,6 +94,8 @@ class RegimeAnswerCheckTest {
                     month(n, 1).put("status", "CARRIED");
                     month(n, 1).set("axes", month(n, 0).get("axes"));
                 }),
+                Arguments.of("coverage evaluated count off", (Consumer<ObjectNode>) n -> ((ObjectNode) n.get("coverage")).put("evaluated", 2)),
+                Arguments.of("coverage noData count off", (Consumer<ObjectNode>) n -> ((ObjectNode) n.get("coverage")).put("noData", 0)),
                 Arguments.of("probabilities sum 0.001 too high", (Consumer<ObjectNode>) n ->
                         ((ObjectNode) month(n, 0).get("probabilities")).put("p1", "0.2741")),
                 Arguments.of("probabilities sum 0.0003 too high", (Consumer<ObjectNode>) n ->
@@ -119,15 +122,17 @@ class RegimeAnswerCheckTest {
     }
 
     @Test
-    void aCarriedMonthKeepsItsFxAndSentimentAxesButNoRateGrowthOrProbabilities() {
-        List<MonthRegime> months = check(n -> {
+    void aMonthThatIsNotEvaluatedCarriesNoColumnValue() {
+        List<MonthRegime> carried = check(n -> {
             month(n, 1).put("status", "CARRIED");
             ((ObjectNode) month(n, 1).get("axes")).set("sentiment", month(n, 0).get("axes").get("fx"));
+            ((ObjectNode) n.get("coverage")).put("carried", 1).put("noData", 0);
         });
+        assertThat(carried.get(1).columns().values()).containsOnlyNulls();
 
-        assertThat(months.get(1).sentiment().direction()).isEqualTo(AxisDirection.DOWN);
-        assertThat(months.get(1).rate()).isNull();
-        assertThat(months.get(1).probabilities()).isNull();
+        List<MonthRegime> noData = check(n -> { });
+        assertThat(noData.get(1).columns().values()).containsOnlyNulls();
+        assertThat(noData.get(0).columns().get("regime_label")).isEqualTo(RegimePool.P4);
     }
 
     @Test

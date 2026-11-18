@@ -13,7 +13,7 @@ import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.stereotype.Component;
 
 /**
- * Runs the regime label job once at startup and exits: 0 when every month was filled or already held the answer, 1 otherwise.
+ * Runs the regime label job once at startup and exits: 0 when every evaluated month was filled or already held the answer (months without an evaluation stay NULL), 1 otherwise.
  * Active only with {@code antlab.regime.run-once=LABEL_MONTHS}. The engine must be reachable ({@code antlab.engine.url} and
  * the token), and a stored label that differs from the engine's answer stops the run without a write (the owner clears the
  * regime columns first to relabel).
@@ -37,7 +37,8 @@ public class RegimeLabelRunOnceRunner implements ApplicationRunner {
         int code = 1;
         try {
             RegimeLabelJob.Outcome outcome = job.run();
-            LOG.info("regime.labelled rows={} filled={} unchanged={}", outcome.rows(), outcome.filled(), outcome.unchanged());
+            LOG.info("regime.labelled rows={} evaluated={} filled={} unchanged={}", outcome.rows(), outcome.evaluated(),
+                    outcome.filled(), outcome.unchanged());
             code = 0;
         } catch (RuntimeException e) {
             LOG.error("regime.failed reason={}", describe(e));

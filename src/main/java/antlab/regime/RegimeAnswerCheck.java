@@ -13,8 +13,9 @@ import java.util.Map;
 /**
  * Everything that must hold before one value is written: the answer is for the version and the months that were asked, in
  * that order, each month's status agrees with what it carries, the four probabilities add up to 1 within the database CHECK
- * tolerance, and all sixteen indicator keys are there. The wire shapes (digit counts, enums) are enforced by the client
- * records. Pure: no I/O. A failure names the position of the month, never the month or a value.
+ * tolerance, all sixteen indicator keys are there, and the coverage counts agree with the statuses. A month that is not
+ * EVALUATED carries no column value, so its columns stay NULL and a later run can fill them. The wire shapes (digit counts,
+ * enums) are enforced by the client records. Pure: no I/O. A failure names the position of the month, never the month or a value.
  */
 final class RegimeAnswerCheck {
 
@@ -46,6 +47,13 @@ final class RegimeAnswerCheck {
             }
             out.add(one(i, month));
         }
+        long evaluated = answer.months().stream().filter(m -> m.status() == EngineRegimeResult.Status.EVALUATED).count();
+        long carried = answer.months().stream().filter(m -> m.status() == EngineRegimeResult.Status.CARRIED).count();
+        long noData = answer.months().stream().filter(m -> m.status() == EngineRegimeResult.Status.NO_DATA).count();
+        var coverage = answer.coverage();
+        if (coverage.evaluated() != evaluated || coverage.carried() != carried || coverage.noData() != noData) {
+            throw reject("the coverage counts do not match the month statuses");
+        }
         return List.copyOf(out);
     }
 
@@ -69,6 +77,9 @@ final class RegimeAnswerCheck {
             if (gap.compareTo(SUM_TOLERANCE) > 0) {
                 throw reject("month " + index + ": the probabilities do not add up to 1");
             }
+        }
+        if (!evaluated) {
+            return new MonthRegime(month.month(), null, null, null, null, null, null, null);
         }
         Map<String, BigDecimal> indicators = new LinkedHashMap<>();
         for (String key : EngineRegimeResult.INDICATOR_KEYS) {

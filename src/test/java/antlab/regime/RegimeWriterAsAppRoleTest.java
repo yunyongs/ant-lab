@@ -37,7 +37,7 @@ class RegimeWriterAsAppRoleTest {
             List<MonthRegime> answer = RegimeAnswerCheck.check(REQUEST, RegimeFixtures.parsed());
 
             assertThat(writer.months()).containsExactly("1997-01", "1997-02");
-            assertThat(writer.fill(answer)).isEqualTo(new MonthRegimeWriter.Result(2, 0));
+            assertThat(writer.fill(answer)).isEqualTo(new MonthRegimeWriter.Result(1, 1));
             assertThat(writer.fill(answer)).isEqualTo(new MonthRegimeWriter.Result(0, 2));
 
             JdbcTemplate superuser = db.superuser();

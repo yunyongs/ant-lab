@@ -22,6 +22,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -116,7 +117,7 @@ class RegimeLabelJobTest {
 
         RegimeLabelJob.Outcome outcome = job.run();
 
-        assertThat(outcome).isEqualTo(new RegimeLabelJob.Outcome(2, 2, 0));
+        assertThat(outcome).isEqualTo(new RegimeLabelJob.Outcome(2, 1, 1, 1));
         Map<String, Object> evaluated = row("1997-01");
         assertThat(evaluated).containsEntry("rate_dir", "UP").containsEntry("rate_strength", "0.41250000")
                 .containsEntry("growth_dir", "NEUTRAL").containsEntry("growth_strength", "0.10000000")
@@ -127,9 +128,9 @@ class RegimeLabelJobTest {
                 .containsEntry("z_type", "object").containsEntry("z1", "0.52000000").containsEntry("z3", "-1.15069709")
                 .containsEntry("z14us", "-0.30000000").containsEntry("z2_type", "null").containsEntry("z1_type", "number");
         Map<String, Object> noData = row("1997-02");
-        assertThat(noData).containsEntry("rate_dir", null).containsEntry("fx_dir", "NEUTRAL").containsEntry("fx_strength", "0.00000000")
-                .containsEntry("prob_p1", null).containsEntry("regime_label", null).containsEntry("z_type", "object");
-        assertThat(String.valueOf(noData.get("indicator_z"))).doesNotContain("0.");
+        assertThat(noData).containsEntry("rate_dir", null).containsEntry("growth_dir", null).containsEntry("fx_dir", null)
+                .containsEntry("sentiment_dir", null).containsEntry("fx_strength", null).containsEntry("prob_p1", null)
+                .containsEntry("regime_label", null).containsEntry("indicator_z", null).containsEntry("z_type", null);
     }
 
     @Test
@@ -157,7 +158,7 @@ class RegimeLabelJobTest {
 
         RegimeLabelJob.Outcome outcome = job.run();
 
-        assertThat(outcome).isEqualTo(new RegimeLabelJob.Outcome(2, 0, 2));
+        assertThat(outcome).isEqualTo(new RegimeLabelJob.Outcome(2, 1, 0, 2));
         assertThat(snapshot()).as("same values and same row versions").isEqualTo(afterFirst);
         assertThat(ENGINE.requests()).hasSize(2);
     }
@@ -215,8 +216,35 @@ class RegimeLabelJobTest {
 
         RegimeLabelJob.Outcome outcome = job.run();
 
-        assertThat(outcome).isEqualTo(new RegimeLabelJob.Outcome(2, 2, 0));
+        assertThat(outcome).isEqualTo(new RegimeLabelJob.Outcome(2, 1, 1, 1));
         assertThat(row("1997-01")).containsEntry("rate_strength", "0.41250000").containsEntry("regime_label", "P4");
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @ValueSource(strings = { "NO_DATA", "CARRIED" })
+    void aMonthWithoutAnEvaluationStaysEmptySoALaterFullerAnswerFillsIt(String status) {
+        months("1997-01", "1997-02");
+        serve(edited(n -> {
+            month(n, 1).put("status", status);
+            if (status.equals("CARRIED")) {
+                ((ObjectNode) month(n, 1).get("axes")).set("sentiment", month(n, 0).get("axes").get("fx"));
+                ((ObjectNode) n.get("coverage")).put("carried", 1).put("noData", 0);
+            }
+        }));
+
+        assertThat(job.run()).isEqualTo(new RegimeLabelJob.Outcome(2, 1, 1, 1));
+        assertThat(row("1997-02")).containsEntry("fx_dir", null).containsEntry("sentiment_dir", null)
+                .containsEntry("regime_label", null).containsEntry("indicator_z", null);
+
+        serve(edited(n -> {
+            ObjectNode second = month(RegimeFixtures.tree(), 0).deepCopy();
+            second.put("month", "1997-02");
+            ((ArrayNode) n.get("months")).set(1, second);
+            ((ObjectNode) n.get("coverage")).put("evaluated", 2).put("carried", 0).put("noData", 0);
+        }));
+
+        assertThat(job.run()).isEqualTo(new RegimeLabelJob.Outcome(2, 2, 1, 1));
+        assertThat(row("1997-02")).containsEntry("regime_label", "P4").containsEntry("z1", "0.52000000").containsEntry("fx_dir", "DOWN");
     }
 
     @Test
@@ -229,6 +257,7 @@ class RegimeLabelJobTest {
             list.removeAll();
             list.add(first);
             list.add(month(RegimeFixtures.tree(), 0));
+            ((ObjectNode) n.get("coverage")).put("evaluated", 2).put("noData", 0);
         });
         serve(answer);
         // the second row is the one with label P4, so the database refuses it after the first row was updated
@@ -333,7 +362,7 @@ class RegimeLabelJobTest {
     void aTableWithoutMonthsNeedsNoEngineCall() {
         RegimeLabelJob.Outcome outcome = job.run();
 
-        assertThat(outcome).isEqualTo(new RegimeLabelJob.Outcome(0, 0, 0));
+        assertThat(outcome).isEqualTo(new RegimeLabelJob.Outcome(0, 0, 0, 0));
         assertThat(ENGINE.requests()).isEmpty();
     }
 
