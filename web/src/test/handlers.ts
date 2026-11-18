@@ -3,6 +3,8 @@ import { parseWholeNumber } from '../features/format/integer.ts';
 import { authHandlers } from './authHandlers.ts';
 import { holdingsFixture } from './fixtures/holdings.ts';
 import { pricesFixture } from './fixtures/prices.ts';
+import { ratingFixture } from './fixtures/rating.ts';
+import { scoreFixture } from './fixtures/score.ts';
 import { projectionFixture } from './fixtures/projection.ts';
 import { poolFixture } from './fixtures/pool.ts';
 import { emptyBoard } from './fixtures/ranking.ts';
@@ -40,5 +42,11 @@ export const handlers = [
       }),
     );
   }),
+  http.get('*/api/v1/seasons/:seasonId/score', () =>
+    HttpResponse.json(scoreFixture()),
+  ),
+  http.get('*/api/v1/members/me/rating', () =>
+    HttpResponse.json(ratingFixture()),
+  ),
   ...authHandlers,
 ];
