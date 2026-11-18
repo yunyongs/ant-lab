@@ -35,7 +35,8 @@ class TurnAdvanceExposureTest {
 
     static final Set<String> FORBIDDEN_KEYS = Set.of("seed", "engineVersion", "dataSnapshotDate", "baseDate",
             "monthBlockId", "monthBlock", "monthStart", "memberId", "version", "createdAt", "updatedAt", "attemptNo",
-            "attempt", "checkCode", "mismatchCount", "reconciliation", "results", "path");
+            "attempt", "checkCode", "mismatchCount", "reconciliation", "results", "path", "label", "regimeLabel", "phase",
+            "indicatorZ", "indicators", "quality", "level");
 
     @Autowired
     MockMvcTester mvc;
