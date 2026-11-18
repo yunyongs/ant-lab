@@ -66,8 +66,9 @@ public record SeasonReportSources(
     /**
      * 턴 t 시작 시점의 보유 한 종목: 평가액 = 수량 × 그 턴의 turn_price.
      * Quantity is non-zero; a negative value means a negative cumulative quantity, which the calculator refuses.
+     * {@code system} is the base-date system judgement of the asset, the fallback when the season cannot measure it.
      */
-    public record HoldingFact(AssetKey asset, int turnNo, BigDecimal value) {
+    public record HoldingFact(AssetKey asset, int turnNo, BigDecimal value, Position system) {
     }
 
     /** 라인업 구간: 노출 턴 k 의 선언은 startTurn &lt; k ≤ endTurn(null 은 열린 끝). */

@@ -1,5 +1,6 @@
 package antlab.scoring;
 
+import antlab.asset.Position;
 import antlab.scoring.SeasonReportSources.AssetKey;
 import antlab.scoring.SeasonReportSources.HoldingFact;
 import antlab.scoring.SeasonReportSources.OrderFacts;
@@ -64,13 +65,16 @@ public class SeasonReportQuery {
                 WHERE o.season_id = :seasonId AND o.turn_no < :reportTurn
                 GROUP BY o.asset_id, o.turn_no
             )
-            SELECT a.market AS market, a.ticker AS ticker, g.n AS turn_no, sum(po.dq) * tp.price AS value
+            SELECT a.market AS market, a.ticker AS ticker, g.n AS turn_no, sum(po.dq) * tp.price AS value,
+                   ap.system_position AS system_position
             FROM (SELECT DISTINCT po0.asset_id FROM po po0) x
             CROSS JOIN generate_series(1, CAST(:reportTurn AS integer)) AS g(n)
             JOIN po ON po.asset_id = x.asset_id AND po.turn_no < g.n
             JOIN turn_price tp ON tp.season_id = :seasonId AND tp.asset_id = x.asset_id AND tp.turn_no = g.n
             JOIN asset a ON a.id = x.asset_id
-            GROUP BY a.market, a.ticker, g.n, tp.price
+            JOIN season se ON se.id = :seasonId
+            LEFT JOIN asset_position ap ON ap.asset_id = x.asset_id AND ap.base_date = se.base_date
+            GROUP BY a.market, a.ticker, g.n, tp.price, ap.system_position
             HAVING sum(po.dq) <> 0
             ORDER BY a.market, a.ticker, g.n""";
 
@@ -142,8 +146,12 @@ public class SeasonReportQuery {
     public List<HoldingFact> holdings(long seasonId, int reportTurn) {
         return jdbc.sql(HOLDINGS).param("seasonId", seasonId).param("reportTurn", reportTurn)
                 .query((rs, n) -> new HoldingFact(new AssetKey(rs.getString("market"), rs.getString("ticker")),
-                        rs.getInt("turn_no"), rs.getBigDecimal("value")))
+                        rs.getInt("turn_no"), rs.getBigDecimal("value"), systemPosition(rs.getString("system_position"))))
                 .list();
+    }
+
+    private static Position systemPosition(String name) {
+        return name == null ? null : Position.valueOf(name);
     }
 
     /** 기준선 대용 두 종목의 0..T 턴 가격(26 {@code sr_baseline} 의 입력). 시장 + 티커 자연 키로 찾고 턴 순이다. */

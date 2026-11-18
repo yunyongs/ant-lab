@@ -7,7 +7,7 @@ import io.swagger.v3.oas.annotations.media.Schema.RequiredMode;
 import java.math.BigDecimal;
 
 /**
- * 시즌 성적표 — SQL 정의 {@code sr_report} 의 37열과 이름·순서가 1:1 이다(snake → camel). 저장하지 않고 조회로 계산한다.
+ * 시즌 성적표 — SQL 정의 {@code sr_report} 의 38열과 이름·순서가 1:1 이다(snake → camel). 저장하지 않고 조회로 계산한다.
  * 금액은 원 단위 정수 문자열(소수점 없음), 비율은 소수 8자리 문자열(−0.2 = −20%), 개수는 정수다. 값을 만들 수 없는 칸은 null 이다(키를 생략하지 않는다).
  * 날짜·월 블록·사건·시드·종목 이름·변경 번호는 싣지 않는다 — 날짜 공개는 복기의 몫이다. 기준선은 Phase 0 대용 ETF(069500·SPY 50/50)
  * 매수 후 보유이며 가격 수익률과 수정 종가가 섞인 편향이 있다.
@@ -116,10 +116,30 @@ public record SeasonReportDto(
                 "season.start_defender", "season.start_midfielder", "season.start_forward"})
         @Schema(requiredMode = RequiredMode.REQUIRED,
                 description = "Average formation deviation = exact average over turns of Σ|actual share − target "
-                        + "share| (divided once by the common denominator), 8 decimal places\n"
+                        + "share| (divided once by the common denominator), 8 decimal places. Declared positions; "
+                        + "not scored from s63-v3 (see measuredFormationDeviation)\n"
                         + "\n"
-                        + "포메이션 이탈 평균 = 턴마다 Σ|실제 비중 − 목표 비중|의 정확한 평균(공통 분모로 한 번 나눔), 소수 8자리")
+                        + "포메이션 이탈 평균 = 턴마다 Σ|실제 비중 − 목표 비중|의 정확한 평균(공통 분모로 한 번 나눔), 소수 8자리. "
+                        + "선언 포지션 기준이며 s63-v3부터 채점하지 않음(measuredFormationDeviation 참고)")
         BigDecimal formationDeviation,
+        @ExposedFrom({"season_path.month_block_id", "asset_month_return.local_return", "fx_month.fx_change",
+                "asset_position.system_position", "execution.quantity", "turn_price.price", "turn.total_value",
+                "formation_change.after_goalkeeper", "formation_change.after_defender",
+                "formation_change.after_midfielder", "formation_change.after_forward", "season.start_goalkeeper",
+                "season.start_defender", "season.start_midfielder", "season.start_forward"})
+        @Schema(requiredMode = RequiredMode.REQUIRED,
+                description = "Average formation deviation on season-measured positions (the scored basis from "
+                        + "score version s63-v3; seasons scored under s63-v1 or s63-v2 keep the declared basis): the same formula as formationDeviation, with the actual weights "
+                        + "grouped by the position each player really played on this season's path; a player the "
+                        + "season cannot measure counts by the base-date system judgement, never by the declaration; "
+                        + "cash is goalkeeper. Declared positions do not enter, so relabelling cannot change it. "
+                        + "Provisional while the season runs. 8 decimal places\n"
+                        + "\n"
+                        + "시즌 실측 포지션 기준 포메이션 이탈 평균(점수 버전 s63-v3부터 채점 기준, s63-v1·s63-v2로 채점한 시즌은 선언 기준 그대로): 식은 formationDeviation과 같고 "
+                        + "실제 비중을 이 시즌 경로에서 선수가 실제로 한 역할로 묶는다. 시즌으로 실측할 수 없는 선수는 기준일 시스템 판정으로 "
+                        + "세고 선언으로는 세지 않으며 현금은 골키퍼다. 선언 포지션은 들어가지 않으므로 라벨을 바꿔도 값이 달라지지 않는다. "
+                        + "진행 중에는 잠정, 소수 8자리")
+        BigDecimal measuredFormationDeviation,
         @ExposedFrom({"season_path.month_block_id", "asset_month_return.local_return", "fx_month.fx_change",
                 "lineup.declared_position", "execution.quantity", "turn_price.price"})
         @Schema(requiredMode = RequiredMode.REQUIRED, nullable = true,
@@ -137,7 +157,8 @@ public record SeasonReportDto(
         @ExposedFrom({"season_path.month_block_id", "asset_month_return.local_return", "fx_month.fx_change",
                 "lineup.declared_position", "execution.quantity", "turn_price.price"})
         @Schema(requiredMode = RequiredMode.REQUIRED, description = "Number of exposed assets that could not be "
-                + "measured for lack of samples / 표본 부족으로 실측하지 못한 노출 종목 수")
+                + "measured for lack of samples (counted by the base-date system judgement in "
+                + "measuredFormationDeviation) / 표본 부족으로 실측하지 못한 노출 종목 수(measuredFormationDeviation에서는 기준일 시스템 판정으로 센다)")
         Integer rolePlayersUnjudged,
         @ExposedFrom({"orders.source", "execution.fill_price", "execution.quantity"})
         @Schema(requiredMode = RequiredMode.REQUIRED, nullable = true,
