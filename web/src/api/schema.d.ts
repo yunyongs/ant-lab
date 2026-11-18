@@ -1110,9 +1110,9 @@ export interface components {
             remainingTurns: number;
         };
         /**
-         * @description Values of the stored turn row and the ratios computed from them. The advance-turn response and the turn lookup have the same shape. The sum of the four shares can differ from 1 by at most 2e-8, and status and pathLength are the season's values now. targetFormation is the target at the start of that turn. Reconciliation attempt number, status, seed, path, month block, year-month and return kind are not included. feed is the feed stored for that turn and alerts are the nudge alerts stored for it.
+         * @description Values of the stored turn row and the ratios computed from them. The advance-turn response and the turn lookup have the same shape. The sum of the four shares can differ from 1 by at most 2e-8, and status and pathLength are the season's values now. targetFormation is the target at the start of that turn. Reconciliation attempt number, status, seed, path, month block, year-month and return kind are not included. feed is the feed stored for that turn and alerts are the nudge alerts stored for it. macro is the macro environment of that turn's month.
          *
-         *     저장한 턴 행의 값과 거기서 계산한 비율. 턴 전환 응답과 턴 조회가 같은 형이다. 비중 4개의 합은 1과 최대 2e-8 다를 수 있고, status·pathLength 는 시즌의 지금 값이다. targetFormation 은 그 턴 시작 시점의 목표다. 대사 시도 번호·상태·시드·경로·월 블록·연월·수익률 종류는 싣지 않는다. feed 는 그 턴에 저장된 피드이고 alerts 는 저장된 독려 알림이다
+         *     저장한 턴 행의 값과 거기서 계산한 비율. 턴 전환 응답과 턴 조회가 같은 형이다. 비중 4개의 합은 1과 최대 2e-8 다를 수 있고, status·pathLength 는 시즌의 지금 값이다. targetFormation 은 그 턴 시작 시점의 목표다. 대사 시도 번호·상태·시드·경로·월 블록·연월·수익률 종류는 싣지 않는다. feed 는 그 턴에 저장된 피드이고 alerts 는 저장된 독려 알림이다. macro 는 그 턴의 달의 거시 환경이다
          */
         TurnResultDto: {
             /**
@@ -1253,6 +1253,87 @@ export interface components {
             feed: components["schemas"]["FeedItemDto"][];
             /** @description The nudge alerts shown at this turn, in display order; empty when the turn has none. Their seq numbers continue after the feed's / 이 턴에 보인 독려 알림, 표시 순서. 없으면 빈 목록. seq 는 피드 뒤에서 이어진다 */
             alerts: components["schemas"]["FeedItemDto"][];
+            /** @description Macro environment of this turn's month / 이 턴의 달의 거시 환경 */
+            macro: components["schemas"]["MacroDto"];
+        };
+        /**
+         * @description Macro environment of the month applied at this turn, as stored for that month: direction and strength of four axes and four regime probabilities. Transformed values only: no indicator level and no date. A part the engine could not evaluate is null, which means no data, not neutral.
+         *
+         *     이 턴에 적용된 달의 거시 환경(그 달에 저장된 값): 네 축의 방향·강도와 국면 확률 네 개. 변환값만 싣고 지표의 수준과 날짜는 싣지 않는다. 엔진이 평가하지 못한 부분은 null이며 중립이 아니라 자료 없음을 뜻한다
+         */
+        MacroDto: {
+            /** @description The four axes / 네 축 */
+            axes: components["schemas"]["MacroAxesDto"];
+            /** @description Regime probabilities; null when the engine did not evaluate the month / 국면 확률. 엔진이 그 달을 평가하지 않았으면 null */
+            probabilities: components["schemas"]["RegimeProbabilitiesDto"] | null;
+        };
+        /**
+         * @description The four macro axes; an axis the engine could not evaluate is null
+         *
+         *     거시 축 네 개. 엔진이 평가하지 못한 축은 null
+         */
+        MacroAxesDto: {
+            /** @description Rate axis; UP means rates are rising / 금리 축. 상승은 금리가 오르는 중 */
+            rate: components["schemas"]["MacroAxisDto"] | null;
+            /** @description Growth axis; UP means growth is improving / 성장 축. 상승은 성장이 좋아지는 중 */
+            growth: components["schemas"]["MacroAxisDto"] | null;
+            /** @description Exchange-rate axis; UP means the dollar is strong against the won / 환율 축. 상승은 달러 강세(원화 약세) */
+            fx: components["schemas"]["MacroAxisDto"] | null;
+            /** @description Market sentiment axis; UP means calmer markets and more risk appetite / 심리 축. 상승은 시장이 차분하고 위험 선호가 큼 */
+            sentiment: components["schemas"]["MacroAxisDto"] | null;
+        };
+        /** @description One macro axis, direction and strength / 거시 축 하나, 방향과 강도 */
+        MacroAxisDto: {
+            /**
+             * @description Direction of the axis: UP, DOWN or NEUTRAL
+             *
+             *     축의 방향: 상승·하락·중립
+             */
+            direction: components["schemas"]["AxisDirection"];
+            /**
+             * Format: decimal
+             * @description Size of the axis score, 0 or more, 8 decimal places, no unit
+             *
+             *     축 점수의 크기, 0 이상, 소수 8자리, 단위 없음
+             */
+            strength: string;
+        };
+        /** @enum {string} */
+        AxisDirection: "UP" | "DOWN" | "NEUTRAL";
+        /**
+         * @description Four regime probabilities; their sum can differ from 1 by at most 0.0002
+         *
+         *     국면 확률 네 개. 합은 1과 최대 0.0002 다를 수 있다
+         */
+        RegimeProbabilitiesDto: {
+            /**
+             * Format: decimal
+             * @description Probability of rates down and growth down, 4 decimal places
+             *
+             *     금리 하락·성장 둔화 확률, 소수 4자리
+             */
+            p1: string;
+            /**
+             * Format: decimal
+             * @description Probability of rates down and growth up, 4 decimal places
+             *
+             *     금리 하락·성장 확장 확률, 소수 4자리
+             */
+            p2: string;
+            /**
+             * Format: decimal
+             * @description Probability of rates up and growth up, 4 decimal places
+             *
+             *     금리 상승·성장 확장 확률, 소수 4자리
+             */
+            p3: string;
+            /**
+             * Format: decimal
+             * @description Probability of rates up and growth down, 4 decimal places
+             *
+             *     금리 상승·성장 둔화 확률, 소수 4자리
+             */
+            p4: string;
         };
         /**
          * @description One feed item as shown. Event cards and noise share this shape; what was a real event is revealed in the review.

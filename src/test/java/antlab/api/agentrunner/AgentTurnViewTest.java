@@ -77,8 +77,9 @@ import tools.jackson.databind.json.JsonMapper;
 @ExtendWith(OutputCaptureExtension.class)
 @IntegrationTest
 @Sql(scripts = {"/fixtures/cleanup_season_start.sql", "/fixtures/history_pool.sql", "/fixtures/replay_months.sql",
-        "/fixtures/turn_returns.sql"})
-@Sql(scripts = "/fixtures/cleanup_season_start.sql", executionPhase = ExecutionPhase.AFTER_TEST_METHOD)
+        "/fixtures/turn_returns.sql", "/fixtures/replay_macro.sql"})
+@Sql(scripts = {"/fixtures/cleanup_macro.sql", "/fixtures/cleanup_season_start.sql"},
+        executionPhase = ExecutionPhase.AFTER_TEST_METHOD)
 class AgentTurnViewTest {
 
     private static final Set<String> FORBIDDEN_KEYS = Set.of("seed", "engineVersion", "dataSnapshotDate", "baseDate",
@@ -314,6 +315,9 @@ class AgentTurnViewTest {
         assertThat(body.get("lastTurn").get("turnNo").asInt()).isEqualTo(4);
         assertThat(body.get("lastTurn").get("feed")).as("the feed of turn 4 is embedded, as the human turn answers it").isNotEmpty();
         assertThat(body.get("lastTurn").get("alerts")).as("the nudge alerts of turn 4 are embedded too").isNotEmpty();
+        assertThat(body.get("lastTurn").get("macro")).as("the macro environment of turn 4, as stored and as the human turn shows it")
+                .isEqualTo(antlab.api.turn.MacroSupport.expected(jdbc, a.season(), 4))
+                .isEqualTo(written(human[1]).get("macro"));
         assertThat(body.get("prices").get("turnNo").asInt()).isEqualTo(4);
         assertThat(((HoldingsDto) human[2]).turnNo()).isEqualTo(4);
         assertThat(body.get("pool")).isNotEmpty();

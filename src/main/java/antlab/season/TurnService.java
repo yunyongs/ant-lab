@@ -155,12 +155,16 @@ public class TurnService {
                 : turns.findTotalValueBySeasonIdAndTurnNo(seasonId, expectedTurnNo)
                         .orElseThrow(() -> new IllegalStateException("직전 턴의 스냅샷이 없다"));
 
+        // 11b. 거시 환경 — 방금 적용한 턴(next)의 경로 행 하나만 읽는다(1문장).
+        TurnMacroRow macro = seasonPaths.findTurnMacro(seasonId, next)
+                .orElseThrow(() -> new IllegalStateException("턴의 경로 행이 없다"));
+
         // 12. 현재 턴 +1, 마지막 턴이면 FINISHED (대사·기록 뒤)
         season.advanceTurn();
 
         // 13. 응답 — 조회와 같은 조립기. 목표 포메이션은 시즌의 현재 값이다: 전환 시점에는 모든 변경의 turn_no ≤ next-1 < next 라
         //     마지막 변경의 after = 현재 포메이션이다(대사 규칙 15 가 같은 트랜잭션에서 확인).
-        return TurnResultAssembler.assemble(season, turn, previousTotal, season.getCurrentFormation(), feed);
+        return TurnResultAssembler.assemble(season, turn, previousTotal, season.getCurrentFormation(), feed, macro);
     }
 
     /** The turn's feed rows, then its nudge alerts numbered after them, written together; returns them in display order. */

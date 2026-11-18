@@ -125,6 +125,8 @@ Hibernate의 `@Immutable`은 "이 엔티티는 바뀌지 않는다"는 선언이
 
 **복기(P0-39).** 복기 핸들러는 `@FinishedSeasonOnly`와 `@ReviewReveal`을 함께 단다. 이 핸들러에서만 `[복기 전용]` 값 열과 `season.seed`·`engine_version`·`data_snapshot_date`(`[내부]` 태그, `ExposureRules.REVIEW_INTERNAL_ALLOWED`)가 통과하고, 시험이 `@ReviewReveal`을 이 경로 하나로 고정한다. 허용은 열 단위가 아니라 태그 단위다 — 식별자가 아닌 `[복기 전용]` 열을 복기 DTO에 더하면 통과하므로 그런 추가는 리뷰에서 정한다. 블록·사건 번호와 사건 키는 여전히 영구 금지다. `[복기 전용]` 값 열을 고르거나 돌려주는 리포지토리 메서드는 이름이 `findRevealed`로 시작해야 하고 `SeasonReviewService`만 부른다. 예외는 엔진 입력 `MonthBlockRepository.findReplayMonths` 하나이고, 시험이 그 호출처를 엔진으로 고정한다. `MonthBlock`·`MonthEvent`·`Asset`의 그 값 필드와 `SeasonPath.monthBlockId`에는 getter가 없다. `TurnFeed`는 MVP 피드가 `kind`를 읽는 방식을 정할 때까지 getter를 둔다. 조인 키로만 쓰는 `month_block_id`는 대상이 아니다. `JdbcClient` SQL은 이 이름 훑기 밖이므로 응답 쪽 노출 시험에 맡긴다. `turn_feed.kind`와 연결된 `month_event` 필드는 `GET …/review`로만 나가며(MVP-19) `TurnFeedRepository.findRevealedFeed`가 읽는다. 시즌 중 `FeedItemDto`는 그대로 `turnNo, seq, assetId, body`다. 피드 항목에서 나온 주문 수(`orders.turn_feed_id`, `[내부]`)는 `@FinishedSeasonOnly` 핸들러에서 `Integer`로만 나간다(`ExposureRules.COUNT_ONLY_ALLOWED`). `turn_feed.asset_group_id`는 복기 핸들러에서만 통과한다(`ExposureRules.REVIEW_IDENTIFIER_ALLOWED`). 시즌 중에는 종목도 그룹도 없는 피드 항목이 곧 사건 카드라는 표시가 되기 때문이다.
 
+**Macro environment (MVP-16). / 거시 환경(MVP-16).** Outside the review handler, of `month_block` a response may carry only the twelve axis and probability columns, read through `season_path` for one played turn. `indicator_z` is tagged `[노출]` but no response reads it yet; `regime_label` is `[내부]`. / 복기 핸들러 밖에서 `month_block`의 열 중 응답이 실을 수 있는 것은 축·확률 열 12개뿐이며, 진행한 턴 하나에 대해 `season_path`를 거쳐 읽는다. `indicator_z`는 `[노출]`이지만 아직 어떤 응답도 읽지 않고, `regime_label`은 `[내부]`다.
+
 ## 5. 트랜잭션 경계와 락
 
 ### 5.1 규칙

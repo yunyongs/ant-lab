@@ -9,6 +9,7 @@ import java.util.List;
  * {@link TurnResultDto} 를 만든다(erd §9 "같은 조립 코드의 출력"). 금액·비율의 scale 은 여기서 정한다.
  *
  * <p>입력은 저장된 값뿐이다: 그 턴의 {@code turn} 행, 직전 총액(1턴이면 초기 자금), 그 턴 <b>시작 시점</b>의 목표 포메이션.
+ * 그 턴의 달의 거시 환경 행({@link TurnMacroRow})은 받은 그대로 {@link MacroDto} 로만 옮긴다.
  * 그 턴에 저장된 피드 행은 표시 순서로 받아 알림({@link TurnFeed#isAlert})과 나머지로 나눈 뒤 {@link FeedItemDto} 로만 바꾼다. 비율은 {@link PositionRatios}, 기간 수익률은 {@link MoneyMath#ratio}, 위험 여유는 정확한 뺄셈이다(반올림 없음).
  */
 public final class TurnResultAssembler {
@@ -22,7 +23,7 @@ public final class TurnResultAssembler {
     }
 
     public static TurnResultDto assemble(Season season, Turn turn, BigDecimal previousTotal, Formation target,
-            List<TurnFeed> rows) {
+            List<TurnFeed> rows, TurnMacroRow macro) {
         BigDecimal total = turn.getTotalValue();
         BigDecimal change = total.subtract(previousTotal);
         BigDecimal riskLimit = season.getRiskLimit();
@@ -39,6 +40,7 @@ public final class TurnResultAssembler {
                 ratios.goalkeeperWeight(), ratios.defenderWeight(), ratios.midfielderWeight(), ratios.forwardWeight(),
                 FormationDto.from(target),
                 ratios.goalkeeperGap(), ratios.defenderGap(), ratios.midfielderGap(), ratios.forwardGap(),
-                ratios.formationDeviation(), items(rows, false), items(rows, true));
+                ratios.formationDeviation(), items(rows, false), items(rows, true),
+                MacroDto.from(macro));
     }
 }
