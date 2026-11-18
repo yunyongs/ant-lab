@@ -382,7 +382,7 @@ def drop_bars(raw, month):
 
 def test_a_missing_bar_alone_lists_the_asset_and_refetch_diff_moves_it(w):
     repo, raw, targets, kr, _ = w
-    drop_bars(raw, "201006")
+    drop_bars(raw, "199703")  # in the oldest (short) page, so paging still ends there
     res, _ = cf.run_compare(targets, raw, repo)
     assert res.refetch == [("KR", "005930", "NO_BAR")] and [r["verdict"] for r in cf.blocking(res.rows)] == ["NO_BAR"]
     assert (raw / "compare" / "refetch.csv").read_text(encoding="utf-8").splitlines()[1] == "KR,005930,NO_BAR"
@@ -396,3 +396,15 @@ def test_the_yfinance_start_bound_is_2006_12_inclusive(w):
     assert not cf.run_compare(targets, raw, repo)[0].problems
     write_yf(raw, "SPY", first=date(2007, 1, 1))
     assert any("front-truncated" in p for p in cf.run_compare(targets, raw, repo)[0].problems)
+
+
+def test_a_front_truncated_monthly_cache_reports_no_bar_and_lists_the_asset(w):
+    repo, raw, targets, *_ = w
+    for page in sorted((raw / "kis").glob("kis_kr_005930_M_*")):
+        doc = json.loads(page.read_text(encoding="utf-8"))
+        doc["response"]["output2"] = [r for r in doc["response"]["output2"] if r["stck_bsop_date"] >= "20050101"]
+        page.write_text(json.dumps(doc), encoding="utf-8")
+    res, _ = cf.run_compare(targets, raw, repo)
+    leading = [r["month"] for r in res.rows if r["kind"] == "INTERNAL" and r["verdict"] == "NO_BAR"]
+    assert leading[0] == "1995-12" and leading[-1] == "2004-12" and len(leading) == 109
+    assert res.refetch == [("KR", "005930", "NO_BAR")]

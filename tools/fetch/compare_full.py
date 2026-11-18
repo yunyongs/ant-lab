@@ -179,7 +179,6 @@ def compare_asset(ft: FetchTarget, data: AssetData, base: date = BASE_DATE) -> l
                         "yf_end": "", "verdict": "NONE", "kis_ret": None, "yf_ret": None})
     if data.kis and data.bars is not None:
         bars = bar_by_month(data.bars, f"{where} bar")
-        first_bar = min(bars) if bars else None
         for m in sorted(kis_me):
             if m > last_m:
                 continue
@@ -187,9 +186,8 @@ def compare_asset(ft: FetchTarget, data: AssetData, base: date = BASE_DATE) -> l
             base_row = {"kind": "INTERNAL", "market": ft.market, "ticker": ft.ticker, "segment": seg.no, "month": m,
                         "basis": basis, "canonical": seg.source, "signed": None, "kis_end": kis_me[m][0], "yf_end": "",
                         "kis_ret": None, "yf_ret": None}
-            if m not in bars:
-                if first_bar is not None and m >= first_bar:
-                    out.append({**base_row, "diff_bp": Decimal(0), "verdict": "NO_BAR"})
+            if m not in bars:  # the drip starts at the asset's first KIS month, so every month from there needs a bar
+                out.append({**base_row, "diff_bp": Decimal(0), "verdict": "NO_BAR"})
                 continue
             bar, daily = bars[m][1], kis_me[m][1]
             out.append({**base_row, "diff_bp": Decimal(0) if bar == daily else abs(bar / daily - 1) * BP,

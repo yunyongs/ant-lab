@@ -124,13 +124,13 @@ def test_internal_us_has_no_rounding_allowance():
     assert v["2000-01"] == "DIFF" and v["2000-02"] == "EQUAL"
 
 
-def test_internal_missing_bar_after_the_first_bar_is_blocking_but_months_before_it_are_not():
+def test_internal_missing_bar_is_blocking_including_leading_months():
     kis = mrows("2000-01", ["100"] * 12)
     bars = [b for b in mrows("2000-03", ["100"] * 10) if not b[0].startswith("2000-06")]
     rows = compare_asset(ft_kr(), kr_data(kis, yrows("2000-01", ["100"] * 12), bars), BASE)
     v = internal(rows)
-    assert v["2000-06"] == "NO_BAR" and "2000-01" not in v and "2000-02" not in v and v["2000-03"] == "EQUAL"
-    assert [r for r in cf.blocking(rows) if r["kind"] == "INTERNAL"][0]["month"] == "2000-06"
+    assert v["2000-06"] == "NO_BAR" and v["2000-01"] == v["2000-02"] == "NO_BAR" and v["2000-03"] == "EQUAL"
+    assert [r for r in cf.blocking(rows) if r["kind"] == "INTERNAL"][-1]["month"] == "2000-06"
 
 
 def test_duplicate_partial_bar_at_a_page_boundary_uses_the_latest_dated_bar_and_counts_months_once():
