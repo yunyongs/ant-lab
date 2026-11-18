@@ -11,6 +11,7 @@ import {
   BREACH_BODY,
   BREACH_BODY_FINISHED,
   BREACH_TITLE,
+  FORMATION_TURN_NOTE,
 } from './turnMessages.ts';
 import styles from './Turn.module.css';
 
@@ -91,6 +92,7 @@ export function TurnResultCard({ turn }: { turn: TurnResult }) {
             <dd>{ratioWithPoints(turn.formationDeviation)}</dd>
           </div>
         </dl>
+        <p className={styles.hint}>{FORMATION_TURN_NOTE}</p>
       </section>
       <p className={styles.hint}>
         이 턴의 결과는 턴을 넘긴 시점의 값입니다. 이번 턴에 사고판 결과는 매매

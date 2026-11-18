@@ -131,7 +131,12 @@ export const GROUPS: GroupDef[] = [
         value: (r) => ratioWithPercent(r.turnoverAnnual),
       },
       {
-        label: '포메이션 이탈 평균',
+        label: '포메이션 이탈 평균 (시즌 실측 기준)',
+        keys: ['measuredFormationDeviation'],
+        value: (r) => ratioWithPoints(r.measuredFormationDeviation),
+      },
+      {
+        label: '포메이션 이탈 평균 (선언 기준)',
         keys: ['formationDeviation'],
         value: (r) => ratioWithPoints(r.formationDeviation),
       },
@@ -225,7 +230,7 @@ export const GROUPS: GroupDef[] = [
   },
 ];
 
-// Every key the screen shows, for the "all 37 fields" check.
+// Every key the screen shows, for the "every field" check.
 export const SHOWN_KEYS: (keyof Report)[] = [
   ...META_KEYS,
   ...GROUPS.flatMap((g) => g.rows.flatMap((row) => row.keys)),
