@@ -37,6 +37,12 @@ public final class ExposureRules {
     public static final Set<String> IDENTIFIER_ALLOWED = Set.of("asset.id", "asset.asset_group_id", "season.id",
             "turn_price.asset_id", "turn_feed.asset_id", "orders.id", "orders.formation_change_id", "member.id");
 
+    /**
+     * Identifiers only a review handler may expose. In season, a feed item with neither asset nor group is an event card,
+     * so turn_feed.asset_group_id must not reach any in-season response.
+     */
+    public static final Set<String> REVIEW_IDENTIFIER_ALLOWED = Set.of("turn_feed.asset_group_id");
+
     /** 영구 금지: 적재 순서가 달 순서라 번호 자체가 날짜 단서다(erd §2, SPRING_JPA §4.6). */
     public static final Set<String> FORBIDDEN = Set.of("month_block.id", "month_event.id", "turn_feed.month_event_id");
 
@@ -54,7 +60,7 @@ public final class ExposureRules {
      * 이 열을 쓰는 구성 요소는 형이 {@code Integer}(또는 {@code int})여야 하고, 핸들러에 {@code @FinishedSeasonOnly} 가 있어야 한다.
      */
     public static final Set<String> COUNT_ONLY_ALLOWED = Set.of("reconciliation_log.status", "reconciliation_log.turn_no",
-            "reconciliation_log.attempt_no");
+            "reconciliation_log.attempt_no", "orders.turn_feed_id");
 
     /**
      * Reproducibility triple of a season. Tagged {@code [내부]} in the DB (true while the season runs) but allowed on the
@@ -163,7 +169,8 @@ public final class ExposureRules {
     /** 끝난 시즌 전용·건수 전용 원천은 표지와 형 조건으로만 통과시키고, 나머지는 {@link #checkSource} 로 보낸다. */
     static List<String> checkRestricted(String where, String source, String[] sources, Class<?> type, ExposureCatalog catalog,
             boolean finishedSeasonOnly, boolean reviewReveal) {
-        if (finishedSeasonOnly && reviewReveal && revealed(source, catalog)) {
+        if (finishedSeasonOnly && reviewReveal
+                && (revealed(source, catalog) || (REVIEW_IDENTIFIER_ALLOWED.contains(source) && catalog.has(source)))) {
             return List.of();
         }
         boolean finishedOnly = FINISHED_ONLY_ALLOWED.contains(source);
