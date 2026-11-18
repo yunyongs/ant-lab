@@ -28,6 +28,11 @@ describe('TurnResultCard', () => {
       screen.getByText('21.771998% / 목표 10% (11.771998%p) · 22,820,000원'),
     ).toBeInTheDocument();
     expect(screen.queryByText(/위험 선언을 넘었습니다/)).toBeNull();
+    expect(
+      screen.getByText(
+        '포메이션 준수는 시즌이 끝난 뒤 실측 포지션으로 계산합니다. 점수 반영은 s63-v3부터입니다.',
+      ),
+    ).toBeInTheDocument();
   });
 
   it('marks a breached turn by text, not by colour alone', () => {

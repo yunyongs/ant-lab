@@ -5,6 +5,7 @@ import static antlab.scoring.SeasonReportFixtures.B;
 import static antlab.scoring.SeasonReportFixtures.KR;
 import static antlab.scoring.SeasonReportFixtures.US;
 import static antlab.scoring.SeasonReportFixtures.bd;
+import static antlab.scoring.SeasonReportFixtures.holding;
 import static antlab.scoring.SeasonReportFixtures.noOrders;
 import static antlab.scoring.SeasonReportFixtures.prices;
 import static antlab.scoring.SeasonReportFixtures.returns;
@@ -32,7 +33,7 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 /**
- * 성적표 계산기 — 손 원천으로 37값을 확인한다. 기대값은 파이썬 {@code Decimal}·{@code Fraction} 으로 따로 계산했다(같은 코드를 다시 쓰지 않았다).
+ * 성적표 계산기 — 손 원천으로 38값을 확인한다. 기대값은 파이썬 {@code Decimal}·{@code Fraction} 으로 따로 계산했다(같은 코드를 다시 쓰지 않았다).
  * 원천 조회가 거르는 것(0턴 팀 구성 제외 등)은 여기서 보지 않는다 — 그 값은 {@link SeasonReportSources.OrderFacts} 로 들어온다.
  */
 class SeasonReportCalculatorTest {
@@ -42,8 +43,8 @@ class SeasonReportCalculatorTest {
     }
 
     @Test
-    void 응답은_서른일곱_칸이다() {
-        assertThat(SeasonReportDto.class.getRecordComponents()).hasSize(37);
+    void 응답은_서른여덟_칸이다() {
+        assertThat(SeasonReportDto.class.getRecordComponents()).hasSize(38);
     }
 
     @Test
@@ -225,7 +226,7 @@ class SeasonReportCalculatorTest {
      * 8턴 시즌. 시장 대용 둘의 수익률이 같아 시장 = 그 값이다. A 는 시장의 0.1배(변동성 최저·하락 참여율 0.1 → 골키퍼),
      * B 는 0.5배(하락 참여율 0.5, 상·하위 변동성 아님 → 수비수), C 는 두 달치뿐이라 판정 불능이다.
      */
-    private static SeasonReportSources eightTurns(Position declaredA, Position declaredB, List<HoldingFact> holdings) {
+    static SeasonReportSources eightTurns(Position declaredA, Position declaredB, List<HoldingFact> holdings) {
         SeasonFacts season = new SeasonFacts(SeasonStatus.FINISHED, 8, 8, won(30_000_000), bd("-0.50000000"),
                 bd("0.00100000"), bd("0.00200000"), bd("0.00400000"), 100, 0, 0, 0);
         List<TurnFact> turns = new ArrayList<>();
@@ -250,17 +251,17 @@ class SeasonReportCalculatorTest {
                 new ReconFacts(0, 8, 0, 0));
     }
 
-    private static final AssetKey C_ASSET = new AssetKey("KR", "CCC003");
+    static final AssetKey C_ASSET = new AssetKey("KR", "CCC003");
 
-    private static List<HoldingFact> roleHoldings() {
+    static List<HoldingFact> roleHoldings() {
         List<HoldingFact> h = new ArrayList<>();
         for (int t = 2; t <= 8; t++) {
-            h.add(new HoldingFact(A, t, won(1_000_000)));
+            h.add(holding(A, t, won(1_000_000)));
         }
         for (int t = 1; t <= 8; t++) {
-            h.add(new HoldingFact(B, t, won(500_000)));
+            h.add(holding(B, t, won(500_000)));
         }
-        h.add(new HoldingFact(C_ASSET, 3, won(300_000)));
+        h.add(holding(C_ASSET, 3, won(300_000)));
         return h;
     }
 
@@ -288,7 +289,7 @@ class SeasonReportCalculatorTest {
 
     @Test
     void 판정_불능_선수만_들고_있으면_역할_수행은_널이다() {
-        List<HoldingFact> onlyC = List.of(new HoldingFact(C_ASSET, 3, won(300_000)));
+        List<HoldingFact> onlyC = List.of(holding(C_ASSET, 3, won(300_000)));
         SeasonReportDto dto = calc(eightTurns(Position.GOALKEEPER, Position.DEFENDER, onlyC));
         assertThat(dto.roleFit()).isNull();
         assertThat(dto.rolePlayersJudged()).isZero();
@@ -317,7 +318,7 @@ class SeasonReportCalculatorTest {
                 new LineupSpan(C_ASSET, Position.DEFENDER, 0, 3), new LineupSpan(C_ASSET, Position.MIDFIELDER, 3, null));
         SeasonReportSources base = eightTurns(Position.GOALKEEPER, Position.DEFENDER, roleHoldings());
         List<HoldingFact> holdings = new ArrayList<>(roleHoldings());
-        holdings.add(new HoldingFact(C_ASSET, 5, won(300_000)));
+        holdings.add(holding(C_ASSET, 5, won(300_000)));
         SeasonReportDto dto = calc(SeasonReportFixtures.withHoldings(base, holdings, lineup));
         assertThat(dto.rolePlayersJudged()).isEqualTo(2);
         assertThat(dto.rolePlayersUnjudged()).isEqualTo(1);

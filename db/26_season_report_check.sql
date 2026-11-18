@@ -382,13 +382,13 @@ BEGIN
     INSERT INTO zz_check_result (section, item, expected, actual, ok) VALUES ('01 계약', 'sr_report 가 정확히 1행이다', '1', (SELECT count(*)::text FROM zz_rep), (SELECT count(*) FROM zz_rep) = 1);
     SELECT string_agg(attname::text, ',' ORDER BY attnum) INTO v_cols FROM pg_attribute WHERE attrelid = 'zz_rep'::regclass AND attnum > 0 AND NOT attisdropped;
     INSERT INTO zz_check_result (section, item, expected, actual, ok)
-    VALUES ('01 계약', 'sr_report 의 열 이름·순서가 erd D38 표와 같다 (37열)',
-            'season_status,is_final,report_turns,path_length,pending_orders,pending_changes,initial_cash,final_value,total_return,monthly_volatility,max_drawdown,baseline_final_value,baseline_return,excess_return,risk_limit,risk_breach_turns,risk_breach_depth,max_single_weight,trade_notional,turnover_annual,formation_deviation,role_fit,role_players_judged,role_players_unjudged,nudge_share,nudge_same_turn_share,total_fee,team_fee,formation_change_fee,platform_nudge_fee,formation_changes,formation_change_orders,changes_without_orders,recon_mismatch_rows,recon_turn_bundles,recon_manual_bundles,recon_out_of_range_rows',
+    VALUES ('01 계약', 'sr_report 의 열 이름·순서가 erd D38 표와 같다 (38열)',
+            'season_status,is_final,report_turns,path_length,pending_orders,pending_changes,initial_cash,final_value,total_return,monthly_volatility,max_drawdown,baseline_final_value,baseline_return,excess_return,risk_limit,risk_breach_turns,risk_breach_depth,max_single_weight,trade_notional,turnover_annual,formation_deviation,measured_formation_deviation,role_fit,role_players_judged,role_players_unjudged,nudge_share,nudge_same_turn_share,total_fee,team_fee,formation_change_fee,platform_nudge_fee,formation_changes,formation_change_orders,changes_without_orders,recon_mismatch_rows,recon_turn_bundles,recon_manual_bundles,recon_out_of_range_rows',
             v_cols,
-            v_cols = 'season_status,is_final,report_turns,path_length,pending_orders,pending_changes,initial_cash,final_value,total_return,monthly_volatility,max_drawdown,baseline_final_value,baseline_return,excess_return,risk_limit,risk_breach_turns,risk_breach_depth,max_single_weight,trade_notional,turnover_annual,formation_deviation,role_fit,role_players_judged,role_players_unjudged,nudge_share,nudge_same_turn_share,total_fee,team_fee,formation_change_fee,platform_nudge_fee,formation_changes,formation_change_orders,changes_without_orders,recon_mismatch_rows,recon_turn_bundles,recon_manual_bundles,recon_out_of_range_rows');
+            v_cols = 'season_status,is_final,report_turns,path_length,pending_orders,pending_changes,initial_cash,final_value,total_return,monthly_volatility,max_drawdown,baseline_final_value,baseline_return,excess_return,risk_limit,risk_breach_turns,risk_breach_depth,max_single_weight,trade_notional,turnover_annual,formation_deviation,measured_formation_deviation,role_fit,role_players_judged,role_players_unjudged,nudge_share,nudge_same_turn_share,total_fee,team_fee,formation_change_fee,platform_nudge_fee,formation_changes,formation_change_orders,changes_without_orders,recon_mismatch_rows,recon_turn_bundles,recon_manual_bundles,recon_out_of_range_rows');
     -- 비율 열은 scale 8, 금액 열은 정수
     FOREACH c IN ARRAY ARRAY['total_return', 'monthly_volatility', 'max_drawdown', 'baseline_return', 'excess_return', 'risk_limit', 'risk_breach_depth', 'max_single_weight',
-                             'turnover_annual', 'formation_deviation', 'role_fit', 'nudge_share', 'nudge_same_turn_share'] LOOP
+                             'turnover_annual', 'formation_deviation', 'measured_formation_deviation', 'role_fit', 'nudge_share', 'nudge_same_turn_share'] LOOP
         EXECUTE format('SELECT count(*) FROM zz_rep WHERE %I IS NOT NULL AND scale(%I) <> 8', c, c) INTO v_n;
         INSERT INTO zz_check_result (section, item, expected, actual, ok) VALUES ('01 계약', '비율 열 ' || c || ' 은 소수 8자리다 (값이 있을 때)', '0', v_n::text, v_n = 0);
     END LOOP;
@@ -408,8 +408,8 @@ BEGIN
             (SELECT count(*) = v_t AND count(DISTINCT turn_no) = count(*) AND min(turn_no) = 1 AND max(turn_no) = v_t FROM zz_tt));
     SELECT string_agg(attname::text, ',' ORDER BY attnum) INTO v_cols FROM pg_attribute WHERE attrelid = 'zz_tt'::regclass AND attnum > 0 AND NOT attisdropped;
     INSERT INTO zz_check_result (section, item, expected, actual, ok)
-    VALUES ('01 계약', 'sr_turns 의 열 이름·순서', 'turn_no,total_value,period_return,drawdown,baseline_value,target_goalkeeper,target_defender,target_midfielder,target_forward,deviation,max_weight,breach',
-            v_cols, v_cols = 'turn_no,total_value,period_return,drawdown,baseline_value,target_goalkeeper,target_defender,target_midfielder,target_forward,deviation,max_weight,breach');
+    VALUES ('01 계약', 'sr_turns 의 열 이름·순서', 'turn_no,total_value,period_return,drawdown,baseline_value,target_goalkeeper,target_defender,target_midfielder,target_forward,deviation,measured_deviation,max_weight,breach',
+            v_cols, v_cols = 'turn_no,total_value,period_return,drawdown,baseline_value,target_goalkeeper,target_defender,target_midfielder,target_forward,deviation,measured_deviation,max_weight,breach');
     SELECT string_agg(attname::text, ',' ORDER BY attnum) INTO v_cols FROM pg_attribute WHERE attrelid = 'zz_sp'::regclass AND attnum > 0 AND NOT attisdropped;
     INSERT INTO zz_check_result (section, item, expected, actual, ok)
     VALUES ('01 계약', 'sr_season_positions 의 열 이름·순서', 'market,ticker,months_used,n_up,n_down,up_participation,down_participation,volatility,max_drawdown,measured_position,reason',
@@ -641,6 +641,88 @@ CALL pg_temp.mut_chk('08 준수', '보고 범위의 마지막 전술 변경의 a
                WHERE id = (SELECT fc.id FROM formation_change fc JOIN zz_cur c ON c.id = fc.season_id WHERE fc.turn_no < c.current_turn_no ORDER BY fc.id DESC LIMIT 1)$mm$,
            $pp$SELECT pg_temp.zz_dev_ok((SELECT z.formation_deviation FROM zz_rep z))$pp$) AS v) b$p$,
     $w$SELECT count(*) FROM formation_change fc JOIN zz_cur c ON c.id = fc.season_id WHERE fc.turn_no < c.current_turn_no AND fc.after_forward >= 10$w$);
+-- 실측 준수 (이슈 447): 원장 기반 보유(zz_hold_led)를 독립 실측(zz_pos_indep, 실측 불능이면 기준일 system_position)으로 묶고 골키퍼는 총액 − 나머지 셋.
+CREATE FUNCTION pg_temp.zz_mdev_indep(p_season bigint) RETURNS numeric
+LANGUAGE sql STABLE AS $$
+    WITH hv AS (
+        SELECT h.turn_no,
+               COALESCE(sum(h.val) FILTER (WHERE COALESCE(i.pos, ap.system_position) = 'DEFENDER'), 0) AS d,
+               COALESCE(sum(h.val) FILTER (WHERE COALESCE(i.pos, ap.system_position) = 'MIDFIELDER'), 0) AS m,
+               COALESCE(sum(h.val) FILTER (WHERE COALESCE(i.pos, ap.system_position) IN ('FORWARD_TARGET', 'FORWARD_BREAKOUT', 'FORWARD_DEFENSIVE')), 0) AS f
+        FROM pg_temp.zz_hold_led(p_season) h
+        JOIN asset a ON a.id = h.asset_id
+        JOIN season s ON s.id = p_season
+        LEFT JOIN asset_position ap ON ap.asset_id = h.asset_id AND ap.base_date = s.base_date
+        LEFT JOIN pg_temp.zz_pos_indep(p_season) i ON i.market = a.market AND i.ticker = a.ticker
+        GROUP BY h.turn_no
+    )
+    SELECT ROUND(sum((x.a + (SELECT pad40 FROM pos_k)) / x.b) / count(*), 8)
+    FROM (SELECT abs(100 * (t.total_value - COALESCE(hv.d + hv.m + hv.f, 0)) - f.g * t.total_value) + abs(100 * COALESCE(hv.d, 0) - f.d * t.total_value)
+               + abs(100 * COALESCE(hv.m, 0) - f.m * t.total_value) + abs(100 * COALESCE(hv.f, 0) - f.f * t.total_value) AS a,
+                 100 * t.total_value AS b
+          FROM turn t
+          JOIN (SELECT DISTINCT ON (t2.turn_no) t2.turn_no,
+                       COALESCE(fc.after_goalkeeper, s.start_goalkeeper) AS g, COALESCE(fc.after_defender, s.start_defender) AS d,
+                       COALESCE(fc.after_midfielder, s.start_midfielder) AS m, COALESCE(fc.after_forward, s.start_forward) AS f
+                FROM turn t2 JOIN season s ON s.id = t2.season_id
+                LEFT JOIN formation_change fc ON fc.season_id = t2.season_id AND fc.turn_no < t2.turn_no
+                WHERE t2.season_id = p_season
+                ORDER BY t2.turn_no, fc.id DESC NULLS LAST) f ON f.turn_no = t.turn_no
+          LEFT JOIN hv ON hv.turn_no = t.turn_no
+          WHERE t.season_id = p_season) x
+$$;
+SELECT pg_temp.check_eq('08 준수', 'measured_formation_deviation = 독립 계산 (원장 보유 · 독립 실측 · 기준일 판정 대체 · 골키퍼 잔차, 일치 여부)', 'true',
+    (SELECT (r.measured_formation_deviation = pg_temp.zz_mdev_indep(c.id))::text FROM zz_rep r JOIN zz_cur c ON true));
+SELECT pg_temp.check_eq('08 준수', '0 ≤ measured_formation_deviation ≤ 2 (NULL 이 아님)', 'true', (SELECT COALESCE(measured_formation_deviation BETWEEN 0 AND 2, false)::text FROM zz_rep));
+SELECT pg_temp.check_eq('08 준수', 'sr_turns.measured_deviation 이 모든 턴에서 NULL 이 아니고 0..2 사이다 (어긋난 수)', '0',
+    (SELECT count(*)::text FROM zz_tt WHERE measured_deviation IS NULL OR measured_deviation NOT BETWEEN 0 AND 2));
+SELECT pg_temp.check_eq('08 준수', 'sr_turns.measured_deviation 의 평균이 measured_formation_deviation 과 반올림 오차(2e-8) 안에서 같다 (표시 열이 실측 분자를 쓴다)', 'true',
+    (SELECT (abs(avg(x.measured_deviation) - (SELECT z.measured_formation_deviation FROM zz_rep z)) < 0.00000002)::text FROM zz_tt x));
+-- 변이 M1: 보유 종목의 기준일 판정을 다른 계층으로 옮기면(DEFENDER ↔ MIDFIELDER) 실측 불능 종목의 값이 독립 계산대로 달라진다. 선언은 변하지 않는다.
+CALL pg_temp.mut_chk('08 준수', '보유 종목의 기준일 판정을 바꾸면 실측 준수가 독립 계산대로 달라진다',
+    $m$UPDATE asset_position SET system_position = CASE WHEN system_position = 'DEFENDER' THEN 'MIDFIELDER' ELSE 'DEFENDER' END
+       WHERE base_date = (SELECT base_date FROM zz_cur) AND asset_id IN (SELECT h.asset_id FROM pg_temp.sr_hold((SELECT id FROM zz_cur)) h)$m$,
+    $p$SELECT (r.measured_formation_deviation = pg_temp.zz_mdev_indep(r0.id) AND r.measured_formation_deviation <> (SELECT z.measured_formation_deviation FROM zz_rep z))::text
+       FROM pg_temp.sr_report((SELECT id FROM zz_cur)) r CROSS JOIN zz_cur r0$p$,
+    $w$SELECT count(*) FROM pg_temp.sr_hold((SELECT id FROM zz_cur)) h JOIN asset_position ap ON ap.asset_id = h.asset_id AND ap.base_date = (SELECT base_date FROM zz_cur)
+       WHERE ap.system_position IN ('DEFENDER', 'MIDFIELDER', 'FORWARD_TARGET', 'FORWARD_BREAKOUT', 'FORWARD_DEFENSIVE', 'GOALKEEPER')$w$);
+-- 변이 M2: 모든 선언 포지션을 바꿔도 실측 준수는 그대로다 (선언은 계산에 들어가지 않는다)
+CALL pg_temp.mut_chk('08 준수', '모든 선언 포지션을 DEFENDER ↔ FORWARD_TARGET 으로 바꿔도 실측 준수는 그대로다',
+    $m$UPDATE lineup SET declared_position = CASE WHEN declared_position = 'DEFENDER' THEN 'FORWARD_TARGET' ELSE 'DEFENDER' END WHERE season_id = (SELECT id FROM zz_cur)$m$,
+    $p$SELECT (r.measured_formation_deviation = (SELECT z.measured_formation_deviation FROM zz_rep z))::text FROM pg_temp.sr_report((SELECT id FROM zz_cur)) r$p$,
+    $w$SELECT count(*) FROM lineup l JOIN zz_cur c ON c.id = l.season_id$w$);
+-- 변이 M3: 보유 종목의 월 수익률을 같은 값으로 평평하게 만들어 실측 분류를 흔들어도 함수와 독립 계산이 같다
+CALL pg_temp.mut_chk('08 준수', '보유 종목의 경로 수익률을 바꿔도 실측 준수가 독립 계산과 같다',
+    $m$UPDATE asset_month_return SET local_return = 0.03
+       WHERE asset_id IN (SELECT h.asset_id FROM pg_temp.sr_hold((SELECT id FROM zz_cur)) h)
+         AND month_block_id IN (SELECT sp.month_block_id FROM season_path sp JOIN zz_cur c ON c.id = sp.season_id WHERE sp.turn_no BETWEEN 1 AND c.current_turn_no)$m$,
+    $p$SELECT (r.measured_formation_deviation = pg_temp.zz_mdev_indep(r0.id))::text FROM pg_temp.sr_report((SELECT id FROM zz_cur)) r CROSS JOIN zz_cur r0$p$,
+    $w$SELECT count(*) FROM pg_temp.sr_hold((SELECT id FROM zz_cur))$w$);
+-- 변이 M4: 실측되는 보유 종목이 있게 만든다 — 경로 1..T 의 풀 전체 수익률을 종목마다 크기가 다른 ±값으로 바꿔 시장에 3달 이상 상승·하락이 생기게 한다.
+--   표본의 시즌은 실측이 하나도 없는 순수 대체 경우라 이 변이가 없으면 "실측 우선" 분기는 검증되지 않는다. 실측 포지션이 기준일 판정과 다른 보유 종목이 있어야 하고, 값은 독립 계산과 같고 바뀌어야 한다.
+CALL pg_temp.mut_chk('08 준수', '경로 수익률을 바꿔 보유 종목이 실측되면(실측 ≠ 기준일 판정인 종목이 있다) 실측 준수가 독립 계산과 같고 달라진다',
+    $m$UPDATE asset_month_return r SET local_return = CASE WHEN sp.turn_no % 2 = 0 THEN 1 ELSE -1 END * (0.02 + 0.02 * (r.asset_id % 4))
+       FROM season_path sp JOIN zz_cur c ON c.id = sp.season_id
+       WHERE r.month_block_id = sp.month_block_id AND sp.turn_no BETWEEN 1 AND c.current_turn_no
+         AND r.asset_id IN (SELECT ap.asset_id FROM asset_position ap WHERE ap.base_date = c.base_date)$m$,
+    $p$SELECT (r.measured_formation_deviation = pg_temp.zz_mdev_indep(r0.id) AND r.measured_formation_deviation <> (SELECT z.measured_formation_deviation FROM zz_rep z)
+               AND EXISTS (SELECT 1 FROM pg_temp.sr_hold(r0.id) h JOIN asset a ON a.id = h.asset_id
+                           JOIN pg_temp.sr_season_positions(r0.id) sp ON sp.market = a.market AND sp.ticker = a.ticker
+                           JOIN asset_position ap ON ap.asset_id = h.asset_id AND ap.base_date = r0.base_date
+                           WHERE sp.measured_position IS NOT NULL AND sp.measured_position <> ap.system_position))::text
+       FROM pg_temp.sr_report((SELECT id FROM zz_cur)) r CROSS JOIN zz_cur r0$p$,
+    $w$SELECT count(*) FROM pg_temp.sr_hold((SELECT id FROM zz_cur)) h JOIN zz_cur c ON c.current_turn_no >= 6$w$);
+-- 변이 M5: 풀 종목마다 둘째 기준일 행(다른 판정)을 더해도 시즌 기준일의 행만 쓰므로 성적표 전체가 그대로다 (id 를 직접 줘서 identity 를 쓰지 않는다)
+CALL pg_temp.mut_chk('08 준수', '둘째 기준일의 asset_position 행(다른 판정)을 더해도 성적표가 그대로다',
+    $m$INSERT INTO asset_position (id, asset_id, base_date, base_price, base_fx_rate, market_cap_rank, window_start, window_end, months_used,
+                                  up_participation, down_participation, volatility, max_drawdown, system_position)
+       OVERRIDING SYSTEM VALUE
+       SELECT 2000000000 + ap.id, ap.asset_id, ap.base_date + 1, ap.base_price, ap.base_fx_rate, ap.market_cap_rank, ap.window_start, ap.window_end, ap.months_used,
+              ap.up_participation, ap.down_participation, ap.volatility, ap.max_drawdown,
+              CASE WHEN ap.system_position = 'DEFENDER' THEN 'MIDFIELDER' ELSE 'DEFENDER' END
+       FROM asset_position ap JOIN zz_cur c ON c.base_date = ap.base_date$m$,
+    $p$SELECT (to_jsonb(r) = (SELECT to_jsonb(z) FROM zz_rep z))::text FROM pg_temp.sr_report((SELECT id FROM zz_cur)) r$p$,
+    $w$SELECT count(*) FROM pg_temp.sr_hold((SELECT id FROM zz_cur))$w$);
 \o
 
 -- 09 역할 수행 -------------------------------------------------------------------
@@ -888,6 +970,25 @@ CALL pg_temp.rej('평가액이 0 인 턴 (1턴 스냅샷의 금액을 모두 0 �
                  'UPDATE turn SET total_value = 0, cash_balance = 0, holdings_value = 0, goalkeeper_value = 0, defender_value = 0, midfielder_value = 0, forward_value = 0
                    WHERE season_id = (SELECT id FROM zz_cur) AND turn_no = 1',
                  'SELECT * FROM pg_temp.sr_report((SELECT id FROM zz_cur))', 'REPORT_INCONSISTENT');
+CALL pg_temp.rej('실측 불능 보유 종목의 기준일 판정이 없다 (판정 8열을 모두 NULL 로)',
+                 'UPDATE asset_position SET window_start = NULL, window_end = NULL, months_used = NULL, up_participation = NULL, down_participation = NULL, volatility = NULL, max_drawdown = NULL, system_position = NULL
+                   WHERE base_date = (SELECT base_date FROM zz_cur)
+                     AND asset_id IN (SELECT h.asset_id FROM pg_temp.sr_hold((SELECT id FROM zz_cur)) h JOIN asset a ON a.id = h.asset_id
+                                      JOIN zz_sp sp ON sp.market = a.market AND sp.ticker = a.ticker WHERE sp.measured_position IS NULL)',
+                 'SELECT * FROM pg_temp.sr_report((SELECT id FROM zz_cur))', '*P0-20 성적표: 보유 종목의 실측·기준일 판정이 없거나',
+                 'SELECT count(*) FROM pg_temp.sr_hold((SELECT id FROM zz_cur)) h JOIN asset a ON a.id = h.asset_id JOIN zz_sp sp ON sp.market = a.market AND sp.ticker = a.ticker WHERE sp.measured_position IS NULL');
+CALL pg_temp.rej('실측 포지션별 보유 가치의 합이 총 평가액을 넘는다 (1턴 스냅샷을 작은 현금 없는 값으로)',
+                 'UPDATE turn SET total_value = 1000, cash_balance = 0, holdings_value = 1000, goalkeeper_value = 1000, defender_value = 0, midfielder_value = 0, forward_value = 0
+                   WHERE season_id = (SELECT id FROM zz_cur) AND turn_no = 1',
+                 'SELECT * FROM pg_temp.sr_turns((SELECT id FROM zz_cur))', '*P0-20 성적표: 보유 종목의 실측·기준일 판정이 없거나',
+                 'SELECT count(*) FROM pg_temp.sr_hold((SELECT id FROM zz_cur)) h WHERE h.turn_no = 1');
+CALL pg_temp.rej('실측 포지션별 보유 가치가 총 평가액을 넘는다 (공격수만 넘친다 — 기준일 판정을 모두 FORWARD_TARGET 으로)',
+                 'UPDATE asset_position SET system_position = ''FORWARD_TARGET'' WHERE base_date = (SELECT base_date FROM zz_cur)
+                    AND asset_id IN (SELECT h.asset_id FROM pg_temp.sr_hold((SELECT id FROM zz_cur)) h);
+                  UPDATE turn SET total_value = 1000, cash_balance = 0, holdings_value = 1000, goalkeeper_value = 1000, defender_value = 0, midfielder_value = 0, forward_value = 0
+                   WHERE season_id = (SELECT id FROM zz_cur) AND turn_no = 1',
+                 'SELECT * FROM pg_temp.sr_report((SELECT id FROM zz_cur))', '*P0-20 성적표: 보유 종목의 실측·기준일 판정이 없거나',
+                 'SELECT count(*) FROM pg_temp.sr_hold((SELECT id FROM zz_cur)) h WHERE h.turn_no = 1');
 CALL pg_temp.rej('보유한 턴에 선언 구간이 없다 (lineup 행 삭제)',
                  'DELETE FROM lineup WHERE id = (SELECT lu.id FROM lineup lu JOIN zz_cur c ON c.id = lu.season_id ORDER BY lu.id LIMIT 1)',
                  'SELECT * FROM pg_temp.sr_report((SELECT id FROM zz_cur))', 'REPORT_INCONSISTENT');

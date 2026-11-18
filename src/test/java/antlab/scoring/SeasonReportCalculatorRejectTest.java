@@ -3,6 +3,7 @@ package antlab.scoring;
 import static antlab.scoring.SeasonReportFixtures.A;
 import static antlab.scoring.SeasonReportFixtures.KR;
 import static antlab.scoring.SeasonReportFixtures.US;
+import static antlab.scoring.SeasonReportFixtures.holding;
 import static antlab.scoring.SeasonReportFixtures.prices;
 import static antlab.scoring.SeasonReportFixtures.returns;
 import static antlab.scoring.SeasonReportFixtures.threeTurns;
@@ -141,10 +142,10 @@ class SeasonReportCalculatorRejectTest {
     void 보유_재구성이_보고_범위를_벗어나면_멈춘다() {
         SeasonReportSources base = threeTurns();
         List<HoldingFact> holdings = new ArrayList<>(base.holdings());
-        holdings.add(new HoldingFact(A, 4, won(1_000_000)));
+        holdings.add(holding(A, 4, won(1_000_000)));
         rejected(SeasonReportFixtures.withHoldings(base, holdings, base.lineup()));
         List<HoldingFact> zero = new ArrayList<>(base.holdings());
-        zero.add(new HoldingFact(A, 0, won(1_000_000)));
+        zero.add(holding(A, 0, won(1_000_000)));
         rejected(SeasonReportFixtures.withHoldings(base, zero, base.lineup()));
     }
 
@@ -164,7 +165,7 @@ class SeasonReportCalculatorRejectTest {
     void 누적_수량이_음수인_보유가_있으면_멈춘다() {
         SeasonReportSources base = threeTurns();
         List<HoldingFact> holdings = new ArrayList<>(base.holdings());
-        holdings.add(new HoldingFact(A, 2, won(-1_000_000)));
+        holdings.add(holding(A, 2, won(-1_000_000)));
         assertThatThrownBy(() -> SeasonReportCalculator
                 .calculate(SeasonReportFixtures.withHoldings(base, holdings, base.lineup())))
                 .isInstanceOf(IllegalStateException.class)

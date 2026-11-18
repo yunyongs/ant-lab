@@ -16,3 +16,6 @@ export const BREACH_BODY =
 export const BREACH_BODY_FINISHED = '넘은 턴 수와 깊이는 성적표에 기록됩니다.';
 
 export const NOT_REACHED_TEXT = '아직 진행하지 않은 턴입니다.';
+
+export const FORMATION_TURN_NOTE =
+  '포메이션 준수는 시즌이 끝난 뒤 실측 포지션으로 계산합니다. 점수 반영은 s63-v3부터입니다.';

@@ -29,6 +29,7 @@ export function reportFixture(
     tradeNotional: '48765400',
     turnoverAnnual: '0.48765400',
     formationDeviation: '0.21098000',
+    measuredFormationDeviation: '0.34567000',
     roleFit: '0.66670000',
     rolePlayersJudged: 5,
     rolePlayersUnjudged: 3,

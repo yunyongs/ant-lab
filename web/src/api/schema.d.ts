@@ -386,33 +386,33 @@ export interface paths {
         };
         /**
          * Season report lookup / 시즌 성적표 조회
-         * @description Computes the season report of a finished season (results, benchmark, process, cost and reconciliation status, 37 items) on read, without storing it. A season that is in progress or being abandoned returns 409 SEASON_NOT_FINISHED. Money is a whole-won integer string; ratios are strings with 8 decimal places (−0.2 = −20%); a cell that cannot be computed is null (the key is never omitted). The benchmark buys and holds proxy ETFs (069500 and SPY, 50/50) and is biased because price returns and adjusted closes are mixed. Dates, month blocks, seeds, assets and change numbers are not included.
+         * @description Computes the season report of a finished season (results, benchmark, process, cost and reconciliation status, 38 items) on read, without storing it. A season that is in progress or being abandoned returns 409 SEASON_NOT_FINISHED. Money is a whole-won integer string; ratios are strings with 8 decimal places (−0.2 = −20%); a cell that cannot be computed is null (the key is never omitted). The benchmark buys and holds proxy ETFs (069500 and SPY, 50/50) and is biased because price returns and adjusted closes are mixed. Dates, month blocks, seeds, assets and change numbers are not included.
          *
          *     Excluded (outside the Phase 0 scope):
          *     - X1 Compound annual growth rate (CAGR): needs fractional powers (ln·exp) that Java BigDecimal has no exact counterpart for, so the golden 8-decimal match cannot be guaranteed. The value is inflated on short seasons. → MVP (with the M3 score)
          *     - X2 Sharpe: meaningless on a 10-turn sample, and the risk-free rate (cash earns no interest) must be defined with it. → MVP
          *     - X3 Path percentile and consistency: needs an expected distribution (thousands of paths). → M2
-         *     - X4 60/40, my-formation (follows) and start-formation (fixed) benchmarks, the three-way split into player selection, formation change and structure effect, the 6-turn effect after a change: not in these 37 columns. Java computes them at GET …/report/analysis (MVP-17; the 6-turn effect MVP-19).
-         *     - X5 Trading discipline (panic, chasing) and formation change right after a fall: not in these 37 columns. Defined in PLAN §6.2; Java computes them at GET …/report/analysis (MVP-17).
+         *     - X4 60/40, my-formation (follows) and start-formation (fixed) benchmarks, the three-way split into player selection, formation change and structure effect, the 6-turn effect after a change: not in these 38 columns. Java computes them at GET …/report/analysis (MVP-17; the 6-turn effect MVP-19).
+         *     - X5 Trading discipline (panic, chasing) and formation change right after a fall: not in these 38 columns. Defined in PLAN §6.2; Java computes them at GET …/report/analysis (MVP-17).
          *     - X6 Number of asset classes and average correlation under diversification: not in the feature table row P0-20, and correlation is unstable over 10 turns. → MVP
-         *     - X7 Reaction to noise (direction): not in these 37 columns. Defined in PLAN §6.2; Java computes it at GET …/report/analysis (MVP-19).
-         *     - X8 Following attention, defender goals, bench goals and signal discrimination: not in these 37 columns. They are review items and not part of the score (PLAN §6.2). Java computes following attention and defender goals at GET …/report/analysis (MVP-19). Bench goals come with the bench list (APP); signal discrimination is EXT.
+         *     - X7 Reaction to noise (direction): not in these 38 columns. Defined in PLAN §6.2; Java computes it at GET …/report/analysis (MVP-19).
+         *     - X8 Following attention, defender goals, bench goals and signal discrimination: not in these 38 columns. They are review items and not part of the score (PLAN §6.2). Java computes following attention and defender goals at GET …/report/analysis (MVP-19). Bench goals come with the bench list (APP); signal discrimination is EXT.
          *     - X9 Tax, after-tax value on liquidation and deferred tax: tax is EXT (PLAN §4.6). The verification asserts that execution.tax is always 0. → EXT
          *     - X10 Currency-exchange portion of the fee: splitting out the displayed portion adds a new rounding point in whole won. PLAN §4.6 describes this item as "display only." → MVP
          *     - X11 Season score 0–100 and rating: PLAN §6.3 is a draft. → M3
          *     - X12 Storing the report (season_score): an MVP sketch (PLAN §5.1, SPRING_JPA §12-1). → MVP
          *
-         *     끝난 시즌의 성적표(결과·기준선·과정·비용·대사 상태 37항목)를 저장 없이 조회로 계산해 준다. 진행 중이거나 포기 중인 시즌은 409 SEASON_NOT_FINISHED 다. 금액은 원 단위 정수 문자열, 비율은 소수 8자리 문자열(−0.2 = −20%)이고 값을 만들 수 없는 칸은 null 이다(키는 생략하지 않는다). 기준선은 대용 ETF(069500·SPY 50/50) 매수 후 보유이며 가격 수익률과 수정 종가가 섞인 편향이 있다. 날짜·월 블록·시드·종목·변경 번호는 싣지 않는다.
+         *     끝난 시즌의 성적표(결과·기준선·과정·비용·대사 상태 38항목)를 저장 없이 조회로 계산해 준다. 진행 중이거나 포기 중인 시즌은 409 SEASON_NOT_FINISHED 다. 금액은 원 단위 정수 문자열, 비율은 소수 8자리 문자열(−0.2 = −20%)이고 값을 만들 수 없는 칸은 null 이다(키는 생략하지 않는다). 기준선은 대용 ETF(069500·SPY 50/50) 매수 후 보유이며 가격 수익률과 수정 종가가 섞인 편향이 있다. 날짜·월 블록·시드·종목·변경 번호는 싣지 않는다.
          *
          *     제외(Phase 0 범위 밖):
          *     - X1 연평균 성장률(CAGR) 분수 거듭제곱(ln·exp)이 필요한데 Java BigDecimal 에 정확한 짝이 없어 골든 8자리 일치를 보장할 수 없다. 짧은 시즌에서는 값이 부풀려진다. → MVP(M3 점수와 함께)
          *     - X2 Sharpe 10턴 표본으로는 의미가 없고, 무위험 수익률(현금 무이자) 정의도 함께 정해야 한다. → MVP
          *     - X3 경로 백분위·일관성 예상 분포(수천 경로)가 필요하다. → M2
-         *     - X4 60/40·내 포메이션(따라감)·시작 포메이션(고정) 기준선, 선수 선택·전술 변경·구조 효과 3분해, 변경 뒤 6턴 효과 이 37열에는 없다. Java 가 GET …/report/analysis 로 계산한다 (MVP-17, 6턴 효과는 MVP-19).
-         *     - X5 매매 규율(패닉·추격)·하락 직후 전술 변경 이 37열에는 없다. 정의는 PLAN §6.2, Java 가 GET …/report/analysis 로 계산한다 (MVP-17).
+         *     - X4 60/40·내 포메이션(따라감)·시작 포메이션(고정) 기준선, 선수 선택·전술 변경·구조 효과 3분해, 변경 뒤 6턴 효과 이 38열에는 없다. Java 가 GET …/report/analysis 로 계산한다 (MVP-17, 6턴 효과는 MVP-19).
+         *     - X5 매매 규율(패닉·추격)·하락 직후 전술 변경 이 38열에는 없다. 정의는 PLAN §6.2, Java 가 GET …/report/analysis 로 계산한다 (MVP-17).
          *     - X6 분산 중 자산군 수·평균 상관 기능 표 P0-20 행에 없고 상관은 10턴으로는 불안정하다. → MVP
-         *     - X7 소음 반응(방향) 이 37열에는 없다. 정의는 PLAN §6.2, Java 가 GET …/report/analysis 로 계산한다 (MVP-19).
-         *     - X8 관심 추종·수비수 득점·벤치 득점·신호 판별 이 37열에는 없다. 복기 항목이라 점수에 넣지 않는다 (PLAN §6.2). 관심 추종·수비수 득점은 Java 가 GET …/report/analysis 로 계산한다 (MVP-19). 벤치 득점은 벤치 목록이 생기는 APP, 신호 판별은 EXT.
+         *     - X7 소음 반응(방향) 이 38열에는 없다. 정의는 PLAN §6.2, Java 가 GET …/report/analysis 로 계산한다 (MVP-19).
+         *     - X8 관심 추종·수비수 득점·벤치 득점·신호 판별 이 38열에는 없다. 복기 항목이라 점수에 넣지 않는다 (PLAN §6.2). 관심 추종·수비수 득점은 Java 가 GET …/report/analysis 로 계산한다 (MVP-19). 벤치 득점은 벤치 목록이 생기는 APP, 신호 판별은 EXT.
          *     - X9 세금·청산 시 세후·이연 세금 세금은 EXT 다 (PLAN §4.6). execution.tax 가 항상 0 인지는 검증이 단언한다. → EXT
          *     - X10 수수료 중 환전 몫 표시 몫을 나누면 원 단위 반올림 지점이 새로 생긴다. PLAN §4.6 이 "표시만"이라 한 항목이다. → MVP
          *     - X11 시즌 점수 0–100·레이팅 PLAN §6.3 은 초안이다. → M3
@@ -436,9 +436,9 @@ export interface paths {
         };
         /**
          * Season analysis lookup / 시즌 분석 조회
-         * @description Simulates four baselines (market, 60/40, my formation followed, start formation fixed) on the season's own turn prices with integer shares and fees, splits the excess over the market into player selection, formation change and structure, and measures trading discipline (panic selling and chase buying, PLAN §6.2), measures the reaction to noise (the share of what was traded that followed an up or down signal of the same turn's feed and ranking boards, PLAN §6.2), splits the fees by order source (the nudged part is RANKING and ALERT only), and gives three review facts (PLAN §6.2): how buys of top-attention assets and all other buys fared over the next 6 turns, the won gain of defender and goalkeeper holdings in turns where the market fell, and the 6-turn effect of each formation change, all on read and without storing anything. Complements the 37-column season report. A season that is in progress or being abandoned returns 409 SEASON_NOT_FINISHED. Money is a whole-won integer string; ratios are strings with 8 decimal places; the three won terms of the split add up to the total exactly, while their ratios may differ from the total ratio by rounding. A baseline whose representative asset is not in the season pool is unavailable (reason REPRESENTATIVE_MISSING, values null). The 60/40 bond leg uses a US Treasury ETF until the pool holds a Korean bond ETF (bondLegSubstituted). The representative table is a fixed rule, not a position judgement. Dates, month blocks, seeds and asset names are not included; an asset is only MARKET:TICKER.
+         * @description Simulates four baselines (market, 60/40, my formation followed, start formation fixed) on the season's own turn prices with integer shares and fees, splits the excess over the market into player selection, formation change and structure, and measures trading discipline (panic selling and chase buying, PLAN §6.2), measures the reaction to noise (the share of what was traded that followed an up or down signal of the same turn's feed and ranking boards, PLAN §6.2), splits the fees by order source (the nudged part is RANKING and ALERT only), and gives three review facts (PLAN §6.2): how buys of top-attention assets and all other buys fared over the next 6 turns, the won gain of defender and goalkeeper holdings in turns where the market fell, and the 6-turn effect of each formation change, all on read and without storing anything. Complements the 38-column season report. A season that is in progress or being abandoned returns 409 SEASON_NOT_FINISHED. Money is a whole-won integer string; ratios are strings with 8 decimal places; the three won terms of the split add up to the total exactly, while their ratios may differ from the total ratio by rounding. A baseline whose representative asset is not in the season pool is unavailable (reason REPRESENTATIVE_MISSING, values null). The 60/40 bond leg uses a US Treasury ETF until the pool holds a Korean bond ETF (bondLegSubstituted). The representative table is a fixed rule, not a position judgement. Dates, month blocks, seeds and asset names are not included; an asset is only MARKET:TICKER.
          *
-         *     끝난 시즌의 시즌 가격 위에서 기준선 네 개(시장, 60/40, 내 포메이션 따라감, 시작 포메이션 고정)를 정수 주식과 수수료로 시뮬레이션하고, 시장 대비 초과분을 선수 선택·전술 변경·구조로 나누고, 매매 규율(패닉 매도·추격 매수, PLAN §6.2)과 소음 반응(매매 가운데 같은 턴의 피드·순위판의 상승·하락 신호를 따른 몫, PLAN §6.2)을 재고 수수료를 주문 출발점별로 나누며(독려 몫은 RANKING·ALERT 뿐이다), 복기 사실 셋(PLAN §6.2)도 준다: 관심 상위 종목 매수와 그 밖의 매수의 뒤 6턴 성과, 시장이 내린 턴에 수비수·골키퍼 보유 종목이 낸 원 단위 이익, 전술 변경마다의 6턴 효과. 모두 저장 없이 조회로 계산한다. 37항목 시즌 성적표를 보완한다. 진행 중이거나 포기 중인 시즌은 409 SEASON_NOT_FINISHED 다. 금액은 원 단위 정수 문자열, 비율은 소수 8자리 문자열이고, 3분해의 원 단위 세 항은 합계와 정확히 같지만 비율은 반올림 때문에 합계 비율과 다를 수 있다. 대표 종목이 시즌 풀에 없는 기준선은 만들 수 없다(reason REPRESENTATIVE_MISSING, 값 null). 60/40 의 채권 칸은 풀에 국내 채권 ETF가 들어오기 전까지 미국 국채 ETF를 쓴다(bondLegSubstituted). 대표 종목 표는 고정 규칙이며 포지션 판정이 아니다. 날짜·월 블록·시드·종목 이름은 싣지 않고 종목은 MARKET:TICKER 로만 가리킨다.
+         *     끝난 시즌의 시즌 가격 위에서 기준선 네 개(시장, 60/40, 내 포메이션 따라감, 시작 포메이션 고정)를 정수 주식과 수수료로 시뮬레이션하고, 시장 대비 초과분을 선수 선택·전술 변경·구조로 나누고, 매매 규율(패닉 매도·추격 매수, PLAN §6.2)과 소음 반응(매매 가운데 같은 턴의 피드·순위판의 상승·하락 신호를 따른 몫, PLAN §6.2)을 재고 수수료를 주문 출발점별로 나누며(독려 몫은 RANKING·ALERT 뿐이다), 복기 사실 셋(PLAN §6.2)도 준다: 관심 상위 종목 매수와 그 밖의 매수의 뒤 6턴 성과, 시장이 내린 턴에 수비수·골키퍼 보유 종목이 낸 원 단위 이익, 전술 변경마다의 6턴 효과. 모두 저장 없이 조회로 계산한다. 38항목 시즌 성적표를 보완한다. 진행 중이거나 포기 중인 시즌은 409 SEASON_NOT_FINISHED 다. 금액은 원 단위 정수 문자열, 비율은 소수 8자리 문자열이고, 3분해의 원 단위 세 항은 합계와 정확히 같지만 비율은 반올림 때문에 합계 비율과 다를 수 있다. 대표 종목이 시즌 풀에 없는 기준선은 만들 수 없다(reason REPRESENTATIVE_MISSING, 값 null). 60/40 의 채권 칸은 풀에 국내 채권 ETF가 들어오기 전까지 미국 국채 ETF를 쓴다(bondLegSubstituted). 대표 종목 표는 고정 규칙이며 포지션 판정이 아니다. 날짜·월 블록·시드·종목 이름은 싣지 않고 종목은 MARKET:TICKER 로만 가리킨다.
          */
         get: operations["getSeasonAnalysis"];
         put?: never;
@@ -1629,11 +1629,18 @@ export interface components {
             turnoverAnnual: string;
             /**
              * Format: decimal
-             * @description Average formation deviation = exact average over turns of Σ|actual share − target share| (divided once by the common denominator), 8 decimal places
+             * @description Average formation deviation = exact average over turns of Σ|actual share − target share| (divided once by the common denominator), 8 decimal places. Declared positions; not scored from s63-v3 (see measuredFormationDeviation)
              *
-             *     포메이션 이탈 평균 = 턴마다 Σ|실제 비중 − 목표 비중|의 정확한 평균(공통 분모로 한 번 나눔), 소수 8자리
+             *     포메이션 이탈 평균 = 턴마다 Σ|실제 비중 − 목표 비중|의 정확한 평균(공통 분모로 한 번 나눔), 소수 8자리. 선언 포지션 기준이며 s63-v3부터 채점하지 않음(measuredFormationDeviation 참고)
              */
             formationDeviation: string;
+            /**
+             * Format: decimal
+             * @description Average formation deviation on season-measured positions (the scored basis from score version s63-v3; seasons scored under s63-v1 or s63-v2 keep the declared basis): the same formula as formationDeviation, with the actual weights grouped by the position each player really played on this season's path; a player the season cannot measure counts by the base-date system judgement, never by the declaration; cash is goalkeeper. Declared positions do not enter, so relabelling cannot change it. Provisional while the season runs. 8 decimal places
+             *
+             *     시즌 실측 포지션 기준 포메이션 이탈 평균(점수 버전 s63-v3부터 채점 기준, s63-v1·s63-v2로 채점한 시즌은 선언 기준 그대로): 식은 formationDeviation과 같고 실제 비중을 이 시즌 경로에서 선수가 실제로 한 역할로 묶는다. 시즌으로 실측할 수 없는 선수는 기준일 시스템 판정으로 세고 선언으로는 세지 않으며 현금은 골키퍼다. 선언 포지션은 들어가지 않으므로 라벨을 바꿔도 값이 달라지지 않는다. 진행 중에는 잠정, 소수 8자리
+             */
+            measuredFormationDeviation: string;
             /**
              * Format: decimal
              * @description Role fit = the exposed value of players whose declared and measured season positions match ÷ the exposed value of measured players, 8 decimal places. null if there is no measured exposure.
@@ -1648,7 +1655,7 @@ export interface components {
             rolePlayersJudged: number;
             /**
              * Format: int32
-             * @description Number of exposed assets that could not be measured for lack of samples / 표본 부족으로 실측하지 못한 노출 종목 수
+             * @description Number of exposed assets that could not be measured for lack of samples (counted by the base-date system judgement in measuredFormationDeviation) / 표본 부족으로 실측하지 못한 노출 종목 수(measuredFormationDeviation에서는 기준일 시스템 판정으로 센다)
              */
             rolePlayersUnjudged: number;
             /**

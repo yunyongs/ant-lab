@@ -9,7 +9,7 @@
 -- 읽는 정의 (순서가 곧 의존): 12_calc_position_def.sql(포지션 판정 + 배열 입력 함수 3개) → 21_team_buy_def.sql(buy_rate·buy_fee·team_qty) → 25_trade_formation_def.sql(formation_costs).
 --       다시 읽어도 안전하다: 12 는 DROP 가드가 있고 21·25 는 CREATE OR REPLACE 다. 22 정의는 읽지 않는다 (대사 묶음은 행 수 15·17 로 센다).
 -- 함수 (모두 STABLE, 쓰기 없음, 오류는 P0001 + HINT):
---   pg_temp.sr_report(season_id)           정확히 1행, 37열. 열 이름이 P0-38 DTO 필드와 1:1 이다 (docs/erd.md D38 의 표)
+--   pg_temp.sr_report(season_id)           정확히 1행, 38열. 열 이름이 P0-38 DTO 필드와 1:1 이다 (docs/erd.md D38 의 표)
 --   pg_temp.sr_turns(season_id)            턴 1..T 마다 1행: 평가액·기간 수익률·낙폭·기준선·그 턴 시작 시점의 포메이션·준수·최대 단일 비중·위험 위반
 --   pg_temp.sr_season_positions(season_id) 기준일 풀 종목마다 1행: 시즌 경로에서 잰 지표와 시즌 실측 포지션 (판정 불능이면 reason)
 --   pg_temp.sr_players(season_id)          (종목, 선언 포지션)마다 1행, 노출이 있는 것만: 노출 턴 수·노출 가치·실측·일치 여부
@@ -28,11 +28,11 @@
 --   X1  연평균 성장률(CAGR)      분수 거듭제곱(ln·exp)이 필요한데 Java BigDecimal 에 정확한 짝이 없어 골든 8자리 일치를 보장할 수 없다. 짧은 시즌에서는 값이 부풀려진다. → MVP(M3 점수와 함께)
 --   X2  Sharpe                   10턴 표본으로는 의미가 없고, 무위험 수익률(현금 무이자) 정의도 함께 정해야 한다. → MVP
 --   X3  경로 백분위·일관성        예상 분포(수천 경로)가 필요하다. → M2
---   X4  60/40·내 포메이션(따라감)·시작 포메이션(고정) 기준선, 선수 선택·전술 변경·구조 효과 3분해, 변경 뒤 6턴 효과   이 37열에는 없다. Java 가 GET …/report/analysis 로 계산한다 (MVP-17, 6턴 효과는 MVP-19).
---   X5  매매 규율(패닉·추격)·하락 직후 전술 변경   이 37열에는 없다. 정의는 PLAN §6.2, Java 가 GET …/report/analysis 로 계산한다 (MVP-17).
+--   X4  60/40·내 포메이션(따라감)·시작 포메이션(고정) 기준선, 선수 선택·전술 변경·구조 효과 3분해, 변경 뒤 6턴 효과   이 38열에는 없다. Java 가 GET …/report/analysis 로 계산한다 (MVP-17, 6턴 효과는 MVP-19).
+--   X5  매매 규율(패닉·추격)·하락 직후 전술 변경   이 38열에는 없다. 정의는 PLAN §6.2, Java 가 GET …/report/analysis 로 계산한다 (MVP-17).
 --   X6  분산 중 자산군 수·평균 상관 기능 표 P0-20 행에 없고 상관은 10턴으로는 불안정하다. → MVP
---   X7  소음 반응(방향)           이 37열에는 없다. 정의는 PLAN §6.2, Java 가 GET …/report/analysis 로 계산한다 (MVP-19).
---   X8  관심 추종·수비수 득점·벤치 득점·신호 판별   이 37열에는 없다. 복기 항목이라 점수에 넣지 않는다 (PLAN §6.2). 관심 추종·수비수 득점은 Java 가 GET …/report/analysis 로 계산한다 (MVP-19). 벤치 득점은 벤치 목록이 생기는 APP, 신호 판별은 EXT.
+--   X7  소음 반응(방향)           이 38열에는 없다. 정의는 PLAN §6.2, Java 가 GET …/report/analysis 로 계산한다 (MVP-19).
+--   X8  관심 추종·수비수 득점·벤치 득점·신호 판별   이 38열에는 없다. 복기 항목이라 점수에 넣지 않는다 (PLAN §6.2). 관심 추종·수비수 득점은 Java 가 GET …/report/analysis 로 계산한다 (MVP-19). 벤치 득점은 벤치 목록이 생기는 APP, 신호 판별은 EXT.
 --   X9  세금·청산 시 세후·이연 세금  세금은 EXT 다 (PLAN §4.6). execution.tax 가 항상 0 인지는 검증이 단언한다. → EXT
 --   X10 수수료 중 환전 몫 표시     몫을 나누면 원 단위 반올림 지점이 새로 생긴다. PLAN §4.6 이 "표시만"이라 한 항목이다. → MVP
 --   X11 시즌 점수 0–100·레이팅     PLAN §6.3 은 초안이다. → M3
@@ -215,65 +215,6 @@ LANGUAGE sql STABLE AS $$
     GROUP BY g.n
 $$;
 
--- 턴별 정수 원천: 총액·직전 총액(1턴은 초기 자금)·낙폭·그 턴 시작 시점의 목표 포메이션·준수 분자/분모·그 턴의 가장 큰 종목 가치.
---   목표 포메이션 f(t) = turn_no < t 인 마지막 formation_change(id 순)의 after 4개, 없으면 시즌 시작 포메이션 (erd 9절 P0-20).
---   준수 a_t = Σ_p |100·v_p − f_p·V|, b_t = 100·V (v_p = turn 의 포지션별 평가액 — 현금은 골키퍼). 입력은 sr_t 를 통과한 시즌이라고 가정한다.
-CREATE OR REPLACE FUNCTION pg_temp.sr_turn_base(p_season_id bigint)
-RETURNS TABLE (turn_no smallint, total_value numeric, prev_value numeric, drawdown numeric,
-               target_goalkeeper smallint, target_defender smallint, target_midfielder smallint, target_forward smallint,
-               dev_num numeric, dev_den numeric, max_pos_value numeric)
-LANGUAGE sql STABLE AS $$
-    WITH s AS (
-        SELECT se.* FROM season se WHERE se.id = p_season_id
-    ), hv AS (
-        SELECT h.turn_no, max(h.value) AS mx FROM pg_temp.sr_hold(p_season_id) h GROUP BY h.turn_no
-    ), base AS (
-        SELECT tn.turn_no, tn.total_value, tn.drawdown,
-               COALESCE(lag(tn.total_value) OVER (ORDER BY tn.turn_no), s.initial_cash) AS prev_value,
-               COALESCE(f.after_goalkeeper, s.start_goalkeeper) AS t_gk,
-               COALESCE(f.after_defender,   s.start_defender)   AS t_df,
-               COALESCE(f.after_midfielder, s.start_midfielder) AS t_mf,
-               COALESCE(f.after_forward,    s.start_forward)    AS t_fw,
-               tn.goalkeeper_value AS v_gk, tn.defender_value AS v_df, tn.midfielder_value AS v_mf, tn.forward_value AS v_fw
-        FROM s
-        JOIN turn tn ON tn.season_id = s.id AND tn.turn_no BETWEEN 1 AND s.current_turn_no
-        LEFT JOIN LATERAL (
-            SELECT fc.after_goalkeeper, fc.after_defender, fc.after_midfielder, fc.after_forward
-            FROM formation_change fc
-            WHERE fc.season_id = s.id AND fc.turn_no < tn.turn_no
-            ORDER BY fc.id DESC LIMIT 1
-        ) f ON true
-    )
-    SELECT b.turn_no, b.total_value, b.prev_value, b.drawdown, b.t_gk, b.t_df, b.t_mf, b.t_fw,
-           abs(100 * b.v_gk - b.t_gk * b.total_value) + abs(100 * b.v_df - b.t_df * b.total_value)
-         + abs(100 * b.v_mf - b.t_mf * b.total_value) + abs(100 * b.v_fw - b.t_fw * b.total_value),
-           100 * b.total_value,
-           COALESCE(hv.mx, 0)
-    FROM base b
-    LEFT JOIN hv ON hv.turn_no = b.turn_no
-    ORDER BY b.turn_no
-$$;
-
--- 턴별 표: 표시용이다 (period_return·deviation·max_weight 는 그 자체로 한 번 반올림한 값 — 시즌 집계는 이 값을 다시 쓰지 않고 정수 원천에서 계산한다).
-CREATE OR REPLACE FUNCTION pg_temp.sr_turns(p_season_id bigint)
-RETURNS TABLE (turn_no smallint, total_value numeric, period_return numeric, drawdown numeric, baseline_value numeric,
-               target_goalkeeper smallint, target_defender smallint, target_midfielder smallint, target_forward smallint,
-               deviation numeric, max_weight numeric, breach boolean)
-LANGUAGE plpgsql STABLE AS $$
-#variable_conflict use_column
-BEGIN
-    PERFORM pg_temp.sr_t(p_season_id);
-    RETURN QUERY
-    SELECT b.turn_no, b.total_value, pg_temp.sr_div8(b.total_value - b.prev_value, b.prev_value), b.drawdown, bl.baseline_value,
-           b.target_goalkeeper, b.target_defender, b.target_midfielder, b.target_forward,
-           pg_temp.sr_div8(b.dev_num, b.dev_den), pg_temp.sr_div8(b.max_pos_value, b.total_value),
-           b.drawdown < se.risk_limit
-    FROM pg_temp.sr_turn_base(p_season_id) b
-    JOIN pg_temp.sr_baseline(p_season_id) bl ON bl.turn_no = b.turn_no
-    CROSS JOIN (SELECT s0.risk_limit FROM season s0 WHERE s0.id = p_season_id) se
-    ORDER BY b.turn_no;
-END $$;
-
 -- 시즌 실측 포지션: 기준일 풀 전체(상대 순위에 풀이 필요하다)를 시즌 경로 1..T 의 월 블록 수익률로 잰다. 12 의 배열 함수와 pos_classify 를 그대로 쓴다.
 --   순위: 판정 가능한 N 개에서 k = CEIL(top_ratio × N), 변동성 순위(RANK, 동률 포함) ≤ k. 시즌 최소 달 수는 sr_k (6·3·3).
 CREATE OR REPLACE FUNCTION pg_temp.sr_season_positions(p_season_id bigint)
@@ -324,6 +265,96 @@ BEGIN
     ORDER BY m.market COLLATE "C", m.ticker COLLATE "C";
 END $$;
 
+-- 턴별 정수 원천: 총액·직전 총액(1턴은 초기 자금)·낙폭·그 턴 시작 시점의 목표 포메이션·준수 분자/분모·그 턴의 가장 큰 종목 가치.
+--   목표 포메이션 f(t) = turn_no < t 인 마지막 formation_change(id 순)의 after 4개, 없으면 시즌 시작 포메이션 (erd 9절 P0-20).
+--   준수 a_t = Σ_p |100·v_p − f_p·V|, b_t = 100·V (v_p = turn 의 포지션별 평가액 — 현금은 골키퍼). 입력은 sr_t 를 통과한 시즌이라고 가정한다.
+--   실측 준수 (이슈 447): mdev_num 은 같은 식인데 v_p 를 sr_hold 에서 다시 만든다 — 종목을 시즌 실측 포지션(sr_season_positions)으로, 실측 불능이면 시즌 기준일의
+--   asset_position.system_position 으로 묶고(선언은 쓰지 않는다), 골키퍼는 총액 − 나머지 셋(D37)이다. 판정이 둘 다 없거나 골키퍼 잔차가 음수면 NULL 이고 sr_report 가 거부한다.
+CREATE OR REPLACE FUNCTION pg_temp.sr_turn_base(p_season_id bigint)
+RETURNS TABLE (turn_no smallint, total_value numeric, prev_value numeric, drawdown numeric,
+               target_goalkeeper smallint, target_defender smallint, target_midfielder smallint, target_forward smallint,
+               dev_num numeric, dev_den numeric, mdev_num numeric, max_pos_value numeric)
+LANGUAGE sql STABLE AS $$
+    WITH s AS (
+        SELECT se.* FROM season se WHERE se.id = p_season_id
+    ), hv AS (
+        SELECT h.turn_no, max(h.value) AS mx FROM pg_temp.sr_hold(p_season_id) h GROUP BY h.turn_no
+    ), mp AS (
+        SELECT sp.market, sp.ticker, sp.measured_position FROM pg_temp.sr_season_positions(p_season_id) sp
+    ), hc AS (
+        SELECT h.turn_no,
+               COALESCE(sum(h.value) FILTER (WHERE c.pos = 'DEFENDER'), 0) AS s_df,
+               COALESCE(sum(h.value) FILTER (WHERE c.pos = 'MIDFIELDER'), 0) AS s_mf,
+               COALESCE(sum(h.value) FILTER (WHERE c.pos LIKE 'FORWARD\_%'), 0) AS s_fw,
+               count(*) FILTER (WHERE c.pos IS NULL) AS n_unknown
+        FROM pg_temp.sr_hold(p_season_id) h
+        JOIN asset a ON a.id = h.asset_id
+        LEFT JOIN mp ON mp.market = a.market AND mp.ticker = a.ticker
+        LEFT JOIN asset_position ap ON ap.asset_id = h.asset_id AND ap.base_date = (SELECT s0.base_date FROM s s0)
+        CROSS JOIN LATERAL (SELECT COALESCE(mp.measured_position, ap.system_position::text) AS pos) c
+        GROUP BY h.turn_no
+    ), base AS (
+        SELECT tn.turn_no, tn.total_value, tn.drawdown,
+               COALESCE(lag(tn.total_value) OVER (ORDER BY tn.turn_no), s.initial_cash) AS prev_value,
+               COALESCE(f.after_goalkeeper, s.start_goalkeeper) AS t_gk,
+               COALESCE(f.after_defender,   s.start_defender)   AS t_df,
+               COALESCE(f.after_midfielder, s.start_midfielder) AS t_mf,
+               COALESCE(f.after_forward,    s.start_forward)    AS t_fw,
+               tn.goalkeeper_value AS v_gk, tn.defender_value AS v_df, tn.midfielder_value AS v_mf, tn.forward_value AS v_fw
+        FROM s
+        JOIN turn tn ON tn.season_id = s.id AND tn.turn_no BETWEEN 1 AND s.current_turn_no
+        LEFT JOIN LATERAL (
+            SELECT fc.after_goalkeeper, fc.after_defender, fc.after_midfielder, fc.after_forward
+            FROM formation_change fc
+            WHERE fc.season_id = s.id AND fc.turn_no < tn.turn_no
+            ORDER BY fc.id DESC LIMIT 1
+        ) f ON true
+    )
+    SELECT b.turn_no, b.total_value, b.prev_value, b.drawdown, b.t_gk, b.t_df, b.t_mf, b.t_fw,
+           abs(100 * b.v_gk - b.t_gk * b.total_value) + abs(100 * b.v_df - b.t_df * b.total_value)
+         + abs(100 * b.v_mf - b.t_mf * b.total_value) + abs(100 * b.v_fw - b.t_fw * b.total_value),
+           100 * b.total_value,
+           CASE WHEN COALESCE(hc.n_unknown, 0) > 0
+                  OR b.total_value - COALESCE(hc.s_df + hc.s_mf + hc.s_fw, 0) < 0 THEN NULL
+                ELSE abs(100 * (b.total_value - COALESCE(hc.s_df + hc.s_mf + hc.s_fw, 0)) - b.t_gk * b.total_value)
+                   + abs(100 * COALESCE(hc.s_df, 0) - b.t_df * b.total_value)
+                   + abs(100 * COALESCE(hc.s_mf, 0) - b.t_mf * b.total_value)
+                   + abs(100 * COALESCE(hc.s_fw, 0) - b.t_fw * b.total_value) END,
+           COALESCE(hv.mx, 0)
+    FROM base b
+    LEFT JOIN hv ON hv.turn_no = b.turn_no
+    LEFT JOIN hc ON hc.turn_no = b.turn_no
+    ORDER BY b.turn_no
+$$;
+
+-- 실측 준수를 만들 수 없는 턴(보유 종목의 실측·기준일 판정이 없거나 실측 포지션별 보유 가치가 총 평가액을 넘는다)을 거부한다. sr_turns 가 sr_turn_base 를 한 번만 계산하도록 식 안에서 부른다.
+CREATE OR REPLACE FUNCTION pg_temp.sr_mdev_fail()
+RETURNS numeric
+LANGUAGE plpgsql STABLE AS $$
+BEGIN
+    RAISE EXCEPTION 'P0-20 성적표: 보유 종목의 실측·기준일 판정이 없거나 실측 포지션별 보유 가치가 총 평가액을 넘는다' USING HINT = 'REPORT_INCONSISTENT';
+END $$;
+
+-- 턴별 표: 표시용이다 (period_return·deviation·max_weight 는 그 자체로 한 번 반올림한 값 — 시즌 집계는 이 값을 다시 쓰지 않고 정수 원천에서 계산한다).
+CREATE OR REPLACE FUNCTION pg_temp.sr_turns(p_season_id bigint)
+RETURNS TABLE (turn_no smallint, total_value numeric, period_return numeric, drawdown numeric, baseline_value numeric,
+               target_goalkeeper smallint, target_defender smallint, target_midfielder smallint, target_forward smallint,
+               deviation numeric, measured_deviation numeric, max_weight numeric, breach boolean)
+LANGUAGE plpgsql STABLE AS $$
+#variable_conflict use_column
+BEGIN
+    PERFORM pg_temp.sr_t(p_season_id);
+    RETURN QUERY
+    SELECT b.turn_no, b.total_value, pg_temp.sr_div8(b.total_value - b.prev_value, b.prev_value), b.drawdown, bl.baseline_value,
+           b.target_goalkeeper, b.target_defender, b.target_midfielder, b.target_forward,
+           pg_temp.sr_div8(b.dev_num, b.dev_den), pg_temp.sr_div8(CASE WHEN b.mdev_num IS NULL THEN pg_temp.sr_mdev_fail() ELSE b.mdev_num END, b.dev_den), pg_temp.sr_div8(b.max_pos_value, b.total_value),
+           b.drawdown < se.risk_limit
+    FROM pg_temp.sr_turn_base(p_season_id) b
+    JOIN pg_temp.sr_baseline(p_season_id) bl ON bl.turn_no = b.turn_no
+    CROSS JOIN (SELECT s0.risk_limit FROM season s0 WHERE s0.id = p_season_id) se
+    ORDER BY b.turn_no;
+END $$;
+
 -- 선수별 역할: 노출(그 턴 시작 시점에 수량 > 0)이 있는 (종목, 선언 포지션)마다 1행. 선언은 start_turn < k ≤ end_turn(열린 끝은 무한대)인 lineup 구간 — 정확히 1개여야 한다.
 --   실측이 NULL(표본 부족)이면 matched 도 NULL 이다. 선언·판정 문자열은 6개 포지션 글자 그대로 비교한다 (FORWARD_* 세 종류를 구분한다).
 CREATE OR REPLACE FUNCTION pg_temp.sr_players(p_season_id bigint)
@@ -366,14 +397,14 @@ BEGIN
     ORDER BY c.formation_change_id;
 END $$;
 
--- 성적표 1행 (37열). 열 순서·이름은 docs/erd.md D38 의 표와 같고 P0-38 DTO 필드와 1:1 이다. 금액은 원 단위, 비율은 소수 8자리(−0.2 = −20%).
+-- 성적표 1행 (38열). 열 순서·이름은 docs/erd.md D38 의 표와 같고 P0-38 DTO 필드와 1:1 이다. 금액은 원 단위, 비율은 소수 8자리(−0.2 = −20%).
 CREATE OR REPLACE FUNCTION pg_temp.sr_report(p_season_id bigint)
 RETURNS TABLE (
     season_status text, is_final boolean, report_turns smallint, path_length smallint, pending_orders integer, pending_changes integer,
     initial_cash numeric, final_value numeric, total_return numeric, monthly_volatility numeric, max_drawdown numeric,
     baseline_final_value numeric, baseline_return numeric, excess_return numeric,
     risk_limit numeric, risk_breach_turns integer, risk_breach_depth numeric, max_single_weight numeric,
-    trade_notional numeric, turnover_annual numeric, formation_deviation numeric,
+    trade_notional numeric, turnover_annual numeric, formation_deviation numeric, measured_formation_deviation numeric,
     role_fit numeric, role_players_judged integer, role_players_unjudged integer,
     nudge_share numeric, nudge_same_turn_share numeric,
     total_fee numeric, team_fee numeric, formation_change_fee numeric, platform_nudge_fee numeric,
@@ -388,6 +419,8 @@ DECLARE
     v_min_diff numeric;
     v_a        numeric[];
     v_b        numeric[];
+    v_m        numeric[];
+    v_bad      boolean;
     v_nudge    numeric;
     v_same     numeric;
     v_role_num numeric;
@@ -410,16 +443,21 @@ BEGIN
     SELECT max(b.total_value) FILTER (WHERE b.turn_no = v_t), sum(b.total_value),
            (count(*) FILTER (WHERE b.drawdown < s.risk_limit))::integer, min(b.drawdown), min(b.drawdown - s.risk_limit),
            array_agg(b.dev_num ORDER BY b.turn_no), array_agg(b.dev_den ORDER BY b.turn_no),
-           max(pg_temp.sr_div8(b.max_pos_value, b.total_value))
-    INTO final_value, v_sum_v, risk_breach_turns, max_drawdown, v_min_diff, v_a, v_b, max_single_weight
-    FROM pg_temp.sr_turn_base(p_season_id) b;
+           max(pg_temp.sr_div8(b.max_pos_value, b.total_value)),
+           array_agg(b.mdev_num ORDER BY b.turn_no), bool_or(b.mdev_num IS NULL),
+           ROUND(stddev_samp((b.total_value - b.prev_value + k.pad40) / b.prev_value), 8)
+    INTO final_value, v_sum_v, risk_breach_turns, max_drawdown, v_min_diff, v_a, v_b, max_single_weight, v_m, v_bad,
+         monthly_volatility
+    FROM pg_temp.sr_turn_base(p_season_id) b CROSS JOIN pos_k k;
+    IF v_bad THEN
+        RAISE EXCEPTION 'P0-20 성적표: 보유 종목의 실측·기준일 판정이 없거나 실측 포지션별 보유 가치가 총 평가액을 넘는다' USING HINT = 'REPORT_INCONSISTENT';
+    END IF;
     total_return := pg_temp.sr_div8(final_value - s.initial_cash, s.initial_cash);
     risk_breach_depth := ROUND(LEAST(0, v_min_diff), 8);
     formation_deviation := pg_temp.sr_frac_mean(v_a, v_b);
-
-    -- 월 변동성: 수익률 분자를 소수 40자리로 올려 한 번 나누고 표본 표준편차(n − 1, 월 단위, 연율 아님) 뒤 ROUND(…, 8) 한 번. T = 1 이면 NULL.
-    SELECT ROUND(stddev_samp((b.total_value - b.prev_value + k.pad40) / b.prev_value), 8) INTO monthly_volatility
-    FROM pg_temp.sr_turn_base(p_season_id) b CROSS JOIN pos_k k;
+    measured_formation_deviation := pg_temp.sr_frac_mean(v_m, v_b);
+    -- 월 변동성(위 SELECT 의 마지막 값): 수익률 분자를 소수 40자리로 올려 한 번 나누고 표본 표준편차(n − 1, 월 단위, 연율 아님) 뒤 ROUND(…, 8) 한 번. T = 1 이면 NULL.
+    -- (성적표 한 번에 sr_turn_base 와 시즌 실측을 한 번만 계산하려고 같은 SELECT 에 합쳤다.)
 
     -- 기준선
     SELECT bl.baseline_value INTO baseline_final_value FROM pg_temp.sr_baseline(p_season_id) bl WHERE bl.turn_no = v_t;

@@ -11,7 +11,7 @@ import java.util.List;
  * Season analysis (MVP-17): the four baselines simulated on the season's own turn prices, the three-way split of the excess over the
  * market, the trading-discipline item, the reaction to noise, the platform's fees by order source and three review facts: attention
  * following, defender goals and the 6-turn effect of each formation change (MVP-19). Computed on read from stored, immutable rows and
- * never stored; separate from the 37-column {@link SeasonReportDto}. Money is a whole-won integer string,
+ * never stored; separate from the 38-column {@link SeasonReportDto}. Money is a whole-won integer string,
  * ratios are strings with 8 decimals, and a value that cannot be computed is null (the key is never omitted). No date, month block,
  * seed, event or asset name: an asset is only {@code MARKET:TICKER}.
  */
