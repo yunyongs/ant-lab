@@ -167,10 +167,31 @@ class EcosSeriesJobTest {
         assertThat(client.calls.getLast().from()).isEqualTo(LocalDate.of(1990, 1, 1));
     }
 
+    /** A clock that starts at the given instant and then flows with real time; unlike the test clock it honours the zone. */
+    private static Clock flowingFrom(Instant start, java.time.ZoneId zone) {
+        long begin = System.nanoTime();
+        return new Clock() {
+            @Override
+            public java.time.ZoneId getZone() {
+                return zone;
+            }
+
+            @Override
+            public Clock withZone(java.time.ZoneId other) {
+                return flowingFrom(instant(), other);
+            }
+
+            @Override
+            public Instant instant() {
+                return start.plusNanos(System.nanoTime() - begin);
+            }
+        };
+    }
+
     @Test
     void 범위의_끝은_한국_날짜_오늘이다() {
         client.answer("817Y002/010200000", obs("2025-11-17", "2.7"));
-        Clock lateUtc = Clock.fixed(Instant.parse("2026-11-18T16:00:00Z"), ZoneOffset.UTC);
+        Clock lateUtc = flowingFrom(Instant.parse("2026-11-18T16:00:00Z"), ZoneOffset.UTC);
 
         job(CATALOG, lateUtc).run(RunTrigger.MANUAL, Set.of("KR_KTB3Y"));
 
