@@ -53,7 +53,7 @@ class FredAppWiringTest {
             assertThat(context.getBean(FredJob.class)).isInstanceOf(FredSeriesJob.class);
             assertThat(context.getBean(FredProperties.class))
                     .isEqualTo(new FredProperties(true, "FAKE-FRED-KEY-0001", 1, 30, 100000, LocalDate.of(1990, 1, 1), 60, Duration.ofHours(2)));
-            assertThat(context.getBean(SeriesCatalog.class).series()).hasSize(9);
+            assertThat(context.getBean(SeriesCatalog.class).of(antlab.collect.series.SeriesSource.FRED)).hasSize(9);
             assertThat(context.getBeanNamesForType(FredRunOnceRunner.class)).isEmpty();
             assertThat(context.getBeanNamesForType(CollectJob.class)).isEmpty();
             assertThat(context.getBeanNamesForType(CollectRunOnceRunner.class)).isEmpty();

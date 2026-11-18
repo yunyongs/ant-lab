@@ -25,15 +25,51 @@ class SeriesCatalogTest {
     }
 
     @Test
-    void 추적_파일은_FRED_아홉_계열이고_ECOS는_아직_없다() {
+    void 추적_파일은_FRED_아홉_계열과_ECOS_일곱_계열이다() {
         SeriesCatalog catalog = SeriesCatalog.fromClasspath();
 
         assertThat(catalog.of(SeriesSource.FRED)).extracting(SeriesDef::code).containsExactly("US_DGS2", "US_CPILFESL", "US_ICSA",
                 "US_SAHM", "US_T10Y3M", "US_DTWEXBGS", "US_VIX", "US_BAA10Y", "FRED_DTWEXM");
-        assertThat(catalog.of(SeriesSource.ECOS)).isEmpty();
+        assertThat(catalog.of(SeriesSource.ECOS)).extracting(SeriesDef::code).containsExactly("KR_KTB3Y", "KR_BASE_RATE", "KR_CPI",
+                "KR_CLI", "KR_EXPORTS", "KR_USDKRW", "KR_CORP_AA");
         assertThat(catalog.series()).extracting(SeriesDef::sourceSeriesId).doesNotHaveDuplicates();
         assertThat(catalog.series().stream().filter(SeriesDef::revisable)).extracting(SeriesDef::code)
-                .containsExactly("US_CPILFESL", "US_ICSA");
+                .containsExactly("US_CPILFESL", "US_ICSA", "KR_CPI", "KR_CLI", "KR_EXPORTS");
+    }
+
+    @Test
+    void ECOS_행은_MACRO_ETF_2_3의_코드와_엔진의_빈도_수정_여부_발표_시차와_같다() throws IOException {
+        Map<String, String> ids = Map.of(
+                "KR_KTB3Y", "817Y002/010200000", "KR_BASE_RATE", "722Y001/0101000", "KR_CPI", "901Y009/0",
+                "KR_CLI", "901Y067/I16E", "KR_EXPORTS", "901Y118/T002", "KR_USDKRW", "731Y001/0000001",
+                "KR_CORP_AA", "817Y002/010300000");
+        String adapter = Files.readString(ADAPTER);
+        String model = Files.readString(MODEL);
+        Map<String, String[]> specs = new java.util.HashMap<>();
+        Matcher spec = Pattern.compile("SeriesCode\\.(\\w+): SeriesSpec\\(Frequency\\.(\\w+), Market\\.\\w+(.*)\\),\\s*$", Pattern.MULTILINE)
+                .matcher(model);
+        while (spec.find()) {
+            specs.put(spec.group(1), new String[] {spec.group(2), spec.group(3)});
+        }
+        List<SeriesDef> ecos = SeriesCatalog.fromClasspath().of(SeriesSource.ECOS);
+
+        assertThat(ecos).hasSameSizeAs(ids.keySet());
+        for (SeriesDef def : ecos) {
+            assertThat(adapter).as(def.code() + " is a SourceSeries").contains("    " + def.code() + " = \"" + def.code() + "\"");
+            assertThat(def.sourceSeriesId()).as(def.code() + " ECOS id").isEqualTo(ids.get(def.code()));
+            String[] engineSpec = specs.get(def.code());
+            assertThat(engineSpec).as(def.code() + " has an engine spec").isNotNull();
+            assertThat(def.frequency().name()).as(def.code() + " frequency").isEqualTo(engineSpec[0]);
+            assertThat(def.revisable()).as(def.code() + " revisable").isEqualTo(engineSpec[1].contains("revisable=True"));
+            Matcher lag = Pattern.compile("kr_lag_days=(\\d+)").matcher(engineSpec[1]);
+            assertThat(def.releaseLagDays()).as(def.code() + " release lag").isEqualTo(lag.find() ? Integer.parseInt(lag.group(1)) : 0);
+        }
+        String doc = Files.readString(Path.of("docs/MACRO_ETF.md"));
+        for (String id : ids.values()) {
+            for (String part : id.split("/")) {
+                assertThat(doc).as("MACRO_ETF 2.3 names " + part).contains("`" + part + "`");
+            }
+        }
     }
 
     @Test

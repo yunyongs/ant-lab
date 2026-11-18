@@ -95,6 +95,44 @@ class SeriesObservationWriterTest {
     }
 
     @Test
+    void 최신_값_방식의_개정은_사용_가능일을_저장한_날보다_앞에_두지_않고_첫_빈티지와_늦은_날짜는_그대로다() {
+        LocalDate lag = LocalDate.parse("2025-11-07");
+        writer.write(run, T1, series, Mode.LATEST, FROM, List.of(new Incoming(LocalDate.parse("2025-10-01"), new BigDecimal("1"), null, lag),
+                new Incoming(LocalDate.parse("2025-09-01"), new BigDecimal("5"), null, LocalDate.parse("2030-01-01")),
+                new Incoming(LocalDate.parse("2025-08-01"), new BigDecimal("6"), null, null)));
+        close(run);
+        long second = openRun(T2);
+
+        writer.write(second, T2, series, Mode.LATEST, FROM, List.of(new Incoming(LocalDate.parse("2025-10-01"), new BigDecimal("2"), null, lag),
+                new Incoming(LocalDate.parse("2025-09-01"), new BigDecimal("6"), null, LocalDate.parse("2030-01-01")),
+                new Incoming(LocalDate.parse("2025-08-01"), new BigDecimal("7"), null, null)));
+
+        assertThat(jdbc.queryForList("SELECT ref_date || '#' || vintage_no || '=' || coalesce(available_on::text, '-') FROM series_observation "
+                + "ORDER BY ref_date, vintage_no", String.class)).containsExactly(
+                "2025-08-01#1=-", "2025-08-01#2=-",
+                "2025-09-01#1=2030-01-01", "2025-09-01#2=2030-01-01",
+                "2025-10-01#1=2025-11-07", "2025-10-01#2=2026-11-19");
+    }
+
+    @Test
+    void 개정의_저장일은_받은_순간의_UTC_날짜이고_실행_시작과_다를_수_있다() {
+        LocalDate lag = LocalDate.parse("2025-11-07");
+        writer.write(run, T1, series, Mode.LATEST, FROM, List.of(new Incoming(LocalDate.parse("2025-10-01"), BigDecimal.ONE, null, lag)));
+        close(run);
+        long second = openRun(T2);
+
+        writer.write(second, T2, Instant.parse("2026-11-20T00:00:30Z"), series, Mode.LATEST, FROM,
+                List.of(new Incoming(LocalDate.parse("2025-10-01"), BigDecimal.TEN, null, lag)));
+        close(second);
+        long third = openRun(Instant.parse("2026-11-21T10:00:00Z"));
+        writer.write(third, Instant.parse("2026-11-21T10:00:00Z"), Instant.parse("2026-11-21T16:00:00Z"), series, Mode.LATEST, FROM,
+                List.of(new Incoming(LocalDate.parse("2025-10-01"), new BigDecimal("11"), null, lag)));
+
+        assertThat(jdbc.queryForList("SELECT vintage_no || '=' || available_on FROM series_observation ORDER BY vintage_no", String.class))
+                .containsExactly("1=2025-11-07", "2=2026-11-20", "3=2026-11-21");
+    }
+
+    @Test
     void 최신_값_방식에서_한_날짜에_값이_둘이면_아무것도_쓰지_않는다() {
         assertThatThrownBy(() -> writer.write(run, T1, series, Mode.LATEST, FROM,
                 List.of(in("2025-11-16", "1", null), in("2025-11-17", "3.6", null), in("2025-11-17", "3.7", null))))
@@ -224,7 +262,7 @@ class SeriesObservationWriterTest {
 
         assertThatThrownBy(() -> writer.write(second, T2, series, Mode.HISTORY, FROM, List.of())).isInstanceOf(VintageMismatchException.class);
         assertThat(java.util.Arrays.stream(SeriesObservationWriter.class.getMethods()).filter(m -> m.getName().equals("write")).map(m -> m.getParameterCount()))
-                .as("every public write path takes the requested start").containsOnly(6);
+                .as("every public write path takes the requested start (7 = the same plus the receive time)").containsOnly(6, 7);
         assertThat(count()).isEqualTo(1);
     }
 

@@ -6,6 +6,9 @@ import antlab.collect.CollectTestData.TestClock;
 import antlab.collect.JobStatus;
 import antlab.collect.PriceBasis;
 import antlab.collect.RunTrigger;
+import antlab.collect.ecos.EcosProperties;
+import antlab.collect.ecos.EcosSeriesJob;
+import antlab.collect.ecos.FakeEcosClient;
 import antlab.collect.fred.FakeFredClient;
 import antlab.collect.fred.FredProperties;
 import antlab.collect.fred.FredSeriesJob;
@@ -131,6 +134,7 @@ class LeastPrivilegeFlowTest {
         runTheAgent();
         runTheCollector();
         runTheFredCollector();
+        runTheEcosCollector();
 
         JdbcTemplate superuser = new JdbcTemplate(database.superuser());
         List<String> empty = new ArrayList<>();
@@ -274,5 +278,22 @@ class LeastPrivilegeFlowTest {
         assertThat(summary.status()).as(summary.toString()).isEqualTo(JobStatus.SUCCEEDED);
         assertThat(summary.insertedCount()).isEqualTo(4);
         assertThat(summary.revisedCount()).isEqualTo(1);
+    }
+
+    private void runTheEcosCollector() {
+        FakeEcosClient fake = new FakeEcosClient()
+                .answer("817Y002/010200000", FakeEcosClient.obs("2026-01-09", "2.7"), FakeEcosClient.obs("2026-01-12", "2.8"))
+                .answer("901Y009/0", FakeEcosClient.obs("2025-12-01", "117.0"));
+        EcosSeriesJob job = EcosSeriesJob.create(() -> fake, SeriesCatalog.fromCsv("""
+                code,source,source_series_id,unit,frequency,release_lag_days,revisable
+                KR_KTB3Y,ECOS,817Y002/010200000,PERCENT,DAILY,0,false
+                KR_CPI,ECOS,901Y009/0,INDEX,MONTHLY,7,true
+                """), jdbc, transactions, new TestClock(Instant.parse("2026-01-13T09:30:00Z")),
+                new EcosProperties(true, "FAKEECOSKEY0000001", 1, 20, 100000, LocalDate.of(1990, 1, 1), 60, Duration.ofHours(2)));
+
+        var summary = job.run(RunTrigger.MANUAL, Set.of());
+
+        assertThat(summary.status()).as(summary.toString()).isEqualTo(JobStatus.SUCCEEDED);
+        assertThat(summary.insertedCount()).isEqualTo(3);
     }
 }

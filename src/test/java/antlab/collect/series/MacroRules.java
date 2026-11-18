@@ -2,7 +2,7 @@ package antlab.collect.series;
 
 import java.util.List;
 
-/** Rules C7-C12 of erd 10.5 for series_observation: each query returns no row on consistent data. */
+/** Rules C7-C13 of erd 10.5 for series_observation: each query returns no row on consistent data. */
 public final class MacroRules {
 
     private static final String NEXT_VINTAGE = """
@@ -51,7 +51,18 @@ public final class MacroRules {
             WHERE r.job_name <> s.source || '_SERIES'
             """;
 
-    public static final List<String> ALL = List.of(C7, C8, C9, C10, C11, C12);
+    /**
+     * C13: an ECOS row always has available_on (its lag-rule date), and a revision of it (vintage 2 or later) is not
+     * available before the UTC day it was stored, so a revision is never read from a date in the past.
+     */
+    public static final String C13 = """
+            SELECT o.id FROM series_observation o JOIN series s ON s.id = o.series_id
+            WHERE s.source = 'ECOS'
+              AND (o.available_on IS NULL
+                   OR (o.vintage_no > 1 AND o.available_on < (o.observed_at AT TIME ZONE 'UTC')::date))
+            """;
+
+    public static final List<String> ALL = List.of(C7, C8, C9, C10, C11, C12, C13);
 
     private MacroRules() {
     }

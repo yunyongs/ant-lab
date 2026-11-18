@@ -23,7 +23,8 @@ import org.springframework.transaction.support.TransactionTemplate;
  * One series is one transaction, so a failing series leaves the others' rows in place.
  * <ul>
  * <li>{@link Mode#LATEST}: the source gives today's value of each date. A value equal to the latest stored vintage adds
- *     nothing, a different one adds the next vintage, a new date adds vintage 1.</li>
+ *     nothing, a different one adds the next vintage (its {@code availableOn}, when it has one, is moved to the day it was
+ *     stored if that is later), a new date adds vintage 1.</li>
  * <li>{@link Mode#HISTORY}: the source gives the whole vintage history of each date (ALFRED). The stored vintages must be
  *     a prefix of it; the rest is appended. A stored vintage that is missing or different is an error, not a revision.</li>
  * </ul>
@@ -75,6 +76,15 @@ public final class SeriesObservationWriter {
      *             be in the answer, so a vanished leading date or an empty answer fails instead of committing the rest
      */
     public Result write(long jobRunId, Instant observedAt, long seriesId, Mode mode, LocalDate from, List<Incoming> incoming) {
+        return write(jobRunId, observedAt, observedAt, seriesId, mode, from, incoming);
+    }
+
+    /**
+     * @param storedAt the moment the values were received, which can be later than the run's start ({@code observedAt}, kept
+     *                 equal to the run's started_at, rule C11); a revision is known no earlier than this day
+     */
+    public Result write(long jobRunId, Instant observedAt, Instant storedAt, long seriesId, Mode mode, LocalDate from,
+            List<Incoming> incoming) {
         if (mode == Mode.HISTORY) {
             Objects.requireNonNull(from, "a history write needs the requested start");
         }
@@ -130,7 +140,7 @@ public final class SeriesObservationWriter {
                     if (latest != null) {
                         revised++;
                     }
-                    rows.add(insertRow(jobRunId, observedAt, seriesId, row, vintage));
+                    rows.add(insertRow(jobRunId, observedAt, seriesId, latest == null ? row : notBeforeStoredDay(row, storedAt), vintage));
                 } else {
                     wanted = new ArrayList<>(wanted);
                     wanted.sort(Comparator.comparing(Incoming::realtimeStart, Comparator.nullsFirst(Comparator.naturalOrder())));
@@ -167,6 +177,18 @@ public final class SeriesObservationWriter {
             }
             return new Result(rows.size(), revised, unchanged);
         });
+    }
+
+    /**
+     * A revision (vintage 2 or later) of a value with a lag-rule date is known no earlier than the day it was stored: the
+     * lag date belongs to the first publication, and reading the revision from it would show it in the past.
+     */
+    private static Incoming notBeforeStoredDay(Incoming row, Instant storedAt) {
+        LocalDate storedOn = storedAt.atOffset(ZoneOffset.UTC).toLocalDate();
+        if (row.availableOn() == null || !row.availableOn().isBefore(storedOn)) {
+            return row;
+        }
+        return new Incoming(row.refDate(), row.value(), row.realtimeStart(), storedOn);
     }
 
     private static Object[] insertRow(long jobRunId, Instant observedAt, long seriesId, Incoming row, int vintage) {
