@@ -1,4 +1,5 @@
 import { Link } from 'react-router';
+import { AnalysisReviewBlocks } from '../analysis/AnalysisReviewBlocks.tsx';
 import type { Season } from '../seasons/labels.ts';
 import { FormationChangeList } from './FormationChangeList.tsx';
 import type { Review, TurnValues } from './queries.ts';
@@ -31,6 +32,7 @@ export function ReviewView({
         values={values}
       />
       <FormationChangeList changes={review.formationChanges} />
+      <AnalysisReviewBlocks seasonId={season.id} />
       <div className={styles.entries}>
         <Link className={styles.secondary} to={`${base}/report`}>
           성적표 보기
