@@ -96,10 +96,15 @@ public class FeedInputReader {
                             hidden ? null : rs.getString("category"), rs.getBigDecimal("reaction"),
                             (Integer) rs.getObject("strength"), hidden);
                 }).list();
-        return new FeedInput(seed, turnNo, assets(seasonId, turnNo, currentPrices), events);
+        return new FeedInput(seed, turnNo, readAssets(seasonId, turnNo, currentPrices, true), events);
     }
 
-    private List<AssetFacts> assets(long seasonId, int turnNo, Map<Long, BigDecimal> currentPrices) {
+    /**
+     * The asset part of the input, for readers that need no events (the ranking board). Rows of turns above {@code turnNo} are never read.
+     *
+     * @param withPreviousFeed false skips the previous turn's feed statement; the story fields then stay empty
+     */
+    public List<AssetFacts> readAssets(long seasonId, int turnNo, Map<Long, BigDecimal> currentPrices, boolean withPreviousFeed) {
         Map<Long, List<BigDecimal>> history = new HashMap<>();
         jdbc.sql(PRICES).param("seasonId", seasonId).param("turnNo", turnNo).query(rs -> {
             history.computeIfAbsent(rs.getLong("asset_id"), k -> new ArrayList<>())
@@ -127,7 +132,7 @@ public class FeedInputReader {
                     }
                 });
 
-        Map<Long, Story> stories = previousStories(seasonId, turnNo);
+        Map<Long, Story> stories = withPreviousFeed ? previousStories(seasonId, turnNo) : Map.of();
         int ranked = (int) pool.stream().filter(a -> attention.containsKey(a.assetId())).count();
         String focus = pool.stream().filter(a -> attention.containsKey(a.assetId()))
                 .min(Comparator.<AssetRow, BigDecimal>comparing(a -> attention.get(a.assetId()), Comparator.reverseOrder())

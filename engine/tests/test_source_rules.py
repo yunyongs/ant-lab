@@ -355,6 +355,7 @@ REGIME_ALLOWED_IMPORTS = {
     "datetime",
     "decimal",
     "enum",
+    "hashlib",
     "math",
     "numpy",
     "operator",
@@ -409,6 +410,11 @@ def test_regime_imports_only_numpy_and_the_standard_library():
         "regime/hysteresis.py",
         "regime/scoring.py",
         "regime/evaluate.py",
+        "regime/publication.py",
+        "regime/adapter.py",
+        "regime/monthly.py",
+        "regime/coverage.py",
+        "regime/source.py",
     }
     found = {n: regime_disallowed_imports(t) for n, t in texts.items()}
     assert {n: bad for n, bad in found.items() if bad} == {}

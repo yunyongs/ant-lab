@@ -23,7 +23,7 @@ import tools.jackson.databind.json.JsonMapper;
 /**
  * 턴 전환 1회의 SQL 문 수를 범주별로 세어 출력한다. 절대값은 단언하지 않는다(P0 실패 조건 아님) —
  * 풀 크기·규칙 수에 비례하고, 보유 종목 수와는 무관함만 단언한다(보유 1종목 시즌 = 보유 3종목 시즌).
- * 피드 행 INSERT 는 행 하나에 한 문장이고 행 수(5–15)는 시즌 시드가 정하므로 따로 세어 응답의 피드 행 수와 맞추고, 나머지 문장 수만 비교한다.
+ * 피드·알림 행 INSERT 는 행 하나에 한 문장이고 행 수(피드 5–15, 알림 1–4)는 시즌 시드와 매매가 정하므로 따로 세어 응답의 피드 행 수와 맞추고, 나머지 문장 수만 비교한다.
  */
 @IntegrationTest
 @Sql(scripts = {"/fixtures/cleanup_season_start.sql", "/fixtures/history_pool.sql", "/fixtures/replay_months.sql",
@@ -81,8 +81,9 @@ class TurnAdvanceQueryCountTest {
         Map<String, Integer> counts = new LinkedHashMap<>();
         sqls.forEach(q -> counts.merge(category(q), 1, Integer::sum));
         counts.put("합계", sqls.size());
-        int feedRows = JsonMapper.shared().readTree(r.getContentAsString()).get("feed").size();
-        assertThat(counts.getOrDefault(FEED_INSERT, 0)).as("피드 행 INSERT 수 = 응답의 피드 행 수").isEqualTo(feedRows);
+        var body = JsonMapper.shared().readTree(r.getContentAsString());
+        int feedRows = body.get("feed").size() + body.get("alerts").size();
+        assertThat(counts.getOrDefault(FEED_INSERT, 0)).as("피드 행 INSERT 수 = 응답의 피드 행 수 + 알림 수").isEqualTo(feedRows);
         return withoutFeedInserts(counts);
     }
 

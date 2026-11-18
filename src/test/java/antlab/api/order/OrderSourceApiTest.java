@@ -202,6 +202,19 @@ class OrderSourceApiTest {
     }
 
     @Test
+    void T6b_a_sell_stores_the_origin_and_the_feed_row_it_points_at() throws Exception {
+        long season = seasonAt(1);
+        long chip = chipItem(season, 1, 1, "000660");
+        long alert = plant(season, 1, 2, "NUDGE", assetId(jdbc, "069500"), null, null);
+        assertThat(order(season, 1, "SELL", "000660", 1, src("FEED", 1, 1)).getStatus()).isEqualTo(201);
+        assertThat(lastOrder(season)).containsEntry("side", "SELL").containsEntry("source", "FEED").containsEntry("turn_feed_id", chip);
+        assertThat(order(season, 1, "SELL", "069500", 1, src("ALERT", 1, 2)).getStatus()).isEqualTo(201);
+        assertThat(lastOrder(season)).containsEntry("side", "SELL").containsEntry("source", "ALERT").containsEntry("turn_feed_id", alert);
+        // a sell of another asset than the chip's is refused like a buy
+        refusedSource(season, 1, "SELL", "069500", 1, src("FEED", 1, 1));
+    }
+
+    @Test
     void T7_a_formation_change_earlier_in_the_turn_and_a_feed_origin_bind_the_same_order() throws Exception {
         long season = seasonAt(1);
         long item = eventItem(season, 1, 1);
@@ -261,7 +274,7 @@ class OrderSourceApiTest {
     }
 
     @Test
-    void N7_a_ranking_origin_is_refused_while_no_board_exists() throws Exception {
+    void N7_a_ranking_origin_is_refused_when_the_asset_is_not_on_the_board() throws Exception {
         long season = seasonAt(1);
         refusedSource(season, 1, "BUY", "000660", 1, "{\"kind\":\"RANKING\"}");
     }

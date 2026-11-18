@@ -311,6 +311,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/seasons/{seasonId}/turns/{turnNo}/ranking": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Ranking board of a turn / 턴의 순위판
+         * @description Returns seven lists for one played turn, at most 5 rows each: biggest price rises and falls, most attention (rank and grade only), longest rising and falling streaks (2 turns or more), and the groups with the biggest mean rise and fall. The board is computed from the facts of that turn only, so a turn gives the same answer whenever it is asked, in a season in progress or a finished one.
+         *
+         *     진행한 턴 하나의 목록 일곱 개를 줄 5개 이하로 준다: 가격이 가장 많이 오르내린 종목, 관심이 가장 큰 종목(순위와 등급만), 가장 오래 오르내린 종목(2턴 이상), 평균 상승·하락이 가장 큰 그룹. 그 턴의 자료만으로 계산하므로 언제 물어도 같은 답이고 진행 중인 시즌과 끝난 시즌이 같다.
+         */
+        get: operations["getTurnRanking"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/seasons/{seasonId}/holdings": {
         parameters: {
             query?: never;
@@ -348,8 +370,8 @@ export interface paths {
          *     - X1 Compound annual growth rate (CAGR): needs fractional powers (ln·exp) that Java BigDecimal has no exact counterpart for, so the golden 8-decimal match cannot be guaranteed. The value is inflated on short seasons. → MVP (with the M3 score)
          *     - X2 Sharpe: meaningless on a 10-turn sample, and the risk-free rate (cash earns no interest) must be defined with it. → MVP
          *     - X3 Path percentile and consistency: needs an expected distribution (thousands of paths). → M2
-         *     - X4 60/40, my-formation (follows) and start-formation (fixed) benchmarks, the three-way split into player selection, formation change and structure effect, the 6-turn effect after a change, band rebalancing simulation and the representative-ETF table per position are needed (PLAN §6.1 "decided at MVP implementation"). → MVP (Java)
-         *     - X5 Trading discipline (panic, chasing) and formation change right after a fall: the definitions are missing. There is no threshold for "right after a rise", and the documents do not say whether the −8% basis is the asset, the team or the market. It differs from the feature table §3.4 "include if it is on the path". → MVP
+         *     - X4 60/40, my-formation (follows) and start-formation (fixed) benchmarks, the three-way split into player selection, formation change and structure effect: not in these 37 columns. Java computes them at GET …/report/analysis (MVP-17). The 6-turn effect after a change is MVP-19.
+         *     - X5 Trading discipline (panic, chasing) and formation change right after a fall: not in these 37 columns. Defined in PLAN §6.2; Java computes them at GET …/report/analysis (MVP-17).
          *     - X6 Number of asset classes and average correlation under diversification: not in the feature table row P0-20, and correlation is unstable over 10 turns. → MVP
          *     - X7 Reaction to noise (direction): needs a rule that judges the feed direction. → MVP
          *     - X8 Following attention, defender goals, bench goals and signal discrimination: these are review items, so they are not part of the score (PLAN §6.2). Signal discrimination is EXT. → MVP/EXT
@@ -364,8 +386,8 @@ export interface paths {
          *     - X1 연평균 성장률(CAGR) 분수 거듭제곱(ln·exp)이 필요한데 Java BigDecimal 에 정확한 짝이 없어 골든 8자리 일치를 보장할 수 없다. 짧은 시즌에서는 값이 부풀려진다. → MVP(M3 점수와 함께)
          *     - X2 Sharpe 10턴 표본으로는 의미가 없고, 무위험 수익률(현금 무이자) 정의도 함께 정해야 한다. → MVP
          *     - X3 경로 백분위·일관성 예상 분포(수천 경로)가 필요하다. → M2
-         *     - X4 60/40·내 포메이션(따라감)·시작 포메이션(고정) 기준선, 선수 선택·전술 변경·구조 효과 3분해, 변경 뒤 6턴 효과 밴드 리밸런싱 시뮬레이션과 포지션별 대표 ETF 표가 필요하다 (PLAN §6.1 "MVP 구현 때 정한다"). → MVP(Java)
-         *     - X5 매매 규율(패닉·추격)·하락 직후 전술 변경 정의가 비어 있다: "상승 직후" 문턱이 없고 −8% 의 기준이 종목·팀·시장 중 무엇인지 문서에 없다. 기능 표 §3.4 의 "경로에 있으면 포함"과 다르다. → MVP
+         *     - X4 60/40·내 포메이션(따라감)·시작 포메이션(고정) 기준선, 선수 선택·전술 변경·구조 효과 3분해 이 37열에는 없다. Java 가 GET …/report/analysis 로 계산한다 (MVP-17). 변경 뒤 6턴 효과는 MVP-19.
+         *     - X5 매매 규율(패닉·추격)·하락 직후 전술 변경 이 37열에는 없다. 정의는 PLAN §6.2, Java 가 GET …/report/analysis 로 계산한다 (MVP-17).
          *     - X6 분산 중 자산군 수·평균 상관 기능 표 P0-20 행에 없고 상관은 10턴으로는 불안정하다. → MVP
          *     - X7 소음 반응(방향) 피드 방향을 판정하는 규칙이 필요하다. → MVP
          *     - X8 관심 추종·수비수 득점·벤치 득점·신호 판별 복기 항목이라 점수에 넣지 않는다 (PLAN §6.2). 신호 판별은 EXT. → MVP/EXT
@@ -383,7 +405,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/seasons/{seasonId}/score": {
+    "/api/v1/seasons/{seasonId}/report/analysis": {
         parameters: {
             query?: never;
             header?: never;
@@ -391,12 +413,12 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Season score lookup / 시즌 점수 조회
-         * @description Returns the score of a finished season: 0.5 x the result score (the season's Sharpe difference against the market benchmark, ranked among engine paths of the season-start team held still) + 0.5 x the process score (the mean of the item scores that have a value). The score is computed on the first request after the season finished, in finish order together with the member's earlier seasons, and then kept; a later request returns the stored row. The result and the score are null when the history cannot carry a path distribution for the season; such a season, and a human season abandoned before turn 3, is left out of the rating (ratingExclusion). While the engine cannot answer, nothing is stored and the answer is 503 ENGINE_UNAVAILABLE; try again later. The luck percentile is shown and is not part of the score. The response has no money, month, seed or engine detail.
+         * Season analysis lookup / 시즌 분석 조회
+         * @description Simulates four baselines (market, 60/40, my formation followed, start formation fixed) on the season's own turn prices with integer shares and fees, splits the excess over the market into player selection, formation change and structure, and measures trading discipline (panic selling and chase buying, PLAN §6.2), all on read and without storing anything. Complements the 37-column season report. A season that is in progress or being abandoned returns 409 SEASON_NOT_FINISHED. Money is a whole-won integer string; ratios are strings with 8 decimal places; the three won terms of the split add up to the total exactly, while their ratios may differ from the total ratio by rounding. A baseline whose representative asset is not in the season pool is unavailable (reason REPRESENTATIVE_MISSING, values null). The 60/40 bond leg uses a US Treasury ETF until the pool holds a Korean bond ETF (bondLegSubstituted). The representative table is a fixed rule, not a position judgement. Dates, month blocks, seeds and asset names are not included; an asset is only MARKET:TICKER.
          *
-         *     끝난 시즌의 점수를 준다: 0.5 × 결과 점수(시즌의 샤프 차이를 시장 기준선과 비교해, 시즌 시작 팀을 그대로 보유한 엔진 경로들 안에서 순위를 매긴 값) + 0.5 × 과정 점수(값이 있는 항목 점수의 평균). 점수는 시즌이 끝난 뒤 첫 요청에서 회원의 앞선 시즌과 함께 끝난 순서대로 계산해 보관하고, 이후 요청은 보관한 행을 준다. 이력이 시즌의 경로 분포를 받쳐 주지 못하면 결과 점수와 점수는 null 이고, 그런 시즌과 3턴 전에 포기한 사람의 시즌은 레이팅에서 빠진다(ratingExclusion). 엔진이 답하지 못하는 동안에는 아무것도 저장하지 않고 503 ENGINE_UNAVAILABLE 로 답하니 나중에 다시 시도한다. 운 백분위는 보여 주기만 하고 점수에 들어가지 않는다. 응답에는 금액·달·시드·엔진 세부가 없다.
+         *     끝난 시즌의 시즌 가격 위에서 기준선 네 개(시장, 60/40, 내 포메이션 따라감, 시작 포메이션 고정)를 정수 주식과 수수료로 시뮬레이션하고, 시장 대비 초과분을 선수 선택·전술 변경·구조로 나누고, 매매 규율(패닉 매도·추격 매수, PLAN §6.2)을 재며, 모두 저장 없이 조회로 계산한다. 37항목 시즌 성적표를 보완한다. 진행 중이거나 포기 중인 시즌은 409 SEASON_NOT_FINISHED 다. 금액은 원 단위 정수 문자열, 비율은 소수 8자리 문자열이고, 3분해의 원 단위 세 항은 합계와 정확히 같지만 비율은 반올림 때문에 합계 비율과 다를 수 있다. 대표 종목이 시즌 풀에 없는 기준선은 만들 수 없다(reason REPRESENTATIVE_MISSING, 값 null). 60/40 의 채권 칸은 풀에 국내 채권 ETF가 들어오기 전까지 미국 국채 ETF를 쓴다(bondLegSubstituted). 대표 종목 표는 고정 규칙이며 포지션 판정이 아니다. 날짜·월 블록·시드·종목 이름은 싣지 않고 종목은 MARKET:TICKER 로만 가리킨다.
          */
-        get: operations["getSeasonScore"];
+        get: operations["getSeasonAnalysis"];
         put?: never;
         post?: never;
         delete?: never;
@@ -433,6 +455,28 @@ export interface paths {
          *     - 사건 설명(RAG) → AI
          */
         get: operations["getSeasonReview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/seasons/{seasonId}/score": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Season score lookup / 시즌 점수 조회
+         * @description Returns the score of a finished season: 0.5 x the result score (the season's Sharpe difference against the market benchmark, ranked among engine paths of the season-start team held still) + 0.5 x the process score (the mean of the item scores that have a value). The score is computed on the first request after the season finished, in finish order together with the member's earlier seasons, and then kept; a later request returns the stored row. The result and the score are null when the history cannot carry a path distribution for the season; such a season, and a human season abandoned before turn 3, is left out of the rating (ratingExclusion). While the engine cannot answer, nothing is stored and the answer is 503 ENGINE_UNAVAILABLE; try again later. The luck percentile is shown and is not part of the score. The response has no money, month, seed or engine detail.
+         *
+         *     끝난 시즌의 점수를 준다: 0.5 × 결과 점수(시즌의 샤프 차이를 시장 기준선과 비교해, 시즌 시작 팀을 그대로 보유한 엔진 경로들 안에서 순위를 매긴 값) + 0.5 × 과정 점수(값이 있는 항목 점수의 평균). 점수는 시즌이 끝난 뒤 첫 요청에서 회원의 앞선 시즌과 함께 끝난 순서대로 계산해 보관하고, 이후 요청은 보관한 행을 준다. 이력이 시즌의 경로 분포를 받쳐 주지 못하면 결과 점수와 점수는 null 이고, 그런 시즌과 3턴 전에 포기한 사람의 시즌은 레이팅에서 빠진다(ratingExclusion). 엔진이 답하지 못하는 동안에는 아무것도 저장하지 않고 503 ENGINE_UNAVAILABLE 로 답하니 나중에 다시 시도한다. 운 백분위는 보여 주기만 하고 점수에 들어가지 않는다. 응답에는 금액·달·시드·엔진 세부가 없다.
+         */
+        get: operations["getSeasonScore"];
         put?: never;
         post?: never;
         delete?: never;
@@ -911,7 +955,7 @@ export interface components {
              *
              *     주문이 시작된 곳. 없거나 null이면 DIRECT. FEED·ALERT는 이 시즌의 현재 턴까지 보인 피드 항목을 가리켜야 하며 아니면 422 SOURCE_NOT_VISIBLE
              */
-            source?: components["schemas"]["OrderSourceRequest"];
+            source?: components["schemas"]["OrderSourceRequest"] | null;
         };
         /**
          * @description Where the order started. FEED and ALERT name the feed item that was shown (turn and display order); RANKING and DIRECT carry no reference; BENCH is reserved and refused. The server accepts a non-DIRECT origin only if that item was shown to this season at or before the current turn
@@ -1066,9 +1110,9 @@ export interface components {
             remainingTurns: number;
         };
         /**
-         * @description Values of the stored turn row and the ratios computed from them. The advance-turn response and the turn lookup have the same shape. The sum of the four shares can differ from 1 by at most 2e-8, and status and pathLength are the season's values now. targetFormation is the target at the start of that turn. Reconciliation attempt number, status, seed, path, month block, year-month and return kind are not included. feed is the feed stored for that turn.
+         * @description Values of the stored turn row and the ratios computed from them. The advance-turn response and the turn lookup have the same shape. The sum of the four shares can differ from 1 by at most 2e-8, and status and pathLength are the season's values now. targetFormation is the target at the start of that turn. Reconciliation attempt number, status, seed, path, month block, year-month and return kind are not included. feed is the feed stored for that turn and alerts are the nudge alerts stored for it.
          *
-         *     저장한 턴 행의 값과 거기서 계산한 비율. 턴 전환 응답과 턴 조회가 같은 형이다. 비중 4개의 합은 1과 최대 2e-8 다를 수 있고, status·pathLength 는 시즌의 지금 값이다. targetFormation 은 그 턴 시작 시점의 목표다. 대사 시도 번호·상태·시드·경로·월 블록·연월·수익률 종류는 싣지 않는다. feed 는 그 턴에 저장된 피드다
+         *     저장한 턴 행의 값과 거기서 계산한 비율. 턴 전환 응답과 턴 조회가 같은 형이다. 비중 4개의 합은 1과 최대 2e-8 다를 수 있고, status·pathLength 는 시즌의 지금 값이다. targetFormation 은 그 턴 시작 시점의 목표다. 대사 시도 번호·상태·시드·경로·월 블록·연월·수익률 종류는 싣지 않는다. feed 는 그 턴에 저장된 피드이고 alerts 는 저장된 독려 알림이다
          */
         TurnResultDto: {
             /**
@@ -1207,6 +1251,8 @@ export interface components {
             formationDeviation: string;
             /** @description The feed shown at this turn, in display order; empty when the turn has none / 이 턴에 보인 피드, 표시 순서. 없으면 빈 목록 */
             feed: components["schemas"]["FeedItemDto"][];
+            /** @description The nudge alerts shown at this turn, in display order; empty when the turn has none. Their seq numbers continue after the feed's / 이 턴에 보인 독려 알림, 표시 순서. 없으면 빈 목록. seq 는 피드 뒤에서 이어진다 */
+            alerts: components["schemas"]["FeedItemDto"][];
         };
         /**
          * @description One feed item as shown. Event cards and noise share this shape; what was a real event is revealed in the review.
@@ -1231,6 +1277,102 @@ export interface components {
             assetId: number | null;
             /** @description The sentence as shown / 보인 문장 */
             body: string;
+        };
+        /** @description Ranking board of one played turn: seven lists of at most 5 rows each, computed from that turn's data only / 한 턴의 순위판: 그 턴의 자료만으로 계산한, 줄 5개 이하의 목록 일곱 개 */
+        RankingBoardDto: {
+            /** Format: int32 */
+            turnNo: number;
+            /** @description Biggest price rises, change above 0, largest first / 가격이 가장 많이 오른 종목, 변화 0 초과, 큰 순 */
+            gainers: components["schemas"]["RankedAssetDto"][];
+            /** @description Biggest price falls, change below 0, largest fall first / 가격이 가장 많이 내린 종목, 변화 0 미만, 많이 내린 순 */
+            losers: components["schemas"]["RankedAssetDto"][];
+            /** @description Most attention, by rank and grade; assets without an attention figure are left out / 관심이 가장 큰 종목, 순위와 등급. 관심 값이 없는 종목은 뺀다 */
+            attention: components["schemas"]["AttentionRankDto"][];
+            /** @description Longest runs of rising turns, at least 2 / 가장 오래 오른 종목, 2턴 이상 */
+            risingStreaks: components["schemas"]["StreakRankDto"][];
+            /** @description Longest runs of falling turns, at least 2 / 가장 오래 내린 종목, 2턴 이상 */
+            fallingStreaks: components["schemas"]["StreakRankDto"][];
+            /** @description Groups with the biggest mean rise / 평균 상승이 가장 큰 그룹 */
+            groupGainers: components["schemas"]["RankedGroupDto"][];
+            /** @description Groups with the biggest mean fall / 평균 하락이 가장 큰 그룹 */
+            groupLosers: components["schemas"]["RankedGroupDto"][];
+        };
+        /** @description One row of a gainers or losers list / 상승·하락 목록의 한 줄 */
+        RankedAssetDto: {
+            /**
+             * Format: int32
+             * @description Row position in the list, from 1 / 목록 안의 줄 번호, 1부터
+             */
+            rank: number;
+            /**
+             * Format: int64
+             * @description Asset identifier (the same as assetId in the pool response) / 종목 식별자(풀 응답의 assetId 와 같다)
+             */
+            assetId: number;
+            /**
+             * Format: decimal
+             * @description Price change of the turn = price ÷ previous turn's price − 1, 8 decimal places / 그 턴의 가격 변화 = 가격 ÷ 직전 턴 가격 − 1, 소수 8자리
+             */
+            changeRate: string;
+        };
+        /** @description One row of the attention list; rank and grade only, the index value is not shown / 관심 목록의 한 줄. 순위와 등급만 보이고 지수 값은 보이지 않는다 */
+        AttentionRankDto: {
+            /**
+             * Format: int32
+             * @description Row position in the list, from 1 / 목록 안의 줄 번호, 1부터
+             */
+            rank: number;
+            /**
+             * Format: int64
+             * @description Asset identifier (the same as assetId in the pool response) / 종목 식별자(풀 응답의 assetId 와 같다)
+             */
+            assetId: number;
+            /**
+             * Format: int32
+             * @description Attention grade: 3 = top 10 %, 2 = top half, 1 = the rest / 관심 등급: 3 = 상위 10%, 2 = 상위 절반, 1 = 나머지
+             */
+            grade: number;
+        };
+        /** @description One row of a rising or falling streak list / 연속 상승·하락 목록의 한 줄 */
+        StreakRankDto: {
+            /**
+             * Format: int32
+             * @description Row position in the list, from 1 / 목록 안의 줄 번호, 1부터
+             */
+            rank: number;
+            /**
+             * Format: int64
+             * @description Asset identifier (the same as assetId in the pool response) / 종목 식별자(풀 응답의 assetId 와 같다)
+             */
+            assetId: number;
+            /**
+             * Format: int32
+             * @description Turns in a row with the same direction of price change, at least 2 / 가격이 같은 방향으로 이어진 턴 수, 2 이상
+             */
+            streak: number;
+            /**
+             * Format: decimal
+             * @description Price change of the turn, 8 decimal places / 그 턴의 가격 변화, 소수 8자리
+             */
+            changeRate: string;
+        };
+        /** @description One row of a group gainers or losers list / 그룹 상승·하락 목록의 한 줄 */
+        RankedGroupDto: {
+            /**
+             * Format: int32
+             * @description Row position in the list, from 1 / 목록 안의 줄 번호, 1부터
+             */
+            rank: number;
+            /**
+             * Format: int64
+             * @description Asset group identifier (the same as groupId in the pool response) / 종목 그룹 식별자(풀 응답의 groupId 와 같다)
+             */
+            groupId: number;
+            /**
+             * Format: decimal
+             * @description Mean price change of the group's assets, rounded once to 8 decimal places / 그룹 종목들의 가격 변화 평균, 소수 8자리로 한 번 반올림
+             */
+            changeRate: string;
         };
         /** @description Season report / 시즌 성적표 */
         SeasonReportDto: {
@@ -1438,141 +1580,201 @@ export interface components {
              */
             reconOutOfRangeRows: number;
         };
-        /** @description Season score / 시즌 점수 */
-        SeasonScoreDto: {
-            /** @description Formula version the score was computed with / 점수를 계산한 공식 버전 */
-            scoreVersion: string;
-            /**
-             * Format: decimal
-             * @description Season score 0.00-100.00 = 0.5 x result + 0.5 x process; null when the season has no path distribution
-             *
-             *     시즌 점수 0.00~100.00 = 0.5 × 결과 + 0.5 × 과정. 경로 분포가 없으면 null
-             */
-            score: string | null;
-            /**
-             * Format: decimal
-             * @description Result score = 100 x the mid-rank percentile of the Sharpe difference among the engine paths of the season-start team held still; null without a distribution
-             *
-             *     결과 점수 = 100 × (시즌 시작 팀을 그대로 보유한 엔진 경로들 안에서 샤프 차이의 중간 순위 백분위). 분포가 없으면 null
-             */
-            resultScore: string | null;
-            /**
-             * Format: decimal
-             * @description Process score: the equal-weight mean of the item scores that have a value, 0.00-100.00 / 과정 점수: 값이 있는 항목 점수의 같은 가중 평균, 0.00~100.00
-             */
-            processScore: string;
-            /**
-             * Format: decimal
-             * @description Where the end value of the start team, held still, sits among the engine paths, 0-1, 8 decimals; shown, not scored
-             *
-             *     시작 팀을 그대로 보유했을 때의 최종 가치가 엔진 경로 안에서 놓이는 자리, 0~1, 소수 8자리. 보여 주기만 하고 점수에는 넣지 않는다
-             */
-            luckPercentile: string | null;
-            /**
-             * Format: decimal
-             * @description Mid-rank percentile of the Sharpe difference among the engine paths, 0-1, 8 decimals
-             *
-             *     샤프 차이의 경로 안 중간 순위 백분위, 0~1, 소수 8자리
-             */
-            sharpeDiffPercentile: string | null;
-            /** @description The nine process item scores; all nine keys are always present, null where the input does not exist yet / 과정 항목 점수 아홉 개. 키는 항상 아홉 개이고 입력이 아직 없으면 null */
-            items: components["schemas"]["SeasonScoreItemsDto"];
+        /** @description Season analysis: baselines, three-way split, trading discipline / 시즌 분석: 기준선·3분해·매매 규율 */
+        SeasonAnalysisDto: {
+            /** @description Version of the analysis rules / 분석 규칙 버전 */
+            analysisVersion: string;
+            /** @description Version of the representative-asset table / 대표 자산 표 버전 */
+            representativeVersion: string;
             /**
              * Format: int32
-             * @description How many item scores have a value (1-9) / 값이 있는 항목 점수의 수(1~9)
+             * @description Number of reported turns = the last snapshot turn / 보고 턴 수 = 마지막 스냅샷 턴
              */
-            processItems: number;
-            /** @description Whether the season counts in the manager rating / 시즌이 매니저 레이팅에 집계되는지 */
-            countedInRating: boolean;
-            /**
-             * @description Why the season is left out of the rating: NOT_STARTED (abandoned before turn 3 by a human) or NO_SCORE (no path distribution); null when it counts
-             *
-             *     레이팅에서 빠진 이유: NOT_STARTED(사람이 3턴 전에 포기), NO_SCORE(경로 분포 없음). 집계되면 null
-             */
-            ratingExclusion: components["schemas"]["RatingExclusion"];
+            reportTurns: number;
+            /** @description The four baselines in a fixed order: MARKET, SIXTY_FORTY, FORMATION_FOLLOW, FORMATION_FIXED / 기준선 네 개, 순서 고정 */
+            baselines: components["schemas"]["BaselineDto"][];
+            /** @description Three-way split of the excess over the market; null when a formation baseline is unavailable / 시장 대비 초과분의 3분해. 포메이션 기준선이 없으면 null */
+            decomposition: components["schemas"]["DecompositionDto"] | null;
+            /** @description Trading discipline / 매매 규율 */
+            discipline: components["schemas"]["DisciplineDto"];
         };
-        /** @description Process item scores / 과정 항목 점수 */
-        SeasonScoreItemsDto: {
-            /** Format: decimal */
-            risk: string | null;
-            /** Format: decimal */
-            discipline: string | null;
-            /** Format: decimal */
-            diversification: string | null;
-            /** Format: decimal */
-            turnover: string | null;
-            /** Format: decimal */
-            consistency: string | null;
-            /** Format: decimal */
-            formation: string | null;
-            /** Format: decimal */
-            role: string | null;
-            /** Format: decimal */
-            noise: string | null;
-            /** Format: decimal */
-            nudge: string | null;
+        /** @description One baseline portfolio simulated on the season prices / 시즌 가격으로 시뮬레이션한 기준선 하나 */
+        BaselineDto: {
+            /** @description Baseline key (MARKET, SIXTY_FORTY, FORMATION_FOLLOW, FORMATION_FIXED) / 기준선 키 */
+            key: string;
+            /** @description Whether the baseline could be built from the season pool / 시즌 풀로 기준선을 만들 수 있었는지 */
+            available: boolean;
+            /** @description Why it is unavailable (REPRESENTATIVE_MISSING), else null / 만들 수 없는 이유, 아니면 null */
+            reason: string | null;
+            /** @description Slots and legs of the baseline (empty when unavailable) / 기준선의 칸과 구성 종목(없으면 빈 목록) */
+            legs: components["schemas"]["LegDto"][];
+            /**
+             * Format: decimal
+             * @description Final value of the baseline, whole KRW / 기준선의 최종 평가액, 원 단위 정수
+             */
+            finalValue: string | null;
+            /**
+             * Format: decimal
+             * @description Baseline return = (final − initial) ÷ initial, 8 decimal places / 기준선 수익률 = (최종 − 초기) ÷ 초기, 소수 8자리
+             */
+            totalReturn: string | null;
+            /**
+             * Format: decimal
+             * @description Excess of the user's final value over the baseline's, whole KRW / 사용자 최종 평가액이 기준선보다 큰 금액, 원 단위 정수
+             */
+            excessWon: string | null;
+            /**
+             * Format: decimal
+             * @description Excess ÷ initial capital, divided once, 8 decimal places / 초과분 ÷ 초기 자금, 한 번 나눔, 소수 8자리
+             */
+            excessReturn: string | null;
+            /**
+             * Format: decimal
+             * @description Fees of every fill including the opening purchase, whole KRW / 시작 매수를 포함한 모든 체결의 수수료, 원 단위 정수
+             */
+            totalFee: string | null;
+            /**
+             * Format: int32
+             * @description Turns with a rebalance that traded or was forced by a formation change / 매매가 있었거나 전술 변경으로 강제된 리밸런싱 턴 수
+             */
+            rebalanceCount: number | null;
+            /**
+             * Format: int32
+             * @description Turns where the band was broken but integer shares allowed no trade / 밴드를 넘었지만 정수 주식 때문에 매매가 없던 턴 수
+             */
+            bandNoFillCount: number | null;
+            /**
+             * Format: int32
+             * @description Turns with a rebalance forced by a formation change (only the following baseline has any) / 전술 변경으로 강제된 리밸런싱 턴 수(따라가는 기준선만 있다)
+             */
+            forcedChangeCount: number | null;
+            /**
+             * Format: decimal
+             * @description Fees paid in forced rebalances, whole KRW / 강제 리밸런싱에서 낸 수수료, 원 단위 정수
+             */
+            forcedChangeFee: string | null;
+            /** @description True when the bond leg is not a domestic bond ETF and a US Treasury ETF stands in / 채권 칸이 국내 채권 ETF가 아니라 미국 국채 ETF로 대신된 경우 true */
+            bondLegSubstituted: boolean;
+            /** @description Value of the baseline at turns 0..T, before the trades of each turn, whole KRW / 턴 0..T의 기준선 평가액(그 턴의 매매 전), 원 단위 정수 */
+            turnValues: string[] | null;
         };
-        /** @description Manager rating / 매니저 레이팅 */
-        RatingDto: {
-            /** @description Rating pillar; only MANAGER exists now / 레이팅 기둥. 지금은 MANAGER 하나 */
-            pillar: components["schemas"]["RatingPillar"];
-            /**
-             * Format: decimal
-             * @description Current rating 0.00-100.00: the weighted mean of the last five counted season scores (weights 5, 4, 3, 2, 1 from the newest); null until three seasons are counted
-             *
-             *     현재 레이팅 0.00~100.00: 집계된 최근 다섯 시즌 점수의 가중 평균(최근부터 5·4·3·2·1). 세 시즌이 집계되기 전에는 null
-             */
-            rating: string | null;
+        /** @description One asset of a baseline slot / 기준선 칸의 종목 하나 */
+        LegDto: {
+            /** @description Asset as MARKET:TICKER / 종목, MARKET:TICKER 꼴 */
+            asset: string;
+            /** @description Slot name (MARKET, EQUITY, BOND, GK, DF, MF, FW) / 칸 이름 */
+            slot: string;
             /**
              * Format: int32
-             * @description Number of counted seasons / 집계된 시즌 수
+             * @description Share of the slot in whole percent / 칸 안의 비중, 정수 퍼센트
              */
-            countedSeasons: number;
-            /**
-             * Format: int32
-             * @description Counted seasons still missing before the rating is shown (0 once shown) / 레이팅이 보이기까지 더 필요한 집계 시즌 수(보이면 0)
-             */
-            seasonsUntilPublic: number;
-            /**
-             * Format: int32
-             * @description Seasons abandoned before turn 3 by a human, left out of the rating / 사람이 3턴 전에 포기해 레이팅에서 뺀 시즌 수
-             */
-            notStartedCount: number;
-            /**
-             * Format: int32
-             * @description Seasons without a path distribution, left out of the rating / 경로 분포가 없어 레이팅에서 뺀 시즌 수
-             */
-            noScoreCount: number;
-            /**
-             * Format: int32
-             * @description Finished seasons not scored yet because the engine could not answer; they are scored on a later request / 엔진이 답하지 못해 아직 점수가 없는 끝난 시즌 수. 다음 요청에서 채점한다
-             */
-            pendingSeasons: number;
-            /** @description Counted seasons, newest first, at most 20 / 집계된 시즌, 최근 것부터 최대 20개 */
-            history: components["schemas"]["RatingEntryDto"][];
+            sharePercent: number;
         };
-        /** @description Rating history entry / 레이팅 이력 한 줄 */
-        RatingEntryDto: {
+        /** @description Three-way split of the excess over the market baseline / 시장 기준선 대비 초과분의 3분해 */
+        DecompositionDto: {
+            /**
+             * Format: decimal
+             * @description Player selection = user final − the following baseline's final, whole KRW / 선수 선택 = 사용자 최종 − 따라가는 기준선 최종, 원 단위 정수
+             */
+            selectionWon: string;
+            /**
+             * Format: decimal
+             * @description Formation change = following baseline's final − fixed baseline's final, whole KRW / 전술 변경 = 따라가는 기준선 최종 − 고정 기준선 최종, 원 단위 정수
+             */
+            tacticWon: string;
+            /**
+             * Format: decimal
+             * @description Structure = fixed baseline's final − market baseline's final, whole KRW / 구조 = 고정 기준선 최종 − 시장 기준선 최종, 원 단위 정수
+             */
+            structureWon: string;
+            /**
+             * Format: decimal
+             * @description Total = user final − market baseline's final; the three terms add up to it exactly, whole KRW / 합계 = 사용자 최종 − 시장 기준선 최종, 세 항의 합과 정확히 같다, 원 단위 정수
+             */
+            totalWon: string;
+            /**
+             * Format: decimal
+             * @description Selection ÷ initial capital, 8 decimal places / 선수 선택 ÷ 초기 자금, 소수 8자리
+             */
+            selectionReturn: string;
+            /**
+             * Format: decimal
+             * @description Formation change ÷ initial capital, 8 decimal places / 전술 변경 ÷ 초기 자금, 소수 8자리
+             */
+            tacticReturn: string;
+            /**
+             * Format: decimal
+             * @description Structure ÷ initial capital, 8 decimal places / 구조 ÷ 초기 자금, 소수 8자리
+             */
+            structureReturn: string;
+            /**
+             * Format: decimal
+             * @description Total ÷ initial capital, divided once; the three ratios may differ from it by rounding, 8 decimal places / 합계 ÷ 초기 자금, 한 번 나눔. 세 비율의 합은 반올림 때문에 다를 수 있다, 소수 8자리
+             */
+            totalReturn: string;
+        };
+        /** @description Trading discipline: panic selling and chase buying / 매매 규율: 패닉 매도·추격 매수 */
+        DisciplineDto: {
+            /**
+             * Format: decimal
+             * @description A fall of this ratio or more in the month just shown is a drop, boundary included, 8 decimal places / 방금 본 달에 이 비율 이상 내리면 하락, 경계 포함, 소수 8자리
+             */
+            dropThreshold: string;
+            /**
+             * Format: decimal
+             * @description A rise of this ratio or more in the month just shown is a rise, boundary included, 8 decimal places / 방금 본 달에 이 비율 이상 오르면 상승, 경계 포함, 소수 8자리
+             */
+            riseThreshold: string;
+            /**
+             * Format: decimal
+             * @description All sells of turns 1..T-1, whole KRW / 턴 1..T-1의 모든 매도 대금, 원 단위 정수
+             */
+            sellNotional: string;
+            /**
+             * Format: decimal
+             * @description Panic sells, whole KRW / 패닉 매도 대금, 원 단위 정수
+             */
+            panicSellNotional: string;
+            /**
+             * Format: decimal
+             * @description Panic sells ÷ all sells, 8 decimal places; null when nothing was sold / 패닉 매도 ÷ 전체 매도, 소수 8자리. 판 것이 없으면 null
+             */
+            panicSellShare: string | null;
+            /**
+             * Format: decimal
+             * @description All buys of turns 1..T-1, whole KRW / 턴 1..T-1의 모든 매수 대금, 원 단위 정수
+             */
+            buyNotional: string;
+            /**
+             * Format: decimal
+             * @description Chase buys, whole KRW / 추격 매수 대금, 원 단위 정수
+             */
+            chaseBuyNotional: string;
+            /**
+             * Format: decimal
+             * @description Chase buys ÷ all buys, 8 decimal places; null when nothing was bought / 추격 매수 ÷ 전체 매수, 소수 8자리. 산 것이 없으면 null
+             */
+            chaseBuyShare: string | null;
+            /**
+             * Format: decimal
+             * @description Sells plus buys of turns 1..T-1, equal to the report's traded amount, whole KRW / 턴 1..T-1의 매도 + 매수, 성적표의 매매 대금과 같다, 원 단위 정수
+             */
+            tradeNotional: string;
+            /**
+             * Format: decimal
+             * @description (Panic sells + chase buys) ÷ traded amount, 8 decimal places; null when nothing was traded / (패닉 매도 + 추격 매수) ÷ 매매 대금, 소수 8자리. 거래가 없으면 null
+             */
+            undisciplinedShare: string | null;
             /**
              * Format: int32
-             * @description Position among the counted seasons, from 1 / 집계된 시즌 중 순번(1부터)
+             * @description Formation change rows made in turns 1..T-1; a turn with two changes counts twice / 턴 1..T-1에 한 전술 변경 행 수. 한 턴에 두 번이면 둘을 센다
              */
-            seqNo: number;
+            formationChanges: number;
             /**
-             * Format: int64
-             * @description The season / 시즌 번호
+             * Format: int32
+             * @description Formation change rows that belong to a panic turn (team value fell 8% or more and the forward target ended lower than it started). Counted by row, not by turn / 패닉 턴(팀 평가액이 8% 이상 내렸고 공격 목표가 시작보다 낮게 끝난 턴)에 속한 전술 변경 행 수. 턴이 아니라 행 기준
              */
-            seasonId: number;
-            /**
-             * Format: decimal
-             * @description The season score / 시즌 점수
-             */
-            score: string;
-            /**
-             * Format: decimal
-             * @description The rating after this season; null where seqNo is below 3 / 이 시즌 뒤의 레이팅. seqNo 가 3 미만이면 null
-             */
-            rating: string | null;
+            panicFormationChanges: number;
         };
         /**
          * @description Season review for a finished season. Month block number, event number, event key, reference date, member number and times are not included
@@ -1794,10 +1996,6 @@ export interface components {
         AssetGroupKind: "SECTOR" | "ASSET_CLASS";
         /** @enum {string} */
         Position: "GOALKEEPER" | "DEFENDER" | "MIDFIELDER" | "FORWARD_TARGET" | "FORWARD_BREAKOUT" | "FORWARD_DEFENSIVE";
-        /** @enum {string} */
-        RatingExclusion: "NOT_STARTED" | "NO_SCORE";
-        /** @enum {string} */
-        RatingPillar: "MANAGER";
         /** @description RFC 9457 problem details + a top-level code. type is omitted because it is about:blank / RFC 9457 문제 상세 + 최상위 code. type은 about:blank라 생략된다 */
         Problem: {
             type?: string;
@@ -1818,6 +2016,146 @@ export interface components {
         };
         /** @enum {string} */
         ErrorCode: "INVALID_ARGUMENT" | "NOT_FOUND" | "METHOD_NOT_ALLOWED" | "NOT_ACCEPTABLE" | "UNSUPPORTED_MEDIA_TYPE" | "MALFORMED_REQUEST" | "INTERNAL_ERROR" | "POOL_NOT_LOADED" | "POOL_NOT_JUDGED" | "PATH_TOO_LONG" | "ENGINE_UNAVAILABLE" | "SEASON_LIMIT" | "TURN_NOT_REACHED" | "SEASON_NOT_FINISHED" | "SEASON_NOT_ACTIVE" | "TURN_MISMATCH" | "LEDGER_MISMATCH" | "LINEUP_MISMATCH" | "ASSET_NOT_IN_POOL" | "SOURCE_NOT_VISIBLE" | "INSUFFICIENT_CASH" | "INSUFFICIENT_HOLDING" | "POSITION_CONFLICT" | "POSITION_REQUIRED" | "INVALID_FORMATION" | "EVENT_TIME_CONFLICT" | "RECONCILIATION_FAILED" | "SEASON_HALTED" | "FORBIDDEN" | "EMAIL_TAKEN" | "UNAUTHENTICATED" | "INVALID_CREDENTIALS";
+        /** @description Season score / 시즌 점수 */
+        SeasonScoreDto: {
+            /** @description Formula version the score was computed with / 점수를 계산한 공식 버전 */
+            scoreVersion: string;
+            /**
+             * Format: decimal
+             * @description Season score 0.00-100.00 = 0.5 x result + 0.5 x process; null when the season has no path distribution
+             *
+             *     시즌 점수 0.00~100.00 = 0.5 × 결과 + 0.5 × 과정. 경로 분포가 없으면 null
+             */
+            score: string | null;
+            /**
+             * Format: decimal
+             * @description Result score = 100 x the mid-rank percentile of the Sharpe difference among the engine paths of the season-start team held still; null without a distribution
+             *
+             *     결과 점수 = 100 × (시즌 시작 팀을 그대로 보유한 엔진 경로들 안에서 샤프 차이의 중간 순위 백분위). 분포가 없으면 null
+             */
+            resultScore: string | null;
+            /**
+             * Format: decimal
+             * @description Process score: the equal-weight mean of the item scores that have a value, 0.00-100.00 / 과정 점수: 값이 있는 항목 점수의 같은 가중 평균, 0.00~100.00
+             */
+            processScore: string;
+            /**
+             * Format: decimal
+             * @description Where the end value of the start team, held still, sits among the engine paths, 0-1, 8 decimals; shown, not scored
+             *
+             *     시작 팀을 그대로 보유했을 때의 최종 가치가 엔진 경로 안에서 놓이는 자리, 0~1, 소수 8자리. 보여 주기만 하고 점수에는 넣지 않는다
+             */
+            luckPercentile: string | null;
+            /**
+             * Format: decimal
+             * @description Mid-rank percentile of the Sharpe difference among the engine paths, 0-1, 8 decimals
+             *
+             *     샤프 차이의 경로 안 중간 순위 백분위, 0~1, 소수 8자리
+             */
+            sharpeDiffPercentile: string | null;
+            /** @description The nine process item scores; all nine keys are always present, null where the input does not exist yet / 과정 항목 점수 아홉 개. 키는 항상 아홉 개이고 입력이 아직 없으면 null */
+            items: components["schemas"]["SeasonScoreItemsDto"];
+            /**
+             * Format: int32
+             * @description How many item scores have a value (1-9) / 값이 있는 항목 점수의 수(1~9)
+             */
+            processItems: number;
+            /** @description Whether the season counts in the manager rating / 시즌이 매니저 레이팅에 집계되는지 */
+            countedInRating: boolean;
+            /**
+             * @description Why the season is left out of the rating: NOT_STARTED (abandoned before turn 3 by a human) or NO_SCORE (no path distribution); null when it counts
+             *
+             *     레이팅에서 빠진 이유: NOT_STARTED(사람이 3턴 전에 포기), NO_SCORE(경로 분포 없음). 집계되면 null
+             */
+            ratingExclusion: components["schemas"]["RatingExclusion"];
+        };
+        /** @description Process item scores / 과정 항목 점수 */
+        SeasonScoreItemsDto: {
+            /** Format: decimal */
+            risk: string | null;
+            /** Format: decimal */
+            discipline: string | null;
+            /** Format: decimal */
+            diversification: string | null;
+            /** Format: decimal */
+            turnover: string | null;
+            /** Format: decimal */
+            consistency: string | null;
+            /** Format: decimal */
+            formation: string | null;
+            /** Format: decimal */
+            role: string | null;
+            /** Format: decimal */
+            noise: string | null;
+            /** Format: decimal */
+            nudge: string | null;
+        };
+        /** @description Manager rating / 매니저 레이팅 */
+        RatingDto: {
+            /** @description Rating pillar; only MANAGER exists now / 레이팅 기둥. 지금은 MANAGER 하나 */
+            pillar: components["schemas"]["RatingPillar"];
+            /**
+             * Format: decimal
+             * @description Current rating 0.00-100.00: the weighted mean of the last five counted season scores (weights 5, 4, 3, 2, 1 from the newest); null until three seasons are counted
+             *
+             *     현재 레이팅 0.00~100.00: 집계된 최근 다섯 시즌 점수의 가중 평균(최근부터 5·4·3·2·1). 세 시즌이 집계되기 전에는 null
+             */
+            rating: string | null;
+            /**
+             * Format: int32
+             * @description Number of counted seasons / 집계된 시즌 수
+             */
+            countedSeasons: number;
+            /**
+             * Format: int32
+             * @description Counted seasons still missing before the rating is shown (0 once shown) / 레이팅이 보이기까지 더 필요한 집계 시즌 수(보이면 0)
+             */
+            seasonsUntilPublic: number;
+            /**
+             * Format: int32
+             * @description Seasons abandoned before turn 3 by a human, left out of the rating / 사람이 3턴 전에 포기해 레이팅에서 뺀 시즌 수
+             */
+            notStartedCount: number;
+            /**
+             * Format: int32
+             * @description Seasons without a path distribution, left out of the rating / 경로 분포가 없어 레이팅에서 뺀 시즌 수
+             */
+            noScoreCount: number;
+            /**
+             * Format: int32
+             * @description Finished seasons not scored yet because the engine could not answer; they are scored on a later request / 엔진이 답하지 못해 아직 점수가 없는 끝난 시즌 수. 다음 요청에서 채점한다
+             */
+            pendingSeasons: number;
+            /** @description Counted seasons, newest first, at most 20 / 집계된 시즌, 최근 것부터 최대 20개 */
+            history: components["schemas"]["RatingEntryDto"][];
+        };
+        /** @description Rating history entry / 레이팅 이력 한 줄 */
+        RatingEntryDto: {
+            /**
+             * Format: int32
+             * @description Position among the counted seasons, from 1 / 집계된 시즌 중 순번(1부터)
+             */
+            seqNo: number;
+            /**
+             * Format: int64
+             * @description The season / 시즌 번호
+             */
+            seasonId: number;
+            /**
+             * Format: decimal
+             * @description The season score / 시즌 점수
+             */
+            score: string;
+            /**
+             * Format: decimal
+             * @description The rating after this season; null where seqNo is below 3 / 이 시즌 뒤의 레이팅. seqNo 가 3 미만이면 null
+             */
+            rating: string | null;
+        };
+        /** @enum {string} */
+        RatingExclusion: "NOT_STARTED" | "NO_SCORE";
+        /** @enum {string} */
+        RatingPillar: "MANAGER";
     };
     responses: {
         /**
@@ -2600,6 +2938,58 @@ export interface operations {
             500: components["responses"]["InternalError"];
         };
     };
+    getTurnRanking: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                seasonId: number;
+                turnNo: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Ranking board / 순위판 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RankingBoardDto"];
+                };
+            };
+            /** @description turnNo is below 1, or the season or turn number is not a number — INVALID_ARGUMENT / turnNo 가 1 미만이거나 시즌·턴 번호가 숫자가 아니다 — INVALID_ARGUMENT */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description The season does not exist — NOT_FOUND / 시즌이 없다 — NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description That turn has not been played yet — TURN_NOT_REACHED / 아직 진행하지 않은 턴이다 — TURN_NOT_REACHED */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
     getHoldings: {
         parameters: {
             query?: never;
@@ -2693,6 +3083,108 @@ export interface operations {
             500: components["responses"]["InternalError"];
         };
     };
+    getSeasonAnalysis: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                seasonId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Season analysis / 시즌 분석 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeasonAnalysisDto"];
+                };
+            };
+            /** @description The season number is not a number — INVALID_ARGUMENT / 시즌 번호가 숫자가 아니다 — INVALID_ARGUMENT */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description The season does not exist — NOT_FOUND / 시즌이 없다 — NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The season is not finished — SEASON_NOT_FINISHED / 끝나지 않은 시즌이다 — SEASON_NOT_FINISHED */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getSeasonReview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                seasonId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Season review / 시즌 복기 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeasonReviewDto"];
+                };
+            };
+            /** @description The season number is not a number — INVALID_ARGUMENT / 시즌 번호가 숫자가 아니다 — INVALID_ARGUMENT */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description The season does not exist — NOT_FOUND / 시즌이 없다 — NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The season is not finished — SEASON_NOT_FINISHED / 끝나지 않은 시즌이다 — SEASON_NOT_FINISHED */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
     getSeasonScore: {
         parameters: {
             query?: never;
@@ -2751,57 +3243,6 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-        };
-    };
-    getSeasonReview: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                seasonId: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Season review / 시즌 복기 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SeasonReviewDto"];
-                };
-            };
-            /** @description The season number is not a number — INVALID_ARGUMENT / 시즌 번호가 숫자가 아니다 — INVALID_ARGUMENT */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Problem"];
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            /** @description The season does not exist — NOT_FOUND / 시즌이 없다 — NOT_FOUND */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Problem"];
-                };
-            };
-            /** @description The season is not finished — SEASON_NOT_FINISHED / 끝나지 않은 시즌이다 — SEASON_NOT_FINISHED */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Problem"];
-                };
-            };
-            500: components["responses"]["InternalError"];
         };
     };
     getMyRating: {

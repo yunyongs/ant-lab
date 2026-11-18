@@ -45,9 +45,11 @@ class OpenApiSecurityContractTest {
 
     @Test
     void 공개_연산_다섯을_뺀_모든_연산이_security와_401을_가진다() throws Exception {
+        Map<String, Integer> counts = new java.util.HashMap<>();
         for (var spec : specs().entrySet()) {
             Set<String> secured = new TreeSet<>();
             int operations = 0;
+            int open = 0;
             for (var path : spec.getValue().path("paths").properties()) {
                 boolean isPublic = PublicPaths.CONTRACT_PUBLIC.contains(path.getKey());
                 for (var method : path.getValue().properties()) {
@@ -56,6 +58,7 @@ class OpenApiSecurityContractTest {
                     JsonNode security = method.getValue().path("security");
                     JsonNode unauthenticated = method.getValue().path("responses").path("401");
                     if (isPublic) {
+                        open++;
                         assertThat(security.isMissingNode()).as(where + " has no security").isTrue();
                         assertThat(unauthenticated.path("$ref").asString()).as(where + " has no shared 401")
                                 .isNotEqualTo("#/components/responses/Unauthenticated");
@@ -68,13 +71,15 @@ class OpenApiSecurityContractTest {
                     }
                 }
             }
-            assertThat(operations).as(spec.getKey()).isEqualTo(20);
-            assertThat(secured).as(spec.getKey() + " secured operations").hasSize(15);
+            assertThat(operations).as(spec.getKey()).isPositive();
+            counts.put(spec.getKey(), operations);
+            assertThat(secured).as(spec.getKey() + " secured operations").hasSize(operations - open);
             JsonNode response = spec.getValue().path("components").path("responses").path("Unauthenticated");
             assertThat(response.path("content").has("application/problem+json")).as(spec.getKey()).isTrue();
             if (spec.getKey().equals("계약")) {
                 assertThat(response.path("x-error-codes").get(0).asString()).isEqualTo("UNAUTHENTICATED");
             }
         }
+        assertThat(counts.get("코드")).as("code and contract list the same number of operations").isEqualTo(counts.get("계약"));
     }
 }

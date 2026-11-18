@@ -11,4 +11,9 @@ public class FeedConfiguration {
     FeedGenerator feedGenerator(FeedTemplateCatalog catalog) {
         return new FeedGenerator(catalog);
     }
+
+    @Bean
+    AlertGenerator alertGenerator(FeedTemplateCatalog catalog) {
+        return new AlertGenerator(catalog);
+    }
 }

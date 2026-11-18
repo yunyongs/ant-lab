@@ -59,6 +59,8 @@ export async function invalidateSeasonState(
     queryClient.invalidateQueries({ queryKey: seasonKey(id) }),
     queryClient.invalidateQueries({ queryKey: ['holdings', id] }),
     queryClient.invalidateQueries({ queryKey: ['prices', id] }),
+    // Only the current team's distribution moves with an order or a turn.
+    queryClient.invalidateQueries({ queryKey: ['projection', id, 'CURRENT'] }),
     queryClient.invalidateQueries({ queryKey: seasonsKey }),
   ]);
 }

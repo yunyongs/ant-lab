@@ -2,7 +2,10 @@ package antlab.api.e2e;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import antlab.api.report.AnalysisAssertions;
 import antlab.api.report.ReportApiSupport;
+import antlab.scoring.RepresentativeTable;
+import antlab.scoring.SeasonReportSources.AssetKey;
 import antlab.season.SeedGenerator;
 import antlab.support.E2eHttp;
 import antlab.support.E2eHttp.Reply;
@@ -79,6 +82,22 @@ class SyntheticSeasonE2ETest {
         @Primary
         SeedGenerator fixedSeed() {
             return () -> SEED;
+        }
+    }
+
+    /**
+     * The shipped table names real tickers that the fake fixture does not hold. This one keeps the market pair (the fixture holds
+     * its two fake proxies) and points the bond, gold and growth slots at fake assets, so all four baselines can be built. The
+     * bond candidate list has an absent first entry and a US second one, which makes the bond leg a substitute.
+     */
+    @TestConfiguration(proxyBeanMethods = false)
+    static class FakeRepresentatives {
+        @Bean
+        @Primary
+        RepresentativeTable fakeRepresentativeTable() {
+            return new RepresentativeTable("rep-v1", new AssetKey("KR", "069500"), new AssetKey("US", "SPY"),
+                    List.of(new AssetKey("KR", "ZZ0099"), new AssetKey("US", "ZZUS04")), new AssetKey("KR", "ZZ0002"),
+                    new AssetKey("US", "ZZUS02"));
         }
     }
 
@@ -196,6 +215,7 @@ class SyntheticSeasonE2ETest {
         expectProblem(http.post(url("/turns"), "{\"expectedTurnNo\": 1}"), 409, "TURN_MISMATCH");
         expectProblem(http.get(url("/prices?turnNo=3")), 409, "TURN_NOT_REACHED");
         expectProblem(http.get(url("/report")), 409, "SEASON_NOT_FINISHED");
+        expectProblem(http.get(url("/report/analysis")), 409, "SEASON_NOT_FINISHED");
         expectProblem(http.get(url("/review")), 409, "SEASON_NOT_FINISHED");
         assertThat(state()).as("rejections change nothing").isEqualTo(before);
     }
@@ -308,7 +328,11 @@ class SyntheticSeasonE2ETest {
         int total = 0;
         for (int turn = 1; turn <= TURNS; turn++) {
             List<Map<String, Object>> rows = jdbc.queryForList(
-                    "SELECT seq, asset_id, body FROM turn_feed WHERE season_id = ? AND turn_no = ? ORDER BY seq", season, turn);
+                    "SELECT seq, asset_id, body FROM turn_feed WHERE season_id = ? AND turn_no = ? AND kind <> 'NUDGE' ORDER BY seq",
+                    season, turn);
+            List<Map<String, Object>> nudges = jdbc.queryForList(
+                    "SELECT seq, asset_id, body FROM turn_feed WHERE season_id = ? AND turn_no = ? AND kind = 'NUDGE' ORDER BY seq",
+                    season, turn);
             assertThat(rows.size()).as("turn " + turn).isLessThanOrEqualTo(15);
             Reply reply = http.get(url("/turns/" + turn));
             assertThat(reply.status()).as(reply.body()).isEqualTo(200);
@@ -321,6 +345,13 @@ class SyntheticSeasonE2ETest {
                 assertThat(feed.get(i).get("body").asString()).isEqualTo(rows.get(i).get("body"));
                 Object asset = rows.get(i).get("asset_id");
                 assertThat(feed.get(i).get("assetId").isNull()).isEqualTo(asset == null);
+            }
+            JsonNode alerts = reply.json().get("alerts");
+            assertThat(alerts.size()).as("alerts of turn " + turn).isEqualTo(nudges.size()).isBetween(1, 4);
+            for (int i = 0; i < nudges.size(); i++) {
+                assertThat(alerts.get(i).get("seq").asInt()).as("alert numbers continue after the feed").isEqualTo(rows.size() + i + 1);
+                assertThat(((Number) nudges.get(i).get("seq")).intValue()).isEqualTo(rows.size() + i + 1);
+                assertThat(alerts.get(i).get("body").asString()).isEqualTo(nudges.get(i).get("body"));
             }
             total += rows.size();
         }
@@ -346,10 +377,19 @@ class SyntheticSeasonE2ETest {
         for (String file : new String[] {"db/24_turn_feed_def.sql", "feed/templates.csv", "feed/variables.csv"}) {
             runner.putFile(file, Path.of(file));
         }
+        // The same comparison as tf_regen_matches, on the feed rows only: the Java advance also stores nudge alerts (mvp-12:v1), which
+        // the SQL reference does not generate.
+        String stored = "(SELECT coalesce(jsonb_agg(to_jsonb(s) ORDER BY s.seq), '[]'::jsonb) FROM (SELECT f.seq, f.kind, f.asset_id,"
+                + " f.asset_group_id, f.month_event_id, f.category_hidden, f.direction, f.strength, f.repeat_count, f.template_id,"
+                + " f.template_vars, f.body FROM turn_feed f WHERE f.season_id = " + season + " AND f.turn_no = t"
+                + " AND f.kind <> 'NUDGE') s)";
+        String regenerated = "(SELECT coalesce(jsonb_agg(to_jsonb(g) ORDER BY g.seq), '[]'::jsonb)"
+                + " FROM pg_temp.tf_generate(pg_temp.tf_input(" + season + ", t::smallint)) g)";
         String query = "SELECT count(*) AS turns, count(*) FILTER (WHERE m IS TRUE) AS matched,"
                 + " count(*) FILTER (WHERE n > 0) AS turns_with_rows, coalesce(sum(n), 0) AS stored_rows FROM ("
-                + "SELECT pg_temp.tf_regen_matches(" + season + ", t::smallint) AS m, (SELECT count(*) FROM turn_feed"
-                + " WHERE season_id = " + season + " AND turn_no = t) AS n FROM generate_series(1, " + TURNS + ") AS t) x";
+                + "SELECT " + stored + " IS NOT DISTINCT FROM " + regenerated + " AS m, (SELECT count(*) FROM turn_feed"
+                + " WHERE season_id = " + season + " AND turn_no = t AND kind <> 'NUDGE') AS n"
+                + " FROM generate_series(1, " + TURNS + ") AS t) x";
         // the API writes to this context's own database, not the container default one
         String apiDb = jdbc.queryForObject("SELECT current_database()", String.class);
         PsqlScriptRunner.Result result = runner.runDefinitionQuery(apiDb, "db/24_turn_feed_def.sql", query,
@@ -359,8 +399,8 @@ class SyntheticSeasonE2ETest {
         assertThat(Integer.parseInt(row[0])).as("turns compared").isEqualTo(TURNS);
         assertThat(Integer.parseInt(row[1])).as("turns where stored = regenerated").isEqualTo(TURNS);
         assertThat(Integer.parseInt(row[2])).as("turns with at least one stored row").isPositive();
-        assertThat(Integer.parseInt(row[3])).as("stored rows").isEqualTo(jdbc.queryForObject(
-                "SELECT count(*) FROM turn_feed WHERE season_id = ?", Integer.class, season));
+        assertThat(Integer.parseInt(row[3])).as("stored feed rows").isEqualTo(jdbc.queryForObject(
+                "SELECT count(*) FROM turn_feed WHERE season_id = ? AND kind <> 'NUDGE'", Integer.class, season));
         System.out.println("[sql-parity] e2e season turns=" + row[0] + " matched=" + row[1] + " turnsWithRows=" + row[2]
                 + " storedRows=" + row[3]);
     }
@@ -369,6 +409,45 @@ class SyntheticSeasonE2ETest {
 
     private String url(String suffix) {
         return "/api/v1/seasons/" + season + suffix;
+    }
+
+    /**
+     * All four baselines on the fake table, after the report. The market baseline and the trading amount are computed by
+     * the report in another class, so equality with them is the check; the won identity of the three-way split is exact.
+     */
+    @Test
+    @Order(12)
+    @Timeout(value = 2, unit = TimeUnit.MINUTES)
+    void 분석은_성적표와_맞고_네_기준선과_3분해가_정확히_더해진다() {
+        Reply report = http.get(url("/report"));
+        Reply analysis = http.get(url("/report/analysis"));
+        assertThat(analysis.status()).as(analysis.body()).isEqualTo(200);
+        JsonNode a = analysis.json();
+        AnalysisAssertions.assertConsistent(a, report.json(), 4);
+        for (JsonNode baseline : a.get("baselines")) {
+            System.out.println("[M1] " + baseline.get("key").asString() + " rebalances=" + baseline.get("rebalanceCount").asInt()
+                    + " forced=" + baseline.get("forcedChangeCount").asInt() + " bandNoFill="
+                    + baseline.get("bandNoFillCount").asInt() + " fee=" + baseline.get("totalFee").asString());
+        }
+        JsonNode sixtyForty = a.get("baselines").get(1);
+        assertThat(sixtyForty.get("legs").size()).isEqualTo(3);
+        assertThat(sixtyForty.get("legs").get(2).get("asset").asString()).isEqualTo("US:ZZUS04");
+        assertThat(sixtyForty.get("legs").get(2).get("slot").asString()).isEqualTo("BOND");
+        assertThat(sixtyForty.get("bondLegSubstituted").asBoolean()).as("a US ETF stands in for the domestic bond").isTrue();
+        JsonNode follow = a.get("baselines").get(2);
+        JsonNode fixed = a.get("baselines").get(3);
+        assertThat(follow.get("forcedChangeCount").asInt()).as("the one formation change forces one rebalance").isEqualTo(1);
+        assertThat(fixed.get("forcedChangeCount").asInt()).isZero();
+        assertThat(AnalysisAssertions.won(follow.get("forcedChangeFee")).signum()).as("the forced rebalance costs fees").isPositive();
+        assertThat(AnalysisAssertions.won(fixed.get("forcedChangeFee")).signum()).isZero();
+        assertThat(follow.get("legs").size()).isEqualTo(fixed.get("legs").size()).isEqualTo(5);
+        assertThat(follow.get("turnValues").get(0).asString()).as("both formation baselines start alike")
+                .isEqualTo(fixed.get("turnValues").get(0).asString());
+        assertThat(a.get("discipline").get("formationChanges").asInt()).isEqualTo(1);
+        assertThat(a.get("discipline").get("tradeNotional").asString()).isEqualTo(report.json().get("tradeNotional").asString());
+        // The turn-5 sell of 50 shares of ZZ0003 is the only sell; it fills at that turn's price.
+        BigDecimal sold = prices(5).get("ZZ0003").multiply(BigDecimal.valueOf(50));
+        assertThat(new BigDecimal(a.get("discipline").get("sellNotional").asString())).isEqualByComparingTo(sold);
     }
 
     private static BigDecimal money(JsonNode node) {

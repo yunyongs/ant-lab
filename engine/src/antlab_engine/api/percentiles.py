@@ -15,7 +15,7 @@ from antlab_engine.engine_errors import EngineBusy, InvalidArgument
 from antlab_engine.errors import Problem
 from antlab_engine.projection import Portfolio, rank
 
-from . import PROBLEM_RESPONSES
+from . import PROBLEM_RESPONSES, RETRY_AFTER_HEADER
 from .deps import history_reader, projection_slots
 from .percentile_models import (
     PercentilePortfolio,
@@ -42,7 +42,11 @@ def _portfolio(key: str, book: PercentilePortfolio) -> Portfolio:
         400: {"model": Problem, "description": "Invalid argument"},
         404: {"model": Problem, "description": "No pool for the base date"},
         422: {"model": Problem, "description": "The history cannot build the projection paths"},
-        503: {"model": Problem, "description": "History unavailable or the engine is busy"},
+        503: {
+            "model": Problem,
+            "description": "History unavailable or the engine is busy",
+            "headers": RETRY_AFTER_HEADER,
+        },
     },
 )
 def create_percentile(

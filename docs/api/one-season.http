@@ -213,6 +213,12 @@ Content-Type: application/json
 GET {{base}}/api/v1/seasons/{{season}}/turns/5
 Authorization: Bearer {{token}}
 
+###
+# Ranking board of turn 5: seven lists of at most 5 rows, from that turn's data only.
+# 5턴의 순위판: 그 턴의 자료만으로 만든 목록 일곱 개(각 5줄 이하).
+GET {{base}}/api/v1/seasons/{{season}}/turns/5/ranking
+Authorization: Bearer {{token}}
+
 ### 9. Keep advancing to turn 8 / 8턴까지 넘기기
 POST {{base}}/api/v1/seasons/{{season}}/turns
 Authorization: Bearer {{token}}
@@ -281,6 +287,11 @@ Authorization: Bearer {{token}}
 
 ###
 GET {{base}}/api/v1/seasons/{{season}}/report
+Authorization: Bearer {{token}}
+
+### Baselines, three-way split and trading discipline of the same season
+# 같은 시즌의 기준선·3분해·매매 규율
+GET {{base}}/api/v1/seasons/{{season}}/report/analysis
 Authorization: Bearer {{token}}
 
 ###

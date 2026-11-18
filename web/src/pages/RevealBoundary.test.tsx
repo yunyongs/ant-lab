@@ -10,10 +10,18 @@ import {
   reviewFixture,
 } from '../test/fixtures/review.ts';
 import { seasonFixture } from '../test/fixtures/seasons.ts';
+import { parseWholeNumber } from '../features/format/integer.ts';
+import { problem } from '../test/authHandlers.ts';
+import { feedOfTurn } from '../test/fixtures/feed.ts';
 import { renderRoute } from '../test/renderWithProviders.tsx';
+import { rankingFixture } from '../test/fixtures/ranking.ts';
+import { serveFeedWorld } from '../test/serveFeed.ts';
 import { server } from '../test/server.ts';
 import { serveReport } from '../test/serveReport.ts';
+import { serveProjection } from '../test/serveProjection.ts';
 import { serveReview } from '../test/serveReview.ts';
+import { serveTurnWorld } from '../test/serveTurns.ts';
+import { settle } from '../test/settle.ts';
 
 // Real dates exist on exactly one screen: the review of a finished season.
 describe('reveal boundary', () => {
@@ -75,6 +83,71 @@ describe('reveal boundary', () => {
     }
     expect(world.reviewGets).toBe(0);
     expect(world.turnGets.every((n) => n <= 3)).toBe(true);
+  });
+
+  it('keeps a non-empty feed free of dates and of any review or later-turn request', async () => {
+    const world = serveFeedWorld({ current: 3 });
+    world.feed = (turnNo) => feedOfTurn(turnNo);
+    let reviewGets = 0;
+    server.use(
+      http.get('*/api/v1/seasons/7/review', () => {
+        reviewGets += 1;
+        return problem(409, { code: 'SEASON_NOT_FINISHED', status: 409 });
+      }),
+    );
+    const { router, container } = renderRoute('/seasons/7');
+    await screen.findByRole('region', { name: '소식' });
+    expectNoDatePattern(container);
+    for (const path of ['/seasons/7/turns/2', '/seasons/7/turns/4']) {
+      await act(async () => {
+        await router.navigate(path);
+      });
+      await new Promise((resolve) => setTimeout(resolve, 60));
+      expectNoDatePattern(container);
+    }
+    expect(world.turnGets.every((n) => n <= 3)).toBe(true);
+    expect(world.turnGets).toContain(3);
+    expect(reviewGets).toBe(0);
+  });
+
+  it('keeps a non-empty ranking board free of dates and of any later-turn request', async () => {
+    const world = serveTurnWorld({ current: 3 });
+    world.ranking = (turnNo) => rankingFixture(turnNo);
+    const { router, container, queryClient } = renderRoute('/seasons/7');
+    await screen.findByRole('region', { name: '순위' });
+    await screen.findByText('종목 나');
+    expectNoDatePattern(container);
+    for (const path of ['/seasons/7/turns/2', '/seasons/7/turns/4']) {
+      await act(async () => {
+        await router.navigate(path);
+      });
+      await settle(queryClient);
+      expectNoDatePattern(container);
+    }
+    expect(world.rankingGets).toContain(3);
+    expect(world.rankingGets.every((n) => n <= 3)).toBe(true);
+  });
+
+  it('P12: the projection page of a running season asks for no review and no later turn', async () => {
+    const turnGets: number[] = [];
+    let reviewGets = 0;
+    serveProjection({ season: { currentTurnNo: 3 } });
+    server.use(
+      http.get('*/api/v1/seasons/7/review', () => {
+        reviewGets += 1;
+        return problem(409, { code: 'SEASON_NOT_FINISHED', status: 409 });
+      }),
+      http.get('*/api/v1/seasons/7/turns/:turnNo', ({ params }) => {
+        turnGets.push(parseWholeNumber(String(params.turnNo), 1000) ?? 0);
+        return problem(500, { code: 'INTERNAL_ERROR', status: 500 });
+      }),
+    );
+    const { container } = renderRoute('/seasons/7/projection');
+    await screen.findByRole('img', { name: /예상 분포 띠 그림/ });
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    expectNoDatePattern(container);
+    expect(reviewGets).toBe(0);
+    expect(turnGets.every((n) => n <= 3)).toBe(true);
   });
 
   it('a review fixture really carries the poisoned strings', () => {

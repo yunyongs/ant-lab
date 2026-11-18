@@ -62,7 +62,9 @@ export function TradePage() {
           <p role="status">
             {season.status === 'FINISHED'
               ? '끝난 시즌은 매매할 수 없습니다.'
-              : '정리 중인 시즌은 매매할 수 없습니다.'}
+              : season.status === 'HALTED'
+                ? '점검 중인 시즌은 매매할 수 없습니다.'
+                : '정리 중인 시즌은 매매할 수 없습니다.'}
           </p>
           {back}
         </>

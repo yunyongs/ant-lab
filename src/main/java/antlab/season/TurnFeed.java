@@ -97,6 +97,11 @@ public class TurnFeed extends CreatedEntity {
     @Column(name = "body", length = 300, nullable = false)
     private String body;
 
+    /** The only thing a response derives from {@code kind}: a nudge alert goes to {@code alerts}, every other row to {@code feed}. */
+    public boolean isAlert() {
+        return kind == FeedKind.NUDGE;
+    }
+
     public TurnFeed(Season season, int turnNo, int seq, FeedKind kind, Long assetId, Long assetGroupId,
             Long monthEventId, boolean categoryHidden, MoveDirection direction, Integer strength, int repeatCount,
             String templateId, String templateVars, String body) {

@@ -1,5 +1,8 @@
+import { useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { MAX_ROUTE_ID, parseWholeNumber } from '../features/format/integer.ts';
+import { FeedSection } from '../features/feed/FeedSection.tsx';
+import { RankingSection } from '../features/ranking/RankingSection.tsx';
 import { QueryError } from '../features/seasons/QueryError.tsx';
 import { useSeason } from '../features/seasons/queries.ts';
 import { useTurn } from '../features/turn/queries.ts';
@@ -22,6 +25,13 @@ export function TurnPage() {
   const current = season.data?.currentTurnNo;
   const inRange = k !== null && current !== undefined && k >= 1 && k <= current;
   const turn = useTurn(id ?? 0, k ?? 0, inRange);
+  const [notice, setNotice] = useState<string | null>(null);
+  // A notice belongs to the turn page it appeared on.
+  const [noticeTurn, setNoticeTurn] = useState(k);
+  if (noticeTurn !== k) {
+    setNoticeTurn(k);
+    setNotice(null);
+  }
   if (id === null || k === null) return <NotFoundPage />;
   const base = `/seasons/${String(id)}`;
   const notFound =
@@ -30,6 +40,11 @@ export function TurnPage() {
   return (
     <div className={styles.page}>
       <h1 className={styles.heading}>{`시즌 ${String(id)}`}</h1>
+      {notice !== null && (
+        <div role="alert" className={seasons.alert}>
+          <p>{notice}</p>
+        </div>
+      )}
       {season.isPending && (
         <p role="status" className={seasons.note}>
           시즌을 불러오는 중입니다…
@@ -78,6 +93,20 @@ export function TurnPage() {
             />
           )}
           {turn.data && <TurnResultCard turn={turn.data} />}
+          {turn.data && (
+            <FeedSection
+              items={turn.data.feed}
+              season={season.data}
+              onNotice={setNotice}
+            />
+          )}
+          {turn.data && (
+            <RankingSection
+              seasonId={season.data.id}
+              turnNo={k}
+              currentTurnNo={season.data.currentTurnNo}
+            />
+          )}
           <nav aria-label="턴 이동" className={turnStyles.links}>
             {k >= 2 && (
               <Link

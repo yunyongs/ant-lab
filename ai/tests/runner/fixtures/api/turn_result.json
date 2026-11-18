@@ -1,4 +1,12 @@
 {
+  "alerts": [
+    {
+      "assetId": 1,
+      "body": "가짜 종목 움직임이 커졌습니다 — 이달 +6%, 지금 확인해 보세요",
+      "seq": 3,
+      "turnNo": 1
+    }
+  ],
   "cashBalance": "28000000",
   "defenderGap": "0",
   "defenderValue": "9000000",

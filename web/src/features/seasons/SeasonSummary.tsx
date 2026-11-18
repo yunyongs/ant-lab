@@ -1,9 +1,16 @@
 import { formatWon } from '../format/money.ts';
 import { ratioWithPercent } from '../format/ratio.ts';
-import { formationText, statusLabel, turnText, type Season } from './labels.ts';
+import {
+  abandonText,
+  formationText,
+  statusLabel,
+  turnText,
+  type Season,
+} from './labels.ts';
 import styles from './Seasons.module.css';
 
 export function SeasonSummary({ season }: { season: Season }) {
+  const abandoned = abandonText(season);
   return (
     <section className={styles.card} aria-label="시즌 요약">
       <dl className={styles.rows}>
@@ -28,6 +35,7 @@ export function SeasonSummary({ season }: { season: Season }) {
           <dd>{formationText(season.currentFormation)}</dd>
         </div>
       </dl>
+      {abandoned !== null && <p className={styles.abandoned}>{abandoned}</p>}
     </section>
   );
 }
