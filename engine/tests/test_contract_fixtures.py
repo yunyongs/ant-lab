@@ -13,6 +13,7 @@ from pydantic import BaseModel, ValidationError
 from antlab_engine.api.info import EngineInfo
 from antlab_engine.api.paths import PathRequest, PathResult
 from antlab_engine.api.projection_models import ProjectionRequest, ProjectionResult
+from antlab_engine.api.regime_models import RegimeRequest, RegimeResult
 from antlab_engine.errors import ErrorCode, Problem
 
 # The status per code as docs/api/engine.yaml documents it. The engine's own mapping is checked
@@ -36,10 +37,12 @@ MANIFEST = json.loads((CONTRACT_DIR / "manifest.json").read_text(encoding="utf-8
 REQUEST_MODELS: dict[str, type[BaseModel]] = {
     "createPath": PathRequest,
     "createProjection": ProjectionRequest,
+    "evaluateRegime": RegimeRequest,
 }
 RESULT_MODELS: dict[str, type[BaseModel]] = {
     "createPath": PathResult,
     "createProjection": ProjectionResult,
+    "evaluateRegime": RegimeResult,
     "getEngineInfo": EngineInfo,
 }
 

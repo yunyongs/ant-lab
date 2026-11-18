@@ -39,17 +39,18 @@ class SchemaParityTest {
     }
 
     /** An applied version is never edited; change it with a new file. V4 onward has no db/ counterpart. */
-    private static final Map<String, String> PINNED_SHA256 = Map.of(
-            "V1__schema_history.sql", "b0cb1398ec6d7ab1d3e387fbb3359eafc5d6faefd71db3a0f30b55261566d9cf",
-            "V2__schema_season.sql", "b7ccc19afbcd81525711a424454d64895c6f6a41c0669aa9d44e9f780874ef8d",
-            "V3__schema_account.sql", "3fe8c700cd613bc0b3f5eba6e4a9524e8a9839da48da64cc580f851d5b55aa05",
-            "V4__auth.sql", "3b1552c91557615f39cb4037fc4b19995fd79ac03fe4b8d63155a72bc43ec1f8",
-            "V5__collected_data.sql", "ecb49d1eb1daa4bd8614b31b00bd7f8521ea09e9465c42a0d4e7a6abf2b321ed",
-            "V6__agent.sql", "e4b6102f5ff7f048bd4c96e88f70f8266dad60b5e9ed0d00df4574fe47e75c34",
-            "V7__season_halted.sql", "2d3830b78cd533eee550ac6622957df8f32173a0464b7addafa5bea422fda1a4",
-            "V8__season_score_rating.sql", "a347e79b3c5c2de868da0267d6c514ec61ac56f5a63a630a6ab258dc506a2bda",
-            "V9__projection.sql", "b38d7c9bc8ac75c97fa059bffc19c08a50be9dd24ba6832bcde10e5c6f9b115f",
-            "V10__projection_start_turn.sql", "06f351f7ccc286ddfa6bed32fc2d81d397f6f1eba6aafefac0953236a434bf63");
+    private static final Map<String, String> PINNED_SHA256 = Map.ofEntries(
+            Map.entry("V1__schema_history.sql", "b0cb1398ec6d7ab1d3e387fbb3359eafc5d6faefd71db3a0f30b55261566d9cf"),
+            Map.entry("V2__schema_season.sql", "b7ccc19afbcd81525711a424454d64895c6f6a41c0669aa9d44e9f780874ef8d"),
+            Map.entry("V3__schema_account.sql", "3fe8c700cd613bc0b3f5eba6e4a9524e8a9839da48da64cc580f851d5b55aa05"),
+            Map.entry("V4__auth.sql", "3b1552c91557615f39cb4037fc4b19995fd79ac03fe4b8d63155a72bc43ec1f8"),
+            Map.entry("V5__collected_data.sql", "ecb49d1eb1daa4bd8614b31b00bd7f8521ea09e9465c42a0d4e7a6abf2b321ed"),
+            Map.entry("V6__agent.sql", "e4b6102f5ff7f048bd4c96e88f70f8266dad60b5e9ed0d00df4574fe47e75c34"),
+            Map.entry("V7__season_halted.sql", "2d3830b78cd533eee550ac6622957df8f32173a0464b7addafa5bea422fda1a4"),
+            Map.entry("V8__season_score_rating.sql", "a347e79b3c5c2de868da0267d6c514ec61ac56f5a63a630a6ab258dc506a2bda"),
+            Map.entry("V9__projection.sql", "b38d7c9bc8ac75c97fa059bffc19c08a50be9dd24ba6832bcde10e5c6f9b115f"),
+            Map.entry("V10__projection_start_turn.sql", "06f351f7ccc286ddfa6bed32fc2d81d397f6f1eba6aafefac0953236a434bf63"),
+            Map.entry("V11__month_block_regime_label.sql", "993e15bd9f257e4940985657946452a468d6bd1777b5c7e0b8d1d6ae3d90405c"));
 
     private static final Path MIGRATION_DIR = Path.of("src/main/resources/db/migration");
 
