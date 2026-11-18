@@ -14,7 +14,8 @@ import tools.jackson.databind.ser.std.StdSerializer;
 /**
  * The {@code inputs} document of a season score row: every value the score was computed from, for audits and for the
  * later re-fitting of the formula. Decimals are plain strings with their scale kept; the Sharpe values are the exact,
- * unrounded ones (the columns hold them rounded and capped). It is never part of a response. It holds the engine's
+ * unrounded ones (the columns hold them rounded and capped). The formation item is scored on
+ * {@code measuredFormationDeviation}; the declared-position {@code formationDeviation} is kept beside it as a reference. It is never part of a response. It holds the engine's
  * counts and versions but neither the seed nor any month.
  */
 final class ScoreInputsJson {
@@ -46,6 +47,7 @@ final class ScoreInputsJson {
         items.put("riskLimit", report.riskLimit());
         items.put("maxSingleWeight", report.maxSingleWeight());
         items.put("turnoverAnnual", report.turnoverAnnual());
+        items.put("measuredFormationDeviation", report.measuredFormationDeviation());
         items.put("formationDeviation", report.formationDeviation());
         items.put("roleFit", report.roleFit());
         items.put("nudgeShare", report.nudgeShare());

@@ -33,6 +33,9 @@ import tools.jackson.databind.json.JsonMapper;
  */
 class SeasonScoreServiceTest extends ScoreApiTestBase {
 
+    @org.springframework.beans.factory.annotation.Autowired
+    antlab.season.LineupChangeService lineupChanges;
+
     private static JsonNode tree(String text) {
         return JsonMapper.shared().readTree(text);
     }
@@ -50,7 +53,7 @@ class SeasonScoreServiceTest extends ScoreApiTestBase {
         assertThat(ratingRows()).isEqualTo(1);
         assertThat(percentileCalls()).isEqualTo(1);
         Map<String, Object> row = scoreRow(season);
-        assertThat(row.get("score_version")).isEqualTo("s63-v2");
+        assertThat(row.get("score_version")).isEqualTo("s63-v3");
         // 999 below + 2 equal of 2000: mid-rank (999 + 1) / 2000 = 0.5 exactly; the luck count is 500 below, none equal
         assertThat((BigDecimal) row.get("sharpe_diff_percentile")).isEqualByComparingTo("0.5");
         assertThat((BigDecimal) row.get("luck_percentile")).isEqualByComparingTo("0.25");
@@ -83,13 +86,17 @@ class SeasonScoreServiceTest extends ScoreApiTestBase {
 
     @Test
     void 샤프_원값과_엔진_개수가_inputs_에_남고_시드와_달은_남지_않는다() throws Exception {
-        long season = finishedSeason();
+        long season = startedSeason();
+        play(season, 0, 2);
+        lineupChanges.change(season, 2, antlab.api.turn.TurnApiSupport.assetId(jdbc, "069500"), antlab.asset.Position.GOALKEEPER);
+        lineupChanges.change(season, 2, antlab.api.turn.TurnApiSupport.assetId(jdbc, "000660"), antlab.asset.Position.DEFENDER);
+        play(season, 2, TURNS);
         scoring.ensureMember(memberId());
 
         String inputs = jdbc.queryForObject("SELECT inputs::text FROM season_score WHERE season_id = ?", String.class, season);
         JsonNode node = tree(inputs);
 
-        assertThat(node.get("scoreVersion").asString()).isEqualTo("s63-v2");
+        assertThat(node.get("scoreVersion").asString()).isEqualTo("s63-v3");
         assertThat(node.at("/engine/n").asInt()).isEqualTo(PATHS);
         assertThat(node.at("/engine/endMultiple/below").asInt()).isEqualTo(500);
         assertThat(node.at("/engine/sharpeDiff/below").asInt()).isEqualTo(999);
@@ -97,6 +104,14 @@ class SeasonScoreServiceTest extends ScoreApiTestBase {
         assertThat(node.at("/engine/projectionVersion").asString()).isEqualTo("m2-pj-v1");
         assertThat(node.at("/engine/historyDigest").asString()).isEqualTo(EnginePercentileAnswers.DIGEST);
         assertThat(node.get("noDistribution").isNull()).isTrue();
+        BigDecimal measured = new BigDecimal(node.at("/report/measuredFormationDeviation").asString());
+        assertThat(node.at("/report/formationDeviation").isString()).as("declared value kept as reference").isTrue();
+        assertThat(measured).as("fixture tells the two bases apart")
+                .isNotEqualByComparingTo(new BigDecimal(node.at("/report/formationDeviation").asString()));
+        BigDecimal expectedFormation = BigDecimal.valueOf(100).multiply(BigDecimal.ONE.subtract(
+                measured.divide(new BigDecimal("0.5"), 30, java.math.RoundingMode.HALF_UP).min(BigDecimal.ONE)));
+        assertThat((BigDecimal) scoreRow(season).get("formation_score"))
+                .as("the stored formation item is scored on the measured deviation").isEqualByComparingTo(expectedFormation.setScale(2, java.math.RoundingMode.HALF_UP));
         // the raw (unrounded) Sharpe values, at least 20 decimals, so a capped column can still be audited
         for (String key : List.of("sharpe", "benchSharpe", "sharpeDiff")) {
             assertThat(node.at("/sharpeRaw/" + key).asString()).as(key).matches("-?\\d+(\\.\\d{20,})?");

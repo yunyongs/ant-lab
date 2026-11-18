@@ -13,3 +13,12 @@ export const REASON_MAX = 200;
 export function reasonLength(text: string): number {
   return [...text].length;
 }
+
+// Texts of the position-only change that differ from the shared error catalog.
+export const POSITION_ALREADY_TEXT = '이미 그 포지션입니다';
+export const POSITION_NOT_HELD_TEXT =
+  '이 종목은 지금 보유하고 있지 않아 포지션을 바꿀 수 없습니다.';
+export const POSITION_RECORD_TEXT =
+  '보유와 라인업 기록이 맞지 않아 포지션 변경을 멈췄습니다.';
+export const POSITION_NOT_ACTIVE_TEXT =
+  '진행 중인 시즌이 아니어서 포지션을 바꿀 수 없습니다.';

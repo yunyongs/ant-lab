@@ -22,7 +22,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * 성적표 계산기 — 정수·원 단위 원천({@link SeasonReportSources})에서 37값({@link SeasonReportDto})을 만드는 순수 함수다.
+ * 성적표 계산기 — 정수·원 단위 원천({@link SeasonReportSources})에서 38값({@link SeasonReportDto})을 만드는 순수 함수다.
  * SQL 정의 {@code db/26_season_report_def.sql} 의 {@code sr_report} 와 같은 값을 내도록 단계를 그대로 따른다: 금액은 정수 합·곱이라 반올림이 없고,
  * 비율은 {@link MoneyMath#ratio} 한 곳에서 8자리 한 번, 평균·변동성은 {@code MoneyMath} 의 짝 메서드가 SQL 의 중간 단계까지 따른다(계획 W2).
  * 원천이 서로 모순이면 {@link IllegalStateException} 이다 — 메시지는 고정 문장이고 금액·날짜·번호를 담지 않는다.
@@ -98,6 +98,9 @@ public final class SeasonReportCalculator {
         }
         BigDecimal formationDeviation = MoneyMath.fractionMean(deviationNumerators, deviationDenominators);
 
+        Map<AssetKey, Position> measured = seasonMeasured(src);
+        BigDecimal measuredFormationDeviation = measuredDeviation(src, measured);
+
         // 매매·비용
         OrderFacts orders = src.orders();
         BigDecimal turnoverAnnual = MoneyMath.ratio(
@@ -126,7 +129,7 @@ public final class SeasonReportCalculator {
         }
 
         // 역할 수행
-        Role role = role(src);
+        Role role = role(src, measured);
 
         int pendingChanges = (int) src.changes().stream().filter(c -> c.turnNo() == t).count();
         SeasonReportSources.ReconFacts recon = src.recon();
@@ -140,7 +143,7 @@ public final class SeasonReportCalculator {
                 MoneyMath.exactRate(season.riskLimit()), riskBreachTurns, MoneyMath.exactRate(riskBreachDepth),
                 MoneyMath.exactRate(maxSingleWeight),
                 MoneyMath.exactWon(orders.tradeNotional()), MoneyMath.exactRate(turnoverAnnual),
-                MoneyMath.exactRate(formationDeviation),
+                MoneyMath.exactRate(formationDeviation), MoneyMath.exactRate(measuredFormationDeviation),
                 role.fit(), role.judged(), role.unjudged(),
                 nudgeShare, nudgeSameTurnShare,
                 MoneyMath.exactWon(orders.totalFee()), MoneyMath.exactWon(orders.teamFee()),
@@ -183,8 +186,8 @@ public final class SeasonReportCalculator {
     private record Role(BigDecimal fit, int judged, int unjudged) {
     }
 
-    /** 선수별 노출(보유한 턴 × 그 턴의 선언)과 시즌 실측 포지션을 맞춰 노출 가치 가중으로 일치도를 센다(SQL {@code sr_players}). */
-    private static Role role(SeasonReportSources src) {
+    /** 기준일 풀 전체를 경로 1..T 의 원화 수익률로 잰 시즌 실측 포지션. 표본 부족이면 값이 null 이다(SQL {@code sr_season_positions}). */
+    private static Map<AssetKey, Position> seasonMeasured(SeasonReportSources src) {
         int t = src.season().currentTurnNo();
         // 시즌 실측: 기준일 풀 전체를 경로 1..T 의 원화 수익률로 잰다(상대 순위에 풀이 필요하다)
         List<BigDecimal> market = new ArrayList<>();
@@ -198,7 +201,58 @@ public final class SeasonReportCalculator {
             metrics.put(pool.getKey(), PositionMeter.measure(pool.getValue(), market, ReportRules.SEASON_MIN_MONTHS,
                     ReportRules.SEASON_MIN_UP, ReportRules.SEASON_MIN_DOWN));
         }
-        Map<AssetKey, Position> measured = PositionMeter.classifyPool(metrics, PositionMeter.maxDrawdown(market));
+        return PositionMeter.classifyPool(metrics, PositionMeter.maxDrawdown(market));
+    }
+
+    /**
+     * 시즌 실측 포지션 기준 포메이션 이탈(이슈 447): 선언은 쓰지 않는다. 실측 불능이면 기준일 시스템 판정으로 센다.
+     * Goalkeeper is the residual of the stored total, so cash and goalkeeper-class assets land there (erd D37).
+     */
+    private static BigDecimal measuredDeviation(SeasonReportSources src, Map<AssetKey, Position> measured) {
+        Map<Integer, BigDecimal[]> classSums = new HashMap<>();
+        for (HoldingFact holding : src.holdings()) {
+            Position position = measured.get(holding.asset());
+            if (position == null) {
+                position = holding.system();
+            }
+            if (position == null) {
+                throw inconsistent("보유 종목에 실측도 기준일 판정도 없다");
+            }
+            int index = switch (position) {
+                case DEFENDER -> 0;
+                case MIDFIELDER -> 1;
+                case FORWARD_TARGET, FORWARD_BREAKOUT, FORWARD_DEFENSIVE -> 2;
+                case GOALKEEPER -> -1;
+            };
+            if (index >= 0) {
+                BigDecimal[] sums = classSums.computeIfAbsent(holding.turnNo(),
+                        k -> new BigDecimal[] {BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO});
+                sums[index] = sums[index].add(holding.value());
+            }
+        }
+        List<BigInteger> numerators = new ArrayList<>();
+        List<BigInteger> denominators = new ArrayList<>();
+        for (TurnFact turn : src.turns()) {
+            BigDecimal[] sums = classSums.getOrDefault(turn.turnNo(),
+                    new BigDecimal[] {BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO});
+            BigDecimal total = turn.totalValue();
+            BigDecimal goalkeeper = total.subtract(sums[0]).subtract(sums[1]).subtract(sums[2]);
+            if (goalkeeper.signum() < 0) {
+                throw inconsistent("실측 포지션별 보유 가치의 합이 총 평가액을 넘는다");
+            }
+            int[] target = targetFormation(src, turn.turnNo());
+            BigDecimal numerator = deviation(goalkeeper, target[0], total)
+                    .add(deviation(sums[0], target[1], total))
+                    .add(deviation(sums[1], target[2], total))
+                    .add(deviation(sums[2], target[3], total));
+            numerators.add(exactInteger(numerator));
+            denominators.add(exactInteger(HUNDRED.multiply(total)));
+        }
+        return MoneyMath.fractionMean(numerators, denominators);
+    }
+
+    /** 선수별 노출(보유한 턴 × 그 턴의 선언)과 시즌 실측 포지션을 맞춰 노출 가치 가중으로 일치도를 센다(SQL {@code sr_players}). */
+    private static Role role(SeasonReportSources src, Map<AssetKey, Position> measured) {
 
         // 노출: (종목, 선언)마다 노출 가치 합
         record Player(AssetKey asset, Position declared) {

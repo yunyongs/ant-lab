@@ -5,6 +5,7 @@ import { ProjectionLink } from '../projection/ProjectionLink.tsx';
 import { QueryError } from '../seasons/QueryError.tsx';
 import type { Season } from '../seasons/labels.ts';
 import { invalidateSeasonState } from '../seasons/queries.ts';
+import { canChangeFormation } from '../seasons/seasonGate.ts';
 import { PoolList } from '../team/PoolList.tsx';
 import { useHoldings, usePool, usePrices } from '../team/queries.ts';
 import { FormationEntry } from './FormationEntry.tsx';
@@ -30,8 +31,11 @@ export function TradeBody({
   const held = holdings.data?.holdings ?? [];
   const open = poolOpen ?? held.length === 0;
 
-  const onStale = (code: 'TURN_MISMATCH' | 'SEASON_NOT_ACTIVE') => {
-    onNotice(messageFor(code));
+  const onStale = (
+    code: 'TURN_MISMATCH' | 'SEASON_NOT_ACTIVE',
+    text: string = messageFor(code),
+  ) => {
+    onNotice(text);
     void invalidateSeasonState(queryClient, season.id);
   };
 
@@ -59,6 +63,9 @@ export function TradeBody({
     );
   }
   const names = new Map(pool.data.map((a) => [a.assetId, a.name]));
+  const systemPositions = new Map(
+    pool.data.map((a) => [a.assetId, a.systemPosition]),
+  );
   const common = {
     prices: prices.data,
     pricesFailed: prices.isError,
@@ -73,7 +80,13 @@ export function TradeBody({
       <TradeSummary holdings={holdings.data} />
       <FormationEntry season={season} />
       <ProjectionLink seasonId={season.id} />
-      <HoldingList holdings={held} names={names} {...common} />
+      <HoldingList
+        holdings={held}
+        names={names}
+        systemPositions={systemPositions}
+        canChangePosition={canChangeFormation(season)}
+        {...common}
+      />
       <details
         className={styles.pool}
         open={open}

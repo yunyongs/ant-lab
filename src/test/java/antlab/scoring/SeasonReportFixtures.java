@@ -40,6 +40,11 @@ final class SeasonReportFixtures {
         return new TurnFact(no, won(total), bd(drawdown), won(gk), won(df), won(mf), won(fw));
     }
 
+    /** A holding whose base-date judgement does not matter to the test (goalkeeper adds nothing to the measured sums). */
+    static HoldingFact holding(AssetKey asset, int turnNo, BigDecimal value) {
+        return new HoldingFact(asset, turnNo, value, Position.GOALKEEPER);
+    }
+
     static OrderFacts noOrders() {
         return new OrderFacts(won(0), won(0), won(0), won(0), won(0), won(0), 0, 0);
     }
@@ -62,9 +67,9 @@ final class SeasonReportFixtures {
         OrderFacts orders = new OrderFacts(won(12_000_000), won(60_000), won(40_000), won(5_000), won(3_000_000),
                 won(1_200_000), 0, 0);
         List<HoldingFact> holdings = List.of(
-                new HoldingFact(A, 1, won(3_000_000)), new HoldingFact(B, 1, won(2_000_000)),
-                new HoldingFact(A, 2, won(3_300_000)), new HoldingFact(B, 2, won(1_900_000)),
-                new HoldingFact(A, 3, won(4_000_000)));
+                holding(A, 1, won(3_000_000)), holding(B, 1, won(2_000_000)),
+                holding(A, 2, won(3_300_000)), holding(B, 2, won(1_900_000)),
+                holding(A, 3, won(4_000_000)));
         List<LineupSpan> lineup = List.of(
                 new LineupSpan(A, Position.FORWARD_TARGET, 0, 1),
                 new LineupSpan(A, Position.MIDFIELDER, 1, 1), // 길이 없는 구간 — 어떤 턴과도 맞지 않는다

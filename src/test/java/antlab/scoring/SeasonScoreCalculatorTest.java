@@ -12,7 +12,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
 /**
- * Hand-computed fixture for formula s63-v2. Worked values (independent decimal arithmetic, not this code):
+ * Hand-computed fixture for formula s63-v3. Worked values (independent decimal arithmetic, not this code):
  * <pre>
  * sharpe 0.34412360, bench 0.40414519, diff -0.06002159
  * items  risk 75 (3 of 12 turns, depth 0.05 of limit 0.20), discipline 70 (mean of 0.2 and 0.4), diversification 50
@@ -73,7 +73,7 @@ class SeasonScoreCalculatorTest {
     void the_worked_fixture_gives_every_stored_value() {
         SeasonScoreResult r = fixture().run();
 
-        assertThat(r.scoreVersion()).isEqualTo("s63-v2");
+        assertThat(r.scoreVersion()).isEqualTo("s63-v3");
         assertThat(r.sharpe()).isEqualByComparingTo("0.34412360");
         assertThat(r.benchSharpe()).isEqualByComparingTo("0.40414519");
         assertThat(r.sharpeDiff()).isEqualByComparingTo("-0.06002159");

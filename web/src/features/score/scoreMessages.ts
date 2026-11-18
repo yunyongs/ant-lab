@@ -19,5 +19,10 @@ export const PROCESS_NOTE =
 export const pointsText = (value: string) => `${value}점`;
 export const itemsTitle = (processItems: number) =>
   `과정 항목 (값이 있는 ${String(processItems)}개의 평균)`;
+const DECLARED_FORMATION_VERSIONS = ['s63-v1', 's63-v2'];
+export const formationBasisText = (version: string) =>
+  DECLARED_FORMATION_VERSIONS.includes(version)
+    ? '포메이션 준수는 선언한 포지션 기준으로 매긴 점수입니다.'
+    : '포메이션 준수는 시즌 실측 포지션 기준으로 매긴 점수입니다.';
 export const versionText = (version: string) => `공식 ${version} · 초안`;
 export const NOT_READY_TEXT = '점수를 아직 볼 수 없습니다.';

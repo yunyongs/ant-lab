@@ -124,3 +124,11 @@ def test_group_codes_exist_and_group_file_is_sorted():
 def test_no_price_like_column_is_tracked():
     banned = ("price", "close", "return", "volume")
     assert not [c for c in COLUMNS if any(b in c for b in banned) and c != "return_basis"]
+
+
+def test_kis_excd_filled_for_us_rows_only():
+    for r in _rows():
+        if r["market"] == "US":
+            assert r["kis_excd"] in {"NAS", "NYS", "AMS"}, r["ticker"]
+        else:
+            assert r["kis_excd"] == "", r["ticker"]

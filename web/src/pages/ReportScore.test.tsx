@@ -89,6 +89,34 @@ describe('ReportPage score card', () => {
     expectNoDatePattern(container);
   });
 
+  it('S1b: the formation basis note follows the score version', async () => {
+    serveReport();
+    serveScore({ score: scoreFixture({ scoreVersion: 's63-v3' }) });
+    await openReport();
+    await screen.findByText('58.30점');
+    expect(
+      within(card()).getByText(
+        '포메이션 준수는 시즌 실측 포지션 기준으로 매긴 점수입니다.',
+      ),
+    ).toBeInTheDocument();
+    expect(within(card()).getByText('공식 s63-v3 · 초안')).toBeInTheDocument();
+  });
+
+  it.each(['s63-v1', 's63-v2'])(
+    'S1c: version %s says the declared basis',
+    async (scoreVersion) => {
+      serveReport();
+      serveScore({ score: scoreFixture({ scoreVersion }) });
+      await openReport();
+      await screen.findByText('58.30점');
+      expect(
+        within(card()).getByText(
+          '포메이션 준수는 선언한 포지션 기준으로 매긴 점수입니다.',
+        ),
+      ).toBeInTheDocument();
+    },
+  );
+
   it('S2: a null item says "아직 없음", never 0', async () => {
     serveReport();
     serveScore({ score: scoreWithNullItems });

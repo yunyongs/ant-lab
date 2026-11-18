@@ -10,16 +10,20 @@ export function HoldingCard({
   holding,
   name,
   disabled,
+  canChangePosition,
   onTrade,
+  onChangePosition,
 }: {
   holding: Holding;
   name: string;
   disabled: boolean;
+  canChangePosition: boolean;
   onTrade: (
     side: 'BUY' | 'SELL',
     holding: Holding,
     opener: HTMLButtonElement,
   ) => void;
+  onChangePosition: (holding: Holding, opener: HTMLButtonElement) => void;
 }) {
   return (
     <li className={styles.card}>
@@ -74,6 +78,19 @@ export function HoldingCard({
         >
           매도
         </button>
+        {canChangePosition && (
+          <button
+            type="button"
+            className={styles.positionButton}
+            aria-label={`${name} 포지션 변경`}
+            disabled={disabled}
+            onClick={(event) => {
+              onChangePosition(holding, event.currentTarget);
+            }}
+          >
+            포지션 변경
+          </button>
+        )}
       </div>
     </li>
   );

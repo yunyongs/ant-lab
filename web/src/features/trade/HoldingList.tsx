@@ -1,13 +1,16 @@
 import { useIsMutating } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
+import type { Position } from '../seasons/labels.ts';
 import { OrderSheet } from '../team/OrderSheet.tsx';
 import type { Holding } from '../team/queries.ts';
 import { advanceKey } from '../turn/queries.ts';
 import { HoldingCard, UNKNOWN_ASSET_NAME } from './HoldingCard.tsx';
+import { PositionSheet } from './PositionSheet.tsx';
+import { POSITION_NOT_ACTIVE_TEXT } from './tradeMessages.ts';
 import styles from './Trade.module.css';
 
 interface Selection {
-  side: 'BUY' | 'SELL';
+  side: 'BUY' | 'SELL' | 'POSITION';
   assetId: number;
 }
 
@@ -15,6 +18,8 @@ interface Selection {
 export function HoldingList({
   holdings,
   names,
+  systemPositions,
+  canChangePosition,
   prices,
   pricesFailed,
   seasonId,
@@ -24,12 +29,14 @@ export function HoldingList({
 }: {
   holdings: Holding[];
   names: Map<number, string>;
+  systemPositions: Map<number, Position>;
+  canChangePosition: boolean;
   prices: Map<number, string> | undefined;
   pricesFailed: boolean;
   seasonId: number;
   turnNo: number;
   cashBalance: string;
-  onStale: (code: 'TURN_MISMATCH' | 'SEASON_NOT_ACTIVE') => void;
+  onStale: (code: 'TURN_MISMATCH' | 'SEASON_NOT_ACTIVE', text?: string) => void;
 }) {
   const advancing = useIsMutating({ mutationKey: advanceKey(seasonId) }) > 0;
   const [selected, setSelected] = useState<Selection | null>(null);
@@ -57,6 +64,11 @@ export function HoldingList({
               holding={holding}
               name={nameOf(holding.assetId)}
               disabled={advancing}
+              canChangePosition={canChangePosition}
+              onChangePosition={(picked, button) => {
+                opener.current = button;
+                setSelected({ side: 'POSITION', assetId: picked.assetId });
+              }}
               onTrade={(side, picked, button) => {
                 opener.current = button;
                 setSelected({ side, assetId: picked.assetId });
@@ -65,7 +77,31 @@ export function HoldingList({
           ))}
         </ul>
       )}
-      {selected && (
+      {selected?.side === 'POSITION' && (
+        <PositionSheet
+          key={`POSITION-${String(selected.assetId)}`}
+          holding={holdings.find((h) => h.assetId === selected.assetId)}
+          name={nameOf(selected.assetId)}
+          systemPosition={systemPositions.get(selected.assetId)}
+          seasonId={seasonId}
+          turnNo={turnNo}
+          onClose={() => {
+            setSelected(null);
+            if (opener.current?.isConnected) opener.current.focus();
+            else heading.current?.focus();
+          }}
+          onStale={(code) => {
+            setSelected(null);
+            onStale(
+              code,
+              code === 'SEASON_NOT_ACTIVE'
+                ? POSITION_NOT_ACTIVE_TEXT
+                : undefined,
+            );
+          }}
+        />
+      )}
+      {selected && selected.side !== 'POSITION' && (
         <OrderSheet
           key={`${selected.side}-${String(selected.assetId)}`}
           side={selected.side}
