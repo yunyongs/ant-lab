@@ -5,6 +5,7 @@ import static org.mockito.Mockito.doAnswer;
 
 import antlab.member.CurrentMember;
 import antlab.scoring.BehaviourQuery;
+import antlab.scoring.DefenderHoldingQuery;
 import antlab.scoring.DisciplineQuery;
 import antlab.scoring.SeasonAnalysisQuery;
 import antlab.scoring.SeasonAnalysisService;
@@ -35,7 +36,7 @@ import org.springframework.transaction.annotation.Transactional;
 class SeasonAnalysisTransactionTest {
 
     private static final int TURNS = 12;
-    private static final int FIXED_NATIVE = 6;
+    private static final int FIXED_NATIVE = 8;
     private static final int BOARD_STATEMENTS_PER_TURN = 4;
 
     @Autowired
@@ -105,8 +106,9 @@ class SeasonAnalysisTransactionTest {
         assertThat(c.total()).as("more orders, same statements").isEqualTo(a.total());
         System.out.println("[M3] analysis statements (4 held assets) = Hibernate " + a.hibernate().size() + " + JdbcClient "
                 + a.jdbcClient().size() + ", (1 held asset) = " + b.hibernate().size() + " + " + b.jdbcClient().size());
-        // Hibernate: member, season, turn snapshots, formation changes. JdbcClient: six fixed statements (consistency, prices, late
-        // orders, discipline orders, behaviour orders, feed signals) and the board input of each judged turn 1..T-1.
+        // Hibernate: member, season, turn snapshots, formation changes. JdbcClient: eight fixed statements (consistency, prices, late
+        // orders, discipline orders, behaviour orders, feed signals, market pair prices, defender holdings) and the board input of
+        // each judged turn 1..T-1.
         int judgedTurns = TURNS - 1;
         assertThat(a.hibernate()).hasSameSizeAs(b.hibernate()).hasSize(4);
         assertThat(a.jdbcClient()).hasSameSizeAs(b.jdbcClient()).hasSize(FIXED_NATIVE + BOARD_STATEMENTS_PER_TURN * judgedTurns);
@@ -114,7 +116,8 @@ class SeasonAnalysisTransactionTest {
         List<String> fixed = List.of(statement(SeasonReportQuery.class, "CONSISTENCY"),
                 statement(SeasonAnalysisQuery.class, "PRICES"), statement(SeasonAnalysisQuery.class, "LATE_ORDERS"),
                 statement(DisciplineQuery.class, "ORDERS"), statement(BehaviourQuery.class, "ORDERS"),
-                statement(SeasonSignalReader.class, "FEED"));
+                statement(SeasonSignalReader.class, "FEED"), statement(SeasonReportQuery.class, "BENCHMARK"),
+                statement(DefenderHoldingQuery.class, "HELD"));
         for (SqlRecorder.Recorded recorded : List.of(a, b)) {
             for (String text : fixed) {
                 assertThat(recorded.jdbcClient()).as("fixed statement once").filteredOn(text::equals).hasSize(1);

@@ -444,6 +444,9 @@ class SyntheticSeasonE2ETest {
         assertThat(follow.get("turnValues").get(0).asString()).as("both formation baselines start alike")
                 .isEqualTo(fixed.get("turnValues").get(0).asString());
         assertThat(a.get("discipline").get("formationChanges").asInt()).isEqualTo(1);
+        assertThat(a.get("changeEffects").size()).isEqualTo(1);
+        assertThat(a.get("changeEffects").get(0).get("turnNo").asInt()).isEqualTo(5);
+        assertThat(a.get("changeEffects").get(0).get("windowTurns").asInt()).as("5 + 6 = 11 is before the last turn").isEqualTo(6);
         assertThat(a.get("discipline").get("tradeNotional").asString()).isEqualTo(report.json().get("tradeNotional").asString());
         // The turn-5 sell of 50 shares of ZZ0003 is the only sell; it fills at that turn's price.
         BigDecimal sold = prices(5).get("ZZ0003").multiply(BigDecimal.valueOf(50));

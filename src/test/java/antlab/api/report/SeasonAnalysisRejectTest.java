@@ -109,7 +109,7 @@ class SeasonAnalysisRejectTest {
     @Test
     void 보안_문맥에_토큰이_없으면_401_UNAUTHENTICATED이다() {
         SeasonAnalysisService unauthenticated = new SeasonAnalysisService(new JwtCurrentMember(null), null, null, null, null,
-                null, null, null, null, null);
+                null, null, null, null, null, null);
         assertThatThrownBy(() -> unauthenticated.get(1L)).isInstanceOfSatisfying(DomainException.class,
                 e -> assertThat(ErrorHttpMapping.status(e.getCode())).isEqualTo(HttpStatus.UNAUTHORIZED));
     }
