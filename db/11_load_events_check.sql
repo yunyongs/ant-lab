@@ -175,7 +175,16 @@ INSERT INTO zz_deny (tok, why) VALUES
     ('SUBPRIME', '사건 이름'), ('BREXIT', '사건 이름'), ('DOTCOM', '사건 이름'), ('TARP', '사건 이름'),
     ('HAMAS', '단체'), ('HEZBOLLAH', '단체'), ('SYRIA', '나라·지역'), ('GREEK', '나라·지역'), ('SWISS', '나라·지역'),
     ('CRIMEA', '나라·지역'), ('FITCH', '회사'), ('MOODYS', '회사'), ('SILICON', '회사'), ('REPUBLIC', '회사'),
-    ('LIBERATION', '사건 이름'), ('WUHAN', '사건 이름'), ('OMICRON', '사건 이름'), ('PIIGS', '사건 이름');
+    ('LIBERATION', '사건 이름'), ('WUHAN', '사건 이름'), ('OMICRON', '사건 이름'), ('PIIGS', '사건 이름'),
+    ('ASIAN', '나라·지역'), ('ASIA', '나라·지역'), ('THAI', '나라·지역'), ('THAILAND', '나라·지역'), ('INDONESIA', '나라·지역'),
+    ('ARGENTINA', '나라·지역'), ('BRAZIL', '나라·지역'), ('TURKEY', '나라·지역'), ('AFGHANISTAN', '나라·지역'), ('KUWAIT', '나라·지역'),
+    ('SCOTLAND', '나라·지역'), ('SCOTTISH', '나라·지역'), ('BRITISH', '나라·지역'), ('JAPANESE', '나라·지역'), ('CHINESE', '나라·지역'),
+    ('BOJ', '기관'), ('PBOC', '기관'), ('BOK', '기관'), ('FOMC', '기관'), ('NASDAQ', '기관'),
+    ('LTCM', '회사'), ('ENRON', '회사'), ('WORLDCOM', '회사'), ('DAEWOO', '회사'), ('HANBO', '회사'), ('EVERGRANDE', '회사'),
+    ('HUAWEI', '회사'), ('FTX', '회사'), ('ARCHEGOS', '회사'), ('MADOFF', '인물'), ('CLINTON', '인물'), ('BERNANKE', '인물'),
+    ('QAEDA', '단체'), ('TALIBAN', '단체'), ('THAAD', '사건 이름'), ('KATRINA', '사건 이름'), ('TANTRUM', '사건 이름'),
+    ('RUBLE', '통화 이름'), ('YUAN', '통화 이름'), ('RENMINBI', '통화 이름'), ('BAHT', '통화 이름'), ('PESO', '통화 이름'),
+    ('LIRA', '통화 이름'), ('YEN', '통화 이름'), ('STERLING', '통화 이름');
 
 -- 노출 코드 목록: DB 의 event_type·outcome 과 types.csv 의 event_type·outcomes. H5 검사가 같은 뷰를 본다.
 CREATE TEMP VIEW zz_codes AS
