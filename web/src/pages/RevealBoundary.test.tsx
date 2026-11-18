@@ -21,6 +21,7 @@ import { renderRoute } from '../test/renderWithProviders.tsx';
 import { rankingFixture } from '../test/fixtures/ranking.ts';
 import { serveFeedWorld } from '../test/serveFeed.ts';
 import { server } from '../test/server.ts';
+import { serveAnalysis } from '../test/serveAnalysis.ts';
 import { serveReport } from '../test/serveReport.ts';
 import { serveProjection } from '../test/serveProjection.ts';
 import { serveReview } from '../test/serveReview.ts';
@@ -55,6 +56,32 @@ describe('reveal boundary', () => {
       expectNoDatePattern(container);
       for (const leaked of poisonedReviewStrings) {
         expect(container.innerHTML).not.toContain(leaked);
+      }
+    }
+  });
+
+  it('shows the analysis blocks only on the report and the review, never on a season screen', async () => {
+    serveReview();
+    serveReport();
+    serveAnalysis();
+    const { router, container } = renderRoute('/seasons/7/report');
+    await screen.findByRole('heading', { level: 2, name: '소음 반응' });
+    for (const path of [
+      '/seasons/7',
+      '/seasons/7/turns/3',
+      '/seasons/7/trade',
+    ]) {
+      await act(async () => {
+        await router.navigate(path);
+      });
+      await new Promise((resolve) => setTimeout(resolve, 60));
+      for (const title of [
+        '소음 반응',
+        '플랫폼의 수익',
+        '관심 추종',
+        '수비수 득점',
+      ]) {
+        expect(container.textContent).not.toContain(title);
       }
     }
   });
