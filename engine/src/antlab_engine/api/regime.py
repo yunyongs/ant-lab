@@ -35,7 +35,7 @@ from antlab_engine.regime.model import Axis
 from antlab_engine.regime.pit import month_last_day
 from antlab_engine.regime.source import RegimeInputs, RegimeSource
 
-from . import PROBLEM_RESPONSES
+from . import PROBLEM_RESPONSES, RETRY_AFTER_HEADER
 from .deps import regime_slot, regime_source
 from .regime_models import (
     Axes,
@@ -109,7 +109,11 @@ def _first_of_month(text: str) -> date:
         **PROBLEM_RESPONSES,
         400: {"model": Problem, "description": "Invalid argument"},
         422: {"model": Problem, "description": "The collected observations cannot be used"},
-        503: {"model": Problem, "description": "No data source or the engine is busy"},
+        503: {
+            "model": Problem,
+            "description": "No data source or the engine is busy",
+            "headers": RETRY_AFTER_HEADER,
+        },
     },
 )
 def evaluate_regime(

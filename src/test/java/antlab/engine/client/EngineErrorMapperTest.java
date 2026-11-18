@@ -36,6 +36,29 @@ class EngineErrorMapperTest {
                 .doesNotContain(REASON_MARKER).doesNotContain(DETAIL_MARKER).doesNotContain("quote");
     }
 
+    private static EngineProblem regimeDataInvalid(int status) {
+        return EngineWire.read(EngineProblem.class, ("{\"title\":\"Regime Data Invalid\",\"status\":" + status + ",\"detail\":\""
+                + DETAIL_MARKER + "\",\"instance\":\"/v1/regime/evaluate\",\"code\":\"REGIME_DATA_INVALID\"}").getBytes());
+    }
+
+    @Test
+    void 국면_데이터_오류는_422일_때만_자기_규칙으로_매핑되고_엔진_문장은_기록하지_않는다(CapturedOutput output) {
+        RuntimeException result = EngineErrorMapper.fromProblem("evaluateRegime", 422, regimeDataInvalid(422));
+
+        assertThat(result).isInstanceOfSatisfying(DomainException.class, e -> assertThat(e.getCode()).isEqualTo(ErrorCode.INTERNAL_ERROR));
+        assertThat(output.getAll()).contains("engine.regime_data_invalid").doesNotContain("engine.bad_response").doesNotContain(DETAIL_MARKER);
+    }
+
+    @Test
+    void 국면_데이터_오류가_다른_상태로_오면_계약_어긋남으로_본다(CapturedOutput output) {
+        for (int status : new int[] { 400, 500, 503 }) {
+            RuntimeException result = EngineErrorMapper.fromProblem("evaluateRegime", status, regimeDataInvalid(status));
+
+            assertThat(result).isInstanceOfSatisfying(DomainException.class, e -> assertThat(e.getCode()).isEqualTo(ErrorCode.INTERNAL_ERROR));
+        }
+        assertThat(output.getAll()).contains("engine.bad_response").doesNotContain("engine.regime_data_invalid");
+    }
+
     @Test
     void 쓸_수_없는_수집_관측값_코드는_422일_때만_이_이름으로_기록되고_내부_오류가_된다(CapturedOutput output) {
         EngineProblem problem = EngineWire.read(EngineProblem.class,

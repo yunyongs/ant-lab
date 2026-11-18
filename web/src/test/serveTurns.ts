@@ -3,16 +3,21 @@ import { parseWholeNumber } from '../features/format/integer.ts';
 import { problem } from './authHandlers.ts';
 import type { components } from '../api/schema';
 import { seasonFixture } from './fixtures/seasons.ts';
+import { emptyBoard } from './fixtures/ranking.ts';
 import { turnResultFixture } from './fixtures/turns.ts';
 import { server } from './server.ts';
 
 type FeedItemDto = components['schemas']['FeedItemDto'];
+type RankingBoardDto = components['schemas']['RankingBoardDto'];
 
 export interface TurnWorld {
   current: number;
   status: 'IN_PROGRESS' | 'FINISHED' | 'ABANDONING' | 'HALTED';
   // Feed of each served turn; empty unless a test sets it.
   feed: (turnNo: number) => FeedItemDto[];
+  // Ranking board of each served turn; empty unless a test sets it.
+  ranking: (turnNo: number) => RankingBoardDto;
+  rankingGets: number[];
   posts: unknown[];
   seasonGets: number;
   turnGets: number[];
@@ -33,6 +38,8 @@ export function serveTurnWorld(
     current: start.current,
     status: 'IN_PROGRESS',
     feed: () => [],
+    ranking: (turnNo) => emptyBoard(turnNo),
+    rankingGets: [],
     posts: [],
     seasonGets: 0,
     turnGets: [],
@@ -64,6 +71,11 @@ export function serveTurnWorld(
           feed: world.feed(turnNo),
         }),
       );
+    }),
+    http.get('*/api/v1/seasons/7/turns/:turnNo/ranking', ({ params }) => {
+      const turnNo = parseWholeNumber(String(params.turnNo), 1000) ?? 0;
+      world.rankingGets.push(turnNo);
+      return HttpResponse.json(world.ranking(turnNo));
     }),
     http.post('*/api/v1/seasons/7/turns', async ({ request }) => {
       world.posts.push(await request.json());

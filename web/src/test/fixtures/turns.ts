@@ -42,6 +42,7 @@ export function turnResultFixture(
     forwardGap: '0.11771998',
     formationDeviation: '0.59864000',
     feed: [],
+    alerts: [],
     ...overrides,
   };
 }

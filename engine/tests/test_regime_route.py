@@ -229,6 +229,28 @@ def test_calendars_can_change_the_labels_themselves(token):
     assert held["months"] != plain["months"]
 
 
+def test_quality_keeps_stale_and_unavailable_apart(token):
+    # one series stops (stale) and one never arrives (unavailable but not stale)
+    rows = [
+        r
+        for r in ROWS
+        if r.source is not SourceSeries.US_SAHM
+        and not (r.source is SourceSeries.US_VIX and r.ref_date > D(2023, 1, 1))
+    ]
+    result = post_with(token, FakeSource(rows=rows), body(months=["2023-06"]))
+    quality = result["months"][0]["quality"]
+    assert quality["stale"] == ["13"]
+    assert quality["unavailable"] == ["6", "13"]
+    direct = label_months(
+        adapt([r for r in rows if r.ref_date <= D(2023, 6, 30)]).observations, [D(2023, 6, 1)]
+    )[0]
+    assert quality == {
+        "ok": direct.quality_ok,
+        "stale": list(direct.stale),
+        "unavailable": list(direct.unavailable),
+    }
+
+
 # --- TB2 rounding ----------------------------------------------------------------------------
 
 

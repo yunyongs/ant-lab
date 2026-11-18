@@ -293,6 +293,20 @@ def _regime_data_invalid_code_dropped(spec):
     spec["components"]["schemas"]["ErrorCode"]["enum"].remove("REGIME_DATA_INVALID")
 
 
+def _regime_retry_after_header_dropped(spec):
+    del spec["components"]["responses"]["RegimeUnavailable"]["headers"]
+
+
+def _projection_retry_after_header_dropped(spec):
+    del spec["components"]["responses"]["ProjectionUnavailable"]["headers"]
+
+
+def _retry_after_header_becomes_integer(spec):
+    spec["components"]["responses"]["RegimeUnavailable"]["headers"]["Retry-After"]["schema"] = {
+        "type": "integer"
+    }
+
+
 def _busy_code_dropped(spec):
     spec["components"]["schemas"]["ErrorCode"]["enum"].remove("ENGINE_BUSY")
 
@@ -342,6 +356,9 @@ MUTATIONS = [
     _pct_not_secured,
     _pct_n_bound_widens,
     _busy_code_dropped,
+    _regime_retry_after_header_dropped,
+    _projection_retry_after_header_dropped,
+    _retry_after_header_becomes_integer,
     _regime_loses_a_status,
     _regime_not_secured,
     _regime_request_allows_extra_fields,

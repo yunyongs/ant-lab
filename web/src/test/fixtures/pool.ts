@@ -48,6 +48,7 @@ export const poolFixture: PoolDto = {
       assetType: 'ETF',
       returnBasis: 'TOTAL',
       proxyIndexName: '시험 추종 지수',
+      groupId: 2,
       groupKind: 'ASSET_CLASS',
       groupName: '시험 채권',
       systemPosition: 'DEFENDER',
