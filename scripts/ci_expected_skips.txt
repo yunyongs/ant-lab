@@ -45,6 +45,7 @@ antlab.api.turn.TurnAdvanceGoldenTest	행_수와_대사_기록이_턴마다_17�
 antlab.api.turn.TurnRollbackDrillGoldenTest	SQL_드릴과_같은_종목을_닫아_실패_고치기_성공한_API_시즌이_열한_표까지_같다()
 antlab.api.turn.TurnViewGoldenTest	열_번_뒤_보유_조회가_SQL의_보유_가격_열린_라인업_조인과_행_단위로_같다()
 antlab.api.turn.TurnViewGoldenTest	턴_1부터_10까지_API_조회가_26_정의의_정수_원천_계산과_행_단위로_같다()
+antlab.collect.kis.KisLiveSmokeTest	실제_KIS_스모크()
 antlab.engine.client.EngineLiveParityTest	L1_엔진의_p0_달이_같은_DB의_Java_부트스트랩과_같다()
 antlab.engine.client.EngineLiveParityTest	L2_엔진의_m2_경로가_digest와_경로_규칙을_지킨다()
 antlab.engine.client.EngineLiveParityTest	L3_예상_분포_응답이_엄격한_클라이언트_레코드로_읽힌다()
