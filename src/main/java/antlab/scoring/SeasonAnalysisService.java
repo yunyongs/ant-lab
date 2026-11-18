@@ -9,7 +9,10 @@ import antlab.scoring.DisciplineFacts.ChangeFact;
 import antlab.scoring.DisciplineFacts.TurnValue;
 import antlab.scoring.RepresentativeTable.Entry;
 import antlab.scoring.RepresentativeTable.Resolution;
+import antlab.scoring.SeasonAnalysisDto.AttentionFollowingDto;
 import antlab.scoring.SeasonAnalysisDto.BaselineDto;
+import antlab.scoring.SeasonAnalysisDto.ChangeEffectDto;
+import antlab.scoring.SeasonAnalysisDto.DefenderGoalsDto;
 import antlab.scoring.SeasonAnalysisDto.DecompositionDto;
 import antlab.scoring.SeasonAnalysisDto.DisciplineDto;
 import antlab.scoring.SeasonAnalysisDto.LegDto;
@@ -34,16 +37,17 @@ import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Season analysis (MVP-17): baselines, three-way split and trading discipline of a finished season, computed on read and never stored.
+ * Season analysis (MVP-17, MVP-19): baselines, three-way split, trading discipline, noise reaction, platform revenue and the review facts
+ * (attention following, defender goals, per-change effect) of a finished season, computed on read and never stored.
  * Read-only and lock-free; several source statements need one snapshot, so {@code REPEATABLE_READ} (a finished season can still get a
  * manual reconciliation log). Check order is that of {@link SeasonReportService}: member, season (another member's season is a 404),
- * status (409), source consistency (500), then the pure calculators. The number of statements does not depend on holdings or turns.
+ * status (409), source consistency (500), then the pure calculators. The number of statements does not depend on holdings or orders; it grows by 4 per judged turn (the past boards, SPRING_JPA §8).
  */
 @Service
 public class SeasonAnalysisService {
 
-    /** Version of the analysis rules; it changes when a rule of the baselines, the discipline item, the noise item or the platform split changes. */
-    public static final String ANALYSIS_VERSION = "mvp19-v1";
+    /** Version of the analysis rules; it changes when a rule of the baselines, the discipline item, the noise item, the platform split or a review fact changes. */
+    public static final String ANALYSIS_VERSION = "mvp19-v2";
 
     private static final String INCONSISTENT = "분석 원천이 모순이다: ";
 
@@ -56,12 +60,13 @@ public class SeasonAnalysisService {
     private final DisciplineQuery disciplineOrders;
     private final BehaviourQuery behaviourOrders;
     private final SeasonSignalReader signals;
+    private final DefenderHoldingQuery defenderHoldings;
     private final RepresentativeTable table;
 
     public SeasonAnalysisService(CurrentMember currentMember, SeasonRepository seasons, TurnRepository turns,
             FormationChangeRepository changes, SeasonReportQuery consistency, SeasonAnalysisQuery prices,
             DisciplineQuery disciplineOrders, BehaviourQuery behaviourOrders, SeasonSignalReader signals,
-            RepresentativeTable table) {
+            DefenderHoldingQuery defenderHoldings, RepresentativeTable table) {
         this.currentMember = currentMember;
         this.seasons = seasons;
         this.turns = turns;
@@ -71,6 +76,7 @@ public class SeasonAnalysisService {
         this.disciplineOrders = disciplineOrders;
         this.behaviourOrders = behaviourOrders;
         this.signals = signals;
+        this.defenderHoldings = defenderHoldings;
         this.table = table;
     }
 
@@ -133,10 +139,20 @@ public class SeasonAnalysisService {
         DisciplineCalculator.Result discipline = DisciplineCalculator.calculate(new DisciplineFacts(reportTurn, initialCash,
                 teamValues, facts, disciplineOrders.orders(id, reportTurn)));
         List<BehaviourOrder> behaviour = behaviourOrders.orders(id, reportTurn);
-        NoiseReactionCalculator.Result noise = NoiseReactionCalculator.ofSeason(reportTurn, signals.read(id, reportTurn),
-                behaviour);
+        List<TurnSignals> turnSignals = signals.read(id, reportTurn);
+        NoiseReactionCalculator.Result noise = NoiseReactionCalculator.ofSeason(reportTurn, turnSignals, behaviour);
+        AttentionFollowingCalculator.Result attention = AttentionFollowingCalculator.calculate(reportTurn, turnSignals,
+                behaviour.stream().filter(o -> o.turnNo() >= 1).toList());
+        Map<AssetKey, List<BigDecimal>> pair = consistency.benchmarkPrices(id, reportTurn);
+        DefenderGoalCalculator.Result defender = DefenderGoalCalculator.calculate(reportTurn, initialCash,
+                pair.get(new AssetKey(ReportRules.BENCH_KR_MARKET, ReportRules.BENCH_KR_TICKER)),
+                pair.get(new AssetKey(ReportRules.BENCH_US_MARKET, ReportRules.BENCH_US_TICKER)),
+                defenderHoldings.held(id, reportTurn));
+        List<ChangeEffectDto> effects = follow == null || fixed == null ? null
+                : changeEffects(resolution.entries().get(2), start, changeRows, series, initialCash, fees, reportTurn);
         return new SeasonAnalysisDto(ANALYSIS_VERSION, resolution.version(), reportTurn, baselines, decomposition,
-                disciplineDto(discipline), noiseDto(noise), platformDto(PlatformRevenue.of(reportTurn, behaviour)));
+                disciplineDto(discipline), noiseDto(noise), platformDto(PlatformRevenue.of(reportTurn, behaviour)),
+                attentionDto(attention), defenderDto(defender), effects);
     }
 
     /** The following baseline starts from the start formation, so each change must start from the one before it (by id). */
@@ -207,6 +223,23 @@ public class SeasonAnalysisService {
                 MoneyMath.ratio(BigDecimal.valueOf(DisciplineRules.RISE_PERCENT), hundred), r.sellNotional(),
                 r.panicSellNotional(), r.panicSellShare(), r.buyNotional(), r.chaseBuyNotional(), r.chaseBuyShare(),
                 r.tradeNotional(), r.undisciplinedShare(), r.formationChanges(), r.panicFormationChanges());
+    }
+
+    private static List<ChangeEffectDto> changeEffects(Entry followEntry, Formation start, List<FormationChange> changeRows,
+            Map<AssetKey, List<BigDecimal>> series, BigDecimal initialCash, FeeRates fees, int reportTurn) {
+        List<TargetSchedule.Change> changes = changeRows.stream()
+                .map(c -> new TargetSchedule.Change(c.getTurnNo(), c.getId(), target(c.getAfter()))).toList();
+        return ChangeEffectCalculator.calculate(followEntry.spec(), target(start), changes, series, initialCash, fees, reportTurn)
+                .stream().map(e -> new ChangeEffectDto(e.turnNo(), e.windowTurns(), e.effectWon(), e.effectReturn())).toList();
+    }
+
+    private static AttentionFollowingDto attentionDto(AttentionFollowingCalculator.Result r) {
+        return new AttentionFollowingDto(BehaviourRules.WINDOW_TURNS, r.attentionBuys(), r.attentionBuyNotional(),
+                r.attentionReturn(), r.otherBuys(), r.otherBuyNotional(), r.otherReturn(), r.incompleteBuys());
+    }
+
+    private static DefenderGoalsDto defenderDto(DefenderGoalCalculator.Result r) {
+        return new DefenderGoalsDto(r.downMarketTurns(), r.goals(), r.goalWon(), r.goalReturn());
     }
 
     private static NoiseDto noiseDto(NoiseReactionCalculator.Result r) {

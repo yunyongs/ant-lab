@@ -74,16 +74,18 @@ public final class ExposureRules {
      * by class, not by name: a record of another package with the same simple name gets nothing from this list. Any
      * other empty {@code @ExposedFrom} is a violation.
      */
-    public static final Map<Class<?>, Set<String>> CONSTANT_COMPONENTS = Map.of(AgentPartDto.class, Set.of("schema"),
-            DecisionResultDto.class, Set.of("turnNo", "outcome", "replayed"),
-            DecisionResultDto.FormationResultDto.class, Set.of("status"),
-            DecisionResultDto.OrderUnitResultDto.class, Set.of("index", "status"),
-            DecisionResultDto.ThesesResultDto.class, Set.of("status"),
-            DecisionResultDto.SchemaViolationDto.class, Set.of("pointer", "keyword"),
-            SeasonAnalysisDto.class, Set.of("analysisVersion", "representativeVersion"),
-            SeasonAnalysisDto.BaselineDto.class, Set.of("key"),
-            SeasonAnalysisDto.LegDto.class, Set.of("slot", "sharePercent"),
-            antlab.season.AbandonResultDto.class, Set.of("advancedTurns"));
+    public static final Map<Class<?>, Set<String>> CONSTANT_COMPONENTS = Map.ofEntries(
+            Map.entry(AgentPartDto.class, Set.of("schema")),
+            Map.entry(DecisionResultDto.class, Set.of("turnNo", "outcome", "replayed")),
+            Map.entry(DecisionResultDto.FormationResultDto.class, Set.of("status")),
+            Map.entry(DecisionResultDto.OrderUnitResultDto.class, Set.of("index", "status")),
+            Map.entry(DecisionResultDto.ThesesResultDto.class, Set.of("status")),
+            Map.entry(DecisionResultDto.SchemaViolationDto.class, Set.of("pointer", "keyword")),
+            Map.entry(SeasonAnalysisDto.class, Set.of("analysisVersion", "representativeVersion")),
+            Map.entry(SeasonAnalysisDto.BaselineDto.class, Set.of("key")),
+            Map.entry(SeasonAnalysisDto.LegDto.class, Set.of("slot", "sharePercent")),
+            Map.entry(SeasonAnalysisDto.AttentionFollowingDto.class, Set.of("windowTurns")),
+            Map.entry(antlab.season.AbandonResultDto.class, Set.of("advancedTurns")));
 
     /**
      * The engine's own record of what it rejected in the previous decision: {@code [내부]} in the DB, but the agent is
