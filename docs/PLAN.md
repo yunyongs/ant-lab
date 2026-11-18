@@ -49,6 +49,9 @@ Stages 1 and 2 belong to releases v1 and v2 (web and app simulation); stage 3 is
 
 1이 없으면 2는 근거가 없고, 2의 검증 없이 3으로 가지 않는다. 훈련장은 사람에게는 연습장이고 에이전트에게는 **경기장이자 시험장**이다 — 같은 속성 표로 사람과 에이전트를 함께 잰다. **거장 추적**(§4.14)은 2·3과 전망 모드의 입력이다 — 지금 세상에서 검증된 운용자들이 실제로 무엇을 하는지가 훈련장과 에이전트의 기준선이 된다.
 
+**Purpose and the four layers (owner, 2026-11-18).** The purpose of the three stages is a real, after-cost return on the owner's own money, earned by using and configuring AI; the training ground is the means. To get there the platform has to understand where big money moves, so it integrates four layers: (1) **market rhythm** — seasonality by calendar month and yearly variation such as maximum drawdown, shown for today's date as well as inside the game (§4.11); (2) **big-money flow** — what institutions and large holders are doing now, from official sources (§4.14); (3) **agent fund managers** raised in the training ground (§4.16); (4) **integration and execution** — market map and flow board → agent proposal → rule risk check → human approval → order (§4.15). The guard rails of §2 stay as they are.
+**목적과 네 층(소유자, 2026-11-18).** 세 단의 목적은 AI를 활용하고 세팅해 소유자 자금으로 비용을 뺀 실제 수익을 올리는 것이고, 훈련장은 그 수단이다. 그러려면 큰 돈이 어디로 움직이는지 이해해야 하므로 플랫폼은 네 층을 통합한다. (1) **시장 리듬** — 달력 월별 계절성과 최대 낙폭 같은 연간 변동을 게임 안뿐 아니라 오늘 날짜 기준으로도 보여 준다(§4.11). (2) **큰 돈의 흐름** — 기관과 대량 보유자가 지금 무엇을 하는지를 공식 출처로 추적한다(§4.14). (3) 훈련장에서 키운 **에이전트 펀드 매니저**(§4.16). (4) **통합과 실행** — 시장 지도와 흐름 보드 → 에이전트 제안 → 규칙 위험 점검 → 사람 승인 → 주문(§4.15). §2의 안전장치는 그대로다.
+
 이 제품이 결국 답해야 하는 질문은 하나다: **"우수한 펀드 매니저는 무엇이 다른가?"** 그 답이 속성 목록이 되고, 속성마다 재는 지표와 훈련하는 자리가 있어야 한다. 세 기둥·성적표·레이팅·명예의 전당(§6.8)·인증서는 모두 이 표에서 나온다. 표는 **초안**이며 M3 백테스트와 실제 사용자 데이터로 고친다 — 속성이 실제로 시즌 성적을 가르는지(예측력), 서로 겹치지 않는지, 훈련으로 느는지를 보고 넣고 뺀다.
 
 | # | 속성 | 한 줄 정의 | 재는 지표(초안) | 훈련하는 자리 |
@@ -100,6 +103,8 @@ Releases are bundles of scope, not dates (owner, 2026-11-07; redefined 2026-11-1
 - 훈련장이 검증한 사람 매니저의 기록으로 **매니저 복제 봇**을 만들고, 같은 훈련장(같은 경로, 전망 모드)에서 사람과 같은 기준으로 검증한다(§4.15).
 - 검증을 통과한 에이전트(복제 봇 또는 에이전트 펀드 매니저)로 **실제 계좌를 운용**한다 — 소유자 자금·소액부터 시작하고, 사람의 주문 승인을 거친다(§4.15). 실전 성과와 행동 기록은 속성 표(§1.1)와 점수 체계(M3)를 고치는 데이터가 된다.
 - 지금 세상에서 검증된 운용자들(13F를 내는 기관, 공개 발언을 남기는 트레이더)의 **동향을 추적**하고 주요 변화를 감지해 전망 모드·복기·에이전트의 기준선으로 쓴다(§4.14).
+- Show the **market rhythm on today's date** — what this calendar month and this year's drawdown looked like in history, with sample size, range and period on every number (§4.11) — and collect the **big-money flow** from official sources by latency (§4.14). Both feed outlook mode and the agents; whether following a flow signal paid after costs is measured, not assumed (owner, 2026-11-18).
+- **오늘 날짜 기준의 시장 리듬**(이번 달과 올해의 낙폭이 역사에서 어떤 모습이었는지 — 모든 수치에 표본 수·범위·기간을 붙인다, §4.11)을 보여 주고, **큰 돈의 흐름**을 공식 출처에서 지연 순서대로 수집한다(§4.14). 둘 다 전망 모드와 에이전트의 입력이며, 흐름 신호를 따랐을 때 비용 뒤에 이득이었는지는 가정하지 않고 측정한다(소유자, 2026-11-18).
 
 **비목표**
 - **릴리스 v1·v2의**(훈련장 안의) 실제 돈, 실계좌 주문, 증권사 주문·계좌 연동(증권사 시세 조회는 비목표가 아니다 — 릴리스 v1, §1.2). 시즌과 시즌 계좌는 끝까지 게임 안에 둔다. 실전 운용(§4.15)은 **릴리스 v3**(§1.2, §11 R3 — 자율 단계 1 모의 운용만 v1)이고, 실계좌 원장은 시즌 계좌와 섞지 않는다.
@@ -421,12 +426,32 @@ Releases are bundles of scope, not dates (owner, 2026-11-07; redefined 2026-11-1
 
 **데이터.** M1 수집기 방식(시점 기준 저장)을 확장한다: EDGAR(13F·13D/G·Form 4), DART, X API. 테이블(`tracked_manager`, `filing`, `tracked_holding`, `tracked_statement` — 이름은 초안)은 R1에서 ERD로 확정한다. Phase 0 ERD는 바뀌지 않는다.
 
+**Big-money flow layer (owner, 2026-11-18). 큰 돈의 흐름 층(소유자, 2026-11-18).**
+
+Master tracking widens into a flow layer: besides who the masters are, the platform records where institutional money is moving now. Sources are official or licensed, ordered by latency, and each item is stored point-in-time with source, publication time and lag.
+거장 추적을 흐름 층으로 넓힌다. 거장이 누구인지에 더해 기관 자금이 지금 어디로 움직이는지를 기록한다. 출처는 공식이거나 이용이 허락된 것만 쓰고 지연 순서로 나누며, 항목마다 출처·공표 시각·지연을 붙여 시점 기준으로 저장한다.
+
+| Latency / 지연 | Source / 출처 | Note / 비고 |
+|---|---|---|
+| daily / 매일 | KRX trading by investor type (foreign, institution, individual), ETF creations and redemptions / KRX 투자자별 매매(외국인·기관·개인), ETF 설정·환매 | Korea side of big money / 국내 쪽 큰 돈 |
+| about 2 business days / 약 2영업일 | SEC Form 4 (insiders) / SEC Form 4(내부자) | EDGAR, free / 무료 |
+| days / 수일 | SEC 13D·13G, DART large-holding reports / SEC 13D·13G, DART 대량보유 보고 | by security / 종목 단위 |
+| weekly / 매주 | CFTC Commitments of Traders / CFTC COT | futures positioning / 선물 포지션 |
+| quarterly, up to 45 days late / 분기, 최대 45일 | SEC 13F-HR | long US positions only / 미국 상장 롱 포지션만 |
+| irregular / 수시 | Public statements: investor letters, interviews, X posts / 공개 발언: 투자자 서한, 인터뷰, X 게시물 | FLOW-B; the paid X API is not used for now / FLOW-B, X 유료 API는 당분간 쓰지 않는다 |
+
+- **Derived signals (draft). 파생 신호(초안).** New and closed positions, weight changes, crowding (how many tracked managers hold the same name), sector rotation. 신규 편입·전량 매도, 비중 변화, 쏠림(같은 종목을 든 추적 대상 수), 섹터 이동.
+- **Stages. 단계.** FLOW-A collects the free official sources (EDGAR 13F·Form 4·13D/G, DART, KRX investor-type trading, CFTC COT) and detects changes; FLOW-B adds public statements (§11). Deadlines, data licence terms and API pricing are confirmed from the source text when FLOW is planned. FLOW-A는 무료 공식 출처(EDGAR 13F·Form 4·13D/G, DART, KRX 투자자별 매매, CFTC COT)를 수집하고 변화를 감지하며, FLOW-B는 공개 발언을 더한다(§11). 기한·데이터 이용 조건·API 요금은 FLOW 계획 때 원문으로 확인한다.
+- **Where it is used. 쓰는 곳.** Only in real time: the outlook-mode board and the agents' outlook-mode inputs, where each decision carries a falsifiable thesis. Supervisor mode never shows dated flow data; the anonymised master-trend cards above stay the only form there. 실제 시간에서만 쓴다 — 전망 모드 보드와 에이전트의 전망 모드 입력이며, 결정마다 반증 가능한 논제를 남긴다. 감독 모드에는 날짜가 있는 흐름 데이터를 보이지 않고, 위의 익명 거장 동향 카드만 쓴다.
+- **Line to keep. 지킬 선.** Flow is context and a baseline, not a copy signal (§2). The platform measures, per signal, what following it would have returned after costs. 흐름은 맥락이자 기준선이지 따라 사는 신호가 아니다(§2). 신호마다 따랐을 때의 비용 차감 후 결과를 측정한다.
+
 ### 4.15 매니저 복제 봇과 실전 운용
 
 **매니저 복제 봇(규칙 추출).** 검증된 사람 매니저의 기록에서 규칙을 뽑아 봇으로 만드는 방식이다(§1.1 2-나). LLM이 판단하는 참가자는 §4.16의 에이전트 펀드 매니저이며 이 절의 대상이 아니다.
 - **자격:** 명예의 전당(§6.8) 기준을 넘고, 재현성(속성 8)·자기 인식(속성 9)이 기준 이상이며, 전망 모드 기록이 있고, 본인이 **동의**한 매니저.
 - **"훈련"의 정의:** **규칙 추출**로 시작한다 — 그 매니저의 시즌 기록(포메이션, 전술 변경 사유, 논제, 매매 규율)에서 해석할 수 있는 규칙을 뽑아 대가 봇(§4.12)과 같은 형식의 봇으로 만든다. 설명·검증이 되고, 사용자 데이터가 모델 가중치로 들어가지 않는다. 이 갈래는 규칙 추출이며 사용자 기록을 모델 가중치에 넣지 않는다(모방 학습 없음). LLM은 규칙이 설명하지 못하는 부분 중 **논제 작성만** 돕고 비중·수량·주문을 정하지 않는다(§10). LLM이 판단하는 참가자는 §4.16의 에이전트 펀드 매니저다.
 - **검증:** 복제 봇은 사람과 같은 훈련장을 돈다 — 같은 경로에서 원본 매니저·대가 봇·뉴스 추종 봇과 비교하고(M3 방식), 그다음 전망 모드(실제 시간)에서 정해진 기간 이상 기록을 쌓는다. 두 단계를 통과한 봇만 "검증됨"이다(에이전트 펀드 매니저의 검증은 §4.16·§6.9). 기간은 R2 계획 때 정한다.
+- **Ready for real money (owner, 2026-11-18). 실전 투입 기준(소유자, 2026-11-18).** On top of the conditions here, an agent needs an outlook-mode record of at least 6 months (builder value) that beats the market baseline after costs and stays within its declared risk (maximum drawdown). 여기의 조건에 더해, 에이전트는 전망 모드 기록이 6개월 이상(빌더 값)이고 비용을 뺀 뒤 시장 기준선을 넘으며 선언한 위험(최대 낙폭) 안에 있어야 한다.
 - **속성 보존:** 복제 봇의 성적표도 §1.1 속성으로 낸다. 원본 매니저와 봇의 속성 프로필이 닮아야 "그 매니저의 복제 봇"이라고 부른다.
 
 **실전 운용.**
@@ -827,7 +852,8 @@ The release column shows the scope of §1.2. The public launch of release v1 (fo
 | AI | 복기 RAG, 질의, 시즌 코치(LangGraph), 피드 문장 다양화(외부 검색 없음) | RAG, LangChain, LangGraph | v1 |
 | OPS | 운영 compose 덮어쓰기·Caddy HTTPS·GHCR 이미지 배포(수동 워크플로)·`pg_dump` 백업과 복원 시험·VM 하드닝([DEPLOY.md](DEPLOY.md) §11 체크리스트 — 이전 단계는 각자 준비 일을 한다) | Docker, CI/CD, 클라우드 | v1 |
 | AG | **에이전트 펀드 매니저**(§4.16, §6.9): 누출 탐지 시험(AG-01, Phase 0 직후) → 에이전트 러너 시제품(AG-02, Phase 0 API 뒤) → 구독 경로 어댑터(AG-03) → 페르소나·같은 시드 다중 참가(AG-04) → 지식 축적(AG-05, M2 뒤) → 종합 매니저 점수·리더보드(AG-06, M3와 함께) → 전망 모드 참가·에이전트 명예 기록(AG-07, M4 뒤) → 메모리 RAG(AG-08, AI 단계). 기능 표는 아래 | Spring, Python, HTTP, RAG | v1 |
-| R1 | **거장 추적**(§4.14): 추적 대상 편집(`trackers/`), EDGAR·DART·X 수집기, 주요 변화 감지, 전망 모드 추적 보드, 복기 연결, 감독 모드 피드의 거장 동향 카드 | Spring 수집기, 스케줄링 | v1 |
+| FLOW | **Big-money flow (owner, 2026-11-18; §4.14).** FLOW-A: collectors for the free official sources (EDGAR 13F·Form 4·13D/G, DART, KRX investor-type trading, CFTC COT), point-in-time storage, change detection — starts after MVP, in parallel with M2·M3. FLOW-B: public statements (letters, interviews; X API later). Alongside: the **market map on today's date** (seasonality and drawdown statistics, an EXT statistics-board feature moved up next to M2-08) and a **minimal outlook mode for agents** (paper portfolio on real dates, the core of AG-07) ahead of M4, so that the real-time record starts early. **큰 돈의 흐름(소유자, 2026-11-18; §4.14).** FLOW-A: 무료 공식 출처(EDGAR 13F·Form 4·13D/G, DART, KRX 투자자별 매매, CFTC COT) 수집기, 시점 기준 저장, 변화 감지 — MVP 뒤에 M2·M3와 병행한다. FLOW-B: 공개 발언(서한·인터뷰, X API는 나중). 함께: **오늘 날짜 기준 시장 지도**(계절성·낙폭 통계 — EXT 통계 보드 기능을 M2-08 옆으로 앞당김)와 **에이전트용 최소 전망 모드**(실제 날짜의 모의 포트폴리오, AG-07의 핵심)를 M4보다 먼저 만들어 실제 시간 기록을 일찍 시작한다 | Spring collectors, scheduling, Python | v1 |
+| R1 | **거장 추적**(§4.14; 공식 출처 수집과 변화 감지는 FLOW-A로 앞당겼다, 2026-11-18): 추적 대상 편집(`trackers/`), EDGAR·DART·X 수집기, 주요 변화 감지, 전망 모드 추적 보드, 복기 연결, 감독 모드 피드의 거장 동향 카드 | Spring 수집기, 스케줄링 | v1 |
 | R2 | **매니저 복제 봇**(§4.15): 규칙 추출, 복제 봇, 훈련장 검증(같은 경로 비교 + 전망 모드 기간), 동의·익명화, 속성 프로필 비교 | Python, LangGraph | v1 |
 | R3 | **실전 운용**(§4.15, 소유자 자금): 검증된 에이전트(AG 명예 기록 또는 R2 복제 봇)로 모의 운용 → 승인 운용(KIS, 승인 파이프라인; LLM 에이전트는 주문 제안까지) → 한도 안 자율(규칙 봇만), 실계좌 원장·대사, 법률 확인 | Spring, LangGraph, 운영 | v3(자율 단계 1은 v1) |
 | 향후 | 인증서 발급(§6.8), 속성 표의 검증·개정(§1.1), Saltlux AI·API 활용 검토(§17.1), 타인 자금 운용(인가 뒤) | — | — |
@@ -1050,6 +1076,7 @@ ERD 확정 범위(Gate 0 결정 2): Phase 0 SQL이 쓰는 22개 테이블(역사
 - **Nudge alerts in the turn advance (builder, 2026-11-18, MVP-12 PR 2). / 턴 전환의 독려 알림(빌더, 2026-11-18, MVP-12 2번 PR).** Builder values (MVP-12): board top 5, streak from 2 turns; alerts 1 + idle intervals (max 4), cash alert from 20 %; alerts are Java-only at `mvp-12:v1` while feed rows stay `p0-18:v2`. The turn result lists them in `alerts`, the other rows in `feed`. / 작성자 값(MVP-12): 보드 상위 5, 연속은 2턴부터. 알림은 1 + 매매 없는 구간 수(최대 4), 현금 알림은 20%부터. 알림은 Java 전용 `mvp-12:v1`이고 피드 행은 `p0-18:v2` 그대로다. 턴 결과는 알림을 `alerts`로, 나머지 행을 `feed`로 돌려준다.
 
 - **MVP-21 web feed (builder, 2026-11-18). / MVP-21 웹 피드(빌더, 2026-11-18).** The turn screen lists every stored feed item in the stored order as plain text; nothing on the screen is derived from the sentence. An order started from an item sends that item's reference; the app never changes or retries a source. An item that names no asset has no order button. The season-start disclosure sentence is fixed in the web app and tested against `feed/notices.csv`; no endpoint serves it. The ranking board is shown in four tabs and is read-only for now; orders started from a board row follow later with the source `RANKING`. / 턴 화면은 저장된 피드 항목을 저장된 순서대로 모두 일반 텍스트로 보여 주고, 문장에서 파생한 표시는 두지 않는다. 항목에서 시작한 주문은 그 항목의 참조를 보내며, 앱은 출발점을 바꾸거나 다시 보내지 않는다. 종목이 없는 항목에는 주문 버튼이 없다. 시즌 시작 고지 문장은 웹 앱에 고정하고 `feed/notices.csv`와 시험으로 대조한다. 이 문장을 주는 엔드포인트는 없다. 순위판은 탭 네 개로 보이고 지금은 읽기 전용이다. 순위판 줄에서 시작하는 주문은 출발점 `RANKING`과 함께 뒤에 들어온다.
+- **North star and money flow (owner, 2026-11-18). / 궁극 목표와 큰 돈의 흐름(소유자, 2026-11-18).** Instruction: the ultimate goal is to earn returns in the stock market by using and configuring AI; for that, understand the flow of big money — seasonality (monthly), yearly variation (MDD), the current moves of major hedge funds (13F or any legitimate way) and the fund-manager agents raised here — and integrate them in one platform (§1.1, §4.14). Decisions: (1) after MVP, FLOW-A runs in parallel with M2·M3, and a minimal outlook mode for agents comes before M4 (§11); (2) the paid X API is skipped for now — filings and investor letters first; (3) an agent is ready for real money only with an outlook-mode record of at least 6 months that beats the market baseline after costs within its declared risk (MDD), on top of the R3 conditions (§4.15); the 6 months is a builder value; (4) this text. 지시: 궁극 목표는 AI를 활용하고 세팅해 주식 시장에서 수익을 올리는 것이며, 그러려면 큰 돈의 흐름 — 계절성(월별), 연간 변동성(MDD), 주요 헤지펀드의 현재 움직임(13F 또는 정당한 방법), 이 프로젝트가 키우는 펀드 매니저 에이전트 — 을 이해하고 하나의 플랫폼으로 통합한다(§1.1, §4.14). 결정: (1) MVP 뒤에 FLOW-A를 M2·M3와 병행하고, 에이전트용 최소 전망 모드를 M4보다 앞당긴다(§11). (2) X 유료 API는 당분간 건너뛰고 공시와 투자자 서한부터 시작한다. (3) 에이전트의 실전 투입은 전망 모드 기록 6개월 이상, 비용 차감 후 시장 기준선 초과, 선언한 위험(MDD) 이내를 R3 조건에 더해 충족해야 한다(§4.15) — 6개월은 빌더 값이다. (4) 이 문서 반영.
 
 ## 14. 빌더에게 맡기는 것
 
