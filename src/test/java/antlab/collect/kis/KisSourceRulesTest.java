@@ -16,7 +16,7 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.yaml.snakeyaml.Yaml;
 
-/** Structure checks over the collector sources: the request surface stays three KIS entries and one FRED entry, and no order/account text exists. */
+/** Structure checks over the collector sources: the request surface stays three KIS entries, one FRED entry and one ECOS host, and no order/account text exists. */
 class KisSourceRulesTest {
 
     private static final Path COLLECT = Path.of("src/main/java/antlab/collect");
@@ -54,7 +54,7 @@ class KisSourceRulesTest {
     }
 
     @Test
-    void 경로_문자열은_KisEndpoint의_세_개와_FredEndpoint의_하나뿐이다() throws IOException {
+    void 경로_문자열은_KisEndpoint의_세_개와_FredEndpoint의_하나와_EcosEndpoint의_호스트뿐이다() throws IOException {
         List<String> found = new ArrayList<>();
         for (Path file : javaFiles()) {
             for (String literal : literals(Files.readString(file))) {
@@ -69,7 +69,8 @@ class KisSourceRulesTest {
                 "KisEndpoint.java: /uapi/overseas-price/v1/quotations/dailyprice",
                 "KisEndpoint.java: https://openapi.koreainvestment.com:9443",
                 "FredEndpoint.java: https://api.stlouisfed.org",
-                "FredEndpoint.java: /fred/series/observations");
+                "FredEndpoint.java: /fred/series/observations",
+                "EcosEndpoint.java: https://ecos.bok.or.kr");
     }
 
     @Test
