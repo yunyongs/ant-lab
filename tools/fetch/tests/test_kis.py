@@ -338,3 +338,32 @@ def test_us_monthly_full_pages_keep_paging(tmp_path):
     cl, sess, _ = make(tmp_path, quote_handler(rows))
     cl.daily_range("US", "XOM", date(2015, 1, 1), date(2025, 12, 31), adjusted=True, excd="NYS", period="M")
     assert len([c for c in sess.calls if "quotations" in c["url"]]) == 2
+
+
+def test_us_monthly_99_row_page_is_terminal(tmp_path):
+    ends = [date(2025, 12, 31) - timedelta(days=30 * i) for i in range(99)]
+
+    def rows(n, k):
+        if n > 1:
+            raise AssertionError("extra request after a short page")
+        return Resp({"rt_cd": "0", "output2": [{"xymd": f"{d:%Y%m%d}", "clos": "1"} for d in ends]})
+    cl, sess, _ = make(tmp_path, quote_handler(rows))
+    out = cl.daily_range("US", "XOM", date(1995, 12, 1), date(2025, 12, 31), adjusted=True, excd="NYS", period="M")
+    assert len(out) == 99
+    assert len([c for c in sess.calls if "quotations" in c["url"]]) == 1
+
+
+@pytest.mark.parametrize("period,gubn", [("D", "0"), ("M", "2")])
+@pytest.mark.parametrize("adjusted,modp", [(True, "1"), (False, "0")])
+def test_class_share_symbol_matrix(tmp_path, period, gubn, adjusted, modp):
+    seen = []
+
+    def rows(n, k):
+        seen.append(k["params"])
+        return Resp({"rt_cd": "0", "output2": [{"xymd": "20251231", "clos": "1.5"}]})
+    cl, _, _ = make(tmp_path, quote_handler(rows))
+    cl.overseas_page("BRK.B", "NYS", date(2025, 12, 31), adjusted, period)
+    assert seen[0]["SYMB"] == "BRK/B" and seen[0]["GUBN"] == gubn and seen[0]["MODP"] == modp
+    assert (tmp_path / "raw" / f"kis_us_BRK.B_NYS_g{gubn}_20251231_modp{modp}.json").exists()
+    doc = json.loads((tmp_path / "raw" / f"kis_us_BRK.B_NYS_g{gubn}_20251231_modp{modp}.json").read_text())
+    assert doc["request"]["ticker"] == "BRK.B"
