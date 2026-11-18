@@ -8,6 +8,7 @@ import io.swagger.v3.oas.annotations.media.Schema.RequiredMode;
  * One feed item of a turn as it was shown, with what it really was. Carries no row id, event id, template, direction,
  * strength or repeat count.
  */
+@Schema(description = "One feed item of a turn as it was shown, with what it really was / 턴에 보인 피드 항목 하나와 그 정체")
 public record ReviewFeedItemDto(
         @ExposedFrom("turn_feed.seq")
         @Schema(requiredMode = RequiredMode.REQUIRED, description = "Display order within the turn (from 1) / 턴 안의 "
