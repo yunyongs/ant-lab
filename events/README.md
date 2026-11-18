@@ -8,7 +8,7 @@ Phase 0 표본 100개 달(2007-01–2012-04, 2023-01–2025-12 — P0-08)에 **�
 
 | 파일 | 내용 | 행 수 |
 |---|---|---|
-| `types.csv` | 사건 유형 목록 — H6 검사의 기계 판독 원본 | 17 |
+| `types.csv` | 사건 유형 목록 — H6 검사의 기계 판독 원본 | 27 |
 | `tags.csv` | 태그. 1행 = (달 × 사건) | 38 |
 | `reviewed.csv` | 편집 완료 표. 표본 100개 달 전부, 결과 `TAGGED`/`NONE` | 100 |
 | `README.md` | 이 문서 | — |
@@ -47,36 +47,53 @@ Phase 0 표본 100개 달(2007-01–2012-04, 2023-01–2025-12 — P0-08)에 **�
 | `event_type` | 범주 | 이름 | `outcomes` | 방향 | `reaction_refs` |
 |---|---|---|---|---|---|
 | `BANK_FAILURE` | FINANCIAL | 금융기관 파산·구제 | `FAILED;RESCUED` | NONE | `US:SPY;KR:055550` |
+| `CORPORATE_DISTRESS` | FINANCIAL | 대기업 부실·부도(회계 부정 포함) | `FAILED;RESCUED` | NONE | `US:SPY;KR:069500;KR:055550` |
 | `CREDIT_CRUNCH` | FINANCIAL | 신용 경색 | (빈 칸) | NONE | `US:SPY;KR:055550` |
-| `CREDIT_RATING_DOWNGRADE` | FINANCIAL | 국가 신용등급 강등 | (빈 칸) | NONE | `US:TLT;US:SPY` |
-| `SOVEREIGN_DEBT` | FINANCIAL | 국가 부채 위기 | `ESCALATED;RESCUED` | NONE | `US:SPY;KR:069500` |
+| `CREDIT_RATING_DOWNGRADE` | FINANCIAL | 국가 신용등급 강등 | (빈 칸) | NONE | `US:TLT;US:SPY;KR:069500` |
+| `CURRENCY_SHOCK` | FINANCIAL | 통화 급락·평가절하(통화 위기) | `DEVALUED;RESCUED` | NONE | `FX:USD;KR:069500;US:SPY` |
+| `MARKET_CRASH` | FINANCIAL | 증시 폭락·거래 중단 | `HALTED` | NONE | `US:SPY;US:QQQ;KR:069500` |
+| `SOVEREIGN_DEBT` | FINANCIAL | 국가 부채 위기 | `ESCALATED;RESCUED;DEFAULTED` | NONE | `US:SPY;KR:069500` |
 | `ARMED_CONFLICT` | GEOPOLITICS | 무력 분쟁 | `ESCALATED;CEASEFIRE` | NONE | `US:XOM;US:SPY;KR:069500` |
 | `MILITARY_PROVOCATION` | GEOPOLITICS | 군사 도발·교전 | (빈 칸) | NONE | `KR:069500;FX:USD` |
+| `PEACE_TALKS` | GEOPOLITICS | 정상회담·평화 협상 | `AGREED;COLLAPSED` | NONE | `KR:069500;FX:USD` |
+| `TERROR_ATTACK` | GEOPOLITICS | 대형 테러 공격 | (빈 칸) | NONE | `US:SPY;KR:069500` |
+| `EPIDEMIC` | HEALTH | 감염병 유행(대유행 아님) | (빈 칸) | NONE | `KR:069500;US:SPY` |
 | `PANDEMIC` | HEALTH | 감염병 대유행 | (빈 칸) | NONE | `US:SPY;KR:069500` |
+| `FISCAL_STANDOFF` | POLICY | 예산·부채 한도 대치와 정부 폐쇄 | `SHUTDOWN;RESOLVED` | NONE | `US:SPY;US:TLT` |
 | `FISCAL_STIMULUS` | POLICY | 대규모 재정 부양·구제 법안 | (빈 칸) | NONE | `US:SPY;KR:069500` |
-| `MONETARY_EASING` | POLICY | 통화 완화(인하·자산 매입) | `RATE_CUT;ASSET_PURCHASE;EMERGENCY_CUT` | NONE | `US:TLT;US:SHY;US:SPY` |
+| `MONETARY_EASING` | POLICY | 통화 완화(인하·자산 매입) | `RATE_CUT;ASSET_PURCHASE;EMERGENCY_CUT` | NONE | `US:TLT;US:SHY;US:SPY;KR:069500` |
+| `MONETARY_TIGHTENING` | POLICY | 통화 긴축(인상·자산 매입 축소) | `RATE_HIKE;ASSET_PURCHASE_CUT;BALANCE_SHEET_CUT;SIGNALED` | NONE | `US:TLT;US:SHY;US:SPY;KR:069500` |
 | `KR_LEGISLATIVE_ELECTION` | POLITICS | 한국 총선 | `MAJORITY_GAINED;MAJORITY_KEPT;MAJORITY_LOST;MINORITY_KEPT` | NONE | `KR:069500` |
 | `KR_PRESIDENTIAL_ELECTION` | POLITICS | 한국 대선 | `CHANGE;KEEP` | NONE | `KR:069500` |
 | `POLITICAL_CRISIS` | POLITICS | 국내 정치 위기(헌정 위기·탄핵) | (빈 칸) | NONE | `KR:069500;FX:USD` |
-| `US_MIDTERM` | POLITICS | 미국 중간선거 | `MAJORITY_LOST;MAJORITY_KEPT` | NONE | `US:SPY` |
+| `REFERENDUM` | POLITICS | 해외 국민투표 | `CHANGE;KEEP` | NONE | `US:SPY;KR:069500;FX:USD` |
+| `US_MIDTERM` | POLITICS | 미국 중간선거 | `MAJORITY_LOST;MAJORITY_KEPT;MINORITY_KEPT` | NONE | `US:SPY` |
 | `US_PRESIDENTIAL_ELECTION` | POLITICS | 미국 대선 | `CHANGE;KEEP` | NONE | `US:SPY` |
 | `NATURAL_DISASTER` | SUPPLY_SHOCK | 대형 재해(공급망) | (빈 칸) | NONE | `KR:069500;US:SPY` |
 | `OIL_SHOCK` | SUPPLY_SHOCK | 유가 급등락 | (빈 칸) | UP_DOWN | `US:XOM` |
+| `SANCTION` | TRADE | 수출 통제·경제 제재 | `IMPOSED;RETALIATED;PAUSED;LIFTED` | NONE | `KR:069500;US:SPY;KR:005930` |
 | `TARIFF` | TRADE | 관세 부과·보복·합의 | `IMPOSED;RETALIATED;PAUSED;AGREED` | NONE | `KR:069500;US:SPY` |
 
-긴축(`MONETARY_TIGHTENING`)은 1차에서 뺐다. 2023년 인상 연속은 큰 사건이라기보다 진행 중인 정책이다. 넣게 되면 "마지막 인상"은 그 달에는 마지막인지 몰랐으므로 `hindsight`에만 쓴다(시점 기준 T2).
+긴축(`MONETARY_TIGHTENING`)은 1차(P0-09)에서 뺐고 MVP-07 07-A에서 더했다(확장 구간과 2012–2022의 인상 주기 시작·자산 매입 축소가 큰 사건이기 때문). "마지막 인상"은 그 달에는 마지막인지 몰랐으므로 `hindsight`에만 쓴다(시점 기준 T2). 07-A에서 더하거나 바꾼 유형과 이유는 아래 "MVP 확장 편집 규칙"에 있다.
 
 ### 결과 코드의 뜻
 
 | 코드 | 쓰는 유형 | 뜻 (그 달 말에 확정된 것만) |
 |---|---|---|
-| `CHANGE` / `KEEP` | 대선 | 직전 대선 당선자의 당선 당시 소속 정당과 새 당선자의 정당이 다름 / 같음(현직이 탈당했거나 자리가 비어도 이 기준. 정당이 이름을 바꾸거나 합당했으면 이어지는 정당으로 본다) |
+| `CHANGE` / `KEEP` | 대선, 해외 국민투표 | 대선: 직전 대선 당선자의 당선 당시 소속 정당과 새 당선자의 정당이 다름 / 같음(현직이 탈당했거나 자리가 비어도 이 기준. 정당이 이름을 바꾸거나 합당했으면 이어지는 정당으로 본다). 국민투표: 현 상태를 바꾸는 쪽이 이김 / 현 상태 유지 |
 | `MAJORITY_GAINED` / `MAJORITY_KEPT` / `MAJORITY_LOST` / `MINORITY_KEPT` | 한국 총선 | 집권 여당이 선거 전 과반이 아니었다가 과반을 얻음 / 과반이었고 유지 / 과반이었다가 잃음 / 선거 전후 모두 과반이 아님 |
-| `MAJORITY_LOST` / `MAJORITY_KEPT` | 미국 중간선거 | 대통령 소속 정당이 하원 과반을 잃음 / 유지 |
-| `FAILED` / `RESCUED` | 은행·금융기관 | 파산·폐쇄로 정리 / 인수·구제로 정리 (국가 부채 위기에서 `RESCUED`는 구제금융 합의) |
+| `MAJORITY_LOST` / `MAJORITY_KEPT` / `MINORITY_KEPT` | 미국 중간선거 | 대통령 소속 정당이 하원 과반을 잃음 / 유지 / 선거 전후 모두 과반이 아님 |
+| `FAILED` / `RESCUED` | 은행·금융기관, 대기업 부실 | 파산·폐쇄·부도로 정리 / 인수·구제·채권단 관리로 정리 (국가 부채 위기와 통화 위기에서 `RESCUED`는 구제금융 합의) |
+| `DEFAULTED` | 국가 부채 위기 | 국가가 채무 불이행(지급 중단·모라토리엄)을 선언했거나 지급일을 넘김 |
+| `DEVALUED` | 통화 위기 | 당국이 통화 가치를 공식 절하했거나 고정·관리 환율을 포기함 |
+| `HALTED` | 증시 폭락 | 한국 또는 미국 시장 전체의 거래가 멈춤(서킷 브레이커 발동, 거래소 휴장) |
 | `ESCALATED` / `CEASEFIRE` | 무력 분쟁, 국가 부채 위기(`ESCALATED`만) | 확전·확산 / 휴전 |
+| `AGREED` / `COLLAPSED` | 정상회담·평화 협상 | 공동 선언·합의 서명 / 합의 없이 결렬 |
 | `RATE_CUT` / `EMERGENCY_CUT` / `ASSET_PURCHASE` | 통화 완화 | 정례 인하 / 정례 회의 밖 긴급 인하 / 자산 매입 계획 발표 |
+| `RATE_HIKE` / `ASSET_PURCHASE_CUT` / `BALANCE_SHEET_CUT` / `SIGNALED` | 통화 긴축 | 정책금리 인상 / 자산 매입 규모 축소 결정 / 보유 자산 축소 시작 결정 / 축소·인상 예고(결정은 아직 없음) |
+| `SHUTDOWN` / `RESOLVED` | 예산·부채 한도 대치 | 정부 업무 정지가 시작됨 / 예산·부채 한도 법안 서명으로 해소 |
 | `IMPOSED` / `RETALIATED` / `PAUSED` / `AGREED` | 관세 | 부과 / 맞대응 / 유예 / 합의 |
+| `IMPOSED` / `RETALIATED` / `PAUSED` / `LIFTED` | 수출 통제·경제 제재 | 부과 / 맞대응 / 유예 / 해제 |
 
 ## tags.csv — 태그
 
@@ -140,9 +157,49 @@ Phase 0 표본 100개 달(2007-01–2012-04, 2023-01–2025-12 — P0-08)에 **�
 
 **범위 밖**
 
-- 확장 구간(1997-01–2006-12)과 본 구간 중 표본에 없는 2012-05–2022-12의 편집 — MVP 데이터 준비 몫이다(PLAN §4.7·§4.11). 그 달들의 `month_block` 행이 아직 없다.
+- 확장 구간(1997-01–2006-12)과 본 구간 중 표본에 없는 2012-05–2022-12의 편집 — MVP 데이터 준비 몫이다(PLAN §4.7·§4.11). 그 달들의 `month_block` 행이 아직 없다. 편집 규칙은 아래 "MVP 확장 편집 규칙"이다.
 - 세부 편집(작은 사건) — EXT.
 - 사건 카드 문장의 유형·결과별 템플릿 — 소음 짝이 함께 필요해 P0-18 또는 EXT에서 새 id로 더한다.
+
+## MVP extension drafting rules (MVP-07, 07-B..E) / MVP 확장 편집 규칙
+
+### English
+
+These rules add to everything above (formats, T1–T4, selection rules 1–4, episode rules, sources). They apply to the four drafting PRs: 07-B 1997-01–2001-12, 07-C 2002-01–2006-12, 07-D 2012-05–2017-12, 07-E 2018-01–2022-12.
+
+1. **Types are fixed for drafting.** Use only `types.csv`. If an event fits no type, put it in the hold list with the reason; a new type needs its own reviewed change to `types.csv` (07-A rules: no year, no proper noun, two-letter tokens only `US`/`KR`, reusable for three or more episodes across 1997–2025).
+2. **Every month of the era gets a `reviewed.csv` row** (`TAGGED` or `NONE`). Regular elections are always tagged (rule 1): US presidential elections and midterms (November), KR presidential elections (1997-12, 2002-12, 2012-12, 2017-05, 2022-03) and KR legislative elections (2000-04, 2004-04, 2016-04, 2020-04). The `outcome` is blank when the result was not settled at month end (a decisive recount or court case still open); add an `ONGOING` row with the outcome in the month it was settled (T3).
+3. **Type choice.**
+   - Official devaluation or a dropped peg → `CURRENCY_SHOCK` `DEVALUED`; an IMF or bilateral rescue of a currency crisis → `CURRENCY_SHOCK` `RESCUED`. A sovereign default → `SOVEREIGN_DEBT` `DEFAULTED`. A default and a devaluation of the same country in the same month are one tag (`SOVEREIGN_DEBT`).
+   - A bank, broker or hedge fund failing or rescued → `BANK_FAILURE`. A non-financial company or conglomerate in default, workout or an accounting fraud that headlines → `CORPORATE_DISTRESS` (no outcome in the month the fraud is revealed; `FAILED` on a bankruptcy filing or default, `RESCUED` on a creditor workout or bailout). A frozen consumer or corporate credit market → `CREDIT_CRUNCH`.
+   - `MARKET_CRASH` only when the fall itself is the headline and no other tag of that month is its reported cause; `HALTED` only for a market-wide circuit breaker or an exchange closure in KR or US. "Bubble" and "bust" are later names: they go to `hindsight`, never to the type.
+   - `PANDEMIC` when, at month end, the WHO has declared a pandemic, or a PHEIC for a new virus already spreading across continents (precedent `ev0010`); any other outbreak is `EPIDEMIC`. An episode keeps the type of its first row.
+   - `MONETARY_TIGHTENING`: `START` = first hike of a cycle or the first headline signal (`SIGNALED`); `ONGOING` only for an outsized hike, a purchase cut or the start of balance-sheet runoff. One episode per central bank and cycle; the Fed and the Bank of Korea are separate episodes. An easing episode ends when the same bank starts tightening; the next easing is a new episode.
+   - `FISCAL_STANDOFF` (`SHUTDOWN` / `RESOLVED`), `REFERENDUM` (`CHANGE` = the side changing the status quo won), `PEACE_TALKS` (`AGREED` / `COLLAPSED`), `SANCTION` (export controls, embargoes, financial sanctions; tariffs stay `TARIFF`), `TERROR_ATTACK` (mass-casualty attack leading world news). A referendum inside a debt crisis is tagged as `SOVEREIGN_DEBT`.
+   - Wars and invasions → `ARMED_CONFLICT`; tests, launches and clashes around the Korean peninsula → `MILITARY_PROVOCATION`.
+4. **Episode keys.** Each PR uses its own block so parallel drafts never collide: 07-B `ev0100`–`ev0199`, 07-C `ev0200`–`ev0299`, 07-D `ev0300`–`ev0399`, 07-E `ev0400`–`ev0499`. The era of the `START` row owns the episode; a later era adds `ONGOING` rows to that key (merge in era order). An episode of the sample (`ev0001`–`ev0021`) continues with its next sequence number only if the new month is after its last row; otherwise the candidate goes to the hold list (a new episode would raise n).
+5. **`reaction_ref`.** Choose from the type's list; for a type that is likely n < 3 in the replay range, pick `KR:069500` or `US:SPY` first. Before listing (`KR:069500` 2002-10, `KR:055550` 2001-09, `US:TLT`/`US:SHY` 2002-07, `US:QQQ` 1999-03) the value is the proxy-index return; keep it, because it is the same number the turn screen shows for that asset.
+6. **Sources.** Open every URL on the day of drafting and write that date in `checked_on`. Primary sources first (central banks, election commissions, WHO, IMF, governments, exchanges); encyclopedia pages for dates only. Nothing from memory without an opened source. Titles are short facts in Korean with the name used at month end; later names and judgements ("tantrum", "bubble", "the last hike", "the peak of the crisis") go to `hindsight`.
+7. **Checks before review.** `tools/fetch/tests/test_events_files.py` checks format, order, H5 and H6 without a database (`tools/fetch/.venv/bin/python -m pytest -q tools/fetch/tests/test_events_files.py`). The loader and `db/11_load_events_check.sql` run only on a database whose `month_block` holds the new months (full load, plan run R-L).
+
+### 한국어
+
+위의 모든 규칙(형식, T1–T4, 선정 규칙 1–4, 에피소드 규칙, 출처)에 더하는 규칙이다. 네 편집 PR에 적용한다: 07-B 1997-01–2001-12, 07-C 2002-01–2006-12, 07-D 2012-05–2017-12, 07-E 2018-01–2022-12.
+
+1. **편집 중 유형은 고정이다.** `types.csv`의 유형만 쓴다. 맞는 유형이 없으면 이유와 함께 보류 목록에 둔다. 새 유형은 `types.csv`를 따로 리뷰받아 더한다(07-A 규칙: 연도·고유명사 금지, 두 글자 토큰은 `US`/`KR`만, 1997–2025에서 에피소드 3개 이상에 다시 쓸 수 있을 것).
+2. **그 구간의 모든 달에 `reviewed.csv` 행을 둔다**(`TAGGED` 또는 `NONE`). 정기 선거는 늘 태그한다(규칙 1): 미국 대선·중간선거(11월), 한국 대선(1997-12, 2002-12, 2012-12, 2017-05, 2022-03), 한국 총선(2000-04, 2004-04, 2016-04, 2020-04). 그 달 말에 결과가 확정되지 않았으면(결과를 좌우하는 재검표·소송이 진행 중) `outcome`을 비우고, 확정된 달에 결과가 든 `ONGOING` 행을 더한다(T3).
+3. **유형 고르기.**
+   - 공식 평가절하나 고정 환율 포기 → `CURRENCY_SHOCK` `DEVALUED`. 통화 위기에 대한 국제통화기금·양자 구제 → `CURRENCY_SHOCK` `RESCUED`. 국가 채무 불이행 → `SOVEREIGN_DEBT` `DEFAULTED`. 같은 나라의 채무 불이행과 평가절하가 같은 달이면 태그 하나(`SOVEREIGN_DEBT`)다.
+   - 은행·증권사·헤지펀드의 파산·구제 → `BANK_FAILURE`. 금융사가 아닌 회사·재벌의 부도·채권단 관리·1면에 오른 회계 부정 → `CORPORATE_DISTRESS`(부정이 드러난 달은 결과 없음, 파산 신청·부도는 `FAILED`, 채권단 관리·구제는 `RESCUED`). 소비자·기업 신용 시장이 얼어붙음 → `CREDIT_CRUNCH`.
+   - `MARKET_CRASH`는 하락 자체가 1면이고 그 달 다른 태그가 원인으로 보도되지 않았을 때만 쓴다. `HALTED`는 한국·미국 시장 전체의 서킷 브레이커나 휴장일 때만이다. "거품"과 "붕괴"는 나중에 붙은 이름이라 `hindsight`에만 쓰고 유형으로 고르지 않는다.
+   - `PANDEMIC`은 그 달 말에 세계보건기구가 대유행을 선언했거나, 이미 여러 대륙으로 퍼진 새 바이러스에 국제 공중보건 비상사태(PHEIC)를 선포했을 때다(선례 `ev0010`). 그 밖의 유행은 `EPIDEMIC`이다. 에피소드는 첫 행의 유형을 유지한다.
+   - `MONETARY_TIGHTENING`: `START` = 인상 주기의 첫 인상이나 1면에 오른 첫 예고(`SIGNALED`). `ONGOING`은 큰 폭 인상, 자산 매입 축소, 보유 자산 축소 시작만이다. 에피소드는 중앙은행·주기마다 하나이고 미국 연준과 한국은행은 다른 에피소드다. 완화 에피소드는 같은 은행이 긴축을 시작하면 끝나고, 다음 완화는 새 에피소드다.
+   - `FISCAL_STANDOFF`(`SHUTDOWN` / `RESOLVED`), `REFERENDUM`(`CHANGE` = 현 상태를 바꾸는 쪽이 이김), `PEACE_TALKS`(`AGREED` / `COLLAPSED`), `SANCTION`(수출 통제·금수·금융 제재, 관세는 `TARIFF` 그대로), `TERROR_ATTACK`(세계 뉴스 첫머리에 오른 대량 인명 피해 공격). 부채 위기 안의 국민투표는 `SOVEREIGN_DEBT`로 태그한다.
+   - 전쟁·침공 → `ARMED_CONFLICT`. 한반도 주변의 핵실험·미사일 발사·교전 → `MILITARY_PROVOCATION`.
+4. **에피소드 키.** 병행 편집이 부딪히지 않도록 PR마다 번호 구간을 쓴다: 07-B `ev0100`–`ev0199`, 07-C `ev0200`–`ev0299`, 07-D `ev0300`–`ev0399`, 07-E `ev0400`–`ev0499`. `START` 행이 있는 구간의 PR이 에피소드를 갖고, 뒤 구간은 그 키에 `ONGOING` 행을 더한다(구간 순서로 머지). 표본의 에피소드(`ev0001`–`ev0021`)는 새 달이 그 에피소드의 마지막 행보다 뒤일 때만 다음 순번으로 잇는다. 아니면 보류 목록에 둔다(새 에피소드로 만들면 n이 늘어난다).
+5. **`reaction_ref`.** 유형의 허용 목록에서 고르고, 재생 구간에서 n < 3이 될 것 같은 유형은 `KR:069500`이나 `US:SPY`를 먼저 고른다. 상장 전 달(`KR:069500` 2002-10, `KR:055550` 2001-09, `US:TLT`/`US:SHY` 2002-07, `US:QQQ` 1999-03)의 값은 대리 지수 수익률이다. 턴 화면이 그 종목에 보여 주는 숫자와 같으므로 그대로 쓴다.
+6. **출처.** 편집한 날 모든 URL을 직접 열고 그 날짜를 `checked_on`에 적는다. 1차 자료(중앙은행, 선거관리기관, 세계보건기구, 국제통화기금, 정부, 거래소)를 먼저 쓰고 백과사전은 날짜 확인용으로만 쓴다. 열어 본 출처 없이 기억으로 쓰지 않는다. `title`은 그 달 말에 쓰이던 이름으로 쓴 한국어 짧은 사실이다. 나중 이름과 평가("발작", "거품", "마지막 인상", "위기의 정점")는 `hindsight`에 쓴다.
+7. **리뷰 전 검사.** `tools/fetch/tests/test_events_files.py`가 DB 없이 형식·순서·H5·H6을 본다(`tools/fetch/.venv/bin/python -m pytest -q tools/fetch/tests/test_events_files.py`). 적재와 `db/11_load_events_check.sql`은 새 달이 `month_block`에 들어간 DB(전체 적재, 계획의 R-L)에서만 돌릴 수 있다.
 
 ## 표본 수 n — 정의 N1과 정본 쿼리
 
@@ -204,7 +261,7 @@ psql -X -q -v ON_ERROR_STOP=1 -d antlab -f db/11_load_events_check.sql
 
 ## 편집 방법
 
-- 새 태그: 새 에피소드면 가장 큰 번호 다음 번호로 `ev####.01`을 만든다(기존 번호를 밀지 않는다). 같은 에피소드의 다음 달이면 `.02`처럼 순번을 잇는다. `tags.csv`를 `event_key` 순서로 정렬하고, 태그를 단 달이 `reviewed.csv`에 `TAGGED`로 있는지 확인한다.
+- 새 태그: 새 에피소드면 가장 큰 번호 다음 번호로 `ev####.01`을 만든다(기존 번호를 밀지 않는다. MVP 확장 편집은 "MVP 확장 편집 규칙" 4의 번호 구간 안에서 다음 번호를 쓴다). 같은 에피소드의 다음 달이면 `.02`처럼 순번을 잇는다. `tags.csv`를 `event_key` 순서로 정렬하고, 태그를 단 달이 `reviewed.csv`에 `TAGGED`로 있는지 확인한다.
 - 새 유형: `types.csv`에 행을 더하고(정렬 유지) 이 문서의 유형 표를 같이 고친다. 코드 규칙은 위와 같다.
 - 확장 구간(MVP)은 같은 형식으로 행을 더한다. 그 달들이 `month_block`에 들어온 뒤에 한다.
 
