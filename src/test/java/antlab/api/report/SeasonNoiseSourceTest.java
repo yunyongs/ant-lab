@@ -38,6 +38,14 @@ class SeasonNoiseSourceTest {
         assertThat(source).isInstanceOf(SeasonNoiseSource.class);
     }
 
+    /** A caught exception that crossed a transactional proxy would mark the score's read snapshot rollback-only. */
+    @Test
+    void 소음_원천은_트랜잭션_프록시가_아니고_자기_트랜잭션을_열지_않는다() {
+        assertThat(org.springframework.aop.support.AopUtils.isAopProxy(source)).isFalse();
+        assertThat(org.springframework.core.annotation.AnnotatedElementUtils.hasAnnotation(SeasonNoiseSource.class,
+                org.springframework.transaction.annotation.Transactional.class)).isFalse();
+    }
+
     @Test
     void 끝난_시즌의_값은_분석_응답의_소음_비율과_같다() throws Exception {
         long season = playedSeason(mvc, jdbc, 12);
