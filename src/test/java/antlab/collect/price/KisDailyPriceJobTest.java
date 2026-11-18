@@ -10,11 +10,13 @@ import antlab.collect.JobStatus;
 import antlab.collect.RunTrigger;
 import antlab.collect.job.JobAlreadyRunningException;
 import antlab.collect.job.JobRunSummary;
+import antlab.collect.kis.DailyClose;
 import antlab.collect.kis.KisExchange;
 import antlab.support.JpaMappingTest;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -228,6 +230,31 @@ class KisDailyPriceJobTest {
                 .as("New York is still on 2026-01-12 (17:30), so its window ends 2026-01-11").containsOnly(LocalDate.parse("2026-01-11"));
         assertThat(morning.calls.stream().filter(c -> c.key().startsWith("US")).findFirst().orElseThrow().exchange())
                 .isEqualTo(KisExchange.AMS);
+    }
+
+    @Test
+    void 해외_응답이_창을_무시하고_백_행과_오늘_행을_줘도_창_안의_행만_쓴다() {
+        List<DailyClose> hundred = new ArrayList<>();
+        LocalDate day = LocalDate.parse("2026-01-13");
+        while (hundred.size() < 100) {
+            if (day.getDayOfWeek().getValue() < 6) {
+                hundred.add(close(day.toString(), "500." + (1000 + hundred.size())));
+            }
+            day = day.minusDays(1);
+        }
+        FakeQuoteClient client = threeTargets().answer("US:SPY", hundred.toArray(DailyClose[]::new));
+
+        JobRunSummary summary = job(THREE, client).run(RunTrigger.MANUAL, TargetFilter.all());
+
+        long inWindow = hundred.stream().filter(c -> !c.tradeDate().isBefore(LocalDate.parse("2025-12-13"))
+                && !c.tradeDate().isAfter(LocalDate.parse("2026-01-12"))).count();
+        assertThat(inWindow).isBetween(10L, 99L);
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM asset_daily_price p JOIN asset a ON a.id = p.asset_id WHERE a.ticker = 'SPY'
+                """, Integer.class)).isEqualTo((int) inWindow);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM asset_daily_price WHERE trade_date >= DATE '2026-01-13'",
+                Integer.class)).isZero();
+        assertThat(summary.status()).isEqualTo(JobStatus.SUCCEEDED);
     }
 
     @Test

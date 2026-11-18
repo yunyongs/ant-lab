@@ -56,7 +56,7 @@ public final class ReportApiSupport {
      * Writes one filled order straight into the tables (one execution per entry of {@code parts}), bypassing the
      * order API so that a test can make histories the API would refuse. Rows are removed by the cleanup script.
      */
-    static void fill(JdbcTemplate jdbc, long season, long assetId, int turn, String side, int... parts) {
+    public static void fill(JdbcTemplate jdbc, long season, long assetId, int turn, String side, int... parts) {
         int total = java.util.Arrays.stream(parts).sum();
         Long order = jdbc.queryForObject("INSERT INTO orders (season_id, asset_id, turn_no, side, quantity, status, source) "
                 + "VALUES (?, ?, ?, ?, ?, 'FILLED', 'DIRECT') RETURNING id", Long.class, season, assetId, turn, side, total);

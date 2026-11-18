@@ -392,11 +392,11 @@ export interface paths {
          *     - X1 Compound annual growth rate (CAGR): needs fractional powers (ln·exp) that Java BigDecimal has no exact counterpart for, so the golden 8-decimal match cannot be guaranteed. The value is inflated on short seasons. → MVP (with the M3 score)
          *     - X2 Sharpe: meaningless on a 10-turn sample, and the risk-free rate (cash earns no interest) must be defined with it. → MVP
          *     - X3 Path percentile and consistency: needs an expected distribution (thousands of paths). → M2
-         *     - X4 60/40, my-formation (follows) and start-formation (fixed) benchmarks, the three-way split into player selection, formation change and structure effect: not in these 37 columns. Java computes them at GET …/report/analysis (MVP-17). The 6-turn effect after a change is MVP-19.
+         *     - X4 60/40, my-formation (follows) and start-formation (fixed) benchmarks, the three-way split into player selection, formation change and structure effect, the 6-turn effect after a change: not in these 37 columns. Java computes them at GET …/report/analysis (MVP-17; the 6-turn effect MVP-19).
          *     - X5 Trading discipline (panic, chasing) and formation change right after a fall: not in these 37 columns. Defined in PLAN §6.2; Java computes them at GET …/report/analysis (MVP-17).
          *     - X6 Number of asset classes and average correlation under diversification: not in the feature table row P0-20, and correlation is unstable over 10 turns. → MVP
-         *     - X7 Reaction to noise (direction): needs a rule that judges the feed direction. → MVP
-         *     - X8 Following attention, defender goals, bench goals and signal discrimination: these are review items, so they are not part of the score (PLAN §6.2). Signal discrimination is EXT. → MVP/EXT
+         *     - X7 Reaction to noise (direction): not in these 37 columns. Defined in PLAN §6.2; Java computes it at GET …/report/analysis (MVP-19).
+         *     - X8 Following attention, defender goals, bench goals and signal discrimination: not in these 37 columns. They are review items and not part of the score (PLAN §6.2). Java computes following attention and defender goals at GET …/report/analysis (MVP-19). Bench goals come with the bench list (APP); signal discrimination is EXT.
          *     - X9 Tax, after-tax value on liquidation and deferred tax: tax is EXT (PLAN §4.6). The verification asserts that execution.tax is always 0. → EXT
          *     - X10 Currency-exchange portion of the fee: splitting out the displayed portion adds a new rounding point in whole won. PLAN §4.6 describes this item as "display only." → MVP
          *     - X11 Season score 0–100 and rating: PLAN §6.3 is a draft. → M3
@@ -408,11 +408,11 @@ export interface paths {
          *     - X1 연평균 성장률(CAGR) 분수 거듭제곱(ln·exp)이 필요한데 Java BigDecimal 에 정확한 짝이 없어 골든 8자리 일치를 보장할 수 없다. 짧은 시즌에서는 값이 부풀려진다. → MVP(M3 점수와 함께)
          *     - X2 Sharpe 10턴 표본으로는 의미가 없고, 무위험 수익률(현금 무이자) 정의도 함께 정해야 한다. → MVP
          *     - X3 경로 백분위·일관성 예상 분포(수천 경로)가 필요하다. → M2
-         *     - X4 60/40·내 포메이션(따라감)·시작 포메이션(고정) 기준선, 선수 선택·전술 변경·구조 효과 3분해 이 37열에는 없다. Java 가 GET …/report/analysis 로 계산한다 (MVP-17). 변경 뒤 6턴 효과는 MVP-19.
+         *     - X4 60/40·내 포메이션(따라감)·시작 포메이션(고정) 기준선, 선수 선택·전술 변경·구조 효과 3분해, 변경 뒤 6턴 효과 이 37열에는 없다. Java 가 GET …/report/analysis 로 계산한다 (MVP-17, 6턴 효과는 MVP-19).
          *     - X5 매매 규율(패닉·추격)·하락 직후 전술 변경 이 37열에는 없다. 정의는 PLAN §6.2, Java 가 GET …/report/analysis 로 계산한다 (MVP-17).
          *     - X6 분산 중 자산군 수·평균 상관 기능 표 P0-20 행에 없고 상관은 10턴으로는 불안정하다. → MVP
-         *     - X7 소음 반응(방향) 피드 방향을 판정하는 규칙이 필요하다. → MVP
-         *     - X8 관심 추종·수비수 득점·벤치 득점·신호 판별 복기 항목이라 점수에 넣지 않는다 (PLAN §6.2). 신호 판별은 EXT. → MVP/EXT
+         *     - X7 소음 반응(방향) 이 37열에는 없다. 정의는 PLAN §6.2, Java 가 GET …/report/analysis 로 계산한다 (MVP-19).
+         *     - X8 관심 추종·수비수 득점·벤치 득점·신호 판별 이 37열에는 없다. 복기 항목이라 점수에 넣지 않는다 (PLAN §6.2). 관심 추종·수비수 득점은 Java 가 GET …/report/analysis 로 계산한다 (MVP-19). 벤치 득점은 벤치 목록이 생기는 APP, 신호 판별은 EXT.
          *     - X9 세금·청산 시 세후·이연 세금 세금은 EXT 다 (PLAN §4.6). execution.tax 가 항상 0 인지는 검증이 단언한다. → EXT
          *     - X10 수수료 중 환전 몫 표시 몫을 나누면 원 단위 반올림 지점이 새로 생긴다. PLAN §4.6 이 "표시만"이라 한 항목이다. → MVP
          *     - X11 시즌 점수 0–100·레이팅 PLAN §6.3 은 초안이다. → M3
@@ -436,9 +436,9 @@ export interface paths {
         };
         /**
          * Season analysis lookup / 시즌 분석 조회
-         * @description Simulates four baselines (market, 60/40, my formation followed, start formation fixed) on the season's own turn prices with integer shares and fees, splits the excess over the market into player selection, formation change and structure, and measures trading discipline (panic selling and chase buying, PLAN §6.2), all on read and without storing anything. Complements the 37-column season report. A season that is in progress or being abandoned returns 409 SEASON_NOT_FINISHED. Money is a whole-won integer string; ratios are strings with 8 decimal places; the three won terms of the split add up to the total exactly, while their ratios may differ from the total ratio by rounding. A baseline whose representative asset is not in the season pool is unavailable (reason REPRESENTATIVE_MISSING, values null). The 60/40 bond leg uses a US Treasury ETF until the pool holds a Korean bond ETF (bondLegSubstituted). The representative table is a fixed rule, not a position judgement. Dates, month blocks, seeds and asset names are not included; an asset is only MARKET:TICKER.
+         * @description Simulates four baselines (market, 60/40, my formation followed, start formation fixed) on the season's own turn prices with integer shares and fees, splits the excess over the market into player selection, formation change and structure, and measures trading discipline (panic selling and chase buying, PLAN §6.2), measures the reaction to noise (the share of what was traded that followed an up or down signal of the same turn's feed and ranking boards, PLAN §6.2), splits the fees by order source (the nudged part is RANKING and ALERT only), and gives three review facts (PLAN §6.2): how buys of top-attention assets and all other buys fared over the next 6 turns, the won gain of defender and goalkeeper holdings in turns where the market fell, and the 6-turn effect of each formation change, all on read and without storing anything. Complements the 37-column season report. A season that is in progress or being abandoned returns 409 SEASON_NOT_FINISHED. Money is a whole-won integer string; ratios are strings with 8 decimal places; the three won terms of the split add up to the total exactly, while their ratios may differ from the total ratio by rounding. A baseline whose representative asset is not in the season pool is unavailable (reason REPRESENTATIVE_MISSING, values null). The 60/40 bond leg uses a US Treasury ETF until the pool holds a Korean bond ETF (bondLegSubstituted). The representative table is a fixed rule, not a position judgement. Dates, month blocks, seeds and asset names are not included; an asset is only MARKET:TICKER.
          *
-         *     끝난 시즌의 시즌 가격 위에서 기준선 네 개(시장, 60/40, 내 포메이션 따라감, 시작 포메이션 고정)를 정수 주식과 수수료로 시뮬레이션하고, 시장 대비 초과분을 선수 선택·전술 변경·구조로 나누고, 매매 규율(패닉 매도·추격 매수, PLAN §6.2)을 재며, 모두 저장 없이 조회로 계산한다. 37항목 시즌 성적표를 보완한다. 진행 중이거나 포기 중인 시즌은 409 SEASON_NOT_FINISHED 다. 금액은 원 단위 정수 문자열, 비율은 소수 8자리 문자열이고, 3분해의 원 단위 세 항은 합계와 정확히 같지만 비율은 반올림 때문에 합계 비율과 다를 수 있다. 대표 종목이 시즌 풀에 없는 기준선은 만들 수 없다(reason REPRESENTATIVE_MISSING, 값 null). 60/40 의 채권 칸은 풀에 국내 채권 ETF가 들어오기 전까지 미국 국채 ETF를 쓴다(bondLegSubstituted). 대표 종목 표는 고정 규칙이며 포지션 판정이 아니다. 날짜·월 블록·시드·종목 이름은 싣지 않고 종목은 MARKET:TICKER 로만 가리킨다.
+         *     끝난 시즌의 시즌 가격 위에서 기준선 네 개(시장, 60/40, 내 포메이션 따라감, 시작 포메이션 고정)를 정수 주식과 수수료로 시뮬레이션하고, 시장 대비 초과분을 선수 선택·전술 변경·구조로 나누고, 매매 규율(패닉 매도·추격 매수, PLAN §6.2)과 소음 반응(매매 가운데 같은 턴의 피드·순위판의 상승·하락 신호를 따른 몫, PLAN §6.2)을 재고 수수료를 주문 출발점별로 나누며(독려 몫은 RANKING·ALERT 뿐이다), 복기 사실 셋(PLAN §6.2)도 준다: 관심 상위 종목 매수와 그 밖의 매수의 뒤 6턴 성과, 시장이 내린 턴에 수비수·골키퍼 보유 종목이 낸 원 단위 이익, 전술 변경마다의 6턴 효과. 모두 저장 없이 조회로 계산한다. 37항목 시즌 성적표를 보완한다. 진행 중이거나 포기 중인 시즌은 409 SEASON_NOT_FINISHED 다. 금액은 원 단위 정수 문자열, 비율은 소수 8자리 문자열이고, 3분해의 원 단위 세 항은 합계와 정확히 같지만 비율은 반올림 때문에 합계 비율과 다를 수 있다. 대표 종목이 시즌 풀에 없는 기준선은 만들 수 없다(reason REPRESENTATIVE_MISSING, 값 null). 60/40 의 채권 칸은 풀에 국내 채권 ETF가 들어오기 전까지 미국 국채 ETF를 쓴다(bondLegSubstituted). 대표 종목 표는 고정 규칙이며 포지션 판정이 아니다. 날짜·월 블록·시드·종목 이름은 싣지 않고 종목은 MARKET:TICKER 로만 가리킨다.
          */
         get: operations["getSeasonAnalysis"];
         put?: never;
@@ -458,25 +458,69 @@ export interface paths {
         };
         /**
          * Season review lookup / 시즌 복기 조회
-         * @description Returns which real month each turn of a finished season was (year-month), the one-line summary and event tags of that month (real name, hindsight assessment, source), the formation-change history, and the reproducibility metadata (seed, engine version, data snapshot date). A season that is in progress or being abandoned returns 409 SEASON_NOT_FINISHED and the body carries no year-month or event name. The seed is a 64-bit integer, so it is sent as a string. Month block numbers, event numbers and event keys are not included.
+         * @description Returns which real month each turn of a finished season was (year-month), the one-line summary and event tags of that month (real name, hindsight assessment, source), the formation-change history, and the reproducibility metadata (seed, engine version, data snapshot date). Each turn also lists the feed items as they were shown, with what each one was (noise kind, alert or real event card) and, for an event card, the event's real name. A season that is in progress or being abandoned returns 409 SEASON_NOT_FINISHED and the body carries no year-month, feed kind or event name. The seed is a 64-bit integer, so it is sent as a string. Month block numbers, event numbers and event keys are not included.
          *
          *     Excluded (outside the Phase 0 scope):
          *     - Regime path and axis direction → M2/MVP
-         *     - Feed reveal (which item was a real event), following attention, defender/bench goals and platform revenue → MVP
+         *     - Bench goals → APP; signal discrimination → EXT
          *     - Event card figures (result, direction, strength, reaction change rate) → MVP
          *     - Per-asset holdings of past turns and the per-turn valuation list → MVP/WEB
          *     - Event explanation (RAG) → AI
          *
-         *     끝난 시즌의 각 턴이 실제로 어느 달이었는지(연월), 그 달의 한 줄 요약과 사건 태그(실제 이름·사후 평가·출처), 전술 변경 기록, 재현 정보(시드·엔진 버전·데이터 스냅샷 날짜)를 준다. 진행 중이거나 포기 중인 시즌은 409 SEASON_NOT_FINISHED 이고 본문에 연월·사건 이름이 없다. 시드는 64비트 정수라 문자열로 보낸다. 월 블록 번호·사건 번호·사건 키는 싣지 않는다.
+         *     끝난 시즌의 각 턴이 실제로 어느 달이었는지(연월), 그 달의 한 줄 요약과 사건 태그(실제 이름·사후 평가·출처), 전술 변경 기록, 재현 정보(시드·엔진 버전·데이터 스냅샷 날짜)를 준다. 턴마다 보인 그대로의 피드 항목과 그 정체(소음 종류·알림·실제 사건 카드), 사건 카드라면 사건의 실제 이름도 준다. 진행 중이거나 포기 중인 시즌은 409 SEASON_NOT_FINISHED 이고 본문에 연월·피드 종류·사건 이름이 없다. 시드는 64비트 정수라 문자열로 보낸다. 월 블록 번호·사건 번호·사건 키는 싣지 않는다.
          *
          *     제외(Phase 0 범위 밖):
          *     - 국면 경로·축 방향 → M2/MVP
-         *     - 피드 공개(어느 항목이 실제 사건이었나)·관심 추종·수비수/벤치 득점·플랫폼 수익 → MVP
+         *     - 벤치 득점 → APP, 신호 판별 → EXT
          *     - 사건 카드 수치(결과·방향·강도·반응 변화율) → MVP
          *     - 과거 턴 종목별 보유·턴별 평가액 목록 → MVP/WEB
          *     - 사건 설명(RAG) → AI
          */
         get: operations["getSeasonReview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/seasons/{seasonId}/score": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Season score lookup / 시즌 점수 조회
+         * @description Returns the score of a finished season: 0.5 x the result score (the season's Sharpe difference against the market benchmark, ranked among engine paths of the season-start team held still) + 0.5 x the process score (the mean of the item scores that have a value). The score is computed on the first request after the season finished, in finish order together with the member's earlier seasons, and then kept; a later request returns the stored row. The result and the score are null when the history cannot carry a path distribution for the season; such a season, and a human season abandoned before turn 3, is left out of the rating (ratingExclusion). While the engine cannot answer, nothing is stored and the answer is 503 ENGINE_UNAVAILABLE; try again later. The luck percentile is shown and is not part of the score. The response has no money, month, seed or engine detail.
+         *
+         *     끝난 시즌의 점수를 준다: 0.5 × 결과 점수(시즌의 샤프 차이를 시장 기준선과 비교해, 시즌 시작 팀을 그대로 보유한 엔진 경로들 안에서 순위를 매긴 값) + 0.5 × 과정 점수(값이 있는 항목 점수의 평균). 점수는 시즌이 끝난 뒤 첫 요청에서 회원의 앞선 시즌과 함께 끝난 순서대로 계산해 보관하고, 이후 요청은 보관한 행을 준다. 이력이 시즌의 경로 분포를 받쳐 주지 못하면 결과 점수와 점수는 null 이고, 그런 시즌과 3턴 전에 포기한 사람의 시즌은 레이팅에서 빠진다(ratingExclusion). 엔진이 답하지 못하는 동안에는 아무것도 저장하지 않고 503 ENGINE_UNAVAILABLE 로 답하니 나중에 다시 시도한다. 운 백분위는 보여 주기만 하고 점수에 들어가지 않는다. 응답에는 금액·달·시드·엔진 세부가 없다.
+         */
+        get: operations["getSeasonScore"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/members/me/rating": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * My manager rating / 내 매니저 레이팅
+         * @description Returns the manager rating of the signed-in member: the weighted mean of the last five counted season scores (weights 5, 4, 3, 2, 1 from the newest), seasons ordered by when they finished. The rating is null until three seasons are counted (seasonsUntilPublic says how many are missing). Seasons left out of the rating are only counted: notStartedCount (a human abandoned before turn 3) and noScoreCount (no path distribution). Finished seasons are scored first; if the engine cannot answer, the answer is still 200 and pendingSeasons counts the seasons scored on a later request. history lists the counted seasons newest first, at most 20.
+         *
+         *     로그인한 회원의 매니저 레이팅을 준다: 집계된 최근 다섯 시즌 점수의 가중 평균(최근부터 5·4·3·2·1)이며 시즌 순서는 끝난 순서다. 세 시즌이 집계되기 전에는 레이팅이 null 이다(seasonsUntilPublic 은 모자란 시즌 수). 레이팅에서 빠진 시즌은 횟수만 센다: notStartedCount(사람이 3턴 전에 포기), noScoreCount(경로 분포 없음). 끝난 시즌은 먼저 채점하며, 엔진이 답하지 못해도 200 으로 답하고 pendingSeasons 가 나중 요청에서 채점할 시즌 수를 센다. history 는 집계된 시즌을 최근 것부터 최대 20개 준다.
+         */
+        get: operations["getMyRating"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1128,9 +1172,9 @@ export interface components {
             changed: boolean;
         };
         /**
-         * @description Values of the stored turn row and the ratios computed from them. The advance-turn response and the turn lookup have the same shape. The sum of the four shares can differ from 1 by at most 2e-8, and status and pathLength are the season's values now. targetFormation is the target at the start of that turn. Reconciliation attempt number, status, seed, path, month block, year-month and return kind are not included. feed is the feed stored for that turn and alerts are the nudge alerts stored for it.
+         * @description Values of the stored turn row and the ratios computed from them. The advance-turn response and the turn lookup have the same shape. The sum of the four shares can differ from 1 by at most 2e-8, and status and pathLength are the season's values now. targetFormation is the target at the start of that turn. Reconciliation attempt number, status, seed, path, month block, year-month and return kind are not included. feed is the feed stored for that turn and alerts are the nudge alerts stored for it. macro is the macro environment of that turn's month.
          *
-         *     저장한 턴 행의 값과 거기서 계산한 비율. 턴 전환 응답과 턴 조회가 같은 형이다. 비중 4개의 합은 1과 최대 2e-8 다를 수 있고, status·pathLength 는 시즌의 지금 값이다. targetFormation 은 그 턴 시작 시점의 목표다. 대사 시도 번호·상태·시드·경로·월 블록·연월·수익률 종류는 싣지 않는다. feed 는 그 턴에 저장된 피드이고 alerts 는 저장된 독려 알림이다
+         *     저장한 턴 행의 값과 거기서 계산한 비율. 턴 전환 응답과 턴 조회가 같은 형이다. 비중 4개의 합은 1과 최대 2e-8 다를 수 있고, status·pathLength 는 시즌의 지금 값이다. targetFormation 은 그 턴 시작 시점의 목표다. 대사 시도 번호·상태·시드·경로·월 블록·연월·수익률 종류는 싣지 않는다. feed 는 그 턴에 저장된 피드이고 alerts 는 저장된 독려 알림이다. macro 는 그 턴의 달의 거시 환경이다
          */
         TurnResultDto: {
             /**
@@ -1271,6 +1315,87 @@ export interface components {
             feed: components["schemas"]["FeedItemDto"][];
             /** @description The nudge alerts shown at this turn, in display order; empty when the turn has none. Their seq numbers continue after the feed's / 이 턴에 보인 독려 알림, 표시 순서. 없으면 빈 목록. seq 는 피드 뒤에서 이어진다 */
             alerts: components["schemas"]["FeedItemDto"][];
+            /** @description Macro environment of this turn's month / 이 턴의 달의 거시 환경 */
+            macro: components["schemas"]["MacroDto"];
+        };
+        /**
+         * @description Macro environment of the month applied at this turn, as stored for that month: direction and strength of four axes and four regime probabilities. Transformed values only: no indicator level and no date. A part the engine could not evaluate is null, which means no data, not neutral.
+         *
+         *     이 턴에 적용된 달의 거시 환경(그 달에 저장된 값): 네 축의 방향·강도와 국면 확률 네 개. 변환값만 싣고 지표의 수준과 날짜는 싣지 않는다. 엔진이 평가하지 못한 부분은 null이며 중립이 아니라 자료 없음을 뜻한다
+         */
+        MacroDto: {
+            /** @description The four axes / 네 축 */
+            axes: components["schemas"]["MacroAxesDto"];
+            /** @description Regime probabilities; null when the engine did not evaluate the month / 국면 확률. 엔진이 그 달을 평가하지 않았으면 null */
+            probabilities: components["schemas"]["RegimeProbabilitiesDto"] | null;
+        };
+        /**
+         * @description The four macro axes; an axis the engine could not evaluate is null
+         *
+         *     거시 축 네 개. 엔진이 평가하지 못한 축은 null
+         */
+        MacroAxesDto: {
+            /** @description Rate axis; UP means rates are rising / 금리 축. 상승은 금리가 오르는 중 */
+            rate: components["schemas"]["MacroAxisDto"] | null;
+            /** @description Growth axis; UP means growth is improving / 성장 축. 상승은 성장이 좋아지는 중 */
+            growth: components["schemas"]["MacroAxisDto"] | null;
+            /** @description Exchange-rate axis; UP means the dollar is strong against the won / 환율 축. 상승은 달러 강세(원화 약세) */
+            fx: components["schemas"]["MacroAxisDto"] | null;
+            /** @description Market sentiment axis; UP means calmer markets and more risk appetite / 심리 축. 상승은 시장이 차분하고 위험 선호가 큼 */
+            sentiment: components["schemas"]["MacroAxisDto"] | null;
+        };
+        /** @description One macro axis, direction and strength / 거시 축 하나, 방향과 강도 */
+        MacroAxisDto: {
+            /**
+             * @description Direction of the axis: UP, DOWN or NEUTRAL
+             *
+             *     축의 방향: 상승·하락·중립
+             */
+            direction: components["schemas"]["AxisDirection"];
+            /**
+             * Format: decimal
+             * @description Size of the axis score, 0 or more, 8 decimal places, no unit
+             *
+             *     축 점수의 크기, 0 이상, 소수 8자리, 단위 없음
+             */
+            strength: string;
+        };
+        /** @enum {string} */
+        AxisDirection: "UP" | "DOWN" | "NEUTRAL";
+        /**
+         * @description Four regime probabilities; their sum can differ from 1 by at most 0.0002
+         *
+         *     국면 확률 네 개. 합은 1과 최대 0.0002 다를 수 있다
+         */
+        RegimeProbabilitiesDto: {
+            /**
+             * Format: decimal
+             * @description Probability of rates down and growth down, 4 decimal places
+             *
+             *     금리 하락·성장 둔화 확률, 소수 4자리
+             */
+            p1: string;
+            /**
+             * Format: decimal
+             * @description Probability of rates down and growth up, 4 decimal places
+             *
+             *     금리 하락·성장 확장 확률, 소수 4자리
+             */
+            p2: string;
+            /**
+             * Format: decimal
+             * @description Probability of rates up and growth up, 4 decimal places
+             *
+             *     금리 상승·성장 확장 확률, 소수 4자리
+             */
+            p3: string;
+            /**
+             * Format: decimal
+             * @description Probability of rates up and growth down, 4 decimal places
+             *
+             *     금리 상승·성장 둔화 확률, 소수 4자리
+             */
+            p4: string;
         };
         /**
          * @description One feed item as shown. Event cards and noise share this shape; what was a real event is revealed in the review.
@@ -1598,7 +1723,7 @@ export interface components {
              */
             reconOutOfRangeRows: number;
         };
-        /** @description Season analysis: baselines, three-way split, trading discipline / 시즌 분석: 기준선·3분해·매매 규율 */
+        /** @description Season analysis: baselines, three-way split, trading discipline, noise reaction, platform revenue by order source / 시즌 분석: 기준선·3분해·매매 규율·소음 반응·출발점별 플랫폼 수익 */
         SeasonAnalysisDto: {
             /** @description Version of the analysis rules / 분석 규칙 버전 */
             analysisVersion: string;
@@ -1615,6 +1740,16 @@ export interface components {
             decomposition: components["schemas"]["DecompositionDto"] | null;
             /** @description Trading discipline / 매매 규율 */
             discipline: components["schemas"]["DisciplineDto"];
+            /** @description Reaction to noise (process item) / 소음 반응(과정 항목) */
+            noise: components["schemas"]["NoiseDto"];
+            /** @description Platform revenue split by order source / 출발점별 플랫폼 수익 */
+            platform: components["schemas"]["PlatformDto"];
+            /** @description Attention following: buys of top-attention assets against all other buys over the next 6 turns (review fact) / 관심 추종: 관심 상위 종목 매수와 그 밖의 매수의 뒤 6턴 성과(복기 사실) */
+            attentionFollowing: components["schemas"]["AttentionFollowingDto"];
+            /** @description Defender goals in down-market turns (review fact) / 시장이 내린 턴의 수비수 득점(복기 사실) */
+            defenderGoals: components["schemas"]["DefenderGoalsDto"];
+            /** @description 6-turn effect of each formation change in id order, empty when there is none; null when a formation baseline is unavailable / 전술 변경마다의 6턴 효과(변경 번호 순, 없으면 빈 목록). 포메이션 기준선이 없으면 null */
+            changeEffects: components["schemas"]["ChangeEffectDto"][] | null;
         };
         /** @description One baseline portfolio simulated on the season prices / 시즌 가격으로 시뮬레이션한 기준선 하나 */
         BaselineDto: {
@@ -1794,6 +1929,168 @@ export interface components {
              */
             panicFormationChanges: number;
         };
+        /** @description Reaction to noise: how much of what was traded followed what the feed and the boards pointed at / 소음 반응: 매매 가운데 피드와 순위판이 가리킨 쪽을 따른 몫 */
+        NoiseDto: {
+            /**
+             * Format: decimal
+             * @description Mean over the turns that traded of (followed buys + followed sells) ÷ the turn's traded amount, 8 decimal places; null when no turn traded / 매매가 있던 턴마다 (따른 매수 + 따른 매도) ÷ 그 턴 매매 금액의 평균, 소수 8자리. 거래가 없으면 null
+             */
+            noiseShare: string | null;
+            /**
+             * Format: int32
+             * @description Turns of 1..T-1 with at least one filled order / 턴 1..T-1 가운데 체결된 주문이 있는 턴 수
+             */
+            tradingTurns: number;
+            /**
+             * Format: decimal
+             * @description Buys that followed the noise, whole KRW / 소음을 따른 매수 대금, 원 단위 정수
+             */
+            followedBuyNotional: string;
+            /**
+             * Format: decimal
+             * @description Sells that followed the noise, whole KRW / 소음을 따른 매도 대금, 원 단위 정수
+             */
+            followedSellNotional: string;
+            /**
+             * Format: decimal
+             * @description Sells plus buys of turns 1..T-1, equal to the report's traded amount, whole KRW / 턴 1..T-1의 매도 + 매수, 성적표의 매매 대금과 같다, 원 단위 정수
+             */
+            tradeNotional: string;
+        };
+        /** @description Platform revenue: fees split by where the order came from / 플랫폼 수익: 주문의 출발점별 수수료 */
+        PlatformDto: {
+            /**
+             * Format: decimal
+             * @description Fees of every fill including the team purchase, equal to the report's total fee, whole KRW / 팀 구성을 포함한 모든 체결의 수수료, 성적표의 총 수수료와 같다, 원 단위 정수
+             */
+            totalFee: string;
+            /**
+             * Format: decimal
+             * @description Fees of the team purchase (turn 0), whole KRW / 팀 구성(0턴)의 수수료, 원 단위 정수
+             */
+            teamFee: string;
+            /** @description Five rows in the fixed order RANKING, FEED, ALERT, BENCH, DIRECT, turns 1..T-1; a source with no order has zeros / 다섯 행, 순서 고정(RANKING, FEED, ALERT, BENCH, DIRECT), 턴 1..T-1. 주문이 없는 출발점은 0 */
+            bySource: components["schemas"]["SourceFeeDto"][];
+            /**
+             * Format: decimal
+             * @description Fees of RANKING and ALERT orders, the part the platform earned by nudging; FEED is not included, whole KRW / RANKING·ALERT 주문의 수수료, 플랫폼이 독려로 번 몫. FEED 는 넣지 않는다, 원 단위 정수
+             */
+            nudgedFee: string;
+            /**
+             * Format: decimal
+             * @description Nudged fee ÷ total fee, 8 decimal places; null when the total fee is 0 / 독려 수수료 ÷ 총 수수료, 소수 8자리. 총 수수료가 0이면 null
+             */
+            nudgedFeeShare: string | null;
+        };
+        /** @description Orders, traded amount and fees of one order source / 한 출발점의 주문 수·매매 금액·수수료 */
+        SourceFeeDto: {
+            /** @description Order source / 주문 출발점 */
+            source: components["schemas"]["OrderSource"];
+            /**
+             * Format: int32
+             * @description Filled orders of turns 1..T-1 from this source / 이 출발점의 턴 1..T-1 체결 주문 수
+             */
+            orders: number;
+            /**
+             * Format: decimal
+             * @description Buys plus sells from this source, whole KRW / 이 출발점의 매수 + 매도 대금, 원 단위 정수
+             */
+            tradeNotional: string;
+            /**
+             * Format: decimal
+             * @description Fees of this source's orders, whole KRW / 이 출발점 주문의 수수료, 원 단위 정수
+             */
+            fee: string;
+        };
+        /** @description Attention following: how buys of top-attention assets and other buys fared over the next 6 turns / 관심 추종: 관심 상위 종목 매수와 그 밖의 매수가 뒤 6턴 동안 어떻게 됐는지 */
+        AttentionFollowingDto: {
+            /**
+             * Format: int32
+             * @description Window length in turns (6) / 창 길이, 턴 수(6)
+             */
+            windowTurns: number;
+            /**
+             * Format: int32
+             * @description Buys of top-attention assets (top 10 %, ties included) at the buying turn with a complete window / 매수 턴에 관심 상위(10%, 동률 포함)였고 창이 끝난 종목의 매수 수
+             */
+            attentionBuys: number;
+            /**
+             * Format: decimal
+             * @description Their amount, whole KRW / 그 매수 대금, 원 단위 정수
+             */
+            attentionBuyNotional: string;
+            /**
+             * Format: decimal
+             * @description Amount-weighted mean of price(k+6) ÷ price(k) − 1 over those buys, 8 decimal places; null when there is none / 그 매수들의 price(k+6) ÷ price(k) − 1 의 금액 가중 평균, 소수 8자리. 없으면 null
+             */
+            attentionReturn: string | null;
+            /**
+             * Format: int32
+             * @description All other buys with a complete window (an asset with no attention index is "other") / 창이 끝난 그 밖의 매수 수(관심 지수가 없는 종목은 "그 밖")
+             */
+            otherBuys: number;
+            /**
+             * Format: decimal
+             * @description Their amount, whole KRW / 그 매수 대금, 원 단위 정수
+             */
+            otherBuyNotional: string;
+            /**
+             * Format: decimal
+             * @description Amount-weighted mean return of the other buys, 8 decimal places; null when there is none / 그 밖의 매수의 금액 가중 평균 수익률, 소수 8자리. 없으면 null
+             */
+            otherReturn: string | null;
+            /**
+             * Format: int32
+             * @description Buys of turns 1..T-1 whose 6-turn window ends after the last turn; counted, in neither group / 6턴 창이 마지막 턴 뒤로 넘어가는 턴 1..T-1의 매수 수. 세기만 하고 어느 쪽에도 넣지 않는다
+             */
+            incompleteBuys: number;
+        };
+        /** @description Defender goals: gains of holdings declared defender or goalkeeper in turns where the market fell / 수비수 득점: 시장이 내린 턴에 수비수·골키퍼로 선언한 보유 종목의 이익 */
+        DefenderGoalsDto: {
+            /**
+             * Format: int32
+             * @description Turns of 1..T where the market pair (069500 and SPY, 50/50) fell from the turn before / 시장 대용 두 종목(069500·SPY 50/50)이 직전 턴보다 내린 턴 1..T의 수
+             */
+            downMarketTurns: number;
+            /**
+             * Format: int32
+             * @description Goals: holdings at the start of a down-market turn, declared defender or goalkeeper as of the turn before, whose price rose / 득점 수: 시장이 내린 턴 시작에 보유했고 직전 턴 기준 수비수·골키퍼로 선언했으며 가격이 오른 종목의 수
+             */
+            goals: number;
+            /**
+             * Format: decimal
+             * @description Sum of quantity × price rise of the goals, whole KRW / 득점의 수량 × 가격 상승분 합계, 원 단위 정수
+             */
+            goalWon: string;
+            /**
+             * Format: decimal
+             * @description Goal won ÷ initial capital, divided once, 8 decimal places / 득점 금액 ÷ 초기 자금, 한 번 나눔, 소수 8자리
+             */
+            goalReturn: string;
+        };
+        /** @description Effect of one formation change over the next 6 turns, net of simulated fees / 전술 변경 하나의 뒤 6턴 효과, 시뮬레이션 수수료를 뺀 값 */
+        ChangeEffectDto: {
+            /**
+             * Format: int32
+             * @description Turn of the change / 변경한 턴
+             */
+            turnNo: number;
+            /**
+             * Format: int32
+             * @description Turns from the change to the measuring turn, 1 to 6 (shorter near the season end) / 변경부터 잰 턴까지의 턴 수, 1~6(시즌 끝 가까이에서는 짧다)
+             */
+            windowTurns: number;
+            /**
+             * Format: decimal
+             * @description Following baseline with this change minus the same baseline without it, at the measuring turn, whole KRW / 이 변경을 따른 기준선에서 이 변경이 없는 같은 기준선을 뺀 값을 잰 턴에 잰 것, 원 단위 정수
+             */
+            effectWon: string;
+            /**
+             * Format: decimal
+             * @description Effect ÷ initial capital, divided once, 8 decimal places / 효과 ÷ 초기 자금, 한 번 나눔, 소수 8자리
+             */
+            effectReturn: string;
+        };
         /**
          * @description Season review for a finished season. Month block number, event number, event key, reference date, member number and times are not included
          *
@@ -1838,6 +2135,38 @@ export interface components {
             eventSummary: string | null;
             /** @description Event tags of that month (in event key order). An empty list if there are none / 그 달의 사건 태그(사건 키 순서). 없으면 빈 목록 */
             events: components["schemas"]["ReviewEventDto"][];
+            /** @description Feed items of that turn as they were shown, in display order, each with what it really was. NUDGE items were shown in the alert list during play, numbered after the feed items. In an abandoned season, items of turns after abandonedTurnNo were generated by the automatic run and never shown. An empty list if the turn has none / 그 턴에 보인 그대로의 피드 항목(표시 순서)과 각 항목의 정체. NUDGE 항목은 알림 목록에 보였고 번호는 피드 항목 뒤에 이어진다. 포기한 시즌에서 abandonedTurnNo 뒤 턴의 항목은 자동 진행이 만든 것이라 보이지 않았다. 없으면 빈 목록 */
+            feed: components["schemas"]["ReviewFeedItemDto"][];
+        };
+        /** @description One feed item of a turn as it was shown, with what it really was / 턴에 보인 피드 항목 하나와 그 정체 */
+        ReviewFeedItemDto: {
+            /**
+             * Format: int32
+             * @description Display order within the turn (from 1) / 턴 안의 표시 순서(1부터)
+             */
+            seq: number;
+            kind: components["schemas"]["FeedKind"];
+            /** @description True exactly when the item was a real event card (kind EVENT) / 실제 사건 카드(kind EVENT)일 때만 true */
+            signal: boolean;
+            /**
+             * Format: int64
+             * @description Asset the item named. null if it named none / 항목이 가리킨 종목. 없으면 null
+             */
+            assetId: number | null;
+            /**
+             * Format: int64
+             * @description Asset group the item named. null if it named none / 항목이 가리킨 그룹. 없으면 null
+             */
+            groupId: number | null;
+            /** @description The sentence as it was shown / 보인 그대로의 문장 */
+            body: string;
+            /** @description The real event card behind the item. null unless signal is true / 항목 뒤의 실제 사건 카드. signal 이 true 일 때만 있다 */
+            event: components["schemas"]["ReviewEventDto"] | null;
+            /**
+             * Format: int32
+             * @description Number of orders of the season placed from this item, whatever their outcome, including orders placed in a later turn / 이 항목을 보고 낸 주문 수(체결 여부와 무관, 뒤 턴에 낸 주문 포함)
+             */
+            ordersFromItem: number;
         };
         ReviewEventDto: {
             category: components["schemas"]["EventCategory"];
@@ -2005,6 +2334,8 @@ export interface components {
         /** @enum {string} */
         EventPhase: "START" | "ONGOING" | "END";
         /** @enum {string} */
+        FeedKind: "RISE" | "FALL" | "ECHO" | "SPREAD" | "FADE" | "EVENT" | "NUDGE";
+        /** @enum {string} */
         Market: "KR" | "US";
         /** @enum {string} */
         AssetType: "STOCK" | "ETF";
@@ -2034,6 +2365,146 @@ export interface components {
         };
         /** @enum {string} */
         ErrorCode: "INVALID_ARGUMENT" | "NOT_FOUND" | "METHOD_NOT_ALLOWED" | "NOT_ACCEPTABLE" | "UNSUPPORTED_MEDIA_TYPE" | "MALFORMED_REQUEST" | "INTERNAL_ERROR" | "POOL_NOT_LOADED" | "POOL_NOT_JUDGED" | "PATH_TOO_LONG" | "ENGINE_UNAVAILABLE" | "SEASON_LIMIT" | "TURN_NOT_REACHED" | "SEASON_NOT_FINISHED" | "SEASON_NOT_ACTIVE" | "TURN_MISMATCH" | "LEDGER_MISMATCH" | "LINEUP_MISMATCH" | "ASSET_NOT_IN_POOL" | "SOURCE_NOT_VISIBLE" | "INSUFFICIENT_CASH" | "INSUFFICIENT_HOLDING" | "POSITION_CONFLICT" | "POSITION_REQUIRED" | "INVALID_FORMATION" | "EVENT_TIME_CONFLICT" | "RECONCILIATION_FAILED" | "SEASON_HALTED" | "FORBIDDEN" | "EMAIL_TAKEN" | "UNAUTHENTICATED" | "INVALID_CREDENTIALS";
+        /** @description Season score / 시즌 점수 */
+        SeasonScoreDto: {
+            /** @description Formula version the score was computed with / 점수를 계산한 공식 버전 */
+            scoreVersion: string;
+            /**
+             * Format: decimal
+             * @description Season score 0.00-100.00 = 0.5 x result + 0.5 x process; null when the season has no path distribution
+             *
+             *     시즌 점수 0.00~100.00 = 0.5 × 결과 + 0.5 × 과정. 경로 분포가 없으면 null
+             */
+            score: string | null;
+            /**
+             * Format: decimal
+             * @description Result score = 100 x the mid-rank percentile of the Sharpe difference among the engine paths of the season-start team held still; null without a distribution
+             *
+             *     결과 점수 = 100 × (시즌 시작 팀을 그대로 보유한 엔진 경로들 안에서 샤프 차이의 중간 순위 백분위). 분포가 없으면 null
+             */
+            resultScore: string | null;
+            /**
+             * Format: decimal
+             * @description Process score: the equal-weight mean of the item scores that have a value, 0.00-100.00 / 과정 점수: 값이 있는 항목 점수의 같은 가중 평균, 0.00~100.00
+             */
+            processScore: string;
+            /**
+             * Format: decimal
+             * @description Where the end value of the start team, held still, sits among the engine paths, 0-1, 8 decimals; shown, not scored
+             *
+             *     시작 팀을 그대로 보유했을 때의 최종 가치가 엔진 경로 안에서 놓이는 자리, 0~1, 소수 8자리. 보여 주기만 하고 점수에는 넣지 않는다
+             */
+            luckPercentile: string | null;
+            /**
+             * Format: decimal
+             * @description Mid-rank percentile of the Sharpe difference among the engine paths, 0-1, 8 decimals
+             *
+             *     샤프 차이의 경로 안 중간 순위 백분위, 0~1, 소수 8자리
+             */
+            sharpeDiffPercentile: string | null;
+            /** @description The nine process item scores; all nine keys are always present, null where the input does not exist yet / 과정 항목 점수 아홉 개. 키는 항상 아홉 개이고 입력이 아직 없으면 null */
+            items: components["schemas"]["SeasonScoreItemsDto"];
+            /**
+             * Format: int32
+             * @description How many item scores have a value (1-9) / 값이 있는 항목 점수의 수(1~9)
+             */
+            processItems: number;
+            /** @description Whether the season counts in the manager rating / 시즌이 매니저 레이팅에 집계되는지 */
+            countedInRating: boolean;
+            /**
+             * @description Why the season is left out of the rating: NOT_STARTED (abandoned before turn 3 by a human) or NO_SCORE (no path distribution); null when it counts
+             *
+             *     레이팅에서 빠진 이유: NOT_STARTED(사람이 3턴 전에 포기), NO_SCORE(경로 분포 없음). 집계되면 null
+             */
+            ratingExclusion: components["schemas"]["RatingExclusion"] | null;
+        };
+        /** @description Process item scores / 과정 항목 점수 */
+        SeasonScoreItemsDto: {
+            /** Format: decimal */
+            risk: string | null;
+            /** Format: decimal */
+            discipline: string | null;
+            /** Format: decimal */
+            diversification: string | null;
+            /** Format: decimal */
+            turnover: string | null;
+            /** Format: decimal */
+            consistency: string | null;
+            /** Format: decimal */
+            formation: string | null;
+            /** Format: decimal */
+            role: string | null;
+            /** Format: decimal */
+            noise: string | null;
+            /** Format: decimal */
+            nudge: string | null;
+        };
+        /** @description Manager rating / 매니저 레이팅 */
+        RatingDto: {
+            /** @description Rating pillar; only MANAGER exists now / 레이팅 기둥. 지금은 MANAGER 하나 */
+            pillar: components["schemas"]["RatingPillar"];
+            /**
+             * Format: decimal
+             * @description Current rating 0.00-100.00: the weighted mean of the last five counted season scores (weights 5, 4, 3, 2, 1 from the newest); null until three seasons are counted
+             *
+             *     현재 레이팅 0.00~100.00: 집계된 최근 다섯 시즌 점수의 가중 평균(최근부터 5·4·3·2·1). 세 시즌이 집계되기 전에는 null
+             */
+            rating: string | null;
+            /**
+             * Format: int32
+             * @description Number of counted seasons / 집계된 시즌 수
+             */
+            countedSeasons: number;
+            /**
+             * Format: int32
+             * @description Counted seasons still missing before the rating is shown (0 once shown) / 레이팅이 보이기까지 더 필요한 집계 시즌 수(보이면 0)
+             */
+            seasonsUntilPublic: number;
+            /**
+             * Format: int32
+             * @description Seasons abandoned before turn 3 by a human, left out of the rating / 사람이 3턴 전에 포기해 레이팅에서 뺀 시즌 수
+             */
+            notStartedCount: number;
+            /**
+             * Format: int32
+             * @description Seasons without a path distribution, left out of the rating / 경로 분포가 없어 레이팅에서 뺀 시즌 수
+             */
+            noScoreCount: number;
+            /**
+             * Format: int32
+             * @description Finished seasons not scored yet because the engine could not answer; they are scored on a later request / 엔진이 답하지 못해 아직 점수가 없는 끝난 시즌 수. 다음 요청에서 채점한다
+             */
+            pendingSeasons: number;
+            /** @description Counted seasons, newest first, at most 20 / 집계된 시즌, 최근 것부터 최대 20개 */
+            history: components["schemas"]["RatingEntryDto"][];
+        };
+        /** @description Rating history entry / 레이팅 이력 한 줄 */
+        RatingEntryDto: {
+            /**
+             * Format: int32
+             * @description Position among the counted seasons, from 1 / 집계된 시즌 중 순번(1부터)
+             */
+            seqNo: number;
+            /**
+             * Format: int64
+             * @description The season / 시즌 번호
+             */
+            seasonId: number;
+            /**
+             * Format: decimal
+             * @description The season score / 시즌 점수
+             */
+            score: string;
+            /**
+             * Format: decimal
+             * @description The rating after this season; null where seqNo is below 3 / 이 시즌 뒤의 레이팅. seqNo 가 3 미만이면 null
+             */
+            rating: string | null;
+        };
+        /** @enum {string} */
+        RatingExclusion: "NOT_STARTED" | "NO_SCORE";
+        /** @enum {string} */
+        RatingPillar: "MANAGER";
     };
     responses: {
         /**
@@ -3136,6 +3607,88 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getSeasonScore: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                seasonId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Season score / 시즌 점수 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeasonScoreDto"];
+                };
+            };
+            /** @description The season number is not a number — INVALID_ARGUMENT / 시즌 번호가 숫자가 아니다 — INVALID_ARGUMENT */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description The season does not exist or is another member's — NOT_FOUND / 시즌이 없거나 다른 회원의 것이다 — NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The season is not finished — SEASON_NOT_FINISHED / 끝나지 않은 시즌이다 — SEASON_NOT_FINISHED */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+            /** @description The score cannot be computed now because the engine is busy or not reachable; nothing is stored, try again later — ENGINE_UNAVAILABLE / 엔진이 바쁘거나 연결되지 않아 지금은 점수를 계산할 수 없다. 아무것도 저장하지 않았으니 나중에 다시 시도한다 — ENGINE_UNAVAILABLE */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    getMyRating: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Manager rating / 매니저 레이팅 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RatingDto"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
             500: components["responses"]["InternalError"];
         };
     };

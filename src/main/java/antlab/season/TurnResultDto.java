@@ -19,11 +19,11 @@ import java.util.List;
         + "most 2e-8, and status and pathLength are the season's values now. targetFormation is the "
         + "target at the start of that turn. Reconciliation attempt number, status, seed, path, "
         + "month block, year-month and return kind are not included. feed is the feed stored for that turn and alerts "
-        + "are the nudge alerts stored for it.\n"
+        + "are the nudge alerts stored for it. macro is the macro environment of that turn's month.\n"
         + "\n"
         + "저장한 턴 행의 값과 거기서 계산한 비율. 턴 전환 응답과 턴 조회가 같은 형이다. 비중 4개의 합은 1과 최대 2e-8 다를 수 있고, "
         + "status·pathLength 는 시즌의 지금 값이다. targetFormation 은 그 턴 시작 시점의 목표다. 대사 시도 번호·상태·시드·경로·월 "
-        + "블록·연월·수익률 종류는 싣지 않는다. feed 는 그 턴에 저장된 피드이고 alerts 는 저장된 독려 알림이다")
+        + "블록·연월·수익률 종류는 싣지 않는다. feed 는 그 턴에 저장된 피드이고 alerts 는 저장된 독려 알림이다. macro 는 그 턴의 달의 거시 환경이다")
 public record TurnResultDto(
         @ExposedFrom("season.id")
         @Schema(requiredMode = RequiredMode.REQUIRED, description = "Season identifier / 시즌 식별자")
@@ -145,5 +145,7 @@ public record TurnResultDto(
         @Schema(requiredMode = RequiredMode.REQUIRED, description = "The nudge alerts shown at this turn, in display order; "
                 + "empty when the turn has none. Their seq numbers continue after the feed's / 이 턴에 보인 독려 알림, 표시 순서. "
                 + "없으면 빈 목록. seq 는 피드 뒤에서 이어진다")
-        List<FeedItemDto> alerts) {
+        List<FeedItemDto> alerts,
+        @Schema(requiredMode = RequiredMode.REQUIRED, description = "Macro environment of this turn's month / 이 턴의 달의 거시 환경")
+        MacroDto macro) {
 }

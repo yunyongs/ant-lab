@@ -2,6 +2,7 @@ package antlab.season;
 
 import antlab.common.persistence.AppendOnlyRepository;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -44,4 +45,15 @@ public interface SeasonPathRepository extends AppendOnlyRepository<SeasonPath, L
             + "from SeasonPath sp join MonthEvent me on me.monthBlockId = sp.monthBlockId "
             + "where sp.season.id = :seasonId order by sp.turnNo, me.eventKey")
     List<RevealedEventRow> findRevealedEvents(@Param("seasonId") long seasonId);
+
+    /**
+     * Macro environment of one played turn: the twelve exposed axis and probability columns of that turn's month. Exactly
+     * the row (season, turn), never a range; the block id, month, label and indicator values are not selected.
+     */
+    @Query("select new antlab.season.TurnMacroRow(mb.rateDir, mb.rateStrength, mb.growthDir, mb.growthStrength, "
+            + "mb.fxDir, mb.fxStrength, mb.sentimentDir, mb.sentimentStrength, mb.probP1, mb.probP2, mb.probP3, "
+            + "mb.probP4) "
+            + "from SeasonPath sp join MonthBlock mb on mb.id = sp.monthBlockId "
+            + "where sp.season.id = :seasonId and sp.turnNo = :turnNo")
+    Optional<TurnMacroRow> findTurnMacro(@Param("seasonId") long seasonId, @Param("turnNo") int turnNo);
 }

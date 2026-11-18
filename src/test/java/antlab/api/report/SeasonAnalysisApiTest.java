@@ -1,10 +1,17 @@
 package antlab.api.report;
 
 import static antlab.api.turn.TurnApiSupport.assetId;
+import static antlab.api.turn.RankingSupport.getRanking;
 import static antlab.api.turn.TurnApiSupport.json;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import antlab.api.turn.RankingSupport;
 import antlab.support.IntegrationTest;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -123,5 +130,98 @@ class SeasonAnalysisApiTest {
         JsonNode d = analysis(season).get("discipline");
         assertThat(d.get("formationChanges").asInt()).isEqualTo(2);
         assertThat(d.get("panicFormationChanges").asInt()).as("both rows of the panic turn count").isEqualTo(2);
+    }
+
+    /** Assets the player was pointed at in a turn, read the other way round: the ranking endpoint's lists plus the stored feed rows. */
+    private Set<Long> pointed(long season, int turn, boolean up) throws Exception {
+        JsonNode board = json(getRanking(mvc, season, turn));
+        Set<Long> ids = new HashSet<>();
+        for (String list : up ? List.of("gainers", "attention") : List.of("losers")) {
+            board.get(list).forEach(row -> ids.add(row.get("assetId").asLong()));
+        }
+        ids.addAll(jdbc.queryForList("SELECT asset_id FROM turn_feed WHERE season_id = ? AND turn_no = ? AND asset_id IS NOT NULL "
+                + "AND direction = ? AND kind IN (" + (up ? "'RISE', 'ECHO'" : "'FALL', 'ECHO'") + ")", Long.class, season, turn,
+                up ? "UP" : "DOWN"));
+        return ids;
+    }
+
+    private static boolean followed(String side, long asset, Set<Long> up, Set<Long> down) {
+        return side.equals("BUY") ? up.contains(asset) : down.contains(asset);
+    }
+
+    @Test
+    void 소음_반응은_순위판과_피드로_손_계산한_값과_같다() throws Exception {
+        long season = RankingSupport.playedSeason(mvc, jdbc, 12);
+        Set<Long> up3 = pointed(season, 3, true);
+        Set<Long> down3 = pointed(season, 3, false);
+        Set<Long> up6 = pointed(season, 6, true);
+        Set<Long> down6 = pointed(season, 6, false);
+        assertThat(up3).as("the seeded attention list always points at something").isNotEmpty();
+        long pointedAsset = up3.iterator().next();
+        long other = jdbc.queryForObject("SELECT id FROM asset WHERE name LIKE '가짜%' AND id <> ? ORDER BY id LIMIT 1", Long.class,
+                pointedAsset);
+        long spy = assetId(jdbc, "SPY");
+        long brk = assetId(jdbc, "BRK.B");
+        // fills are at 1,000 won a share
+        ReportApiSupport.fill(jdbc, season, pointedAsset, 3, "BUY", 3);
+        ReportApiSupport.fill(jdbc, season, other, 3, "BUY", 1);
+        ReportApiSupport.fill(jdbc, season, spy, 6, "SELL", 2);
+        ReportApiSupport.fill(jdbc, season, brk, 6, "SELL", 1);
+
+        long followed3 = 3000 + (followed("BUY", other, up3, down3) ? 1000 : 0);
+        long followed6 = (followed("SELL", spy, up6, down6) ? 2000 : 0) + (followed("SELL", brk, up6, down6) ? 1000 : 0);
+        // mean of 3 turns' shares over two trading turns, as one division: (f3 / 4000 + f6 / 3000) / 2
+        BigDecimal expected = BigDecimal.valueOf(followed3 * 3000 + followed6 * 4000)
+                .divide(BigDecimal.valueOf(2L * 4000 * 3000), 8, RoundingMode.HALF_UP);
+
+        JsonNode noise = analysis(season).get("noise");
+        assertThat(noise.get("tradingTurns").asInt()).isEqualTo(2);
+        assertThat(noise.get("noiseShare").asString()).isEqualTo(expected.toPlainString());
+        assertThat(noise.get("followedBuyNotional").asString()).isEqualTo(Long.toString(followed3));
+        assertThat(noise.get("followedSellNotional").asString()).isEqualTo(Long.toString(followed6));
+        assertThat(noise.get("tradeNotional").asString()).isEqualTo("7000");
+    }
+
+    @Test
+    void 출처별_수수료는_합쳐서_성적표의_총_수수료가_되고_독려_몫은_랭킹과_알림뿐이다() throws Exception {
+        long season = ReportApiSupport.finishedSeason(mvc, jdbc);
+        long brk = assetId(jdbc, "BRK.B");
+        BehaviourFixtures.fill(jdbc, season, brk, 2, "BUY", "RANKING", 1, 1000, 10);
+        BehaviourFixtures.fill(jdbc, season, brk, 3, "BUY", "ALERT", 2, 1000, 20);
+        BehaviourFixtures.fill(jdbc, season, brk, 4, "BUY", "FEED", 3, 1000, 40);
+        BehaviourFixtures.fill(jdbc, season, brk, 5, "BUY", "DIRECT", 4, 1000, 80);
+        BehaviourFixtures.fill(jdbc, season, brk, 6, "BUY", "RANKING", 1, 1000, 5);
+        JsonNode a = analysis(season);
+        JsonNode report = report(season);
+        AnalysisAssertions.assertConsistent(a, report, 1);
+        JsonNode p = a.get("platform");
+        JsonNode rows = p.get("bySource");
+        assertThat(rows.get(0).get("orders").asInt()).isEqualTo(2);
+        assertThat(rows.get(0).get("fee").asString()).isEqualTo("15");
+        assertThat(rows.get(0).get("tradeNotional").asString()).isEqualTo("2000");
+        assertThat(rows.get(1).get("fee").asString()).as("FEED").isEqualTo("40");
+        assertThat(rows.get(2).get("fee").asString()).as("ALERT").isEqualTo("20");
+        assertThat(rows.get(3).get("orders").asInt()).as("BENCH").isZero();
+        assertThat(rows.get(4).get("fee").asString()).as("DIRECT").isEqualTo("80");
+        assertThat(p.get("nudgedFee").asString()).isEqualTo("35");
+        assertThat(report.get("platformNudgeFee").asString()).isEqualTo("35");
+        BigDecimal total = new BigDecimal(p.get("totalFee").asString());
+        assertThat(total).isEqualByComparingTo(new BigDecimal(p.get("teamFee").asString()).add(new BigDecimal("155")));
+        assertThat(p.get("nudgedFeeShare").asString())
+                .isEqualTo(new BigDecimal("35").divide(total, 8, RoundingMode.HALF_UP).toPlainString());
+    }
+
+    @Test
+    void 거래가_없는_시즌은_소음_비율이_null이고_수수료는_팀_구성뿐이다() throws Exception {
+        long season = ReportApiSupport.finishedSeason(mvc, jdbc);
+        JsonNode a = analysis(season);
+        JsonNode noise = a.get("noise");
+        assertThat(noise.get("noiseShare").isNull()).isTrue();
+        assertThat(noise.get("tradingTurns").asInt()).isZero();
+        assertThat(noise.get("tradeNotional").asString()).isEqualTo("0");
+        JsonNode p = a.get("platform");
+        assertThat(p.get("totalFee").asString()).isEqualTo(p.get("teamFee").asString());
+        assertThat(p.get("nudgedFee").asString()).isEqualTo("0");
+        assertThat(p.get("nudgedFeeShare").asString()).isEqualTo("0.00000000");
     }
 }

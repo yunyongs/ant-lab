@@ -112,3 +112,40 @@ tools/fetch/.venv/bin/python -m pytest -q tools/fetch
 
 네트워크·`.env` 없이 돈다(가짜 응답): 연속 조회, 정규화, 마스킹, 허용 목록(메서드·경로·TR ID 정확 일치) 거부, 다른 작업 디렉터리에서도 저장소 루트 밑에만 쓰기, 캐시 히트 시 요청 0, 리다이렉트 거부(가짜 응답과 실제 `requests.Session` 위의 메모리 어댑터), 대조 범위(빈 달 `GAP`·`GAP_CANONICAL`, compare·norm의 부분 응답 검사, yfinance 0행), 국내 ETF 원주가가 실제 요청 매개변수에 실리는지, 판정 기록(일치하면 `JUDGED`, 차이가 다르면 낡은 판정, 판정 없으면 `norm` 중단), 내부 대조 `ROUND`(1원 이하)·`DIFF`(2원).
 `tests/synthetic.py`는 파이프라인 시험용 **합성(가짜) 가격**을 만든다(`source=SYN`). `build_sample.sql`은 `-v allow_synthetic=1`일 때만 받으며, 이렇게 만든 CSV는 실제 DB에 적재하지 않는다.
+
+## Incremental batch fetch (MVP-04) / 증분 배치 내려받기
+
+**English.** `fetch_batch.py` fetches the full-history prices in small unattended daily batches. It reads `db/full/fetch_targets.csv` (columns `market,ticker,kis_excd,kis_basis,kis_from,yf_symbol,yf_canonical_to,order_no`; exact header, `order_no` strictly increasing). Run it from the **main checkout** with the repository `.env`; it refuses to send from a git worktree.
+
+```
+PY=tools/fetch/.venv/bin/python
+$PY tools/fetch/fetch_batch.py status                   # no network: states, failed assets, requests today
+$PY tools/fetch/fetch_batch.py sweep --daily-cap 400    # monthly bars + base-date close, one asset at a time
+$PY tools/fetch/fetch_batch.py drip                     # daily closes + base-date close (daily cap 600)
+$PY tools/fetch/fetch_batch.py yf                       # one full-range yfinance call per symbol (cap 50)
+```
+Run `drip` and `yf` one after the other, not together (they share one lock).
+
+Folders. `--raw-dir` (default `data/raw/mvp-04/`) must be inside `data/` (git-ignored) and is never the P0-08 cache (`data/raw/p0-08/`, compared by real folder, not spelling). The ledger `ledger.csv` (`day_kst,source,batch_no,requests,stop_reason,first_target,last_target`), `token_log.csv` and `batch.lock` always live in `data/raw/mvp-04/`, whatever `--raw-dir` says, so a second raw dir cannot bypass the cap or the one-token rule.
+
+Rules enforced in code: KIS 1 request per second (fixed, no flag); daily cap 600 by default, never above 1,500 (yfinance 50), read from the ledger before anything is sent and counting token requests and retries; one batch per KST day and source unless the owner types `--same-day` (a batch that sent 0 requests does not use up the day); run window 21:00–23:00 KST unless the owner types `--outside-window`, checked **before every request** and for the same KST day; an asset that cannot finish before 23:00 (estimate plus 30 s) is not started, and an asset cut at 23:00 is not used: the next night its pages count as an earlier fetch day, are moved to `stale/<day>/` and the asset is fetched whole; whole assets only (the batch stops before an asset whose estimated pages do not fit); one `tokenP` per KST day, no token retry; EGW00201 → wait 1, 2, 4 s, then the batch ends; any non-200, redirect, non-JSON answer or `rt_cd` ≠ 0 ends the batch; pages and yfinance files are written to a temporary name and renamed, and a file that does not parse counts as missing; a re-run sends 0 requests for finished assets (`done/*.json`).
+
+Failed assets. A failed data check (KIS) or an empty yfinance answer does **not** end the batch: the asset is written to `failed/<kind>_<market>_<ticker>.json`, the batch goes on, ends as `DONE_WITH_FAILED`, and the asset is not tried again; `status` lists it. Delete that file to retry. Three failed assets in a row end the batch as `FAILED_RUN` (a failing source, not failing assets) and are **not** marked.
+
+Crash safety. Before every request one line is appended (and flushed to the drive) to `batch.lock`. If a batch dies (kill, power loss), the next start books those requests as a `CRASH` ledger row and frees the lock once the process is gone; a lock of a live process is never taken. SIGTERM and SIGHUP still write a ledger row. **Never delete `batch.lock` (or `batch.lock.dead.*`) by hand**: it holds the count of requests already sent, and deleting it can let a second batch exceed the daily cap.
+
+Exit codes: 0 finished or stopped cleanly (`DONE`, `DONE_WITH_FAILED`, `BUDGET`, `WINDOW_END`); 1 stopped by an error (`RATE_LIMIT`, `HTTP`, `REDIRECT`, `NON_JSON`, `RT_CD`, `TOKEN`, `CONNECTION`, `FAILED_RUN`, `YF_ERROR`, `CRASH`, `SIGTERM`, `SIGHUP`); 2 bad input; 3 refused before sending.
+
+**한국어.** `fetch_batch.py`는 전체 이력 가격을 무인 일일 소량 배치로 받는다. `db/full/fetch_targets.csv`를 읽고 **본 체크아웃**에서 저장소 `.env`로 돌리며, git 워크트리에서는 보내기를 거부한다. 명령은 위 영어 블록과 같다(`status`는 네트워크 없음). `drip`과 `yf`는 동시에 말고 차례로 돌린다(잠금 하나를 공유).
+
+폴더: `--raw-dir`(기본 `data/raw/mvp-04/`)는 `data/` 안이어야 하고 P0-08 캐시(`data/raw/p0-08/`)는 거부한다(철자가 아니라 실제 폴더로 비교). 장부 `ledger.csv`, `token_log.csv`, `batch.lock`은 `--raw-dir`와 상관없이 항상 `data/raw/mvp-04/`에 있어 다른 폴더로 상한·토큰 규칙을 피할 수 없다.
+
+코드가 강제하는 규칙: KIS 초당 1건(고정), 하루 상한 기본 600(최대 1,500, yfinance 50)을 보내기 전에 장부로 확인(토큰·재시도 포함), KST 하루 출처별 배치 1회(`--same-day`는 소유자만), 실행 창 21:00–23:00 KST(`--outside-window`는 소유자만)를 **요청마다** 확인하고 같은 KST 날짜여야 함, 23:00 전에 끝낼 수 없는 종목은 시작하지 않고 23:00에 잘린 종목은 쓰지 않음(다음 날 `stale/`로 옮기고 처음부터 다시), 종목 단위로만 받기, 토큰 하루 1회(재시도 없음), `EGW00201`은 1·2·4초 후 배치 종료, 200 아님·리다이렉트·JSON 아님·`rt_cd`≠0은 배치 종료, 임시 이름에 쓰고 이름 바꾸기(읽히지 않는 파일은 없는 것), 끝난 종목은 재실행 시 요청 0건.
+
+실패 종목: KIS 자료 검사 실패나 yfinance 빈 응답은 배치를 끝내지 않는다. `failed/` 아래에 표시하고 계속하며 `DONE_WITH_FAILED`로 끝나고 다시 시도하지 않는다(`status`에 표시, 파일을 지우면 재시도). 연달아 3종목이 실패하면 `FAILED_RUN`으로 끝내고 그 3종목은 표시하지 않는다.
+
+비정상 종료 안전: 요청마다 `batch.lock`에 한 줄을 먼저 적는다(디스크까지 flush). 강제 종료·정전이면 다음 시작에서 `CRASH` 행으로 장부에 올리고, 살아 있는 프로세스의 잠금은 건드리지 않는다. SIGTERM·SIGHUP도 장부 행을 남긴다. **`batch.lock`(과 `batch.lock.dead.*`)을 손으로 지우지 않는다.** 이미 보낸 요청 수가 들어 있어, 지우면 하루 상한을 넘길 수 있다.
+
+종료 코드: 0 정상 종료(`DONE`, `DONE_WITH_FAILED`, `BUDGET`, `WINDOW_END`), 1 오류 중단(`RATE_LIMIT`, `HTTP`, `REDIRECT`, `NON_JSON`, `RT_CD`, `TOKEN`, `CONNECTION`, `FAILED_RUN`, `YF_ERROR`, `CRASH`, `SIGTERM`, `SIGHUP`), 2 입력 오류, 3 보내기 전 거부.
+
+Tests: `tests/test_batch_*.py` (fake KIS in `tests/fake_kis.py`, fake clock, fake yfinance; no network, no `.env`).

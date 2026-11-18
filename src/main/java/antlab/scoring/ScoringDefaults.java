@@ -14,4 +14,10 @@ class ScoringDefaults {
     DisciplineSource emptyDisciplineSource() {
         return seasonId -> Optional.empty();
     }
+
+    @Bean
+    @ConditionalOnMissingBean(NoiseReactionSource.class)
+    NoiseReactionSource emptyNoiseReactionSource() {
+        return seasonId -> Optional.empty();
+    }
 }

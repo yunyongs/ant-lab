@@ -202,6 +202,12 @@ public final class MoneyMath {
         return exactScale(value, 8, "비율");
     }
 
+    /** 응답용 확률 — scale 4 로 정확히 바꾼다. 값이 바뀌면(5자리 이상 유효) 예외다. */
+    public static BigDecimal exactProbability(BigDecimal value) {
+        require(value, "확률");
+        return exactScale(value, 4, "확률");
+    }
+
     private static BigDecimal exactScale(BigDecimal value, int scale, String field) {
         try {
             return value.setScale(scale, RoundingMode.UNNECESSARY);
@@ -404,6 +410,12 @@ public final class MoneyMath {
     public static BigDecimal sqrtSignificant(BigDecimal value) {
         require(value, "값");
         return value.sqrt(SCORE_ROOT);
+    }
+
+    /** Twelve decimals HALF_UP once: the scale of an observed value sent to the engine (the wire allows 12). */
+    public static BigDecimal round12(BigDecimal value) {
+        require(value, "값");
+        return value.setScale(SHARE_SCALE, RoundingMode.HALF_UP);
     }
 
     /** Two decimals HALF_UP once: the stored scale of scores and ratings. */

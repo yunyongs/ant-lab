@@ -87,7 +87,7 @@ class EnginePathSourceTest {
 
     private EnginePathSource source(String version) {
         EngineProperties properties = new EngineProperties(ENGINE.url(), TOKEN, Duration.ofSeconds(1), Duration.ofSeconds(3),
-                Duration.ofSeconds(15), EngineProperties.PathSourceMode.ENGINE, version, 2000);
+                Duration.ofSeconds(15), Duration.ofSeconds(60), EngineProperties.PathSourceMode.ENGINE, version, 2000);
         return new EnginePathSource(client, properties, repository);
     }
 

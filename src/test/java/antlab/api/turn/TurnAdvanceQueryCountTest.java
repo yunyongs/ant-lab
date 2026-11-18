@@ -147,4 +147,25 @@ class TurnAdvanceQueryCountTest {
         assertThat(firstOne.get("합계")).isEqualTo(firstThree.get("합계"));
         assertThat(second1.size() - feedInserts(second1)).isEqualTo(firstOne.get("합계") + 1);
     }
+
+    /** MVP-16: the macro environment of the turn just applied is one statement, whatever the holdings. */
+    @Test
+    void 거시_환경은_전환마다_정확히_한_문장이다() throws Exception {
+        long one = startSeason();
+        buy(one, "000660", 10, "FORWARD_BREAKOUT");
+        long three = startSeason();
+        buy(three, "000660", 10, "FORWARD_BREAKOUT");
+        buy(three, "069500", 100, "MIDFIELDER");
+        buy(three, "SPY", 5, "DEFENDER");
+        for (long season : new long[] {one, three}) {
+            for (int turn = 0; turn < 2; turn++) {
+                SqlRecorder.start();
+                MockHttpServletResponse r = advance(mvc, season, turn);
+                List<String> sqls = SqlRecorder.stop();
+                assertThat(r.getStatus()).isEqualTo(201);
+                assertThat(sqls.stream().filter(q -> q.toLowerCase(Locale.ROOT).contains("prob_p1")).count())
+                        .as("macro statements of turn " + (turn + 1)).isEqualTo(1);
+            }
+        }
+    }
 }

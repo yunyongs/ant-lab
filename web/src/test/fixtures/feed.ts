@@ -36,3 +36,21 @@ export function feedOfTurn(turnNo = 5): FeedItemDto[] {
     }),
   ];
 }
+
+// Two alerts of a turn; their seq continues after the turn's feed.
+export function alertsOfTurn(turnNo = 5): FeedItemDto[] {
+  return [
+    feedItem({
+      turnNo,
+      seq: 4,
+      assetId: 102,
+      body: '나 알림: 오늘의 흐름을 확인해 보세요.',
+    }),
+    feedItem({
+      turnNo,
+      seq: 5,
+      assetId: null,
+      body: '다 알림: 놓치기 전에 살펴보세요.',
+    }),
+  ];
+}

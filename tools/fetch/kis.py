@@ -41,7 +41,15 @@ DOMESTIC_PAGE = 100
 
 
 class KisError(RuntimeError):
-    """KIS 호출 실패. 메시지는 항상 마스킹되어 있다."""
+    """KIS 호출 실패. 메시지는 항상 마스킹되어 있다. reason 은 배치 중단 사유 분류다."""
+
+    def __init__(self, *args: object, reason: str = "ERROR"):
+        super().__init__(*args)
+        self.reason = reason
+
+
+class BudgetExhausted(KisError):
+    """요청 상한에 닿았다. 네트워크 요청은 나가지 않았다."""
 
 
 class ForbiddenPath(KisError):
@@ -60,6 +68,30 @@ def check_path(path: str, method: str = "GET", tr_id: str | None = None) -> str:
     if path in ALLOWED_TR and tr_id != ALLOWED_TR[path]:
         raise ForbiddenPath(f"허용되지 않는 TR ID: {path!r}")
     return path
+
+
+def durable_sync(fd: int) -> None:
+    """Flush to the drive where the platform can (macOS fsync does not); plain fsync elsewhere."""
+    try:
+        import fcntl
+
+        fcntl.fcntl(fd, fcntl.F_FULLFSYNC)
+        return
+    except (ImportError, AttributeError, OSError):
+        pass
+    os.fsync(fd)
+
+
+def write_atomic(path: Path, text: str) -> None:
+    """임시 이름에 쓰고 이름을 바꾼다: 중간에 끊겨도 반쪽 파일이 최종 이름으로 남지 않는다."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + ".tmp")
+    with tmp.open("w", encoding="utf-8", newline="") as h:
+        h.write(text)
+        h.flush()
+        os.fsync(h.fileno())
+    os.replace(tmp, path)
 
 
 @dataclass
@@ -82,14 +114,19 @@ class KisClient:
         self.cache_hits = 0  # 응답 원본 캐시를 쓴 횟수
         self._last_call = 0.0
         self._token: str | None = None
+        self.max_requests: int | None = None  # 이 값에 닿으면 다음 요청은 보내지 않고 BudgetExhausted
+        self.token_retry = True  # False 면 토큰 발급 실패 때 다시 시도하지 않는다 (배치: 하루 발급 1회)
+        self.token_guard: Callable[[], None] | None = None  # 토큰 발급 요청 직전에 부른다 (거부하면 예외)
+        self.on_send: Callable[[], None] | None = None  # called after the budget check, before each request leaves (journal, window)
+        self.stamp_day: Callable[[], str] | None = None  # 있으면 응답 원본 파일에 받은 날(KST)을 적는다
 
     # -- 마스킹 ---------------------------------------------------------
     def _m(self, text: object) -> str:
         secrets = self.cfg.secrets() + ([self._token] if self._token else [])
         return mask(text, secrets)
 
-    def _fail(self, message: str) -> KisError:
-        return KisError(self._m(message))
+    def _fail(self, message: str, reason: str = "ERROR") -> KisError:
+        return KisError(self._m(message), reason=reason)
 
     # -- 호출 간격 --------------------------------------------------------
     def _throttle(self) -> None:
@@ -102,16 +139,20 @@ class KisClient:
     def _send(self, method: str, path: str, **kwargs: Any) -> Any:
         tr_id = (kwargs.get("headers") or {}).get("tr_id")
         check_path(path, method, tr_id)
+        if self.max_requests is not None and self.requests_made >= self.max_requests:
+            raise BudgetExhausted(self._m(f"요청 상한 {self.max_requests}건에 닿았다 — 더 보내지 않는다"), reason="BUDGET")
         self._throttle()
+        if self.on_send is not None:
+            self.on_send()  # after the wait: nothing leaves after the window closes
         self.requests_made += 1
         kwargs.pop("allow_redirects", None)  # 호출부가 바꿀 수 없다
         try:
             resp = getattr(self._session, method)(self.base + path, timeout=30, allow_redirects=False, **kwargs)
         except Exception as exc:  # requests 예외 메시지에 URL·머리글이 들어갈 수 있다
-            raise self._fail(f"{method.upper()} {path} 연결 실패: {type(exc).__name__}: {exc}") from None
+            raise self._fail(f"{method.upper()} {path} 연결 실패: {type(exc).__name__}: {exc}", "CONNECTION") from None
         status = getattr(resp, "status_code", 0)
         if isinstance(status, int) and 300 <= status < 400:
-            raise self._fail(f"{method.upper()} {path}: 리다이렉트 응답 HTTP {status} — 따라가지 않는다")
+            raise self._fail(f"{method.upper()} {path}: 리다이렉트 응답 HTTP {status} — 따라가지 않는다", "REDIRECT")
         return resp
 
     # -- 토큰 ---------------------------------------------------------------
@@ -134,14 +175,16 @@ class KisClient:
 
     def _issue_token(self, retry: bool) -> str:
         body = {"grant_type": "client_credentials", "appkey": self.cfg.app_key, "appsecret": self.cfg.app_secret}
+        if self.token_guard is not None:
+            self.token_guard()
         resp = self._send("post", TOKEN_PATH, json=body, headers={"content-type": "application/json"})
         payload = self._json(resp)
         tok = payload.get("access_token")
         if resp.status_code != 200 or not tok:
-            if retry:
+            if retry and self.token_retry:
                 self.clock.sleep(TOKEN_RETRY_WAIT)
                 return self._issue_token(retry=False)
-            raise self._fail(f"토큰 발급 실패: HTTP {resp.status_code} {payload.get('msg_cd', '')} {payload.get('error_code', '')}")
+            raise self._fail(f"토큰 발급 실패: HTTP {resp.status_code} {payload.get('msg_cd', '')} {payload.get('error_code', '')}", "TOKEN")
         ttl = int(payload.get("expires_in") or 0)
         self._write_token(tok, self.clock.now() + ttl)
         return tok
@@ -150,18 +193,22 @@ class KisClient:
         d = self.cfg.token_cache_dir
         d.mkdir(parents=True, exist_ok=True)
         f = self._token_file()
-        fd = os.open(f, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        tmp = f.with_name(f.name + ".tmp")
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
         with os.fdopen(fd, "w", encoding="utf-8") as h:
             json.dump({"access_token": tok, "expires_at": expires_at}, h)
-        os.chmod(f, 0o600)
+            h.flush()
+            os.fsync(h.fileno())
+        os.chmod(tmp, 0o600)
+        os.replace(tmp, f)
 
     def _json(self, resp: Any) -> dict:
         try:
             out = resp.json()
         except Exception:
-            raise self._fail(f"JSON이 아닌 응답: HTTP {getattr(resp, 'status_code', '?')}") from None
+            raise self._fail(f"JSON이 아닌 응답: HTTP {getattr(resp, 'status_code', '?')}", "NON_JSON") from None
         if not isinstance(out, dict):
-            raise self._fail("응답이 객체가 아니다")
+            raise self._fail("응답이 객체가 아니다", "NON_JSON")
         return out
 
     # -- 시세 요청 (재시도 포함) ------------------------------------------------
@@ -184,21 +231,28 @@ class KisClient:
                 if attempt < len(RATE_RETRY_WAITS):
                     self.clock.sleep(RATE_RETRY_WAITS[attempt])
                     continue
-                raise self._fail(f"호출 한도 초과가 계속된다 ({RATE_LIMIT_CODE})")
+                raise self._fail(f"호출 한도 초과가 계속된다 ({RATE_LIMIT_CODE})", "RATE_LIMIT")
             if resp.status_code != 200 or payload.get("rt_cd") not in (None, "0"):
-                raise self._fail(f"{path} 실패: HTTP {resp.status_code} rt_cd={payload.get('rt_cd')} msg_cd={payload.get('msg_cd')} {payload.get('msg1', '')}")
+                raise self._fail(f"{path} 실패: HTTP {resp.status_code} rt_cd={payload.get('rt_cd')} msg_cd={payload.get('msg_cd')} {payload.get('msg1', '')}",
+                                 "HTTP" if resp.status_code != 200 else "RT_CD")
             return payload
         raise self._fail("재시도 소진")
 
     # -- 응답 원본 캐시 -----------------------------------------------------------
     def _cached(self, name: str, meta: dict, call: Callable[[], dict]) -> dict:
         f = self.raw_dir / f"{name}.json"
-        if f.is_file():
-            self.cache_hits += 1
-            return json.loads(f.read_text(encoding="utf-8"))["response"]
+        try:
+            hit = json.loads(f.read_text(encoding="utf-8"))["response"]
+            if isinstance(hit, dict):
+                self.cache_hits += 1
+                return hit
+        except (OSError, ValueError, KeyError, TypeError):
+            pass  # 없거나 읽을 수 없는 파일은 없는 것과 같다
         body = call()
-        self.raw_dir.mkdir(parents=True, exist_ok=True)
-        f.write_text(json.dumps({"request": meta, "response": body}, ensure_ascii=False, sort_keys=True, indent=1), encoding="utf-8")
+        doc: dict = {"request": meta, "response": body}
+        if self.stamp_day is not None:
+            doc["fetched_day"] = self.stamp_day()
+        write_atomic(f, json.dumps(doc, ensure_ascii=False, sort_keys=True, indent=1))
         return body
 
     # -- 일별 시세 ----------------------------------------------------------------

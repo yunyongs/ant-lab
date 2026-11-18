@@ -20,8 +20,10 @@ public final class EngineClient {
     static final String TOKEN_HEADER = "X-Antlab-Engine-Token";
     static final String PATHS_URI = "/v1/paths";
     static final String PROJECTIONS_URI = "/v1/projections";
+    static final String PERCENTILES_URI = "/v1/percentiles";
+    static final String REGIME_URI = "/v1/regime/evaluate";
     static final String INFO_URI = "/v1/info";
-    /** A projection answer is about 15-100 KB; anything beyond this is not an engine answer. */
+    /** A projection answer is about 15-100 KB and a regime answer about 0.7 KB per month; anything beyond this is not an engine answer. */
     static final int MAX_BODY_BYTES = 4 * 1024 * 1024;
 
     private static final MediaType PROBLEM_JSON = MediaType.parseMediaType("application/problem+json");
@@ -32,14 +34,18 @@ public final class EngineClient {
 
     private final RestClient paths;
     private final RestClient projections;
+    private final RestClient regime;
 
-    EngineClient(EngineProperties properties, RestClient.Builder pathsBuilder, RestClient.Builder projectionsBuilder) {
+    EngineClient(EngineProperties properties, RestClient.Builder pathsBuilder, RestClient.Builder projectionsBuilder,
+            RestClient.Builder regimeBuilder) {
         if (properties.configured()) {
             this.paths = build(pathsBuilder, properties);
             this.projections = build(projectionsBuilder, properties);
+            this.regime = build(regimeBuilder, properties);
         } else {
             this.paths = null;
             this.projections = null;
+            this.regime = null;
         }
     }
 
@@ -59,6 +65,16 @@ public final class EngineClient {
     public EngineProjectionResult createProjection(EngineProjectionRequest request) {
         return call("createProjection", projections, true, PROJECTIONS_URI, EngineWire.write(request),
                 EngineProjectionResult.class);
+    }
+
+    /** Same timeout family as projections: it runs the same path simulation. */
+    public EnginePercentileResult createPercentile(EnginePercentileRequest request) {
+        return call("createPercentile", projections, true, PERCENTILES_URI, EngineWire.write(request),
+                EnginePercentileResult.class);
+    }
+
+    public EngineRegimeResult evaluateRegime(EngineRegimeRequest request) {
+        return call("evaluateRegime", regime, true, REGIME_URI, EngineWire.write(request), EngineRegimeResult.class);
     }
 
     public EngineInfo info() {
