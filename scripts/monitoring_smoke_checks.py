@@ -24,6 +24,7 @@ import urllib.request
 
 UIDS = ("antlab-api", "antlab-jvm-db", "antlab-game")
 FOLDER_UID = "antlab"
+PG_DATASOURCE_UID = "antlab-postgres"
 APPLICATION = "antlab-api"
 GRAFANA_BUILTINS = {"__rate_interval", "__range", "__interval"}
 TURNS_PLAYED = 12
@@ -179,6 +180,27 @@ def run_panel(grafana_url, panel):
     return clean, results
 
 
+def cmd_postgres_datasource(base):
+    """OBS-02: the provisioned PostgreSQL data source reaches the database as grafana_reader and answers a query."""
+    status, ds = http(f"{base}/api/datasources/uid/{PG_DATASOURCE_UID}", auth=True)
+    ds = ds or {}
+    json_data = ds.get("jsonData") or {}
+    caps = (json_data.get("maxOpenConns"), json_data.get("maxIdleConns"), json_data.get("maxIdleConnsAuto"), json_data.get("sslmode"))
+    report(status == 200 and ds.get("user") == "grafana_reader" and ds.get("readOnly") is True and caps == (8, 8, False, "disable"), "A9a",
+           f"{PG_DATASOURCE_UID} provisioned read-only as grafana_reader with stored caps {caps} (answered {status})")
+    status, health = http(f"{base}/api/datasources/uid/{PG_DATASOURCE_UID}/health", auth=True, timeout=30)
+    report(status == 200 and (health or {}).get("status") == "OK", "A9b",
+           f"{PG_DATASOURCE_UID} health {status} {(health or {}).get('status')}")
+    query = {"refId": "A", "datasource": {"type": "grafana-postgresql-datasource", "uid": PG_DATASOURCE_UID},
+             "rawSql": "SELECT current_user::text AS who, 1 AS one", "format": "table"}
+    status, resp = http(f"{base}/api/ds/query", "POST", {"queries": [query], "from": "now-5m", "to": "now"}, auth=True, timeout=30)
+    result = ((resp or {}).get("results") or {}).get("A") or {}
+    frames = result.get("frames") or []
+    values = frames[0]["data"]["values"] if frames else []
+    report(status == 200 and not result.get("error") and values[:1] == [["grafana_reader"]], "A9c",
+           f"SELECT through {PG_DATASOURCE_UID} runs as grafana_reader (answered {status})")
+
+
 def cmd_grafana(grafana_url, directory):
     base = grafana_url.rstrip("/")
     repo = load_repo_dashboards(directory)
@@ -223,6 +245,8 @@ def cmd_grafana(grafana_url, directory):
             time.sleep(5)
         report(has_data, "A7", f"{uid}#{pid} {panel.get('title', '')} has data")
 
+    cmd_postgres_datasource(base)
+
     status, health = http(base + "/api/health")
     report(status == 200 and (health or {}).get("database") == "ok", "A8a", "grafana health database ok")
     status, _ = http(base + "/api/search")
@@ -231,6 +255,8 @@ def cmd_grafana(grafana_url, directory):
 
 def cmd_self_test(directory):
     repo = load_repo_dashboards(directory)
+    with open(os.path.join(directory, "..", "..", "datasources", "postgres.yaml"), encoding="utf-8") as handle:
+        report(f"uid: {PG_DATASOURCE_UID}\n" in handle.read(), "S4", f"postgres data source uid {PG_DATASOURCE_UID}")
     report(set(repo) == set(UIDS), "S1", f"uids {sorted(repo)}")
     for uid, dash in repo.items():
         for panel in flatten(dash["panels"]):

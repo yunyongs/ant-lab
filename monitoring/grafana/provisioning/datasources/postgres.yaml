@@ -1,0 +1,23 @@
+apiVersion: 1
+
+datasources:
+  - name: PostgreSQL (obs)
+    # Fixed uid: OBS dashboards reference it. Never rename.
+    uid: antlab-postgres
+    type: grafana-postgresql-datasource
+    access: proxy
+    url: db:5432
+    user: grafana_reader
+    editable: false
+    isDefault: false
+    jsonData:
+      database: antlab_api
+      sslmode: disable
+      postgresVersion: 1700
+      # The role has CONNECTION LIMIT 10; the Grafana default is 100, so it is capped here (8 leaves room for a manual session).
+      maxOpenConns: 8
+      maxIdleConns: 8
+      maxIdleConnsAuto: false
+    secureJsonData:
+      # Expanded from the Grafana container environment; empty locally under trust. Never a literal value.
+      password: $GRAFANA_READER_PASSWORD

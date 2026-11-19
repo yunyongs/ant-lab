@@ -49,6 +49,19 @@ class MonitoringSmokeScriptTest {
             pb.environment().put("PATH", pathPrefix + ":" + System.getenv("PATH"));
         }
         Process process = pb.start();
+        // A broken script under test must fail the test, not hang it: stop the whole process tree after 45 seconds.
+        Thread watchdog = new Thread(() -> {
+            try {
+                if (!process.waitFor(45, java.util.concurrent.TimeUnit.SECONDS)) {
+                    process.descendants().forEach(ProcessHandle::destroyForcibly);
+                    process.destroyForcibly();
+                }
+            } catch (InterruptedException ignored) {
+                Thread.currentThread().interrupt();
+            }
+        });
+        watchdog.setDaemon(true);
+        watchdog.start();
         String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
         return new Run(process.waitFor(), output);
     }
@@ -82,8 +95,11 @@ class MonitoringSmokeScriptTest {
             start--;
         }
         String command = String.join("\n", lines.subList(start, probe + 1));
-        assertThat(command).contains("Authorization: Bearer $token");
-        assertThat(lines).noneMatch(l -> l.matches(".*\\b(echo|printf)\\b.*\\$\\{?token\\b.*"));
+        // The bearer header is piped to curl (-H @-), so the token is never in a process argument list.
+        assertThat(command).contains("printf 'Authorization: Bearer %s\\n' \"$token\" | curl").contains("-H @-")
+                .doesNotContain("-H \"Authorization");
+        assertThat(lines).filteredOn(l -> l.matches(".*\\b(echo|printf)\\b.*\\$\\{?token\\b.*")).hasSize(1);
+        assertThat(lines).noneMatch(l -> l.contains("$token") && l.contains("tee"));
     }
 
     @Test
@@ -122,7 +138,7 @@ class MonitoringSmokeScriptTest {
     @Test
     void 포트_가드() throws Exception {
         Map<String, String> owner = Map.of("ANTLAB_SMOKE_DB_PORT", "5432", "ANTLAB_SMOKE_API_PORT", "8080",
-                "ANTLAB_SMOKE_PROMETHEUS_PORT", "9090", "ANTLAB_SMOKE_GRAFANA_PORT", "3000");
+                "ANTLAB_SMOKE_PROMETHEUS_PORT", "9090", "ANTLAB_SMOKE_GRAFANA_PORT", "3000", "ANTLAB_SMOKE_ENGINE_PORT", "8000");
         owner.forEach((name, port) -> {
             try {
                 Run result = dryRun(Map.of(name, port));
@@ -266,5 +282,148 @@ class MonitoringSmokeScriptTest {
         Run result = run(Map.of(), null, "python3", HELPER.toString(), "self-test", GrafanaDashboards.DASHBOARD_DIR.toString());
         assertThat(result.exit()).as(result.output()).isZero();
         assertThat(result.output()).doesNotContain("FAIL");
+    }
+
+    @Test
+    void 스모크는_Flyway_뒤_표본_적재_앞에서_읽기_역할_스크립트를_돌린다() throws IOException {
+        List<String> code = codeLines();
+        int api = indexOf(code, l -> l.contains("up -d --build --wait"));
+        int role = indexOf(code, l -> l.contains("cat db/roles/grafana_reader.sql"));
+        int load = indexOf(code, l -> l.contains("psql -X -q -v ON_ERROR_STOP=1 -c \"ALTER DATABASE"));
+        int play = indexOf(code, l -> l.contains("tools/play/play_season.py"));
+        assertThat(api).isLessThan(role);
+        assertThat(role).isLessThan(load).isLessThan(play);
+        assertThat(code.get(role)).contains("expected_database = 'antlab_api'");
+        // It reaches the smoke project's own database port, never the owner stack.
+        assertThat(code.get(role + 1)).contains("PGPORT=\"$db_port\"").doesNotContain("5432");
+    }
+
+    @Test
+    void 데이터_소스_uid가_도우미와_같다() throws IOException {
+        Matcher helper = Pattern.compile("PG_DATASOURCE_UID = \"([^\"]+)\"").matcher(helperSource());
+        assertThat(helper.find()).isTrue();
+        Matcher file = Pattern.compile("^    uid: (\\S+)$", Pattern.MULTILINE)
+                .matcher(Files.readString(Path.of("monitoring/grafana/provisioning/datasources/postgres.yaml")));
+        assertThat(file.find()).isTrue();
+        assertThat(file.group(1)).isEqualTo(helper.group(1));
+    }
+
+    private static final String STUB_DOCKER = """
+            #!/bin/sh
+            echo "docker $*" >> "$TRACE"
+            case "$*" in
+              *" up "*) env | grep -E '^(ANTLAB_|GF_|GRAFANA_|COMPOSE_)' | grep -vE '^(ANTLAB_SMOKE_|ANTLAB_GOLDEN_SAMPLE_DIR)' | sed 's/=.*//' | sed 's/^/visible /' >> "$TRACE"
+                        envfile=""; prev=""
+                        for a in "$@"; do if [ "$prev" = "--env-file" ]; then envfile="$a"; fi; prev="$a"; done
+                        echo "envfile $envfile" >> "$TRACE"
+                        grep -E '^(ANTLAB_ENGINE_|ANTLAB_.*_PORT)' "$envfile" | sed 's/^/envline /' >> "$TRACE" ;;
+              *" images "*) echo image123 ;;
+              *"image inspect"*) echo '[]' ;;
+            esac
+            exit 0
+            """;
+    private static final String STUB_PSQL = """
+            #!/bin/sh
+            if [ "$1" = "--version" ]; then echo "psql (PostgreSQL) 17.0"; exit 0; fi
+            echo "psql $*" >> "$TRACE"
+            cat > /dev/null
+            exit 1
+            """;
+
+    private static int enginePort;
+
+    private static int freePort() throws IOException {
+        try (java.net.ServerSocket socket = new java.net.ServerSocket(0)) {
+            return socket.getLocalPort();
+        }
+    }
+
+    private record Traced(Run run, List<String> trace) {}
+
+    private static Traced stubbed(Path dir, Map<String, String> inherited) throws Exception {
+        Path bin = Files.createDirectories(dir.resolve("bin"));
+        Path samples = Files.createDirectories(dir.resolve("samples"));
+        for (String csv : List.of("asset_month_return.csv", "asset_position.csv", "fx_month.csv")) {
+            Files.writeString(samples.resolve(csv), "x\n");
+        }
+        for (Map.Entry<String, String> tool : Map.of("docker", STUB_DOCKER, "psql", STUB_PSQL).entrySet()) {
+            Path file = bin.resolve(tool.getKey());
+            Files.writeString(file, tool.getValue());
+            Files.setPosixFilePermissions(file, PosixFilePermissions.fromString("rwxr-xr-x"));
+        }
+        Path trace = dir.resolve("trace");
+        Files.writeString(trace, "");
+        Map<String, String> env = new java.util.HashMap<>(inherited);
+        // Free ports, so a smoke running on the same machine cannot trip the script's port-in-use check.
+        env.put("ANTLAB_SMOKE_DB_PORT", String.valueOf(freePort()));
+        env.put("ANTLAB_SMOKE_API_PORT", String.valueOf(freePort()));
+        env.put("ANTLAB_SMOKE_PROMETHEUS_PORT", String.valueOf(freePort()));
+        env.put("ANTLAB_SMOKE_GRAFANA_PORT", String.valueOf(freePort()));
+        env.put("ANTLAB_SMOKE_ENGINE_PORT", String.valueOf(enginePort = freePort()));
+        env.put("TRACE", trace.toString());
+        env.put("ANTLAB_GOLDEN_SAMPLE_DIR", samples.toString());
+        Run run = run(env, bin.toString(), "bash", SCRIPT.toString());
+        return new Traced(run, Files.readAllLines(trace));
+    }
+
+    @Test
+    void 엔진_격리_상속된_변수는_env_파일을_이기지_못한다(@TempDir Path dir) throws Exception {
+        String inheritedToken = "inherited-token-" + "0".repeat(48);
+        Traced t = stubbed(dir, Map.of("ANTLAB_ENGINE_PORT", "8000", "ANTLAB_ENGINE_TOKEN", inheritedToken,
+                "ANTLAB_DB_PORT", "5432", "ANTLAB_API_PORT", "8080", "ANTLAB_JWT_SECRET", "owner-jwt", "GRAFANA_READER_PASSWORD", "owner-pw",
+                "COMPOSE_PROJECT_NAME", "antlab"));
+        // The stubbed psql fails the role step, so the run ends there; the up of the first stage already happened.
+        assertThat(t.trace()).anyMatch(l -> l.contains("docker compose -p antlab-smoke --env-file"));
+        // No variable that Compose interpolates reaches the docker process; the env file is the only source.
+        assertThat(t.trace()).as("up ran").anyMatch(l -> l.startsWith("envfile "));
+        assertThat(t.trace()).noneMatch(l -> l.startsWith("visible "));
+        assertThat(t.trace()).noneMatch(l -> l.contains("-p antlab "));
+        assertThat(t.trace()).contains("envline ANTLAB_ENGINE_PORT=" + enginePort);
+        assertThat(t.trace()).noneMatch(l -> l.startsWith("envline ANTLAB_ENGINE_PORT=8000"));
+        String tokenLine = t.trace().stream().filter(l -> l.startsWith("envline ANTLAB_ENGINE_TOKEN=")).findFirst().orElseThrow();
+        String token = tokenLine.substring("envline ANTLAB_ENGINE_TOKEN=".length());
+        assertThat(token).matches("[0-9a-f]{64}").isNotEqualTo(inheritedToken);
+        // Nothing prints the generated or inherited secrets or the temp env file.
+        String envFile = t.trace().stream().filter(l -> l.startsWith("envfile ")).findFirst().orElseThrow().substring(8);
+        assertThat(envFile).isNotBlank();
+        assertThat(t.run().output()).doesNotContain(token, inheritedToken, "owner-jwt", "owner-pw", envFile);
+    }
+
+    @Test
+    void 읽기_역할_단계가_실패하면_이후_단계는_멈추고_프로젝트를_지운다(@TempDir Path dir) throws Exception {
+        Traced t = stubbed(dir, Map.of());
+        assertThat(t.run().exit()).isEqualTo(1);
+        assertThat(t.run().output()).contains("grafana_reader role script failed");
+        List<String> trace = t.trace();
+        int role = indexOfTrace(trace, l -> l.startsWith("psql ") && !l.contains("ALTER DATABASE"));
+        assertThat(role).isNotNegative();
+        // After the failed role step: no api stop (the sample load step), no sample load, no second stack start.
+        List<String> after = trace.subList(role + 1, trace.size());
+        assertThat(after).noneMatch(l -> l.contains(" stop api") || l.contains("ALTER DATABASE") || l.endsWith(" up -d --wait --wait-timeout 300"));
+        assertThat(trace).noneMatch(l -> l.contains("ALTER DATABASE"));
+        assertThat(after).anyMatch(l -> l.contains("-p antlab-smoke") && l.contains(" down -v --remove-orphans --rmi local"));
+    }
+
+    @Test
+    void 엔진_포트_기본값은_소유자_스택과_다르다() throws Exception {
+        assertThat(dryRun(Map.of()).output()).contains("engine_port=18004");
+        assertThat(codeLines()).anyMatch(l -> l.contains("ANTLAB_ENGINE_PORT=%s") && l.contains(">> \"$env_file\""));
+        assertThat(codeLines()).anyMatch(l -> l.contains("ANTLAB_ENGINE_TOKEN=%s") && l.contains("secrets.token_hex(32)") && l.contains(">> \"$env_file\""));
+    }
+
+    @Test
+    void 도우미의_데이터_소스_시험은_통과한다() throws Exception {
+        assumeTrue(run(Map.of(), null, "python3", "--version").exit() == 0);
+        Run result = run(Map.of(), null, "python3", "scripts/monitoring_smoke_checks_test.py");
+        assertThat(result.exit()).as(result.output()).isZero();
+    }
+
+    private static int indexOfTrace(List<String> trace, java.util.function.Predicate<String> match) {
+        for (int i = 0; i < trace.size(); i++) {
+            if (match.test(trace.get(i))) {
+                return i;
+            }
+        }
+        return -1;
     }
 }

@@ -22,6 +22,7 @@
 #   docker compose --profile api --profile monitoring up -d --wait
 #   isolated: add ANTLAB_PROMETHEUS_PORT=19090 ANTLAB_GRAFANA_PORT=13000 and -p antlab-qa (docs/DEPLOY.md §3.2).
 #   smoke: scripts/monitoring_smoke.sh (docs/DEPLOY.md §3.2).
+#   OBS-02: grafana also reads the db as grafana_reader (data source antlab-postgres); run db/roles/grafana_reader.sql first (db/README.md).
 # MVP-20: on an empty volume the db container also creates the roles antlab_owner (Flyway) and antlab_app (the api) through
 #   /docker-entrypoint-initdb.d; an existing volume needs the one-time command in db/README.md "App roles". The api container then
 #   connects as antlab_app and refuses to start as a superuser.
@@ -167,7 +168,8 @@ services:
     restart: unless-stopped
 
   grafana:
-    mem_limit: 256m
+    # 512m: the owner's Grafana ran at 243.6 MiB of 256m with heavy disk reads (memory pressure) on 2026-11-19; OBS adds PostgreSQL panels.
+    mem_limit: 512m
     profiles: [monitoring]
     image: grafana/grafana:13.3.1
     depends_on:
@@ -186,6 +188,8 @@ services:
       GF_USERS_ALLOW_SIGN_UP: "false"
       GF_ANALYTICS_REPORTING_ENABLED: "false"
       GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      # OBS-02: password of the PostgreSQL data source user grafana_reader; empty locally (trust), never in the provisioning file.
+      GRAFANA_READER_PASSWORD: ${GRAFANA_READER_PASSWORD:-}
     ports:
       - "127.0.0.1:${ANTLAB_GRAFANA_PORT:-3000}:3000"
     volumes:
