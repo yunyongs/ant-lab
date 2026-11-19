@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Monitoring smoke (MON-05): throwaway compose project with db, api, prometheus and grafana; plays one season,
-# checks Prometheus and the three Grafana dashboards, then removes the project. Manual only (needs Docker and the sample CSVs).
+# Monitoring smoke (MON-05): throwaway compose project with db, api, prometheus, grafana and postgres-exporter; plays one season,
+# checks Prometheus (api and database targets) and the Grafana dashboards, then removes the project. Manual only (needs Docker and the sample CSVs).
 # Exit codes: 0 pass, 1 assertion failed, 2 usage or preflight, 130 interrupted.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -62,12 +62,14 @@ env_file=""
 started=0
 cleaned=0
 checks=0
+traffic=""
 
 cleanup() {
   local rc=$?
   set +e
   if [ "$cleaned" = 0 ]; then
     cleaned=1
+    [ -n "$traffic" ] && kill "$traffic" 2>/dev/null
     if [ "$started" = 1 ]; then
       if [ "$keep" = 1 ] && [ "$rc" = 0 ]; then
         printf 'stack left running: Grafana http://127.0.0.1:%s (user admin), Prometheus http://127.0.0.1:%s\n' "$grafana_port" "$prometheus_port"
@@ -136,8 +138,8 @@ done
 fail() {
   printf '\nmonitoring smoke: FAIL - %s\n' "$1" >&2
   dc ps >&2 || true
-  dc logs --tail 60 api prometheus grafana >&2 || true
-  for log in play.log load.log reader.log; do
+  dc logs --tail 60 api prometheus grafana postgres-exporter >&2 || true
+  for log in play.log load.log reader.log metrics.log; do
     if [ -f "$work/$log" ]; then printf -- '--- tail of %s\n' "$log" >&2; tail -n 30 "$work/$log" >&2 || true; fi
   done
   exit 1
@@ -169,6 +171,13 @@ echo "== create the Grafana reader role (OBS-02)"
   || fail "grafana_reader role script failed"
 printf 'PASS grafana_reader role script ran\n' | tee -a "$work/checks.log"
 
+echo "== create the statistics role for postgres_exporter (OBS-06)"
+# Needs no table, so it could run earlier; it runs here next to the reader script. Trust auth: no password is set.
+{ echo "SET antlab.expected_database = 'antlab_api';"; cat db/roles/antlab_metrics.sql; } \
+  | PGHOST=127.0.0.1 PGPORT="$db_port" PGUSER="${USER:-antlab}" PGDATABASE=antlab_api psql -X -q -v ON_ERROR_STOP=1 > "$work/metrics.log" 2>&1 \
+  || fail "antlab_metrics role script failed"
+printf 'PASS antlab_metrics role script ran\n' | tee -a "$work/checks.log"
+
 echo "== load sample"
 dc stop api || fail "could not stop api"
 (
@@ -198,6 +207,41 @@ reject_status="$(printf 'Authorization: Bearer %s\n' "$token" | curl -s -o /dev/
 api_log="$(dc logs api 2>&1)" || fail "could not read the api log"
 case "$api_log" in *"$jwt_key"*) fail "api log carries the signing key" ;; esac
 printf 'PASS api log carries no signing key\n' | tee -a "$work/checks.log"
+
+echo "== check the exporter exports no session text (OBS-06)"
+# A session with a secret-looking application_name runs a statement with a secret-looking comment while the exporter is scraped.
+# Neither string may appear in the scrape: the default stat_activity collector (application_name as a label) is switched off and the
+# custom queries never select statement text.
+sentinel_app="OBS06_APPNAME_SENTINEL"
+sentinel_stmt="OBS06_STATEMENT_SENTINEL"
+PGAPPNAME="$sentinel_app" PGHOST=127.0.0.1 PGPORT="$db_port" PGUSER="${USER:-antlab}" PGDATABASE=antlab_api \
+  psql -X -q -c "SELECT pg_sleep(20) /* $sentinel_stmt */" > /dev/null 2>&1 &
+holder=$!
+visible=0
+for _ in 1 2 3 4 5 6 7 8 9 10; do
+  seen="$(PGHOST=127.0.0.1 PGPORT="$db_port" PGUSER="${USER:-antlab}" PGDATABASE=antlab_api psql -X -q -t -A -c "SELECT count(*) FROM pg_stat_activity WHERE application_name = '$sentinel_app' AND query LIKE '%$sentinel_stmt%'" 2>/dev/null || true)"
+  if [ "$seen" = 1 ]; then visible=1; break; fi
+  sleep 1
+done
+[ "$visible" = 1 ] || fail "the sentinel session never became visible in pg_stat_activity"
+dc exec -T postgres-exporter wget -q -O - http://127.0.0.1:9187/metrics > "$work/exporter.metrics" || fail "could not scrape the exporter"
+kill "$holder" 2>/dev/null || true
+wait "$holder" 2>/dev/null || true
+grep -q '^pg_up 1' "$work/exporter.metrics" || fail "the exporter scrape has no pg_up 1"
+if grep -q -e "$sentinel_app" -e "$sentinel_stmt" "$work/exporter.metrics"; then fail "the exporter scrape carries session text"; fi
+printf 'PASS exporter scrape carries no application_name or statement text\n' | tee -a "$work/checks.log"
+
+echo "== keep light traffic on the api while Prometheus and Grafana are checked"
+# A rate needs counter increases between two scrapes. The played season ended before the series of its URIs were first scraped, so
+# without traffic the latency quantiles stay NaN (a panel that only looks alive). Unknown-path requests count as ordinary requests.
+traffic_loop() {
+  while true; do
+    curl -s -o /dev/null --max-time 5 "$api_url/api/v1/seasons/999999999" || true
+    sleep 3
+  done
+}
+traffic_loop &
+traffic=$!
 
 echo "== check Prometheus and Grafana"
 helper prometheus "$prom_url" 90 || fail "Prometheus assertion failed (A1-A3)"

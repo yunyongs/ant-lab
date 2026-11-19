@@ -299,6 +299,76 @@ class MonitoringSmokeScriptTest {
     }
 
     @Test
+    void 스모크는_읽기_역할_뒤_표본_적재_앞에서_통계_역할_스크립트도_돌린다() throws IOException {
+        List<String> code = codeLines();
+        int reader = indexOf(code, l -> l.contains("cat db/roles/grafana_reader.sql"));
+        int metrics = indexOf(code, l -> l.contains("cat db/roles/antlab_metrics.sql"));
+        int load = indexOf(code, l -> l.contains("psql -X -q -v ON_ERROR_STOP=1 -c \"ALTER DATABASE"));
+        int start = indexOf(code, l -> l.strip().equals("dc up -d --wait --wait-timeout 300 || fail \"stack did not become healthy\""));
+        assertThat(reader).isLessThan(metrics);
+        assertThat(metrics).isLessThan(load).isLessThan(start);
+        assertThat(code.get(metrics)).contains("expected_database = 'antlab_api'");
+        // The exporter container starts in the second stage, after the role exists; the script reaches the smoke project's own port.
+        assertThat(code.get(metrics + 1)).contains("PGPORT=\"$db_port\"").doesNotContain("5432");
+        assertThat(code.get(metrics + 2)).contains("antlab_metrics role script failed");
+    }
+
+    @Test
+    void 스모크는_세션_원문이_내보내기_수집에_없음을_확인한다() throws IOException {
+        List<String> code = codeLines();
+        int play = indexOf(code, l -> l.contains("tools/play/play_season.py"));
+        int sentinel = indexOf(code, l -> l.startsWith("sentinel_app="));
+        int scrape = indexOf(code, l -> l.contains("exec -T postgres-exporter wget"));
+        int verdict = indexOf(code, l -> l.contains("the exporter scrape carries session text"));
+        int prometheus = indexOf(code, l -> l.startsWith("helper prometheus"));
+        assertThat(play).isLessThan(sentinel).isLessThan(scrape).isLessThan(verdict).isLessThan(prometheus);
+        assertThat(code.get(sentinel + 1)).startsWith("sentinel_stmt=");
+        assertThat(code.get(verdict)).contains("grep -q -e \"$sentinel_app\" -e \"$sentinel_stmt\"");
+        // The session has to be visible in pg_stat_activity before the scrape, otherwise the check proves nothing.
+        assertThat(String.join("\n", code)).contains("never became visible in pg_stat_activity");
+    }
+
+    @Test
+    void 스모크는_Grafana_확인_동안_api에_가벼운_요청을_계속_보내고_종료할_때_멈춘다() throws IOException {
+        List<String> code = codeLines();
+        int start = indexOf(code, l -> l.strip().equals("traffic=$!"));
+        int prometheus = indexOf(code, l -> l.startsWith("helper prometheus"));
+        int grafana = indexOf(code, l -> l.contains("helper grafana"));
+        assertThat(start).isLessThan(prometheus).isLessThan(grafana);
+        assertThat(code).anyMatch(l -> l.strip().equals("[ -n \"$traffic\" ] && kill \"$traffic\" 2>/dev/null"));
+        assertThat(code).anyMatch(l -> l.contains("curl -s -o /dev/null --max-time 5 \"$api_url/api/v1/seasons/999999999\""));
+    }
+
+    @Test
+    void 도우미는_DB_대상과_pg_up을_기다리고_DB_쿼리_이름은_DB_허용_목록에_있다() throws IOException {
+        String source = helperSource();
+        String block = source.substring(source.indexOf("# BEGIN SMOKE DB QUERIES"), source.indexOf("# END SMOKE DB QUERIES"));
+        List<String> queries = new ArrayList<>();
+        Matcher m = Pattern.compile("^\\w+ = '(.*)'$", Pattern.MULTILINE).matcher(block);
+        while (m.find()) {
+            queries.add(m.group(1));
+        }
+        assertThat(queries).containsExactly("up{job=\"antlab-db\"}", "pg_up{job=\"antlab-db\"}");
+        Set<String> allowed = new TreeSet<>(GrafanaDashboards.allowlist(GrafanaDashboards.DB_ALLOWLIST).keySet());
+        allowed.add("up");
+        for (String query : queries) {
+            assertThat(allowed).as(query).containsAll(PromQlNames.names(query));
+            assertThat(PromQlNames.bareIdentifiers(query)).as(query).isEmpty();
+        }
+        assertThat(source).contains("wait_query(prom_url, Q_DB_UP, \"==\", 1, timeout, \"A1b\")",
+                "wait_query(prom_url, Q_PG_UP, \"==\", 1, timeout, \"A1c\")");
+    }
+
+    @Test
+    void 도우미가_데이터가_있어야_하는_패널에_DB_대시보드_전체가_있다() throws IOException {
+        String source = helperSource();
+        for (int id = 1; id <= 11; id++) {
+            assertThat(source).contains("(\"antlab-db\", " + id + "),");
+        }
+        assertThat(GrafanaDashboards.load().get("db.json").path("panels")).hasSize(11);
+    }
+
+    @Test
     void 데이터_소스_uid가_도우미와_같다() throws IOException {
         Matcher helper = Pattern.compile("PG_DATASOURCE_UID = \"([^\"]+)\"").matcher(helperSource());
         assertThat(helper.find()).isTrue();
