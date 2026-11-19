@@ -138,7 +138,7 @@ done
 fail() {
   printf '\nmonitoring smoke: FAIL - %s\n' "$1" >&2
   dc ps >&2 || true
-  dc logs --tail 60 api prometheus grafana postgres-exporter >&2 || true
+  dc logs --tail 60 api engine prometheus grafana postgres-exporter >&2 || true
   for log in play.log load.log reader.log metrics.log; do
     if [ -f "$work/$log" ]; then printf -- '--- tail of %s\n' "$log" >&2; tail -n 30 "$work/$log" >&2 || true; fi
   done
@@ -234,9 +234,12 @@ printf 'PASS exporter scrape carries no application_name or statement text\n' | 
 echo "== keep light traffic on the api while Prometheus and Grafana are checked"
 # A rate needs counter increases between two scrapes. The played season ended before the series of its URIs were first scraped, so
 # without traffic the latency quantiles stay NaN (a panel that only looks alive). Unknown-path requests count as ordinary requests.
+# The engine gets the same: /healthz (200) and /v1/info without a token (401) give its request, error and latency panels a series.
 traffic_loop() {
   while true; do
     curl -s -o /dev/null --max-time 5 "$api_url/api/v1/seasons/999999999" || true
+    curl -s -o /dev/null --max-time 5 "http://127.0.0.1:$engine_port/healthz" || true
+    curl -s -o /dev/null --max-time 5 "http://127.0.0.1:$engine_port/v1/info" || true
     sleep 3
   done
 }

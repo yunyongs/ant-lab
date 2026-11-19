@@ -146,6 +146,9 @@ class SqlPanels(unittest.TestCase):
         self.assertIn("PASS S5 antlab-collectors#1 A", out.getvalue())
         self.assertIn("PASS S3 antlab-db#11 exists", out.getvalue())
         self.assertIn("PASS S5 antlab-db#11 A", out.getvalue())
+        self.assertIn("PASS S3 antlab-engine#13 exists", out.getvalue())
+        self.assertIn("PASS S5 antlab-engine#13 A", out.getvalue())
+        self.assertNotIn("antlab-engine#11 exists", out.getvalue())
 
 
 class NumericFrames(unittest.TestCase):
@@ -192,6 +195,12 @@ class DatabaseTarget(unittest.TestCase):
             checks.cmd_prometheus("http://prom", 5)
         self.assertIn(('up{job="antlab-db"}', "==", 1, "A1b"), calls)
         self.assertIn(('pg_up{job="antlab-db"}', "==", 1, "A1c"), calls)
+
+    def test_prometheus_command_checks_the_engine_target(self):
+        calls = []
+        with mock.patch.object(checks, "wait_query", lambda prom, expr, op, expected, timeout, check_id: calls.append((expr, op, expected, check_id)) or True):
+            checks.cmd_prometheus("http://prom", 5)
+        self.assertIn(('up{job="antlab-engine"}', "==", 1, "A1d"), calls)
 
     def test_exporter_up_but_database_unreachable_fails(self):
         def prom(url, *args, **kwargs):

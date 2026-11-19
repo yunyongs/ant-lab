@@ -128,6 +128,8 @@ services:
       ANTLAB_ENGINE_DB_NAME: antlab_api
       ANTLAB_ENGINE_DB_USER: antlab_engine
       ANTLAB_ENGINE_DB_PASSWORD: ${ANTLAB_ENGINE_DB_PASSWORD:-}
+      # OBS-05: metrics on 8001 for Prometheus on the backend network only (no ports entry). Native runs default to 127.0.0.1.
+      ANTLAB_ENGINE_METRICS_HOST: 0.0.0.0
     ports:
       - "127.0.0.1:${ANTLAB_ENGINE_PORT:-8000}:8000"
     networks: [backend]

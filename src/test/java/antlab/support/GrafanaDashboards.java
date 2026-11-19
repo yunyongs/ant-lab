@@ -22,6 +22,9 @@ public final class GrafanaDashboards {
     /** Names of the database dashboard (OBS-06), from a scrape of postgres_exporter; the API allowlist does not apply to it. */
     public static final Path DB_ALLOWLIST = Path.of("src/test/resources/monitoring/metric-names-db.txt");
 
+    /** Names of the engine dashboard (OBS-05): the engine registry and the process collector. */
+    public static final Path ENGINE_ALLOWLIST = Path.of("src/test/resources/monitoring/metric-names-engine.txt");
+
     private GrafanaDashboards() {}
 
     public static JsonNode parse(String json) {

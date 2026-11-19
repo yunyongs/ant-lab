@@ -58,6 +58,13 @@
       "url": "/d/antlab-db",
       "icon": "dashboard",
       "targetBlank": false
+    },
+    {
+      "type": "link",
+      "title": "Engine",
+      "url": "/d/antlab-engine",
+      "icon": "dashboard",
+      "targetBlank": false
     }
   ],
   "panels": [

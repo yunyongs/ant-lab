@@ -5,7 +5,6 @@ never per-path values, months or won. The caller turns the counts into a percent
 """
 
 from decimal import Decimal
-from threading import BoundedSemaphore
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request
@@ -13,6 +12,7 @@ from fastapi import APIRouter, Depends, Request
 from antlab_engine.bootstrap import stationary
 from antlab_engine.engine_errors import EngineBusy, InvalidArgument
 from antlab_engine.errors import Problem
+from antlab_engine.metrics import SlotPool
 from antlab_engine.projection import Portfolio, rank
 
 from . import PROBLEM_RESPONSES, RETRY_AFTER_HEADER
@@ -52,7 +52,7 @@ def _portfolio(key: str, book: PercentilePortfolio) -> Portfolio:
 def create_percentile(
     request: PercentileRequest,
     http_request: Request,
-    slots: Annotated[BoundedSemaphore, Depends(projection_slots)],
+    slots: Annotated[SlotPool, Depends(projection_slots)],
 ) -> PercentileResult:
     seed = int(request.seasonSeed)
     if not stationary.SEED_MIN <= seed <= stationary.SEED_MAX:

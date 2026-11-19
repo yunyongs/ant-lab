@@ -1,0 +1,787 @@
+{
+  "uid": "antlab-engine",
+  "title": "ant-lab · Engine",
+  "tags": [
+    "antlab"
+  ],
+  "editable": false,
+  "graphTooltip": 1,
+  "timezone": "Asia/Seoul",
+  "schemaVersion": 42,
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "refresh": "30s",
+  "templating": {
+    "list": []
+  },
+  "links": [
+    {
+      "type": "link",
+      "title": "Overview",
+      "url": "/d/antlab-overview",
+      "icon": "dashboard",
+      "targetBlank": false
+    }
+  ],
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Engine up",
+      "description": "1 when Prometheus reaches the engine metrics port. / Prometheus가 엔진 지표 포트에 닿으면 UP.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "antlab-prometheus"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 0,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          },
+          "noValue": "no target",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "DOWN",
+                  "color": "red",
+                  "index": 0
+                },
+                "1": {
+                  "text": "UP",
+                  "color": "green",
+                  "index": 1
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "antlab-prometheus"
+          },
+          "refId": "A",
+          "expr": "min(up{job=\"antlab-engine\"})",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Requests per second",
+      "description": "Requests per second over the last 5 minutes, all routes. / 최근 5분 모든 경로의 초당 요청 수.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "antlab-prometheus"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 5,
+        "x": 4,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "antlab-prometheus"
+          },
+          "refId": "A",
+          "expr": "sum(rate(antlab_engine_http_requests_total{job=\"antlab-engine\"}[5m]))",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Error ratio",
+      "description": "Share of responses with status 5xx over the last 5 minutes. / 최근 5분 응답 중 5xx 비율.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "antlab-prometheus"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 5,
+        "x": 9,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 0.05
+              }
+            ]
+          },
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "antlab-prometheus"
+          },
+          "refId": "A",
+          "expr": "(sum(rate(antlab_engine_http_requests_total{job=\"antlab-engine\",status=~\"5..\"}[5m])) or vector(0)) / sum(rate(antlab_engine_http_requests_total{job=\"antlab-engine\"}[5m]))",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Projection slots in use",
+      "description": "Projections running now, of the slots the engine allows at once. / 지금 실행 중인 투영 수(동시에 허용된 슬롯 중).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "antlab-prometheus"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 5,
+        "x": 14,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 2
+              },
+              {
+                "color": "red",
+                "value": 3
+              }
+            ]
+          },
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "antlab-prometheus"
+          },
+          "refId": "A",
+          "expr": "max(antlab_engine_projection_slots_in_use{job=\"antlab-engine\"})",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Process memory",
+      "description": "Resident memory of the engine process now. / 엔진 프로세스의 현재 상주 메모리.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "antlab-prometheus"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 5,
+        "x": 19,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "antlab-prometheus"
+          },
+          "refId": "A",
+          "expr": "max(process_resident_memory_bytes{job=\"antlab-engine\"})",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Requests per second by route",
+      "description": "Requests per second by route template (never the raw path). / 경로 템플릿별 초당 요청 수.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "antlab-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 4
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "antlab-prometheus"
+          },
+          "refId": "A",
+          "expr": "sum by (route) (rate(antlab_engine_http_requests_total{job=\"antlab-engine\"}[$__rate_interval]))",
+          "legendFormat": "{{route}}",
+          "range": true
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Error ratio over time",
+      "description": "Share of 5xx responses over time. / 시간에 따른 5xx 비율.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "antlab-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 4
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "antlab-prometheus"
+          },
+          "refId": "A",
+          "expr": "(sum(rate(antlab_engine_http_requests_total{job=\"antlab-engine\",status=~\"5..\"}[$__rate_interval])) or vector(0)) / sum(rate(antlab_engine_http_requests_total{job=\"antlab-engine\"}[$__rate_interval]))",
+          "legendFormat": "5xx share",
+          "range": true
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "p95 latency by route",
+      "description": "95th percentile request duration by route template. / 경로 템플릿별 95번째 백분위 처리 시간.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "antlab-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 12
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "antlab-prometheus"
+          },
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (le, route) (rate(antlab_engine_http_request_duration_seconds_bucket{job=\"antlab-engine\"}[$__rate_interval])))",
+          "legendFormat": "{{route}}",
+          "range": true
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "Projection slots",
+      "description": "Projection slots held and the total. / 사용 중인 투영 슬롯과 전체.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "antlab-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 12
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "antlab-prometheus"
+          },
+          "refId": "A",
+          "expr": "max(antlab_engine_projection_slots_in_use{job=\"antlab-engine\"})",
+          "legendFormat": "in use",
+          "range": true
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "antlab-prometheus"
+          },
+          "refId": "B",
+          "expr": "max(antlab_engine_projection_slots_capacity{job=\"antlab-engine\"})",
+          "legendFormat": "capacity",
+          "range": true
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "Regime evaluations per second",
+      "description": "Regime evaluations finished per second. Stays at 0 for now: the engine container has no regime data source wired yet, so evaluations return 503 and are not timed. / 초당 끝난 국면 평가 수. 지금은 0이다. 엔진 컨테이너에 국면 데이터 원천이 아직 연결되지 않아 평가가 503으로 끝나고 시간이 재지지 않는다.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "antlab-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 20
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "antlab-prometheus"
+          },
+          "refId": "A",
+          "expr": "sum(rate(antlab_engine_regime_evaluation_duration_seconds_count{job=\"antlab-engine\"}[$__rate_interval]))",
+          "legendFormat": "evaluations",
+          "range": true
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "Regime evaluation duration",
+      "description": "95th percentile and mean duration of one regime evaluation; Stays empty for now: the engine container has no regime data source wired yet, so evaluations return 503 and are not timed. / 국면 평가 한 번의 처리 시간(p95와 평균). 지금은 비어 있다. 엔진 컨테이너에 국면 데이터 원천이 아직 연결되지 않아 평가가 503으로 끝나고 시간이 재지지 않는다.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "antlab-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 20
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "antlab-prometheus"
+          },
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(antlab_engine_regime_evaluation_duration_seconds_bucket{job=\"antlab-engine\"}[$__rate_interval])))",
+          "legendFormat": "p95",
+          "range": true
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "antlab-prometheus"
+          },
+          "refId": "B",
+          "expr": "sum(rate(antlab_engine_regime_evaluation_duration_seconds_sum{job=\"antlab-engine\"}[$__rate_interval])) / sum(rate(antlab_engine_regime_evaluation_duration_seconds_count{job=\"antlab-engine\"}[$__rate_interval]))",
+          "legendFormat": "mean",
+          "range": true
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 12,
+      "type": "timeseries",
+      "title": "Process CPU",
+      "description": "CPU seconds used per second by the engine process (1 = one core). / 엔진 프로세스의 초당 CPU 사용 시간.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "antlab-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 28
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "antlab-prometheus"
+          },
+          "refId": "A",
+          "expr": "sum(rate(process_cpu_seconds_total{job=\"antlab-engine\"}[$__rate_interval]))",
+          "legendFormat": "cpu",
+          "range": true
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 13,
+      "type": "timeseries",
+      "title": "Process memory over time",
+      "description": "Resident memory of the engine process. / 엔진 프로세스 상주 메모리.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "antlab-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 28
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "antlab-prometheus"
+          },
+          "refId": "A",
+          "expr": "max(process_resident_memory_bytes{job=\"antlab-engine\"})",
+          "legendFormat": "resident",
+          "range": true
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    }
+  ]
+}
