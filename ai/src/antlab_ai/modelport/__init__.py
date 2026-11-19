@@ -12,8 +12,9 @@ from .port import (
     ModelAttempt,
     ModelPort,
     ModelRequest,
+    SubscriptionRefusal,
 )
-from .registry import Registry, build_registry
+from .registry import Registry, SubscriptionWiring, build_registry
 from .settings import ModelPortSettings
 
 __all__ = [
@@ -30,6 +31,8 @@ __all__ = [
     "OllamaAdapter",
     "OpenRouterAdapter",
     "Registry",
+    "SubscriptionRefusal",
+    "SubscriptionWiring",
     "build_registry",
     "scripted_attempt",
 ]
