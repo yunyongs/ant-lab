@@ -38,7 +38,8 @@ class DashboardMetricNamesScrapeTest extends RealPortTest {
         Map<String, Boolean> allowlist = GrafanaDashboards.allowlist();
         GrafanaDashboards.load().forEach((file, dashboard) -> {
             for (String name : GrafanaDashboards.metricNames(dashboard)) {
-                if (!Boolean.TRUE.equals(allowlist.get(name))) {
+                // up is made by Prometheus for every target; the API never exports it (overview, OBS-03).
+                if (!name.equals("up") && !Boolean.TRUE.equals(allowlist.get(name))) {
                     assertThat(scraped).as("%s uses %s", file, name).contains(name);
                 }
             }

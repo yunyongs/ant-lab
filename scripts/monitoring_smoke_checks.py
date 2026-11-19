@@ -22,11 +22,13 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-UIDS = ("antlab-api", "antlab-jvm-db", "antlab-game")
+UIDS = ("antlab-api", "antlab-jvm-db", "antlab-game", "antlab-collectors", "antlab-overview")
 FOLDER_UID = "antlab"
 PG_DATASOURCE_UID = "antlab-postgres"
 APPLICATION = "antlab-api"
-GRAFANA_BUILTINS = {"__rate_interval", "__range", "__interval"}
+GRAFANA_BUILTINS = {"__rate_interval", "__range", "__interval", "__timeFilter", "__timeGroupAlias"}
+PG_DATASOURCE_TYPE = "grafana-postgresql-datasource"
+HOME_UID = "antlab-overview"
 TURNS_PLAYED = 12
 
 # (dashboard uid, panel id): panels whose queries must return a value after one played season
@@ -36,6 +38,12 @@ MUST_HAVE_DATA = (
     ("antlab-jvm-db", 3),   # Heap used by pool
     ("antlab-jvm-db", 10),  # Hikari connections
     ("antlab-game", 6),  # Turn advances by outcome
+    # OBS-03: the smoke season has no collector run, series or daily price row, so only panels that answer anyway are listed.
+    ("antlab-collectors", 1),  # Last run per job: "no run" rows
+    ("antlab-overview", 1),  # API up
+    ("antlab-overview", 4),  # JVM uptime
+    ("antlab-overview", 5),  # Database size (pg_database_size as grafana_reader)
+    ("antlab-overview", 6),  # Collector last runs: "no run" rows
 )
 
 # BEGIN SMOKE QUERIES
@@ -146,9 +154,18 @@ def leftover_variables(expr):
     return sorted(set(n for n in names if n not in GRAFANA_BUILTINS))
 
 
+def is_sql(target):
+    return "rawSql" in target
+
+
 def ds_queries(panel):
     queries = []
     for target in panel.get("targets", []):
+        if is_sql(target):
+            queries.append({"refId": target["refId"], "datasource": target.get("datasource") or panel["datasource"],
+                            "rawSql": target["rawSql"], "format": target.get("format", "table"), "rawQuery": True,
+                            "editorMode": "code", "intervalMs": 15000, "maxDataPoints": 500})
+            continue
         query = {
             "refId": target["refId"],
             "datasource": target.get("datasource") or panel["datasource"],
@@ -162,10 +179,16 @@ def ds_queries(panel):
     return queries
 
 
-def frames_have_value(results, ref_ids):
-    """Every target (refId) of the panel must come back with at least one frame holding a value."""
+def frames_have_value(results, ref_ids, sql_refs=()):
+    """Every target (refId) of the panel must come back with at least one frame holding a value.
+
+    Prometheus frames are [time, value...]; a SQL frame may have one column, so any non-null cell counts."""
     for ref in ref_ids:
         frames = results.get(ref, {}).get("frames", [])
+        if ref in sql_refs:
+            if not any(any(cell is not None for col in frame.get("data", {}).get("values", []) for cell in col) for frame in frames):
+                return False
+            continue
         if not any(len(frame.get("data", {}).get("values", [])) >= 2
                    and any(len(col) > 0 for col in frame["data"]["values"][1:]) for frame in frames):
             return False
@@ -199,6 +222,18 @@ def cmd_postgres_datasource(base):
     values = frames[0]["data"]["values"] if frames else []
     report(status == 200 and not result.get("error") and values[:1] == [["grafana_reader"]], "A9c",
            f"SELECT through {PG_DATASOURCE_UID} runs as grafana_reader (answered {status})")
+
+
+def cmd_home_dashboard(base):
+    """OBS-03: the overview is the Grafana home page (default home dashboard path from the environment).
+
+    Grafana answers either with the dashboard itself or with a redirect to it; both are accepted."""
+    status, home = http(f"{base}/api/dashboards/home", auth=True)
+    home = home if isinstance(home, dict) else {}
+    uid = (home.get("dashboard") or {}).get("uid")
+    redirect = home.get("redirectUri") or ""
+    ok = status == 200 and (uid == HOME_UID or f"/d/{HOME_UID}" in redirect)
+    report(ok, "A10", f"home dashboard uid {uid} redirect {redirect or '-'} keys {sorted(home)} (answered {status}), wanted {HOME_UID}")
 
 
 def cmd_grafana(grafana_url, directory):
@@ -237,7 +272,8 @@ def cmd_grafana(grafana_url, directory):
         deadline = time.monotonic() + 120
         while True:
             ok, results = run_panel(base, panel)
-            has_data = ok and frames_have_value(results, [t["refId"] for t in panel["targets"]])
+            has_data = ok and frames_have_value(results, [t["refId"] for t in panel["targets"]],
+                                                {t["refId"] for t in panel["targets"] if is_sql(t)})
             if has_data:
                 break
             if time.monotonic() >= deadline:
@@ -246,6 +282,7 @@ def cmd_grafana(grafana_url, directory):
         report(has_data, "A7", f"{uid}#{pid} {panel.get('title', '')} has data")
 
     cmd_postgres_datasource(base)
+    cmd_home_dashboard(base)
 
     status, health = http(base + "/api/health")
     report(status == 200 and (health or {}).get("database") == "ok", "A8a", "grafana health database ok")
@@ -261,8 +298,14 @@ def cmd_self_test(directory):
     for uid, dash in repo.items():
         for panel in flatten(dash["panels"]):
             for target in panel.get("targets", []):
-                left = leftover_variables(target["expr"])
+                left = leftover_variables(target["rawSql"] if is_sql(target) else target["expr"])
                 report(not left, "S2", f"{uid}#{panel['id']} {target['refId']} leftover variables {left}")
+    for uid, dash in repo.items():
+        for panel in flatten(dash["panels"]):
+            for target in panel.get("targets", []):
+                ds = target.get("datasource") or {}
+                ok = (ds.get("uid") == PG_DATASOURCE_UID and ds.get("type") == PG_DATASOURCE_TYPE) if is_sql(target) else ds.get("uid") == "antlab-prometheus"
+                report(ok, "S5", f"{uid}#{panel['id']} {target['refId']} uses the data source of its query kind")
     for uid, pid in MUST_HAVE_DATA:
         ids = [p.get("id") for p in flatten(repo.get(uid, {}).get("panels", []))]
         report(pid in ids, "S3", f"{uid}#{pid} exists")

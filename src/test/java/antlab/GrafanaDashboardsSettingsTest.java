@@ -36,11 +36,20 @@ class GrafanaDashboardsSettingsTest {
 
     private static final String CONTAINER_PROVISIONING = "/etc/grafana/provisioning";
     private static final Map<String, String> UIDS = Map.of(
-            "api.json", "antlab-api", "jvm-db.json", "antlab-jvm-db", "game.json", "antlab-game");
+            "api.json", "antlab-api", "jvm-db.json", "antlab-jvm-db", "game.json", "antlab-game",
+            "collectors.json", "antlab-collectors", "overview.json", "antlab-overview");
+    /** Dashboards that read Prometheus only; the PostgreSQL and mixed ones are checked in {@link GrafanaObsDashboardsTest}. */
+    private static final Set<String> PROMETHEUS_ONLY = Set.of("api.json", "jvm-db.json", "game.json");
     private static final Pattern UID_FORMAT = Pattern.compile("^[a-z0-9-]{1,40}$");
-    private static final Set<String> PANEL_TYPES = Set.of("timeseries", "stat", "row");
+    private static final Set<String> PANEL_TYPES = Set.of("timeseries", "stat", "table", "row");
     private static final String APPLICATION_FILTER = "application=~\"$application\"";
     private static final Pattern HANGUL = Pattern.compile("[\\uAC00-\\uD7A3]");
+
+    private static Map<String, JsonNode> prometheusDashboards() throws IOException {
+        Map<String, JsonNode> all = new java.util.TreeMap<>(GrafanaDashboards.load());
+        all.keySet().retainAll(PROMETHEUS_ONLY);
+        return all;
+    }
 
     @SuppressWarnings("unchecked")
     private static String dataSourceUid() throws IOException {
@@ -183,8 +192,9 @@ class GrafanaDashboardsSettingsTest {
                 problems.add("no targets: " + label);
             }
             for (JsonNode target : panel.path("targets")) {
-                if (target.path("expr").asString("").isBlank() || target.path("refId").asString("").isBlank()) {
-                    problems.add("target without expr or refId: " + label);
+                String query = target.has("rawSql") ? target.path("rawSql").asString("") : target.path("expr").asString("");
+                if (query.isBlank() || target.path("refId").asString("").isBlank()) {
+                    problems.add("target without expr, rawSql or refId: " + label);
                 }
             }
             if (panel.path("fieldConfig").path("defaults").path("unit").asString("").isBlank()) {
@@ -243,7 +253,7 @@ class GrafanaDashboardsSettingsTest {
     }
 
     @Test
-    void 대시보드는_정해진_uid_세_개다() throws IOException {
+    void 대시보드는_정해진_uid_다섯_개다() throws IOException {
         Map<String, JsonNode> dashboards = GrafanaDashboards.load();
         assertThat(dashboards.keySet()).containsExactlyInAnyOrderElementsOf(UIDS.keySet());
         dashboards.forEach((file, d) -> assertThat(d.path("uid").asString()).as(file).isEqualTo(UIDS.get(file)));
@@ -259,12 +269,12 @@ class GrafanaDashboardsSettingsTest {
     void 모든_패널과_쿼리는_antlab_prometheus_데이터_원천을_쓴다() throws IOException {
         String uid = dataSourceUid();
         assertThat(uid).isEqualTo("antlab-prometheus");
-        GrafanaDashboards.load().forEach((file, d) -> assertThat(dataSourceProblems(d, uid)).as(file).isEmpty());
+        prometheusDashboards().forEach((file, d) -> assertThat(dataSourceProblems(d, uid)).as(file).isEmpty());
     }
 
     @Test
     void application_변수가_있고_모든_선택자가_그것으로_거른다() throws IOException {
-        GrafanaDashboards.load().forEach((file, d) -> {
+        prometheusDashboards().forEach((file, d) -> {
             assertThat(variableProblems(d)).as(file).isEmpty();
             assertThat(queryProblems(d)).as(file).isEmpty();
             assertThat(expressions(d)).as(file).isNotEmpty().allSatisfy(e -> assertThat(e).contains(APPLICATION_FILTER));
@@ -274,7 +284,9 @@ class GrafanaDashboardsSettingsTest {
     @Test
     void 쿼리의_지표_이름은_모두_실제_scrape에_있다() throws IOException {
         Set<String> allowed = allowlist().keySet();
-        GrafanaDashboards.load().forEach((file, d) -> assertThat(unknownNames(d, allowed)).as(file).isEmpty());
+        Set<String> withUp = new java.util.HashSet<>(allowed);
+        withUp.add("up");
+        GrafanaDashboards.load().forEach((file, d) -> assertThat(unknownNames(d, "overview.json".equals(file) ? withUp : allowed)).as(file).isEmpty());
     }
 
     @Test

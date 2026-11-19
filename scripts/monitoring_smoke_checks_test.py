@@ -84,5 +84,67 @@ class PostgresDataSource(unittest.TestCase):
         datasource.assert_called_once_with("http://grafana")
 
 
+class SqlPanels(unittest.TestCase):
+    """OBS-03: SQL targets in the panel runner, the data check and the home dashboard check."""
+
+    def setUp(self):
+        checks.failed = False
+
+    def test_sql_target_is_sent_as_raw_sql_with_its_format(self):
+        panel = {"datasource": {"type": "grafana-postgresql-datasource", "uid": UID},
+                 "targets": [{"refId": "A", "rawSql": "SELECT 1 AS one", "format": "table"}]}
+        query = checks.ds_queries(panel)[0]
+        self.assertEqual((query["rawSql"], query["format"], query["datasource"]["uid"]), ("SELECT 1 AS one", "table", UID))
+        self.assertNotIn("expr", query)
+
+    def test_single_column_sql_frame_counts_as_data(self):
+        results = {"A": {"frames": [{"data": {"values": [[1234]]}}]}}
+        self.assertTrue(checks.frames_have_value(results, ["A"], {"A"}))
+        self.assertFalse(checks.frames_have_value(results, ["A"]))
+
+    def test_all_null_or_empty_sql_frame_is_no_data(self):
+        self.assertFalse(checks.frames_have_value({"A": {"frames": [{"data": {"values": [[None]]}}]}}, ["A"], {"A"}))
+        self.assertFalse(checks.frames_have_value({"A": {"frames": [{"data": {"values": [[]]}}]}}, ["A"], {"A"}))
+        self.assertFalse(checks.frames_have_value({}, ["A"], {"A"}))
+
+    def test_macros_are_not_leftover_variables(self):
+        sql = "SELECT $__timeGroupAlias(started_at, '1d'), 1 FROM obs.job_run WHERE $__timeFilter(started_at)"
+        self.assertEqual(checks.leftover_variables(sql), [])
+        self.assertEqual(checks.leftover_variables("SELECT $unknown"), ["unknown"])
+
+    def home_check(self, status, uid):
+        out = io.StringIO()
+        with mock.patch.object(checks, "http", lambda *a, **k: (status, {"dashboard": {"uid": uid}})), contextlib.redirect_stdout(out):
+            checks.cmd_home_dashboard("http://grafana")
+        return out.getvalue()
+
+    def test_home_dashboard_must_be_the_overview(self):
+        self.assertIn("PASS A10", self.home_check(200, "antlab-overview"))
+        self.assertFalse(checks.failed)
+        self.assertIn("FAIL A10", self.home_check(200, "antlab-api"))
+        self.assertTrue(checks.failed)
+        checks.failed = False
+        self.assertIn("FAIL A10", self.home_check(404, None))
+        self.assertTrue(checks.failed)
+
+    def test_home_dashboard_redirect_to_the_overview_passes(self):
+        out = io.StringIO()
+        with mock.patch.object(checks, "http", lambda *a, **k: (200, {"redirectUri": "/d/antlab-overview/ant-lab-overview"})), contextlib.redirect_stdout(out):
+            checks.cmd_home_dashboard("http://grafana")
+        self.assertIn("PASS A10", out.getvalue())
+        out = io.StringIO()
+        with mock.patch.object(checks, "http", lambda *a, **k: (200, {"redirectUri": "/d/antlab-api/x"})), contextlib.redirect_stdout(out):
+            checks.cmd_home_dashboard("http://grafana")
+        self.assertIn("FAIL A10", out.getvalue())
+
+    def test_every_must_have_panel_exists_in_the_repo_dashboards(self):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            checks.cmd_self_test("monitoring/grafana/provisioning/dashboards/antlab")
+        self.assertFalse(checks.failed, out.getvalue())
+        self.assertIn("PASS S3 antlab-overview#5 exists", out.getvalue())
+        self.assertIn("PASS S5 antlab-collectors#1 A", out.getvalue())
+
+
 if __name__ == "__main__":
     unittest.main()

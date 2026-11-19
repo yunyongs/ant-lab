@@ -73,10 +73,25 @@ public final class GrafanaDashboards {
         List<String> exprs = new ArrayList<>();
         for (JsonNode panel : panels(dashboard)) {
             for (JsonNode target : panel.path("targets")) {
-                exprs.add(target.path("expr").asString(""));
+                if (target.has("expr")) {
+                    exprs.add(target.path("expr").asString(""));
+                }
             }
         }
         return exprs;
+    }
+
+    /** The {@code rawSql} of every PostgreSQL target (OBS-03), in order of appearance. */
+    public static List<String> sqlStatements(JsonNode dashboard) {
+        List<String> sql = new ArrayList<>();
+        for (JsonNode panel : panels(dashboard)) {
+            for (JsonNode target : panel.path("targets")) {
+                if (target.has("rawSql")) {
+                    sql.add(target.path("rawSql").asString(""));
+                }
+            }
+        }
+        return sql;
     }
 
     public static String variableQuery(JsonNode variable) {

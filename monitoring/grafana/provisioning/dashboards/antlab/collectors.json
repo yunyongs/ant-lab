@@ -1,0 +1,516 @@
+{
+  "uid": "antlab-collectors",
+  "title": "ant-lab · Collectors",
+  "tags": [
+    "antlab"
+  ],
+  "editable": false,
+  "graphTooltip": 1,
+  "timezone": "Asia/Seoul",
+  "schemaVersion": 42,
+  "time": {
+    "from": "now-30d",
+    "to": "now"
+  },
+  "refresh": "1m",
+  "templating": {
+    "list": []
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "table",
+      "title": "Last run per job",
+      "description": "Newest run of each collector job, its age, the age of the last SUCCEEDED run, requests sent, failed targets and error code. A job that never ran shows 'no run'. / 수집 잡별 가장 최근 실행, 경과 시간, 마지막 SUCCEEDED 실행의 경과 시간, 보낸 요청 수, 실패 대상 수, 오류 코드. 한 번도 돌지 않은 잡은 'no run'으로 보인다.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "antlab-postgres"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "status"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "SUCCEEDED": {
+                        "color": "green",
+                        "index": 0
+                      },
+                      "PARTIAL": {
+                        "color": "orange",
+                        "index": 1
+                      },
+                      "FAILED": {
+                        "color": "red",
+                        "index": 2
+                      },
+                      "RUNNING": {
+                        "color": "blue",
+                        "index": 3
+                      },
+                      "no run": {
+                        "color": "text",
+                        "index": 4
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "age"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "last success age"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "antlab-postgres"
+          },
+          "refId": "A",
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "WITH jobs(job_name) AS (VALUES ('KIS_DAILY_PRICE'), ('FRED_SERIES'), ('ECOS_SERIES')), last AS (SELECT DISTINCT ON (job_name) job_name, status, started_at, request_count, failed_target_count, error_code FROM obs.job_run ORDER BY job_name, started_at DESC, id DESC), ok AS (SELECT job_name, max(finished_at) AS finished_at FROM obs.job_run WHERE status = 'SUCCEEDED' GROUP BY job_name) SELECT j.job_name AS \"job\", COALESCE(l.status, 'no run') AS \"status\", l.started_at AS \"started\", date_part('epoch', now() - l.started_at) AS \"age\", date_part('epoch', now() - o.finished_at) AS \"last success age\", l.request_count AS \"requests\", l.failed_target_count AS \"failed targets\", l.error_code AS \"error code\" FROM jobs j LEFT JOIN last l ON l.job_name = j.job_name LEFT JOIN ok o ON o.job_name = j.job_name ORDER BY j.job_name"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      }
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Runs by status over time",
+      "description": "Collector runs per Asia/Seoul calendar day by job and status. / 잡·상태별 서울 달력일 기준 일별 수집 실행 수.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "antlab-postgres"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 6
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 1,
+            "fillOpacity": 60,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            }
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "antlab-postgres"
+          },
+          "refId": "A",
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "time_series",
+          "rawSql": "SELECT date_trunc('day', started_at AT TIME ZONE 'Asia/Seoul') AT TIME ZONE 'Asia/Seoul' AS time, job_name || ' ' || status AS metric, count(*) AS runs FROM obs.job_run WHERE $__timeFilter(started_at) GROUP BY 1, 2 ORDER BY 1"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Requests per run against the cap",
+      "description": "Requests sent by each finished run, with the per-run cap of the job as a dashed line. The caps are max-requests-per-run in application.yml (a test keeps them equal). / 끝난 실행별 보낸 요청 수와 잡별 실행당 상한(점선). 상한은 application.yml의 max-requests-per-run이며 테스트가 같은 값인지 확인한다.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "antlab-postgres"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 6
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "auto",
+            "spanNulls": false
+          },
+          "min": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".* cap$"
+            },
+            "properties": [
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "fill": "dash",
+                  "dash": [
+                    10,
+                    10
+                  ]
+                }
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 0
+              }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "antlab-postgres"
+          },
+          "refId": "A",
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "time_series",
+          "rawSql": "SELECT r.started_at AS time, r.job_name AS metric, r.request_count AS requests FROM obs.job_run r WHERE $__timeFilter(r.started_at) AND r.request_count IS NOT NULL ORDER BY 1"
+        },
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "antlab-postgres"
+          },
+          "refId": "B",
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "time_series",
+          "rawSql": "SELECT r.started_at AS time, r.job_name || ' cap' AS metric, c.cap AS requests FROM obs.job_run r JOIN (VALUES ('KIS_DAILY_PRICE', 60), ('FRED_SERIES', 30), ('ECOS_SERIES', 20)) AS c(job_name, cap) ON c.job_name = r.job_name WHERE $__timeFilter(r.started_at) AND r.request_count IS NOT NULL ORDER BY 1"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Inserted, revised and unchanged rows",
+      "description": "Rows per finished run by job: inserted (revised rows are part of inserted), revised and unchanged. / 끝난 실행별 추가·정정·변동 없음 행 수(정정은 추가에 포함된다).",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "antlab-postgres"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 14
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "auto",
+            "spanNulls": false
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "antlab-postgres"
+          },
+          "refId": "A",
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "time_series",
+          "rawSql": "SELECT r.started_at AS time, r.job_name || ' ' || v.kind AS metric, v.n AS rows FROM obs.job_run r CROSS JOIN LATERAL (VALUES ('inserted', r.inserted_count), ('revised', r.revised_count), ('unchanged', r.unchanged_count)) AS v(kind, n) WHERE $__timeFilter(r.started_at) AND r.status <> 'RUNNING' ORDER BY 1"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 5,
+      "type": "table",
+      "title": "Failed targets and error codes",
+      "description": "Runs in the time range with a failed target or an error code, newest first (50 at most). / 기간 안에서 실패 대상이나 오류 코드가 있는 실행(최신순, 최대 50건).",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "antlab-postgres"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 14
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "status"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "SUCCEEDED": {
+                        "color": "green",
+                        "index": 0
+                      },
+                      "PARTIAL": {
+                        "color": "orange",
+                        "index": 1
+                      },
+                      "FAILED": {
+                        "color": "red",
+                        "index": 2
+                      },
+                      "RUNNING": {
+                        "color": "blue",
+                        "index": 3
+                      },
+                      "no run": {
+                        "color": "text",
+                        "index": 4
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "antlab-postgres"
+          },
+          "refId": "A",
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "SELECT started_at AS \"started\", job_name AS \"job\", status AS \"status\", failed_target_count AS \"failed targets\", error_code AS \"error code\" FROM obs.job_run WHERE $__timeFilter(started_at) AND (failed_target_count > 0 OR error_code IS NOT NULL) ORDER BY started_at DESC LIMIT 50"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      }
+    },
+    {
+      "id": 6,
+      "type": "table",
+      "title": "Newest observation per series",
+      "description": "Newest reference date of every macro series, its age in days, the number of distinct dates and when it was last collected. A series with no observation shows no date. / 매크로 시계열별 가장 최근 기준일, 경과 일수, 기준일 수, 마지막 수집 시각. 관측이 없는 시계열은 날짜가 비어 있다.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "antlab-postgres"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 22
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "age"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "d"
+              }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "antlab-postgres"
+          },
+          "refId": "A",
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "SELECT source AS \"source\", series_key AS \"series\", frequency AS \"frequency\", last_observation_date AS \"newest date\", CURRENT_DATE - last_observation_date AS \"age\", observation_count AS \"dates\", last_collected_at AS \"collected\" FROM obs.series_freshness ORDER BY last_observation_date NULLS FIRST, source, series_key"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      }
+    },
+    {
+      "id": 7,
+      "type": "table",
+      "title": "Newest daily price per market",
+      "description": "Newest trade date of the daily prices per market and source, its age in days and the number of assets with a price. / 시장·출처별 일봉 가격의 가장 최근 거래일, 경과 일수, 가격이 있는 종목 수.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "antlab-postgres"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 22
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "age"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "d"
+              }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "antlab-postgres"
+          },
+          "refId": "A",
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "SELECT market AS \"market\", source AS \"source\", last_price_date AS \"newest date\", CURRENT_DATE - last_price_date AS \"age\", asset_count AS \"assets\" FROM obs.price_freshness ORDER BY market, source"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      }
+    }
+  ]
+}

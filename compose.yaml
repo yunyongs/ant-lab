@@ -188,6 +188,9 @@ services:
       GF_USERS_ALLOW_SIGN_UP: "false"
       GF_ANALYTICS_REPORTING_ENABLED: "false"
       GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      # OBS-03: the overview dashboard is the home page. A home-dashboard file path would import a second, editable copy
+      # (uid default-home-dashboard); the route keeps the provisioned, read-only dashboard.
+      GF_USERS_HOME_PAGE: /d/antlab-overview
       # OBS-02: password of the PostgreSQL data source user grafana_reader; empty locally (trust), never in the provisioning file.
       GRAFANA_READER_PASSWORD: ${GRAFANA_READER_PASSWORD:-}
     ports:
