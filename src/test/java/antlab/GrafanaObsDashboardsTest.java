@@ -284,17 +284,18 @@ class GrafanaObsDashboardsTest {
     // ---- positive tests -------------------------------------------------------------------------------------------
 
     @Test
-    void 수집기_대시보드는_PostgreSQL만_쓰고_모든_패널이_정해진_모양이다() throws IOException {
+    void 수집기_대시보드는_PostgreSQL_패널과_장부_내보내기_패널로_정해진_모양이다() throws IOException {
         JsonNode d = collectors();
         assertThat(d.path("uid").asString()).isEqualTo("antlab-collectors");
-        assertThat(sourceProblems(d, false)).isEmpty();
-        assertThat(panels(d)).hasSize(7);
+        assertThat(sourceProblems(d, true)).isEmpty();
+        assertThat(panels(d)).hasSize(9);
         assertThat(sqlStatements(d)).hasSize(8);
-        assertThat(expressions(d)).isEmpty();
+        // The two Prometheus targets of the fetch panels (OBS-08) are checked in GrafanaLedgerDashboardTest.
+        assertThat(expressions(d)).hasSize(3);
         assertThat(panels(d).stream().map(p -> p.path("title").asString()).toList()).containsExactly(
                 "Last run per job", "Runs by status over time", "Requests per run against the cap",
                 "Inserted, revised and unchanged rows", "Failed targets and error codes", "Newest observation per series",
-                "Newest daily price per market");
+                "Newest daily price per market", "Fetch requests today against the daily cap", "Fetch ledger readable");
     }
 
     @Test

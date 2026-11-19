@@ -1,0 +1,676 @@
+{
+  "uid": "antlab-ai-usage",
+  "title": "ant-lab · AI usage",
+  "tags": [
+    "antlab"
+  ],
+  "editable": false,
+  "graphTooltip": 1,
+  "timezone": "Asia/Seoul",
+  "schemaVersion": 42,
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "refresh": "1m",
+  "templating": {
+    "list": []
+  },
+  "links": [
+    {
+      "type": "link",
+      "title": "Overview",
+      "url": "/d/antlab-overview",
+      "icon": "dashboard",
+      "targetBlank": false
+    }
+  ],
+  "panels": [
+    {
+      "id": 1,
+      "type": "table",
+      "title": "Ledgers readable",
+      "description": "One row per ledger: 1 when the exporter could read the file, 0 when the path is unset, the file is missing, unreadable or malformed. A 0 hides that ledger's other numbers instead of showing zero. / 장부마다 한 행. 내보내기가 파일을 읽었으면 1, 경로가 비었거나 파일이 없거나 읽을 수 없거나 형식이 깨졌으면 0. 0이면 그 장부의 다른 숫자는 0이 아니라 아예 나오지 않는다.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "antlab-prometheus"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 0,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Value"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "0": {
+                        "text": "UNREADABLE",
+                        "color": "red",
+                        "index": 0
+                      },
+                      "1": {
+                        "text": "READABLE",
+                        "color": "green",
+                        "index": 1
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "antlab-prometheus"
+          },
+          "refId": "A",
+          "expr": "antlab_ledger_readable{job=\"antlab-ledgers\"}",
+          "instant": true,
+          "format": "table"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "OpenRouter attempts today",
+      "description": "Attempts in the OpenRouter ledger since 00:00 UTC (the limiter's day), all callers. / OpenRouter 장부에서 UTC 0시 이후(제한기가 쓰는 날짜) 모든 호출자의 시도 수.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "antlab-prometheus"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 6,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "noValue": "no data"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "antlab-prometheus"
+          },
+          "refId": "A",
+          "expr": "sum(antlab_openrouter_attempts_today{job=\"antlab-ledgers\"}) or sum(antlab_ledger_readable{job=\"antlab-ledgers\",ledger=\"openrouter\"} == 1) * 0",
+          "instant": true
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "OpenRouter cost today",
+      "description": "Cost of today's finished OpenRouter calls in USD as the ledger records it (free models cost 0). / 오늘 끝난 OpenRouter 호출의 비용(USD, 장부 기록 기준. 무료 모델은 0).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "antlab-prometheus"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 12,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "noValue": "no data"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "antlab-prometheus"
+          },
+          "refId": "A",
+          "expr": "antlab_openrouter_cost_usd_today{job=\"antlab-ledgers\"}",
+          "instant": true
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Ollama Cloud spend today",
+      "description": "Ollama Cloud spend since 00:00 Asia/Seoul in USD; the stop line is 18 USD in total. / 서울 0시 이후 Ollama Cloud 지출(USD). 정지선은 누적 18 USD.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "antlab-prometheus"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 18,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "noValue": "no data"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "antlab-prometheus"
+          },
+          "refId": "A",
+          "expr": "antlab_ollama_spend_usd{job=\"antlab-ledgers\",window=\"today\"}",
+          "instant": true
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Attempts today by caller class against the caps",
+      "description": "OpenRouter attempts today by caller class (product, harness) with the daily caps as dashed lines; the account cap counts both classes. Day = UTC, as in the limiter. / 오늘 OpenRouter 시도 수를 호출자 분류(product, harness)별로 보이고 일일 상한을 점선으로 그린다. 계정 상한은 두 분류를 합한 값이다. 날짜는 제한기와 같은 UTC.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "antlab-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 5
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "auto",
+            "spanNulls": false
+          },
+          "min": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".* cap$"
+            },
+            "properties": [
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "fill": "dash",
+                  "dash": [
+                    10,
+                    10
+                  ]
+                }
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 0
+              }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "antlab-prometheus"
+          },
+          "refId": "A",
+          "expr": "sum by (caller_class) (antlab_openrouter_attempts_today{job=\"antlab-ledgers\"})",
+          "legendFormat": "{{caller_class}}"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "antlab-prometheus"
+          },
+          "refId": "B",
+          "expr": "antlab_openrouter_cap{job=\"antlab-ledgers\",name=~\"product_daily|harness_daily|account_daily\"}",
+          "legendFormat": "{{name}} cap"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Attempts today by model",
+      "description": "OpenRouter attempts today by model id. Ids that do not look like a model id, and models beyond the busiest 20, are shown as OTHER. / 오늘 OpenRouter 시도 수를 모델 id별로 보인다. 모델 id 모양이 아닌 값과 가장 많이 쓴 20개 밖의 모델은 OTHER로 묶는다.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "antlab-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 5
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "auto",
+            "spanNulls": false
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "antlab-prometheus"
+          },
+          "refId": "A",
+          "expr": "sum by (model) (antlab_openrouter_attempts_today{job=\"antlab-ledgers\"})",
+          "legendFormat": "{{model}}"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Attempts in the last minute against the cap",
+      "description": "OpenRouter attempts in the last 60 seconds with the per-minute cap as a dashed line. / 최근 60초의 OpenRouter 시도 수와 분당 상한(점선).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "antlab-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 13
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "auto",
+            "spanNulls": false
+          },
+          "min": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".* cap$"
+            },
+            "properties": [
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "fill": "dash",
+                  "dash": [
+                    10,
+                    10
+                  ]
+                }
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 0
+              }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "antlab-prometheus"
+          },
+          "refId": "A",
+          "expr": "antlab_openrouter_attempts_last_minute{job=\"antlab-ledgers\"}",
+          "legendFormat": "last minute"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "antlab-prometheus"
+          },
+          "refId": "B",
+          "expr": "antlab_openrouter_cap{job=\"antlab-ledgers\",name=\"minute\"}",
+          "legendFormat": "minute cap"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Outcomes today by status",
+      "description": "Finished OpenRouter calls today by status (OK, UPSTREAM, TIMEOUT, LIMITED, POLICY_REFUSED, ERROR, OTHER). / 오늘 끝난 OpenRouter 호출의 상태별 수.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "antlab-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 13
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "auto",
+            "spanNulls": false
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "antlab-prometheus"
+          },
+          "refId": "A",
+          "expr": "antlab_openrouter_outcomes_today{job=\"antlab-ledgers\"}",
+          "legendFormat": "{{status}}"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "Tokens today",
+      "description": "Tokens of today's finished OpenRouter calls, input and output. / 오늘 끝난 OpenRouter 호출의 입력·출력 토큰 수.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "antlab-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 21
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "auto",
+            "spanNulls": false
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "antlab-prometheus"
+          },
+          "refId": "A",
+          "expr": "antlab_openrouter_tokens_today{job=\"antlab-ledgers\"}",
+          "legendFormat": "{{direction}}"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "Ollama Cloud spend against the stop",
+      "description": "Ollama Cloud spend in USD: total and today, with the stop line (18 USD) as a dashed line. The ledger is written outside this repository and its timestamps are read as Asia/Seoul. / Ollama Cloud 지출(USD): 누적과 오늘, 정지선(18 USD)은 점선. 장부는 이 저장소 밖에서 기록되며 시각은 서울 시간으로 읽는다.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "antlab-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 21
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "auto",
+            "spanNulls": false
+          },
+          "min": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".* cap$"
+            },
+            "properties": [
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "fill": "dash",
+                  "dash": [
+                    10,
+                    10
+                  ]
+                }
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 0
+              }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "antlab-prometheus"
+          },
+          "refId": "A",
+          "expr": "antlab_ollama_spend_usd{job=\"antlab-ledgers\"}",
+          "legendFormat": "{{window}}"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "antlab-prometheus"
+          },
+          "refId": "B",
+          "expr": "antlab_ollama_stop_usd{job=\"antlab-ledgers\"}",
+          "legendFormat": "stop cap"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    }
+  ]
+}

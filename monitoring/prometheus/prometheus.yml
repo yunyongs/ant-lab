@@ -19,3 +19,8 @@ scrape_configs:
   - job_name: antlab-engine
     static_configs:
       - targets: ["engine:8001"]
+
+  # OBS-08: numbers from the host ledgers (OpenRouter, Ollama Cloud, fetch tool). `up` is 1 whenever the exporter answers; antlab_ledger_readable says whether each file could be read.
+  - job_name: antlab-ledgers
+    static_configs:
+      - targets: ["ledger-exporter:9190"]

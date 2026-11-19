@@ -40,12 +40,17 @@ class DashboardMetricNamesScrapeTest extends RealPortTest {
     void 대시보드_지표는_살아있는_scrape에_있다() throws IOException {
         Set<String> scraped = scrapedNames();
         Map<String, Boolean> allowlist = GrafanaDashboards.allowlist();
+        // Names of the ledger exporter (OBS-08): ai-usage.json and the ledger panels of collectors.json; API names there stay checked.
+        Set<String> ledgerNames = GrafanaDashboards.allowlist(java.nio.file.Path.of("src/test/resources/monitoring/metric-names-ledger.txt")).keySet();
         GrafanaDashboards.load().forEach((file, dashboard) -> {
             if (file.equals("db.json") || file.equals("engine.json")) {
                 return; // exporter and engine metrics (OBS-06, OBS-05): the live smoke proves them
             }
             for (String name : GrafanaDashboards.metricNames(dashboard)) {
                 // up is made by Prometheus for every target; the API never exports it (overview, OBS-03).
+                if (ledgerNames.contains(name)) {
+                    continue;
+                }
                 if (!name.equals("up") && !Boolean.TRUE.equals(allowlist.get(name))) {
                     assertThat(scraped).as("%s uses %s", file, name).contains(name);
                 }

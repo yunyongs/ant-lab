@@ -1,0 +1,5 @@
+# Build context allowlist, used only with Dockerfile.ledger-exporter (per-Dockerfile ignore file): nothing else of ai/ is sent to the daemon.
+*
+!src/antlab_ai/__init__.py
+!src/antlab_ai/ledger_exporter/
+**/__pycache__
