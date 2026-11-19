@@ -1,0 +1,1413 @@
+[
+ {
+  "name": "ok",
+  "exit": 0,
+  "events": [
+   {
+    "type": "thread.started",
+    "model": "gpt-x"
+   },
+   {
+    "type": "turn.started"
+   },
+   {
+    "type": "item.completed",
+    "item": {
+     "id": "i",
+     "type": "agent_message"
+    }
+   },
+   {
+    "type": "turn.completed",
+    "usage": {
+     "input_tokens": 200,
+     "cached_input_tokens": 5,
+     "output_tokens": 30
+    }
+   }
+  ],
+  "raw": null,
+  "stderr": "",
+  "last_message": "reply",
+  "expect": {
+   "status": "OK",
+   "text": "reply",
+   "tokens_in": 200,
+   "tokens_out": 30,
+   "model_actual": "gpt-x"
+  }
+ },
+ {
+  "name": "ok_without_model",
+  "exit": 0,
+  "events": [
+   {
+    "type": "thread.started"
+   },
+   {
+    "type": "turn.started"
+   },
+   {
+    "type": "item.completed",
+    "item": {
+     "id": "i",
+     "type": "agent_message"
+    }
+   },
+   {
+    "type": "turn.completed",
+    "usage": {
+     "input_tokens": 200,
+     "cached_input_tokens": 5,
+     "output_tokens": 30
+    }
+   }
+  ],
+  "raw": null,
+  "stderr": "",
+  "last_message": "reply",
+  "expect": {
+   "status": "OK",
+   "model_actual": null
+  }
+ },
+ {
+  "name": "ok_with_reasoning_item",
+  "exit": 0,
+  "events": [
+   {
+    "type": "thread.started",
+    "model": "gpt-x"
+   },
+   {
+    "type": "item.completed",
+    "item": {
+     "id": "i",
+     "type": "reasoning"
+    }
+   },
+   {
+    "type": "item.completed",
+    "item": {
+     "id": "i",
+     "type": "agent_message"
+    }
+   },
+   {
+    "type": "turn.completed",
+    "usage": {
+     "input_tokens": 200,
+     "cached_input_tokens": 5,
+     "output_tokens": 30
+    }
+   }
+  ],
+  "raw": null,
+  "stderr": "",
+  "last_message": "reply",
+  "expect": {
+   "status": "OK"
+  }
+ },
+ {
+  "name": "ok_reconnect_error_then_completed",
+  "exit": 0,
+  "events": [
+   {
+    "type": "thread.started",
+    "model": "gpt-x"
+   },
+   {
+    "type": "error",
+    "message": "Reconnecting... 1/5"
+   },
+   {
+    "type": "item.completed",
+    "item": {
+     "id": "i",
+     "type": "agent_message"
+    }
+   },
+   {
+    "type": "turn.completed",
+    "usage": {
+     "input_tokens": 200,
+     "cached_input_tokens": 5,
+     "output_tokens": 30
+    }
+   }
+  ],
+  "raw": null,
+  "stderr": "",
+  "last_message": "reply",
+  "expect": {
+   "status": "OK"
+  }
+ },
+ {
+  "name": "ok_plain_text_refusal_is_left_to_the_runner",
+  "exit": 0,
+  "events": [
+   {
+    "type": "thread.started",
+    "model": "gpt-x"
+   },
+   {
+    "type": "item.completed",
+    "item": {
+     "id": "i",
+     "type": "agent_message"
+    }
+   },
+   {
+    "type": "turn.completed",
+    "usage": {
+     "input_tokens": 200,
+     "cached_input_tokens": 5,
+     "output_tokens": 30
+    }
+   }
+  ],
+  "raw": null,
+  "stderr": "",
+  "last_message": "I can't help with that.",
+  "expect": {
+   "status": "OK",
+   "text": "I can't help with that."
+  }
+ },
+ {
+  "name": "ok_last_message_kept_byte_for_byte",
+  "exit": 0,
+  "events": [
+   {
+    "type": "thread.started",
+    "model": "gpt-x"
+   },
+   {
+    "type": "item.completed",
+    "item": {
+     "id": "i",
+     "type": "agent_message"
+    }
+   },
+   {
+    "type": "turn.completed",
+    "usage": {
+     "input_tokens": 200,
+     "cached_input_tokens": 5,
+     "output_tokens": 30
+    }
+   }
+  ],
+  "raw": null,
+  "stderr": "",
+  "last_message": "  \n{\"a\": 1}\n\n",
+  "expect": {
+   "status": "OK",
+   "text": "  \n{\"a\": 1}\n\n"
+  }
+ },
+ {
+  "name": "tool_command",
+  "exit": 0,
+  "events": [
+   {
+    "type": "thread.started",
+    "model": "gpt-x"
+   },
+   {
+    "type": "item.completed",
+    "item": {
+     "id": "i",
+     "type": "agent_message"
+    }
+   },
+   {
+    "type": "item.completed",
+    "item": {
+     "id": "i",
+     "type": "command_execution"
+    }
+   },
+   {
+    "type": "turn.completed",
+    "usage": {
+     "input_tokens": 200,
+     "cached_input_tokens": 5,
+     "output_tokens": 30
+    }
+   }
+  ],
+  "raw": null,
+  "stderr": "",
+  "last_message": "reply",
+  "expect": {
+   "status": "ERROR",
+   "pattern_id": "tool_item",
+   "text": null
+  }
+ },
+ {
+  "name": "tool_file_change",
+  "exit": 0,
+  "events": [
+   {
+    "type": "thread.started",
+    "model": "gpt-x"
+   },
+   {
+    "type": "item.completed",
+    "item": {
+     "id": "i",
+     "type": "file_change"
+    }
+   },
+   {
+    "type": "turn.completed",
+    "usage": {
+     "input_tokens": 200,
+     "cached_input_tokens": 5,
+     "output_tokens": 30
+    }
+   }
+  ],
+  "raw": null,
+  "stderr": "",
+  "last_message": "reply",
+  "expect": {
+   "status": "ERROR",
+   "pattern_id": "tool_item"
+  }
+ },
+ {
+  "name": "tool_mcp_call",
+  "exit": 0,
+  "events": [
+   {
+    "type": "thread.started",
+    "model": "gpt-x"
+   },
+   {
+    "type": "item.completed",
+    "item": {
+     "id": "i",
+     "type": "mcp_tool_call"
+    }
+   },
+   {
+    "type": "turn.completed",
+    "usage": {
+     "input_tokens": 200,
+     "cached_input_tokens": 5,
+     "output_tokens": 30
+    }
+   }
+  ],
+  "raw": null,
+  "stderr": "",
+  "last_message": "reply",
+  "expect": {
+   "status": "ERROR",
+   "pattern_id": "tool_item"
+  }
+ },
+ {
+  "name": "tool_web_search",
+  "exit": 0,
+  "events": [
+   {
+    "type": "thread.started",
+    "model": "gpt-x"
+   },
+   {
+    "type": "item.completed",
+    "item": {
+     "id": "i",
+     "type": "web_search"
+    }
+   },
+   {
+    "type": "turn.completed",
+    "usage": {
+     "input_tokens": 200,
+     "cached_input_tokens": 5,
+     "output_tokens": 30
+    }
+   }
+  ],
+  "raw": null,
+  "stderr": "",
+  "last_message": "reply",
+  "expect": {
+   "status": "ERROR",
+   "pattern_id": "tool_item"
+  }
+ },
+ {
+  "name": "tool_item_even_on_failure_exit",
+  "exit": 1,
+  "events": [
+   {
+    "type": "thread.started",
+    "model": "gpt-x"
+   },
+   {
+    "type": "item.completed",
+    "item": {
+     "id": "i",
+     "type": "command_execution"
+    }
+   },
+   {
+    "type": "turn.failed",
+    "error": {
+     "message": "usage limit"
+    }
+   }
+  ],
+  "raw": null,
+  "stderr": "",
+  "last_message": "reply",
+  "expect": {
+   "status": "ERROR",
+   "pattern_id": "tool_item"
+  }
+ },
+ {
+  "name": "limit_turn_failed",
+  "exit": 1,
+  "events": [
+   {
+    "type": "thread.started",
+    "model": "gpt-x"
+   },
+   {
+    "type": "turn.failed",
+    "error": {
+     "message": "You've hit your usage limit. Try again at 3:00 PM."
+    }
+   }
+  ],
+  "raw": null,
+  "stderr": "",
+  "last_message": null,
+  "expect": {
+   "status": "LIMITED",
+   "retry_after_s": null,
+   "pattern_id": "limit_usage"
+  }
+ },
+ {
+  "name": "limit_in_stderr",
+  "exit": 1,
+  "events": null,
+  "raw": "",
+  "stderr": "ERROR: rate limit exceeded",
+  "last_message": null,
+  "expect": {
+   "status": "LIMITED",
+   "pattern_id": "limit_usage"
+  }
+ },
+ {
+  "name": "limit_with_short_wait",
+  "exit": 1,
+  "events": [
+   {
+    "type": "thread.started",
+    "model": "gpt-x"
+   },
+   {
+    "type": "turn.failed",
+    "error": {
+     "message": "rate limit, try again in 20s"
+    }
+   }
+  ],
+  "raw": null,
+  "stderr": "",
+  "last_message": null,
+  "expect": {
+   "status": "LIMITED",
+   "retry_after_s": 20
+  }
+ },
+ {
+  "name": "limit_message_limit",
+  "exit": 1,
+  "events": [
+   {
+    "type": "thread.started",
+    "model": "gpt-x"
+   },
+   {
+    "type": "turn.failed",
+    "error": {
+     "message": "You have reached your message limit"
+    }
+   }
+  ],
+  "raw": null,
+  "stderr": "",
+  "last_message": null,
+  "expect": {
+   "status": "LIMITED",
+   "pattern_id": "limit_usage"
+  }
+ },
+ {
+  "name": "limit_rate_limit_wording",
+  "exit": 1,
+  "events": [
+   {
+    "type": "thread.started",
+    "model": "gpt-x"
+   },
+   {
+    "type": "turn.failed",
+    "error": {
+     "message": "Rate limit reached for requests"
+    }
+   }
+  ],
+  "raw": null,
+  "stderr": "",
+  "last_message": null,
+  "expect": {
+   "status": "LIMITED"
+  }
+ },
+ {
+  "name": "limit_quota_exceeded",
+  "exit": 1,
+  "events": [
+   {
+    "type": "thread.started",
+    "model": "gpt-x"
+   },
+   {
+    "type": "turn.failed",
+    "error": {
+     "message": "quota exceeded for this plan"
+    }
+   }
+  ],
+  "raw": null,
+  "stderr": "",
+  "last_message": null,
+  "expect": {
+   "status": "LIMITED",
+   "pattern_id": "limit_quota"
+  }
+ },
+ {
+  "name": "limit_reached_your_limit",
+  "exit": 1,
+  "events": [
+   {
+    "type": "thread.started",
+    "model": "gpt-x"
+   },
+   {
+    "type": "turn.failed",
+    "error": {
+     "message": "You've reached your weekly limit"
+    }
+   }
+  ],
+  "raw": null,
+  "stderr": "",
+  "last_message": null,
+  "expect": {
+   "status": "LIMITED",
+   "pattern_id": "limit_usage"
+  }
+ },
+ {
+  "name": "limit_bare_429_only",
+  "exit": 1,
+  "events": [
+   {
+    "type": "thread.started",
+    "model": "gpt-x"
+   },
+   {
+    "type": "turn.failed",
+    "error": {
+     "message": "Error 429"
+    }
+   }
+  ],
+  "raw": null,
+  "stderr": "",
+  "last_message": null,
+  "expect": {
+   "status": "LIMITED",
+   "pattern_id": "limit_rate"
+  }
+ },
+ {
+  "name": "bare_try_again_later_is_error",
+  "exit": 1,
+  "events": [
+   {
+    "type": "thread.started",
+    "model": "gpt-x"
+   },
+   {
+    "type": "turn.failed",
+    "error": {
+     "message": "Please try again later"
+    }
+   }
+  ],
+  "raw": null,
+  "stderr": "",
+  "last_message": null,
+  "expect": {
+   "status": "ERROR",
+   "pattern_id": "unknown_output"
+  }
+ },
+ {
+  "name": "upstream_503_try_again_later",
+  "exit": 1,
+  "events": [
+   {
+    "type": "thread.started",
+    "model": "gpt-x"
+   },
+   {
+    "type": "turn.failed",
+    "error": {
+     "message": "503 Service Unavailable, please try again later"
+    }
+   }
+  ],
+  "raw": null,
+  "stderr": "",
+  "last_message": null,
+  "expect": {
+   "status": "UPSTREAM"
+  }
+ },
+ {
+  "name": "turn_failed_then_turn_completed_is_error",
+  "exit": 0,
+  "events": [
+   {
+    "type": "thread.started",
+    "model": "gpt-x"
+   },
+   {
+    "type": "item.completed",
+    "item": {
+     "id": "i",
+     "type": "agent_message"
+    }
+   },
+   {
+    "type": "turn.failed",
+    "error": {
+     "message": "boom"
+    }
+   },
+   {
+    "type": "turn.completed",
+    "usage": {
+     "input_tokens": 200,
+     "cached_input_tokens": 5,
+     "output_tokens": 30
+    }
+   }
+  ],
+  "raw": null,
+  "stderr": "",
+  "last_message": "reply",
+  "expect": {
+   "status": "ERROR",
+   "text": null
+  }
+ },
+ {
+  "name": "ok_error_event_before_completed_is_recorded",
+  "exit": 0,
+  "events": [
+   {
+    "type": "thread.started",
+    "model": "gpt-x"
+   },
+   {
+    "type": "error",
+    "message": "usage limit warning"
+   },
+   {
+    "type": "item.completed",
+    "item": {
+     "id": "i",
+     "type": "agent_message"
+    }
+   },
+   {
+    "type": "turn.completed",
+    "usage": {
+     "input_tokens": 200,
+     "cached_input_tokens": 5,
+     "output_tokens": 30
+    }
+   }
+  ],
+  "raw": null,
+  "stderr": "",
+  "last_message": "reply",
+  "expect": {
+   "status": "OK",
+   "pattern_id": "error_event_before_completed",
+   "error_events": 1
+  }
+ },
+ {
+  "name": "ok_two_error_events_counted",
+  "exit": 0,
+  "events": [
+   {
+    "type": "thread.started",
+    "model": "gpt-x"
+   },
+   {
+    "type": "error",
+    "message": "a"
+   },
+   {
+    "type": "error",
+    "message": "b"
+   },
+   {
+    "type": "item.completed",
+    "item": {
+     "id": "i",
+     "type": "agent_message"
+    }
+   },
+   {
+    "type": "turn.completed",
+    "usage": {
+     "input_tokens": 200,
+     "cached_input_tokens": 5,
+     "output_tokens": 30
+    }
+   }
+  ],
+  "raw": null,
+  "stderr": "",
+  "last_message": "reply",
+  "expect": {
+   "status": "OK",
+   "error_events": 2
+  }
+ },
+ {
+  "name": "mixed_limit_with_disconnect",
+  "exit": 1,
+  "events": [
+   {
+    "type": "thread.started",
+    "model": "gpt-x"
+   },
+   {
+    "type": "turn.failed",
+    "error": {
+     "message": "usage limit reached (stream disconnected)"
+    }
+   }
+  ],
+  "raw": null,
+  "stderr": "",
+  "last_message": null,
+  "expect": {
+   "status": "LIMITED",
+   "pattern_id": "limit_usage"
+  }
+ },
+ {
+  "name": "mixed_401_with_connection_reset",
+  "exit": 1,
+  "events": [
+   {
+    "type": "thread.started",
+    "model": "gpt-x"
+   },
+   {
+    "type": "turn.failed",
+    "error": {
+     "message": "401 Unauthorized: connection reset"
+    }
+   }
+  ],
+  "raw": null,
+  "stderr": "",
+  "last_message": null,
+  "expect": {
+   "status": "ERROR",
+   "pattern_id": "auth"
+  }
+ },
+ {
+  "name": "mixed_tool_item_with_disconnect",
+  "exit": 1,
+  "events": [
+   {
+    "type": "thread.started",
+    "model": "gpt-x"
+   },
+   {
+    "type": "item.completed",
+    "item": {
+     "id": "i",
+     "type": "command_execution"
+    }
+   },
+   {
+    "type": "turn.failed",
+    "error": {
+     "message": "stream disconnected"
+    }
+   }
+  ],
+  "raw": null,
+  "stderr": "",
+  "last_message": null,
+  "expect": {
+   "status": "ERROR",
+   "pattern_id": "tool_item"
+  }
+ },
+ {
+  "name": "trailing_error_after_completed",
+  "exit": 0,
+  "events": [
+   {
+    "type": "thread.started",
+    "model": "gpt-x"
+   },
+   {
+    "type": "item.completed",
+    "item": {
+     "id": "i",
+     "type": "agent_message"
+    }
+   },
+   {
+    "type": "turn.completed",
+    "usage": {
+     "input_tokens": 200,
+     "cached_input_tokens": 5,
+     "output_tokens": 30
+    }
+   },
+   {
+    "type": "error",
+    "message": "content policy"
+   }
+  ],
+  "raw": null,
+  "stderr": "",
+  "last_message": "reply",
+  "expect": {
+   "status": "ERROR",
+   "pattern_id": "events_after_completed",
+   "text": null
+  }
+ },
+ {
+  "name": "trailing_turn_started_after_completed",
+  "exit": 0,
+  "events": [
+   {
+    "type": "thread.started",
+    "model": "gpt-x"
+   },
+   {
+    "type": "item.completed",
+    "item": {
+     "id": "i",
+     "type": "agent_message"
+    }
+   },
+   {
+    "type": "turn.completed",
+    "usage": {
+     "input_tokens": 200,
+     "cached_input_tokens": 5,
+     "output_tokens": 30
+    }
+   },
+   {
+    "type": "turn.started"
+   }
+  ],
+  "raw": null,
+  "stderr": "",
+  "last_message": "reply",
+  "expect": {
+   "status": "ERROR",
+   "pattern_id": "events_after_completed"
+  }
+ },
+ {
+  "name": "trailing_item_after_completed",
+  "exit": 0,
+  "events": [
+   {
+    "type": "thread.started",
+    "model": "gpt-x"
+   },
+   {
+    "type": "turn.completed",
+    "usage": {
+     "input_tokens": 200,
+     "cached_input_tokens": 5,
+     "output_tokens": 30
+    }
+   },
+   {
+    "type": "item.completed",
+    "item": {
+     "id": "i",
+     "type": "agent_message"
+    }
+   }
+  ],
+  "raw": null,
+  "stderr": "",
+  "last_message": "reply",
+  "expect": {
+   "status": "ERROR",
+   "pattern_id": "events_after_completed"
+  }
+ },
+ {
+  "name": "malformed_item_is_a_list",
+  "exit": 0,
+  "events": [
+   {
+    "type": "thread.started",
+    "model": "gpt-x"
+   },
+   {
+    "type": "item.completed",
+    "item": []
+   },
+   {
+    "type": "turn.completed",
+    "usage": {
+     "input_tokens": 200,
+     "cached_input_tokens": 5,
+     "output_tokens": 30
+    }
+   }
+  ],
+  "raw": null,
+  "stderr": "",
+  "last_message": "reply",
+  "expect": {
+   "status": "ERROR",
+   "pattern_id": "unknown_output",
+   "text": null
+  }
+ },
+ {
+  "name": "malformed_item_with_network_error_stderr_is_not_upstream",
+  "exit": 1,
+  "events": [
+   {
+    "type": "thread.started",
+    "model": "gpt-x"
+   },
+   {
+    "type": "item.completed",
+    "item": []
+   },
+   {
+    "type": "turn.completed",
+    "usage": {
+     "input_tokens": 200,
+     "cached_input_tokens": 5,
+     "output_tokens": 30
+    }
+   }
+  ],
+  "raw": null,
+  "stderr": "network error",
+  "last_message": "reply",
+  "expect": {
+   "status": "ERROR",
+   "pattern_id": "unknown_output"
+  }
+ },
+ {
+  "name": "malformed_event_with_limit_stderr_is_not_limited",
+  "exit": 1,
+  "events": [
+   {
+    "type": "thread.started",
+    "model": "gpt-x"
+   },
+   {
+    "type": []
+   }
+  ],
+  "raw": null,
+  "stderr": "usage limit reached",
+  "last_message": "reply",
+  "expect": {
+   "status": "ERROR",
+   "pattern_id": "unknown_output"
+  }
+ },
+ {
+  "name": "malformed_item_type_is_a_list",
+  "exit": 0,
+  "events": [
+   {
+    "type": "thread.started",
+    "model": "gpt-x"
+   },
+   {
+    "type": "item.completed",
+    "item": {
+     "type": []
+    }
+   },
+   {
+    "type": "turn.completed",
+    "usage": {
+     "input_tokens": 200,
+     "cached_input_tokens": 5,
+     "output_tokens": 30
+    }
+   }
+  ],
+  "raw": null,
+  "stderr": "",
+  "last_message": "reply",
+  "expect": {
+   "status": "ERROR",
+   "pattern_id": "unknown_output"
+  }
+ },
+ {
+  "name": "malformed_event_type_is_a_list",
+  "exit": 0,
+  "events": [
+   {
+    "type": "thread.started",
+    "model": "gpt-x"
+   },
+   {
+    "type": []
+   },
+   {
+    "type": "turn.completed",
+    "usage": {
+     "input_tokens": 200,
+     "cached_input_tokens": 5,
+     "output_tokens": 30
+    }
+   }
+  ],
+  "raw": null,
+  "stderr": "",
+  "last_message": "reply",
+  "expect": {
+   "status": "ERROR",
+   "pattern_id": "unknown_output"
+  }
+ },
+ {
+  "name": "malformed_usage_is_a_string",
+  "exit": 0,
+  "events": [
+   {
+    "type": "thread.started",
+    "model": "gpt-x"
+   },
+   {
+    "type": "item.completed",
+    "item": {
+     "id": "i",
+     "type": "agent_message"
+    }
+   },
+   {
+    "type": "turn.completed",
+    "usage": "x"
+   }
+  ],
+  "raw": null,
+  "stderr": "",
+  "last_message": "reply",
+  "expect": {
+   "status": "ERROR",
+   "pattern_id": "unknown_output"
+  }
+ },
+ {
+  "name": "malformed_model_is_a_number",
+  "exit": 0,
+  "events": [
+   {
+    "type": "thread.started",
+    "model": 5
+   },
+   {
+    "type": "item.completed",
+    "item": {
+     "id": "i",
+     "type": "agent_message"
+    }
+   },
+   {
+    "type": "turn.completed",
+    "usage": {
+     "input_tokens": 200,
+     "cached_input_tokens": 5,
+     "output_tokens": 30
+    }
+   }
+  ],
+  "raw": null,
+  "stderr": "",
+  "last_message": "reply",
+  "expect": {
+   "status": "ERROR",
+   "pattern_id": "unknown_output"
+  }
+ },
+ {
+  "name": "upstream_stream_disconnected",
+  "exit": 1,
+  "events": [
+   {
+    "type": "thread.started",
+    "model": "gpt-x"
+   },
+   {
+    "type": "error",
+    "message": "stream disconnected before completion"
+   },
+   {
+    "type": "turn.failed",
+    "error": {
+     "message": "stream disconnected before completion"
+    }
+   }
+  ],
+  "raw": null,
+  "stderr": "",
+  "last_message": null,
+  "expect": {
+   "status": "UPSTREAM",
+   "pattern_id": "upstream_network"
+  }
+ },
+ {
+  "name": "upstream_503_in_stderr",
+  "exit": 1,
+  "events": null,
+  "raw": "",
+  "stderr": "unexpected status 503 Service Unavailable",
+  "last_message": null,
+  "expect": {
+   "status": "UPSTREAM"
+  }
+ },
+ {
+  "name": "auth_not_logged_in",
+  "exit": 1,
+  "events": null,
+  "raw": "",
+  "stderr": "Not logged in",
+  "last_message": null,
+  "expect": {
+   "status": "ERROR",
+   "pattern_id": "auth"
+  }
+ },
+ {
+  "name": "auth_401_event",
+  "exit": 1,
+  "events": [
+   {
+    "type": "thread.started",
+    "model": "gpt-x"
+   },
+   {
+    "type": "turn.failed",
+    "error": {
+     "message": "401 Unauthorized"
+    }
+   }
+  ],
+  "raw": null,
+  "stderr": "",
+  "last_message": null,
+  "expect": {
+   "status": "ERROR",
+   "pattern_id": "auth"
+  }
+ },
+ {
+  "name": "unknown_model",
+  "exit": 1,
+  "events": [
+   {
+    "type": "thread.started",
+    "model": "gpt-x"
+   },
+   {
+    "type": "turn.failed",
+    "error": {
+     "message": "The model `x` does not exist"
+    }
+   }
+  ],
+  "raw": null,
+  "stderr": "",
+  "last_message": null,
+  "expect": {
+   "status": "ERROR",
+   "pattern_id": "model"
+  }
+ },
+ {
+  "name": "policy_error_event",
+  "exit": 1,
+  "events": [
+   {
+    "type": "thread.started",
+    "model": "gpt-x"
+   },
+   {
+    "type": "turn.failed",
+    "error": {
+     "message": "This request violates our usage policies"
+    }
+   }
+  ],
+  "raw": null,
+  "stderr": "",
+  "last_message": null,
+  "expect": {
+   "status": "POLICY_REFUSED",
+   "pattern_id": "policy"
+  }
+ },
+ {
+  "name": "exit_zero_without_last_message",
+  "exit": 0,
+  "events": [
+   {
+    "type": "thread.started",
+    "model": "gpt-x"
+   },
+   {
+    "type": "item.completed",
+    "item": {
+     "id": "i",
+     "type": "agent_message"
+    }
+   },
+   {
+    "type": "turn.completed",
+    "usage": {
+     "input_tokens": 200,
+     "cached_input_tokens": 5,
+     "output_tokens": 30
+    }
+   }
+  ],
+  "raw": null,
+  "stderr": "",
+  "last_message": null,
+  "expect": {
+   "status": "ERROR",
+   "pattern_id": "no_last_message"
+  }
+ },
+ {
+  "name": "exit_zero_blank_last_message",
+  "exit": 0,
+  "events": [
+   {
+    "type": "thread.started",
+    "model": "gpt-x"
+   },
+   {
+    "type": "item.completed",
+    "item": {
+     "id": "i",
+     "type": "agent_message"
+    }
+   },
+   {
+    "type": "turn.completed",
+    "usage": {
+     "input_tokens": 200,
+     "cached_input_tokens": 5,
+     "output_tokens": 30
+    }
+   }
+  ],
+  "raw": null,
+  "stderr": "",
+  "last_message": "  \n",
+  "expect": {
+   "status": "ERROR",
+   "pattern_id": "no_last_message"
+  }
+ },
+ {
+  "name": "unknown_event_type",
+  "exit": 0,
+  "events": [
+   {
+    "type": "thread.started",
+    "model": "gpt-x"
+   },
+   {
+    "type": "weird"
+   },
+   {
+    "type": "turn.completed",
+    "usage": {
+     "input_tokens": 200,
+     "cached_input_tokens": 5,
+     "output_tokens": 30
+    }
+   }
+  ],
+  "raw": null,
+  "stderr": "",
+  "last_message": "reply",
+  "expect": {
+   "status": "ERROR",
+   "pattern_id": "unknown_output"
+  }
+ },
+ {
+  "name": "stdout_not_json",
+  "exit": 0,
+  "events": null,
+  "raw": "plain text",
+  "stderr": "",
+  "last_message": null,
+  "expect": {
+   "status": "ERROR",
+   "pattern_id": "unknown_output"
+  }
+ },
+ {
+  "name": "exit_zero_without_turn_completed",
+  "exit": 0,
+  "events": [
+   {
+    "type": "thread.started",
+    "model": "gpt-x"
+   },
+   {
+    "type": "item.completed",
+    "item": {
+     "id": "i",
+     "type": "agent_message"
+    }
+   }
+  ],
+  "raw": null,
+  "stderr": "",
+  "last_message": "reply",
+  "expect": {
+   "status": "ERROR",
+   "pattern_id": "unknown_output"
+  }
+ },
+ {
+  "name": "nonzero_exit_nothing_else",
+  "exit": 4,
+  "events": null,
+  "raw": "",
+  "stderr": "",
+  "last_message": null,
+  "expect": {
+   "status": "ERROR",
+   "pattern_id": "unknown_output"
+  }
+ },
+ {
+  "name": "nonzero_exit_after_completed",
+  "exit": 1,
+  "events": [
+   {
+    "type": "thread.started",
+    "model": "gpt-x"
+   },
+   {
+    "type": "item.completed",
+    "item": {
+     "id": "i",
+     "type": "agent_message"
+    }
+   },
+   {
+    "type": "turn.completed",
+    "usage": {
+     "input_tokens": 200,
+     "cached_input_tokens": 5,
+     "output_tokens": 30
+    }
+   }
+  ],
+  "raw": null,
+  "stderr": "",
+  "last_message": "reply",
+  "expect": {
+   "status": "ERROR",
+   "pattern_id": "unknown_output"
+  }
+ },
+ {
+  "name": "model_mismatch",
+  "exit": 0,
+  "events": [
+   {
+    "type": "thread.started",
+    "model": "gpt-other"
+   },
+   {
+    "type": "item.completed",
+    "item": {
+     "id": "i",
+     "type": "agent_message"
+    }
+   },
+   {
+    "type": "turn.completed",
+    "usage": {
+     "input_tokens": 200,
+     "cached_input_tokens": 5,
+     "output_tokens": 30
+    }
+   }
+  ],
+  "raw": null,
+  "stderr": "",
+  "last_message": "reply",
+  "expect": {
+   "status": "ERROR",
+   "pattern_id": "model_mismatch",
+   "model_actual": "gpt-other",
+   "text": null
+  }
+ }
+]

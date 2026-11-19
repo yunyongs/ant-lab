@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Final, Protocol
 from uuid import UUID
@@ -36,6 +36,14 @@ class AdapterDisabled(LookupError):
 
 class AdapterUnavailable(LookupError):
     """The route is planned but not implemented yet."""
+
+
+class SubscriptionRefusal(RuntimeError):
+    """A subscription condition failed before any process was spawned; the text is the fixed code."""
+
+    def __init__(self, code: str):
+        super().__init__(code)
+        self.code = code
 
 
 @dataclass(frozen=True)
@@ -90,7 +98,7 @@ class ModelAttempt:
 
     status: str
     http_status: int | None
-    text: str | None
+    text: str | None = field(repr=False)
     model_actual: str | None
     provider: str | None
     tokens_in: int | None
@@ -100,7 +108,7 @@ class ModelAttempt:
     ledger_call_id: UUID | None
     retry_after_s: int | None
     credit_refusal: bool
-    request_text: str
+    request_text: str = field(repr=False)
 
     def __post_init__(self) -> None:
         if self.status not in STATUSES:

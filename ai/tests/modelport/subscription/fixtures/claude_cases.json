@@ -1,0 +1,1240 @@
+[
+ {
+  "name": "ok",
+  "exit": 0,
+  "stdout": {
+   "type": "result",
+   "subtype": "success",
+   "is_error": false,
+   "result": "REPLY",
+   "num_turns": 1,
+   "total_cost_usd": 0.0123,
+   "permission_denials": [],
+   "usage": {
+    "input_tokens": 100,
+    "cache_creation_input_tokens": 20,
+    "cache_read_input_tokens": 30,
+    "output_tokens": 40
+   },
+   "modelUsage": {
+    "claude-x": {
+     "outputTokens": 40
+    }
+   }
+  },
+  "stderr": "",
+  "expect": {
+   "status": "OK",
+   "text": "REPLY",
+   "tokens_in": 150,
+   "tokens_out": 40,
+   "model_actual": "claude-x",
+   "estimate_usd": "0.0123",
+   "http_status": null
+  }
+ },
+ {
+  "name": "ok_without_model_usage",
+  "exit": 0,
+  "stdout": {
+   "type": "result",
+   "subtype": "success",
+   "is_error": false,
+   "result": "REPLY",
+   "num_turns": 1,
+   "total_cost_usd": 0.0123,
+   "permission_denials": [],
+   "usage": {
+    "input_tokens": 100,
+    "cache_creation_input_tokens": 20,
+    "cache_read_input_tokens": 30,
+    "output_tokens": 40
+   }
+  },
+  "stderr": "",
+  "expect": {
+   "status": "OK",
+   "model_actual": null
+  }
+ },
+ {
+  "name": "ok_reply_that_mentions_a_limit_is_not_classified",
+  "exit": 0,
+  "stdout": {
+   "type": "result",
+   "subtype": "success",
+   "is_error": false,
+   "result": "the rate limit is 429 per hour",
+   "num_turns": 1,
+   "total_cost_usd": 0.0123,
+   "permission_denials": [],
+   "usage": {
+    "input_tokens": 100,
+    "cache_creation_input_tokens": 20,
+    "cache_read_input_tokens": 30,
+    "output_tokens": 40
+   },
+   "modelUsage": {
+    "claude-x": {
+     "outputTokens": 40
+    }
+   }
+  },
+  "stderr": "",
+  "expect": {
+   "status": "OK",
+   "text": "the rate limit is 429 per hour"
+  }
+ },
+ {
+  "name": "ok_plain_text_refusal_is_left_to_the_runner",
+  "exit": 0,
+  "stdout": {
+   "type": "result",
+   "subtype": "success",
+   "is_error": false,
+   "result": "I can't help with that.",
+   "num_turns": 1,
+   "total_cost_usd": 0.0123,
+   "permission_denials": [],
+   "usage": {
+    "input_tokens": 100,
+    "cache_creation_input_tokens": 20,
+    "cache_read_input_tokens": 30,
+    "output_tokens": 40
+   },
+   "modelUsage": {
+    "claude-x": {
+     "outputTokens": 40
+    }
+   }
+  },
+  "stderr": "",
+  "expect": {
+   "status": "OK",
+   "text": "I can't help with that."
+  }
+ },
+ {
+  "name": "limit_usage_message",
+  "exit": 1,
+  "stdout": {
+   "type": "result",
+   "subtype": "success",
+   "is_error": true,
+   "result": "Claude AI usage limit reached",
+   "num_turns": 1,
+   "total_cost_usd": 0.0123,
+   "permission_denials": [],
+   "usage": {
+    "input_tokens": 100,
+    "cache_creation_input_tokens": 20,
+    "cache_read_input_tokens": 30,
+    "output_tokens": 40
+   },
+   "modelUsage": {
+    "claude-x": {
+     "outputTokens": 40
+    }
+   }
+  },
+  "stderr": "",
+  "expect": {
+   "status": "LIMITED",
+   "retry_after_s": null,
+   "pattern_id": "limit_usage"
+  }
+ },
+ {
+  "name": "limit_api_status_429",
+  "exit": 1,
+  "stdout": {
+   "type": "result",
+   "subtype": "success",
+   "is_error": true,
+   "result": "something went wrong",
+   "num_turns": 1,
+   "total_cost_usd": 0.0123,
+   "permission_denials": [],
+   "usage": {
+    "input_tokens": 100,
+    "cache_creation_input_tokens": 20,
+    "cache_read_input_tokens": 30,
+    "output_tokens": 40
+   },
+   "modelUsage": {
+    "claude-x": {
+     "outputTokens": 40
+    }
+   },
+   "api_error_status": 429
+  },
+  "stderr": "",
+  "expect": {
+   "status": "LIMITED",
+   "http_status": 429,
+   "pattern_id": "api_status"
+  }
+ },
+ {
+  "name": "limit_with_short_wait",
+  "exit": 1,
+  "stdout": {
+   "type": "result",
+   "subtype": "success",
+   "is_error": true,
+   "result": "rate limit hit. Retry-After: 30s",
+   "num_turns": 1,
+   "total_cost_usd": 0.0123,
+   "permission_denials": [],
+   "usage": {
+    "input_tokens": 100,
+    "cache_creation_input_tokens": 20,
+    "cache_read_input_tokens": 30,
+    "output_tokens": 40
+   },
+   "modelUsage": {
+    "claude-x": {
+     "outputTokens": 40
+    }
+   }
+  },
+  "stderr": "",
+  "expect": {
+   "status": "LIMITED",
+   "retry_after_s": 30,
+   "pattern_id": "limit_rate"
+  }
+ },
+ {
+  "name": "limit_with_long_wait_is_unstated",
+  "exit": 1,
+  "stdout": {
+   "type": "result",
+   "subtype": "success",
+   "is_error": true,
+   "result": "rate limit, try again in 120 seconds",
+   "num_turns": 1,
+   "total_cost_usd": 0.0123,
+   "permission_denials": [],
+   "usage": {
+    "input_tokens": 100,
+    "cache_creation_input_tokens": 20,
+    "cache_read_input_tokens": 30,
+    "output_tokens": 40
+   },
+   "modelUsage": {
+    "claude-x": {
+     "outputTokens": 40
+    }
+   }
+  },
+  "stderr": "",
+  "expect": {
+   "status": "LIMITED",
+   "retry_after_s": null
+  }
+ },
+ {
+  "name": "limit_in_stderr",
+  "exit": 1,
+  "stdout": "",
+  "stderr": "Error: usage limit reached",
+  "expect": {
+   "status": "LIMITED",
+   "pattern_id": "limit_usage"
+  }
+ },
+ {
+  "name": "upstream_overloaded",
+  "exit": 1,
+  "stdout": {
+   "type": "result",
+   "subtype": "success",
+   "is_error": true,
+   "result": "API Error: overloaded_error",
+   "num_turns": 1,
+   "total_cost_usd": 0.0123,
+   "permission_denials": [],
+   "usage": {
+    "input_tokens": 100,
+    "cache_creation_input_tokens": 20,
+    "cache_read_input_tokens": 30,
+    "output_tokens": 40
+   },
+   "modelUsage": {
+    "claude-x": {
+     "outputTokens": 40
+    }
+   },
+   "api_error_status": 529
+  },
+  "stderr": "",
+  "expect": {
+   "status": "UPSTREAM",
+   "http_status": 529,
+   "pattern_id": "upstream_overloaded"
+  }
+ },
+ {
+  "name": "upstream_api_status_500",
+  "exit": 1,
+  "stdout": {
+   "type": "result",
+   "subtype": "success",
+   "is_error": true,
+   "result": "boom",
+   "num_turns": 1,
+   "total_cost_usd": 0.0123,
+   "permission_denials": [],
+   "usage": {
+    "input_tokens": 100,
+    "cache_creation_input_tokens": 20,
+    "cache_read_input_tokens": 30,
+    "output_tokens": 40
+   },
+   "modelUsage": {
+    "claude-x": {
+     "outputTokens": 40
+    }
+   },
+   "api_error_status": 500
+  },
+  "stderr": "",
+  "expect": {
+   "status": "UPSTREAM",
+   "http_status": 500,
+   "pattern_id": "api_status"
+  }
+ },
+ {
+  "name": "upstream_network_error",
+  "exit": 1,
+  "stdout": "",
+  "stderr": "fetch failed: ECONNRESET",
+  "expect": {
+   "status": "UPSTREAM",
+   "pattern_id": "upstream_network"
+  }
+ },
+ {
+  "name": "auth_not_logged_in",
+  "exit": 1,
+  "stdout": {
+   "type": "result",
+   "subtype": "success",
+   "is_error": true,
+   "result": "Not logged in. Please run /login",
+   "num_turns": 1,
+   "total_cost_usd": 0.0123,
+   "permission_denials": [],
+   "usage": {
+    "input_tokens": 100,
+    "cache_creation_input_tokens": 20,
+    "cache_read_input_tokens": 30,
+    "output_tokens": 40
+   },
+   "modelUsage": {
+    "claude-x": {
+     "outputTokens": 40
+    }
+   }
+  },
+  "stderr": "",
+  "expect": {
+   "status": "ERROR",
+   "pattern_id": "auth",
+   "text": null
+  }
+ },
+ {
+  "name": "auth_401",
+  "exit": 1,
+  "stdout": {
+   "type": "result",
+   "subtype": "success",
+   "is_error": true,
+   "result": "Invalid API key",
+   "num_turns": 1,
+   "total_cost_usd": 0.0123,
+   "permission_denials": [],
+   "usage": {
+    "input_tokens": 100,
+    "cache_creation_input_tokens": 20,
+    "cache_read_input_tokens": 30,
+    "output_tokens": 40
+   },
+   "modelUsage": {
+    "claude-x": {
+     "outputTokens": 40
+    }
+   },
+   "api_error_status": 401
+  },
+  "stderr": "",
+  "expect": {
+   "status": "ERROR",
+   "http_status": 401,
+   "pattern_id": "auth"
+  }
+ },
+ {
+  "name": "credit_402_is_never_reported",
+  "exit": 1,
+  "stdout": {
+   "type": "result",
+   "subtype": "success",
+   "is_error": true,
+   "result": "credit balance is too low",
+   "num_turns": 1,
+   "total_cost_usd": 0.0123,
+   "permission_denials": [],
+   "usage": {
+    "input_tokens": 100,
+    "cache_creation_input_tokens": 20,
+    "cache_read_input_tokens": 30,
+    "output_tokens": 40
+   },
+   "modelUsage": {
+    "claude-x": {
+     "outputTokens": 40
+    }
+   },
+   "api_error_status": 402
+  },
+  "stderr": "",
+  "expect": {
+   "status": "ERROR",
+   "http_status": null
+  }
+ },
+ {
+  "name": "unknown_model",
+  "exit": 1,
+  "stdout": {
+   "type": "result",
+   "subtype": "success",
+   "is_error": true,
+   "result": "model 'nope' not found",
+   "num_turns": 1,
+   "total_cost_usd": 0.0123,
+   "permission_denials": [],
+   "usage": {
+    "input_tokens": 100,
+    "cache_creation_input_tokens": 20,
+    "cache_read_input_tokens": 30,
+    "output_tokens": 40
+   },
+   "modelUsage": {
+    "claude-x": {
+     "outputTokens": 40
+    }
+   }
+  },
+  "stderr": "",
+  "expect": {
+   "status": "ERROR",
+   "pattern_id": "model"
+  }
+ },
+ {
+  "name": "cli_usage_error",
+  "exit": 2,
+  "stdout": "",
+  "stderr": "error: unexpected argument '--x' found\nusage: claude",
+  "expect": {
+   "status": "ERROR",
+   "pattern_id": "usage"
+  }
+ },
+ {
+  "name": "refusal_with_tool_evidence_is_error",
+  "exit": 0,
+  "stdout": {
+   "type": "result",
+   "subtype": "success",
+   "is_error": false,
+   "result": "",
+   "num_turns": 1,
+   "total_cost_usd": 0.0123,
+   "permission_denials": [
+    {
+     "tool_name": "Bash"
+    }
+   ],
+   "usage": {
+    "input_tokens": 100,
+    "cache_creation_input_tokens": 20,
+    "cache_read_input_tokens": 30,
+    "output_tokens": 40
+   },
+   "modelUsage": {
+    "claude-x": {
+     "outputTokens": 40
+    }
+   },
+   "stop_reason": "refusal"
+  },
+  "stderr": "",
+  "expect": {
+   "status": "ERROR",
+   "pattern_id": "tool_or_turns",
+   "text": null
+  }
+ },
+ {
+  "name": "refusal_with_extra_turns_is_error",
+  "exit": 0,
+  "stdout": {
+   "type": "result",
+   "subtype": "success",
+   "is_error": false,
+   "result": "",
+   "num_turns": 4,
+   "total_cost_usd": 0.0123,
+   "permission_denials": [],
+   "usage": {
+    "input_tokens": 100,
+    "cache_creation_input_tokens": 20,
+    "cache_read_input_tokens": 30,
+    "output_tokens": 40
+   },
+   "modelUsage": {
+    "claude-x": {
+     "outputTokens": 40
+    }
+   },
+   "stop_reason": "refusal"
+  },
+  "stderr": "",
+  "expect": {
+   "status": "ERROR",
+   "pattern_id": "tool_or_turns"
+  }
+ },
+ {
+  "name": "policy_stop_reason",
+  "exit": 0,
+  "stdout": {
+   "type": "result",
+   "subtype": "success",
+   "is_error": false,
+   "result": "",
+   "num_turns": 1,
+   "total_cost_usd": 0.0123,
+   "permission_denials": [],
+   "usage": {
+    "input_tokens": 100,
+    "cache_creation_input_tokens": 20,
+    "cache_read_input_tokens": 30,
+    "output_tokens": 40
+   },
+   "modelUsage": {
+    "claude-x": {
+     "outputTokens": 40
+    }
+   },
+   "stop_reason": "refusal"
+  },
+  "stderr": "",
+  "expect": {
+   "status": "POLICY_REFUSED",
+   "text": null,
+   "pattern_id": "stop_refusal"
+  }
+ },
+ {
+  "name": "tool_or_extra_turns",
+  "exit": 0,
+  "stdout": {
+   "type": "result",
+   "subtype": "success",
+   "is_error": false,
+   "result": "REPLY",
+   "num_turns": 3,
+   "total_cost_usd": 0.0123,
+   "permission_denials": [],
+   "usage": {
+    "input_tokens": 100,
+    "cache_creation_input_tokens": 20,
+    "cache_read_input_tokens": 30,
+    "output_tokens": 40
+   },
+   "modelUsage": {
+    "claude-x": {
+     "outputTokens": 40
+    }
+   }
+  },
+  "stderr": "",
+  "expect": {
+   "status": "ERROR",
+   "pattern_id": "tool_or_turns",
+   "text": null
+  }
+ },
+ {
+  "name": "permission_denial",
+  "exit": 0,
+  "stdout": {
+   "type": "result",
+   "subtype": "success",
+   "is_error": false,
+   "result": "REPLY",
+   "num_turns": 1,
+   "total_cost_usd": 0.0123,
+   "permission_denials": [
+    {
+     "tool_name": "Bash"
+    }
+   ],
+   "usage": {
+    "input_tokens": 100,
+    "cache_creation_input_tokens": 20,
+    "cache_read_input_tokens": 30,
+    "output_tokens": 40
+   },
+   "modelUsage": {
+    "claude-x": {
+     "outputTokens": 40
+    }
+   }
+  },
+  "stderr": "",
+  "expect": {
+   "status": "ERROR",
+   "pattern_id": "tool_or_turns"
+  }
+ },
+ {
+  "name": "model_mismatch",
+  "exit": 0,
+  "stdout": {
+   "type": "result",
+   "subtype": "success",
+   "is_error": false,
+   "result": "REPLY",
+   "num_turns": 1,
+   "total_cost_usd": 0.0123,
+   "permission_denials": [],
+   "usage": {
+    "input_tokens": 100,
+    "cache_creation_input_tokens": 20,
+    "cache_read_input_tokens": 30,
+    "output_tokens": 40
+   },
+   "modelUsage": {
+    "claude-other": {
+     "outputTokens": 40
+    }
+   }
+  },
+  "stderr": "",
+  "expect": {
+   "status": "ERROR",
+   "pattern_id": "model_mismatch",
+   "model_actual": "claude-other",
+   "text": null
+  }
+ },
+ {
+  "name": "error_subtype_with_is_error",
+  "exit": 1,
+  "stdout": {
+   "type": "result",
+   "subtype": "error_max_turns",
+   "is_error": true,
+   "result": "max turns",
+   "num_turns": 1,
+   "total_cost_usd": 0.0123,
+   "permission_denials": [],
+   "usage": {
+    "input_tokens": 100,
+    "cache_creation_input_tokens": 20,
+    "cache_read_input_tokens": 30,
+    "output_tokens": 40
+   },
+   "modelUsage": {
+    "claude-x": {
+     "outputTokens": 40
+    }
+   }
+  },
+  "stderr": "",
+  "expect": {
+   "status": "ERROR",
+   "pattern_id": "unknown_output"
+  }
+ },
+ {
+  "name": "is_error_true_unknown_text",
+  "exit": 0,
+  "stdout": {
+   "type": "result",
+   "subtype": "success",
+   "is_error": true,
+   "result": "weird",
+   "num_turns": 1,
+   "total_cost_usd": 0.0123,
+   "permission_denials": [],
+   "usage": {
+    "input_tokens": 100,
+    "cache_creation_input_tokens": 20,
+    "cache_read_input_tokens": 30,
+    "output_tokens": 40
+   },
+   "modelUsage": {
+    "claude-x": {
+     "outputTokens": 40
+    }
+   }
+  },
+  "stderr": "",
+  "expect": {
+   "status": "ERROR",
+   "pattern_id": "unknown_output"
+  }
+ },
+ {
+  "name": "is_error_missing",
+  "exit": 0,
+  "stdout": {
+   "type": "result",
+   "subtype": "success",
+   "result": "REPLY",
+   "num_turns": 1,
+   "total_cost_usd": 0.0123,
+   "permission_denials": [],
+   "usage": {
+    "input_tokens": 100,
+    "cache_creation_input_tokens": 20,
+    "cache_read_input_tokens": 30,
+    "output_tokens": 40
+   },
+   "modelUsage": {
+    "claude-x": {
+     "outputTokens": 40
+    }
+   }
+  },
+  "stderr": "",
+  "expect": {
+   "status": "ERROR",
+   "pattern_id": "unknown_output"
+  }
+ },
+ {
+  "name": "not_json_at_exit_zero",
+  "exit": 0,
+  "stdout": "hello there",
+  "stderr": "",
+  "expect": {
+   "status": "ERROR",
+   "pattern_id": "unknown_output"
+  }
+ },
+ {
+  "name": "json_array_not_object",
+  "exit": 0,
+  "stdout": "[1,2]",
+  "stderr": "",
+  "expect": {
+   "status": "ERROR",
+   "pattern_id": "unknown_output"
+  }
+ },
+ {
+  "name": "result_field_missing",
+  "exit": 0,
+  "stdout": {
+   "type": "result",
+   "subtype": "success",
+   "is_error": false,
+   "num_turns": 1,
+   "total_cost_usd": 0.0123,
+   "permission_denials": [],
+   "usage": {
+    "input_tokens": 100,
+    "cache_creation_input_tokens": 20,
+    "cache_read_input_tokens": 30,
+    "output_tokens": 40
+   },
+   "modelUsage": {
+    "claude-x": {
+     "outputTokens": 40
+    }
+   }
+  },
+  "stderr": "",
+  "expect": {
+   "status": "ERROR",
+   "pattern_id": "unknown_output"
+  }
+ },
+ {
+  "name": "result_not_a_string",
+  "exit": 0,
+  "stdout": {
+   "type": "result",
+   "subtype": "success",
+   "is_error": false,
+   "result": 5,
+   "num_turns": 1,
+   "total_cost_usd": 0.0123,
+   "permission_denials": [],
+   "usage": {
+    "input_tokens": 100,
+    "cache_creation_input_tokens": 20,
+    "cache_read_input_tokens": 30,
+    "output_tokens": 40
+   },
+   "modelUsage": {
+    "claude-x": {
+     "outputTokens": 40
+    }
+   }
+  },
+  "stderr": "",
+  "expect": {
+   "status": "ERROR",
+   "pattern_id": "unknown_output"
+  }
+ },
+ {
+  "name": "limit_message_limit_wording",
+  "exit": 1,
+  "stdout": {
+   "type": "result",
+   "subtype": "success",
+   "is_error": true,
+   "result": "You've reached your 5-hour message limit",
+   "num_turns": 1,
+   "total_cost_usd": 0.0123,
+   "permission_denials": [],
+   "usage": {
+    "input_tokens": 100,
+    "cache_creation_input_tokens": 20,
+    "cache_read_input_tokens": 30,
+    "output_tokens": 40
+   },
+   "modelUsage": {
+    "claude-x": {
+     "outputTokens": 40
+    }
+   }
+  },
+  "stderr": "",
+  "expect": {
+   "status": "LIMITED",
+   "pattern_id": "limit_usage"
+  }
+ },
+ {
+  "name": "limit_daily_wording",
+  "exit": 1,
+  "stdout": {
+   "type": "result",
+   "subtype": "success",
+   "is_error": true,
+   "result": "You have reached your limit for today",
+   "num_turns": 1,
+   "total_cost_usd": 0.0123,
+   "permission_denials": [],
+   "usage": {
+    "input_tokens": 100,
+    "cache_creation_input_tokens": 20,
+    "cache_read_input_tokens": 30,
+    "output_tokens": 40
+   },
+   "modelUsage": {
+    "claude-x": {
+     "outputTokens": 40
+    }
+   }
+  },
+  "stderr": "",
+  "expect": {
+   "status": "LIMITED",
+   "pattern_id": "limit_usage"
+  }
+ },
+ {
+  "name": "limit_quota_exceeded",
+  "exit": 1,
+  "stdout": {
+   "type": "result",
+   "subtype": "success",
+   "is_error": true,
+   "result": "You exceeded your current quota",
+   "num_turns": 1,
+   "total_cost_usd": 0.0123,
+   "permission_denials": [],
+   "usage": {
+    "input_tokens": 100,
+    "cache_creation_input_tokens": 20,
+    "cache_read_input_tokens": 30,
+    "output_tokens": 40
+   },
+   "modelUsage": {
+    "claude-x": {
+     "outputTokens": 40
+    }
+   }
+  },
+  "stderr": "",
+  "expect": {
+   "status": "LIMITED",
+   "pattern_id": "limit_quota"
+  }
+ },
+ {
+  "name": "limit_insufficient_quota",
+  "exit": 1,
+  "stdout": "",
+  "stderr": "insufficient_quota",
+  "expect": {
+   "status": "LIMITED",
+   "pattern_id": "limit_quota"
+  }
+ },
+ {
+  "name": "limit_bare_429_only",
+  "exit": 1,
+  "stdout": {
+   "type": "result",
+   "subtype": "success",
+   "is_error": true,
+   "result": "Error 429",
+   "num_turns": 1,
+   "total_cost_usd": 0.0123,
+   "permission_denials": [],
+   "usage": {
+    "input_tokens": 100,
+    "cache_creation_input_tokens": 20,
+    "cache_read_input_tokens": 30,
+    "output_tokens": 40
+   },
+   "modelUsage": {
+    "claude-x": {
+     "outputTokens": 40
+    }
+   }
+  },
+  "stderr": "",
+  "expect": {
+   "status": "LIMITED",
+   "pattern_id": "limit_rate"
+  }
+ },
+ {
+  "name": "bare_try_again_later_is_error",
+  "exit": 1,
+  "stdout": {
+   "type": "result",
+   "subtype": "success",
+   "is_error": true,
+   "result": "Please try again later",
+   "num_turns": 1,
+   "total_cost_usd": 0.0123,
+   "permission_denials": [],
+   "usage": {
+    "input_tokens": 100,
+    "cache_creation_input_tokens": 20,
+    "cache_read_input_tokens": 30,
+    "output_tokens": 40
+   },
+   "modelUsage": {
+    "claude-x": {
+     "outputTokens": 40
+    }
+   }
+  },
+  "stderr": "",
+  "expect": {
+   "status": "ERROR",
+   "pattern_id": "unknown_output"
+  }
+ },
+ {
+  "name": "upstream_503_try_again_later",
+  "exit": 1,
+  "stdout": {
+   "type": "result",
+   "subtype": "success",
+   "is_error": true,
+   "result": "503 Service Unavailable, please try again later",
+   "num_turns": 1,
+   "total_cost_usd": 0.0123,
+   "permission_denials": [],
+   "usage": {
+    "input_tokens": 100,
+    "cache_creation_input_tokens": 20,
+    "cache_read_input_tokens": 30,
+    "output_tokens": 40
+   },
+   "modelUsage": {
+    "claude-x": {
+     "outputTokens": 40
+    }
+   }
+  },
+  "stderr": "",
+  "expect": {
+   "status": "UPSTREAM"
+  }
+ },
+ {
+  "name": "mixed_429_with_network_error",
+  "exit": 1,
+  "stdout": {
+   "type": "result",
+   "subtype": "success",
+   "is_error": true,
+   "result": "network error",
+   "num_turns": 1,
+   "total_cost_usd": 0.0123,
+   "permission_denials": [],
+   "usage": {
+    "input_tokens": 100,
+    "cache_creation_input_tokens": 20,
+    "cache_read_input_tokens": 30,
+    "output_tokens": 40
+   },
+   "modelUsage": {
+    "claude-x": {
+     "outputTokens": 40
+    }
+   },
+   "api_error_status": 429
+  },
+  "stderr": "",
+  "expect": {
+   "status": "LIMITED",
+   "http_status": 429,
+   "pattern_id": "api_status"
+  }
+ },
+ {
+  "name": "mixed_401_with_token_refresh_network_error",
+  "exit": 1,
+  "stdout": {
+   "type": "result",
+   "subtype": "success",
+   "is_error": true,
+   "result": "token refresh failed: network error",
+   "num_turns": 1,
+   "total_cost_usd": 0.0123,
+   "permission_denials": [],
+   "usage": {
+    "input_tokens": 100,
+    "cache_creation_input_tokens": 20,
+    "cache_read_input_tokens": 30,
+    "output_tokens": 40
+   },
+   "modelUsage": {
+    "claude-x": {
+     "outputTokens": 40
+    }
+   },
+   "api_error_status": 401
+  },
+  "stderr": "",
+  "expect": {
+   "status": "ERROR",
+   "http_status": 401,
+   "pattern_id": "auth"
+  }
+ },
+ {
+  "name": "mixed_401_status_only_with_network_text",
+  "exit": 1,
+  "stdout": {
+   "type": "result",
+   "subtype": "success",
+   "is_error": true,
+   "result": "network error",
+   "num_turns": 1,
+   "total_cost_usd": 0.0123,
+   "permission_denials": [],
+   "usage": {
+    "input_tokens": 100,
+    "cache_creation_input_tokens": 20,
+    "cache_read_input_tokens": 30,
+    "output_tokens": 40
+   },
+   "modelUsage": {
+    "claude-x": {
+     "outputTokens": 40
+    }
+   },
+   "api_error_status": 401
+  },
+  "stderr": "",
+  "expect": {
+   "status": "ERROR",
+   "http_status": 401,
+   "pattern_id": "auth"
+  }
+ },
+ {
+  "name": "mixed_403_status_only_with_overloaded_text",
+  "exit": 1,
+  "stdout": {
+   "type": "result",
+   "subtype": "success",
+   "is_error": true,
+   "result": "overloaded",
+   "num_turns": 1,
+   "total_cost_usd": 0.0123,
+   "permission_denials": [],
+   "usage": {
+    "input_tokens": 100,
+    "cache_creation_input_tokens": 20,
+    "cache_read_input_tokens": 30,
+    "output_tokens": 40
+   },
+   "modelUsage": {
+    "claude-x": {
+     "outputTokens": 40
+    }
+   },
+   "api_error_status": 403
+  },
+  "stderr": "",
+  "expect": {
+   "status": "ERROR",
+   "http_status": 403,
+   "pattern_id": "auth"
+  }
+ },
+ {
+  "name": "mixed_permission_denial_with_network_error",
+  "exit": 1,
+  "stdout": {
+   "type": "result",
+   "subtype": "success",
+   "is_error": true,
+   "result": "network error",
+   "num_turns": 1,
+   "total_cost_usd": 0.0123,
+   "permission_denials": [
+    {
+     "tool_name": "Bash"
+    }
+   ],
+   "usage": {
+    "input_tokens": 100,
+    "cache_creation_input_tokens": 20,
+    "cache_read_input_tokens": 30,
+    "output_tokens": 40
+   },
+   "modelUsage": {
+    "claude-x": {
+     "outputTokens": 40
+    }
+   }
+  },
+  "stderr": "",
+  "expect": {
+   "status": "ERROR",
+   "pattern_id": "tool_or_turns"
+  }
+ },
+ {
+  "name": "mixed_usage_limit_with_503_text",
+  "exit": 1,
+  "stdout": {
+   "type": "result",
+   "subtype": "success",
+   "is_error": true,
+   "result": "usage limit reached; upstream 503",
+   "num_turns": 1,
+   "total_cost_usd": 0.0123,
+   "permission_denials": [],
+   "usage": {
+    "input_tokens": 100,
+    "cache_creation_input_tokens": 20,
+    "cache_read_input_tokens": 30,
+    "output_tokens": 40
+   },
+   "modelUsage": {
+    "claude-x": {
+     "outputTokens": 40
+    }
+   }
+  },
+  "stderr": "",
+  "expect": {
+   "status": "LIMITED",
+   "pattern_id": "limit_usage"
+  }
+ },
+ {
+  "name": "mixed_unauthorized_with_overloaded",
+  "exit": 1,
+  "stdout": {
+   "type": "result",
+   "subtype": "success",
+   "is_error": true,
+   "result": "unauthorized: overloaded",
+   "num_turns": 1,
+   "total_cost_usd": 0.0123,
+   "permission_denials": [],
+   "usage": {
+    "input_tokens": 100,
+    "cache_creation_input_tokens": 20,
+    "cache_read_input_tokens": 30,
+    "output_tokens": 40
+   },
+   "modelUsage": {
+    "claude-x": {
+     "outputTokens": 40
+    }
+   }
+  },
+  "stderr": "",
+  "expect": {
+   "status": "ERROR",
+   "pattern_id": "auth"
+  }
+ },
+ {
+  "name": "other_nonzero_exit",
+  "exit": 3,
+  "stdout": "",
+  "stderr": "boom",
+  "expect": {
+   "status": "ERROR",
+   "pattern_id": "unknown_output"
+  }
+ },
+ {
+  "name": "nonzero_exit_with_good_envelope",
+  "exit": 1,
+  "stdout": {
+   "type": "result",
+   "subtype": "success",
+   "is_error": false,
+   "result": "REPLY",
+   "num_turns": 1,
+   "total_cost_usd": 0.0123,
+   "permission_denials": [],
+   "usage": {
+    "input_tokens": 100,
+    "cache_creation_input_tokens": 20,
+    "cache_read_input_tokens": 30,
+    "output_tokens": 40
+   },
+   "modelUsage": {
+    "claude-x": {
+     "outputTokens": 40
+    }
+   }
+  },
+  "stderr": "",
+  "expect": {
+   "status": "ERROR",
+   "pattern_id": "unknown_output"
+  }
+ }
+]
