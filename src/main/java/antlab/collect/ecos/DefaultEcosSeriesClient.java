@@ -2,6 +2,8 @@ package antlab.collect.ecos;
 
 import antlab.collect.kis.SecretMasker;
 import antlab.collect.kis.Sleeper;
+import antlab.observability.CollectMetrics;
+import antlab.observability.CollectMetrics.Source;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -44,14 +46,16 @@ final class DefaultEcosSeriesClient implements EcosSeriesClient {
     private final SecretMasker masker;
     private final Sleeper sleeper;
     private final IntSupplier requestCounter;
+    private final CollectMetrics metrics;
 
     DefaultEcosSeriesClient(RestClient restClient, EcosProperties properties, SecretMasker masker, Sleeper sleeper,
-            IntSupplier requestCounter) {
+            IntSupplier requestCounter, CollectMetrics metrics) {
         this.restClient = restClient;
         this.properties = properties;
         this.masker = masker;
         this.sleeper = sleeper;
         this.requestCounter = requestCounter;
+        this.metrics = metrics;
     }
 
     @Override
@@ -71,77 +75,97 @@ final class DefaultEcosSeriesClient implements EcosSeriesClient {
         int offset = 0;
         for (int page = 0; page < PAGE_CAP; page++) {
             JsonNode json = fetch(statCode, itemCode, cycle, from, to, offset);
-            JsonNode body = json.get("StatisticSearch");
-            if (body == null) {
-                if (NO_DATA.equals(resultCode(json))) {
-                    if (offset == 0) {
+            int received;
+            long total;
+            try {
+                JsonNode body = json.get("StatisticSearch");
+                if (body == null) {
+                    if (NO_DATA.equals(resultCode(json)) && offset == 0) {
+                        metrics.request(Source.ECOS, CollectMetrics.OK);
                         return out;
                     }
-                    throw parseError("no data on a later page than the first");
+                    throw parseError(NO_DATA.equals(resultCode(json)) ? "no data on a later page than the first"
+                            : "the answer has no StatisticSearch element");
                 }
-                throw parseError("the answer has no StatisticSearch element");
-            }
-            JsonNode rows = body.path("row");
-            if (!rows.isArray() || !body.path("list_total_count").isNumber()) {
-                throw parseError("the answer has no row list or list_total_count");
-            }
-            for (JsonNode row : rows) {
-                EcosObservation parsed = parseRow(row, statCode, itemCode, cycle);
-                if (parsed != null) {
-                    out.add(parsed);
+                JsonNode rows = body.path("row");
+                if (!rows.isArray() || !body.path("list_total_count").isNumber()) {
+                    throw parseError("the answer has no row list or list_total_count");
                 }
+                for (JsonNode row : rows) {
+                    EcosObservation parsed = parseRow(row, statCode, itemCode, cycle);
+                    if (parsed != null) {
+                        out.add(parsed);
+                    }
+                }
+                received = rows.size();
+                total = body.path("list_total_count").asLong(0);
+                if (offset + received < total && received == 0) {
+                    throw parseError("an empty page before the announced count was reached");
+                }
+            } catch (EcosException e) {
+                // the request was answered, but its content was not understood: that is its final outcome
+                metrics.request(Source.ECOS, e.code());
+                throw e;
             }
-            offset += rows.size();
-            long total = body.path("list_total_count").asLong(0);
+            metrics.request(Source.ECOS, CollectMetrics.OK);
+            offset += received;
             if (offset >= total) {
                 return out;
-            }
-            if (rows.size() == 0) {
-                throw parseError("an empty page before the announced count was reached");
             }
         }
         throw new EcosException("PAGE_CAP", "ECOS paging stopped after " + PAGE_CAP + " pages without reaching the last row");
     }
 
+    /** Counts every request it sends except the one it returns: the caller counts that one once the page is read. */
     private JsonNode fetch(String stat, String item, EcosCycle cycle, LocalDate from, LocalDate to, int offset) {
         int rateRetries = 0;
         while (true) {
-            Raw raw = execute(restClient.get().uri(builder -> builder
-                    .pathSegment(EcosEndpoint.SEGMENT_API, EcosEndpoint.SEGMENT_SEARCH, properties.apiKey(), EcosEndpoint.FORMAT,
-                            EcosEndpoint.LANGUAGE, String.valueOf(offset + 1), String.valueOf(offset + properties.pageLimit()), stat,
-                            cycle.code(), cycle.write(from), cycle.write(to), item)
-                    .build()));
-            if (raw.status() >= 300 && raw.status() < 400) {
-                throw new EcosException("ECOS_HTTP", describe(raw.status(), null) + ": redirect not followed");
-            }
-            JsonNode json = parseObject(raw.body());
-            if (raw.status() == TOO_MANY_REQUESTS) {
+            Duration wait;
+            try {
+                Raw raw = execute(restClient.get().uri(builder -> builder
+                        .pathSegment(EcosEndpoint.SEGMENT_API, EcosEndpoint.SEGMENT_SEARCH, properties.apiKey(), EcosEndpoint.FORMAT,
+                                EcosEndpoint.LANGUAGE, String.valueOf(offset + 1), String.valueOf(offset + properties.pageLimit()), stat,
+                                cycle.code(), cycle.write(from), cycle.write(to), item)
+                        .build()));
+                if (raw.status() >= 300 && raw.status() < 400) {
+                    throw new EcosException("ECOS_HTTP", describe(raw.status(), null) + ": redirect not followed");
+                }
+                JsonNode json = parseObject(raw.body());
+                if (raw.status() != TOO_MANY_REQUESTS) {
+                    return accepted(raw, json);
+                }
                 if (rateRetries >= RATE_RETRY_WAITS.size()) {
                     throw new EcosException("ECOS_RATE_LIMIT", describe(raw.status(), json) + ": rate limit persists");
                 }
-                Duration wait = RATE_RETRY_WAITS.get(rateRetries++);
-                LOG.info("ECOS rate limit hit, waiting {} s before retry {}", wait.toSeconds(), rateRetries);
-                sleeper.sleep(wait);
-                continue;
+                wait = RATE_RETRY_WAITS.get(rateRetries++);
+                metrics.request(Source.ECOS, CollectMetrics.RATE_RETRY);
+            } catch (EcosException e) {
+                metrics.request(Source.ECOS, e.code());
+                throw e;
             }
-            if (raw.status() != 200) {
-                throw new EcosException("ECOS_HTTP", describe(raw.status(), json));
-            }
-            if (json == null) {
-                throw new EcosException("ECOS_PARSE", describe(raw.status(), null) + ": body is not a JSON object");
-            }
-            String result = resultCode(json);
-            if (BAD_KEY.equals(result)) {
-                throw new EcosException("ECOS_AUTH", describe(raw.status(), json) + ": key not accepted");
-            }
-            if (TOO_MANY_CALLS.equals(result)) {
-                throw new EcosException("ECOS_RATE_LIMIT", describe(raw.status(), json) + ": call limit reached");
-            }
-            if (result != null && !NO_DATA.equals(result)) {
-                throw new EcosException("ECOS_REJECTED", describe(raw.status(), json) + ": request rejected");
-            }
-            return json;
+            LOG.info("ECOS rate limit hit, waiting {} s before retry {}", wait.toSeconds(), rateRetries);
+            sleeper.sleep(wait);
         }
+    }
+
+    private JsonNode accepted(Raw raw, JsonNode json) {
+        if (raw.status() != 200) {
+            throw new EcosException("ECOS_HTTP", describe(raw.status(), json));
+        }
+        if (json == null) {
+            throw new EcosException("ECOS_PARSE", describe(raw.status(), null) + ": body is not a JSON object");
+        }
+        String result = resultCode(json);
+        if (BAD_KEY.equals(result)) {
+            throw new EcosException("ECOS_AUTH", describe(raw.status(), json) + ": key not accepted");
+        }
+        if (TOO_MANY_CALLS.equals(result)) {
+            throw new EcosException("ECOS_RATE_LIMIT", describe(raw.status(), json) + ": call limit reached");
+        }
+        if (result != null && !NO_DATA.equals(result)) {
+            throw new EcosException("ECOS_REJECTED", describe(raw.status(), json) + ": request rejected");
+        }
+        return json;
     }
 
     private Raw execute(RestClient.RequestHeadersSpec<?> request) {

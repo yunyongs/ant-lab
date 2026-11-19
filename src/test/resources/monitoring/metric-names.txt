@@ -32,6 +32,10 @@ hikaricp_connections_timeout_total
 hikaricp_connections_usage_seconds_count
 hikaricp_connections_usage_seconds_max
 hikaricp_connections_usage_seconds_sum
+http_client_requests_seconds_bucket  # lazy: registered after the first engine call
+http_client_requests_seconds_count  # lazy: registered after the first engine call
+http_client_requests_seconds_max  # lazy: registered after the first engine call
+http_client_requests_seconds_sum  # lazy: registered after the first engine call
 http_server_requests_active_seconds_bucket
 http_server_requests_active_seconds_gcount
 http_server_requests_active_seconds_gsum

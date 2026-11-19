@@ -17,8 +17,12 @@ import org.springframework.http.HttpMethod;
 class DashboardMetricNamesScrapeTest extends RealPortTest {
 
     private static final String SEASON_ID = "987654321";
-    /** The only names that may carry the lazy mark: a fresh JVM registers them after its first GC pause. */
-    private static final Pattern LAZY_FAMILY = Pattern.compile("^jvm_gc_pause_seconds_(count|sum|max)$");
+    /**
+     * The only names that may carry the lazy mark: a fresh JVM registers them after its first GC pause, and the engine client
+     * meters exist only after the first call to the engine (the test context has none).
+     */
+    private static final Pattern LAZY_FAMILY =
+            Pattern.compile("^(jvm_gc_pause_seconds_(count|sum|max)|http_client_requests_seconds_(count|sum|max|bucket))$");
 
     private Set<String> scrapedNames() {
         // Rejected calls make the HTTP histogram and the game counters (registered on first use) appear.

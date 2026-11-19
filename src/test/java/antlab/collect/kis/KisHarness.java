@@ -7,6 +7,8 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
+import antlab.observability.CollectMetrics;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
@@ -83,6 +85,8 @@ final class KisHarness {
 
     final AdvancingClock clock = new AdvancingClock(START);
     final RecordingSleeper sleeper = new RecordingSleeper(clock);
+    final SimpleMeterRegistry registry = new SimpleMeterRegistry();
+    final CollectMetrics metrics = new CollectMetrics(registry);
     final MockRestServiceServer server;
     final KisQuoteClientFactory factory;
     final KisProperties properties;
@@ -102,7 +106,7 @@ final class KisHarness {
     KisHarness(KisProperties properties, RestClient.Builder builder) {
         this.server = MockRestServiceServer.bindTo(builder).build();
         this.properties = properties;
-        this.factory = new KisQuoteClientFactory(builder, KisEndpoint.BASE_URI, properties, clock, sleeper);
+        this.factory = new KisQuoteClientFactory(builder, KisEndpoint.BASE_URI, properties, clock, sleeper, metrics);
     }
 
     static KisProperties properties(String tokenDir, int rps, int maxRequests) {

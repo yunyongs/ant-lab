@@ -2,7 +2,9 @@ package antlab.collect.fred;
 
 import antlab.collect.kis.KisClientConfig;
 import antlab.collect.series.SeriesCatalog;
+import antlab.observability.CollectMetrics;
 import java.time.Clock;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -17,8 +19,8 @@ import org.springframework.transaction.PlatformTransactionManager;
 class FredJobConfig {
 
     @Bean
-    FredClientFactory fredClientFactory(FredProperties properties, Clock clock) {
-        return FredClientFactory.create(KisClientConfig.transportBuilder(), properties, clock);
+    FredClientFactory fredClientFactory(FredProperties properties, Clock clock, ObjectProvider<CollectMetrics> metrics) {
+        return FredClientFactory.create(KisClientConfig.transportBuilder(), properties, clock, metrics.getIfAvailable(CollectMetrics::none));
     }
 
     @Bean
@@ -28,7 +30,7 @@ class FredJobConfig {
 
     @Bean
     FredSeriesJob fredSeriesJob(FredClientFactory factory, SeriesCatalog catalog, JdbcTemplate jdbc,
-            PlatformTransactionManager transactions, Clock clock, FredProperties properties) {
-        return FredSeriesJob.create(factory::newClient, catalog, jdbc, transactions, clock, properties);
+            PlatformTransactionManager transactions, Clock clock, FredProperties properties, ObjectProvider<CollectMetrics> metrics) {
+        return FredSeriesJob.create(factory::newClient, catalog, jdbc, transactions, clock, properties, metrics.getIfAvailable(CollectMetrics::none));
     }
 }

@@ -2,7 +2,9 @@ package antlab.collect.ecos;
 
 import antlab.collect.kis.KisClientConfig;
 import antlab.collect.series.SeriesCatalog;
+import antlab.observability.CollectMetrics;
 import java.time.Clock;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -17,14 +19,15 @@ import org.springframework.transaction.PlatformTransactionManager;
 class EcosJobConfig {
 
     @Bean
-    EcosClientFactory ecosClientFactory(EcosProperties properties, Clock clock) {
-        return EcosClientFactory.create(KisClientConfig.transportBuilder(), properties, clock);
+    EcosClientFactory ecosClientFactory(EcosProperties properties, Clock clock, ObjectProvider<CollectMetrics> metrics) {
+        return EcosClientFactory.create(KisClientConfig.transportBuilder(), properties, clock, metrics.getIfAvailable(CollectMetrics::none));
     }
 
     /** Reads the catalog itself: a shared SeriesCatalog bean would be a second candidate when the FRED job is on too. */
     @Bean
     EcosSeriesJob ecosSeriesJob(EcosClientFactory factory, JdbcTemplate jdbc, PlatformTransactionManager transactions,
-            Clock clock, EcosProperties properties) {
-        return EcosSeriesJob.create(factory::newClient, SeriesCatalog.fromClasspath(), jdbc, transactions, clock, properties);
+            Clock clock, EcosProperties properties, ObjectProvider<CollectMetrics> metrics) {
+        return EcosSeriesJob.create(factory::newClient, SeriesCatalog.fromClasspath(), jdbc, transactions, clock, properties,
+                metrics.getIfAvailable(CollectMetrics::none));
     }
 }

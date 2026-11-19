@@ -2,6 +2,8 @@ package antlab.collect.fred;
 
 import antlab.collect.kis.SecretMasker;
 import antlab.collect.kis.Sleeper;
+import antlab.observability.CollectMetrics;
+import antlab.observability.CollectMetrics.Source;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -41,14 +43,16 @@ final class DefaultFredSeriesClient implements FredSeriesClient {
     private final SecretMasker masker;
     private final Sleeper sleeper;
     private final IntSupplier requestCounter;
+    private final CollectMetrics metrics;
 
     DefaultFredSeriesClient(RestClient restClient, FredProperties properties, SecretMasker masker, Sleeper sleeper,
-            IntSupplier requestCounter) {
+            IntSupplier requestCounter, CollectMetrics metrics) {
         this.restClient = restClient;
         this.properties = properties;
         this.masker = masker;
         this.sleeper = sleeper;
         this.requestCounter = requestCounter;
+        this.metrics = metrics;
     }
 
     @Override
@@ -65,66 +69,86 @@ final class DefaultFredSeriesClient implements FredSeriesClient {
         int offset = 0;
         for (int page = 0; page < PAGE_CAP; page++) {
             JsonNode json = fetch(sourceSeriesId, observationStart, allVintages, offset);
-            JsonNode rows = json.path("observations");
-            if (!rows.isArray() || !json.path("count").isNumber()) {
-                throw parseError("the answer has no observations list or count");
+            int received;
+            long total;
+            try {
+                JsonNode rows = json.path("observations");
+                if (!rows.isArray() || !json.path("count").isNumber()) {
+                    throw parseError("the answer has no observations list or count");
+                }
+                int before = out.size();
+                for (JsonNode row : rows) {
+                    out.add(parseRow(row));
+                }
+                received = out.size() - before;
+                total = json.path("count").asLong(0);
+                if (offset + received < total && received == 0) {
+                    throw parseError("an empty page before the announced count was reached");
+                }
+            } catch (FredException e) {
+                // the request was answered, but its content was not understood: that is its final outcome
+                metrics.request(Source.FRED, e.code());
+                throw e;
             }
-            int before = out.size();
-            for (JsonNode row : rows) {
-                out.add(parseRow(row));
-            }
-            int received = out.size() - before;
+            metrics.request(Source.FRED, CollectMetrics.OK);
             offset += received;
-            long total = json.path("count").asLong(0);
             if (offset >= total) {
                 return out;
-            }
-            if (received == 0) {
-                throw parseError("an empty page before the announced count was reached");
             }
         }
         throw new FredException("PAGE_CAP", "FRED paging stopped after " + PAGE_CAP + " pages without reaching the last row");
     }
 
+    /** Counts every request it sends except the one it returns: the caller counts that one once the page is read. */
     private JsonNode fetch(String seriesId, LocalDate start, boolean allVintages, int offset) {
         int rateRetries = 0;
         while (true) {
-            Raw raw = execute(restClient.get().uri(builder -> {
-                builder.path(FredEndpoint.OBSERVATIONS_PATH)
-                        .queryParam("series_id", seriesId)
-                        .queryParam("api_key", properties.apiKey())
-                        .queryParam("file_type", "json")
-                        .queryParam("observation_start", start.toString());
-                if (allVintages) {
-                    builder.queryParam("realtime_start", FredEndpoint.ALL_VINTAGES_START)
-                            .queryParam("realtime_end", FredEndpoint.ALL_VINTAGES_END);
+            Duration wait;
+            try {
+                Raw raw = execute(restClient.get().uri(builder -> {
+                    builder.path(FredEndpoint.OBSERVATIONS_PATH)
+                            .queryParam("series_id", seriesId)
+                            .queryParam("api_key", properties.apiKey())
+                            .queryParam("file_type", "json")
+                            .queryParam("observation_start", start.toString());
+                    if (allVintages) {
+                        builder.queryParam("realtime_start", FredEndpoint.ALL_VINTAGES_START)
+                                .queryParam("realtime_end", FredEndpoint.ALL_VINTAGES_END);
+                    }
+                    return builder.queryParam("limit", properties.pageLimit()).queryParam("offset", offset).build();
+                }));
+                if (raw.status() >= 300 && raw.status() < 400) {
+                    throw new FredException("FRED_HTTP", describe(raw.status(), null) + ": redirect not followed");
                 }
-                return builder.queryParam("limit", properties.pageLimit()).queryParam("offset", offset).build();
-            }));
-            if (raw.status() >= 300 && raw.status() < 400) {
-                throw new FredException("FRED_HTTP", describe(raw.status(), null) + ": redirect not followed");
-            }
-            JsonNode json = parseObject(raw.body());
-            if (raw.status() == TOO_MANY_REQUESTS) {
+                JsonNode json = parseObject(raw.body());
+                if (raw.status() != TOO_MANY_REQUESTS) {
+                    return accepted(raw, json);
+                }
                 if (rateRetries >= RATE_RETRY_WAITS.size()) {
                     throw new FredException("FRED_RATE_LIMIT", describe(raw.status(), json) + ": rate limit persists");
                 }
-                Duration wait = RATE_RETRY_WAITS.get(rateRetries++);
-                LOG.info("FRED rate limit hit, waiting {} s before retry {}", wait.toSeconds(), rateRetries);
-                sleeper.sleep(wait);
-                continue;
+                wait = RATE_RETRY_WAITS.get(rateRetries++);
+                metrics.request(Source.FRED, CollectMetrics.RATE_RETRY);
+            } catch (FredException e) {
+                metrics.request(Source.FRED, e.code());
+                throw e;
             }
-            if (raw.status() != 200) {
-                throw new FredException("FRED_HTTP", describe(raw.status(), json));
-            }
-            if (json == null) {
-                throw new FredException("FRED_PARSE", describe(raw.status(), null) + ": body is not a JSON object");
-            }
-            if (json.has("error_code")) {
-                throw new FredException("FRED_REJECTED", describe(raw.status(), json) + ": request rejected");
-            }
-            return json;
+            LOG.info("FRED rate limit hit, waiting {} s before retry {}", wait.toSeconds(), rateRetries);
+            sleeper.sleep(wait);
         }
+    }
+
+    private JsonNode accepted(Raw raw, JsonNode json) {
+        if (raw.status() != 200) {
+            throw new FredException("FRED_HTTP", describe(raw.status(), json));
+        }
+        if (json == null) {
+            throw new FredException("FRED_PARSE", describe(raw.status(), null) + ": body is not a JSON object");
+        }
+        if (json.has("error_code")) {
+            throw new FredException("FRED_REJECTED", describe(raw.status(), json) + ": request rejected");
+        }
+        return json;
     }
 
     private Raw execute(RestClient.RequestHeadersSpec<?> request) {
