@@ -6,6 +6,8 @@ Commands:
   wait-query PROM_URL EXPR OP VALUE TIMEOUT [ID]
   prometheus PROM_URL TIMEOUT
   grafana GRAFANA_URL DASHBOARD_DIR
+  alert-rules GRAFANA_URL TIMEOUT
+  alert-state GRAFANA_URL RULE_UID STATE TIMEOUT [ID]
   self-test DASHBOARD_DIR
 
 Every check prints one line "PASS|FAIL <id> <detail>". Exit 0 = all passed, 1 = an assertion failed, 2 = usage.
@@ -338,6 +340,65 @@ def cmd_grafana(grafana_url, directory):
     report(status == 401, "A8b", f"anonymous /api/search answered {status}")
 
 
+ALERT_RULES_API = "/api/prometheus/grafana/api/v1/rules"
+ALERT_UIDS = (
+    "antlab-alert-api-down", "antlab-alert-api-5xx", "antlab-alert-reconciliation-mismatch", "antlab-alert-engine-down",
+    "antlab-alert-collector-failed", "antlab-alert-collector-stale", "antlab-alert-openrouter-cap", "antlab-alert-ollama-stop",
+    "antlab-alert-ledger-unreadable",
+)
+
+
+def alert_rules(grafana_url):
+    """Rule uid to the evaluated rule (state, health) from Grafana's rule list; empty when the call fails."""
+    status, body = http(grafana_url.rstrip("/") + ALERT_RULES_API, auth=True)
+    if status != 200 or not body:
+        return {}
+    return {r.get("uid"): r for g in body.get("data", {}).get("groups", []) for r in g.get("rules", [])}
+
+
+def evaluated_ok(rule):
+    """Health is "ok" before a rule has ever run, so a zero lastEvaluation does not count as evaluated."""
+    return rule.get("health") == "ok" and not str(rule.get("lastEvaluation", "")).startswith("0001")
+
+
+def cmd_alert_rules(grafana_url, timeout):
+    """OBS-10: all rules are provisioned from file (read-only) and every one has been evaluated without an error."""
+    deadline = time.monotonic() + timeout
+    while True:
+        rules = alert_rules(grafana_url)
+        pending = [u for u in ALERT_UIDS if u not in rules or not evaluated_ok(rules[u])]
+        if not pending or time.monotonic() >= deadline:
+            break
+        time.sleep(5)
+    for uid in ALERT_UIDS:
+        rule = rules.get(uid)
+        if not rule:
+            health = "missing"
+        elif evaluated_ok(rule):
+            health = "ok"
+        else:
+            health = rule.get("health") if rule.get("health") != "ok" else "not evaluated yet"
+        report(health == "ok", "AL1", f"{uid} health {health}" + (f" {rule.get('lastError', '')[:200]}" if rule and health != "ok" else ""))
+    status, body = http(grafana_url.rstrip("/") + "/api/v1/provisioning/alert-rules", auth=True)
+    provenance = {r.get("uid"): r.get("provenance") for r in body or []} if status == 200 else {}
+    report(all(provenance.get(u) == "file" for u in ALERT_UIDS), "AL2", f"provenance {sorted(set(provenance.values()))}")
+    status, body = http(grafana_url.rstrip("/") + "/api/v1/provisioning/contact-points", auth=True)
+    names = sorted(c.get("name", "") for c in body or []) if status == 200 else ["unknown"]
+    report(status == 200 and names == [], "AL3", f"contact points {names} (Grafana 13 ships none; a provisioned one could send out)")
+
+
+def cmd_alert_state(grafana_url, uid, state, timeout, check_id="AL4"):
+    deadline = time.monotonic() + timeout
+    while True:
+        rule = alert_rules(grafana_url).get(uid)
+        actual = rule.get("state") if rule else "missing"
+        if actual == state:
+            return report(True, check_id, f"{uid} is {state}")
+        if time.monotonic() >= deadline:
+            return report(False, check_id, f"{uid} is {actual}, wanted {state} within {timeout:g}s")
+        time.sleep(5)
+
+
 def cmd_self_test(directory):
     repo = load_repo_dashboards(directory)
     with open(os.path.join(directory, "..", "..", "datasources", "postgres.yaml"), encoding="utf-8") as handle:
@@ -372,6 +433,10 @@ def main(argv):
             cmd_prometheus(args[0], float(args[1]))
         elif cmd == "grafana" and len(args) == 2:
             cmd_grafana(*args)
+        elif cmd == "alert-rules" and len(args) == 2:
+            cmd_alert_rules(args[0], float(args[1]))
+        elif cmd == "alert-state" and len(args) in (4, 5):
+            cmd_alert_state(args[0], args[1], args[2], float(args[3]), *args[4:])
         elif cmd == "self-test" and len(args) == 1:
             cmd_self_test(args[0])
         else:
