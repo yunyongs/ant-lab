@@ -1,0 +1,510 @@
+apiVersion: 1
+
+# Local alert rules (OBS-10), provisioned from this file only: the UI shows them read-only. They are visible in Grafana and send nothing:
+# no contact point or notification policy is provisioned here, and Grafana 13 has none of its own (alerts go to the empty receiver).
+# Own folder: a rule file creates the folder by title and does not reuse the dashboard provider's folder (uid antlab), so a second "ant-lab" would appear.
+# Deferred: agent season stalled (needs the agent dashboard's stalled definition, OBS-09).
+groups:
+  - orgId: 1
+    name: service
+    folder: ant-lab alerts
+    interval: 30s
+    rules:
+      - uid: antlab-alert-api-down
+        title: API target down
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: antlab-prometheus
+            model:
+              refId: A
+              datasource:
+                type: prometheus
+                uid: antlab-prometheus
+              expr: "min(up{job=\"antlab-api\"})"
+              instant: true
+              range: false
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: reduce
+              expression: A
+              reducer: last
+              settings:
+                mode: dropNN
+              datasource:
+                type: __expr__
+                uid: __expr__
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: lt
+                    params: [1]
+              datasource:
+                type: __expr__
+                uid: __expr__
+        noDataState: Alerting
+        execErrState: Error
+        for: 2m
+        isPaused: false
+        labels:
+          severity: critical
+          component: api
+        annotations:
+          summary: "The API metrics target has been down for 2 minutes."
+          description: "Prometheus cannot scrape api:8081. The api profile is stopped, or the app is unhealthy."
+      - uid: antlab-alert-api-5xx
+        title: API 5xx ratio
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: antlab-prometheus
+            model:
+              refId: A
+              datasource:
+                type: prometheus
+                uid: antlab-prometheus
+              expr: "(sum(rate(http_server_requests_seconds_count{job=\"antlab-api\",uri!~\"/readyz|/livez|/actuator/.*\",status=~\"5..\"}[5m])) or vector(0)) / sum(rate(http_server_requests_seconds_count{job=\"antlab-api\",uri!~\"/readyz|/livez|/actuator/.*\"}[5m])) and on() sum(rate(http_server_requests_seconds_count{job=\"antlab-api\",uri!~\"/readyz|/livez|/actuator/.*\"}[5m])) > 0.05"
+              instant: true
+              range: false
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: reduce
+              expression: A
+              reducer: last
+              settings:
+                mode: dropNN
+              datasource:
+                type: __expr__
+                uid: __expr__
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0.05]
+              datasource:
+                type: __expr__
+                uid: __expr__
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        isPaused: false
+        labels:
+          severity: warning
+          component: api
+        annotations:
+          summary: "More than 5 percent of API requests answered 5xx for 5 minutes."
+          description: "Ratio over the last 5 minutes, readiness and actuator paths excluded; needs at least 0.05 requests per second so a single failure does not fire it."
+      - uid: antlab-alert-reconciliation-mismatch
+        title: Reconciliation mismatch
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: antlab-prometheus
+            model:
+              refId: A
+              datasource:
+                type: prometheus
+                uid: antlab-prometheus
+              expr: "sum(increase(antlab_reconciliation_mismatch_rules_total{job=\"antlab-api\"}[24h]))"
+              instant: true
+              range: false
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: reduce
+              expression: A
+              reducer: last
+              settings:
+                mode: dropNN
+              datasource:
+                type: __expr__
+                uid: __expr__
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              datasource:
+                type: __expr__
+                uid: __expr__
+        noDataState: OK
+        execErrState: Error
+        for: 0s
+        isPaused: false
+        labels:
+          severity: critical
+          component: api
+        annotations:
+          summary: "A turn advance was rolled back by a reconciliation mismatch in the last 24 hours."
+          description: "The counter antlab_reconciliation_mismatch_rules_total grew. Find the season through the api log and the halted-season panel."
+      - uid: antlab-alert-engine-down
+        title: Engine target down
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: antlab-prometheus
+            model:
+              refId: A
+              datasource:
+                type: prometheus
+                uid: antlab-prometheus
+              expr: "min(up{job=\"antlab-engine\"})"
+              instant: true
+              range: false
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: reduce
+              expression: A
+              reducer: last
+              settings:
+                mode: dropNN
+              datasource:
+                type: __expr__
+                uid: __expr__
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: lt
+                    params: [1]
+              datasource:
+                type: __expr__
+                uid: __expr__
+        noDataState: Alerting
+        execErrState: Error
+        for: 1m
+        isPaused: false
+        labels:
+          severity: critical
+          component: engine
+        annotations:
+          summary: "The engine metrics target has been down for 1 minute."
+          description: "Prometheus cannot scrape engine:8001. The engine container is stopped or unhealthy."
+  - orgId: 1
+    name: collectors
+    folder: ant-lab alerts
+    interval: 5m
+    rules:
+      - uid: antlab-alert-collector-failed
+        title: Collector last run FAILED
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: antlab-postgres
+            model:
+              refId: A
+              datasource:
+                type: grafana-postgresql-datasource
+                uid: antlab-postgres
+              rawSql: "SELECT count(*)::float8 AS value FROM (SELECT DISTINCT ON (job_name) job_name, status FROM obs.job_run WHERE status <> 'RUNNING' AND job_name IN ('KIS_DAILY_PRICE', 'FRED_SERIES', 'ECOS_SERIES') ORDER BY job_name, started_at DESC, id DESC) l WHERE l.status = 'FAILED'"
+              format: table
+              rawQuery: true
+              editorMode: code
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: reduce
+              expression: A
+              reducer: last
+              settings:
+                mode: dropNN
+              datasource:
+                type: __expr__
+                uid: __expr__
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              datasource:
+                type: __expr__
+                uid: __expr__
+        noDataState: OK
+        execErrState: Error
+        for: 10m
+        isPaused: false
+        labels:
+          severity: warning
+          component: collectors
+        annotations:
+          summary: "The latest finished run of a collector job has status FAILED."
+          description: "Jobs KIS_DAILY_PRICE, FRED_SERIES and ECOS_SERIES, newest finished run each (obs.job_run). It clears with the next run that does not fail."
+      - uid: antlab-alert-collector-stale
+        title: Collector newest success too old
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: antlab-postgres
+            model:
+              refId: A
+              datasource:
+                type: grafana-postgresql-datasource
+                uid: antlab-postgres
+              rawSql: "SELECT count(*)::float8 AS value FROM (SELECT job_name, max(finished_at) FILTER (WHERE status = 'SUCCEEDED') AS last_ok FROM obs.job_run WHERE job_name IN ('KIS_DAILY_PRICE', 'FRED_SERIES', 'ECOS_SERIES') GROUP BY job_name HAVING bool_or(run_trigger = 'SCHEDULED')) j WHERE j.last_ok IS NULL OR j.last_ok < now() - interval '72 hours'"
+              format: table
+              rawQuery: true
+              editorMode: code
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: reduce
+              expression: A
+              reducer: last
+              settings:
+                mode: dropNN
+              datasource:
+                type: __expr__
+                uid: __expr__
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              datasource:
+                type: __expr__
+                uid: __expr__
+        noDataState: OK
+        execErrState: Error
+        for: 10m
+        isPaused: false
+        labels:
+          severity: warning
+          component: collectors
+        annotations:
+          summary: "A scheduled collector job has no successful run in the last 72 hours."
+          description: "Counts jobs that have run on a schedule at least once whose newest SUCCEEDED run is older than 72 hours or missing (obs.job_run). Silent while collectors only run by hand (before M1-10)."
+  - orgId: 1
+    name: ai-budgets
+    folder: ant-lab alerts
+    interval: 1m
+    rules:
+      - uid: antlab-alert-openrouter-cap
+        title: OpenRouter daily cap at 80 percent
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: antlab-prometheus
+            model:
+              refId: A
+              datasource:
+                type: prometheus
+                uid: antlab-prometheus
+              expr: "max(label_replace(sum(antlab_openrouter_attempts_today{job=\"antlab-ledgers\",caller_class=\"product\"}) / max(antlab_openrouter_cap{job=\"antlab-ledgers\",name=\"product_daily\"}), \"cap\", \"product\", \"\", \"\") or label_replace(sum(antlab_openrouter_attempts_today{job=\"antlab-ledgers\",caller_class=\"harness\"}) / max(antlab_openrouter_cap{job=\"antlab-ledgers\",name=\"harness_daily\"}), \"cap\", \"harness\", \"\", \"\") or label_replace(sum(antlab_openrouter_attempts_today{job=\"antlab-ledgers\"}) / max(antlab_openrouter_cap{job=\"antlab-ledgers\",name=\"account_daily\"}), \"cap\", \"account\", \"\", \"\"))"
+              instant: true
+              range: false
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: reduce
+              expression: A
+              reducer: last
+              settings:
+                mode: dropNN
+              datasource:
+                type: __expr__
+                uid: __expr__
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0.7999]
+              datasource:
+                type: __expr__
+                uid: __expr__
+        noDataState: OK
+        execErrState: Error
+        for: 2m
+        isPaused: false
+        labels:
+          severity: warning
+          component: ledgers
+        annotations:
+          summary: "OpenRouter attempts today reached 80 percent of a daily cap."
+          description: "Highest ratio of product, harness and account attempts today to its cap (threshold 0.7999 so an exact 80 percent fires) (ledger exporter). No data while the ledger is unreadable: see the ledger unreadable rule."
+      - uid: antlab-alert-ollama-stop
+        title: Ollama Cloud spend at 80 percent of the stop
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: antlab-prometheus
+            model:
+              refId: A
+              datasource:
+                type: prometheus
+                uid: antlab-prometheus
+              expr: "max(antlab_ollama_spend_usd{job=\"antlab-ledgers\",window=\"total\"}) / max(antlab_ollama_stop_usd{job=\"antlab-ledgers\"})"
+              instant: true
+              range: false
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: reduce
+              expression: A
+              reducer: last
+              settings:
+                mode: dropNN
+              datasource:
+                type: __expr__
+                uid: __expr__
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0.7999]
+              datasource:
+                type: __expr__
+                uid: __expr__
+        noDataState: OK
+        execErrState: Error
+        for: 2m
+        isPaused: false
+        labels:
+          severity: warning
+          component: ledgers
+        annotations:
+          summary: "Ollama Cloud total spend reached 80 percent of the stop."
+          description: "Total spend divided by the stop in USD (ledger exporter; threshold 0.7999 so an exact 80 percent fires). No data while the ledger is unreadable: see the ledger unreadable rule."
+      - uid: antlab-alert-ledger-unreadable
+        title: Ledger unreadable
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: antlab-prometheus
+            model:
+              refId: A
+              datasource:
+                type: prometheus
+                uid: antlab-prometheus
+              expr: "min(antlab_ledger_readable{job=\"antlab-ledgers\",ledger=~\"openrouter|ollama\"} < 1 and on(ledger) max_over_time(antlab_ledger_readable{job=\"antlab-ledgers\",ledger=~\"openrouter|ollama\"}[7d]) == 1)"
+              instant: true
+              range: false
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: reduce
+              expression: A
+              reducer: last
+              settings:
+                mode: dropNN
+              datasource:
+                type: __expr__
+                uid: __expr__
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: lt
+                    params: [1]
+              datasource:
+                type: __expr__
+                uid: __expr__
+        noDataState: OK
+        execErrState: Error
+        for: 10m
+        isPaused: false
+        labels:
+          severity: info
+          component: ledgers
+        annotations:
+          summary: "A ledger that was readable in the last 7 days cannot be read now."
+          description: "antlab_ledger_readable fell to 0: file missing, unreadable or malformed. A ledger that was never readable (path unset) stays quiet. The two budget rules stay silent meanwhile; this rule says why."
