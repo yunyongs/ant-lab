@@ -183,8 +183,11 @@ def run_panel(grafana_url, panel):
 def cmd_postgres_datasource(base):
     """OBS-02: the provisioned PostgreSQL data source reaches the database as grafana_reader and answers a query."""
     status, ds = http(f"{base}/api/datasources/uid/{PG_DATASOURCE_UID}", auth=True)
-    report(status == 200 and ds.get("user") == "grafana_reader" and ds.get("readOnly") is True, "A9a",
-           f"{PG_DATASOURCE_UID} provisioned read-only as grafana_reader (answered {status})")
+    ds = ds or {}
+    json_data = ds.get("jsonData") or {}
+    caps = (json_data.get("maxOpenConns"), json_data.get("maxIdleConns"), json_data.get("maxIdleConnsAuto"), json_data.get("sslmode"))
+    report(status == 200 and ds.get("user") == "grafana_reader" and ds.get("readOnly") is True and caps == (8, 8, False, "disable"), "A9a",
+           f"{PG_DATASOURCE_UID} provisioned read-only as grafana_reader with stored caps {caps} (answered {status})")
     status, health = http(f"{base}/api/datasources/uid/{PG_DATASOURCE_UID}/health", auth=True, timeout=30)
     report(status == 200 and (health or {}).get("status") == "OK", "A9b",
            f"{PG_DATASOURCE_UID} health {status} {(health or {}).get('status')}")

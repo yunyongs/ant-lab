@@ -179,6 +179,8 @@ class MonitoringComposeSettingsTest {
         assertThat(source.get("editable")).isEqualTo(false);
         assertThat(source.get("isDefault")).isEqualTo(false);
         assertThat(((Map<String, Object>) source.get("jsonData")).get("database")).isEqualTo("antlab_api");
+        // The local db speaks no TLS; "require" would break the connection, so the choice is pinned until OPS changes it.
+        assertThat(((Map<String, Object>) source.get("jsonData")).get("sslmode")).isEqualTo("disable");
     }
 
     @Test
