@@ -145,7 +145,7 @@ BEGIN
 
     IF has_database_privilege('antlab_engine', current_database(), 'CREATE')
        OR has_database_privilege('antlab_engine', current_database(), 'TEMPORARY') THEN
-        problems := problems || 'antlab_engine can create schemas or temporary tables in this database';
+        problems := array_append(problems, 'antlab_engine can create schemas or temporary tables in this database');
     END IF;
 
     FOR r IN SELECT spcname FROM pg_tablespace WHERE has_tablespace_privilege('antlab_engine', oid, 'CREATE') LOOP

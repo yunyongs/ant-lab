@@ -1,6 +1,7 @@
 package antlab.dbrole;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -70,6 +71,21 @@ class RoleScriptEngineCoexistenceTest {
             assertEngineUnchanged(db.superuser());
             assertThat(db.superuser().queryForObject("SELECT has_table_privilege('antlab_app', 'asset'::regclass, 'SELECT')",
                     Boolean.class)).as("the app role keeps its grants").isTrue();
+        }
+    }
+
+    @Test
+    void aDatabaseCreateGrantToPublicIsRefusedWithTheIntendedMessageAndChangesNothing() throws SQLException {
+        try (RoleTestServer.Db db = new RoleTestServer.Db(SERVER, "r9c")) {
+            SERVER.migrate(db.name, SERVER.container().getUsername(), false);
+            db.superuserExecute("DO $f$ BEGIN EXECUTE format('GRANT CREATE ON DATABASE %I TO PUBLIC', current_database()); END $f$");
+
+            assertThatThrownBy(() -> SERVER.runEngineScript(db.name))
+                    .isInstanceOf(SQLException.class)
+                    .hasMessageContaining("antlab_engine can create schemas or temporary tables in this database")
+                    .hasMessageContaining("rolled back")
+                    .hasMessageNotContaining("malformed array literal");
+            assertThat(db.superuser().queryForObject("SELECT count(*) FROM pg_roles WHERE rolname = 'antlab_engine'", Integer.class)).isZero();
         }
     }
 }
