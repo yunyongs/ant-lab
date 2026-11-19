@@ -19,6 +19,8 @@ public final class GrafanaDashboards {
     public static final String PROVISIONING = "monitoring/grafana/provisioning";
     public static final Path DASHBOARD_DIR = Path.of(PROVISIONING, "dashboards", "antlab");
     public static final Path ALLOWLIST = Path.of("src/test/resources/monitoring/metric-names.txt");
+    /** Names of the database dashboard (OBS-06), from a scrape of postgres_exporter; the API allowlist does not apply to it. */
+    public static final Path DB_ALLOWLIST = Path.of("src/test/resources/monitoring/metric-names-db.txt");
 
     private GrafanaDashboards() {}
 
@@ -44,8 +46,12 @@ public final class GrafanaDashboards {
 
     /** Allowlist: metric name to "lazy" flag (names that a fresh JVM exports only after an event). */
     public static Map<String, Boolean> allowlist() throws IOException {
+        return allowlist(ALLOWLIST);
+    }
+
+    public static Map<String, Boolean> allowlist(Path file) throws IOException {
         Map<String, Boolean> names = new TreeMap<>();
-        for (String raw : Files.readAllLines(ALLOWLIST)) {
+        for (String raw : Files.readAllLines(file)) {
             String line = raw.strip();
             if (line.isEmpty() || line.startsWith("#")) {
                 continue;

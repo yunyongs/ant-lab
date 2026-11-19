@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Mocked-HTTP tests of the PostgreSQL data source checks in monitoring_smoke_checks.py (OBS-02). Standard library only, no Docker."""
+"""Mocked-HTTP tests of the PostgreSQL data source and database target checks in monitoring_smoke_checks.py (OBS-02, OBS-06). Standard library only, no Docker."""
 import contextlib
 import io
 import os
@@ -144,6 +144,73 @@ class SqlPanels(unittest.TestCase):
         self.assertFalse(checks.failed, out.getvalue())
         self.assertIn("PASS S3 antlab-overview#5 exists", out.getvalue())
         self.assertIn("PASS S5 antlab-collectors#1 A", out.getvalue())
+        self.assertIn("PASS S3 antlab-db#11 exists", out.getvalue())
+        self.assertIn("PASS S5 antlab-db#11 A", out.getvalue())
+
+
+class NumericFrames(unittest.TestCase):
+    """OBS-06: a Prometheus panel has data only when a value column holds a finite number."""
+
+    def frames(self, *columns):
+        return {"A": {"frames": [{"data": {"values": [list(c) for c in columns]}}]}}
+
+    def test_finite_number_counts(self):
+        self.assertTrue(checks.frames_have_value(self.frames([1], [0]), ["A"]))
+        self.assertTrue(checks.frames_have_value(self.frames([1], [2.5]), ["A"]))
+
+    def test_null_only_value_column_is_no_data(self):
+        self.assertFalse(checks.frames_have_value(self.frames([1], [None]), ["A"]))
+        self.assertFalse(checks.frames_have_value(self.frames([1, 2], [None, None]), ["A"]))
+
+    def test_nan_and_infinity_are_no_data(self):
+        self.assertFalse(checks.frames_have_value(self.frames([1], [float("nan")]), ["A"]))
+        self.assertFalse(checks.frames_have_value(self.frames([1], [float("inf")]), ["A"]))
+
+    def test_label_strings_and_booleans_are_not_numbers(self):
+        self.assertFalse(checks.frames_have_value(self.frames([1], ["public"], [None]), ["A"]))
+        self.assertFalse(checks.frames_have_value(self.frames([1], [True]), ["A"]))
+        self.assertTrue(checks.frames_have_value(self.frames([1], ["public"], [4096]), ["A"]))
+
+    def test_every_target_needs_its_own_number(self):
+        ok = {"data": {"values": [[1], [3]]}}
+        bad = {"data": {"values": [[1], [None]]}}
+        self.assertFalse(checks.frames_have_value({"A": {"frames": [ok]}, "B": {"frames": [bad]}}, ["A", "B"]))
+
+    def test_sql_frame_with_nan_only_is_no_data(self):
+        self.assertFalse(checks.frames_have_value(self.frames([float("nan")]), ["A"], {"A"}))
+
+
+class DatabaseTarget(unittest.TestCase):
+    """OBS-06: the Prometheus step waits for the exporter target and for pg_up."""
+
+    def setUp(self):
+        checks.failed = False
+
+    def test_prometheus_command_checks_target_up_and_pg_up_of_the_db_job(self):
+        calls = []
+        with mock.patch.object(checks, "wait_query", lambda prom, expr, op, expected, timeout, check_id: calls.append((expr, op, expected, check_id)) or True):
+            checks.cmd_prometheus("http://prom", 5)
+        self.assertIn(('up{job="antlab-db"}', "==", 1, "A1b"), calls)
+        self.assertIn(('pg_up{job="antlab-db"}', "==", 1, "A1c"), calls)
+
+    def test_exporter_up_but_database_unreachable_fails(self):
+        def prom(url, *args, **kwargs):
+            expr = urllib_query(url)
+            value = {"up{job=\"antlab-db\"}": "1", "pg_up{job=\"antlab-db\"}": "0"}.get(expr)
+            return (200, {"status": "success", "data": {"result": [{"value": [0, value]}] if value else []}})
+        out = io.StringIO()
+        with mock.patch.object(checks, "http", prom), mock.patch.object(checks.time, "sleep"), \
+                mock.patch.object(checks.time, "monotonic", side_effect=[0, 0, 0, 100, 100, 100, 100, 100]), contextlib.redirect_stdout(out):
+            checks.wait_query("http://prom", checks.Q_DB_UP, "==", 1, 5, "A1b")
+            checks.wait_query("http://prom", checks.Q_PG_UP, "==", 1, 5, "A1c")
+        self.assertIn("PASS A1b", out.getvalue())
+        self.assertIn("FAIL A1c", out.getvalue())
+        self.assertTrue(checks.failed)
+
+
+def urllib_query(url):
+    import urllib.parse
+    return urllib.parse.parse_qs(urllib.parse.urlparse(url).query)["query"][0]
 
 
 if __name__ == "__main__":

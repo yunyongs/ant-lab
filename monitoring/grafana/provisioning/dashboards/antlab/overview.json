@@ -51,6 +51,13 @@
       "includeVars": false,
       "keepTime": false,
       "icon": "external link"
+    },
+    {
+      "type": "link",
+      "title": "Database",
+      "url": "/d/antlab-db",
+      "icon": "dashboard",
+      "targetBlank": false
     }
   ],
   "panels": [

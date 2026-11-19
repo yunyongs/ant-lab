@@ -1,0 +1,10 @@
+# Metric names the database dashboard (antlab-db) may query, one per line, sorted. Source: a real scrape of postgres_exporter (job antlab-db) as antlab_metrics on PostgreSQL 17, exporter v0.20.1, plus the three custom queries of monitoring/postgres-exporter/queries.yaml. Names Prometheus makes itself (up, scrape_*) are not listed.
+# Add a name only from a real scrape; the live smoke (scripts/monitoring_smoke.sh) then proves that every dashboard panel returns data.
+pg_connections_count
+pg_database_size_bytes
+pg_longest_transaction_seconds
+pg_stat_database_deadlocks
+pg_stat_database_xact_commit
+pg_stat_database_xact_rollback
+pg_table_size_bytes
+pg_up
