@@ -369,6 +369,29 @@ class MonitoringSmokeScriptTest {
     }
 
     @Test
+    void 도우미는_엔진_대상을_기다리고_엔진_대시보드의_패널을_빠짐없이_확인한다() throws IOException {
+        String source = helperSource();
+        String block = source.substring(source.indexOf("# BEGIN SMOKE ENGINE QUERIES"), source.indexOf("# END SMOKE ENGINE QUERIES"));
+        List<String> queries = new ArrayList<>();
+        Matcher m = Pattern.compile("^\\w+ = '(.*)'$", Pattern.MULTILINE).matcher(block);
+        while (m.find()) {
+            queries.add(m.group(1));
+        }
+        assertThat(queries).containsExactly("up{job=\"antlab-engine\"}");
+        assertThat(source).contains("wait_query(prom_url, Q_ENGINE_UP, \"==\", 1, timeout, \"A1d\")");
+        // Panel 11 needs a regime evaluation, which the smoke does not request; every other panel needs data.
+        for (int id = 1; id <= 13; id++) {
+            if (id == 11) {
+                assertThat(source).doesNotContain("(\"antlab-engine\", 11),");
+            } else {
+                assertThat(source).contains("(\"antlab-engine\", " + id + "),");
+            }
+        }
+        assertThat(GrafanaDashboards.load().get("engine.json").path("panels")).hasSize(13);
+        assertThat(Files.readString(SCRIPT)).contains("http://127.0.0.1:$engine_port/healthz");
+    }
+
+    @Test
     void 데이터_소스_uid가_도우미와_같다() throws IOException {
         Matcher helper = Pattern.compile("PG_DATASOURCE_UID = \"([^\"]+)\"").matcher(helperSource());
         assertThat(helper.find()).isTrue();

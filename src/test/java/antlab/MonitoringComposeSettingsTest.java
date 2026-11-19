@@ -296,11 +296,31 @@ class MonitoringComposeSettingsTest {
     @SuppressWarnings("unchecked")
     void scrape_설정은_db_지표_잡을_내부_주소로_긁는다() throws IOException {
         var jobs = (List<Map<String, Object>>) load("monitoring/prometheus/prometheus.yml").get("scrape_configs");
-        assertThat(jobs).extracting(j -> j.get("job_name")).containsExactly("antlab-api", "antlab-db", "antlab-ledgers");
+        assertThat(jobs).extracting(j -> j.get("job_name")).containsExactly("antlab-api", "antlab-db", "antlab-engine", "antlab-ledgers");
         var job = jobs.get(1);
         var targets = (List<Map<String, Object>>) job.get("static_configs");
         assertThat(targets).hasSize(1);
         assertThat(targets.get(0).get("targets")).isEqualTo(List.of("postgres-exporter:9187"));
         assertThat(job).doesNotContainKeys("basic_auth", "authorization", "metrics_path", "params");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void scrape_설정은_엔진_지표_잡을_내부_포트_8001로_긁고_엔진은_그_포트를_게시하지_않는다() throws IOException {
+        var jobs = (List<Map<String, Object>>) load("monitoring/prometheus/prometheus.yml").get("scrape_configs");
+        var job = jobs.stream().filter(j -> "antlab-engine".equals(j.get("job_name"))).findFirst().orElseThrow();
+        var targets = (List<Map<String, Object>>) job.get("static_configs");
+        assertThat(targets).hasSize(1);
+        assertThat(targets.get(0).get("targets")).isEqualTo(List.of("engine:8001"));
+        assertThat(job).doesNotContainKeys("basic_auth", "authorization", "metrics_path", "params");
+        services().forEach((name, service) -> {
+            for (Object port : (List<Object>) service.getOrDefault("ports", List.of())) {
+                assertThat(port.toString()).as("%s port %s", name, port).doesNotContain("8001");
+            }
+            assertThat(service).as(name).doesNotContainKey("expose");
+        });
+        assertThat(services().get("engine").get("ports")).isEqualTo(List.of("127.0.0.1:${ANTLAB_ENGINE_PORT:-8000}:8000"));
+        assertThat(services().get("engine").get("networks")).isEqualTo(List.of("backend"));
+        assertThat(((Map<String, Object>) services().get("engine").get("environment")).get("ANTLAB_ENGINE_METRICS_HOST")).isEqualTo("0.0.0.0");
     }
 }

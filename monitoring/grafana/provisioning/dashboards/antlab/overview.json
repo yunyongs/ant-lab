@@ -61,6 +61,13 @@
     },
     {
       "type": "link",
+      "title": "Engine",
+      "url": "/d/antlab-engine",
+      "icon": "dashboard",
+      "targetBlank": false
+    },
+    {
+      "type": "link",
       "title": "AI usage",
       "url": "/d/antlab-ai-usage",
       "icon": "dashboard",

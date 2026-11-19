@@ -23,7 +23,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-UIDS = ("antlab-api", "antlab-jvm-db", "antlab-game", "antlab-collectors", "antlab-overview", "antlab-db", "antlab-ai-usage")
+UIDS = ("antlab-api", "antlab-jvm-db", "antlab-game", "antlab-collectors", "antlab-overview", "antlab-db", "antlab-engine", "antlab-ai-usage")
 FOLDER_UID = "antlab"
 PG_DATASOURCE_UID = "antlab-postgres"
 APPLICATION = "antlab-api"
@@ -57,6 +57,20 @@ MUST_HAVE_DATA = (
     ("antlab-db", 9),   # Deadlocks
     ("antlab-db", 10),  # Longest open transaction over time
     ("antlab-db", 11),  # Largest tables
+    # OBS-05: the engine dashboard answers once the smoke traffic has been scraped. Panel 11 (regime evaluation duration) is left out:
+    # the container has no RegimeSource yet, so evaluations return 503 and are not timed; the panel stays empty until it is wired.
+    ("antlab-engine", 1),   # Engine up
+    ("antlab-engine", 2),   # Requests per second
+    ("antlab-engine", 3),   # Error ratio
+    ("antlab-engine", 4),   # Projection slots in use
+    ("antlab-engine", 5),   # Process memory
+    ("antlab-engine", 6),   # Requests per second by route
+    ("antlab-engine", 7),   # Error ratio over time
+    ("antlab-engine", 8),   # p95 latency by route
+    ("antlab-engine", 9),   # Projection slots
+    ("antlab-engine", 10),  # Regime evaluations per second
+    ("antlab-engine", 12),  # Process CPU
+    ("antlab-engine", 13),  # Process memory over time
 )
 
 # BEGIN SMOKE QUERIES
@@ -71,6 +85,11 @@ Q_REJECTED = 'sum(antlab_order_rejected_total{code=~".+"})'
 Q_DB_UP = 'up{job="antlab-db"}'
 Q_PG_UP = 'pg_up{job="antlab-db"}'
 # END SMOKE DB QUERIES
+
+# OBS-05: names from the engine registry, checked against src/test/resources/monitoring/metric-names-engine.txt (up is made by Prometheus).
+# BEGIN SMOKE ENGINE QUERIES
+Q_ENGINE_UP = 'up{job="antlab-engine"}'
+# END SMOKE ENGINE QUERIES
 
 failed = False
 
@@ -144,6 +163,8 @@ def cmd_prometheus(prom_url, timeout):
     # up is 1 as soon as the exporter answers; pg_up is 1 only when it reached the database as antlab_metrics.
     wait_query(prom_url, Q_DB_UP, "==", 1, timeout, "A1b")
     wait_query(prom_url, Q_PG_UP, "==", 1, timeout, "A1c")
+    # OBS-05: the engine metrics port (8001) answers to Prometheus on the internal network only.
+    wait_query(prom_url, Q_ENGINE_UP, "==", 1, timeout, "A1d")
     wait_query(prom_url, Q_TURNS, "==", TURNS_PLAYED, timeout, "A2")
     ok_season = wait_query(prom_url, Q_SEASONS, "==", 1, timeout, "A3a")
     ok_reject = wait_query(prom_url, Q_REJECTED, ">=", 1, timeout, "A3b")

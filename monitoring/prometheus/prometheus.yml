@@ -15,6 +15,11 @@ scrape_configs:
     static_configs:
       - targets: ["postgres-exporter:9187"]
 
+  # OBS-05: engine metrics on the internal port 8001 (no token, never published). `up` is 0 while the engine profile is not running.
+  - job_name: antlab-engine
+    static_configs:
+      - targets: ["engine:8001"]
+
   # OBS-08: numbers from the host ledgers (OpenRouter, Ollama Cloud, fetch tool). `up` is 1 whenever the exporter answers; antlab_ledger_readable says whether each file could be read.
   - job_name: antlab-ledgers
     static_configs:

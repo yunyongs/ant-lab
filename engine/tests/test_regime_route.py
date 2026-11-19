@@ -615,3 +615,14 @@ def test_tb11_an_inconsistent_month_is_refused(mutate):
     mutate(month)
     with pytest.raises(ValidationError):
         RegimeMonth.model_validate(month)
+
+
+def test_a_regime_evaluation_is_counted_in_the_duration_histogram(post, app_with_source):
+    from prometheus_client import generate_latest
+
+    ok(post(body()))
+    scraped = generate_latest(app_with_source.state.metrics.registry).decode()
+    assert "antlab_engine_regime_evaluation_duration_seconds_count 1.0" in scraped
+    assert "antlab_engine_regime_evaluation_duration_seconds_sum " in scraped
+    assert 'antlab_engine_regime_evaluation_duration_seconds_bucket{le="+Inf"} 1.0' in scraped
+    assert 'route="/v1/regime/evaluate",status="200"' in scraped
