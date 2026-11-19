@@ -91,6 +91,12 @@ class MonitoringComposeSettingsTest {
     }
 
     @Test
+    void grafana_메모리_상한은_512m이다() throws IOException {
+        // Measured 243.6 MiB of the former 256m limit on the owner stack (2026-11-19).
+        assertThat(services().get("grafana").get("mem_limit")).isEqualTo("512m");
+    }
+
+    @Test
     @SuppressWarnings("unchecked")
     void 모니터링_서비스는_backend에만_붙고_설정은_읽기_전용이다() throws IOException {
         var services = services();
@@ -150,5 +156,63 @@ class MonitoringComposeSettingsTest {
     void env_example은_이름만_가진다() throws IOException {
         assertThat(Files.readAllLines(Path.of(".env.example")).stream().map(String::strip).filter(l -> l.startsWith(PASSWORD_VAR + "=")))
                 .containsExactly(PASSWORD_VAR + "=");
+    }
+
+    private static final String READER_PASSWORD_VAR = "GRAFANA_READER_PASSWORD";
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> postgresSource() throws IOException {
+        var sources = (List<Map<String, Object>>) load("monitoring/grafana/provisioning/datasources/postgres.yaml").get("datasources");
+        assertThat(sources).hasSize(1);
+        return sources.get(0);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void PostgreSQL_데이터_소스는_고정_uid로_읽기_역할을_가리킨다() throws IOException {
+        var source = postgresSource();
+        assertThat(source.get("uid")).isEqualTo("antlab-postgres");
+        assertThat(source.get("type")).isEqualTo("grafana-postgresql-datasource");
+        assertThat(source.get("url")).isEqualTo("db:5432");
+        assertThat(source.get("user")).isEqualTo("grafana_reader");
+        assertThat(source.get("access")).isEqualTo("proxy");
+        assertThat(source.get("editable")).isEqualTo(false);
+        assertThat(source.get("isDefault")).isEqualTo(false);
+        assertThat(((Map<String, Object>) source.get("jsonData")).get("database")).isEqualTo("antlab_api");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void PostgreSQL_연결_수는_역할의_연결_제한_안이다() throws IOException {
+        // db/roles/grafana_reader.sql sets CONNECTION LIMIT 10; the Grafana default for SQL data sources is 100.
+        var json = (Map<String, Object>) postgresSource().get("jsonData");
+        assertThat((Integer) json.get("maxOpenConns")).isBetween(1, 10);
+        assertThat((Integer) json.get("maxIdleConns")).isBetween(1, (Integer) json.get("maxOpenConns"));
+        assertThat(json.get("maxIdleConnsAuto")).isEqualTo(false);
+        assertThat(Files.readString(Path.of("db/roles/grafana_reader.sql"))).contains("CONNECTION LIMIT 10");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void PostgreSQL_비밀번호는_파일에_값이_없고_환경_변수로만_온다() throws IOException {
+        var source = postgresSource();
+        assertThat(source).doesNotContainKeys("password", "basicAuth", "basicAuthPassword", "basicAuthUser");
+        var secure = (Map<String, Object>) source.get("secureJsonData");
+        assertThat(secure).containsOnlyKeys("password");
+        assertThat(secure.get("password")).isEqualTo("$" + READER_PASSWORD_VAR);
+        assertThat((Map<String, Object>) source.get("jsonData")).doesNotContainKeys("password", "tlsClientKey");
+        assertThat(Files.readAllLines(Path.of("monitoring/grafana/provisioning/datasources/postgres.yaml")))
+                .filteredOn(l -> l.toLowerCase().contains("password") && !l.strip().startsWith("#"))
+                .containsExactly("      password: $" + READER_PASSWORD_VAR);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void grafana는_읽기_역할_비밀번호를_빈_기본값의_환경_변수로_받는다() throws IOException {
+        assertThat(grafanaEnvironment().get(READER_PASSWORD_VAR).toString()).isEqualTo("${" + READER_PASSWORD_VAR + ":-}");
+        assertThat(services().get("grafana").get("networks")).isEqualTo(List.of("backend"));
+        assertThat(Files.readAllLines(Path.of(".env.example")).stream().map(String::strip)
+                .filter(l -> l.replaceFirst("^#\\s*", "").startsWith(READER_PASSWORD_VAR + "=")))
+                .containsExactly("# " + READER_PASSWORD_VAR + "=");
     }
 }
