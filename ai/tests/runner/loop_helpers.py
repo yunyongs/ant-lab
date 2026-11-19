@@ -65,7 +65,7 @@ class Harness:
             runner_settings(self.state_dir), transport=self.spring, sleep=lambda s: None
         )
 
-    def run(self, *, resume=False, port=None, send_cap=None, config=None):
+    def run(self, *, resume=False, port=None, send_cap=None, config=None, gate=None):
         """One runner process: open the journal, run, close. A ``Crash`` still closes the journal."""
         with Journal.open(self.state_dir, 1, 7) as journal:
             runner = SeasonRunner(
@@ -78,6 +78,7 @@ class Harness:
                 sleep=self.sleeps,
                 jitter=lambda: 0.0,
                 send_cap=send_cap,
+                gate=gate,
             )
             self.last_state = runner.run(resume=resume)
             self.journal_state = journal.state

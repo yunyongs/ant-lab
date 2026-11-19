@@ -21,7 +21,11 @@ name = os.path.basename(__file__)
 argv = sys.argv[1:]
 scenarios = json.load(open(os.path.join(here, "scenario.json")))
 sc = scenarios.get(name, {{}})
+if argv[:1] in (["auth"], ["login"]):
+    sc = scenarios.get(name + ":login", sc)
 if argv == ["--version"]:
+    with open(os.path.join(here, "calls.jsonl"), "a") as log:
+        log.write(json.dumps({{"argv": argv, "env": sorted(os.environ)}}) + "\n")
     print("9.9.9 (fake)")
     sys.exit(0)
 stdin = b"" if sc.get("skip_stdin") else sys.stdin.buffer.read()
@@ -80,6 +84,9 @@ class FakeClis:
             path.chmod(stat.S_IRWXU)
         self.scenario("claude")
         self.scenario("codex")
+        # The login-status subcommands answer from their own scenario (a subscription login).
+        self.scenario("claude:login", stdout=json.dumps({"loggedIn": True, "authMethod": "oauth"}))
+        self.scenario("codex:login", stdout="Logged in using ChatGPT\n")
 
     def scenario(self, name: str, **fields: object) -> None:
         path = self.dir / "scenario.json"

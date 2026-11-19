@@ -92,6 +92,53 @@ Exit codes: `0` season finished, `3` paused or stopped (the reason code is print
 
 종료 코드: `0` 시즌 끝, `3` 멈춤(이유 코드를 출력한다: 정지 사유, `IN_PROGRESS`가 아닌 시즌 상태, `CALL_CAP`), `2` 사용법·거부된 설정·`--resume` 없이 멈춘 시즌 실행·같은 시즌의 두 번째 러너, `1` 그 밖의 오류. 콘솔에는 건수·턴 번호·결과·이유 코드만 나오고 프롬프트·응답·키·토큰은 나오지 않는다.
 
+## Subscription routes (AG-03)
+
+`CLAUDE_CLI` and `CODEX_CLI` run the owner's own, unmodified `claude -p` and `codex exec` on the owner's device. They are **off by default**, never used during development, and turned on only after the service is running. One attempt is one process: its own session, a fixed deadline (600 s), output caps, an allowlisted environment and an empty working directory outside the repository (`ANTLAB_SUBSCRIPTION_WORK_ROOT`, default `~/.local/state/antlab/subscription/work`). No image, compose file or workflow installs or mounts either CLI. A subscription run needs no `OPENROUTER_API_KEY`.
+
+`CLAUDE_CLI`와 `CODEX_CLI`는 소유자 기기에서 소유자 본인의 수정하지 않은 `claude -p`, `codex exec`를 돌린다. **기본은 꺼짐**이고 개발 중에는 쓰지 않으며 서비스가 돌기 시작한 뒤에만 켠다. 시도 하나는 프로세스 하나다. 자기 세션, 고정 마감(600초), 출력 상한, 허용 목록 환경 변수, 저장소 밖의 빈 작업 폴더(`ANTLAB_SUBSCRIPTION_WORK_ROOT`, 기본 `~/.local/state/antlab/subscription/work`)에서 돈다. 이미지·compose·워크플로에 두 CLI를 설치하거나 마운트하지 않는다. 구독 경로 실행에는 `OPENROUTER_API_KEY`가 필요 없다.
+
+Settings (environment only, names in `.env.example`): `ANTLAB_MODEL_SUBSCRIPTION_ENABLED` (`true`/`false`, default `false`) and `ANTLAB_MODEL_SUBSCRIPTION_ROUTES` (comma list) must both allow a route; with a route on, `ANTLAB_SUBSCRIPTION_OWNER_MEMBER_ID` (the member who holds the subscription) and `ANTLAB_SUBSCRIPTION_USAGE_CMD` (the usage meter command, argv without a shell) are required. Optional: `ANTLAB_SUBSCRIPTION_MAX_CALLS_PER_BATCH` (default 15, at most 60), `ANTLAB_SUBSCRIPTION_USAGE_MAX_AGE_S` (default 900), `ANTLAB_SUBSCRIPTION_WORK_ROOT`, `ANTLAB_SUBSCRIPTION_CODEX_HOME`, `ANTLAB_SUBSCRIPTION_CLAUDE_CONFIG_DIR`.
+
+설정(환경 변수만, 이름은 `.env.example`): `ANTLAB_MODEL_SUBSCRIPTION_ENABLED`(`true`/`false`, 기본 `false`)와 `ANTLAB_MODEL_SUBSCRIPTION_ROUTES`(쉼표 목록)가 둘 다 허용해야 경로가 켜진다. 경로를 켜면 `ANTLAB_SUBSCRIPTION_OWNER_MEMBER_ID`(구독을 가진 회원)와 `ANTLAB_SUBSCRIPTION_USAGE_CMD`(사용률 측정 명령, 셸 없는 argv)가 필수다. 선택: `ANTLAB_SUBSCRIPTION_MAX_CALLS_PER_BATCH`(기본 15, 최대 60), `ANTLAB_SUBSCRIPTION_USAGE_MAX_AGE_S`(기본 900), `ANTLAB_SUBSCRIPTION_WORK_ROOT`, `ANTLAB_SUBSCRIPTION_CODEX_HOME`, `ANTLAB_SUBSCRIPTION_CLAUDE_CONFIG_DIR`.
+
+```sh
+uv run --frozen python -m antlab_ai.runner register --persona patient-value --model-id <full model name> --route CLAUDE_CLI
+uv run --frozen python -m antlab_ai.runner run --agent-id <n> --season-id <n> --persona patient-value --model-id <full model name> --route CLAUDE_CLI --live --max-calls <n> [--batch-id <id>] [--resume] [--reconcile]
+```
+
+The start prints the route, model, call cap and current usage, then waits for the route name typed by the owner. `--batch-id` names the batch: the call cap is counted per batch id in `<state dir>/subscription/calls.jsonl` (metadata only, mode 0600; a reservation row is flushed before every spawn, a completion row after it), so a restart with the same id continues the count; without it each command is a new batch. The effective cap is `min(--max-calls, ANTLAB_SUBSCRIPTION_MAX_CALLS_PER_BATCH)` and counts every spawned process, failed ones included. A paused season is resumed with `--resume`; there is no automatic resume and no scheduler. The usage meter command prints `subscription-usage/1` JSON (percentages as decimal strings); `scripts/usage_from_orca.py` converts the Orca meter output into it and uses only the standard library.
+
+시작하면 경로·모델·호출 상한·현재 사용률을 보여 주고, 소유자가 경로 이름을 직접 입력할 때까지 기다린다. `--batch-id`는 배치 이름이다. 호출 상한은 배치 id별로 `<state dir>/subscription/calls.jsonl`(메타데이터만, 0600)에서 세므로 같은 id로 다시 시작하면 이어서 센다. 없으면 명령마다 새 배치다. 실제 상한은 `min(--max-calls, ANTLAB_SUBSCRIPTION_MAX_CALLS_PER_BATCH)`이고 실패한 호출을 포함해 띄운 프로세스마다 센다. 멈춘 시즌은 `--resume`으로 잇고, 자동 재개와 스케줄러는 없다. 사용률 명령은 `subscription-usage/1` JSON(퍼센트는 십진 문자열)을 출력해야 하며 `scripts/usage_from_orca.py`가 Orca 측정 출력을 이 형식으로 바꾼다(표준 라이브러리만 쓴다).
+
+Refusals (exit code 2 at the start; the text is a fixed code). The start order is: environment, container or CI, terminal, batch lock, exhausted cap and unfinished reservations, owner check (API), usage, typed confirmation, and only then the CLI diagnostics. A refusal can launch at most two kinds of process, never a model call:
+
+| A refusal launches | Codes |
+|---|---|
+| Nothing | `API_KEY_SET` (at the start and when the name appears later in a batch), `NOT_OWNER_DEVICE`, `NOT_OWNER_STARTED` (no terminal), `BATCH_RUNNING`, `CALL_CAP`, `RECONCILE_REQUIRED`, `NOT_OWNER_AGENT`, `BATCH_NOT_ACTIVE`, `LEDGER_UNSAFE`, `LEDGER_UNREADABLE`, `LEDGER_SCHEMA`, `LEDGER_ROW`, `LEDGER_WRITE` |
+| The usage meter command only (`ANTLAB_SUBSCRIPTION_USAGE_CMD`, read-only) | `USAGE_UNKNOWN`, `USAGE_START`, `USAGE_STOP` (also before every attempt of a run), `NOT_OWNER_STARTED` (wrong typed route), `API_KEY_SET` (re-check after the typed confirmation) |
+| The CLI's `--version` and login status only, after every check that needs no CLI passed | `CLI_MISSING`, `NOT_LOGGED_IN` |
+
+Meaning of the codes: `API_KEY_SET` (an API-billing or proxy name such as `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` is set), `NOT_OWNER_DEVICE` (container or CI), `NOT_OWNER_STARTED` (no terminal, or the route name was not typed), `BATCH_RUNNING` (another batch holds the lock), `CLI_MISSING`, `NOT_LOGGED_IN` (no subscription login, or an API key login), `NOT_OWNER_AGENT` (the agent's `ownerMemberId` is not `ANTLAB_SUBSCRIPTION_OWNER_MEMBER_ID`, or the route or model differs), `USAGE_UNKNOWN` (the meter is missing, malformed or older than the maximum age), `USAGE_START` (weekly use at 70 % or more), `USAGE_STOP` (weekly or 5-hour use at 85 % or more), `CALL_CAP` (the cap of the batch is used up), `BATCH_NOT_ACTIVE` (an attempt outside a completed, open session), `RECONCILE_REQUIRED` (a reservation has no completion: a CLI may still be running; check, then restart with `--reconcile`), `LEDGER_UNSAFE` (a link, loose mode, hardlink or shared directory), `LEDGER_UNREADABLE` (a corrupt row: the count refuses instead of guessing), `LEDGER_SCHEMA` (a legacy, orphaned or malformed event: recovery never guesses), `LEDGER_ROW` and `LEDGER_WRITE` (a failed write ends the batch after the reply is returned). During a run, the journal pauses with `USAGE_GUARD` (usage codes) or `SUBSCRIPTION_REFUSED` (every other code), and `CALL_CAP` stops without a pause. A route that is not switched on is `AdapterDisabled` (exit code 2). `--batch-id` and `--reconcile` are refused on a route that is not a subscription route.
+
+Operating notes: the state directory must have no symlinked ancestor (the path is walked with `O_NOFOLLOW`, so on macOS a state directory under `/tmp` or `/var`, which are links, is refused with `LEDGER_UNSAFE`; use a real path such as one under the home directory). The meter's Claude numbers are fed by interactive sessions, so with no session open the reading can go stale after `ANTLAB_SUBSCRIPTION_USAGE_MAX_AGE_S` (900 s) and the batch refuses with `USAGE_UNKNOWN`; whether the meter refreshes without a session is to be measured in the probe.
+
+Not built here: the probe, the detection-first gate rows and the replacement of the draft mapping fixtures by recorded shapes; they come after the owner starts the service (AG-03 PR D and E, PLAN §4.16).
+
+거부(시작에서 종료 코드 2이고 텍스트는 고정 코드다). 시작 순서는 환경 변수, 컨테이너·CI, 터미널, 배치 잠금, 소진된 상한과 끝나지 않은 예약, 소유자 확인(API), 사용률, 직접 입력한 확인, 그다음에야 CLI 진단이다. 거부가 띄울 수 있는 프로세스는 두 종류뿐이고 모델 호출은 절대 없다.
+
+| 거부가 띄우는 것 | 코드 |
+|---|---|
+| 아무것도 없음 | `API_KEY_SET`(시작 때와 배치 중에 이름이 나타났을 때), `NOT_OWNER_DEVICE`, `NOT_OWNER_STARTED`(터미널 없음), `BATCH_RUNNING`, `CALL_CAP`, `RECONCILE_REQUIRED`, `NOT_OWNER_AGENT`, `BATCH_NOT_ACTIVE`, `LEDGER_UNSAFE`, `LEDGER_UNREADABLE`, `LEDGER_SCHEMA`, `LEDGER_ROW`, `LEDGER_WRITE` |
+| 사용률 측정 명령만(`ANTLAB_SUBSCRIPTION_USAGE_CMD`, 읽기 전용) | `USAGE_UNKNOWN`, `USAGE_START`, `USAGE_STOP`(실행 중 매 시도 전에도), `NOT_OWNER_STARTED`(경로 이름을 잘못 입력), `API_KEY_SET`(직접 입력한 확인 뒤 다시 검사) |
+| CLI의 `--version`과 로그인 상태만, CLI가 필요 없는 점검을 모두 통과한 뒤 | `CLI_MISSING`, `NOT_LOGGED_IN` |
+
+코드의 뜻: `API_KEY_SET`(`ANTHROPIC_API_KEY`, `OPENAI_API_KEY` 같은 API 과금·프록시 이름이 설정됨), `NOT_OWNER_DEVICE`(컨테이너·CI), `NOT_OWNER_STARTED`(터미널 없음 또는 경로 이름을 입력하지 않음), `BATCH_RUNNING`(다른 배치가 잠금을 쥠), `CLI_MISSING`, `NOT_LOGGED_IN`(구독 로그인이 아니거나 API 키 로그인), `NOT_OWNER_AGENT`(에이전트의 `ownerMemberId`가 `ANTLAB_SUBSCRIPTION_OWNER_MEMBER_ID`와 다르거나 경로·모델이 다름), `USAGE_UNKNOWN`(측정값이 없거나 형식이 깨졌거나 최대 나이보다 오래됨), `USAGE_START`(주간 사용률 70 % 이상), `USAGE_STOP`(주간 또는 5시간 사용률 85 % 이상), `CALL_CAP`(배치의 호출 상한을 다 씀), `BATCH_NOT_ACTIVE`(시작을 마치지 않았거나 닫힌 세션에서의 시도), `RECONCILE_REQUIRED`(완료 행이 없는 예약: CLI가 아직 돌고 있을 수 있으니 확인한 뒤 `--reconcile`로 다시 시작), `LEDGER_UNSAFE`(링크·느슨한 권한·하드링크·공유 폴더), `LEDGER_UNREADABLE`(깨진 줄: 추측하지 않고 상한 계산을 거부), `LEDGER_SCHEMA`(옛 형식·짝 없는 완료·깨진 이벤트: 복구는 추측하지 않는다), `LEDGER_ROW`, `LEDGER_WRITE`(쓰기 실패는 응답을 돌려준 뒤 배치를 끝낸다). 실행 중에는 저널이 사용률 코드면 `USAGE_GUARD`, 그 밖의 코드면 `SUBSCRIPTION_REFUSED`로 일시 정지하고, `CALL_CAP`은 정지 없이 멈춘다. 켜지지 않은 경로는 `AdapterDisabled`(종료 코드 2)다. `--batch-id`와 `--reconcile`은 구독 경로가 아니면 거부한다.
+
+운용 메모: 상태 폴더의 상위 폴더에 심볼릭 링크가 있으면 안 된다(경로를 `O_NOFOLLOW`로 따라가므로 macOS에서 링크인 `/tmp`나 `/var` 아래의 상태 폴더는 `LEDGER_UNSAFE`로 거부된다. 홈 아래 같은 실제 경로를 쓴다). 측정기의 Claude 수치는 대화형 세션이 채우므로 세션이 열려 있지 않으면 `ANTLAB_SUBSCRIPTION_USAGE_MAX_AGE_S`(900초) 뒤에 오래된 값이 되어 배치가 `USAGE_UNKNOWN`으로 거부될 수 있다. 세션 없이도 측정기가 갱신되는지는 탐침에서 잰다.
+
+여기서 만들지 않은 것: 탐침(probe), 탐지 시험 우선 게이트, 초안 매핑 픽스처를 실측 모양으로 바꾸는 일. 이것들은 소유자가 서비스를 켠 뒤에 한다(AG-03 PR D·E, PLAN §4.16).
+
 CI: `.github/workflows/ai.yml` runs the four commands above (`uv lock --check`, `ruff check`, `ruff format --check`, `pytest`) on PRs and `main` pushes that touch `ai/**`, `personas/**`, the agent-runner contract, the decision schema or its corpus.
 
 CI: `.github/workflows/ai.yml`가 위의 네 명령(`uv lock --check`, `ruff check`, `ruff format --check`, `pytest`)을 `ai/**`, `personas/**`, 에이전트 러너 계약, 결정 스키마와 그 말뭉치를 바꾼 PR과 `main` 푸시에서 돌린다.
