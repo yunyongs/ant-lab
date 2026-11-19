@@ -17,7 +17,11 @@ import antlab.collect.series.SeriesDef;
 import antlab.collect.series.SeriesFrequency;
 import antlab.collect.series.SeriesObservationWriter.Incoming;
 import antlab.collect.series.SeriesSource;
+import antlab.observability.CollectMetrics;
 import antlab.support.JpaMappingTest;
+import antlab.support.MetricCounts;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
@@ -291,5 +295,46 @@ class FredSeriesJobTest {
             assertThatThrownBy(() -> FredSeriesJob.historyRows(icsa, bad)).isInstanceOfSatisfying(FredException.class,
                     e -> assertThat(e.code()).isEqualTo("FRED_PARSE"));
         }
+    }
+
+    private FredSeriesJob metricJob(MeterRegistry registry) {
+        return FredSeriesJob.create(() -> client, SeriesCatalog.fromCsv(CATALOG), jdbc, transactions, clock,
+                FredHarness.properties(1, 30, 100000), new CollectMetrics(registry));
+    }
+
+    @Test
+    void 실행_하나는_끝난_상태_한_계열만_한_번_센다() {
+        var registry = new SimpleMeterRegistry();
+        client.answer("DGS2", obs("2025-11-17", "3.6", "2026-11-18", "2026-11-18"));
+
+        metricJob(registry).run(RunTrigger.MANUAL, Set.of("US_DGS2"));
+
+        assertThat(MetricCounts.count(registry, "antlab.collect.run", "job", "FRED_SERIES", "status", "SUCCEEDED")).isEqualTo(1);
+        assertThat(MetricCounts.total(registry, "antlab.collect.run")).isEqualTo(1);
+    }
+
+    @Test
+    void 일부_계열이_실패하면_PARTIAL_모두_실패하면_FAILED로_각각_한_번_센다() {
+        var registry = new SimpleMeterRegistry();
+        client.answer("DGS2", obs("2025-11-17", "3.6", "2026-11-18", "2026-11-18"))
+                .fail("VIXCLS", "FRED_HTTP", "HTTP 500");
+
+        metricJob(registry).run(RunTrigger.MANUAL, Set.of("US_DGS2", "US_VIX"));
+        metricJob(registry).run(RunTrigger.MANUAL, Set.of("US_VIX"));
+
+        assertThat(MetricCounts.count(registry, "antlab.collect.run", "job", "FRED_SERIES", "status", "PARTIAL")).isEqualTo(1);
+        assertThat(MetricCounts.count(registry, "antlab.collect.run", "job", "FRED_SERIES", "status", "FAILED")).isEqualTo(1);
+        assertThat(MetricCounts.count(registry, "antlab.collect.run", "job", "FRED_SERIES", "status", "SUCCEEDED")).isZero();
+        assertThat(MetricCounts.total(registry, "antlab.collect.run")).isEqualTo(2);
+    }
+
+    @Test
+    void 거절된_실행과_다른_수집기_이름은_세지_않는다() {
+        var registry = new SimpleMeterRegistry();
+        new JobRunLog(jdbc, transactions, Duration.ofHours(2)).start(JobName.FRED_SERIES, RunTrigger.SCHEDULED, clock.instant());
+
+        assertThatThrownBy(() -> metricJob(registry).run(RunTrigger.MANUAL, Set.of("US_DGS2"))).isInstanceOf(JobAlreadyRunningException.class);
+
+        assertThat(MetricCounts.total(registry, "antlab.collect.run")).isZero();
     }
 }

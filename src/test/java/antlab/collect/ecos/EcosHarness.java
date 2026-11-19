@@ -7,6 +7,8 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 import antlab.collect.kis.Sleeper;
+import antlab.observability.CollectMetrics;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
@@ -80,6 +82,8 @@ final class EcosHarness {
 
     final AdvancingClock clock = new AdvancingClock(START);
     final RecordingSleeper sleeper = new RecordingSleeper(clock);
+    final SimpleMeterRegistry registry = new SimpleMeterRegistry();
+    final CollectMetrics metrics = new CollectMetrics(registry);
     final MockRestServiceServer server;
     final EcosClientFactory factory;
     final EcosProperties properties;
@@ -92,7 +96,7 @@ final class EcosHarness {
         RestClient.Builder builder = RestClient.builder();
         this.server = MockRestServiceServer.bindTo(builder).build();
         this.properties = properties;
-        this.factory = new EcosClientFactory(builder, EcosEndpoint.BASE_URI, properties, clock, sleeper);
+        this.factory = new EcosClientFactory(builder, EcosEndpoint.BASE_URI, properties, clock, sleeper, metrics);
     }
 
     static EcosProperties properties(int rps, int maxRequests, int pageLimit) {

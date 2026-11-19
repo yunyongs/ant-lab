@@ -189,6 +189,10 @@ class KisQuoteClientTest {
 
         assertThatThrownBy(() -> h.factory.newClient().domesticDaily("900001", D09, D09, PriceBasis.RAW))
                 .isInstanceOfSatisfying(KisException.class, e -> assertThat(e.code()).isEqualTo("KIS_PARSE"));
+        // the conflict is the outcome of the quote request: one KIS_PARSE, no quote OK (only the token request is OK)
+        assertThat(h.registry.find("antlab.collect.request").tags("source", "KIS", "outcome", "KIS_PARSE").counter().count()).isEqualTo(1);
+        assertThat(h.registry.find("antlab.collect.request").tags("source", "KIS", "outcome", "OK").counter().count()).isEqualTo(1);
+        assertThat(h.registry.find("antlab.collect.request").counters().stream().mapToDouble(c -> c.count()).sum()).isEqualTo(2);
     }
 
     @Test
