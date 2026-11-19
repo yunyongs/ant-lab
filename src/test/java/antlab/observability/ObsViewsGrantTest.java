@@ -788,4 +788,18 @@ class ObsViewsGrantTest {
             assertThat(unexpected).containsExactly("series", "series_observation");
         }
     }
+
+    @Test
+    void aDatabaseCreateGrantToPublicIsRefusedWithTheIntendedMessageAndCreatesNoReader() throws SQLException {
+        try (RoleTestServer.Db db = plainDatabase("obs7")) {
+            db.superuserExecute("DO $f$ BEGIN EXECUTE format('GRANT CREATE ON DATABASE %I TO PUBLIC', current_database()); END $f$");
+
+            assertThatThrownBy(() -> SERVER.runGrafanaScript(db.name()))
+                    .isInstanceOf(SQLException.class)
+                    .hasMessageContaining("grafana_reader can create schemas or temporary tables in this database")
+                    .hasMessageContaining("rolled back")
+                    .hasMessageNotContaining("malformed array literal");
+            assertThat(db.superuser().queryForObject("SELECT count(*) FROM pg_roles WHERE rolname = 'grafana_reader'", Integer.class)).isZero();
+        }
+    }
 }

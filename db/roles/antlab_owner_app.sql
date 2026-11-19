@@ -212,10 +212,10 @@ BEGIN
         problems := problems || format('public.%s is not owned by antlab_owner', r.relname);
     END LOOP;
     IF (SELECT nspowner FROM pg_namespace WHERE nspname = 'public') <> owner_oid THEN
-        problems := problems || 'schema public is not owned by antlab_owner';
+        problems := array_append(problems, 'schema public is not owned by antlab_owner');
     END IF;
     IF (SELECT nspowner FROM pg_namespace WHERE nspname = 'obs') <> owner_oid THEN
-        problems := problems || 'schema obs is not owned by antlab_owner';
+        problems := array_append(problems, 'schema obs is not owned by antlab_owner');
     END IF;
     -- Only the owner and the reader role (db/roles/grafana_reader.sql) may hold rights on obs: no PUBLIC, no app or
     -- engine role, on the schema, on a relation or on a single column.

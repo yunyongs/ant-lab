@@ -183,7 +183,7 @@ BEGIN
 
     IF has_database_privilege('grafana_reader', current_database(), 'CREATE')
        OR has_database_privilege('grafana_reader', current_database(), 'TEMPORARY') THEN
-        problems := problems || 'grafana_reader can create schemas or temporary tables in this database';
+        problems := array_append(problems, 'grafana_reader can create schemas or temporary tables in this database');
     END IF;
 
     FOR r IN SELECT spcname FROM pg_tablespace WHERE has_tablespace_privilege('grafana_reader', oid, 'CREATE') LOOP
