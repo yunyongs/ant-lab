@@ -12,6 +12,7 @@ import antlab.collect.kis.DailyClose;
 import antlab.collect.kis.KisException;
 import antlab.collect.kis.KisExchange;
 import antlab.collect.kis.KisQuoteClient;
+import antlab.observability.CollectMetrics;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -80,9 +81,10 @@ public final class KisDailyPriceJob implements CollectJob {
     private final JobRunLog runLog;
     private final Clock clock;
     private final PriceJobProperties properties;
+    private final CollectMetrics metrics;
 
     private KisDailyPriceJob(Supplier<KisQuoteClient> clients, KisTargetCatalog catalog, JdbcTemplate jdbc,
-            DailyPriceWriter writer, JobRunLog runLog, Clock clock, PriceJobProperties properties) {
+            DailyPriceWriter writer, JobRunLog runLog, Clock clock, PriceJobProperties properties, CollectMetrics metrics) {
         this.clients = clients;
         this.catalog = catalog;
         this.jdbc = jdbc;
@@ -90,13 +92,20 @@ public final class KisDailyPriceJob implements CollectJob {
         this.runLog = runLog;
         this.clock = clock;
         this.properties = properties;
+        this.metrics = metrics;
     }
 
     /** {@code clients} hands out one client per run (its request counter and cap are per run). */
     public static KisDailyPriceJob create(Supplier<KisQuoteClient> clients, KisTargetCatalog catalog, JdbcTemplate jdbc,
             PlatformTransactionManager transactions, Clock clock, PriceJobProperties properties) {
+        return create(clients, catalog, jdbc, transactions, clock, properties, CollectMetrics.none());
+    }
+
+    public static KisDailyPriceJob create(Supplier<KisQuoteClient> clients, KisTargetCatalog catalog, JdbcTemplate jdbc,
+            PlatformTransactionManager transactions, Clock clock, PriceJobProperties properties,
+            CollectMetrics metrics) {
         return new KisDailyPriceJob(clients, catalog, jdbc, new DailyPriceWriter(jdbc, transactions),
-                new JobRunLog(jdbc, transactions, properties.staleAfter()), clock, properties);
+                new JobRunLog(jdbc, transactions, properties.staleAfter()), clock, properties, metrics);
     }
 
     @Override
@@ -143,6 +152,7 @@ public final class KisDailyPriceJob implements CollectJob {
             summary = new JobRunSummary(runId, status, requests, totals.inserted, totals.revised, totals.unchanged,
                     Math.max(totals.failed, 1), RUN_ABANDONED);
         }
+        metrics.run(JobName.KIS_DAILY_PRICE, status);
         LOG.info("{} run {} {}: requests={}, inserted={}, revised={}, unchanged={}, failedTargets={}", JobName.KIS_DAILY_PRICE,
                 runId, status, requests, totals.inserted, totals.revised, totals.unchanged, totals.failed);
         return summary;

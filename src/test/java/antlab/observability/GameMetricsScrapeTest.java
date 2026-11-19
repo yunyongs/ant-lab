@@ -26,7 +26,8 @@ class GameMetricsScrapeTest extends RealPortTest {
     }
 
     private static List<String> gameSamples(String body) {
-        return body.lines().filter(l -> l.startsWith("antlab_")).toList();
+        // antlab_collect_* belongs to the collectors (CollectMetricsScrapeTest), not to the game.
+        return body.lines().filter(l -> l.startsWith("antlab_") && !l.startsWith("antlab_collect_")).toList();
     }
 
     @Test

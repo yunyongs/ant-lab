@@ -16,6 +16,7 @@ import antlab.collect.series.SeriesTable;
 import antlab.collect.series.SeriesTable.Resolved;
 import antlab.collect.series.SeriesSource;
 import antlab.collect.series.VintageMismatchException;
+import antlab.observability.CollectMetrics;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -82,9 +83,10 @@ public final class FredSeriesJob implements FredJob {
     private final JobRunLog runLog;
     private final Clock clock;
     private final FredProperties properties;
+    private final CollectMetrics metrics;
 
     private FredSeriesJob(Supplier<FredSeriesClient> clients, SeriesCatalog catalog, SeriesTable seriesTable,
-            SeriesObservationWriter writer, JobRunLog runLog, Clock clock, FredProperties properties) {
+            SeriesObservationWriter writer, JobRunLog runLog, Clock clock, FredProperties properties, CollectMetrics metrics) {
         this.clients = clients;
         this.catalog = catalog;
         this.seriesTable = seriesTable;
@@ -92,13 +94,20 @@ public final class FredSeriesJob implements FredJob {
         this.runLog = runLog;
         this.clock = clock;
         this.properties = properties;
+        this.metrics = metrics;
     }
 
     /** {@code clients} hands out one client per run (its request counter and cap are per run). */
     public static FredSeriesJob create(Supplier<FredSeriesClient> clients, SeriesCatalog catalog, JdbcTemplate jdbc,
             PlatformTransactionManager transactions, Clock clock, FredProperties properties) {
+        return create(clients, catalog, jdbc, transactions, clock, properties, CollectMetrics.none());
+    }
+
+    public static FredSeriesJob create(Supplier<FredSeriesClient> clients, SeriesCatalog catalog, JdbcTemplate jdbc,
+            PlatformTransactionManager transactions, Clock clock, FredProperties properties,
+            CollectMetrics metrics) {
         return new FredSeriesJob(clients, catalog, new SeriesTable(jdbc), new SeriesObservationWriter(jdbc, transactions),
-                new JobRunLog(jdbc, transactions, properties.staleAfter()), clock, properties);
+                new JobRunLog(jdbc, transactions, properties.staleAfter()), clock, properties, metrics);
     }
 
     @Override
@@ -145,6 +154,7 @@ public final class FredSeriesJob implements FredJob {
             summary = new JobRunSummary(runId, status, requests, totals.inserted, totals.revised, totals.unchanged,
                     Math.max(totals.failed, 1), RUN_ABANDONED);
         }
+        metrics.run(JobName.FRED_SERIES, status);
         LOG.info("{} run {} {}: requests={}, inserted={}, revised={}, unchanged={}, failedSeries={}", JobName.FRED_SERIES,
                 runId, status, requests, totals.inserted, totals.revised, totals.unchanged, totals.failed);
         return summary;

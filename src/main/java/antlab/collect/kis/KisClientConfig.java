@@ -1,8 +1,10 @@
 package antlab.collect.kis;
 
+import antlab.observability.CollectMetrics;
 import java.net.http.HttpClient;
 import java.time.Clock;
 import java.time.Duration;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -19,8 +21,8 @@ public class KisClientConfig {
 
     @Bean
     @ConditionalOnProperty(prefix = "antlab.collect.kis", name = "enabled", havingValue = "true")
-    KisQuoteClientFactory kisQuoteClientFactory(KisProperties properties, Clock clock) {
-        return new KisQuoteClientFactory(transportBuilder(), KisEndpoint.BASE_URI, properties, clock, Sleeper.SYSTEM);
+    KisQuoteClientFactory kisQuoteClientFactory(KisProperties properties, Clock clock, ObjectProvider<CollectMetrics> metrics) {
+        return new KisQuoteClientFactory(transportBuilder(), KisEndpoint.BASE_URI, properties, clock, Sleeper.SYSTEM, metrics.getIfAvailable(CollectMetrics::none));
     }
 
     /** JDK HTTP client that never follows a redirect and never uses a system proxy. */
