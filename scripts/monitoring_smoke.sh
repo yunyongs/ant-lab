@@ -102,6 +102,15 @@ printf 'GF_SECURITY_ADMIN_PASSWORD=%s\n' "$gf_password" >> "$env_file"
 printf 'ANTLAB_JWT_SECRET=%s\n' "$jwt_key" >> "$env_file"
 printf 'COMPOSE_PROFILES=api,monitoring\n' >> "$env_file"
 
+# Compose gives the process environment precedence over --env-file. An exported ANTLAB_ENGINE_PORT=8000 or a real token from the
+# owner's shell would silently win, so every variable that Compose interpolates is dropped; only the env file above supplies them.
+for name in $(compgen -e); do
+  case "$name" in
+    ANTLAB_SMOKE_*|ANTLAB_GOLDEN_SAMPLE_DIR) ;;
+    ANTLAB_*|GF_*|GRAFANA_*|COMPOSE_*) unset "$name" ;;
+  esac
+done
+
 dc version >/dev/null 2>&1 || die "Docker Compose is not available"
 command -v psql >/dev/null 2>&1 || die "psql is not installed (version 16 or later is needed for the sample load)"
 psql_major="$(psql --version | sed -E 's/[^0-9]*([0-9]+).*/\1/')"
@@ -180,7 +189,8 @@ echo "== play one season"
 python3 tools/play/play_season.py --base "$api_url" --turns 12 > "$work/play.log" 2>&1 || fail "play script failed"
 # The play script signed the member up; log in again with its constants (the token is never printed).
 token="$(PYTHONPATH=tools/play python3 -c 'import sys, play_season as p; a = p.Api(sys.argv[1]); print(p.need(*a.call("POST", "/api/v1/auth/login", {"email": p.PLAY_EMAIL, "password": p.PLAY_PASSWORD}))["accessToken"])' "$api_url")" || fail "login failed"
-reject_status="$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: application/json' -H "Authorization: Bearer $token" \
+# The header goes in through stdin (printf is a shell builtin), so the token is never in a process argument list.
+reject_status="$(printf 'Authorization: Bearer %s\n' "$token" | curl -s -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: application/json' -H @- \
   -d '{"expectedTurnNo":0,"side":"BUY","assetId":1,"quantity":1}' "$api_url/api/v1/seasons/999999999/orders" || true)"
 [ "$reject_status" = 404 ] || fail "rejected-order probe answered $reject_status, wanted 404"
 
