@@ -147,6 +147,23 @@ def test_a_response_missing_a_required_field_is_a_contract_error(
         calls[operation]()
 
 
+@pytest.mark.parametrize("bad", [None, "1", 1.5, True])
+def test_a_registered_agent_with_a_missing_or_mistyped_owner_member_id_is_a_contract_error(bad):
+    body = copy.deepcopy(fixture("agent"))
+    body["ownerMemberId"] = bad
+    client = ApiClient(settings(), transport=FakeTransport((201, body)), sleep=lambda s: None)
+    with pytest.raises(ContractError):
+        client.register_agent("patient-value", "OPENROUTER", "vendor/some-model:free", "n")
+
+
+def test_a_registered_agent_without_owner_member_id_is_a_contract_error():
+    body = copy.deepcopy(fixture("agent"))
+    del body["ownerMemberId"]
+    client = ApiClient(settings(), transport=FakeTransport((200, body)), sleep=lambda s: None)
+    with pytest.raises(ContractError):
+        client.register_agent("patient-value", "OPENROUTER", "vendor/some-model:free", "n")
+
+
 def test_an_unexpected_success_status_is_a_contract_error():
     client = ApiClient(settings(), transport=FakeTransport((200, None)), sleep=lambda s: None)
     with pytest.raises(ContractError):
