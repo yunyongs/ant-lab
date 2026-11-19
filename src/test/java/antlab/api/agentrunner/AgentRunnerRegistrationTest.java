@@ -55,7 +55,8 @@ class AgentRunnerRegistrationTest {
         assertThat(r.getStatus()).isEqualTo(201);
         JsonNode body = json(r);
         assertThat(body.propertyNames()).containsExactly("agentId", "displayName", "personaKey", "modelRoute",
-                "modelId", "status");
+                "modelId", "status", "ownerMemberId");
+        assertThat(body.get("ownerMemberId").asLong()).isEqualTo(OWNER_ID);
         assertThat(body.get("displayName").asString()).isEqualTo("가치 투자자");
         assertThat(body.get("status").asString()).isEqualTo("ACTIVE");
         long agent = body.get("agentId").asLong();
@@ -81,6 +82,7 @@ class AgentRunnerRegistrationTest {
         MockHttpServletResponse again = post(mvc, AGENTS, REGISTER_BODY);
         assertThat(again.getStatus()).isEqualTo(200);
         assertThat(json(again).get("agentId").asLong()).isEqualTo(agent);
+        assertThat(json(again).get("ownerMemberId").asLong()).isEqualTo(OWNER_ID);
         assertThat(count("SELECT count(*) FROM member")).isEqualTo(members);
         assertThat(count("SELECT count(*) FROM agent_profile")).isEqualTo(profiles);
     }
@@ -106,6 +108,29 @@ class AgentRunnerRegistrationTest {
                 registerBody("momentum-trader", "OPENROUTER", "fake/model-1", "모멘텀"));
         assertThat(List.of(first, otherModel, otherRoute, otherPersona)).doesNotHaveDuplicates();
         assertThat(count("SELECT count(*) FROM agent_profile WHERE owner_member_id = ?", OWNER_ID)).isEqualTo(4);
+    }
+
+    @Test
+    void an_identical_agent_of_another_owner_is_never_reused_and_the_response_names_the_configured_owner()
+            throws Exception {
+        long other = jdbc.queryForObject("""
+                INSERT INTO member (email, name, password) VALUES ('other-owner@example.invalid', '다른 소유자', '!')
+                RETURNING id""", Long.class);
+        long foreignAgent = jdbc.queryForObject("""
+                INSERT INTO member (name, kind) VALUES ('남의 에이전트', 'AGENT') RETURNING id""", Long.class);
+        jdbc.update("""
+                INSERT INTO agent_profile (member_id, owner_member_id, persona_key, model_route, model_id)
+                VALUES (?, ?, 'value-investor', 'OPENROUTER', 'fake/model-1')""", foreignAgent, other);
+
+        MockHttpServletResponse r = post(mvc, AGENTS, REGISTER_BODY);
+
+        assertThat(r.getStatus()).isEqualTo(201);
+        assertThat(json(r).get("agentId").asLong()).isNotEqualTo(foreignAgent);
+        assertThat(json(r).get("ownerMemberId").asLong()).isEqualTo(OWNER_ID).isNotEqualTo(other);
+        long again = AgentRunnerSupport.register(mvc, REGISTER_BODY);
+        assertThat(again).isEqualTo(json(r).get("agentId").asLong());
+        assertThat(count("SELECT count(*) FROM agent_profile WHERE owner_member_id = ?", other)).isEqualTo(1);
+        assertThat(count("SELECT count(*) FROM agent_profile WHERE owner_member_id = ?", OWNER_ID)).isEqualTo(1);
     }
 
     @Test

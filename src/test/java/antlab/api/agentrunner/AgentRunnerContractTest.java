@@ -202,6 +202,6 @@ class AgentRunnerContractTest {
         assertThat(ExposureRules.check(DecisionResultDto.class, catalog, false, false)).isEmpty();
         assertThat(ExposureRules.check(TurnResultDto.class, catalog, false, false)).isEmpty();
         assertThat(Arrays.stream(AgentDto.class.getRecordComponents()).map(RecordComponent::getName).toList())
-                .containsExactly("agentId", "displayName", "personaKey", "modelRoute", "modelId", "status");
+                .containsExactly("agentId", "displayName", "personaKey", "modelRoute", "modelId", "status", "ownerMemberId");
     }
 }

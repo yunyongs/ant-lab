@@ -4,5 +4,6 @@
   "modelId": "vendor/some-model:free",
   "modelRoute": "OPENROUTER",
   "personaKey": "patient-value",
-  "status": "ACTIVE"
+  "status": "ACTIVE",
+  "ownerMemberId": 1
 }

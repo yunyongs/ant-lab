@@ -7,7 +7,6 @@ from modelport_helpers import KEY, OLLAMA_KEY
 
 from antlab_ai.modelport import (
     AdapterDisabled,
-    AdapterUnavailable,
     ModelPortSettings,
     OllamaAdapter,
     OpenRouterAdapter,
@@ -91,9 +90,10 @@ def test_openrouter_route_is_disabled_without_a_client():
 
 
 @pytest.mark.parametrize("route", ["CLAUDE_CLI", "CODEX_CLI"])
-def test_subscription_routes_are_unavailable_until_ag03(route, client):
+def test_subscription_routes_are_disabled_without_a_gate(route, client):
     registry = build_registry(ModelPortSettings(), openrouter=client)
-    with pytest.raises(AdapterUnavailable, match="AG-03"):
+    assert route not in registry.routes
+    with pytest.raises(AdapterDisabled):
         registry.get(route)
 
 
@@ -102,9 +102,9 @@ def test_unknown_route_is_a_value_error(client):
         build_registry(ModelPortSettings(), openrouter=client).get("GPT")
 
 
-def test_registry_refuses_to_hold_a_subscription_route():
+def test_registry_refuses_an_unknown_route():
     with pytest.raises(ValueError):
-        Registry({"CLAUDE_CLI": object()})  # type: ignore[dict-item]
+        Registry({"GPT": object()})  # type: ignore[dict-item]
 
 
 @pytest.mark.parametrize(
