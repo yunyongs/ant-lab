@@ -442,7 +442,7 @@ components:
           description: Name shown for the agent member (a label, not part of the identity) / 에이전트 회원에 보이는 이름(표지일 뿐 식별에 쓰지 않는다)
     AgentDto:
       type: object
-      required: [agentId, displayName, personaKey, modelRoute, modelId, status]
+      required: [agentId, displayName, personaKey, modelRoute, modelId, status, ownerMemberId]
       properties:
         agentId:
           type: integer
@@ -458,6 +458,13 @@ components:
         status:
           type: string
           enum: [ACTIVE, RETIRED]
+        ownerMemberId:
+          type: integer
+          format: int64
+          description: |-
+            The member that owns the agent. A runner on a subscription route compares it with the subscription holder before any call
+
+            에이전트를 소유한 회원. 구독 경로의 러너는 호출 전에 구독 보유자와 비교한다
     ModelRoute:
       type: string
       enum: [OPENROUTER, CLAUDE_CLI, CODEX_CLI, OLLAMA]
