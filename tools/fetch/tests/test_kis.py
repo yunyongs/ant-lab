@@ -1,6 +1,7 @@
 import json
 import os
 import stat
+from pathlib import Path
 from datetime import date, datetime, timedelta
 
 import pytest
@@ -305,29 +306,27 @@ def test_class_share_ticker_sent_with_slash_and_cache_name_unchanged(tmp_path):
     assert (tmp_path / "raw" / "kis_us_BRK.B_NYS_g2_20251231_modp1.json").exists()
 
 
-def test_us_monthly_short_page_ends_the_sweep(tmp_path):
-    """Real KIS: history starts 2007-08; asking before it returns one partial bar per day."""
-    first = date(2007, 8, 31)
+def _aapl_pages():
+    return json.loads((Path(__file__).parent / "fixtures" / "kis_us_aapl_monthly_pages.json").read_text())
 
-    def month_ends(upto):
-        out, y, m = [], 2007, 8
-        while (y, m) <= (upto.year, upto.month):
-            nxt = date(y + (m == 12), m % 12 + 1, 1)
-            e = nxt - timedelta(days=1)
-            if e <= upto:
-                out.append(e)
-            y, m = nxt.year, nxt.month
-        return sorted(out, reverse=True)
+
+def test_us_monthly_real_shape_pages_count_each_month_once(tmp_path):
+    """Real AAPL responses (fields trimmed): 223 bars for 221 months; the partial bar at each page boundary loses."""
+    pages = _aapl_pages()
 
     def rows(n, k):
-        by = datetime.strptime(k["params"]["BYMD"], "%Y%m%d").date()
-        if by < first:
-            return Resp({"rt_cd": "0", "output2": [{"xymd": f"{by:%Y%m%d}", "clos": "9"}] if by.day > 1 else []})
-        return Resp({"rt_cd": "0", "output2": [{"xymd": f"{d:%Y%m%d}", "clos": "9"} for d in month_ends(by)[:100]]})
+        return Resp({"rt_cd": "0", "output2": pages.get(k["params"]["BYMD"], [])})
     cl, sess, _ = make(tmp_path, quote_handler(rows))
     out = cl.daily_range("US", "AAPL", date(1995, 12, 1), date(2025, 12, 31), adjusted=True, excd="NAS", period="M")
-    assert len([c for c in sess.calls if "quotations" in c["url"]]) == 3
-    assert out[0]["date"] == "2007-08-31" and out[-1]["date"] == "2025-12-31" and len(out) == 221
+    assert sum(len(v) for v in pages.values()) - 1 == 223
+    assert len(out) == 221
+    months = [r["date"][:7] for r in out]
+    assert len(set(months)) == 221 and months[0] == "2007-08" and months[-1] == "2025-12"
+    by_date = {r["date"]: r["close"] for r in out}
+    assert by_date["2017-09-29"] == "35.8396" and "2017-09-28" not in by_date
+    assert by_date["2009-06-30"] == "4.2542" and "2009-06-29" not in by_date
+    assert by_date["2007-08-31"] and "2007-08-30" not in by_date
+    assert [c["params"]["BYMD"] for c in sess.calls if "quotations" in c["url"]] == ["20251231", "20170928", "20090629", "20070830"]
 
 
 def test_us_monthly_full_pages_keep_paging(tmp_path):
@@ -340,17 +339,40 @@ def test_us_monthly_full_pages_keep_paging(tmp_path):
     assert len([c for c in sess.calls if "quotations" in c["url"]]) == 2
 
 
-def test_us_monthly_99_row_page_is_terminal(tmp_path):
-    ends = [date(2025, 12, 31) - timedelta(days=30 * i) for i in range(99)]
+def test_us_monthly_short_mid_history_page_keeps_paging(tmp_path):
+    ends = [date(2025, 12, 31) - timedelta(days=30 * i) for i in range(60)]
+    older = [date(2021, 1, 15) - timedelta(days=30 * i) for i in range(5)]
 
     def rows(n, k):
-        if n > 1:
-            raise AssertionError("extra request after a short page")
-        return Resp({"rt_cd": "0", "output2": [{"xymd": f"{d:%Y%m%d}", "clos": "1"} for d in ends]})
+        by = k["params"]["BYMD"]
+        pool = ends if n == 1 else [d for d in older if f"{d:%Y%m%d}" <= by]
+        return Resp({"rt_cd": "0", "output2": [{"xymd": f"{d:%Y%m%d}", "clos": "1"} for d in pool]})
     cl, sess, _ = make(tmp_path, quote_handler(rows))
     out = cl.daily_range("US", "XOM", date(1995, 12, 1), date(2025, 12, 31), adjusted=True, excd="NYS", period="M")
-    assert len(out) == 99
-    assert len([c for c in sess.calls if "quotations" in c["url"]]) == 1
+    assert len(out) == len({(d.year, d.month) for d in ends + older}) and out[0]["date"] < "2021-02"
+    assert len([c for c in sess.calls if "quotations" in c["url"]]) == 3
+
+
+def test_us_monthly_page_without_new_month_ends_the_sweep(tmp_path):
+    def rows(n, k):
+        return Resp({"rt_cd": "0", "output2": [{"xymd": "20251230", "clos": "1"}, {"xymd": "20251231", "clos": "2"}]})
+    cl, sess, _ = make(tmp_path, quote_handler(rows))
+    out = cl.daily_range("US", "XOM", date(1995, 12, 1), date(2025, 12, 31), adjusted=True, excd="NYS", period="M")
+    assert [r["date"] for r in out] == ["2025-12-31"]
+    assert len([c for c in sess.calls if "quotations" in c["url"]]) == 2
+
+
+def test_us_daily_short_page_does_not_stop_and_month_rule_does_not_apply(tmp_path):
+    days = weekdays(date(2024, 1, 1), 40)
+
+    def rows(n, k):
+        cur = k["params"]["BYMD"]
+        sel = sorted([d for d in days if f"{d:%Y%m%d}" <= cur], reverse=True)[:7]
+        return Resp({"rt_cd": "0", "output2": [{"xymd": f"{d:%Y%m%d}", "clos": "5"} for d in sel]})
+    cl, sess, _ = make(tmp_path, quote_handler(rows))
+    out = cl.daily_range("US", "XOM", days[0], days[-1], adjusted=True, excd="NYS")
+    assert [r["date"] for r in out] == [d.isoformat() for d in days]
+    assert len([c for c in sess.calls if "quotations" in c["url"]]) == 6
 
 
 @pytest.mark.parametrize("period,gubn", [("D", "0"), ("M", "2")])
