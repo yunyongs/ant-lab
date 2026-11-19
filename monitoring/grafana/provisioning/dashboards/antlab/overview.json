@@ -58,6 +58,13 @@
       "url": "/d/antlab-db",
       "icon": "dashboard",
       "targetBlank": false
+    },
+    {
+      "type": "link",
+      "title": "AI usage",
+      "url": "/d/antlab-ai-usage",
+      "icon": "dashboard",
+      "targetBlank": false
     }
   ],
   "panels": [

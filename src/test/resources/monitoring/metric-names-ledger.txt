@@ -1,0 +1,12 @@
+# Metric names the dashboards antlab-ai-usage and the fetch panels of antlab-collectors may query, one per line, sorted. Source: the exporter in ai/src/antlab_ai/ledger_exporter (job antlab-ledgers); a pytest and the live smoke check that it exports them. Names Prometheus makes itself (up, scrape_*) are not listed.
+antlab_fetch_daily_cap
+antlab_fetch_requests_today
+antlab_ledger_readable
+antlab_ollama_spend_usd
+antlab_ollama_stop_usd
+antlab_openrouter_attempts_last_minute
+antlab_openrouter_attempts_today
+antlab_openrouter_cap
+antlab_openrouter_cost_usd_today
+antlab_openrouter_outcomes_today
+antlab_openrouter_tokens_today
