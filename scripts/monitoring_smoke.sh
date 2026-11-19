@@ -10,7 +10,7 @@ usage() {
 Usage: scripts/monitoring_smoke.sh [--keep] [--dry-run] [-h|--help]
   --keep     leave the stack up after a pass (needs GF_SECURITY_ADMIN_PASSWORD in the environment)
   --dry-run  validate and print the resolved configuration; calls neither docker nor psql
-Environment: ANTLAB_SMOKE_PROJECT (default antlab-smoke), ANTLAB_SMOKE_{DB,API,PROMETHEUS,GRAFANA}_PORT,
+Environment: ANTLAB_SMOKE_PROJECT (default antlab-smoke), ANTLAB_SMOKE_{DB,API,PROMETHEUS,GRAFANA,ENGINE}_PORT,
              ANTLAB_GOLDEN_SAMPLE_DIR (default db/sample; needs asset_month_return.csv, asset_position.csv, fx_month.csv)
 EOF
 }
@@ -33,6 +33,7 @@ db_port="${ANTLAB_SMOKE_DB_PORT:-55472}"
 api_port="${ANTLAB_SMOKE_API_PORT:-18094}"
 prometheus_port="${ANTLAB_SMOKE_PROMETHEUS_PORT:-19104}"
 grafana_port="${ANTLAB_SMOKE_GRAFANA_PORT:-13014}"
+engine_port="${ANTLAB_SMOKE_ENGINE_PORT:-18004}"
 sample_dir="${ANTLAB_GOLDEN_SAMPLE_DIR:-$PWD/db/sample}"
 dashboard_dir=monitoring/grafana/provisioning/dashboards/antlab
 
@@ -45,13 +46,14 @@ check_port ANTLAB_SMOKE_DB_PORT "$db_port" 5432
 check_port ANTLAB_SMOKE_API_PORT "$api_port" 8080
 check_port ANTLAB_SMOKE_PROMETHEUS_PORT "$prometheus_port" 9090
 check_port ANTLAB_SMOKE_GRAFANA_PORT "$grafana_port" 3000
+check_port ANTLAB_SMOKE_ENGINE_PORT "$engine_port" 8000
 if [ "$keep" = 1 ] && [ -z "${GF_SECURITY_ADMIN_PASSWORD:-}" ]; then
   die "--keep needs GF_SECURITY_ADMIN_PASSWORD in the environment so you can sign in to Grafana afterwards"
 fi
 
 if [ "$dry_run" = 1 ]; then
-  printf 'project=%s db_port=%s api_port=%s prometheus_port=%s grafana_port=%s files=compose.yaml profiles=api,monitoring sample_dir=%s\n' \
-    "$project" "$db_port" "$api_port" "$prometheus_port" "$grafana_port" "$sample_dir"
+  printf 'project=%s db_port=%s api_port=%s prometheus_port=%s grafana_port=%s engine_port=%s files=compose.yaml profiles=api,monitoring sample_dir=%s\n' \
+    "$project" "$db_port" "$api_port" "$prometheus_port" "$grafana_port" "$engine_port" "$sample_dir"
   exit 0
 fi
 
@@ -94,6 +96,8 @@ printf 'ANTLAB_DB_PORT=%s\n' "$db_port" > "$env_file"
 printf 'ANTLAB_API_PORT=%s\n' "$api_port" >> "$env_file"
 printf 'ANTLAB_PROMETHEUS_PORT=%s\n' "$prometheus_port" >> "$env_file"
 printf 'ANTLAB_GRAFANA_PORT=%s\n' "$grafana_port" >> "$env_file"
+printf 'ANTLAB_ENGINE_PORT=%s\n' "$engine_port" >> "$env_file"
+printf 'ANTLAB_ENGINE_TOKEN=%s\n' "$(python3 -c 'import secrets; print(secrets.token_hex(32))')" >> "$env_file"
 printf 'GF_SECURITY_ADMIN_PASSWORD=%s\n' "$gf_password" >> "$env_file"
 printf 'ANTLAB_JWT_SECRET=%s\n' "$jwt_key" >> "$env_file"
 printf 'COMPOSE_PROFILES=api,monitoring\n' >> "$env_file"
@@ -107,7 +111,8 @@ for csv in asset_month_return.csv asset_position.csv fx_month.csv; do
   [ -f "$sample_dir/$csv" ] || die "$sample_dir/$csv is missing (set ANTLAB_GOLDEN_SAMPLE_DIR)"
 done
 for entry in "ANTLAB_SMOKE_DB_PORT:$db_port" "ANTLAB_SMOKE_API_PORT:$api_port" \
-             "ANTLAB_SMOKE_PROMETHEUS_PORT:$prometheus_port" "ANTLAB_SMOKE_GRAFANA_PORT:$grafana_port"; do
+             "ANTLAB_SMOKE_PROMETHEUS_PORT:$prometheus_port" "ANTLAB_SMOKE_GRAFANA_PORT:$grafana_port" \
+             "ANTLAB_SMOKE_ENGINE_PORT:$engine_port"; do
   # SO_REUSEADDR: sockets in TIME_WAIT from a previous run must not count as "in use" (Docker binds the same way)
   python3 -c 'import socket, sys; s = socket.socket(); s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1); s.bind(("127.0.0.1", int(sys.argv[1])))' "${entry#*:}" 2>/dev/null \
     || die "${entry%%:*}=${entry#*:} is already in use"
@@ -123,7 +128,7 @@ fail() {
   printf '\nmonitoring smoke: FAIL - %s\n' "$1" >&2
   dc ps >&2 || true
   dc logs --tail 60 api prometheus grafana >&2 || true
-  for log in play.log load.log; do
+  for log in play.log load.log reader.log; do
     if [ -f "$work/$log" ]; then printf -- '--- tail of %s\n' "$log" >&2; tail -n 30 "$work/$log" >&2 || true; fi
   done
   exit 1
@@ -147,6 +152,13 @@ image_env="$(docker image inspect --format '{{json .Config.Env}}' "$image_id")" 
 # The key is a run-time value only; the image must not carry it (the value is never printed).
 case "$image_env" in *ANTLAB_JWT_SECRET*) fail "the api image carries the signing key variable in its Env" ;; esac
 printf 'PASS image env carries no signing key\n' | tee -a "$work/checks.log"
+
+echo "== create the Grafana reader role (OBS-02)"
+# Flyway has run (the api started once); the script refuses to run before the obs views exist. Trust auth: no password is set.
+{ echo "SET antlab.expected_database = 'antlab_api';"; cat db/roles/grafana_reader.sql; } \
+  | PGHOST=127.0.0.1 PGPORT="$db_port" PGUSER="${USER:-antlab}" PGDATABASE=antlab_api psql -X -q -v ON_ERROR_STOP=1 > "$work/reader.log" 2>&1 \
+  || fail "grafana_reader role script failed"
+printf 'PASS grafana_reader role script ran\n' | tee -a "$work/checks.log"
 
 echo "== load sample"
 dc stop api || fail "could not stop api"

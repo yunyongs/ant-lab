@@ -267,4 +267,28 @@ class MonitoringSmokeScriptTest {
         assertThat(result.exit()).as(result.output()).isZero();
         assertThat(result.output()).doesNotContain("FAIL");
     }
+
+    @Test
+    void 스모크는_Flyway_뒤_표본_적재_앞에서_읽기_역할_스크립트를_돌린다() throws IOException {
+        List<String> code = codeLines();
+        int api = indexOf(code, l -> l.contains("up -d --build --wait"));
+        int role = indexOf(code, l -> l.contains("cat db/roles/grafana_reader.sql"));
+        int load = indexOf(code, l -> l.contains("psql -X -q -v ON_ERROR_STOP=1 -c \"ALTER DATABASE"));
+        int play = indexOf(code, l -> l.contains("tools/play/play_season.py"));
+        assertThat(api).isLessThan(role);
+        assertThat(role).isLessThan(load).isLessThan(play);
+        assertThat(code.get(role)).contains("expected_database = 'antlab_api'");
+        // It reaches the smoke project's own database port, never the owner stack.
+        assertThat(code.get(role + 1)).contains("PGPORT=\"$db_port\"").doesNotContain("5432");
+    }
+
+    @Test
+    void 데이터_소스_uid가_도우미와_같다() throws IOException {
+        Matcher helper = Pattern.compile("PG_DATASOURCE_UID = \"([^\"]+)\"").matcher(helperSource());
+        assertThat(helper.find()).isTrue();
+        Matcher file = Pattern.compile("^    uid: (\\S+)$", Pattern.MULTILINE)
+                .matcher(Files.readString(Path.of("monitoring/grafana/provisioning/datasources/postgres.yaml")));
+        assertThat(file.find()).isTrue();
+        assertThat(file.group(1)).isEqualTo(helper.group(1));
+    }
 }
