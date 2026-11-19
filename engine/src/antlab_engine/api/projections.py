@@ -8,7 +8,6 @@ import hashlib
 import math
 from datetime import date
 from decimal import ROUND_HALF_UP, Context, Decimal
-from threading import BoundedSemaphore
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request
@@ -18,6 +17,7 @@ from antlab_engine.bootstrap.simple import REPLAY_START, replay_upper_bound
 from antlab_engine.engine_errors import EngineBusy, InvalidArgument
 from antlab_engine.errors import Problem
 from antlab_engine.history.model import HistoryReader, HistorySnapshot
+from antlab_engine.metrics import SlotPool
 from antlab_engine.projection import PROJECTION_VERSION, Portfolio, Projection, ReturnPanel, project
 from antlab_engine.projection.stats import BAND_POINTS, MDD_POINTS
 
@@ -149,7 +149,7 @@ def _result(projection: Projection, digest: str) -> ProjectionResult:
 def create_projection(
     request: ProjectionRequest,
     http_request: Request,
-    slots: Annotated[BoundedSemaphore, Depends(projection_slots)],
+    slots: Annotated[SlotPool, Depends(projection_slots)],
 ) -> ProjectionResult:
     seed = int(request.seasonSeed)
     if not stationary.SEED_MIN <= seed <= stationary.SEED_MAX:

@@ -127,7 +127,8 @@ def evaluate_regime(
     if not slot.acquire(blocking=False):
         raise EngineBusy(BUSY)
     try:
-        return _run(source, months)
+        with http_request.app.state.metrics.regime_duration.time():
+            return _run(source, months)
     finally:
         slot.release()
 

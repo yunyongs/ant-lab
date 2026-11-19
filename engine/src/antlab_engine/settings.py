@@ -11,6 +11,11 @@ DB_NAME_VARIABLE = "ANTLAB_ENGINE_DB_NAME"
 DB_USER_VARIABLE = "ANTLAB_ENGINE_DB_USER"
 DB_PASSWORD_VARIABLE = "ANTLAB_ENGINE_DB_PASSWORD"  # noqa: S105 - a variable name, not a secret
 DEFAULT_DB_PORT = 5432
+METRICS_PORT_VARIABLE = "ANTLAB_ENGINE_METRICS_PORT"
+DEFAULT_METRICS_PORT = 8001
+METRICS_HOST_VARIABLE = "ANTLAB_ENGINE_METRICS_HOST"
+DEFAULT_METRICS_HOST = "127.0.0.1"  # the container sets 0.0.0.0 in compose
+WORKERS_VARIABLE = "WEB_CONCURRENCY"
 
 
 class SettingsError(ValueError):
@@ -31,6 +36,23 @@ def _port(values: Mapping[str, str]) -> int:
     if not (value.isascii() and value.isdigit() and 1 <= int(value) <= 65535):
         raise SettingsError(f"{DB_PORT_VARIABLE} must be a port number from 1 to 65535")
     return int(value)
+
+
+def _metrics_port(values: Mapping[str, str]) -> int:
+    value = values.get(METRICS_PORT_VARIABLE)
+    if value is None:
+        return DEFAULT_METRICS_PORT
+    if not (value.isascii() and value.isdigit() and 1 <= int(value) <= 65535):
+        raise SettingsError(f"{METRICS_PORT_VARIABLE} must be a port number from 1 to 65535")
+    return int(value)
+
+
+def _single_worker(values: Mapping[str, str]) -> None:
+    workers = values.get(WORKERS_VARIABLE, "1").strip() or "1"
+    if not (workers.isascii() and workers.isdigit() and int(workers) == 1):
+        raise SettingsError(
+            f"{WORKERS_VARIABLE} must be 1: each worker would own its own metrics registry and port"
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -57,6 +79,8 @@ class DatabaseSettings:
 class Settings:
     engine_token: str = field(repr=False)
     database: DatabaseSettings | None = None
+    metrics_port: int | None = None
+    metrics_host: str = DEFAULT_METRICS_HOST
 
     def __post_init__(self) -> None:
         token = self.engine_token
@@ -71,4 +95,10 @@ class Settings:
         values = os.environ if environ is None else environ
         token = values.get(TOKEN_VARIABLE, "")
         cls(token)  # the token is checked first
-        return cls(token, DatabaseSettings.from_env(values))
+        _single_worker(values)
+        return cls(
+            token,
+            DatabaseSettings.from_env(values),
+            _metrics_port(values),
+            values.get(METRICS_HOST_VARIABLE, DEFAULT_METRICS_HOST),
+        )
