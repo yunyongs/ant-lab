@@ -51,7 +51,8 @@ class SchemaParityTest {
             Map.entry("V9__projection.sql", "b38d7c9bc8ac75c97fa059bffc19c08a50be9dd24ba6832bcde10e5c6f9b115f"),
             Map.entry("V10__projection_start_turn.sql", "06f351f7ccc286ddfa6bed32fc2d81d397f6f1eba6aafefac0953236a434bf63"),
             Map.entry("V11__month_block_regime_label.sql", "993e15bd9f257e4940985657946452a468d6bd1777b5c7e0b8d1d6ae3d90405c"),
-            Map.entry("V12__macro_series.sql", "e83778f74a85ce8df07a7e093790c55208f7c07523a0acc2a5a0093d481b5eb5"));
+            Map.entry("V12__macro_series.sql", "e83778f74a85ce8df07a7e093790c55208f7c07523a0acc2a5a0093d481b5eb5"),
+            Map.entry("V13__obs_views.sql", "199e3a862632effe5ba17128557a322270bac226dbcd5e948009f168692d0b42"));
 
     private static final Path MIGRATION_DIR = Path.of("src/main/resources/db/migration");
 

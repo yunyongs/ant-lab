@@ -78,6 +78,7 @@ cd web && npm run verify             # lint, types, tests, build
 | Area | State |
 |---|---|
 | One-season API, JWT auth, web app, Grafana monitoring | Done |
+| Observability (Grafana: service, AI usage, agents) | In progress |
 | Python engine (history reader, paths, projections, regime scoring) | In progress |
 | Agent runner (server side and Python client) | In progress |
 | Data collection (KIS prices), full history load, scoring and ratings | In progress / planned |

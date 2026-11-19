@@ -64,6 +64,10 @@ public final class RoleTestServer {
         return read("db/roles/antlab_engine.sql");
     }
 
+    public static String grafanaScript() {
+        return read("db/roles/grafana_reader.sql");
+    }
+
     private static String read(String file) {
         try {
             return Files.readString(Path.of(file));
@@ -135,6 +139,10 @@ public final class RoleTestServer {
         runScript(database, database, engineScript());
     }
 
+    public void runGrafanaScript(String database) throws SQLException {
+        runScript(database, database, grafanaScript());
+    }
+
     /** Sets throwaway passwords on both roles (the script sets none). */
     public void setPasswords(String database) {
         execute(database, "ALTER ROLE antlab_owner PASSWORD '" + PASSWORD + "'");
@@ -198,6 +206,7 @@ public final class RoleTestServer {
             sql.add("DROP ROLE IF EXISTS antlab_owner");
             sql.add("DROP ROLE IF EXISTS antlab_app");
             sql.add("DROP ROLE IF EXISTS antlab_engine");
+            sql.add("DROP ROLE IF EXISTS grafana_reader");
             for (String statement : sql) {
                 try (Connection c = server.superuser(server.container.getDatabaseName()); Statement s = c.createStatement()) {
                     s.execute(statement);
