@@ -193,7 +193,7 @@ docker compose --profile api -p antlab-qa down -v --rmi local            # 이 �
 | 경로 | 서버 컨테이너에서 | 근거 |
 |---|---|---|
 | OpenRouter | **유일한 자동 경로.** `OPENROUTER_API_KEY`는 운영 `.env`/secret, 지출 상한·호출 제한기는 PLAN §4.16 그대로 | PLAN §4.16 |
-| 구독 CLI | **서버·CI·스케줄러에서 쓰지 않는다.** 이미지에 설치 금지, 로그인 디렉터리 마운트 금지, 어댑터는 설정 기본값 꺼짐(`ANTLAB_MODEL_SUBSCRIPTION_ENABLED=false` — 이름 초안, AG-03). 소유자가 기기에서 직접 시작하는 소규모 배치가 서버 API(또는 로컬 스택)를 부른다 | PLAN §4.16 "구독 CLI의 운용 원칙", 약관 미확인 |
+| 구독 CLI | **서버·CI·스케줄러에서 쓰지 않는다.** 이미지에 설치 금지, 로그인 디렉터리 마운트 금지, 어댑터는 설정 기본값 꺼짐(`ANTLAB_MODEL_SUBSCRIPTION_ENABLED=false` — 이름 초안, AG-03). 소유자가 기기에서 직접 시작하는 소규모 배치가 서버 API(또는 로컬 스택)를 부른다 | PLAN §4.16 "구독 CLI의 운용 원칙". Terms checked 2026-11-19: personal use allowed, serving other users not; enabled only after the service is running / 약관 확인 2026-11-19: 개인 사용 허용, 다른 사용자 대상 불가, 서비스 운영 시작 뒤에만 켠다 |
 | Ollama | `OLLAMA_BASE_URL`이 있을 때만 켜짐. 로컬 스택은 호스트 Ollama. Timeout 300 s. The adapter runs only for a loopback address in owner-started runs; a remote address is refused because its cost cannot be counted (AG-02). / 시간 제한 300초. 어댑터는 소유자가 시작한 실행에서 루프백 주소일 때만 돈다. 원격 주소는 비용을 셀 수 없어 거부한다(AG-02). | PLAN §4.16 |
 
 ## 10. 호스팅
