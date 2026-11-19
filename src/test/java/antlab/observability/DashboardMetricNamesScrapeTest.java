@@ -41,8 +41,8 @@ class DashboardMetricNamesScrapeTest extends RealPortTest {
         Set<String> scraped = scrapedNames();
         Map<String, Boolean> allowlist = GrafanaDashboards.allowlist();
         GrafanaDashboards.load().forEach((file, dashboard) -> {
-            if (file.equals("db.json")) {
-                return; // postgres_exporter metrics (OBS-06): the live smoke proves them
+            if (file.equals("db.json") || file.equals("engine.json")) {
+                return; // exporter and engine metrics (OBS-06, OBS-05): the live smoke proves them
             }
             for (String name : GrafanaDashboards.metricNames(dashboard)) {
                 // up is made by Prometheus for every target; the API never exports it (overview, OBS-03).
