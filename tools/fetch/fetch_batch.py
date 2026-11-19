@@ -115,7 +115,7 @@ def main(argv: list[str] | None = None) -> int:
             src = "YF" if name == "yf" else "KIS"
             p.add_argument("--daily-cap", type=int, default=DEFAULT_CAP[src], help=f"requests per KST day (default {DEFAULT_CAP[src]}, hard maximum {HARD_MAX_CAP[src]})")
             p.add_argument("--same-day", action="store_true", help="owner only: allow a second batch on the same KST day (the cap still applies)")
-            p.add_argument("--outside-window", action="store_true", help="owner only: run outside 21:00-23:00 KST")
+            p.add_argument("--outside-window", action="store_true", help="owner only: run outside 21:00-07:00 KST")
             if name != "yf":
                 p.add_argument("--env-file", default=str(REPO_ROOT / ".env"), help="secrets .env (default: repository root)")
     args = ap.parse_args(argv)
