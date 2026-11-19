@@ -279,7 +279,7 @@ def test_the_call_budget_pauses_before_the_attempt_that_would_exceed_it(tmp_path
 
 
 def test_a_remote_model_whose_cost_is_unknown_never_gets_a_first_send(tmp_path):
-    h = Harness(tmp_path, ok(), route="OLLAMA", cost_known=False)
+    h = Harness(tmp_path, ok(), route="OLLAMA", cost_mode="UNKNOWN")
     result = h.run()
     assert (result.state, result.reason) == (PAUSED, "BUDGET")
     assert h.port.requests == []

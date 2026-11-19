@@ -18,11 +18,25 @@ from antlab_ai.runner.prompt import PROMPT_TEMPLATE_VERSION
 
 OPENROUTER: Final = "OPENROUTER"
 OLLAMA: Final = "OLLAMA"
+CLAUDE_CLI: Final = "CLAUDE_CLI"
+CODEX_CLI: Final = "CODEX_CLI"
+SUBSCRIPTION_ROUTES: Final = (CLAUDE_CLI, CODEX_CLI)
+# How the season budget treats cost: a USD bound, no bound possible (pause before sending), or a
+# flat subscription fee bounded by the call budget, the batch call cap and the usage guard.
+KNOWN: Final = "KNOWN"
+UNKNOWN: Final = "UNKNOWN"
+FLAT_FEE: Final = "FLAT_FEE"
+COST_MODES: Final = (KNOWN, UNKNOWN, FLAT_FEE)
 MODEL_SEED: Final = 1
 MAX_TOKENS: Final = 2048
 TEMPERATURE: Final = Decimal(0)
 CALLS_PER_TURN: Final = 3
-TURN_TIMEOUT_MS: Final = {OPENROUTER: 120_000, OLLAMA: 300_000}
+TURN_TIMEOUT_MS: Final = {
+    OPENROUTER: 120_000,
+    OLLAMA: 300_000,
+    CLAUDE_CLI: 600_000,
+    CODEX_CLI: 600_000,
+}
 DEFAULT_TIMEOUT_MS: Final = 120_000
 MAX_SCRIPT_ENTRIES: Final = 10_000
 _SCRIPT_STATUSES: Final = ("OK", "UPSTREAM", "TIMEOUT", "LIMITED", "POLICY_REFUSED", "ERROR")
@@ -30,7 +44,7 @@ _SCRIPT_STATUSES: Final = ("OK", "UPSTREAM", "TIMEOUT", "LIMITED", "POLICY_REFUS
 
 @dataclass(frozen=True)
 class RunnerConfig:
-    """What the loop needs about one season; ``cost_known`` is false for a remote Ollama."""
+    """What the loop needs about one season; ``cost_mode`` says how the budget treats cost."""
 
     model_requested: str
     route: str
@@ -42,9 +56,11 @@ class RunnerConfig:
     seed: int = MODEL_SEED
     budget_calls: int = 0
     budget_usd: Decimal = Decimal(0)
-    cost_known: bool = True
+    cost_mode: str = KNOWN
 
     def __post_init__(self) -> None:
+        if self.cost_mode not in COST_MODES:
+            raise ValueError("cost_mode is not a known mode")
         if self.budget_calls < 1:
             object.__setattr__(self, "budget_calls", CALLS_PER_TURN * self.path_length)
 
@@ -54,13 +70,17 @@ def default_timeout_ms(route: str) -> int:
 
 
 def season_config(config: RunnerConfig) -> dict[str, Any]:
-    """The ``AgentSeasonConfig`` body; free models only, so the USD budget is zero."""
+    """The ``AgentSeasonConfig`` body; free models only, so the USD budget is zero.
+
+    A subscription route has no seed to set: the config records ``modelSeed: null``. Temperature and
+    max tokens are recorded as requested, not as applied (neither CLI exposes them).
+    """
     return {
         "personaVersion": config.persona.version,
         "personaSha256": config.persona.sha256,
         "modelRequested": config.model_requested,
         "temperature": format(config.temperature, "f"),
-        "modelSeed": config.seed,
+        "modelSeed": None if config.route in SUBSCRIPTION_ROUTES else config.seed,
         "maxTokens": config.max_tokens,
         "turnTimeoutMs": config.turn_timeout_ms,
         "promptTemplateVersion": PROMPT_TEMPLATE_VERSION,
