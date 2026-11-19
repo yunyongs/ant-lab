@@ -1,5 +1,6 @@
 package antlab.collect.kis;
 
+import antlab.observability.CollectMetrics;
 import java.net.URI;
 import java.time.Clock;
 import org.springframework.web.client.RestClient;
@@ -19,14 +20,21 @@ public final class KisQuoteClientFactory {
     private final SecretMasker masker = new SecretMasker();
     private final KisTokenService tokens;
     private final MinIntervalRateLimiter limiter;
+    private final CollectMetrics metrics;
 
     KisQuoteClientFactory(RestClient.Builder base, URI baseUri, KisProperties properties, Clock clock, Sleeper sleeper) {
+        this(base, baseUri, properties, clock, sleeper, CollectMetrics.none());
+    }
+
+    KisQuoteClientFactory(RestClient.Builder base, URI baseUri, KisProperties properties, Clock clock, Sleeper sleeper,
+            CollectMetrics metrics) {
         properties.requireKeys();
         this.base = base;
         this.baseUri = baseUri;
         this.properties = properties;
         this.clock = clock;
         this.sleeper = sleeper;
+        this.metrics = metrics;
         masker.register(properties.appKey());
         masker.register(properties.appSecret());
         KisTokenStore store = properties.tokenCachePath() == null ? null : new FileKisTokenStore(properties.tokenCachePath());
@@ -36,7 +44,7 @@ public final class KisQuoteClientFactory {
 
     public KisQuoteClient newClient() {
         KisRequestGate gate = new KisRequestGate(limiter, properties.maxRequestsPerRun());
-        return new DefaultKisQuoteClient(restClientWith(gate), properties, tokens, masker, clock, sleeper, gate::sent);
+        return new DefaultKisQuoteClient(restClientWith(gate), properties, tokens, masker, clock, sleeper, gate::sent, metrics);
     }
 
     /** The production client chain (allow-list first, then the gate), exposed to tests so the wiring itself can be checked. */

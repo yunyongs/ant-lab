@@ -558,6 +558,220 @@
           "sort": "desc"
         }
       }
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "Engine calls by endpoint",
+      "description": "Calls per second from the API to the Python engine, per engine URI template (the engine URL, query and token never appear). The first call with a new status is not counted (rate needs an earlier sample). / API가 파이썬 엔진을 부르는 초당 호출 수(엔진 URI 템플릿별; URL 쿼리와 토큰은 나오지 않는다). 새 상태의 첫 호출은 세지 않는다(rate는 앞선 표본이 있어야 센다).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "antlab-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 36
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "min": 0,
+          "noValue": "0"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "antlab-prometheus"
+          },
+          "refId": "A",
+          "expr": "sum by (uri) (rate(http_client_requests_seconds_count{application=~\"$application\",uri=~\"/v1/.*\"}[$__rate_interval]))",
+          "legendFormat": "{{uri}}",
+          "range": true
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "Engine call failures",
+      "description": "Rate of engine calls that did not end in a 2xx answer, per URI template and status (CLIENT_ERROR means no answer (connection refused or timeout) and IO_ERROR means the answer could not be read). The first failure with a new status is not counted (rate needs an earlier sample). / 2xx로 끝나지 않은 엔진 호출의 초당 수(URI 템플릿·상태별; CLIENT_ERROR는 응답이 없는 경우(연결 거부나 시간 초과), IO_ERROR는 받은 응답을 읽지 못한 경우). 새 상태의 첫 실패는 세지 않는다(rate는 앞선 표본이 있어야 센다).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "antlab-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 36
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "min": 0,
+          "noValue": "0"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "antlab-prometheus"
+          },
+          "refId": "A",
+          "expr": "sum by (uri, status) (rate(http_client_requests_seconds_count{application=~\"$application\",uri=~\"/v1/.*\",outcome!=\"SUCCESS\"}[$__rate_interval]))",
+          "legendFormat": "{{uri}} {{status}}",
+          "range": true
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 12,
+      "type": "timeseries",
+      "title": "Engine latency p95 by endpoint",
+      "description": "95th percentile engine call latency per URI template, from fixed histogram buckets (50 ms, 100 ms, 250 ms, 500 ms, 1 s, 2.5 s, 5 s, 10 s, 30 s, 60 s), so the value is interpolated inside a bucket. / URI 템플릿별 엔진 호출 95번째 백분위 지연. 고정 히스토그램 버킷(50ms~60s) 안에서 보간한 값이다.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "antlab-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 44
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "antlab-prometheus"
+          },
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (le, uri) (rate(http_client_requests_seconds_bucket{application=~\"$application\",uri=~\"/v1/.*\"}[$__rate_interval])))",
+          "legendFormat": "{{uri}}",
+          "range": true
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 13,
+      "type": "timeseries",
+      "title": "Max engine latency by endpoint",
+      "description": "Slowest engine call per URI template over Micrometer's rolling window (about the last 2 minutes). / Micrometer 이동 구간(약 최근 2분)에서 URI 템플릿별 가장 느린 엔진 호출.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "antlab-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 44
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "antlab-prometheus"
+          },
+          "refId": "A",
+          "expr": "max by (uri) (http_client_requests_seconds_max{application=~\"$application\",uri=~\"/v1/.*\"})",
+          "legendFormat": "{{uri}}",
+          "range": true
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
     }
   ]
 }

@@ -12,7 +12,11 @@ import antlab.collect.job.JobAlreadyRunningException;
 import antlab.collect.job.JobRunSummary;
 import antlab.collect.kis.DailyClose;
 import antlab.collect.kis.KisExchange;
+import antlab.observability.CollectMetrics;
 import antlab.support.JpaMappingTest;
+import antlab.support.MetricCounts;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -530,5 +534,35 @@ class KisDailyPriceJobTest {
         JobRunSummary summary = job(THREE, client).run(RunTrigger.MANUAL, TargetFilter.all());
 
         assertThat((String) runRow(summary.jobRunId()).get("error_detail")).hasSize(500);
+    }
+
+    private KisDailyPriceJob metricJob(FakeQuoteClient client, MeterRegistry registry) {
+        return KisDailyPriceJob.create(() -> client, KisTargetCatalog.fromCsv(THREE), jdbc, transactions, clock, PROPERTIES,
+                new CollectMetrics(registry));
+    }
+
+    @Test
+    void 실행_하나는_끝난_상태_한_계열만_한_번_센다() {
+        var registry = new SimpleMeterRegistry();
+
+        metricJob(threeTargets(), registry).run(RunTrigger.MANUAL, TargetFilter.all());
+
+        assertThat(MetricCounts.count(registry, "antlab.collect.run", "job", "KIS_DAILY_PRICE", "status", "SUCCEEDED")).isEqualTo(1);
+        assertThat(MetricCounts.total(registry, "antlab.collect.run")).isEqualTo(1);
+    }
+
+    @Test
+    void 일부_종목이_실패하면_PARTIAL_모두_실패하면_FAILED로_각각_한_번_센다() {
+        var registry = new SimpleMeterRegistry();
+        FakeQuoteClient partial = threeTargets().fail("US:SPY", "KIS_HTTP", "HTTP 500");
+        FakeQuoteClient allFail = new FakeQuoteClient().fail("KR:005930", "KIS_HTTP", "HTTP 500")
+                .fail("KR:069500", "KIS_HTTP", "HTTP 500").fail("US:SPY", "KIS_HTTP", "HTTP 500");
+
+        metricJob(partial, registry).run(RunTrigger.MANUAL, TargetFilter.all());
+        metricJob(allFail, registry).run(RunTrigger.MANUAL, TargetFilter.all());
+
+        assertThat(MetricCounts.count(registry, "antlab.collect.run", "job", "KIS_DAILY_PRICE", "status", "PARTIAL")).isEqualTo(1);
+        assertThat(MetricCounts.count(registry, "antlab.collect.run", "job", "KIS_DAILY_PRICE", "status", "FAILED")).isEqualTo(1);
+        assertThat(MetricCounts.total(registry, "antlab.collect.run")).isEqualTo(2);
     }
 }
