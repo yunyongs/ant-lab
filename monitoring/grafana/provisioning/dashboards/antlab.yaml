@@ -1,6 +1,6 @@
 apiVersion: 1
 
-# Three read-only dashboards (MON-04), loaded from the JSON files in ./antlab. The repo is the only source: edits in the UI cannot be saved.
+# Read-only dashboards (MON-04, OBS-03), loaded from the JSON files in ./antlab. The repo is the only source: edits in the UI cannot be saved.
 providers:
   - name: antlab
     orgId: 1

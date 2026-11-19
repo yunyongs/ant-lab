@@ -2,6 +2,7 @@ package antlab;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import antlab.support.GrafanaDashboards;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -68,6 +69,14 @@ class MonitoringComposeSettingsTest {
         var services = services();
         assertThat(services.get("prometheus").get("image").toString()).matches("^prom/prometheus:v\\d+\\.\\d+\\.\\d+$");
         assertThat(services.get("grafana").get("image").toString()).matches("^grafana/grafana:\\d+\\.\\d+\\.\\d+$");
+    }
+
+    @Test
+    void 개요_대시보드가_Grafana_홈이고_복사본을_만드는_파일_경로는_쓰지_않는다() throws IOException {
+        var env = grafanaEnvironment();
+        assertThat(env.get("GF_USERS_HOME_PAGE")).isEqualTo("/d/antlab-overview");
+        assertThat(env).doesNotContainKey("GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH");
+        assertThat(GrafanaDashboards.load().get("overview.json").path("uid").asString()).isEqualTo("antlab-overview");
     }
 
     @Test

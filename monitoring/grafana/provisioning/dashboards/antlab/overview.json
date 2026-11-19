@@ -1,0 +1,584 @@
+{
+  "uid": "antlab-overview",
+  "title": "ant-lab · Overview",
+  "tags": [
+    "antlab"
+  ],
+  "editable": false,
+  "graphTooltip": 1,
+  "timezone": "Asia/Seoul",
+  "schemaVersion": 42,
+  "time": {
+    "from": "now/d",
+    "to": "now"
+  },
+  "refresh": "30s",
+  "templating": {
+    "list": [
+      {
+        "name": "application",
+        "label": "Application",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "antlab-prometheus"
+        },
+        "query": {
+          "qryType": 1,
+          "query": "label_values(jvm_info, application)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "definition": "label_values(jvm_info, application)",
+        "refresh": 1,
+        "sort": 1,
+        "multi": false,
+        "includeAll": false,
+        "current": {
+          "text": "antlab-api",
+          "value": "antlab-api"
+        }
+      }
+    ]
+  },
+  "links": [
+    {
+      "type": "dashboards",
+      "title": "ant-lab dashboards",
+      "tags": [
+        "antlab"
+      ],
+      "asDropdown": false,
+      "includeVars": false,
+      "keepTime": false,
+      "icon": "external link"
+    }
+  ],
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "API up",
+      "description": "1 when Prometheus scrapes the API target (job antlab-api), 0 when it does not. / Prometheus가 API 대상(job antlab-api)을 읽으면 UP, 못 읽으면 DOWN.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "antlab-prometheus"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 0,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          },
+          "noValue": "no target",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "DOWN",
+                  "color": "red",
+                  "index": 0
+                },
+                "1": {
+                  "text": "UP",
+                  "color": "green",
+                  "index": 1
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "antlab-prometheus"
+          },
+          "refId": "A",
+          "expr": "max(up{job=\"antlab-api\"})",
+          "instant": true
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Requests today",
+      "description": "Requests answered since local midnight (the dashboard range), without health probes and actuator paths. A restart does not lose the count. / 오늘 0시부터 답한 요청 수(상태 확인과 actuator 경로 제외). 재시작해도 합이 유지된다.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "antlab-prometheus"
+      },
+      "timeFrom": "now/d",
+      "gridPos": {
+        "h": 4,
+        "w": 5,
+        "x": 4,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "noValue": "0"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "antlab-prometheus"
+          },
+          "refId": "A",
+          "expr": "sum(increase(http_server_requests_seconds_count{application=~\"$application\",uri!~\"/readyz|/livez|/actuator/.*\"}[$__range]))",
+          "instant": true
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "5xx ratio today",
+      "description": "Share of requests answered with a 5xx status since local midnight (red above 1%), without health probes and actuator paths. Fixed to today whatever the time picker says. / 오늘 0시부터 5xx 상태로 답한 요청의 비율(1% 초과면 빨강). 시간 선택과 상관없이 오늘로 고정된다.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "antlab-prometheus"
+      },
+      "timeFrom": "now/d",
+      "gridPos": {
+        "h": 4,
+        "w": 5,
+        "x": 9,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 0.01
+              }
+            ]
+          },
+          "noValue": "0"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "antlab-prometheus"
+          },
+          "refId": "A",
+          "expr": "(sum(increase(http_server_requests_seconds_count{application=~\"$application\",uri!~\"/readyz|/livez|/actuator/.*\",status=~\"5..\"}[$__range])) or vector(0)) / sum(increase(http_server_requests_seconds_count{application=~\"$application\",uri!~\"/readyz|/livez|/actuator/.*\"}[$__range]))",
+          "instant": true
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "JVM uptime",
+      "description": "Time since the API process started. / API 프로세스가 시작된 뒤 지난 시간.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "antlab-prometheus"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 5,
+        "x": 14,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "noValue": "no data"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "antlab-prometheus"
+          },
+          "refId": "A",
+          "expr": "max(process_uptime_seconds{application=~\"$application\"})",
+          "range": true
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Database size",
+      "description": "Size of the database as seen by the read-only role (pg_database_size). / 읽기 전용 역할이 보는 데이터베이스 크기(pg_database_size).",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "antlab-postgres"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 5,
+        "x": 19,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "noValue": "no data",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "antlab-postgres"
+          },
+          "refId": "A",
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "SELECT pg_database_size(current_database()) AS size"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 6,
+      "type": "table",
+      "title": "Collector last runs",
+      "description": "Status and age of the newest run of each collector job and the age of its last SUCCEEDED run; 'no run' when it never ran. Details on the collectors dashboard. / 수집 잡별 가장 최근 실행의 상태와 경과 시간, 마지막 SUCCEEDED 실행의 경과 시간. 한 번도 돌지 않았으면 'no run'. 자세한 내용은 수집기 대시보드.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "antlab-postgres"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 24,
+        "x": 0,
+        "y": 4
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "status"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "SUCCEEDED": {
+                        "color": "green",
+                        "index": 0
+                      },
+                      "PARTIAL": {
+                        "color": "orange",
+                        "index": 1
+                      },
+                      "FAILED": {
+                        "color": "red",
+                        "index": 2
+                      },
+                      "RUNNING": {
+                        "color": "blue",
+                        "index": 3
+                      },
+                      "no run": {
+                        "color": "text",
+                        "index": 4
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "age"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "last success age"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "antlab-postgres"
+          },
+          "refId": "A",
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "WITH jobs(job_name) AS (VALUES ('KIS_DAILY_PRICE'), ('FRED_SERIES'), ('ECOS_SERIES')), last AS (SELECT DISTINCT ON (job_name) job_name, status, started_at, request_count, failed_target_count, error_code FROM obs.job_run ORDER BY job_name, started_at DESC, id DESC), ok AS (SELECT job_name, max(finished_at) AS finished_at FROM obs.job_run WHERE status = 'SUCCEEDED' GROUP BY job_name) SELECT j.job_name AS \"job\", COALESCE(l.status, 'no run') AS \"status\", date_part('epoch', now() - l.started_at) AS \"age\", date_part('epoch', now() - o.finished_at) AS \"last success age\" FROM jobs j LEFT JOIN last l ON l.job_name = j.job_name LEFT JOIN ok o ON o.job_name = j.job_name ORDER BY j.job_name"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      }
+    },
+    {
+      "id": 7,
+      "type": "stat",
+      "title": "Oldest macro series date",
+      "description": "Age in days of the oldest newest-observation date across all macro series that have an observation. Monthly series are normally weeks old. / 관측이 있는 모든 매크로 시계열 가운데 가장 오래된 최신 기준일의 경과 일수. 월간 시계열은 보통 몇 주 묵는다.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "antlab-postgres"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 12,
+        "x": 0,
+        "y": 10
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "d",
+          "noValue": "no data",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "antlab-postgres"
+          },
+          "refId": "A",
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "SELECT CURRENT_DATE - min(last_observation_date) AS age FROM obs.series_freshness WHERE last_observation_date IS NOT NULL"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 8,
+      "type": "stat",
+      "title": "Oldest daily price date",
+      "description": "Age in days of the oldest newest-trade date across markets and sources. / 시장·출처 가운데 가장 오래된 최신 거래일의 경과 일수.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "antlab-postgres"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 12,
+        "x": 12,
+        "y": 10
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "d",
+          "noValue": "no data",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "antlab-postgres"
+          },
+          "refId": "A",
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "SELECT CURRENT_DATE - min(last_price_date) AS age FROM obs.price_freshness"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "auto"
+      }
+    }
+  ]
+}
