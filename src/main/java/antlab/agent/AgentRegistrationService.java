@@ -52,7 +52,7 @@ public class AgentRegistrationService {
 
     private static AgentDto dto(Member agent, AgentProfile profile) {
         return new AgentDto(agent.getId(), agent.getName(), profile.getPersonaKey(), profile.getModelRoute(),
-                profile.getModelId(), profile.getStatus());
+                profile.getModelId(), profile.getStatus(), profile.getOwnerMemberId());
     }
 
     private static DomainException unauthenticated() {
