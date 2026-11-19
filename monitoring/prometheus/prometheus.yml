@@ -9,3 +9,8 @@ scrape_configs:
     scheme: http
     static_configs:
       - targets: ["api:8081"]
+
+  # OBS-06: database statistics from postgres_exporter (read as antlab_metrics). `up` is 1 whenever the exporter answers; pg_up tells whether it reached the database.
+  - job_name: antlab-db
+    static_configs:
+      - targets: ["postgres-exporter:9187"]

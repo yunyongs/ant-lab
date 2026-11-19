@@ -36,6 +36,7 @@ class MonitoringComposeSettingsTest {
         var services = services();
         assertThat(services.get("prometheus").get("profiles")).isEqualTo(List.of("monitoring"));
         assertThat(services.get("grafana").get("profiles")).isEqualTo(List.of("monitoring"));
+        assertThat(services.get("postgres-exporter").get("profiles")).isEqualTo(List.of("monitoring"));
         assertThat(services.get("db")).doesNotContainKey("profiles");
         assertThat(services.get("api").get("profiles")).isEqualTo(List.of("api"));
     }
@@ -69,6 +70,7 @@ class MonitoringComposeSettingsTest {
         var services = services();
         assertThat(services.get("prometheus").get("image").toString()).matches("^prom/prometheus:v\\d+\\.\\d+\\.\\d+$");
         assertThat(services.get("grafana").get("image").toString()).matches("^grafana/grafana:\\d+\\.\\d+\\.\\d+$");
+        assertThat(services.get("postgres-exporter").get("image").toString()).matches("^prometheuscommunity/postgres-exporter:v\\d+\\.\\d+\\.\\d+$");
     }
 
     @Test
@@ -137,8 +139,8 @@ class MonitoringComposeSettingsTest {
     @SuppressWarnings("unchecked")
     void scrape_설정은_api의_관리_포트를_긁는다() throws IOException {
         var jobs = (List<Map<String, Object>>) load("monitoring/prometheus/prometheus.yml").get("scrape_configs");
-        assertThat(jobs).hasSize(1);
-        var job = jobs.get(0);
+        assertThat(jobs).extracting(j -> j.get("job_name")).contains("antlab-api");
+        var job = jobs.stream().filter(j -> "antlab-api".equals(j.get("job_name"))).findFirst().orElseThrow();
         assertThat(job.get("job_name")).isEqualTo("antlab-api");
         assertThat(job.get("metrics_path")).isEqualTo("/actuator/prometheus");
         var targets = (List<Map<String, Object>>) job.get("static_configs");
@@ -225,5 +227,79 @@ class MonitoringComposeSettingsTest {
         assertThat(Files.readAllLines(Path.of(".env.example")).stream().map(String::strip)
                 .filter(l -> l.replaceFirst("^#\\s*", "").startsWith(READER_PASSWORD_VAR + "=")))
                 .containsExactly("# " + READER_PASSWORD_VAR + "=");
+    }
+
+    private static final String METRICS_PASSWORD_VAR = "ANTLAB_METRICS_PASSWORD";
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> exporter() throws IOException {
+        return services().get("postgres-exporter");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void postgres_exporter는_게시_포트_없이_backend에서만_db_통계를_읽는다() throws IOException {
+        var exporter = exporter();
+        assertThat(exporter).doesNotContainKeys("ports", "env_file", "build");
+        assertThat(exporter.get("networks")).isEqualTo(List.of("backend"));
+        assertThat(exporter.toString()).doesNotContain("9187:").doesNotContain("expose");
+        var dependsOn = (Map<String, Map<String, Object>>) exporter.get("depends_on");
+        assertThat(dependsOn).containsOnlyKeys("db");
+        assertThat(dependsOn.get("db").get("condition")).isEqualTo("service_healthy");
+        assertThat(exporter.get("restart")).isEqualTo("unless-stopped");
+    }
+
+    @Test
+    void postgres_exporter는_클라이언트가_정하는_라벨을_내는_stat_activity_수집기를_끈다() throws IOException {
+        // application_name is chosen by the client; the role and state counts come from queries.yaml.
+        assertThat(exporter().get("command")).isEqualTo(List.of("--no-collector.stat_activity"));
+    }
+
+    @Test
+    void postgres_exporter는_메모리_상한과_최소_권한을_둔다() throws IOException {
+        var exporter = exporter();
+        assertThat(exporter.get("mem_limit")).isEqualTo("64m");
+        assertThat(exporter.get("read_only")).isEqualTo(true);
+        assertThat(exporter.get("cap_drop")).isEqualTo(List.of("ALL"));
+        assertThat(exporter.get("security_opt")).isEqualTo(List.of("no-new-privileges:true"));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void postgres_exporter는_antlab_metrics로_접속하고_비밀번호는_빈_기본값의_환경_변수다() throws IOException {
+        var env = (Map<String, Object>) exporter().get("environment");
+        assertThat(env.get("DATA_SOURCE_USER")).isEqualTo("antlab_metrics");
+        assertThat(env.get("DATA_SOURCE_PASS").toString()).isEqualTo("${" + METRICS_PASSWORD_VAR + ":-}");
+        // The address carries no credentials; the user and password come from their own variables.
+        assertThat(env.get("DATA_SOURCE_URI")).isEqualTo("db:5432/antlab_api?sslmode=disable");
+        assertThat(env.get("PG_EXPORTER_EXTEND_QUERY_PATH")).isEqualTo("/etc/postgres-exporter/queries.yaml");
+        assertThat(env.keySet()).noneMatch(k -> k.equals("DATA_SOURCE_NAME"));
+        assertThat(env.values().toString()).doesNotContain("postgres://").doesNotContain("postgresql://");
+        assertThat(Files.readAllLines(Path.of(".env.example")).stream().map(String::strip)
+                .filter(l -> l.replaceFirst("^#\\s*", "").startsWith(METRICS_PASSWORD_VAR + "=")))
+                .containsExactly("# " + METRICS_PASSWORD_VAR + "=");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void postgres_exporter의_쿼리_파일은_읽기_전용으로_마운트하고_헬스체크는_db를_긁지_않는다() throws IOException {
+        var exporter = exporter();
+        assertThat((List<String>) exporter.get("volumes"))
+                .containsExactly("./monitoring/postgres-exporter/queries.yaml:/etc/postgres-exporter/queries.yaml:ro");
+        assertThat(Path.of("monitoring/postgres-exporter/queries.yaml")).isRegularFile();
+        List<String> test = (List<String>) ((Map<String, Object>) exporter.get("healthcheck")).get("test");
+        assertThat(test).isEqualTo(List.of("CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:9187/"));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void scrape_설정은_db_지표_잡을_내부_주소로_긁는다() throws IOException {
+        var jobs = (List<Map<String, Object>>) load("monitoring/prometheus/prometheus.yml").get("scrape_configs");
+        assertThat(jobs).extracting(j -> j.get("job_name")).containsExactly("antlab-api", "antlab-db");
+        var job = jobs.get(1);
+        var targets = (List<Map<String, Object>>) job.get("static_configs");
+        assertThat(targets).hasSize(1);
+        assertThat(targets.get(0).get("targets")).isEqualTo(List.of("postgres-exporter:9187"));
+        assertThat(job).doesNotContainKeys("basic_auth", "authorization", "metrics_path", "params");
     }
 }

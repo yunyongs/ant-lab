@@ -1,0 +1,35 @@
+# Custom queries for postgres_exporter (OBS-06). Statistics only: no query text, no row of a table.
+# Run as antlab_metrics (db/roles/antlab_metrics.sql); the pg_stat_activity view shows session counts, never the statements.
+
+pg_connections:
+  query: "SELECT usename AS role, coalesce(state, 'unknown') AS state, count(*) AS count FROM pg_catalog.pg_stat_activity WHERE backend_type = 'client backend' AND datname = current_database() GROUP BY 1, 2"
+  metrics:
+    - role:
+        usage: "LABEL"
+        description: "Database role of the session"
+    - state:
+        usage: "LABEL"
+        description: "Session state (active, idle, idle in transaction, ...)"
+    - count:
+        usage: "GAUGE"
+        description: "Client sessions of this database by role and state"
+
+pg_longest_transaction:
+  query: "SELECT coalesce(max(extract(epoch FROM now() - xact_start)), 0)::float8 AS seconds FROM pg_catalog.pg_stat_activity WHERE xact_start IS NOT NULL AND backend_type = 'client backend' AND usename <> current_user"
+  metrics:
+    - seconds:
+        usage: "GAUGE"
+        description: "Age of the oldest open transaction of a client session, 0 when none (sessions of the exporter's own role are left out)"
+
+pg_table_size:
+  query: "SELECT schemaname AS schema, relname AS relation, pg_total_relation_size(relid)::float8 AS bytes FROM pg_catalog.pg_stat_user_tables ORDER BY 3 DESC LIMIT 10"
+  metrics:
+    - schema:
+        usage: "LABEL"
+        description: "Schema of the table"
+    - relation:
+        usage: "LABEL"
+        description: "Table name"
+    - bytes:
+        usage: "GAUGE"
+        description: "Total size of the table with its indexes and TOAST, ten largest tables"

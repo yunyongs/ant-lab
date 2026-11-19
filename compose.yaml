@@ -23,6 +23,7 @@
 #   isolated: add ANTLAB_PROMETHEUS_PORT=19090 ANTLAB_GRAFANA_PORT=13000 and -p antlab-qa (docs/DEPLOY.md §3.2).
 #   smoke: scripts/monitoring_smoke.sh (docs/DEPLOY.md §3.2).
 #   OBS-02: grafana also reads the db as grafana_reader (data source antlab-postgres); run db/roles/grafana_reader.sql first (db/README.md).
+#   OBS-06: postgres-exporter (no published port) reads database statistics as antlab_metrics; run db/roles/antlab_metrics.sql first (db/README.md). Without the role the exporter is up but pg_up is 0.
 # MVP-20: on an empty volume the db container also creates the roles antlab_owner (Flyway) and antlab_app (the api) through
 #   /docker-entrypoint-initdb.d; an existing volume needs the one-time command in db/README.md "App roles". The api container then
 #   connects as antlab_app and refuses to start as a superuser.
@@ -206,6 +207,37 @@ services:
       timeout: 5s
       retries: 6
       start_period: 30s
+    restart: unless-stopped
+
+  postgres-exporter:
+    mem_limit: 64m
+    profiles: [monitoring]
+    image: prometheuscommunity/postgres-exporter:v0.20.1
+    # stat_activity exports the client-controlled application_name as a label; the role and state counts come from queries.yaml instead.
+    command: ["--no-collector.stat_activity"]
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATA_SOURCE_URI: db:5432/antlab_api?sslmode=disable
+      DATA_SOURCE_USER: antlab_metrics
+      # OBS-06: password of the statistics role antlab_metrics; empty locally (trust), never in a tracked file.
+      DATA_SOURCE_PASS: ${ANTLAB_METRICS_PASSWORD:-}
+      PG_EXPORTER_EXTEND_QUERY_PATH: /etc/postgres-exporter/queries.yaml
+    volumes:
+      - ./monitoring/postgres-exporter/queries.yaml:/etc/postgres-exporter/queries.yaml:ro
+    networks:
+      - backend
+    healthcheck:
+      # The landing page does not scrape the database; /metrics would run every query on each probe.
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:9187/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
     restart: unless-stopped
 
 networks:

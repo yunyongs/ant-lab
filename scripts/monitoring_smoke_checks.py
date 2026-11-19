@@ -14,6 +14,7 @@ The Grafana admin password comes from the environment variable SMOKE_GF_PASSWORD
 import base64
 import glob
 import json
+import math
 import os
 import re
 import sys
@@ -22,7 +23,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-UIDS = ("antlab-api", "antlab-jvm-db", "antlab-game", "antlab-collectors", "antlab-overview")
+UIDS = ("antlab-api", "antlab-jvm-db", "antlab-game", "antlab-collectors", "antlab-overview", "antlab-db")
 FOLDER_UID = "antlab"
 PG_DATASOURCE_UID = "antlab-postgres"
 APPLICATION = "antlab-api"
@@ -44,6 +45,18 @@ MUST_HAVE_DATA = (
     ("antlab-overview", 4),  # JVM uptime
     ("antlab-overview", 5),  # Database size (pg_database_size as grafana_reader)
     ("antlab-overview", 6),  # Collector last runs: "no run" rows
+    # OBS-06: every panel of the database dashboard answers once the exporter has scraped the played season.
+    ("antlab-db", 1),   # Database reachable (pg_up)
+    ("antlab-db", 2),   # Database size
+    ("antlab-db", 3),   # Client connections
+    ("antlab-db", 4),   # Deadlocks in range
+    ("antlab-db", 5),   # Longest open transaction
+    ("antlab-db", 6),   # Connections by role and state
+    ("antlab-db", 7),   # Database size over time
+    ("antlab-db", 8),   # Transactions per second
+    ("antlab-db", 9),   # Deadlocks
+    ("antlab-db", 10),  # Longest open transaction over time
+    ("antlab-db", 11),  # Largest tables
 )
 
 # BEGIN SMOKE QUERIES
@@ -52,6 +65,12 @@ Q_TURNS = 'sum(antlab_turn_advance_total{outcome="committed"})'
 Q_SEASONS = 'sum(antlab_season_start_total{outcome="committed"})'
 Q_REJECTED = 'sum(antlab_order_rejected_total{code=~".+"})'
 # END SMOKE QUERIES
+
+# OBS-06: names from the exporter, checked against src/test/resources/monitoring/metric-names-db.txt (up is made by Prometheus).
+# BEGIN SMOKE DB QUERIES
+Q_DB_UP = 'up{job="antlab-db"}'
+Q_PG_UP = 'pg_up{job="antlab-db"}'
+# END SMOKE DB QUERIES
 
 failed = False
 
@@ -122,6 +141,9 @@ def wait_ready(url, timeout=60):
 
 def cmd_prometheus(prom_url, timeout):
     wait_query(prom_url, Q_UP, "==", 1, timeout, "A1")
+    # up is 1 as soon as the exporter answers; pg_up is 1 only when it reached the database as antlab_metrics.
+    wait_query(prom_url, Q_DB_UP, "==", 1, timeout, "A1b")
+    wait_query(prom_url, Q_PG_UP, "==", 1, timeout, "A1c")
     wait_query(prom_url, Q_TURNS, "==", TURNS_PLAYED, timeout, "A2")
     ok_season = wait_query(prom_url, Q_SEASONS, "==", 1, timeout, "A3a")
     ok_reject = wait_query(prom_url, Q_REJECTED, ">=", 1, timeout, "A3b")
@@ -179,18 +201,23 @@ def ds_queries(panel):
     return queries
 
 
+def finite_number(value):
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+
+
 def frames_have_value(results, ref_ids, sql_refs=()):
     """Every target (refId) of the panel must come back with at least one frame holding a value.
 
-    Prometheus frames are [time, value...]; a SQL frame may have one column, so any non-null cell counts."""
+    Prometheus frames are [time, value...]; some value column must hold a finite number (null, NaN and infinity are no data;
+    label columns of table frames are ignored). A SQL frame may have one column of any type, so any non-null, non-NaN cell counts."""
     for ref in ref_ids:
         frames = results.get(ref, {}).get("frames", [])
+        columns = [frame.get("data", {}).get("values", []) for frame in frames]
         if ref in sql_refs:
-            if not any(any(cell is not None for col in frame.get("data", {}).get("values", []) for cell in col) for frame in frames):
+            if not any(cell is not None and not (isinstance(cell, float) and math.isnan(cell)) for values in columns for col in values for cell in col):
                 return False
             continue
-        if not any(len(frame.get("data", {}).get("values", [])) >= 2
-                   and any(len(col) > 0 for col in frame["data"]["values"][1:]) for frame in frames):
+        if not any(len(values) >= 2 and any(finite_number(cell) for col in values[1:] for cell in col) for values in columns):
             return False
     return True
 
