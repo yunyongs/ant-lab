@@ -113,7 +113,8 @@ class MonitoringComposeSettingsTest {
         var services = services();
         var prometheus = services.get("prometheus");
         var grafana = services.get("grafana");
-        assertThat(prometheus.get("networks")).isEqualTo(List.of("backend"));
+        // OBS-08: ledger is the internal network shared with ledger-exporter (checked in LedgerExporterComposeTest).
+        assertThat(prometheus.get("networks")).isEqualTo(List.of("backend", "ledger"));
         assertThat(grafana.get("networks")).isEqualTo(List.of("backend"));
         for (var service : List.of(prometheus, grafana)) {
             List<String> volumes = (List<String>) service.get("volumes");
@@ -295,7 +296,7 @@ class MonitoringComposeSettingsTest {
     @SuppressWarnings("unchecked")
     void scrape_설정은_db_지표_잡을_내부_주소로_긁는다() throws IOException {
         var jobs = (List<Map<String, Object>>) load("monitoring/prometheus/prometheus.yml").get("scrape_configs");
-        assertThat(jobs).extracting(j -> j.get("job_name")).containsExactly("antlab-api", "antlab-db");
+        assertThat(jobs).extracting(j -> j.get("job_name")).containsExactly("antlab-api", "antlab-db", "antlab-ledgers");
         var job = jobs.get(1);
         var targets = (List<Map<String, Object>>) job.get("static_configs");
         assertThat(targets).hasSize(1);

@@ -24,6 +24,7 @@
 #   smoke: scripts/monitoring_smoke.sh (docs/DEPLOY.md §3.2).
 #   OBS-02: grafana also reads the db as grafana_reader (data source antlab-postgres); run db/roles/grafana_reader.sql first (db/README.md).
 #   OBS-06: postgres-exporter (no published port) reads database statistics as antlab_metrics; run db/roles/antlab_metrics.sql first (db/README.md). Without the role the exporter is up but pg_up is 0.
+#   OBS-08: ledger-exporter (no published port, internal network only) reads three host ledger files read-only and exposes numbers; paths from ANTLAB_OPENROUTER_LEDGER, ANTLAB_OBS_OLLAMA_LEDGER, ANTLAB_OBS_FETCH_DIR (unset = /dev/null = that ledger reads as unreadable). Set ANTLAB_OBS_UID/ANTLAB_OBS_GID to your own ids (id -u, id -g): the OpenRouter ledger is mode 0600. See docs/DEPLOY.md.
 # MVP-20: on an empty volume the db container also creates the roles antlab_owner (Flyway) and antlab_app (the api) through
 #   /docker-entrypoint-initdb.d; an existing volume needs the one-time command in db/README.md "App roles". The api container then
 #   connects as antlab_app and refuses to start as a superuser.
@@ -160,6 +161,8 @@ services:
       - prometheus-data:/prometheus
     networks:
       - backend
+      # OBS-08: the only route to ledger-exporter, which has no other network.
+      - ledger
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:9090/-/ready"]
       interval: 10s
@@ -240,11 +243,67 @@ services:
     security_opt: ["no-new-privileges:true"]
     restart: unless-stopped
 
+  ledger-exporter:
+    # OBS-08: numbers from three host ledgers, read-only. No ports, no route out (network ledger is internal), no journal or runner directory mounted.
+    mem_limit: 64m
+    profiles: [monitoring]
+    build:
+      context: ./ai
+      dockerfile: Dockerfile.ledger-exporter
+    # The OpenRouter ledger is mode 0600 and owned by the host user; set both ids in .env to read it.
+    user: "${ANTLAB_OBS_UID:-10002}:${ANTLAB_OBS_GID:-10002}"
+    environment:
+      LEDGER_OPENROUTER_PATH: /ledgers/openrouter.jsonl
+      LEDGER_OLLAMA_PATH: /ledgers/ollama.jsonl
+      LEDGER_FETCH_PATH: /ledgers/fetch/ledger.csv
+      ANTLAB_OBS_OPENROUTER_TIER: ${ANTLAB_OPENROUTER_TIER:-50}
+      ANTLAB_OBS_OLLAMA_STOP_USD: ${ANTLAB_OBS_OLLAMA_STOP_USD:-}
+      ANTLAB_OBS_FETCH_CAP_KIS: ${ANTLAB_OBS_FETCH_CAP_KIS:-}
+      ANTLAB_OBS_FETCH_CAP_YF: ${ANTLAB_OBS_FETCH_CAP_YF:-}
+    volumes:
+      # OpenRouter and Ollama ledgers: single files (their writers append in place), so the OpenRouter lock file and the runner journal stay out. A set but missing host path stops `up` instead of creating a directory.
+      - type: bind
+        source: ${ANTLAB_OPENROUTER_LEDGER:-/dev/null}
+        target: /ledgers/openrouter.jsonl
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${ANTLAB_OBS_OLLAMA_LEDGER:-/dev/null}
+        target: /ledgers/ollama.jsonl
+        read_only: true
+        bind:
+          create_host_path: false
+      # The fetch tool replaces ledger.csv atomically (new inode), which a single-file mount would never see: mount its folder.
+      # Never point ANTLAB_OBS_FETCH_DIR at data/ or data/cache. The default is a tracked empty folder (ledger.csv missing = unreadable).
+      - type: bind
+        source: ${ANTLAB_OBS_FETCH_DIR:-./monitoring/ledger-exporter/empty}
+        target: /ledgers/fetch
+        read_only: true
+        bind:
+          create_host_path: false
+    networks:
+      - ledger
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9190/', timeout=2)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    restart: unless-stopped
+
 networks:
   # 로컬은 일반 bridge. internal: true 는 운영 덮어쓰기(compose.prod.yaml)에서만 건다(docs/DEPLOY.md §5).
   backend:
   edge:
   egress:
+  # OBS-08: Prometheus and the ledger exporter only; internal means no route to the host network or the internet.
+  ledger:
+    internal: true
 
 volumes:
   db-data:

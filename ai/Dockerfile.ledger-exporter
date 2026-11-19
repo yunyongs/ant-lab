@@ -1,0 +1,12 @@
+# OBS-08 ledger exporter. Stdlib only, so there is nothing to install or lock; only the exporter package is copied (no provider client, no key).
+ARG PYTHON_IMAGE=python:3.13.18-slim@sha256:e48f59cdba69a3cbd9ed2cf0f348d90d45a8d350d98134cf1070bc106ee9ed90
+FROM ${PYTHON_IMAGE}
+LABEL org.opencontainers.image.source="https://github.com/yunyongs/ant-lab"
+RUN groupadd --system --gid 10002 ledger && useradd --system --uid 10002 --gid 10002 --no-create-home ledger
+WORKDIR /app
+COPY src/antlab_ai/__init__.py antlab_ai/__init__.py
+COPY src/antlab_ai/ledger_exporter antlab_ai/ledger_exporter
+ENV PYTHONPATH=/app PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 TZ=Asia/Seoul
+USER 10002:10002
+EXPOSE 9190
+CMD ["python", "-m", "antlab_ai.ledger_exporter"]
