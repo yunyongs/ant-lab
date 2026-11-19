@@ -60,6 +60,7 @@
 | `P0`         | Phase 0 — SQL(PostgreSQL) 스키마와 트랜잭션 + 시즌 한 판 REST API | [PLAN.md §11.1](PLAN.md#111-phase-0-체크리스트-sql-postgresql-17) 체크리스트 순서대로 `P0-01` \~ `P0-40` (`P0-01`·`P0-02`는 PLAN v1 도메인, `P0-22`~는 2026-11-09에 더한 API 기능) |
 | `P1`         | Phase 1 — 자바 데이터베이스 연결(JDBC, Java Database Connectivity) 콘솔 앱 — **건너뜀**(2026-11-09, `P0-22`~ API에 흡수. 번호 `P1-`은 쓰지 않는다) | —                                                     |
 | `MON`        | 모니터링 — Actuator·Micrometer → Prometheus → Grafana 대시보드를 구축한다(2026-11-10) | PLAN §11 MON table / PLAN §11 MON 표 (`MON-01`–`MON-05`) |
+| `OBS`        | Observability — Grafana for the service, AI usage and the agents: read-only observation views, PostgreSQL data source, engine and database metrics, ledger exporter, dashboards and local alerts as code (2026-11-19) / 관측 — 서비스·AI 사용량·에이전트를 Grafana로 본다. 읽기 전용 관측 뷰, PostgreSQL 데이터 소스, 엔진·DB 지표, 장부 내보내기, 코드로 관리하는 대시보드와 로컬 경보(2026-11-19) | PLAN §11 OBS table / PLAN §11 OBS 표 (`OBS-01`–`OBS-12`) |
 | `SEC`        | 인증 기본 — Spring Security + JWT(가입·로그인·토큰·보안 필터·고정 회원 교체)를 구현한다. M4에서 앞당겼다(2026-11-10) | PLAN §11 SEC table / PLAN §11 SEC 표 (`SEC-01`–`SEC-06`) |
 | `WEB`        | 한 판 웹 — TypeScript React(Vite), 모바일 폭 우선 반응형. `P0-22`~ API 범위의 화면 | PLAN §11 WEB table / PLAN §11 WEB 표 (`WEB-01`–`WEB-11`) |
 | `MVP`        | Spring Boot 표현 상태 전송(REST, Representational State Transfer) API의 남은 기능(Phase 0 API 이후) | [PLAN.md §8](PLAN.md#8-사용자-스토리) 사용자 스토리 순서대로 `MVP-01` \~ `MVP-07` (Phase 0 API가 끝낸 기본 흐름을 뺀 나머지는 MVP를 시작할 때 다시 자른다) |

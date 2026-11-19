@@ -102,6 +102,13 @@ class AgentRunnerSchemaParityTest {
     void the_request_and_response_schemas_have_the_properties_of_their_records() throws Exception {
         assertSchemaMatches("RegisterAgentRequest", RegisterAgentRequest.class);
         assertSchemaMatches("AgentDto", AgentDto.class);
+        assertThat(names(schemas(RUNNER).path("AgentDto").path("required"))).contains("ownerMemberId");
+        JsonNode owner = schemas(RUNNER).path("AgentDto").path("properties").path("ownerMemberId");
+        assertThat(owner.path("type").isString()).as("a type array such as [integer, null] would allow null").isTrue();
+        assertThat(owner.path("type").asString()).isEqualTo("integer");
+        assertThat(owner.path("format").asString()).isEqualTo("int64");
+        assertThat(Arrays.stream(AgentDto.class.getRecordComponents()).filter(c -> c.getName().equals("ownerMemberId"))
+                .map(RecordComponent::getType).toList()).containsExactly(long.class);
         assertSchemaMatches("StartAgentSeasonRequest", StartAgentSeasonRequest.class);
         assertSchemaMatches("AgentSeasonConfig", AgentSeasonConfigRequest.class);
         assertSchemaMatches("AgentTurnViewDto", AgentTurnViewDto.class);
