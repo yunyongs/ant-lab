@@ -1,7 +1,8 @@
 -- Owner and application roles for the API database (MVP-20).
 -- antlab_owner owns schema public and every relation in it and runs Flyway. antlab_app is the API's login: no DDL, no
 -- ownership, no temporary tables. Its per-table rights are applied by the Flyway callback db/callback/afterMigrate.sql
--- after every migrate (src/main/resources/db/callback).
+-- after every migrate (src/main/resources/db/callback). The script also creates schema obs (read-only observation views,
+-- OBS-01) owned by antlab_owner; the reader role grafana_reader is a separate script (db/roles/grafana_reader.sql).
 -- Run as a superuser in the target database BEFORE the app starts for the first time on that database (a fresh compose
 -- volume does it through /docker-entrypoint-initdb.d), and once on an existing database to move ownership. Idempotent.
 -- No password here; set it outside the repository. Plain SQL (no psql meta-commands) so it can also run through a driver.
@@ -163,6 +164,24 @@ BEGIN
     ALTER SCHEMA public OWNER TO antlab_owner;
     REVOKE CREATE ON SCHEMA public FROM PUBLIC;
     GRANT USAGE ON SCHEMA public TO antlab_app;
+
+    -- Schema obs holds the read-only observation views (OBS-01). The owner role owns it and its views: it has no CREATE
+    -- on the database, so it cannot create the schema itself, and Flyway runs as that role.
+    IF NOT EXISTS (SELECT 1 FROM pg_namespace WHERE nspname = 'obs') THEN
+        CREATE SCHEMA obs AUTHORIZATION antlab_owner;
+    ELSE
+        ALTER SCHEMA obs OWNER TO antlab_owner;
+    END IF;
+    FOR r IN
+        SELECT c.relname, c.relkind
+        FROM pg_class c
+        WHERE c.relnamespace = 'obs'::regnamespace AND c.relkind IN ('r', 'p', 'v', 'm', 'f') AND c.relowner <> owner_oid
+        ORDER BY c.relname
+    LOOP
+        EXECUTE format('ALTER %s obs.%I OWNER TO antlab_owner',
+            CASE r.relkind WHEN 'v' THEN 'VIEW' WHEN 'm' THEN 'MATERIALIZED VIEW' WHEN 'f' THEN 'FOREIGN TABLE' ELSE 'TABLE' END,
+            r.relname);
+    END LOOP;
     FOR r IN
         SELECT c.relname, c.relkind
         FROM pg_class c
@@ -195,7 +214,38 @@ BEGIN
     IF (SELECT nspowner FROM pg_namespace WHERE nspname = 'public') <> owner_oid THEN
         problems := problems || 'schema public is not owned by antlab_owner';
     END IF;
-
+    IF (SELECT nspowner FROM pg_namespace WHERE nspname = 'obs') <> owner_oid THEN
+        problems := problems || 'schema obs is not owned by antlab_owner';
+    END IF;
+    -- Only the owner and the reader role (db/roles/grafana_reader.sql) may hold rights on obs: no PUBLIC, no app or
+    -- engine role, on the schema, on a relation or on a single column.
+    FOR r IN
+        SELECT c.relname, c.relowner
+        FROM pg_class c
+        WHERE c.relnamespace = 'obs'::regnamespace AND c.relkind IN ('r', 'p', 'v', 'm', 'f', 'S')
+          AND (c.relowner <> owner_oid
+               OR EXISTS (SELECT 1 FROM aclexplode(coalesce(c.relacl, acldefault('r', c.relowner))) x
+                          WHERE x.grantee <> c.relowner AND x.grantee IS DISTINCT FROM (SELECT oid FROM pg_roles WHERE rolname = 'grafana_reader')))
+    LOOP
+        problems := problems || format('obs.%s is not owned by antlab_owner or is readable by a role other than the owner and grafana_reader', r.relname);
+    END LOOP;
+    FOR r IN
+        SELECT c.relname, a.attname
+        FROM pg_class c JOIN pg_attribute a ON a.attrelid = c.oid, aclexplode(a.attacl) x
+        WHERE c.relnamespace = 'obs'::regnamespace AND a.attacl IS NOT NULL AND x.grantee <> c.relowner
+          AND x.grantee IS DISTINCT FROM (SELECT oid FROM pg_roles WHERE rolname = 'grafana_reader')
+    LOOP
+        problems := problems || format('column-level right on obs.%s.%s is held by a role other than the owner and grafana_reader', r.relname, r.attname);
+    END LOOP;
+    FOR r IN
+        SELECT x.grantee, x.privilege_type
+        FROM pg_namespace n, aclexplode(coalesce(n.nspacl, acldefault('n', n.nspowner))) x
+        WHERE n.nspname = 'obs' AND x.grantee <> n.nspowner
+          AND x.grantee IS DISTINCT FROM (SELECT oid FROM pg_roles WHERE rolname = 'grafana_reader')
+    LOOP
+        problems := problems || format('schema obs grants %s to %s', r.privilege_type,
+            CASE WHEN r.grantee = 0 THEN 'PUBLIC' ELSE r.grantee::regrole::text END);
+    END LOOP;
     FOR r IN
         SELECT c.relname, c.relkind
         FROM pg_class c
@@ -247,7 +297,7 @@ BEGIN
     END LOOP;
     FOR r IN
         SELECT n.nspname FROM pg_namespace n
-        WHERE n.nspname NOT LIKE 'pg\_%' AND n.nspname <> 'information_schema' AND n.nspname <> 'public'
+        WHERE n.nspname NOT LIKE 'pg\_%' AND n.nspname <> 'information_schema' AND n.nspname NOT IN ('public', 'obs')
           AND has_schema_privilege('antlab_owner', n.oid, 'CREATE')
     LOOP
         problems := problems || format('antlab_owner can create objects in schema "%s"', r.nspname);
