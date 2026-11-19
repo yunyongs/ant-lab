@@ -161,6 +161,9 @@ management:
         "[http.server.requests]": 5ms
       maximum-expected-value:
         "[http.server.requests]": 10s
+      # Engine calls take milliseconds to a minute (timeouts 3 s, 15 s, 60 s); ten fixed buckets keep a label tuple near 14 series.
+      slo:
+        "[http.client.requests]": 50ms,100ms,250ms,500ms,1s,2500ms,5s,10s,30s,60s
 
 ---
 spring:
