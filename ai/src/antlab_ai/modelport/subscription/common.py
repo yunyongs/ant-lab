@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from decimal import Decimal
 from pathlib import Path
 from types import MappingProxyType
-from typing import Protocol
+from typing import Final, Protocol
 
 from ..port import LIMITED, POLICY_REFUSED, UPSTREAM, Message
 
@@ -221,6 +221,25 @@ _PATTERNS: tuple[tuple[str, str | None, re.Pattern[str]], ...] = tuple(
             r"temporarily unavailable",
         ),
     )
+)
+
+# Every id a mapper can report; the ledger stores nothing outside this set.
+PATTERN_IDS: Final = frozenset(
+    {pid for pid, _, _ in _PATTERNS}
+    | {
+        "api_status",
+        "auth",
+        "error_event_before_completed",
+        "escaped_descendant",
+        "events_after_completed",
+        "model_mismatch",
+        "no_last_message",
+        "over_cap",
+        "stop_refusal",
+        "tool_item",
+        "tool_or_turns",
+        "unknown_output",
+    }
 )
 
 _RETRY_AFTER = re.compile(r"(?:retry[- ]after[: ]+|try again in )(\d{1,4})\s*s(?:ec|econds?)?\b")

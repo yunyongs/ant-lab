@@ -5,7 +5,6 @@ from .ollama_adapter import OllamaAdapter
 from .openrouter_adapter import OpenRouterAdapter
 from .port import (
     AdapterDisabled,
-    AdapterUnavailable,
     BudgetRefusal,
     LocalRefusal,
     Message,
@@ -19,7 +18,6 @@ from .settings import ModelPortSettings
 
 __all__ = [
     "AdapterDisabled",
-    "AdapterUnavailable",
     "BudgetRefusal",
     "FakeModelPort",
     "LocalRefusal",

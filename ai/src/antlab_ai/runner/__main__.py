@@ -12,14 +12,30 @@ import os
 import sys
 import time
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import replace
+from contextlib import ExitStack
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Final
+from uuid import uuid4
 
 from antlab_ai import __version__
-from antlab_ai.modelport.port import AdapterDisabled, AdapterUnavailable, ModelPort
-from antlab_ai.modelport.registry import build_registry
+from antlab_ai.modelport.port import AdapterDisabled, ModelPort, SubscriptionRefusal
+from antlab_ai.modelport.registry import SubscriptionWiring, build_registry
 from antlab_ai.modelport.settings import ModelPortSettings, is_loopback
+from antlab_ai.modelport.subscription.cli_check import check_login, read_version, resolve_binary
+from antlab_ai.modelport.subscription.common import CliConfig
+from antlab_ai.modelport.subscription.gate import (
+    CONTAINER_MARKERS,
+    BatchGate,
+    LedgeredPort,
+    verify_owner,
+)
+from antlab_ai.modelport.subscription.ledger import BatchLedger, BatchLock, check_batch_id
+from antlab_ai.modelport.subscription.settings import (
+    SubscriptionSettings,
+    SubscriptionSettingsError,
+)
+from antlab_ai.modelport.subscription.usage import CommandUsageReader
 from antlab_ai.openrouter.client import OpenRouterClient, SendCap
 from antlab_ai.openrouter.ledger import Ledger
 from antlab_ai.openrouter.limiter import Limiter
@@ -31,8 +47,13 @@ from antlab_ai.runner.api_client import (
     urllib_transport,
 )
 from antlab_ai.runner.config import (
+    CLAUDE_CLI,
+    CODEX_CLI,
+    FLAT_FEE,
+    KNOWN,
     OLLAMA,
     OPENROUTER,
+    SUBSCRIPTION_ROUTES,
     RunnerConfig,
     ScriptedPort,
     ScriptError,
@@ -42,7 +63,7 @@ from antlab_ai.runner.config import (
 )
 from antlab_ai.runner.contract import ContractError
 from antlab_ai.runner.journal import Journal, JournalError, JournalLocked
-from antlab_ai.runner.loop import FINISHED, RunnerAbort, SeasonRunner, StillPaused
+from antlab_ai.runner.loop import FINISHED, FlatFeeGate, RunnerAbort, SeasonRunner, StillPaused
 from antlab_ai.runner.persona import Persona, PersonaError, load_persona
 from antlab_ai.runner.prompt import PromptError
 from antlab_ai.runner.records import RunnerDefect
@@ -54,15 +75,43 @@ EXIT_ERROR: Final = 1
 EXIT_USAGE: Final = 2
 EXIT_PAUSED: Final = 3
 DEFAULT_PATH_LENGTH: Final = 12
-ROUTES: Final = (OPENROUTER, OLLAMA)
+ROUTES: Final = (OPENROUTER, CLAUDE_CLI, CODEX_CLI, OLLAMA)
 
 
 class UsageError(Exception):
     """A refused option or configuration. The text is fixed and holds no value."""
 
 
+@dataclass(frozen=True)
+class Interaction:
+    """The owner's terminal; tests replace it. A subscription batch must be started from a terminal."""
+
+    is_terminal: Callable[[], bool] = lambda: sys.stdin.isatty()  # noqa: E731
+    ask: Callable[[str], str] = input
+    say: Callable[[str], None] = print
+    container_markers: tuple[Path, ...] = CONTAINER_MARKERS
+
+
+@dataclass(frozen=True)
+class LiveContext:
+    persona: Persona
+    api: ApiClient
+    state_dir: Path
+    stack: ExitStack
+    io: Interaction
+
+
 # Errors whose text is a fixed sentence or code, safe to print.
-_USAGE_ERRORS = (UsageError, SettingsError, ScriptError, PersonaError, StillPaused, JournalLocked)
+_USAGE_ERRORS = (
+    UsageError,
+    SettingsError,
+    SubscriptionSettingsError,
+    SubscriptionRefusal,
+    ScriptError,
+    PersonaError,
+    StillPaused,
+    JournalLocked,
+)
 _RUN_ERRORS = (
     ApiProblem,
     ApiUnavailable,
@@ -97,6 +146,8 @@ def _parser() -> argparse.ArgumentParser:
     run.add_argument("--live", action="store_true")
     run.add_argument("--max-calls", type=int)
     run.add_argument("--resume", action="store_true")
+    run.add_argument("--batch-id")
+    run.add_argument("--reconcile", action="store_true")
     run.add_argument("--env-file")
     status = sub.add_parser("status")
     status.add_argument("--agent-id", type=int, required=True)
@@ -124,11 +175,99 @@ def _config(args: argparse.Namespace, persona: Persona, path_length: int) -> Run
     )
 
 
+def _subscription_port(
+    args: argparse.Namespace,
+    environ: Mapping[str, str],
+    config: RunnerConfig,
+    *,
+    persona: Persona,
+    api: ApiClient,
+    state_dir: Path,
+    stack: ExitStack,
+    io: Interaction,
+) -> tuple[ModelPort, RunnerConfig, FlatFeeGate]:
+    """A subscription route: no OpenRouter key or ledger; every start check runs before any spawn."""
+    if args.env_file is not None:
+        raise UsageError("--env-file is not used on a subscription route")
+    try:
+        settings = SubscriptionSettings.from_env(environ)
+        port_settings = ModelPortSettings.from_env(environ)
+        batch_id = check_batch_id(args.batch_id or uuid4().hex)
+    except ValueError as error:
+        raise UsageError(str(error)) from None
+    route = args.route
+    if not settings.is_on(route):
+        raise UsageError(f"{AdapterDisabled.__name__} {route}")
+    directory = state_dir / "subscription"
+    ledger = BatchLedger(directory / "calls.jsonl")
+    gate = BatchGate(
+        route=route,
+        model_id=args.model_id,
+        batch_id=batch_id,
+        max_calls=min(args.max_calls, settings.max_calls),
+        usage=CommandUsageReader(settings.usage_cmd, max_age_s=settings.usage_max_age_s),
+        ledger=ledger,
+        lock=BatchLock(directory / "batch.lock"),
+        environ=environ,
+        container_markers=io.container_markers,
+    )
+    stack.callback(gate.close)
+    gate.begin(is_terminal=io.is_terminal, reconcile=args.reconcile)
+    try:
+        proof = verify_owner(
+            api,
+            agent_id=args.agent_id,
+            persona_key=persona.key,
+            display_name=persona.display_name,
+            route=route,
+            model_id=args.model_id,
+            device_owner_id=settings.owner_member_id or 0,
+        )
+    except ApiProblem as problem:
+        # The API answers 404 for an agent the runner may not act for.
+        if problem.status in (403, 404):
+            raise SubscriptionRefusal("NOT_OWNER_AGENT") from None
+        raise
+    gate.attach_owner(proof)
+    gate.finish_start(ask=io.ask, say=io.say)
+    extra = settings.extra_env(route)
+    try:
+        binary = resolve_binary(route, environ)
+        version = read_version(binary, settings.work_root, environ, extra)
+        check_login(route, binary, settings.work_root, environ, extra)
+    except SubscriptionRefusal:
+        gate.invalidate()
+        raise
+    gate.activate()
+    cli = CliConfig(binary, version, settings.work_root, extra_env=extra, source_env=environ)
+    wiring = SubscriptionWiring(
+        gate,
+        claude=cli if route == CLAUDE_CLI else None,
+        codex=cli if route == CODEX_CLI else None,
+    )
+    adapter = build_registry(port_settings, subscription=wiring).get(route)
+    return LedgeredPort(adapter, gate, ledger), replace(config, cost_mode=FLAT_FEE), gate
+
+
 def _live_port(
-    args: argparse.Namespace, environ: Mapping[str, str], config: RunnerConfig
-) -> tuple[ModelPort, RunnerConfig]:
+    args: argparse.Namespace,
+    environ: Mapping[str, str],
+    config: RunnerConfig,
+    context: LiveContext,
+) -> tuple[ModelPort, RunnerConfig, FlatFeeGate | None]:
     if args.max_calls is None:
         raise UsageError("--live needs --max-calls")
+    if args.route in SUBSCRIPTION_ROUTES:
+        return _subscription_port(
+            args,
+            environ,
+            config,
+            persona=context.persona,
+            api=context.api,
+            state_dir=context.state_dir,
+            stack=context.stack,
+            io=context.io,
+        )
     try:
         settings = Settings.from_env(args.env_file, live=True)
         port_settings = ModelPortSettings.from_env(environ)
@@ -153,24 +292,27 @@ def _live_port(
     registry = build_registry(port_settings, openrouter=client)
     try:
         port = registry.get(args.route)
-    except (AdapterDisabled, AdapterUnavailable) as error:
+    except AdapterDisabled as error:
         raise UsageError(f"{type(error).__name__} {args.route}") from None
     if args.route == OLLAMA and port_settings.ollama_base_url is not None:
         if not is_loopback(port_settings.ollama_base_url):
             raise UsageError("a remote Ollama address is refused: its cost cannot be counted")
-        config = replace(config, cost_known=True)
-    return port, config
+        config = replace(config, cost_mode=KNOWN)
+    return port, config, None
 
 
 def _port(
-    args: argparse.Namespace, environ: Mapping[str, str], config: RunnerConfig
-) -> tuple[ModelPort, RunnerConfig]:
+    args: argparse.Namespace,
+    environ: Mapping[str, str],
+    config: RunnerConfig,
+    context: LiveContext,
+) -> tuple[ModelPort, RunnerConfig, FlatFeeGate | None]:
     """The scripted fake, or the configured route when ``--live``; never both, never neither."""
     if args.live == (args.model_script is not None):
         raise UsageError("run needs exactly one of --model-script and --live")
     if args.live:
-        return _live_port(args, environ, config)
-    return ScriptedPort(load_script(args.model_script), args.route), config
+        return _live_port(args, environ, config, context)
+    return ScriptedPort(load_script(args.model_script), args.route), config, None
 
 
 def _register(api: ApiClient, args: argparse.Namespace) -> int:
@@ -230,15 +372,25 @@ def _run(
     args: argparse.Namespace,
     environ: Mapping[str, str],
     sleep: Callable[[float], None],
+    io: Interaction,
 ) -> int:
     persona = load_persona(args.persona)
+    if args.route not in SUBSCRIPTION_ROUTES and (args.batch_id is not None or args.reconcile):
+        raise UsageError("--batch-id and --reconcile are for a subscription route")
     if args.max_calls is not None and args.max_calls < 1:
         raise UsageError("--max-calls must be at least 1")
-    with Journal.open(settings.state_dir, args.agent_id, args.season_id) as journal:
+    with (
+        ExitStack() as stack,
+        Journal.open(settings.state_dir, args.agent_id, args.season_id) as journal,
+    ):
         view = api.get_turn_view(args.agent_id, args.season_id)
         config = _config(args, persona, view["season"]["pathLength"])
         _bind(journal.path, config)
-        port, config = _port(args, environ, config)
+        state = journal.state
+        if len(state.pauses) > state.resumes and not args.resume:
+            raise StillPaused(state.pauses[-1][1])
+        context = LiveContext(persona, api, settings.state_dir, stack, io)
+        port, config, gate = _port(args, environ, config, context)
         runner = SeasonRunner(
             api=api,
             journal=journal,
@@ -248,6 +400,7 @@ def _run(
             season_id=args.season_id,
             sleep=sleep,
             send_cap=None if args.max_calls is None else SendCap(args.max_calls),
+            gate=gate,
         )
         result = runner.run(resume=args.resume)
     reason = f" reason={result.reason}" if result.reason else ""
@@ -282,6 +435,7 @@ def main(
     environ: Mapping[str, str] | None = None,
     transport: Transport = urllib_transport,
     sleep: Callable[[float], None] = time.sleep,
+    io: Interaction | None = None,
 ) -> int:
     args = _parser().parse_args(argv)
     env: Mapping[str, str] = os.environ if environ is None else environ
@@ -293,7 +447,7 @@ def main(
         if args.command == "start":
             return _start(api, args)
         if args.command == "run":
-            return _run(api, settings, args, env, sleep)
+            return _run(api, settings, args, env, sleep, io or Interaction())
         return _status(api, settings, args)
     except _USAGE_ERRORS as error:
         print(f"error={type(error).__name__} {error}", file=sys.stderr)

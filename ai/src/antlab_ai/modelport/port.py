@@ -34,10 +34,6 @@ class AdapterDisabled(LookupError):
     """The route exists but is switched off by configuration."""
 
 
-class AdapterUnavailable(LookupError):
-    """The route is planned but not implemented yet."""
-
-
 class SubscriptionRefusal(RuntimeError):
     """A subscription condition failed before any process was spawned; the text is the fixed code."""
 

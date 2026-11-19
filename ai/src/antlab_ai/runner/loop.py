@@ -22,11 +22,19 @@ from antlab_ai.modelport.port import (
     ModelAttempt,
     ModelPort,
     ModelRequest,
+    SubscriptionRefusal,
 )
 from antlab_ai.openrouter.client import SendCap, SendCapReached
 from antlab_ai.runner import failure
 from antlab_ai.runner.api_client import ApiProblem, ApiUnavailable
-from antlab_ai.runner.config import RunnerConfig, default_timeout_ms
+from antlab_ai.runner.config import (
+    FLAT_FEE,
+    KNOWN,
+    SUBSCRIPTION_ROUTES,
+    UNKNOWN,
+    RunnerConfig,
+    default_timeout_ms,
+)
 from antlab_ai.runner.decision import (
     REPLY_POINTER,
     SCHEMA_PATH,
@@ -42,6 +50,8 @@ FINISHED: Final = "FINISHED"
 PAUSED: Final = "PAUSED"
 STOPPED: Final = "STOPPED"
 CALL_CAP: Final = "CALL_CAP"
+# Gate refusals that mean "the usage meter says stop or cannot be trusted": the owner resumes later.
+USAGE_REFUSALS: Final = frozenset({"USAGE_UNKNOWN", "USAGE_START", "USAGE_STOP"})
 # Integrity codes of a decision the API rolled back as a whole: an engine defect, not a model fault.
 ENGINE_CODES: Final = frozenset(
     {"LEDGER_MISMATCH", "LINEUP_MISMATCH", "INVALID_FORMATION", "EVENT_TIME_CONFLICT"}
@@ -73,6 +83,12 @@ class Api(Protocol):
     def advance_turn(
         self, agent_id: int, season_id: int, expected_turn_no: int
     ) -> dict[str, Any]: ...
+
+
+class FlatFeeGate(Protocol):
+    """What a flat-fee season needs from its subscription gate before it asks the model."""
+
+    def calls_left(self) -> int: ...
 
 
 @dataclass(frozen=True)
@@ -132,7 +148,13 @@ class SeasonRunner:
         sleep: Callable[[float], None] = time.sleep,
         jitter: Callable[[], float] = lambda: random.uniform(0, 0.5),
         send_cap: SendCap | None = None,
+        gate: FlatFeeGate | None = None,
     ) -> None:
+        if (config.cost_mode == FLAT_FEE) != (gate is not None):
+            raise RunnerDefect("a flat-fee season needs a subscription gate, and only it")
+        if config.cost_mode == FLAT_FEE and config.route not in SUBSCRIPTION_ROUTES:
+            raise RunnerDefect("flat-fee cost is only for a subscription route")
+        self._gate = gate
         self._api = api
         self._journal = journal
         self._port = port
@@ -222,6 +244,8 @@ class SeasonRunner:
             refusal = self._refusal()
             if refusal is not None:
                 return self._pause(refusal, turn_no)
+            if self._gate is not None and self._gate.calls_left() < 1:
+                return self._result(STOPPED, CALL_CAP)
             if self._cap is not None and not self._cap.take():
                 return self._result(STOPPED, CALL_CAP)
             messages = base
@@ -237,7 +261,9 @@ class SeasonRunner:
         cfg = self._cfg
         if self._journal.state.attempt_total >= cfg.budget_calls:
             return "BUDGET"
-        if not cfg.cost_known or _spent(self._journal) > cfg.budget_usd:
+        if cfg.cost_mode == UNKNOWN:
+            return "BUDGET"
+        if cfg.cost_mode == KNOWN and _spent(self._journal) > cfg.budget_usd:
             return "BUDGET"
         return None
 
@@ -260,11 +286,21 @@ class SeasonRunner:
             return self._pause("BUDGET", turn_no)
         except SendCapReached:
             return self._result(STOPPED, CALL_CAP)
+        except SubscriptionRefusal as refusal:
+            return self._subscription_stop(refusal.code, turn_no)
         self._sends += 1
         verdict = parse_reply(attempt.text) if attempt.status == failure.OK else None
         record = self._builder.build(attempt, len(turn.attempts) + 1, verdict)
         self._journal.append_attempt(turn_no, record, attempt.retry_after_s)
         return None
+
+    def _subscription_stop(self, code: str, turn_no: int) -> RunResult:
+        """A gate refusal before a spawn: nothing was sent, so nothing is journaled but the stop."""
+        if code == CALL_CAP:
+            return self._result(STOPPED, CALL_CAP)
+        if code in USAGE_REFUSALS:
+            return self._pause("USAGE_GUARD", turn_no)
+        return self._pause("SUBSCRIPTION_REFUSED", turn_no)
 
     def _finish(self, turn_no: int, outcome: str, turn: TurnState) -> RunResult | None:
         records = self._journal.state.unflushed(turn_no)
