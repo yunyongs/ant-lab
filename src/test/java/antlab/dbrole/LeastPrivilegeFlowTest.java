@@ -224,7 +224,7 @@ class LeastPrivilegeFlowTest {
         long agent = register.json().get("agentId").asLong();
         Reply start = anonymous.post("/internal/agent-runner/v1/agents/" + agent + "/seasons", """
                 {"riskLimit": "-0.20", "formation": {"goalkeeper": 10, "defender": 30, "midfielder": 30, "forward": 30},
-                 "config": {"personaVersion": 1, "personaSha256": "%s", "modelRequested": "fake/model-1",
+                 "config": {"personaVersion": 1, "personaSha256": "%s", "personaDisplayName": "Value", "modelRequested": "fake/model-1",
                    "temperature": 0.7, "maxTokens": 2000, "turnTimeoutMs": 60000, "promptTemplateVersion": "p1",
                    "runnerVersion": "r1", "budgetCalls": 100, "budgetUsd": 1.5}}""".formatted("a".repeat(64)), runner);
         assertThat(start.status()).as("agent season start " + start.body()).isEqualTo(201);

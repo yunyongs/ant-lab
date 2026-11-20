@@ -144,7 +144,7 @@ erDiagram
     SEASON_SCORE ||..o| RATING_HISTORY : "R39 레이팅을 만든다"
 ```
 
-R9–R22와 R33–R34의 관계 요약은 6.2에, R23–R32는 7.2에, R37–R39는 11.2에, R40은 12.2에 있다. `projection`은 M2-06(Flyway V9)에서 컬럼과 함께 확정했다 — Confirmed with its columns in M2-06 (Flyway V9).
+R9–R22와 R33–R34의 관계 요약은 6.2에, R23–R32는 7.2에, R37–R39는 11.2에, R40은 12.2에 있다. `projection`은 M2-06(Flyway V9)에서 컬럼과 함께 확정했다 — Confirmed with its columns in M2-06 (Flyway V9). `persona_version` (R43) is confirmed in section 13 (AG-04 PR B, Flyway V15) and is not drawn here. / `persona_version`(R43)은 13절(AG-04 PR B, Flyway V15)에서 확정했고 이 그림에는 그리지 않는다.
 
 ### 3.2 EXT 이후 스케치 관계도
 
@@ -2186,3 +2186,67 @@ A `CHECK` sees one row only. The writer (`ProjectionService`) keeps these rules 
 | J3 | `total_value` equals cash plus the holdings valued at `turn_price(turn_no)` for the team the row was built from. / `total_value`는 행을 만든 팀의 현금에 보유를 `turn_price(turn_no)`로 평가해 더한 값과 같다. | M2-06 |
 | J4 | The request carries the season seed and base date only on the wire, never in `request`; nothing in a row is read from `season_path`. / 시드와 기준일은 엔진에 보내는 요청에만 실리고 `request`에는 없으며, 행의 어떤 값도 `season_path`에서 읽지 않는다. | M2-06 |
 | J5 | START cash is the balance after the last ledger row that is the opening deposit or refers to a turn-0 order. An `ADJUSTMENT` row without such a reference is not part of START; when `ADJUSTMENT` gets a writer, it must reference the order or this rule changes. / START 현금은 입금 또는 0턴 주문을 가리키는 마지막 원장 행의 거래 후 잔액이다. 그런 참조가 없는 `ADJUSTMENT` 행은 START에 들어가지 않는다. `ADJUSTMENT`에 쓰는 쪽이 생기면 주문을 참조하게 하거나 이 규칙을 바꾼다. | M2-06 |
+
+## 13. Persona version / 페르소나 버전
+
+AG-04 PR B (Flyway V15; the number is final at merge) adds one append-only table to the `public` schema. `persona_version` records each released persona version with the SHA-256 of its file, the first time a season starts with it. The runner supplies the three values; Spring never reads persona files. `season_agent_config` gets a foreign key to it on (key, version, hash), so a season cannot name a version or a hash the server has not recorded. The agent tables of Flyway V6 (`agent_profile`, `season_agent_config`, `agent_call`) are still described only in the sketches of 3.2; their full definitions are not part of this section. / AG-04 PR B(Flyway V15, 번호는 머지 때 확정)는 `public` 스키마에 추가 전용 테이블 하나를 더한다. `persona_version`은 출시된 페르소나 버전마다 파일의 SHA-256을 그 버전으로 처음 시즌을 시작할 때 기록한다. 세 값은 러너가 주며 Spring은 페르소나 파일을 읽지 않는다. `season_agent_config`는 이 테이블을 (키, 버전, 해시)로 가리키는 외래 키를 얻어, 서버가 기록하지 않은 버전이나 해시를 시즌이 쓸 수 없다. Flyway V6의 에이전트 테이블(`agent_profile`, `season_agent_config`, `agent_call`)은 아직 3.2의 스케치에만 있고 이 절에서 정의하지 않는다.
+
+### 13.1 Relationship diagram / 관계도
+
+`season_agent_config` is a child from another section, so only its name is drawn. / `season_agent_config`는 다른 절의 자식이라 이름만 그린다.
+
+```mermaid
+erDiagram
+    PERSONA_VERSION ||..o{ SEASON_AGENT_CONFIG : "R43"
+```
+
+### 13.2 Relationship summary / 관계 요약
+
+| # | 부모 → 자식 | 카디널리티 | 선 | 근거 |
+|---|---|---|---|---|
+| R43 | `persona_version` → `season_agent_config` | 1 : 0..N | 비식별 `..` | `fk_season_agent_config_persona` on (`persona_key`, `persona_version`, `persona_sha256`) → `uq_persona_version_key_version_sha`. The hash is part of the key, so the database refuses a config row whose hash differs from the recorded one (P1). / 해시가 키에 들어 있어, 설정 행의 해시가 기록된 해시와 다르면 DB가 거절한다(P1). |
+
+### 13.3 Entity definitions / 엔티티 정의서
+
+The FK is `ON DELETE RESTRICT ON UPDATE RESTRICT` (2). The table is append-only: the application role may only SELECT and INSERT (`db/callback/afterMigrate.sql`), and the JPA entity is `@Immutable` with no setters. V15 fills it from the recorded `season_agent_config` rows (one row per recorded version, `display_name` from the agent member's name) and stops with an error when one version has two hashes or one hash has two versions. / FK는 `ON DELETE RESTRICT ON UPDATE RESTRICT`(2절)다. 이 테이블은 추가 전용이라 애플리케이션 역할은 SELECT와 INSERT만 하고 JPA 엔티티는 `@Immutable`이며 setter가 없다. V15는 기록된 `season_agent_config` 행으로 채우고(기록된 버전마다 한 행, `display_name`은 에이전트 회원 이름), 한 버전에 해시가 둘이거나 한 해시에 버전이 둘이면 오류로 멈춘다.
+
+#### Persona version / 페르소나 버전 (persona_version)
+
+| 키 | 논리명 | 물리명 | 타입 | NULL | 기본값 | 코멘트 |
+| --- | --- | --- | --- | --- | --- | --- |
+| PK | 페르소나 키 | persona_key | VARCHAR(64) | NN |  | `[내부]` `pk_persona_version` with `version`. `ck_persona_version_key`: `^[a-z0-9]+(-[a-z0-9]+)*$`, the same rule as `agent_profile.persona_key`. |
+| PK | 버전 | version | INTEGER | NN |  | `[내부]` `ck_persona_version_version`: `version >= 1`. |
+|  | 파일 해시 | sha256 | VARCHAR(64) | NN |  | `[내부]` `ck_persona_version_sha256`: `^[0-9a-f]{64}$`. `uq_persona_version_sha` (`persona_key`, `sha256`): one hash belongs to one version of a persona. |
+|  | 표시 이름 | display_name | VARCHAR(50) | NN |  | `[내부]` `ck_persona_version_display_name`: not empty, no leading or trailing space. Taken from the persona file of the first start. |
+|  | 기록일시 | created_at | TIMESTAMPTZ | NN | now() | `[내부]` |
+
+### 13.4 Constraints and indexes / 제약과 인덱스
+
+Notation follows 6.4 (표기는 6.4와 같다). `FlywayV15UpgradeTest` breaks each rule once by name. / `FlywayV15UpgradeTest`가 규칙마다 이름으로 한 번씩 깬다.
+
+| 이름 | 종류 | 테이블 | 정의 |
+|---|---|---|---|
+| pk_persona_version | PK | persona_version | (persona_key, version) |
+| uq_persona_version_sha | UQ | persona_version | (persona_key, sha256) |
+| ck_persona_version_key | CK | persona_version | persona_key ~ '^[a-z0-9]+(-[a-z0-9]+)*$' |
+| ck_persona_version_version | CK | persona_version | version >= 1 |
+| ck_persona_version_sha256 | CK | persona_version | sha256 ~ '^[0-9a-f]{64}$' |
+| ck_persona_version_display_name | CK | persona_version | display_name <> '' AND display_name = btrim(display_name) |
+| uq_persona_version_key_version_sha | UQ | persona_version | (persona_key, version, sha256) — the target of `fk_season_agent_config_persona`; redundant with the primary key on purpose |
+| fk_season_agent_config_persona | FK | season_agent_config | (persona_key, persona_version, persona_sha256) → persona_version (persona_key, version, sha256) (R43) |
+
+**Counts / 개수:**
+
+| 테이블 | PK | UNIQUE(제약) | UNIQUE 인덱스(`uq_`) | FK | CHECK | INDEX(`idx_`) |
+|---|---|---|---|---|---|---|
+| persona_version | 1 | 2 | 0 | 0 | 4 | 0 |
+| season_agent_config (added by V15) | 0 | 0 | 0 | 1 | 0 | 0 |
+| **§13 소계** | **1** | **2** | **0** | **1** | **4** | **0** |
+
+### 13.5 Rules DDL cannot enforce / DDL로 막지 못해 검사할 규칙
+
+| # | 규칙 | 검사하는 기능 |
+|---|---|---|
+| P1 | (Enforced by the DDL since the 3-column FK; kept here for the service side.) A `season_agent_config` row carries the same `persona_sha256` as the `persona_version` row it names. `PersonaVersionService.pin` runs in the start transaction and answers another hash for a recorded version with `PERSONA_VERSION_CONFLICT` before the database has to refuse. / (3열 FK부터 DDL이 막는다. 서비스 쪽을 위해 남긴다.) `season_agent_config` 행의 `persona_sha256`은 가리키는 `persona_version` 행의 해시와 같다. `PersonaVersionService.pin`이 시작 트랜잭션 안에서 돌며 기록된 버전의 다른 해시를 DB가 거절하기 전에 `PERSONA_VERSION_CONFLICT`로 답한다. | AG-04 PR B |
+| P2 | A new version is at least the newest recorded version of the persona; a lower one is refused (`PERSONA_VERSION_STALE`), and bytes already recorded under another version are refused (`PERSONA_VERSION_CONFLICT`). / 새 버전은 그 페르소나의 기록된 최신 버전 이상이어야 하고, 낮으면 거절하며(`PERSONA_VERSION_STALE`) 다른 버전으로 이미 기록된 해시도 거절한다(`PERSONA_VERSION_CONFLICT`). | AG-04 PR B |
+| P3 | Two starts of one persona run one after the other: the service takes a transaction-level advisory lock on the persona key before it reads the table. / 한 페르소나의 시작 둘은 차례로 돈다: 서비스가 표를 읽기 전에 페르소나 키에 트랜잭션 수준 자문 잠금을 건다. | AG-04 PR B |
