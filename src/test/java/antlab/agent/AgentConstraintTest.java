@@ -48,6 +48,8 @@ class AgentConstraintTest {
             human = human();
             otherHuman = human();
             agent = agent(human, "calm-value", "OPENROUTER", "vendor/model-a");
+            exec("INSERT INTO persona_version (persona_key, version, sha256, display_name) VALUES ('calm-value', 1, '"
+                    + SHA + "', 'Calm') ON CONFLICT DO NOTHING");
         }
 
         long human() throws SQLException {

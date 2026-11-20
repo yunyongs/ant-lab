@@ -20,6 +20,8 @@ public record AgentSeasonConfigRequest(
         int personaVersion,
         @NotNull @Pattern(regexp = "^[0-9a-f]{64}$")
         String personaSha256,
+        @NotBlank @Size(max = 50) @Pattern(regexp = "^\\S(.*\\S)?$")
+        String personaDisplayName,
         @NotNull @Size(max = 200) @Pattern(regexp = "^\\S(.*\\S)?$")
         String modelRequested,
         @NotNull @DecimalMin("0") @DecimalMax("2") @Digits(integer = 1, fraction = 3)

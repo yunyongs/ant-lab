@@ -79,6 +79,8 @@ class ObsViewsGrantTest {
                         start_forward, current_goalkeeper, current_defender, current_midfielder, current_forward)
                     VALUES (a, 12, 778, 'test', '2020-01-31', '2020-01-31', 10000000, 0.001, 0.001, 0.004, -0.20,
                         10, 30, 40, 20, 10, 30, 40, 20) RETURNING id INTO ags;
+                INSERT INTO persona_version (persona_key, version, sha256, display_name)
+                    VALUES ('calm-value', 1, repeat('a', 64), 'Calm'), ('other-agent', 1, repeat('b', 64), 'Other');
                 INSERT INTO season_agent_config (season_id, member_id, persona_key, persona_version, persona_sha256, model_route,
                         model_requested, temperature, max_tokens, turn_timeout_ms, prompt_template_version, runner_version,
                         budget_calls, budget_usd)
@@ -624,7 +626,9 @@ class ObsViewsGrantTest {
             SERVER.setPasswords(db.name());
             db.superuserExecute("DROP SCHEMA obs");
             org.flywaydb.core.Flyway v12 = org.flywaydb.core.Flyway.configure()
-                    .configuration(SERVER.flyway(db.name(), "antlab_owner", true).getConfiguration()).target("12").load();
+                    .configuration(SERVER.flyway(db.name(), "antlab_owner", true).getConfiguration()).target("12")
+                    // the grants callback knows the tables of the latest schema, not those of version 12
+                    .skipDefaultCallbacks(true).load();
             v12.migrate();
             JdbcTemplate jdbc = db.superuser();
             assertThat(jdbc.queryForObject("SELECT to_regnamespace('obs') IS NULL", Boolean.class)).isTrue();

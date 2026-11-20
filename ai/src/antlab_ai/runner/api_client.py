@@ -96,6 +96,14 @@ _OPERATIONS: Final[dict[str, tuple[str, str, frozenset[int], str | None, bool]]]
         "AbandonResultDto",
         True,
     ),
+    # AG-04 B. Listed so the table equals the contract; the mismatch check in run is added with the CLI work (PR E).
+    "getAgentSeasonConfig": (
+        "GET",
+        f"{BASE_PATH}/agents/{{agentId}}/seasons/{{seasonId}}/config",
+        frozenset({200}),
+        "AgentSeasonConfigDto",
+        True,
+    ),
 }
 OPERATIONS: Final[dict[str, tuple[str, str]]] = {k: (v[0], v[1]) for k, v in _OPERATIONS.items()}
 

@@ -99,6 +99,8 @@ class AgentMappingTest {
         Season season = new SeasonAccountFixture(jdbc, members, seasons, accounts)
                 .newSeason(members.findById(agent.getMemberId()).orElseThrow());
         em.flush();
+        jdbc.update("INSERT INTO persona_version (persona_key, version, sha256, display_name) VALUES ('calm-value', 1, ?, 'Calm') "
+                + "ON CONFLICT DO NOTHING", SHA);
         configs.save(new SeasonAgentConfig(season.getId(), agent.getMemberId(), "calm-value", 1, SHA,
                 ModelRoute.OPENROUTER, "vendor/model-a", new BigDecimal("0.200"), null, 2000, 60000, "p1", "r1",
                 null, 100, new BigDecimal("1.50000000")));

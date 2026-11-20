@@ -20,7 +20,7 @@ from antlab_ai.modelport.fake import scripted_attempt  # isort: skip
 
 
 def test_operation_table_equals_the_yaml():
-    assert len(OPERATIONS) == 11
+    assert len(OPERATIONS) == 12
     assert OPERATIONS == yaml_operations()
     assert contract.operations() == yaml_operations()
 
@@ -51,6 +51,28 @@ def test_runner_turn_view_fixtures_carry_a_contract_valid_last_turn(name):
     assert contract_errors("TurnResultDto", broken) != []
 
 
+def test_season_config_response_matches_its_schema():
+    recorded = {
+        "personaKey": "patient-value",
+        "personaVersion": 1,
+        "personaSha256": "a" * 64,
+        "modelRoute": "OLLAMA",
+        "modelRequested": "m/x",
+        "promptTemplateVersion": "td1-p1",
+        "runnerVersion": "0.2.0",
+        "memoryVersion": None,
+        "temperature": "0.000",
+        "modelSeed": None,
+        "maxTokens": 2048,
+        "turnTimeoutMs": 120000,
+        "budgetCalls": 36,
+        "budgetUsd": "0.00000000",
+    }
+    assert contract_errors("AgentSeasonConfigDto", recorded) == []
+    del recorded["personaSha256"]
+    assert contract_errors("AgentSeasonConfigDto", recorded) != []
+
+
 def _calls(n=1, first=1):
     builder = RecordBuilder("OLLAMA", "m/x")
     parsed = parse_reply(reply())
@@ -61,6 +83,7 @@ def _season_config():
     return {
         "personaVersion": 1,
         "personaSha256": "a" * 64,
+        "personaDisplayName": "가치",
         "modelRequested": "vendor/some-model:free",
         "temperature": "0",
         "modelSeed": 1,

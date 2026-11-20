@@ -21,6 +21,7 @@ FORMATION = {"goalkeeper": 10, "defender": 30, "midfielder": 30, "forward": 30}
 CONFIG = {
     "personaVersion": 1,
     "personaSha256": "a" * 64,
+    "personaDisplayName": "가치",
     "modelRequested": "m/x:free",
     "temperature": "0",
     "maxTokens": 2048,

@@ -102,10 +102,10 @@ paths:
                 $ref: '#/components/schemas/Problem'
         '409':
           description: |-
-            A season cannot be started now — POOL_NOT_LOADED, POOL_NOT_JUDGED, SEASON_LIMIT (3 in progress, or the weekly limit), AGENT_RETIRED
+            A season cannot be started now — POOL_NOT_LOADED, POOL_NOT_JUDGED, SEASON_LIMIT (3 in progress, or the weekly limit), AGENT_RETIRED, PERSONA_VERSION_CONFLICT (the persona version is recorded with another file hash, or this hash with another version), PERSONA_VERSION_STALE (a newer persona version is recorded). The start records the persona version on first use; on refusal no season is left
 
-            지금은 시작할 수 없다 — POOL_NOT_LOADED, POOL_NOT_JUDGED, SEASON_LIMIT(진행 중 3개 또는 주간 상한), AGENT_RETIRED
-          x-error-codes: [POOL_NOT_LOADED, POOL_NOT_JUDGED, SEASON_LIMIT, AGENT_RETIRED]
+            지금은 시작할 수 없다 — POOL_NOT_LOADED, POOL_NOT_JUDGED, SEASON_LIMIT(진행 중 3개 또는 주간 상한), AGENT_RETIRED, PERSONA_VERSION_CONFLICT(그 페르소나 버전이 다른 파일 해시로, 또는 이 해시가 다른 버전으로 기록되어 있다), PERSONA_VERSION_STALE(더 새로운 페르소나 버전이 기록되어 있다). 처음 쓰는 페르소나 버전은 시작 때 기록하고, 거절하면 시즌이 남지 않는다
+          x-error-codes: [POOL_NOT_LOADED, POOL_NOT_JUDGED, SEASON_LIMIT, AGENT_RETIRED, PERSONA_VERSION_CONFLICT, PERSONA_VERSION_STALE]
           content:
             application/problem+json:
               schema:
@@ -126,6 +126,46 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+  /internal/agent-runner/v1/agents/{agentId}/seasons/{seasonId}/config:
+    get:
+      tags: [agent]
+      operationId: getAgentSeasonConfig
+      summary: Config of an agent season / 에이전트 시즌의 설정
+      description: |-
+        Returns the settings the season was started with, as recorded. The runner compares persona key, version and hash, model route, requested model and prompt template version with its own before it sends anything; a difference ends the run. The runner version may differ. A season of another member, a human season and a missing season give the same answer.
+
+        시즌을 시작할 때 기록한 설정을 그대로 준다. 러너는 아무것도 보내기 전에 페르소나 키·버전·해시, 모델 경로, 요청 모델, 프롬프트 템플릿 버전을 자기 값과 비교하고, 다르면 실행을 끝낸다. 러너 버전은 달라도 된다. 다른 회원의 시즌, 사람의 시즌, 없는 시즌은 같은 응답이다.
+      parameters:
+        - $ref: '#/components/parameters/AgentId'
+        - $ref: '#/components/parameters/SeasonId'
+      responses:
+        '200':
+          description: The recorded config / 기록된 설정
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentSeasonConfigDto'
+        '400':
+          description: The season number is not a number — INVALID_ARGUMENT / 시즌 번호가 숫자가 아니다 — INVALID_ARGUMENT
+          x-error-codes: [INVALID_ARGUMENT]
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          description: |-
+            The agent does not exist or is not this owner's, or the season is not an agent season of this agent. One answer for all — NOT_FOUND
+
+            에이전트가 없거나 이 소유자의 것이 아니거나, 시즌이 이 에이전트의 에이전트 시즌이 아니다. 모두 같은 응답이다 — NOT_FOUND
+          x-error-codes: [NOT_FOUND]
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /internal/agent-runner/v1/agents/{agentId}/seasons/{seasonId}/turn-view:
     get:
       tags: [agent]
@@ -683,7 +723,7 @@ components:
         Settings recorded once for the season. The persona key and model route come from the agent's registration
 
         시즌에 한 번 기록하는 설정. 페르소나 키와 모델 경로는 에이전트 등록에서 가져온다
-      required: [personaVersion, personaSha256, modelRequested, temperature, maxTokens, turnTimeoutMs,
+      required: [personaVersion, personaSha256, personaDisplayName, modelRequested, temperature, maxTokens, turnTimeoutMs,
                  promptTemplateVersion, runnerVersion, budgetCalls, budgetUsd]
       properties:
         personaVersion:
@@ -693,6 +733,15 @@ components:
         personaSha256:
           type: string
           pattern: '^[0-9a-f]{64}$'
+        personaDisplayName:
+          type: string
+          minLength: 1
+          maxLength: 50
+          pattern: '^\S(.*\S)?$'
+          description: |-
+            Display name of the persona file, recorded with the persona version the first time it is used
+
+            페르소나 파일의 표시 이름. 그 페르소나 버전을 처음 쓸 때 함께 기록한다
         modelRequested:
           type: string
           maxLength: 200
@@ -732,6 +781,53 @@ components:
           type: string
           format: decimal
           description: Not negative, at most 8 decimal places / 0 이상, 소수 8자리까지
+    AgentSeasonConfigDto:
+      type: object
+      description: |-
+        The config a season was started with, as recorded
+
+        시즌을 시작할 때 기록한 설정
+      required: [personaKey, personaVersion, personaSha256, modelRoute, modelRequested, promptTemplateVersion,
+                 runnerVersion, memoryVersion, temperature, modelSeed, maxTokens, turnTimeoutMs, budgetCalls, budgetUsd]
+      properties:
+        personaKey:
+          type: string
+        personaVersion:
+          type: integer
+          format: int32
+          minimum: 1
+        personaSha256:
+          type: string
+          pattern: '^[0-9a-f]{64}$'
+        modelRoute:
+          $ref: '#/components/schemas/ModelRoute'
+        modelRequested:
+          type: string
+        promptTemplateVersion:
+          type: string
+        runnerVersion:
+          type: string
+        memoryVersion:
+          type: [integer, 'null']
+          format: int32
+        temperature:
+          type: string
+          format: decimal
+        modelSeed:
+          type: [integer, 'null']
+          format: int64
+        maxTokens:
+          type: integer
+          format: int32
+        turnTimeoutMs:
+          type: integer
+          format: int32
+        budgetCalls:
+          type: integer
+          format: int32
+        budgetUsd:
+          type: string
+          format: decimal
     FormationDto:
       type: object
       description: |-
@@ -1684,4 +1780,5 @@ components:
              ENGINE_UNAVAILABLE, SEASON_LIMIT, TURN_NOT_REACHED, SEASON_NOT_FINISHED, SEASON_NOT_ACTIVE, TURN_MISMATCH, LEDGER_MISMATCH,
              LINEUP_MISMATCH, ASSET_NOT_IN_POOL, SOURCE_NOT_VISIBLE, INSUFFICIENT_CASH, INSUFFICIENT_HOLDING, POSITION_CONFLICT, POSITION_REQUIRED,
              INVALID_FORMATION, EVENT_TIME_CONFLICT, RECONCILIATION_FAILED, SEASON_HALTED, FORBIDDEN, EMAIL_TAKEN,
-             UNAUTHENTICATED, INVALID_CREDENTIALS, AGENT_RETIRED, DECISION_CONFLICT, DECISION_MISSING]
+             UNAUTHENTICATED, INVALID_CREDENTIALS, AGENT_RETIRED, DECISION_CONFLICT, DECISION_MISSING,
+             PERSONA_VERSION_CONFLICT, PERSONA_VERSION_STALE]

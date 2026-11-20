@@ -69,5 +69,9 @@ public enum ErrorCode {
     /** A different decision was already recorded for this turn (agent runner). */
     DECISION_CONFLICT,
     /** The agent season's current turn has no final decision yet, so it cannot advance (agent runner). */
-    DECISION_MISSING
+    DECISION_MISSING,
+    /** The persona version is already recorded with another file hash (agent runner). */
+    PERSONA_VERSION_CONFLICT,
+    /** A newer persona version is already recorded, so this one cannot start a season (agent runner). */
+    PERSONA_VERSION_STALE
 }

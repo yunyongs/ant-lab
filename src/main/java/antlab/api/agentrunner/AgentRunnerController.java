@@ -3,6 +3,8 @@ package antlab.api.agentrunner;
 import antlab.agent.AgentDto;
 import antlab.agent.AgentRegistration;
 import antlab.agent.AgentRegistrationService;
+import antlab.agent.AgentSeasonConfigDto;
+import antlab.agent.AgentSeasonConfigQueryService;
 import antlab.agent.AgentSeasonLifecycleService;
 import antlab.agent.AgentSeasonService;
 import antlab.agent.AgentTurnViewDto;
@@ -50,10 +52,12 @@ public class AgentRunnerController {
     private final AgentTurnViewService turnViews;
     private final AgentDecisionService decisions;
     private final AgentTurnAdvanceService advances;
+    private final AgentSeasonConfigQueryService configQueries;
 
     public AgentRunnerController(AgentRegistrationService registrations, AgentSeasonService seasons,
             AgentSeasonLifecycleService lifecycle, SeasonAbandonService abandons, AgentTurnViewService turnViews,
-            AgentDecisionService decisions, AgentTurnAdvanceService advances) {
+            AgentDecisionService decisions, AgentTurnAdvanceService advances,
+            AgentSeasonConfigQueryService configQueries) {
         this.registrations = registrations;
         this.seasons = seasons;
         this.lifecycle = lifecycle;
@@ -61,6 +65,7 @@ public class AgentRunnerController {
         this.turnViews = turnViews;
         this.decisions = decisions;
         this.advances = advances;
+        this.configQueries = configQueries;
     }
 
     @PostMapping(value = BASE + "/agents", consumes = MediaType.APPLICATION_JSON_VALUE,
@@ -75,6 +80,12 @@ public class AgentRunnerController {
     public ResponseEntity<SeasonDto> startSeason(@PathVariable long agentId,
             @Valid @RequestBody StartAgentSeasonRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(seasons.start(agentId, request));
+    }
+
+    @GetMapping(value = BASE + "/agents/{agentId}/seasons/{seasonId}/config",
+            produces = MediaType.APPLICATION_JSON_VALUE)
+    public AgentSeasonConfigDto getConfig(@PathVariable long agentId, @PathVariable long seasonId) {
+        return configQueries.get(agentId, seasonId);
     }
 
     @GetMapping(value = BASE + "/agents/{agentId}/seasons/{seasonId}/turn-view",
