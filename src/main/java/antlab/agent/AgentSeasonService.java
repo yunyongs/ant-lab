@@ -6,6 +6,8 @@ import antlab.member.CurrentMember;
 import antlab.season.SeasonDto;
 import antlab.season.SeasonRepository;
 import antlab.season.SeasonStartService;
+import antlab.season.SeasonStatus;
+import java.util.List;
 import java.time.Clock;
 import java.time.Duration;
 import org.springframework.stereotype.Service;
@@ -54,6 +56,12 @@ public class AgentSeasonService {
         if (!profile.getModelId().equals(request.config().modelRequested())) {
             throw new DomainException(ErrorCode.INVALID_ARGUMENT,
                     "시즌 설정의 모델이 에이전트에 등록된 모델과 다르다");
+        }
+        // A pause must not be a way to re-roll: while a season of this agent is paused or being abandoned it must first be
+        // resumed, or abandoned to its end so that it is scored. An overdue pause is not converted here.
+        if (seasons.countByMemberIdAndStatusIn(agentId, List.of(SeasonStatus.PAUSED, SeasonStatus.ABANDONING)) > 0) {
+            throw new DomainException(ErrorCode.SEASON_LIMIT,
+                    "일시 정지 중이거나 포기 중인 시즌이 있는 에이전트는 새 시즌을 시작할 수 없다 — 재개하거나 끝까지 포기한다");
         }
         if (seasons.countByMemberIdAndCreatedAtGreaterThanEqual(agentId, clock.instant().minus(WEEK))
                 >= properties.maxSeasonsPerWeek()) {

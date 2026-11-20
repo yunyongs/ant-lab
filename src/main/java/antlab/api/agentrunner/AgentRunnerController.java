@@ -3,17 +3,22 @@ package antlab.api.agentrunner;
 import antlab.agent.AgentDto;
 import antlab.agent.AgentRegistration;
 import antlab.agent.AgentRegistrationService;
+import antlab.agent.AgentSeasonLifecycleService;
 import antlab.agent.AgentSeasonService;
 import antlab.agent.AgentTurnViewDto;
 import antlab.agent.AgentTurnViewService;
 import antlab.agent.RegisterAgentRequest;
 import antlab.agent.StartAgentSeasonRequest;
+import antlab.agent.VoidSeasonRequest;
 import antlab.agent.decision.AgentDecisionService;
 import antlab.agent.decision.AgentTurnAdvanceService;
 import antlab.agent.decision.CallsRequest;
 import antlab.agent.decision.DecisionRequest;
 import antlab.agent.decision.DecisionResultDto;
+import antlab.season.AbandonResultDto;
+import antlab.season.AbandonSeasonRequest;
 import antlab.season.AdvanceTurnRequest;
+import antlab.season.SeasonAbandonService;
 import antlab.season.TurnResultDto;
 import jakarta.validation.constraints.Min;
 import antlab.season.SeasonDto;
@@ -40,14 +45,19 @@ public class AgentRunnerController {
 
     private final AgentRegistrationService registrations;
     private final AgentSeasonService seasons;
+    private final AgentSeasonLifecycleService lifecycle;
+    private final SeasonAbandonService abandons;
     private final AgentTurnViewService turnViews;
     private final AgentDecisionService decisions;
     private final AgentTurnAdvanceService advances;
 
     public AgentRunnerController(AgentRegistrationService registrations, AgentSeasonService seasons,
-            AgentTurnViewService turnViews, AgentDecisionService decisions, AgentTurnAdvanceService advances) {
+            AgentSeasonLifecycleService lifecycle, SeasonAbandonService abandons, AgentTurnViewService turnViews,
+            AgentDecisionService decisions, AgentTurnAdvanceService advances) {
         this.registrations = registrations;
         this.seasons = seasons;
+        this.lifecycle = lifecycle;
+        this.abandons = abandons;
         this.turnViews = turnViews;
         this.decisions = decisions;
         this.advances = advances;
@@ -101,5 +111,30 @@ public class AgentRunnerController {
             @Valid @RequestBody AdvanceTurnRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(advances.advance(agentId, seasonId, request.expectedTurnNo()));
+    }
+
+    @PostMapping(value = BASE + "/agents/{agentId}/seasons/{seasonId}/pause", produces = MediaType.APPLICATION_JSON_VALUE)
+    public SeasonDto pause(@PathVariable long agentId, @PathVariable long seasonId) {
+        return lifecycle.pause(agentId, seasonId);
+    }
+
+    @PostMapping(value = BASE + "/agents/{agentId}/seasons/{seasonId}/resume", produces = MediaType.APPLICATION_JSON_VALUE)
+    public SeasonDto resume(@PathVariable long agentId, @PathVariable long seasonId) {
+        return lifecycle.resume(agentId, seasonId);
+    }
+
+    @PostMapping(value = BASE + "/agents/{agentId}/seasons/{seasonId}/void", consumes = MediaType.APPLICATION_JSON_VALUE,
+            produces = MediaType.APPLICATION_JSON_VALUE)
+    public SeasonDto voidSeason(@PathVariable long agentId, @PathVariable long seasonId,
+            @Valid @RequestBody VoidSeasonRequest request) {
+        return lifecycle.voidSeason(agentId, seasonId, request);
+    }
+
+    @PostMapping(value = BASE + "/agents/{agentId}/seasons/{seasonId}/abandon",
+            consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    public AbandonResultDto abandon(@PathVariable long agentId, @PathVariable long seasonId,
+            @Valid @RequestBody AbandonSeasonRequest request) {
+        lifecycle.requireActing(agentId);
+        return abandons.abandon(seasonId, request.expectedTurnNo());
     }
 }

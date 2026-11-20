@@ -60,9 +60,9 @@ paths:
       operationId: startAgentSeason
       summary: Start a season as the agent / 에이전트로 시즌 시작
       description: |-
-        Starts a season for the agent with the same rules as a human start, and records the season config in the same transaction. A retired agent cannot start a season; an agent may start a limited number of seasons per week.
+        Starts a season for the agent with the same rules as a human start, and records the season config in the same transaction. A retired agent cannot start a season; an agent may start a limited number of seasons per week. An agent with a paused or abandoning (unfinished) season cannot start one: SEASON_LIMIT.
 
-        사람과 같은 규칙으로 에이전트의 시즌을 시작하고, 같은 트랜잭션에서 시즌 설정을 기록한다. 은퇴한 에이전트는 시작할 수 없고, 에이전트가 한 주에 시작할 수 있는 시즌 수에는 상한이 있다.
+        사람과 같은 규칙으로 에이전트의 시즌을 시작하고, 같은 트랜잭션에서 시즌 설정을 기록한다. 은퇴한 에이전트는 시작할 수 없고, 에이전트가 한 주에 시작할 수 있는 시즌 수에는 상한이 있다. 일시 정지 중이거나 포기 중인(끝나지 않은) 시즌이 있으면 SEASON_LIMIT 으로 거절한다.
       parameters:
         - $ref: '#/components/parameters/AgentId'
       requestBody:
@@ -365,6 +365,194 @@ paths:
                 $ref: '#/components/schemas/Problem'
         '500':
           $ref: '#/components/responses/InternalError'
+  /internal/agent-runner/v1/agents/{agentId}/seasons/{seasonId}/pause:
+    post:
+      tags: [agent]
+      operationId: pauseAgentSeason
+      summary: Pause an agent season / 에이전트 시즌을 일시 정지한다
+      description: |-
+        Stops a season in progress at its current turn (for a limit, a balance, a budget or a failure the runner cannot wait out). The turn does not change. A paused season cannot decide or advance, and the agent cannot start a new season while one is paused or abandoning (resume it, or abandon it and repeat until FINISHED). It ends by a resume (same turn) or an abandon. A pause that is not resumed within 7 days becomes an abandon (counted, PLAN §4.1-7): the rule is applied from the clock by the next pause, resume, abandon or void attempt on that season, not by a scheduler, but every read (this API's season and turn-view answers, the observation views) already shows a pause older than 7 days as ABANDONING with the paused turn as the abandon turn. A repeat on a paused season answers it unchanged. Send the unflushed attempts (POST calls) before pausing: a paused season refuses them.
+
+        시즌을 현재 턴에서 멈춘다(러너가 기다릴 수 없는 한도·잔액·예산·실패). 턴은 바뀌지 않는다. 일시 정지된 시즌은 결정·전환을 할 수 없고, 에이전트는 일시 정지 중이거나 포기 중인 시즌이 있으면 새 시즌을 시작할 수 없다(재개하거나, 포기해 FINISHED 가 될 때까지 반복한다). 재개(같은 턴) 또는 포기로만 끝난다. 7일 안에 재개하지 않은 일시 정지는 포기가 된다(집계, PLAN §4.1-7). 저장된 행은 스케줄러가 아니라 그 시즌의 다음 일시 정지·재개·포기·무효 시도가 시계로 바꾸지만, 읽기(시즌·턴 화면 응답, 관측 뷰)는 7일이 지난 일시 정지를 이미 포기 턴 = 정지한 턴인 ABANDONING 으로 보인다. 이미 일시 정지된 시즌에 반복하면 그대로 답한다. 보내지 못한 시도(POST calls)는 정지 전에 보낸다 — 정지된 시즌은 받지 않는다.
+      parameters:
+        - $ref: '#/components/parameters/AgentId'
+        - $ref: '#/components/parameters/SeasonId'
+      responses:
+        '200':
+          description: The season after the request. status is PAUSED, or ABANDONING when the pause was already over / 요청 뒤 시즌. 상태는 PAUSED, 기한이 이미 지났으면 ABANDONING
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SeasonDto'
+        '400':
+          description: The request is wrong — INVALID_ARGUMENT / 요청이 틀렸다 — INVALID_ARGUMENT
+          x-error-codes: [INVALID_ARGUMENT]
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          description: The agent does not exist or is not this owner's, or the season is not this agent's. One answer for all — NOT_FOUND / 에이전트가 없거나 이 소유자의 것이 아니거나, 시즌이 이 에이전트의 것이 아니다. 모두 같은 응답이다 — NOT_FOUND
+          x-error-codes: [NOT_FOUND]
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: The season cannot be paused — SEASON_NOT_ACTIVE (abandoning, finished or void), SEASON_HALTED / 일시 정지할 수 없다 — SEASON_NOT_ACTIVE(포기 중·끝남·무효), SEASON_HALTED
+          x-error-codes: [SEASON_NOT_ACTIVE, SEASON_HALTED]
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /internal/agent-runner/v1/agents/{agentId}/seasons/{seasonId}/resume:
+    post:
+      tags: [agent]
+      operationId: resumeAgentSeason
+      summary: Resume a paused agent season / 일시 정지된 에이전트 시즌을 재개한다
+      description: |-
+        Returns a paused season to IN_PROGRESS at the same turn. A repeat on a season in progress answers it unchanged (a lost answer). If the 7-day window is already over the season is not resumed: it becomes an abandon and the answer shows ABANDONING; finish it with the abandon operation.
+
+        일시 정지된 시즌을 같은 턴의 IN_PROGRESS 로 되돌린다. 이미 진행 중인 시즌에 반복하면 그대로 답한다(답이 유실된 경우). 7일이 이미 지났으면 재개하지 않고 포기가 되며 응답은 ABANDONING 이다. 이어서 포기 연산으로 끝낸다.
+      parameters:
+        - $ref: '#/components/parameters/AgentId'
+        - $ref: '#/components/parameters/SeasonId'
+      responses:
+        '200':
+          description: The season after the request. status is IN_PROGRESS, or ABANDONING when the pause was over / 요청 뒤 시즌. 상태는 IN_PROGRESS, 기한이 지났으면 ABANDONING
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SeasonDto'
+        '400':
+          description: The request is wrong — INVALID_ARGUMENT / 요청이 틀렸다 — INVALID_ARGUMENT
+          x-error-codes: [INVALID_ARGUMENT]
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          description: The agent does not exist or is not this owner's, or the season is not this agent's. One answer for all — NOT_FOUND / 에이전트가 없거나 이 소유자의 것이 아니거나, 시즌이 이 에이전트의 것이 아니다. 모두 같은 응답이다 — NOT_FOUND
+          x-error-codes: [NOT_FOUND]
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: The season cannot be resumed — SEASON_NOT_ACTIVE (abandoning, finished or void), SEASON_HALTED (an administrator resumes it) / 재개할 수 없다 — SEASON_NOT_ACTIVE(포기 중·끝남·무효), SEASON_HALTED(관리자가 재개)
+          x-error-codes: [SEASON_NOT_ACTIVE, SEASON_HALTED]
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /internal/agent-runner/v1/agents/{agentId}/seasons/{seasonId}/void:
+    post:
+      tags: [agent]
+      operationId: voidAgentSeason
+      summary: Void an agent season / 에이전트 시즌을 무효로 한다
+      description: |-
+        Ends a season as void (PLAN §6.9; not a finished, abandoning or overdue-paused one — those are counted abandons; a halted season can be voided): the model is gone, or an engine or runner defect makes the season impossible to continue or its record impossible to replay to the same ledger. The reason and a defect note are required and stored. A void season stays where it is (no remaining turns are played), is never scored, is left out of the rating and the leaderboard score, and does not count toward the 3 seasons in progress; it still counts toward the weekly season cap. A season stopped by hand is an abandon, not void. A repeat with the same reason answers the season unchanged.
+
+        시즌을 무효로 끝낸다(PLAN §6.9. 끝난 시즌·포기 중인 시즌·7일이 지난 일시 정지는 집계된 포기라서 안 되고, 대사 정지는 된다): 모델이 사라졌거나, 엔진·러너 결함으로 시즌을 이어 갈 수 없거나 기록 재생이 같은 원장을 내지 못한다. 사유와 결함 메모가 필수이며 저장한다. 무효 시즌은 그 자리에 머물고(남은 턴을 돌리지 않는다), 채점하지 않으며, 레이팅과 리더보드 점수에서 빠지고, 진행 중 3개 한도에 들지 않는다. 주당 시즌 상한에는 그대로 센다. 손으로 멈춘 시즌은 무효가 아니라 포기다. 같은 사유로 반복하면 시즌을 그대로 답한다.
+      parameters:
+        - $ref: '#/components/parameters/AgentId'
+        - $ref: '#/components/parameters/SeasonId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VoidSeasonRequest'
+      responses:
+        '200':
+          description: The void season / 무효가 된 시즌
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SeasonDto'
+        '400':
+          description: The request is wrong — INVALID_ARGUMENT / 요청이 틀렸다 — INVALID_ARGUMENT
+          x-error-codes: [INVALID_ARGUMENT]
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          description: The agent does not exist or is not this owner's, or the season is not this agent's. One answer for all — NOT_FOUND / 에이전트가 없거나 이 소유자의 것이 아니거나, 시즌이 이 에이전트의 것이 아니다. 모두 같은 응답이다 — NOT_FOUND
+          x-error-codes: [NOT_FOUND]
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: The season cannot be voided — SEASON_NOT_ACTIVE (finished, abandoning, an overdue pause, or void for another reason) / 무효로 할 수 없다 — SEASON_NOT_ACTIVE(끝남·포기 중·7일이 지난 일시 정지, 또는 다른 사유로 이미 무효)
+          x-error-codes: [SEASON_NOT_ACTIVE]
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /internal/agent-runner/v1/agents/{agentId}/seasons/{seasonId}/abandon:
+    post:
+      tags: [agent]
+      operationId: abandonAgentSeason
+      summary: Abandon an agent season / 에이전트 시즌을 포기한다
+      description: |-
+        The runner's operator command to stop a season (and the way to finish a season whose pause ran out): same service as the human abandon (MVP-14). It marks the abandon at the current turn, then plays the remaining turns without trades until the season is finished or the per-request cap is reached; repeat while the status is ABANDONING. A paused season can be abandoned directly. The 3-turn exception never applies to an agent, so notStarted is always false. The turn check guards the irreversible mark and is ignored on a repeat.
+
+        러너의 운영 명령으로 시즌을 멈추는 연산이다(일시 정지 기한이 지난 시즌을 끝내는 길이기도 하다). 사람의 포기(MVP-14)와 같은 서비스다. 현재 턴에서 포기를 표시한 뒤 시즌이 끝나거나 요청당 상한에 닿을 때까지 거래 없이 남은 턴을 돌린다. 상태가 ABANDONING 이면 반복한다. 일시 정지된 시즌도 바로 포기할 수 있다. 3턴 미시작 예외는 에이전트에 없으므로 notStarted 는 항상 false 다. 턴 확인은 되돌릴 수 없는 표시를 지키며 반복 요청에서는 무시한다.
+      parameters:
+        - $ref: '#/components/parameters/AgentId'
+        - $ref: '#/components/parameters/SeasonId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AbandonSeasonRequest'
+      responses:
+        '200':
+          description: State of the season after this request / 이번 요청 뒤 시즌의 상태
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AbandonResultDto'
+        '400':
+          description: The request is wrong — INVALID_ARGUMENT / 요청이 틀렸다 — INVALID_ARGUMENT
+          x-error-codes: [INVALID_ARGUMENT]
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          description: The agent does not exist or is not this owner's, or the season is not this agent's. One answer for all — NOT_FOUND / 에이전트가 없거나 이 소유자의 것이 아니거나, 시즌이 이 에이전트의 것이 아니다. 모두 같은 응답이다 — NOT_FOUND
+          x-error-codes: [NOT_FOUND]
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: The season cannot be abandoned now — TURN_MISMATCH, SEASON_NOT_ACTIVE (finished without an abandon, or void), SEASON_HALTED, RECONCILIATION_FAILED / 지금은 포기할 수 없다 — TURN_MISMATCH, SEASON_NOT_ACTIVE(포기 없이 끝남, 또는 무효), SEASON_HALTED, RECONCILIATION_FAILED
+          x-error-codes: [TURN_MISMATCH, SEASON_NOT_ACTIVE, SEASON_HALTED, RECONCILIATION_FAILED]
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '500':
+          $ref: '#/components/responses/InternalError'
 components:
   securitySchemes:
     runnerToken:
@@ -583,7 +771,7 @@ components:
           format: int64
         status:
           type: string
-          enum: [IN_PROGRESS, ABANDONING, FINISHED, HALTED]
+          enum: [IN_PROGRESS, ABANDONING, FINISHED, HALTED, PAUSED, VOID]
         currentTurnNo:
           type: integer
           format: int32
@@ -1081,7 +1269,7 @@ components:
           description: Maximum drawdown, 0 or less (−0.35 = −35%) / 최대 낙폭, 0 이하(−0.35 = −35%)
     SeasonStatus:
       type: string
-      enum: [IN_PROGRESS, ABANDONING, FINISHED, HALTED]
+      enum: [IN_PROGRESS, ABANDONING, FINISHED, HALTED, PAUSED, VOID]
     Market:
       type: string
       enum: [KR, US]
@@ -1200,6 +1388,75 @@ components:
     OrderSource:
       type: string
       enum: [RANKING, FEED, ALERT, BENCH, DIRECT]
+    AbandonSeasonRequest:
+      type: object
+      description: |-
+        The current turn the member saw is checked only while the season is in progress
+
+        회원이 본 현재 턴은 시즌이 진행 중일 때만 확인한다
+      required: [expectedTurnNo]
+      properties:
+        expectedTurnNo:
+          type: integer
+          format: int32
+          minimum: 0
+          description: The current turn the member saw. 409 TURN_MISMATCH if the season is in progress at another turn; ignored when the abandon was already marked (repeat) / 회원이 본 현재 턴. 진행 중인 시즌의 현재 턴과 다르면 409 TURN_MISMATCH, 이미 포기가 표시된 시즌의 반복 요청에서는 무시한다
+    AbandonResultDto:
+      type: object
+      description: |-
+        State of the season after this abandon request; repeat the request while the status is ABANDONING
+
+        이번 포기 요청 뒤 시즌의 상태. 상태가 ABANDONING 이면 같은 요청을 반복한다
+      required: [seasonId, status, currentTurnNo, pathLength, abandonedTurnNo, notStarted, advancedTurns, remainingTurns]
+      properties:
+        seasonId:
+          type: integer
+          format: int64
+          description: Season identifier / 시즌 식별자
+        status:
+          $ref: '#/components/schemas/SeasonStatus'
+          description: ABANDONING (more turns remain) or FINISHED / ABANDONING(남은 턴이 있다) 또는 FINISHED
+        currentTurnNo:
+          type: integer
+          format: int32
+          description: Current turn now / 지금의 현재 턴
+        pathLength:
+          type: integer
+          format: int32
+          description: Path length (number of turns) / 경로 길이(턴 수)
+        abandonedTurnNo:
+          type: integer
+          format: int32
+          description: The turn at which the season was abandoned / 포기한 턴
+        notStarted:
+          type: boolean
+          description: True for a human member who abandoned before turn 3 (derived from the abandon turn and the member kind) / 사람 회원이 3턴 전에 포기하면 true(포기 턴과 회원 종류에서 계산)
+        advancedTurns:
+          type: integer
+          format: int32
+          description: Auto turns this request advanced / 이번 요청이 진행한 자동 턴 수
+        remainingTurns:
+          type: integer
+          format: int32
+          description: 'Turns still to run: pathLength - currentTurnNo / 남은 턴: pathLength - currentTurnNo'
+    VoidSeasonRequest:
+      type: object
+      description: |-
+        The defect record of a void season. The note holds no key, prompt or model reply
+
+        무효 시즌의 결함 기록. 메모에는 키·프롬프트·모델 응답을 싣지 않는다
+      required: [reason, note]
+      properties:
+        reason:
+          $ref: '#/components/schemas/VoidReason'
+        note:
+          type: string
+          minLength: 1
+          maxLength: 500
+          description: What failed, in the runner's own words (not blank) / 무엇이 실패했는지 러너의 말로(공백 불가)
+    VoidReason:
+      type: string
+      enum: [MODEL_GONE, ENGINE_DEFECT, RUNNER_DEFECT]
     AdvanceTurnRequest:
       type: object
       required: [expectedTurnNo]

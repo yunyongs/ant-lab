@@ -54,7 +54,9 @@ public class SeasonAbandonMarker {
             case ABANDONING -> {
                 // A repeat: the mark exists, so the turn the member saw no longer matters.
             }
-            case IN_PROGRESS -> {
+            case VOID -> throw new DomainException(ErrorCode.SEASON_NOT_ACTIVE, "무효가 된 시즌이다");
+            case IN_PROGRESS, PAUSED -> {
+                // A paused season is abandoned like a running one: pausing is never a way out of the abandon rule.
                 if (season.getCurrentTurnNo() != expectedTurnNo) {
                     throw new DomainException(ErrorCode.TURN_MISMATCH, "시즌의 현재 턴과 포기가 본 턴이 다르다");
                 }

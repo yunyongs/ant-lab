@@ -14,6 +14,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import antlab.agent.AgentDto;
 import antlab.agent.AgentTurnViewDto;
 import antlab.agent.decision.DecisionResultDto;
+import antlab.season.AbandonResultDto;
 import antlab.season.TurnResultDto;
 import antlab.api.config.OpenApiConfig;
 import antlab.season.SeasonDto;
@@ -196,11 +197,12 @@ class AgentRunnerContractTest {
         }
         // A new runner response type must be added here on purpose and goes through the catalog.
         assertThat(types).containsExactlyInAnyOrder(AgentDto.class, SeasonDto.class, AgentTurnViewDto.class,
-                DecisionResultDto.class, TurnResultDto.class, Void.class);
+                DecisionResultDto.class, TurnResultDto.class, AbandonResultDto.class, Void.class);
         assertThat(ExposureRules.check(SeasonDto.class, catalog, false, false)).isEmpty();
         assertThat(ExposureRules.check(AgentTurnViewDto.class, catalog, false, false)).isEmpty();
         assertThat(ExposureRules.check(DecisionResultDto.class, catalog, false, false)).isEmpty();
         assertThat(ExposureRules.check(TurnResultDto.class, catalog, false, false)).isEmpty();
+        assertThat(ExposureRules.check(AbandonResultDto.class, catalog, false, false)).isEmpty();
         assertThat(Arrays.stream(AgentDto.class.getRecordComponents()).map(RecordComponent::getName).toList())
                 .containsExactly("agentId", "displayName", "personaKey", "modelRoute", "modelId", "status", "ownerMemberId");
     }

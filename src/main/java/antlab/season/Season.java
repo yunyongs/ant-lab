@@ -14,6 +14,8 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 import java.math.BigDecimal;
+import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDate;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -31,6 +33,9 @@ import org.hibernate.type.SqlTypes;
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Season extends AuditedEntity {
+
+    /** A pause not resumed within this window becomes an abandon (PLAN §4.1-7, §6.9). A rule, not a setting. */
+    public static final Duration PAUSE_LIMIT = Duration.ofDays(7);
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -99,6 +104,17 @@ public class Season extends AuditedEntity {
             @AttributeOverride(name = "forward", column = @Column(name = "current_forward", nullable = false))})
     private Formation currentFormation;
 
+    /** Start of the current pause; set exactly while the status is PAUSED (ck_season_paused_at). */
+    @Column(name = "paused_at", nullable = true)
+    private Instant pausedAt;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "void_reason", length = 20, nullable = true)
+    private VoidReason voidReason;
+
+    @Column(name = "void_note", length = 500, nullable = true)
+    private String voidNote;
+
     /** 낙관적 락 버전. 래퍼 형이라 저장 전에는 null 이다(새 엔티티 판정에 쓰인다). */
     @Version
     @Column(name = "version", nullable = false)
@@ -142,9 +158,60 @@ public class Season extends AuditedEntity {
      * through the normal turn path. Only a season in progress can be abandoned.
      */
     public void abandon() {
-        requireInProgress();
+        if (status != SeasonStatus.PAUSED) {
+            requireInProgress();
+        }
         this.abandonedTurnNo = currentTurnNo;
+        this.pausedAt = null;
         this.status = SeasonStatus.ABANDONING;
+    }
+
+    /** Stops a season in progress at its current turn; the pause window starts at {@code now}. */
+    public void pause(Instant now) {
+        requireInProgress();
+        this.pausedAt = now;
+        this.status = SeasonStatus.PAUSED;
+    }
+
+    /** True when the season is paused and the pause window is over: exactly 7 days after {@code pausedAt} counts as over. */
+    public boolean pauseExpired(Instant now) {
+        return status == SeasonStatus.PAUSED && !now.isBefore(pausedAt.plus(PAUSE_LIMIT));
+    }
+
+    /**
+     * What a read shows: a pause past its window is an abandon even when nothing has converted it yet (O-2). The
+     * stored row is converted by the agent's next action; this only keeps a dormant agent's season from staying PAUSED.
+     */
+    public SeasonStatus effectiveStatus(Instant now) {
+        return pauseExpired(now) ? SeasonStatus.ABANDONING : status;
+    }
+
+    /** The abandon turn a read shows: the paused turn for an overdue pause, as the conversion would store it. */
+    public Integer effectiveAbandonedTurnNo(Instant now) {
+        return pauseExpired(now) ? Integer.valueOf(currentTurnNo) : abandonedTurnNo;
+    }
+
+    /** Back to the same turn. Only a paused season resumes here; the caller checks {@link #pauseExpired} first. */
+    public void continueAfterPause() {
+        if (status != SeasonStatus.PAUSED) {
+            throw new IllegalStateException("일시 정지된 시즌이 아니다: " + status);
+        }
+        this.pausedAt = null;
+        this.status = SeasonStatus.IN_PROGRESS;
+    }
+
+    /**
+     * Voids the season: terminal, the turn stays where it is. Any unfinished status can be voided (a finished season is
+     * already scored); a repeat on a void season is the caller's to answer, not allowed here.
+     */
+    public void voidSeason(VoidReason reason, String note) {
+        if (status == SeasonStatus.FINISHED || status == SeasonStatus.VOID) {
+            throw new IllegalStateException("무효로 만들 수 없는 상태다: " + status);
+        }
+        this.voidReason = reason;
+        this.voidNote = note;
+        this.pausedAt = null;
+        this.status = SeasonStatus.VOID;
     }
 
     /**

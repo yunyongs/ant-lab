@@ -20,7 +20,7 @@ from antlab_ai.modelport.fake import scripted_attempt  # isort: skip
 
 
 def test_operation_table_equals_the_yaml():
-    assert len(OPERATIONS) == 7
+    assert len(OPERATIONS) == 11
     assert OPERATIONS == yaml_operations()
     assert contract.operations() == yaml_operations()
 
@@ -104,7 +104,7 @@ def test_every_request_body_matches_its_yaml_schema():
         "submitAgentDecision": "DecisionRequest",
         "advanceAgentTurn": "AdvanceTurnRequest",
     }
-    ops = list(OPERATIONS)
+    ops = list(OPERATIONS)[:7]  # the loop's seven; the A5 lifecycle operations are not driven yet
     assert len(transport.calls) == 7
     for call, op in zip(transport.calls, ops, strict=True):
         method, template = OPERATIONS[op]

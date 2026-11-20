@@ -6,6 +6,7 @@ import antlab.member.MemberKind;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.media.Schema.RequiredMode;
 import java.math.BigDecimal;
+import java.time.Instant;
 
 /**
  * 시즌 한 개. 금액은 원 단위 정수 문자열, 비율은 소수 8자리 문자열로 나간다 — scale 은 {@link #from} 한 곳에서 정한다.
@@ -69,13 +70,24 @@ public record SeasonDto(
         return from(s, cashBalance, MemberKind.HUMAN);
     }
 
+    /** The stored state, for a season the caller has just changed. Reads use the overload with a clock. */
     public static SeasonDto from(Season s, BigDecimal cashBalance, MemberKind memberKind) {
-        return new SeasonDto(s.getId(), s.getStatus(), s.getCurrentTurnNo(), s.getPathLength(),
+        return from(s, cashBalance, memberKind, s.getStatus(), s.getAbandonedTurnNo());
+    }
+
+    /** The state a read shows: an overdue pause is already an abandon (O-2). */
+    public static SeasonDto from(Season s, BigDecimal cashBalance, MemberKind memberKind, Instant now) {
+        return from(s, cashBalance, memberKind, s.effectiveStatus(now), s.effectiveAbandonedTurnNo(now));
+    }
+
+    private static SeasonDto from(Season s, BigDecimal cashBalance, MemberKind memberKind, SeasonStatus status,
+            Integer abandonedTurnNo) {
+        return new SeasonDto(s.getId(), status, s.getCurrentTurnNo(), s.getPathLength(),
                 MoneyMath.exactRate(s.getRiskLimit()),
                 FormationDto.from(s.getStartFormation()), FormationDto.from(s.getCurrentFormation()),
                 MoneyMath.exactWon(s.getInitialCash()), MoneyMath.exactWon(cashBalance),
                 MoneyMath.exactRate(s.getFeeRateKr()), MoneyMath.exactRate(s.getFeeRateUs()),
-                MoneyMath.exactRate(s.getFxSpreadRate()), s.getAbandonedTurnNo(),
-                AbandonRules.notStarted(memberKind, s.getAbandonedTurnNo()));
+                MoneyMath.exactRate(s.getFxSpreadRate()), abandonedTurnNo,
+                AbandonRules.notStarted(memberKind, abandonedTurnNo));
     }
 }

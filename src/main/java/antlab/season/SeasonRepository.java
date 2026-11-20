@@ -2,6 +2,7 @@ package antlab.season;
 
 import jakarta.persistence.LockModeType;
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.Lock;
@@ -32,7 +33,9 @@ public interface SeasonRepository extends Repository<Season, Long> {
     @Query("select s from Season s where s.id = :id and s.memberId = :memberId")
     Optional<Season> findByIdAndMemberIdForUpdate(@Param("id") Long id, @Param("memberId") Long memberId);
 
-    long countByMemberIdAndStatusNot(Long memberId, SeasonStatus status);
+    long countByMemberIdAndStatusNotIn(Long memberId, Collection<SeasonStatus> statuses);
+
+    long countByMemberIdAndStatusIn(Long memberId, Collection<SeasonStatus> statuses);
 
     long countByMemberIdAndCreatedAtGreaterThanEqual(Long memberId, Instant since);
 
