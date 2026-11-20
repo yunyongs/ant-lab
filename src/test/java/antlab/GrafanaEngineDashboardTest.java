@@ -87,9 +87,9 @@ class GrafanaEngineDashboardTest {
         assertThat(d.path("templating").path("list")).isEmpty();
         assertThat(panels(d)).hasSize(13);
         assertThat(panels(d).stream().map(p -> p.path("title").asString()).toList()).containsExactly(
-                "엔진 가동", "초당 요청 수", "오류 비율", "사용 중인 투영 슬롯", "프로세스 메모리",
-                "경로별 초당 요청 수", "오류 비율 추이", "경로별 p95 지연", "투영 슬롯",
-                "초당 국면 평가 수", "국면 평가 처리 시간", "프로세스 CPU", "프로세스 메모리 추이");
+                "엔진 가동 상태", "초당 요청 수", "5xx 오류 비율", "사용 중인 투영 슬롯 수", "엔진 메모리 사용량",
+                "경로별 초당 요청 수", "5xx 오류 비율 추이", "경로별 p95 지연", "투영 슬롯 사용 추이",
+                "초당 국면 평가 수", "국면 평가 처리 시간 p95·평균", "엔진 CPU 사용량", "엔진 메모리 사용량 추이");
         assertThat(GrafanaDashboardsSettingsTest.exportLeftovers(d)).isEmpty();
         assertThat(GrafanaDashboardsSettingsTest.panelProblems(d)).isEmpty();
         assertThat(GrafanaDashboardsSettingsTest.uidProblems(List.copyOf(GrafanaDashboards.load().values()))).isEmpty();

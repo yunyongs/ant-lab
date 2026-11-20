@@ -203,6 +203,9 @@ class GrafanaAlertRulesSettingsTest {
                 problems.add(uid + " needs annotations summary and description");
             } else if (!HANGUL.matcher(notes.get("summary") + " " + notes.get("description")).find()) {
                 problems.add(uid + " annotations must be Korean");
+            } else {
+                GrafanaDashboardsSettingsTest.labelProblems(String.valueOf(notes.get("description")), List.of("발생 조건", "의미", "점검 순서"), 3)
+                        .forEach(p -> problems.add(uid + " description: " + p));
             }
             if (rule.get("noDataState") == null || rule.get("execErrState") == null) {
                 problems.add(uid + " needs noDataState and execErrState");
@@ -339,7 +342,7 @@ class GrafanaAlertRulesSettingsTest {
         String viaSetting = mutate("        isPaused: false\n        labels:\n          severity: critical\n          component: api",
                 "        isPaused: false\n        notification_settings:\n          receiver: ops\n        labels:\n          severity: critical\n          component: api");
         assertThat(senderProblems(load(viaSetting), viaSetting)).anyMatch(p -> p.contains("routes to a receiver"));
-        String word = mutate("Prometheus가 api:8081을 2분 넘게 읽지 못할 때 울리고", "Sends a Slack message when api:8081 is down.");
+        String word = mutate("Prometheus가 api:8081을 2분 넘게 읽지 못하면 울립니다.", "Sends a Slack message when api:8081 is down.");
         assertThat(senderProblems(load(word), word)).anyMatch(p -> p.contains("sender"));
     }
 
@@ -367,7 +370,7 @@ class GrafanaAlertRulesSettingsTest {
         assertThat(shapeProblems(load(noFor))).anyMatch(p -> p.contains("has no for"));
         String noSeverity = mutate("          severity: info\n", "");
         assertThat(shapeProblems(load(noSeverity))).anyMatch(p -> p.contains("labels severity"));
-        String noDescription = mutate("          description: \"왜: 엔진이 꺼지면", "          other: \"왜: 엔진이 꺼지면");
+        String noDescription = mutate("          description: \"발생 조건: Prometheus가 engine:8001을", "          other: \"발생 조건: Prometheus가 engine:8001을");
         assertThat(shapeProblems(load(noDescription))).anyMatch(p -> p.contains("annotations"));
         String sameFolder = mutate("folder: ant-lab alerts", "folder: ant-lab");
         assertThat(shapeProblems(load(sameFolder))).anyMatch(p -> p.contains("folder"));

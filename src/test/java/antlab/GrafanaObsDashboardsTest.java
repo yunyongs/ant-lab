@@ -293,9 +293,9 @@ class GrafanaObsDashboardsTest {
         // The two Prometheus targets of the fetch panels (OBS-08) are checked in GrafanaLedgerDashboardTest.
         assertThat(expressions(d)).hasSize(3);
         assertThat(panels(d).stream().map(p -> p.path("title").asString()).toList()).containsExactly(
-                "잡별 마지막 실행", "상태별 실행 추이", "실행당 요청 수와 상한",
-                "추가·정정·변동 없음 행", "실패 대상과 오류 코드", "시계열별 최신 관측",
-                "시장별 최신 일봉", "오늘 수집 요청 수와 일일 상한", "수집 장부 읽기");
+                "수집 잡별 마지막 실행", "일별 수집 실행 수(상태별)", "실행당 요청 수와 상한",
+                "실행별 적재 행 수(추가·정정·변동 없음)", "수집 실패 목록(대상·오류 코드)", "매크로 시계열별 최신 기준일",
+                "시장별 최신 일봉 거래일", "오늘 수집 요청 수와 일일 상한", "수집 장부 읽기 상태");
     }
 
     @Test
