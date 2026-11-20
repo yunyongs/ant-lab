@@ -134,16 +134,16 @@ class GrafanaDbDashboardTest {
     void 데이터베이스_대시보드는_정해진_모양이다() throws IOException {
         JsonNode d = db();
         assertThat(d.path("uid").asString()).isEqualTo("antlab-db");
-        assertThat(d.path("title").asString()).isEqualTo("ant-lab · Database");
+        assertThat(d.path("title").asString()).isEqualTo("ant-lab · 데이터베이스");
         assertThat(d.path("tags")).hasSize(1);
         assertThat(d.path("tags").get(0).asString()).isEqualTo("antlab");
         assertThat(d.path("timezone").asString()).isEqualTo("Asia/Seoul");
         assertThat(d.path("templating").path("list")).isEmpty();
         assertThat(panels(d)).hasSize(11);
         assertThat(panels(d).stream().map(p -> p.path("title").asString()).toList()).containsExactly(
-                "Database reachable", "Database size", "Client connections", "Deadlocks in range", "Longest open transaction",
-                "Connections by role and state", "Database size over time", "Transactions per second", "Deadlocks",
-                "Longest open transaction over time", "Largest tables");
+                "DB 접속 가능", "데이터베이스 크기", "클라이언트 연결", "기간 내 교착", "가장 오래 열린 트랜잭션",
+                "역할·상태별 연결", "데이터베이스 크기 추이", "초당 트랜잭션", "교착",
+                "가장 오래 열린 트랜잭션 추이", "큰 테이블");
         assertThat(GrafanaDashboardsSettingsTest.exportLeftovers(d)).isEmpty();
         assertThat(GrafanaDashboardsSettingsTest.panelProblems(d)).isEmpty();
         assertThat(GrafanaDashboardsSettingsTest.uidProblems(List.copyOf(GrafanaDashboards.load().values()))).isEmpty();

@@ -188,6 +188,8 @@ class GrafanaAlertRulesSettingsTest {
             }
             if (rule.get("title") == null || rule.get("condition") == null) {
                 problems.add(uid + " has no title or condition");
+            } else if (!HANGUL.matcher(String.valueOf(rule.get("title"))).find()) {
+                problems.add(uid + " title must be Korean");
             }
             if (rule.get("for") == null) {
                 problems.add(uid + " has no for");
@@ -199,8 +201,8 @@ class GrafanaAlertRulesSettingsTest {
             Map<String, Object> notes = (Map<String, Object>) rule.get("annotations");
             if (notes == null || notes.get("summary") == null || notes.get("description") == null) {
                 problems.add(uid + " needs annotations summary and description");
-            } else if (HANGUL.matcher(notes.get("summary") + " " + notes.get("description")).find()) {
-                problems.add(uid + " annotations are English only");
+            } else if (!HANGUL.matcher(notes.get("summary") + " " + notes.get("description")).find()) {
+                problems.add(uid + " annotations must be Korean");
             }
             if (rule.get("noDataState") == null || rule.get("execErrState") == null) {
                 problems.add(uid + " needs noDataState and execErrState");
@@ -337,7 +339,7 @@ class GrafanaAlertRulesSettingsTest {
         String viaSetting = mutate("        isPaused: false\n        labels:\n          severity: critical\n          component: api",
                 "        isPaused: false\n        notification_settings:\n          receiver: ops\n        labels:\n          severity: critical\n          component: api");
         assertThat(senderProblems(load(viaSetting), viaSetting)).anyMatch(p -> p.contains("routes to a receiver"));
-        String word = mutate("Prometheus cannot scrape api:8081.", "Sends a Slack message when api:8081 is down.");
+        String word = mutate("Prometheus가 api:8081을 2분 넘게 읽지 못할 때 울리고", "Sends a Slack message when api:8081 is down.");
         assertThat(senderProblems(load(word), word)).anyMatch(p -> p.contains("sender"));
     }
 
@@ -365,7 +367,7 @@ class GrafanaAlertRulesSettingsTest {
         assertThat(shapeProblems(load(noFor))).anyMatch(p -> p.contains("has no for"));
         String noSeverity = mutate("          severity: info\n", "");
         assertThat(shapeProblems(load(noSeverity))).anyMatch(p -> p.contains("labels severity"));
-        String noDescription = mutate("          description: \"Prometheus cannot scrape engine:8001.", "          other: \"Prometheus cannot scrape engine:8001.");
+        String noDescription = mutate("          description: \"왜: 엔진이 꺼지면", "          other: \"왜: 엔진이 꺼지면");
         assertThat(shapeProblems(load(noDescription))).anyMatch(p -> p.contains("annotations"));
         String sameFolder = mutate("folder: ant-lab alerts", "folder: ant-lab");
         assertThat(shapeProblems(load(sameFolder))).anyMatch(p -> p.contains("folder"));
@@ -384,8 +386,8 @@ class GrafanaAlertRulesSettingsTest {
         String raw = mutate("max(antlab_ollama_spend_usd{job=\\\"antlab-ledgers\\\",window=\\\"total\\\"})",
                 "(max(antlab_ollama_spend_usd{job=\\\"antlab-ledgers\\\",window=\\\"total\\\"}) or vector(0))");
         assertThat(ledgerProblems(load(raw))).anyMatch(p -> p.contains("fills a missing ledger"));
-        String noData = mutate("        noDataState: OK\n        execErrState: Error\n        for: 2m\n        isPaused: false\n        labels:\n          severity: warning\n          component: ledgers\n        annotations:\n          summary: \"OpenRouter",
-                "        noDataState: Alerting\n        execErrState: Error\n        for: 2m\n        isPaused: false\n        labels:\n          severity: warning\n          component: ledgers\n        annotations:\n          summary: \"OpenRouter");
+        String noData = mutate("        noDataState: OK\n        execErrState: Error\n        for: 2m\n        isPaused: false\n        labels:\n          severity: warning\n          component: ledgers\n        annotations:\n          summary: \"오늘 OpenRouter",
+                "        noDataState: Alerting\n        execErrState: Error\n        for: 2m\n        isPaused: false\n        labels:\n          severity: warning\n          component: ledgers\n        annotations:\n          summary: \"오늘 OpenRouter");
         assertThat(ledgerProblems(load(noData))).anyMatch(p -> p.contains("no data as OK"));
     }
 }
