@@ -45,6 +45,8 @@ class FakeKis:
             return Resp(token_body())
         self.gets += 1
         kind = self.fail_at.get(self.gets)
+        if kind == "reset":
+            raise ConnectionError("Connection aborted.", ConnectionResetError(54, "Connection reset by peer"))
         if kind == "rate":
             return Resp({"msg_cd": "EGW00201", "rt_cd": "1"}, 500)
         if kind == "500":
