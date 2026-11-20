@@ -132,3 +132,117 @@ def test_kis_excd_filled_for_us_rows_only():
             assert r["kis_excd"] in {"NAS", "NYS", "AMS"}, r["ticker"]
         else:
             assert r["kis_excd"] == "", r["ticker"]
+
+
+SELECTED_COUNTS = {("KR", "STOCK"): 50, ("US", "STOCK"): 100}
+ETF_SELECTED = 30
+ASSET_COLUMNS = "market,ticker,name,asset_type,currency,group_code,listed_on,return_basis,proxy_index_name".split(",")
+
+
+def _selected():
+    return [r for r in _rows() if r["status"] == "SELECTED"]
+
+
+def test_every_row_has_a_status_and_selected_counts_match_the_places():
+    rows = _rows()
+    assert all(r["status"] for r in rows)
+    selected = Counter((r["market"], r["asset_type"]) for r in _selected())
+    for key, n in SELECTED_COUNTS.items():
+        assert selected[key] == n, key
+    assert selected[("KR", "ETF")] + selected[("US", "ETF")] == ETF_SELECTED
+
+
+def test_selected_rows_are_the_first_passing_rows_by_rank():
+    rows = _rows()
+    groups = {"KR_STOCK": lambda r: (r["market"], r["asset_type"]) == ("KR", "STOCK"),
+              "US_STOCK": lambda r: (r["market"], r["asset_type"]) == ("US", "STOCK"),
+              "ETF": lambda r: r["asset_type"] == "ETF"}
+    for name, pick in groups.items():
+        seen_reserve = False
+        for r in sorted((r for r in rows if pick(r)), key=lambda r: int(r["rule_rank"])):
+            if r["status"] == "FAILED_CHECK":
+                continue
+            if r["status"] == "RESERVE":
+                seen_reserve = True
+            else:
+                assert not seen_reserve, (name, r["ticker"])
+
+
+def test_failed_check_rows_carry_a_reason_and_stocks_have_a_2006_12_close():
+    for r in _rows():
+        if r["status"] == "FAILED_CHECK":
+            assert "FAILED_CHECK:" in r["note"], r["ticker"]
+        if r["status"] == "SELECTED" and r["asset_type"] == "STOCK":
+            pending = "CHECK_PENDING: YF_PENDING" in r["note"]
+            assert (r["has_2006_12"] == "Y") != pending, r["ticker"]
+            if pending:
+                assert r["has_2006_12"] == "" and r["yf_first_month"] == "", r["ticker"]
+            assert r["kis_first_month"], r["ticker"]
+
+
+def test_p0_08_assets_and_macro_etfs_are_selected():
+    selected = {(r["market"], r["ticker"]) for r in _selected()}
+    with open(SAMPLE / "asset.csv", encoding="utf-8", newline="") as f:
+        for r in csv.DictReader(f):
+            assert (r["market"], r["ticker"]) in selected, r["ticker"]
+    for ticker in MACRO_ETF_SECTION_3_2:
+        assert ("KR", ticker) in selected, ticker
+
+
+def test_asset_csv_matches_the_selection_and_the_sample_contract():
+    with open(FULL / "asset.csv", encoding="utf-8", newline="") as f:
+        reader = csv.DictReader(f)
+        assert reader.fieldnames == ASSET_COLUMNS
+        assets = list(reader)
+    assert {(a["market"], a["ticker"]) for a in assets} == {(r["market"], r["ticker"]) for r in _selected()}
+    assert len(assets) == 180
+    keys = [(a["market"], a["ticker"].encode()) for a in assets]
+    assert keys == sorted(keys)
+    for a in assets:
+        assert a["currency"] == ("KRW" if a["market"] == "KR" else "USD")
+    with open(SAMPLE / "asset.csv", encoding="utf-8", newline="") as f:
+        sample = {(r["market"], r["ticker"]): r for r in csv.DictReader(f)}
+    by_key = {(a["market"], a["ticker"]): a for a in assets}
+    for key, s in sample.items():
+        assert by_key[key] == s, key
+
+
+def test_fetch_targets_load_and_follow_the_selection():
+    import sys
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from batch import load_fetch_targets
+
+    targets = load_fetch_targets(FULL / "fetch_targets.csv")
+    assert {(t.market, t.ticker) for t in targets} == {(r["market"], r["ticker"]) for r in _selected()}
+    got = [(t.market, t.ticker) for t in targets]
+    assert got[:4] == [("KR", "069500"), ("US", "SPY"), ("US", "QQQ"), ("US", "GLD")]
+    pool = {(r["market"], r["ticker"]): r for r in _rows()}
+    with open(SAMPLE / "asset.csv", encoding="utf-8", newline="") as f:
+        p0 = {(r["market"], r["ticker"]) for r in csv.DictReader(f)}
+    stage_of = {}
+    for i, key in enumerate(got):
+        row = pool[key]
+        if i < 4:
+            stage = 1
+        elif key in p0:
+            stage = 2
+        else:
+            stage = {("KR", "STOCK"): 3, ("KR", "ETF"): 4, ("US", "STOCK"): 5, ("US", "ETF"): 6}[(row["market"], row["asset_type"])]
+        stage_of[key] = stage
+    stages = [stage_of[k] for k in got]
+    assert stages == sorted(stages)
+    for stage in range(1, 7):
+        keys = [k for k in got if stage_of[k] == stage]
+        if stage == 2:
+            ordered = sorted(keys, key=lambda k: (k[0], int(pool[k]["rule_rank"])))
+        elif stage > 2:
+            ordered = sorted(keys, key=lambda k: int(pool[k]["rule_rank"]))
+        else:
+            ordered = keys
+        assert keys == ordered, stage
+    for t in targets:
+        row = pool[(t.market, t.ticker)]
+        assert t.kis_basis == ("RAW" if (t.market == "KR" and row["asset_type"] == "ETF") else "ADJUSTED")
+        assert t.kis_from.strftime("%Y-%m") == row["kis_first_month"]
+        if t.market == "US":
+            assert t.yf_canonical_to.strftime("%Y-%m") >= "2007-12"
