@@ -27,7 +27,7 @@ import org.springframework.test.web.servlet.assertj.MockMvcTester;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.JsonNode;
 
-/** The runner league routes: create, read and close. Entry into a league is not part of them. */
+/** The runner league routes: create, read and close. Entry into a league is in LeagueEntryTest. */
 @IntegrationTest
 @Transactional
 @Sql({"/fixtures/history_pool.sql", "/fixtures/replay_months.sql"})
@@ -62,7 +62,7 @@ class LeagueRoutesTest {
         return jdbc.queryForObject("SELECT count(*) FROM league", Long.class);
     }
 
-    /** An agent season put in the league by SQL: the entry route is C2, the read and close rules need a seat to look at. */
+    /** An agent season put in the league by SQL, so the read and close rules can be tried on any season state. */
     private long seat(long league) throws Exception {
         long agent = AgentRunnerSupport.register(mvc, REGISTER_BODY);
         long season = json(post(mvc, AGENTS + "/" + agent + "/seasons", START_BODY)).get("id").asLong();
@@ -129,6 +129,22 @@ class LeagueRoutesTest {
         MockHttpServletResponse r = post(mvc, LEAGUES, body);
 
         assertThat(r.getStatus()).isIn(400, 422);
+        assertThat(leagueRows()).isEqualTo(before);
+    }
+
+    @Test
+    void the_name_is_measured_after_the_strip_and_a_control_character_is_refused() throws Exception {
+        // 2 spaces + 49 characters is 51 raw characters but a 49-character name once stripped
+        assertThat(post(mvc, LEAGUES, "{\"name\": \"  " + "x".repeat(49) + "\"}").getStatus()).isEqualTo(201);
+        assertThat(post(mvc, LEAGUES, "{\"name\": \"" + "x".repeat(50) + "  \"}").getStatus()).isEqualTo(201);
+        assertThat(post(mvc, LEAGUES, "{\"name\": \"  " + "x".repeat(51) + "\"}").getStatus()).isEqualTo(400);
+        long before = leagueRows();
+
+        for (String name : new String[] {"a\\tb", "a\\nb", "a\\u0000b", "\\u0007bell"}) {
+            MockHttpServletResponse r = post(mvc, LEAGUES, "{\"name\": \"" + name + "\"}");
+            assertThat(r.getStatus()).as(name).isEqualTo(400);
+            assertThat(json(r).get("code").asString()).isEqualTo("INVALID_ARGUMENT");
+        }
         assertThat(leagueRows()).isEqualTo(before);
     }
 

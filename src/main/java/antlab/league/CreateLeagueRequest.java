@@ -1,13 +1,13 @@
 package antlab.league;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Size;
 
 /** Create a league. The seed, base date and money settings are not taken from the request; the server draws and fixes them. */
 public record CreateLeagueRequest(
-        @NotBlank @Size(max = 50) String name,
+        @NotBlank @Schema(maxLength = 50) String name,
         Integer pathLength,
         @Min(2) @Max(20) Integer maxEntries) {
 
