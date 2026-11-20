@@ -75,8 +75,8 @@ class LeastPrivilegeFlowTest {
         {"ZZUS03", "40", "FORWARD_DEFENSIVE"},
     };
 
-    /** Tables nothing in the application writes yet: agent_call (AG-02 part 3), season_score and rating_history (MVP-18 schema), projection (written only by a call to the engine, which this flow has none of). turn_feed is written by the turn advance since MVP-11. */
-    private static final List<String> WITHOUT_WRITER = List.of("agent_call", "season_score", "rating_history", "projection");
+    /** Tables nothing in the application writes yet: agent_call (AG-02 part 3), season_score and rating_history (MVP-18 schema), projection (written only by a call to the engine, which this flow has none of), league_entry (entry is AG-04 PR C2; PR C1 only creates and closes a league). turn_feed is written by the turn advance since MVP-11. */
+    private static final List<String> WITHOUT_WRITER = List.of("agent_call", "season_score", "rating_history", "projection", "league_entry");
 
     private static AppRoleDatabase database;
 
@@ -231,6 +231,11 @@ class LeastPrivilegeFlowTest {
         Reply view = anonymous.send(HttpMethod.GET, "/internal/agent-runner/v1/agents/" + agent + "/seasons/"
                 + start.json().get("id").asLong() + "/turn-view", null, null, "application/json", runner);
         assertThat(view.status()).as("agent turn view " + view.body()).isEqualTo(200);
+        // a league is a mutable row: the create inserts it and the close updates it, both as the app role
+        Reply league = anonymous.post("/internal/agent-runner/v1/leagues", "{\"name\": \"FAKE league\"}", runner);
+        assertThat(league.status()).as("league create " + league.body()).isEqualTo(201);
+        Reply closed = anonymous.post("/internal/agent-runner/v1/leagues/" + league.json().get("id").asLong() + "/close", "", runner);
+        assertThat(closed.status()).as("league close " + closed.body()).isEqualTo(200);
     }
 
     private void runTheCollector() {

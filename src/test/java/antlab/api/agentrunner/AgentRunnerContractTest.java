@@ -197,7 +197,7 @@ class AgentRunnerContractTest {
         }
         // A new runner response type must be added here on purpose and goes through the catalog.
         assertThat(types).containsExactlyInAnyOrder(AgentDto.class, SeasonDto.class, antlab.agent.AgentSeasonConfigDto.class, AgentTurnViewDto.class,
-                DecisionResultDto.class, TurnResultDto.class, AbandonResultDto.class, Void.class);
+                DecisionResultDto.class, TurnResultDto.class, AbandonResultDto.class, antlab.league.LeagueDto.class, Void.class);
         assertThat(ExposureRules.check(SeasonDto.class, catalog, false, false)).isEmpty();
         assertThat(ExposureRules.check(AgentTurnViewDto.class, catalog, false, false)).isEmpty();
         assertThat(Arrays.stream(antlab.agent.AgentSeasonConfigDto.class.getRecordComponents()).map(RecordComponent::getName).toList())
@@ -207,6 +207,11 @@ class AgentRunnerContractTest {
         assertThat(ExposureRules.check(DecisionResultDto.class, catalog, false, false)).isEmpty();
         assertThat(ExposureRules.check(TurnResultDto.class, catalog, false, false)).isEmpty();
         assertThat(ExposureRules.check(AbandonResultDto.class, catalog, false, false)).isEmpty();
+        // The league answers carry no seed, date, engine or money field: only these components exist.
+        assertThat(Arrays.stream(antlab.league.LeagueDto.class.getRecordComponents()).map(RecordComponent::getName).toList())
+                .containsExactly("id", "name", "status", "pathLength", "maxEntries", "entries");
+        assertThat(Arrays.stream(antlab.league.LeagueEntryDto.class.getRecordComponents()).map(RecordComponent::getName).toList())
+                .containsExactly("memberId", "memberKind", "displayName", "seasonId", "status", "currentTurnNo");
         assertThat(Arrays.stream(AgentDto.class.getRecordComponents()).map(RecordComponent::getName).toList())
                 .containsExactly("agentId", "displayName", "personaKey", "modelRoute", "modelId", "status", "ownerMemberId");
     }

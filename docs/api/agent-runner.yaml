@@ -593,6 +593,139 @@ paths:
                 $ref: '#/components/schemas/Problem'
         '500':
           $ref: '#/components/responses/InternalError'
+  /internal/agent-runner/v1/leagues:
+    post:
+      tags: [league]
+      operationId: createLeague
+      summary: Create a league / 리그 생성
+      description: |-
+        Creates a manual same-seed group for the configured owner. The server draws the seed and fixes the path length and the season settings; none of them is taken from the request and the seed is never returned. Entry into a league is not part of this operation.
+
+        설정된 소유자의 수동 같은 시드 묶음을 만든다. 시드는 서버가 뽑고 경로 길이와 시즌 설정도 서버가 고정하며, 요청에서 받지 않고 시드는 돌려주지 않는다. 리그 참가는 이 연산에 없다.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateLeagueRequest'
+      responses:
+        '201':
+          description: The league that was created, without entries / 새로 만든 리그(참가 없음)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeagueDto'
+        '400':
+          description: The request is wrong — INVALID_ARGUMENT / 요청이 틀렸다 — INVALID_ARGUMENT
+          x-error-codes: [INVALID_ARGUMENT]
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '409':
+          description: A league cannot be created now — POOL_NOT_LOADED, POOL_NOT_JUDGED / 지금은 만들 수 없다 — POOL_NOT_LOADED, POOL_NOT_JUDGED
+          x-error-codes: [POOL_NOT_LOADED, POOL_NOT_JUDGED]
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          description: A path of the requested length cannot be built — PATH_TOO_LONG / 요청한 길이의 경로를 만들 수 없다 — PATH_TOO_LONG
+          x-error-codes: [PATH_TOO_LONG]
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          description: The path service is busy or not reachable; the runner retries later — ENGINE_UNAVAILABLE / 경로 서비스가 바쁘거나 연결되지 않는다. 러너는 나중에 다시 시도한다 — ENGINE_UNAVAILABLE
+          x-error-codes: [ENGINE_UNAVAILABLE]
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /internal/agent-runner/v1/leagues/{leagueId}:
+    get:
+      tags: [league]
+      operationId: getLeague
+      summary: A league and its seats / 리그와 참가 목록
+      description: |-
+        Returns the league with one row per seat. The status of a seat is the effective season status (an overdue pause already reads as an abandon). No seed, date, engine version or price is returned. A league of another owner and a missing league give the same answer.
+
+        리그와 참가별 한 행을 준다. 참가의 상태는 시즌의 유효 상태다(기한이 지난 일시 정지는 이미 포기로 읽는다). 시드·날짜·엔진 버전·가격은 주지 않는다. 다른 소유자의 리그와 없는 리그는 같은 응답이다.
+      parameters:
+        - $ref: '#/components/parameters/LeagueId'
+      responses:
+        '200':
+          description: The league / 리그
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeagueDto'
+        '400':
+          description: The league number is not a number — INVALID_ARGUMENT / 리그 번호가 숫자가 아니다 — INVALID_ARGUMENT
+          x-error-codes: [INVALID_ARGUMENT]
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          description: The league does not exist or is not this owner's. One answer for both — NOT_FOUND / 리그가 없거나 이 소유자의 것이 아니다. 둘 다 같은 응답이다 — NOT_FOUND
+          x-error-codes: [NOT_FOUND]
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /internal/agent-runner/v1/leagues/{leagueId}/close:
+    post:
+      tags: [league]
+      operationId: closeLeague
+      summary: Close a league / 리그 마감
+      description: |-
+        Stops new entries once every seat is FINISHED or VOID. Closing a closed league answers the league as it is (200, no change).
+
+        모든 참가가 FINISHED 또는 VOID 가 되면 새 참가를 막는다. 이미 닫힌 리그를 다시 닫으면 그대로 200으로 답한다(변경 없음).
+      parameters:
+        - $ref: '#/components/parameters/LeagueId'
+      responses:
+        '200':
+          description: The league after this request / 이번 요청 뒤 리그
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeagueDto'
+        '400':
+          description: The league number is not a number — INVALID_ARGUMENT / 리그 번호가 숫자가 아니다 — INVALID_ARGUMENT
+          x-error-codes: [INVALID_ARGUMENT]
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          description: The league does not exist or is not this owner's. One answer for both — NOT_FOUND / 리그가 없거나 이 소유자의 것이 아니다. 둘 다 같은 응답이다 — NOT_FOUND
+          x-error-codes: [NOT_FOUND]
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: A seat is still playing — LEAGUE_NOT_SETTLED / 아직 진행 중인 참가가 있다 — LEAGUE_NOT_SETTLED
+          x-error-codes: [LEAGUE_NOT_SETTLED]
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '500':
+          $ref: '#/components/responses/InternalError'
 components:
   securitySchemes:
     runnerToken:
@@ -625,6 +758,14 @@ components:
         type: integer
         format: int32
         minimum: 0
+    LeagueId:
+      name: leagueId
+      in: path
+      required: true
+      description: League identifier from the league creation / 리그 생성에서 받은 리그 식별자
+      schema:
+        type: integer
+        format: int64
   responses:
     Unauthenticated:
       description: |-
@@ -1742,6 +1883,71 @@ components:
         keyword:
           type: string
           enum: [type, required, additionalProperties, const, enum, pattern, maxLength, maxItems, minimum, maximum]
+    CreateLeagueRequest:
+      type: object
+      description: |-
+        The seed, base date and money settings are not taken from the request
+
+        시드·기준일·돈 설정은 요청에서 받지 않는다
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 50
+        pathLength:
+          type: integer
+          format: int32
+          default: 12
+          description: 'Path length (number of turns): 12, 24 or 60. 12 when omitted / 경로 길이(턴 수) 12, 24, 60. 생략하면 12'
+        maxEntries:
+          type: integer
+          format: int32
+          minimum: 2
+          maximum: 20
+          default: 8
+    LeagueDto:
+      type: object
+      required: [id, name, status, pathLength, maxEntries, entries]
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        status:
+          type: string
+          enum: [OPEN, CLOSED]
+        pathLength:
+          type: integer
+          format: int32
+        maxEntries:
+          type: integer
+          format: int32
+        entries:
+          type: array
+          items:
+            $ref: '#/components/schemas/LeagueEntryDto'
+    LeagueEntryDto:
+      type: object
+      required: [memberId, memberKind, displayName, seasonId, status, currentTurnNo]
+      properties:
+        memberId:
+          type: integer
+          format: int64
+        memberKind:
+          type: string
+          enum: [HUMAN, AGENT]
+        displayName:
+          type: string
+        seasonId:
+          type: integer
+          format: int64
+        status:
+          $ref: '#/components/schemas/SeasonStatus'
+        currentTurnNo:
+          type: integer
+          format: int32
     Problem:
       type: object
       description: RFC 9457 problem details + a top-level code / RFC 9457 문제 상세 + 최상위 code
@@ -1781,4 +1987,4 @@ components:
              LINEUP_MISMATCH, ASSET_NOT_IN_POOL, SOURCE_NOT_VISIBLE, INSUFFICIENT_CASH, INSUFFICIENT_HOLDING, POSITION_CONFLICT, POSITION_REQUIRED,
              INVALID_FORMATION, EVENT_TIME_CONFLICT, RECONCILIATION_FAILED, SEASON_HALTED, FORBIDDEN, EMAIL_TAKEN,
              UNAUTHENTICATED, INVALID_CREDENTIALS, AGENT_RETIRED, DECISION_CONFLICT, DECISION_MISSING,
-             PERSONA_VERSION_CONFLICT, PERSONA_VERSION_STALE]
+             PERSONA_VERSION_CONFLICT, PERSONA_VERSION_STALE, LEAGUE_NOT_SETTLED]

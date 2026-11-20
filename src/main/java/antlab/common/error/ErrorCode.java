@@ -73,5 +73,7 @@ public enum ErrorCode {
     /** The persona version is already recorded with another file hash (agent runner). */
     PERSONA_VERSION_CONFLICT,
     /** A newer persona version is already recorded, so this one cannot start a season (agent runner). */
-    PERSONA_VERSION_STALE
+    PERSONA_VERSION_STALE,
+    /** A league cannot be closed while a seat is still playing (agent runner). */
+    LEAGUE_NOT_SETTLED
 }
