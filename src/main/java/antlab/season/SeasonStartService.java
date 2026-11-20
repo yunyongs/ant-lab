@@ -31,8 +31,12 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class SeasonStartService {
 
-    /** 진행 중(FINISHED 가 아닌) 시즌 상한. 규칙이라 설정이 아니다 — 설정이면 같은 판에서 규칙이 바뀐다. */
+    /**
+     * 진행 중(FINISHED·VOID 가 아닌) 시즌 상한. 규칙이라 설정이 아니다 — 설정이면 같은 판에서 규칙이 바뀐다.
+     * A paused season still counts (it can resume); a void season is over and does not.
+     */
     static final int MAX_ACTIVE_SEASONS = 3;
+    private static final List<SeasonStatus> NOT_ACTIVE = List.of(SeasonStatus.FINISHED, SeasonStatus.VOID);
 
     private final CurrentMember currentMember;
     private final SeasonRepository seasons;
@@ -66,7 +70,7 @@ public class SeasonStartService {
     @Transactional
     public SeasonDto start(StartSeasonRequest request) {
         long memberId = currentMember.ensureId();
-        if (seasons.countByMemberIdAndStatusNot(memberId, SeasonStatus.FINISHED) >= MAX_ACTIVE_SEASONS) {
+        if (seasons.countByMemberIdAndStatusNotIn(memberId, NOT_ACTIVE) >= MAX_ACTIVE_SEASONS) {
             throw new DomainException(ErrorCode.SEASON_LIMIT, "진행 중인 시즌은 최대 3개다. 끝난 뒤 새로 시작한다");
         }
 

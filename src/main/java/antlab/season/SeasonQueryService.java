@@ -7,6 +7,8 @@ import antlab.common.error.ErrorCode;
 import antlab.member.CurrentMember;
 import antlab.member.MemberKind;
 import antlab.member.MemberRepository;
+import java.time.Clock;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.stereotype.Service;
@@ -21,14 +23,16 @@ public class SeasonQueryService {
     private final CashAccountRepository accounts;
     private final TurnPriceRepository turnPrices;
     private final MemberRepository members;
+    private final Clock clock;
 
     public SeasonQueryService(CurrentMember currentMember, SeasonRepository seasons, CashAccountRepository accounts,
-            TurnPriceRepository turnPrices, MemberRepository members) {
+            TurnPriceRepository turnPrices, MemberRepository members, Clock clock) {
         this.currentMember = currentMember;
         this.seasons = seasons;
         this.accounts = accounts;
         this.turnPrices = turnPrices;
         this.members = members;
+        this.clock = clock;
     }
 
     @Transactional(readOnly = true)
@@ -38,8 +42,9 @@ public class SeasonQueryService {
             return new SeasonListDto(List.of());
         }
         MemberKind kind = kindOf(memberId.get());
+        Instant now = clock.instant();
         return new SeasonListDto(seasons.findWithBalanceByMemberId(memberId.get()).stream()
-                .map(r -> SeasonDto.from(r.season(), r.balance(), kind)).toList());
+                .map(r -> SeasonDto.from(r.season(), r.balance(), kind, now)).toList());
     }
 
     @Transactional(readOnly = true)
@@ -47,7 +52,7 @@ public class SeasonQueryService {
         Season season = find(seasonId);
         CashAccount account = accounts.findById(season.getId())
                 .orElseThrow(() -> new IllegalStateException("시즌에 현금 계좌가 없다"));
-        return SeasonDto.from(season, account.getBalance(), kindOf(season.getMemberId()));
+        return SeasonDto.from(season, account.getBalance(), kindOf(season.getMemberId()), clock.instant());
     }
 
     /** One read per request, never per row: the kind decides the derived notStarted flag. */

@@ -3103,7 +3103,7 @@ components:
       enum: [RANKING, FEED, ALERT, BENCH, DIRECT]
     SeasonStatus:
       type: string
-      enum: [IN_PROGRESS, ABANDONING, FINISHED, HALTED]
+      enum: [IN_PROGRESS, ABANDONING, FINISHED, HALTED, PAUSED, VOID]
     EventCategory:
       type: string
       enum: [GEOPOLITICS, TRADE, POLITICS, SUPPLY_SHOCK, FINANCIAL, POLICY, HEALTH]

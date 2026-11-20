@@ -2335,7 +2335,7 @@ export interface components {
         /** @enum {string} */
         OrderSource: "RANKING" | "FEED" | "ALERT" | "BENCH" | "DIRECT";
         /** @enum {string} */
-        SeasonStatus: "IN_PROGRESS" | "ABANDONING" | "FINISHED" | "HALTED";
+        SeasonStatus: "IN_PROGRESS" | "ABANDONING" | "FINISHED" | "HALTED" | "PAUSED" | "VOID";
         /** @enum {string} */
         EventCategory: "GEOPOLITICS" | "TRADE" | "POLITICS" | "SUPPLY_SHOCK" | "FINANCIAL" | "POLICY" | "HEALTH";
         /** @enum {string} */
