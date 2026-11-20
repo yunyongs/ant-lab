@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Monitoring smoke (MON-05): throwaway compose project with db, api, prometheus, grafana and postgres-exporter; plays one season,
-# checks Prometheus (api and database targets) and the Grafana dashboards, then removes the project. Manual only (needs Docker and the sample CSVs).
+# checks Prometheus (api and database targets), the Grafana dashboards and the alert rules (OBS-10: stops the engine and waits for its rule to fire), then removes the project. Manual only (needs Docker and the sample CSVs).
 # Exit codes: 0 pass, 1 assertion failed, 2 usage or preflight, 130 interrupted.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -250,6 +250,18 @@ echo "== check Prometheus and Grafana"
 helper prometheus "$prom_url" 90 || fail "Prometheus assertion failed (A1-A3)"
 helper wait-ready "$grafana_url/api/health" 60 || fail "Grafana is not ready"
 SMOKE_GF_PASSWORD="$gf_password" helper grafana "$grafana_url" "$dashboard_dir" || fail "Grafana assertion failed (A4-A8)"
+
+echo "== check the alert rules (OBS-10)"
+# The first evaluation of the 5-minute collector group can take that long. The engine rule: normal while the engine runs, firing
+# within its 1-minute for window (plus a scrape and an evaluation) once the engine is stopped, normal again after a restart.
+SMOKE_GF_PASSWORD="$gf_password" helper alert-rules "$grafana_url" 420 || fail "alert rule assertion failed (AL1-AL3)"
+SMOKE_GF_PASSWORD="$gf_password" helper alert-state "$grafana_url" antlab-alert-engine-down inactive 60 AL4a || fail "engine rule is not normal while the engine runs"
+dc stop engine || fail "could not stop engine"
+SMOKE_GF_PASSWORD="$gf_password" helper alert-state "$grafana_url" antlab-alert-engine-down firing 240 AL4 || fail "engine rule did not fire after the engine stopped"
+dc up -d --wait --wait-timeout 120 engine || fail "engine did not restart"
+SMOKE_GF_PASSWORD="$gf_password" helper alert-state "$grafana_url" antlab-alert-engine-down inactive 240 AL5 || fail "engine rule did not clear after the restart"
+# The smoke leaves the ledger paths unset (readable 0 from the first scrape): that rule must stay quiet.
+SMOKE_GF_PASSWORD="$gf_password" helper alert-state "$grafana_url" antlab-alert-ledger-unreadable inactive 30 AL6 || fail "ledger-unreadable rule fires for an unset ledger path"
 
 checks="$(grep -c '^PASS ' "$work/checks.log" || true)"
 printf '\nmonitoring smoke: PASS (%s checks)\n' "$checks"

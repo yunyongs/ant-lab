@@ -222,5 +222,80 @@ def urllib_query(url):
     return urllib.parse.parse_qs(urllib.parse.urlparse(url).query)["query"][0]
 
 
+
+def rules_body(states):
+    return {"data": {"groups": [{"rules": [{"uid": uid, "state": st, "health": h, "lastEvaluation": "2026-11-20T01:00:00Z"} for uid, (st, h) in states.items()]}]}}
+
+
+class AlertRules(unittest.TestCase):
+    """OBS-10: the provisioned rules are evaluated without error, read-only, and nothing can send."""
+
+    def setUp(self):
+        checks.failed = False
+
+    def fake(self, states, provenance="file", contacts=()):
+        def http(url, method="GET", body=None, auth=False, timeout=15):
+            if url.endswith(checks.ALERT_RULES_API):
+                return 200, rules_body(states)
+            if url.endswith("/alert-rules"):
+                return 200, [{"uid": u, "provenance": provenance} for u in checks.ALERT_UIDS]
+            if url.endswith("/contact-points"):
+                return 200, [{"name": n} for n in contacts]
+            return 404, None
+        return http
+
+    def run_rules(self, **kwargs):
+        states = kwargs.pop("states", {u: ("inactive", "ok") for u in checks.ALERT_UIDS})
+        out = io.StringIO()
+        with mock.patch.object(checks, "http", self.fake(states, **kwargs)), mock.patch.object(checks.time, "sleep"), \
+                mock.patch.object(checks.time, "monotonic", side_effect=[0] + [100] * 40), contextlib.redirect_stdout(out):
+            checks.cmd_alert_rules("http://grafana", 5)
+        return out.getvalue()
+
+    def test_healthy_provisioned_rules_pass(self):
+        self.assertNotIn("FAIL", self.run_rules())
+        self.assertFalse(checks.failed)
+
+    def test_a_rule_with_an_evaluation_error_fails(self):
+        states = {u: ("inactive", "ok") for u in checks.ALERT_UIDS}
+        states["antlab-alert-collector-stale"] = ("inactive", "error")
+        self.assertIn("FAIL AL1 antlab-alert-collector-stale", self.run_rules(states=states))
+
+    def test_a_rule_that_never_ran_fails(self):
+        def http(url, method="GET", body=None, auth=False, timeout=15):
+            if url.endswith(checks.ALERT_RULES_API):
+                return 200, {"data": {"groups": [{"rules": [{"uid": u, "state": "inactive", "health": "ok", "lastEvaluation": "0001-01-01T00:00:00Z"} for u in checks.ALERT_UIDS]}]}}
+            return 200, []
+        out = io.StringIO()
+        with mock.patch.object(checks, "http", http), mock.patch.object(checks.time, "sleep"), \
+                mock.patch.object(checks.time, "monotonic", side_effect=[0] + [100] * 40), contextlib.redirect_stdout(out):
+            checks.cmd_alert_rules("http://grafana", 5)
+        self.assertIn("FAIL AL1 antlab-alert-api-down health not evaluated yet", out.getvalue())
+
+    def test_a_missing_rule_fails(self):
+        states = {u: ("inactive", "ok") for u in checks.ALERT_UIDS[1:]}
+        self.assertIn("FAIL AL1 antlab-alert-api-down health missing", self.run_rules(states=states))
+
+    def test_rules_edited_in_the_ui_fail(self):
+        self.assertIn("FAIL AL2", self.run_rules(provenance=""))
+
+    def test_any_contact_point_fails(self):
+        self.assertIn("FAIL AL3", self.run_rules(contacts=("ops-webhook",)))
+
+    def test_state_wait_passes_when_the_rule_fires(self):
+        out = io.StringIO()
+        states = {"antlab-alert-engine-down": ("firing", "ok")}
+        with mock.patch.object(checks, "http", self.fake(states)), contextlib.redirect_stdout(out):
+            self.assertTrue(checks.cmd_alert_state("http://grafana", "antlab-alert-engine-down", "firing", 5))
+
+    def test_state_wait_fails_when_the_rule_never_fires(self):
+        out = io.StringIO()
+        states = {"antlab-alert-engine-down": ("pending", "ok")}
+        with mock.patch.object(checks, "http", self.fake(states)), mock.patch.object(checks.time, "sleep"), \
+                mock.patch.object(checks.time, "monotonic", side_effect=[0, 0, 100, 100]), contextlib.redirect_stdout(out):
+            self.assertFalse(checks.cmd_alert_state("http://grafana", "antlab-alert-engine-down", "firing", 5))
+        self.assertIn("is pending, wanted firing", out.getvalue())
+
+
 if __name__ == "__main__":
     unittest.main()
