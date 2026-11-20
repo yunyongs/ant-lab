@@ -47,6 +47,18 @@ final class AgentRunnerSupport {
                    "runnerVersion": "r1", "budgetCalls": 100, "budgetUsd": 1.5}}""".formatted(personaSha256);
     }
 
+    /** A start body that names a league (null = none) and, optionally, a path length and the model the agent is registered with. */
+    static String startBody(String model, Long leagueId, Integer pathLength) {
+        return """
+                {"riskLimit": "-0.20", "formation": {"goalkeeper": 10, "defender": 30, "midfielder": 30, "forward": 30}%s%s,
+                 "config": {"personaVersion": 1, "personaSha256": "%s", "personaDisplayName": "Value",
+                   "modelRequested": "%s",
+                   "temperature": 0.7, "maxTokens": 2000, "turnTimeoutMs": 60000, "promptTemplateVersion": "p1",
+                   "runnerVersion": "r1", "budgetCalls": 100, "budgetUsd": 1.5}}"""
+                .formatted(leagueId == null ? "" : ", \"leagueId\": " + leagueId,
+                        pathLength == null ? "" : ", \"pathLength\": " + pathLength, SHA, model);
+    }
+
     /** POST with the given token (null = no header) and no human token unless {@code anonymous} is false. */
     static MockHttpServletResponse post(MockMvcTester mvc, String uri, String token, String body, boolean anonymous) {
         var request = mvc.post().uri(uri).contentType(MediaType.APPLICATION_JSON).content(body);

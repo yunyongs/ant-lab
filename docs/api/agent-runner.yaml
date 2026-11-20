@@ -92,9 +92,9 @@ paths:
           $ref: '#/components/responses/Unauthenticated'
         '404':
           description: |-
-            The agent does not exist or is not this owner's. One answer for both — NOT_FOUND
+            The agent does not exist or is not this owner's; with a leagueId, also a league that does not exist or is not this owner's. One answer for all — NOT_FOUND
 
-            에이전트가 없거나 이 소유자의 것이 아니다. 둘 다 같은 응답이다 — NOT_FOUND
+            에이전트가 없거나 이 소유자의 것이 아니다. leagueId 가 있으면 없는 리그나 이 소유자의 것이 아닌 리그도 포함한다. 모두 같은 응답이다 — NOT_FOUND
           x-error-codes: [NOT_FOUND]
           content:
             application/problem+json:
@@ -102,10 +102,10 @@ paths:
                 $ref: '#/components/schemas/Problem'
         '409':
           description: |-
-            A season cannot be started now — POOL_NOT_LOADED, POOL_NOT_JUDGED, SEASON_LIMIT (3 in progress, or the weekly limit), AGENT_RETIRED, PERSONA_VERSION_CONFLICT (the persona version is recorded with another file hash, or this hash with another version), PERSONA_VERSION_STALE (a newer persona version is recorded). The start records the persona version on first use; on refusal no season is left
+            A season cannot be started now — POOL_NOT_LOADED, POOL_NOT_JUDGED, SEASON_LIMIT (3 in progress, or the weekly limit), AGENT_RETIRED, PERSONA_VERSION_CONFLICT (the persona version is recorded with another file hash, or this hash with another version), PERSONA_VERSION_STALE (a newer persona version is recorded); with a leagueId: LEAGUE_CLOSED, LEAGUE_SEAT_TAKEN (one seat per member), LEAGUE_FULL, LEAGUE_STALE (the settings or the path no longer match the league's). The start records the persona version on first use; on refusal no season is left
 
-            지금은 시작할 수 없다 — POOL_NOT_LOADED, POOL_NOT_JUDGED, SEASON_LIMIT(진행 중 3개 또는 주간 상한), AGENT_RETIRED, PERSONA_VERSION_CONFLICT(그 페르소나 버전이 다른 파일 해시로, 또는 이 해시가 다른 버전으로 기록되어 있다), PERSONA_VERSION_STALE(더 새로운 페르소나 버전이 기록되어 있다). 처음 쓰는 페르소나 버전은 시작 때 기록하고, 거절하면 시즌이 남지 않는다
-          x-error-codes: [POOL_NOT_LOADED, POOL_NOT_JUDGED, SEASON_LIMIT, AGENT_RETIRED, PERSONA_VERSION_CONFLICT, PERSONA_VERSION_STALE]
+            지금은 시작할 수 없다 — POOL_NOT_LOADED, POOL_NOT_JUDGED, SEASON_LIMIT(진행 중 3개 또는 주간 상한), AGENT_RETIRED, PERSONA_VERSION_CONFLICT(그 페르소나 버전이 다른 파일 해시로, 또는 이 해시가 다른 버전으로 기록되어 있다), PERSONA_VERSION_STALE(더 새로운 페르소나 버전이 기록되어 있다). leagueId 가 있으면 LEAGUE_CLOSED, LEAGUE_SEAT_TAKEN(회원당 한 자리), LEAGUE_FULL, LEAGUE_STALE(설정이나 경로가 리그와 달라졌다). 처음 쓰는 페르소나 버전은 시작 때 기록하고, 거절하면 시즌이 남지 않는다
+          x-error-codes: [POOL_NOT_LOADED, POOL_NOT_JUDGED, SEASON_LIMIT, AGENT_RETIRED, PERSONA_VERSION_CONFLICT, PERSONA_VERSION_STALE, LEAGUE_CLOSED, LEAGUE_SEAT_TAKEN, LEAGUE_FULL, LEAGUE_STALE]
           content:
             application/problem+json:
               schema:
@@ -856,6 +856,10 @@ components:
           format: int32
           default: 12
           description: 'Path length (number of turns): 12, 24 or 60. 12 when omitted / 경로 길이(턴 수) 12, 24, 60. 생략하면 12'
+        leagueId:
+          type: integer
+          format: int64
+          description: 'Enter this league (the agent must belong to the league owner). The league fixes the path; pathLength must then be omitted or equal the league''s / 이 리그에 참가한다(에이전트가 리그 소유자의 것이어야 한다). 경로는 리그가 정하므로 pathLength 는 생략하거나 리그와 같아야 한다'
         config:
           $ref: '#/components/schemas/AgentSeasonConfig'
     AgentSeasonConfig:
@@ -1001,7 +1005,7 @@ components:
       type: object
       description: Same body as the human season start / 사람의 시즌 시작과 같은 본문
       required: [id, status, currentTurnNo, pathLength, riskLimit, startFormation, currentFormation,
-                 initialCash, cashBalance, feeRateKr, feeRateUs, fxSpreadRate, abandonedTurnNo, notStarted]
+                 initialCash, cashBalance, feeRateKr, feeRateUs, fxSpreadRate, abandonedTurnNo, notStarted, leagueId]
       properties:
         id:
           type: integer
@@ -1042,6 +1046,9 @@ components:
           format: int32
         notStarted:
           type: boolean
+        leagueId:
+          type: [integer, 'null']
+          format: int64
     TurnResultDto:
       type: object
       description: |-
@@ -1987,4 +1994,5 @@ components:
              LINEUP_MISMATCH, ASSET_NOT_IN_POOL, SOURCE_NOT_VISIBLE, INSUFFICIENT_CASH, INSUFFICIENT_HOLDING, POSITION_CONFLICT, POSITION_REQUIRED,
              INVALID_FORMATION, EVENT_TIME_CONFLICT, RECONCILIATION_FAILED, SEASON_HALTED, FORBIDDEN, EMAIL_TAKEN,
              UNAUTHENTICATED, INVALID_CREDENTIALS, AGENT_RETIRED, DECISION_CONFLICT, DECISION_MISSING,
-             PERSONA_VERSION_CONFLICT, PERSONA_VERSION_STALE, LEAGUE_NOT_SETTLED]
+             PERSONA_VERSION_CONFLICT, PERSONA_VERSION_STALE, LEAGUE_NOT_SETTLED, LEAGUE_CLOSED, LEAGUE_SEAT_TAKEN,
+             LEAGUE_FULL, LEAGUE_STALE, LEAGUE_OPEN]

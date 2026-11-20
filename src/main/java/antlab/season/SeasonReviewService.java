@@ -2,6 +2,7 @@ package antlab.season;
 
 import antlab.common.error.DomainException;
 import antlab.common.error.ErrorCode;
+import antlab.league.LeagueEntryRepository;
 import antlab.member.CurrentMember;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -14,7 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * Season review: the real month and events of each turn of a finished season (P0-39). Read-only, no locks; the path,
  * month blocks and events of a finished season never change, so the default isolation is enough.
- * Check order: member → season (another member's season is 404) → status (409) → the three reveal queries. No reveal
+ * Check order: member → season (another member's season is 404) → status (409) → league hold (409) → the three reveal queries. No reveal
  * value is read before the status check. The statement count does not depend on the number of turns.
  */
 @Service
@@ -28,14 +29,17 @@ public class SeasonReviewService {
     private final SeasonPathRepository paths;
     private final FormationChangeRepository changes;
     private final TurnFeedRepository feeds;
+    private final LeagueEntryRepository leagueEntries;
 
     public SeasonReviewService(CurrentMember currentMember, SeasonRepository seasons, SeasonPathRepository paths,
-            FormationChangeRepository changes, TurnFeedRepository feeds) {
+            FormationChangeRepository changes, TurnFeedRepository feeds,
+            LeagueEntryRepository leagueEntries) {
         this.currentMember = currentMember;
         this.seasons = seasons;
         this.paths = paths;
         this.changes = changes;
         this.feeds = feeds;
+        this.leagueEntries = leagueEntries;
     }
 
     @Transactional(readOnly = true)
@@ -48,6 +52,11 @@ public class SeasonReviewService {
             throw new DomainException(ErrorCode.SEASON_NOT_FINISHED, "끝난 시즌만 복기를 볼 수 있다");
         }
         long id = season.getId();
+        // The review shows the real months and the seed; while seats of the same league still play the same path, it would
+        // tell them what comes. Held until the league closes (PLAN §4.1-6 for league seasons only).
+        if (leagueEntries.existsOpenLeagueForSeason(id)) {
+            throw new DomainException(ErrorCode.LEAGUE_OPEN, "리그가 닫힐 때까지 이 시즌의 복기는 볼 수 없다");
+        }
         List<RevealedMonthRow> months = paths.findRevealedMonths(id);
         requireContiguous(months, season.getPathLength());
         Map<Integer, List<ReviewEventDto>> eventsByTurn = new TreeMap<>();

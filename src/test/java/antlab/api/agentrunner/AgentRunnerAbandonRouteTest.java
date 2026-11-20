@@ -33,7 +33,7 @@ class AgentRunnerAbandonRouteTest {
     private final SeasonAbandonService abandons = mock(SeasonAbandonService.class);
     private final AgentRunnerController controller = new AgentRunnerController(mock(AgentRegistrationService.class),
             mock(AgentSeasonService.class), new AgentSeasonLifecycleService(currentMember, mock(SeasonRepository.class),
-                    mock(CashAccountRepository.class), Clock.systemUTC()),
+                    mock(CashAccountRepository.class), mock(antlab.league.LeagueEntryRepository.class), Clock.systemUTC()),
             abandons, mock(AgentTurnViewService.class), mock(AgentDecisionService.class),
             mock(AgentTurnAdvanceService.class),
             mock(antlab.agent.AgentSeasonConfigQueryService.class), mock(antlab.league.LeagueService.class));

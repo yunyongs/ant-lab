@@ -593,6 +593,11 @@ export interface components {
              * @default 12
              */
             pathLength: number;
+            /**
+             * Format: int64
+             * @description Enter this league (only its owner and the owner's agents may). The league fixes the path; pathLength must then be omitted or equal the league's / 이 리그에 참가한다(리그 소유자와 소유자의 에이전트만). 경로는 리그가 정하므로 pathLength 는 생략하거나 리그와 같아야 한다
+             */
+            leagueId?: number;
         };
         /**
          * @description Email, display name and password. The role is never taken from the request.
@@ -779,6 +784,11 @@ export interface components {
             abandonedTurnNo: number | null;
             /** @description True for a human member who abandoned before turn 3 (derived from the abandon turn and the member kind; not stored) / 사람 회원이 3턴 전에 포기하면 true(포기 턴과 회원 종류에서 계산, 저장하지 않는다) */
             notStarted: boolean;
+            /**
+             * Format: int64
+             * @description The league this season entered. null for a season outside any league / 이 시즌이 참가한 리그. 리그 밖의 시즌이면 null
+             */
+            leagueId: number | null;
         };
         /** @description All seasons of the current member (newest season number first). No paging / 현재 회원의 시즌 전부(시즌 번호 내림차순). 쪽 나누기 없음 */
         SeasonListDto: {
@@ -2371,7 +2381,7 @@ export interface components {
             reason: string;
         };
         /** @enum {string} */
-        ErrorCode: "INVALID_ARGUMENT" | "NOT_FOUND" | "METHOD_NOT_ALLOWED" | "NOT_ACCEPTABLE" | "UNSUPPORTED_MEDIA_TYPE" | "MALFORMED_REQUEST" | "INTERNAL_ERROR" | "POOL_NOT_LOADED" | "POOL_NOT_JUDGED" | "PATH_TOO_LONG" | "ENGINE_UNAVAILABLE" | "SEASON_LIMIT" | "TURN_NOT_REACHED" | "SEASON_NOT_FINISHED" | "SEASON_NOT_ACTIVE" | "TURN_MISMATCH" | "LEDGER_MISMATCH" | "LINEUP_MISMATCH" | "ASSET_NOT_IN_POOL" | "SOURCE_NOT_VISIBLE" | "INSUFFICIENT_CASH" | "INSUFFICIENT_HOLDING" | "POSITION_CONFLICT" | "POSITION_REQUIRED" | "INVALID_FORMATION" | "EVENT_TIME_CONFLICT" | "RECONCILIATION_FAILED" | "SEASON_HALTED" | "FORBIDDEN" | "EMAIL_TAKEN" | "UNAUTHENTICATED" | "INVALID_CREDENTIALS";
+        ErrorCode: "INVALID_ARGUMENT" | "NOT_FOUND" | "METHOD_NOT_ALLOWED" | "NOT_ACCEPTABLE" | "UNSUPPORTED_MEDIA_TYPE" | "MALFORMED_REQUEST" | "INTERNAL_ERROR" | "POOL_NOT_LOADED" | "POOL_NOT_JUDGED" | "PATH_TOO_LONG" | "ENGINE_UNAVAILABLE" | "SEASON_LIMIT" | "TURN_NOT_REACHED" | "SEASON_NOT_FINISHED" | "SEASON_NOT_ACTIVE" | "TURN_MISMATCH" | "LEDGER_MISMATCH" | "LINEUP_MISMATCH" | "ASSET_NOT_IN_POOL" | "SOURCE_NOT_VISIBLE" | "INSUFFICIENT_CASH" | "INSUFFICIENT_HOLDING" | "POSITION_CONFLICT" | "POSITION_REQUIRED" | "INVALID_FORMATION" | "EVENT_TIME_CONFLICT" | "RECONCILIATION_FAILED" | "SEASON_HALTED" | "FORBIDDEN" | "EMAIL_TAKEN" | "UNAUTHENTICATED" | "INVALID_CREDENTIALS" | "LEAGUE_CLOSED" | "LEAGUE_SEAT_TAKEN" | "LEAGUE_FULL" | "LEAGUE_STALE" | "LEAGUE_OPEN";
         /** @description Season score / 시즌 점수 */
         SeasonScoreDto: {
             /** @description Formula version the score was computed with / 점수를 계산한 공식 버전 */
@@ -2785,10 +2795,19 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthenticated"];
+            /** @description The league does not exist or is not the caller's — NOT_FOUND / 리그가 없거나 호출자의 것이 아니다 — NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
             /**
-             * @description A season cannot be started now — POOL_NOT_LOADED, POOL_NOT_JUDGED, SEASON_LIMIT (3 in progress)
+             * @description A season cannot be started now — POOL_NOT_LOADED, POOL_NOT_JUDGED, SEASON_LIMIT (3 in progress); with a leagueId: LEAGUE_CLOSED, LEAGUE_SEAT_TAKEN (one seat per member), LEAGUE_FULL, LEAGUE_STALE (the settings or the path no longer match the league's)
              *
-             *     지금은 시작할 수 없다 — POOL_NOT_LOADED, POOL_NOT_JUDGED, SEASON_LIMIT(진행 중 3개)
+             *     지금은 시작할 수 없다 — POOL_NOT_LOADED, POOL_NOT_JUDGED, SEASON_LIMIT(진행 중 3개). leagueId 가 있으면 LEAGUE_CLOSED, LEAGUE_SEAT_TAKEN(회원당 한 자리), LEAGUE_FULL, LEAGUE_STALE(설정이나 경로가 리그와 달라졌다)
              */
             409: {
                 headers: {
@@ -3605,7 +3624,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description The season is not finished — SEASON_NOT_FINISHED / 끝나지 않은 시즌이다 — SEASON_NOT_FINISHED */
+            /** @description The season is not finished — SEASON_NOT_FINISHED; or it is a league season and the league is still open — LEAGUE_OPEN / 끝나지 않은 시즌이다 — SEASON_NOT_FINISHED, 또는 리그 시즌인데 리그가 아직 열려 있다 — LEAGUE_OPEN */
             409: {
                 headers: {
                     [name: string]: unknown;

@@ -128,7 +128,7 @@ class SeasonReviewRejectTest {
 
     @Test
     void 보안_문맥에_토큰이_없으면_401_UNAUTHENTICATED이다() {
-        SeasonReviewService service = new SeasonReviewService(new JwtCurrentMember(null), null, null, null, null);
+        SeasonReviewService service = new SeasonReviewService(new JwtCurrentMember(null), null, null, null, null, null);
         assertThatThrownBy(() -> service.get(1L)).isInstanceOfSatisfying(DomainException.class,
                 e -> assertThat(ErrorHttpMapping.status(e.getCode())).isEqualTo(HttpStatus.UNAUTHORIZED));
     }

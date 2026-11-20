@@ -43,6 +43,6 @@ class SeasonReadQueryCountTest {
         assertThat(statements("/api/v1/seasons")).as("the list does not grow with the number of seasons").isEqualTo(one);
         assertThat(statements("/api/v1/seasons/" + first)).isEqualTo(detail);
         assertThat(one).as("list: member check, member kind, seasons with balance").isEqualTo(3);
-        assertThat(detail).as("detail: member check, season, cash account, member kind").isEqualTo(4);
+        assertThat(detail).as("detail: member check, season, cash account, member kind, league entry").isEqualTo(5);
     }
 }

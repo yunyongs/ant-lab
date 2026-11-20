@@ -62,7 +62,7 @@ class AgentPersonaPinRaceTest {
     }
 
     private static StartAgentSeasonRequest request(String model) {
-        return new StartAgentSeasonRequest(new BigDecimal("-0.20"), new FormationDto(10, 30, 30, 30), null,
+        return new StartAgentSeasonRequest(new BigDecimal("-0.20"), new FormationDto(10, 30, 30, 30), null, null,
                 new AgentSeasonConfigRequest(1, "b".repeat(64), "경쟁", model, new BigDecimal("0.7"), null, 2000,
                         60000, "p1", "r1", null, 100, new BigDecimal("1.5")));
     }

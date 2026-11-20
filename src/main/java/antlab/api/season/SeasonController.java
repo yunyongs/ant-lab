@@ -1,6 +1,7 @@
 package antlab.api.season;
 
 import antlab.api.error.ApiProblem;
+import antlab.league.SeasonEntryService;
 import antlab.common.error.DomainException;
 import antlab.observability.GameMetrics;
 import antlab.season.AbandonResultDto;
@@ -9,7 +10,6 @@ import antlab.season.SeasonAbandonService;
 import antlab.season.SeasonDto;
 import antlab.season.SeasonListDto;
 import antlab.season.SeasonQueryService;
-import antlab.season.SeasonStartService;
 import antlab.season.StartSeasonRequest;
 import antlab.season.TurnPricesDto;
 import io.swagger.v3.oas.annotations.Operation;
@@ -37,12 +37,12 @@ public class SeasonController {
 
     private static final String PROBLEM = "application/problem+json";
 
-    private final SeasonStartService starts;
+    private final SeasonEntryService starts;
     private final SeasonQueryService queries;
     private final SeasonAbandonService abandons;
     private final GameMetrics metrics;
 
-    public SeasonController(SeasonStartService starts, SeasonQueryService queries, SeasonAbandonService abandons,
+    public SeasonController(SeasonEntryService starts, SeasonQueryService queries, SeasonAbandonService abandons,
             GameMetrics metrics) {
         this.starts = starts;
         this.queries = queries;
@@ -64,11 +64,16 @@ public class SeasonController {
     @ApiResponse(responseCode = "400", description = "The input is invalid — INVALID_ARGUMENT / 입력이 틀렸다 — "
             + "INVALID_ARGUMENT",
             content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ApiProblem.class)))
+    @ApiResponse(responseCode = "404", description = "The league does not exist or is not the caller's — NOT_FOUND / "
+            + "리그가 없거나 호출자의 것이 아니다 — NOT_FOUND",
+            content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ApiProblem.class)))
     @ApiResponse(responseCode = "409",
             description = "A season cannot be started now — POOL_NOT_LOADED, POOL_NOT_JUDGED, SEASON_LIMIT (3 in "
-                    + "progress)\n"
+                    + "progress); with a leagueId: LEAGUE_CLOSED, LEAGUE_SEAT_TAKEN (one seat per member), LEAGUE_FULL, "
+                    + "LEAGUE_STALE (the settings or the path no longer match the league's)\n"
                     + "\n"
-                    + "지금은 시작할 수 없다 — POOL_NOT_LOADED, POOL_NOT_JUDGED, SEASON_LIMIT(진행 중 3개)",
+                    + "지금은 시작할 수 없다 — POOL_NOT_LOADED, POOL_NOT_JUDGED, SEASON_LIMIT(진행 중 3개). leagueId 가 있으면 "
+                    + "LEAGUE_CLOSED, LEAGUE_SEAT_TAKEN(회원당 한 자리), LEAGUE_FULL, LEAGUE_STALE(설정이나 경로가 리그와 달라졌다)",
             content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ApiProblem.class)))
     @ApiResponse(responseCode = "422", description = "A path of the requested length cannot be built — "
             + "PATH_TOO_LONG / 요청한 길이의 경로를 만들 수 없다 — PATH_TOO_LONG",

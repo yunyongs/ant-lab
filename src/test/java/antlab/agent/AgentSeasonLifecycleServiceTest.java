@@ -37,7 +37,7 @@ class AgentSeasonLifecycleServiceTest {
     private final CashAccountRepository accounts = mock(CashAccountRepository.class);
     private final ScriptedClock clock = new ScriptedClock();
     private final AgentSeasonLifecycleService service = new AgentSeasonLifecycleService(currentMember, seasons,
-            accounts, clock);
+            accounts, mock(antlab.league.LeagueEntryRepository.class), clock);
     private final Season season = new Season(AGENT, 12, 7L, "test", LocalDate.of(2026, 1, 2),
             LocalDate.of(2026, 1, 2), new BigDecimal("10000000"), new BigDecimal("0.00015000"),
             new BigDecimal("0.00025000"), new BigDecimal("0.00400000"), new BigDecimal("-0.20000000"),

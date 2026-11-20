@@ -62,7 +62,7 @@ class AgentWeeklyLimitRaceTest {
     }
 
     private static StartAgentSeasonRequest request() {
-        return new StartAgentSeasonRequest(new BigDecimal("-0.20"), new FormationDto(10, 30, 30, 30), null,
+        return new StartAgentSeasonRequest(new BigDecimal("-0.20"), new FormationDto(10, 30, 30, 30), null, null,
                 new AgentSeasonConfigRequest(1, "a".repeat(64), "가치", "fake/model-1", new BigDecimal("0.7"), null, 2000,
                         60000, "p1", "r1", null, 100, new BigDecimal("1.5")));
     }

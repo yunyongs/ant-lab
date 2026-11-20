@@ -10,10 +10,10 @@ import static org.mockito.Mockito.when;
 
 import antlab.common.error.DomainException;
 import antlab.common.error.ErrorCode;
+import antlab.league.SeasonEntryService;
 import antlab.member.CurrentMember;
 import antlab.season.FormationDto;
 import antlab.season.SeasonRepository;
-import antlab.season.SeasonStartService;
 import antlab.season.SeasonStatus;
 import antlab.support.ScriptedClock;
 import java.math.BigDecimal;
@@ -32,7 +32,7 @@ class AgentSeasonServiceTest {
     private final CurrentMember currentMember = mock(CurrentMember.class);
     private final AgentProfileRepository profiles = mock(AgentProfileRepository.class);
     private final SeasonAgentConfigRepository configs = mock(SeasonAgentConfigRepository.class);
-    private final SeasonStartService starts = mock(SeasonStartService.class);
+    private final SeasonEntryService starts = mock(SeasonEntryService.class);
     private final SeasonRepository seasons = mock(SeasonRepository.class);
     private final PersonaVersionService personas = mock(PersonaVersionService.class);
     private final ScriptedClock clock = new ScriptedClock();
@@ -40,7 +40,7 @@ class AgentSeasonServiceTest {
             new AgentRunnerProperties("x".repeat(32), 1L, 5), personas, clock);
 
     private static StartAgentSeasonRequest request(String modelRequested) {
-        return new StartAgentSeasonRequest(new BigDecimal("-0.20"), new FormationDto(10, 30, 30, 30), null,
+        return new StartAgentSeasonRequest(new BigDecimal("-0.20"), new FormationDto(10, 30, 30, 30), null, null,
                 new AgentSeasonConfigRequest(1, "a".repeat(64), "Value", modelRequested, new BigDecimal("0.7"), null, 2000,
                         60000, "p1", "r1", null, 100, new BigDecimal("1.5")));
     }

@@ -56,8 +56,8 @@ class SeasonReviewQueryCountTest {
         List<String> twentyFour = measure(s24);
         System.out.println("[M] review Hibernate statements: 12 turns = " + twelve.size() + ", 24 turns = " + twentyFour.size());
         assertThat(twelve).hasSameSizeAs(twentyFour);
-        // member, season, months, events, feed, formation changes
-        assertThat(twelve).hasSize(6);
+        // member, season, league hold, months, events, feed, formation changes
+        assertThat(twelve).hasSize(7);
         for (String sql : twelve) {
             String s = sql.toLowerCase(Locale.ROOT);
             assertThat(s).doesNotStartWith("insert").doesNotStartWith("update").doesNotStartWith("delete");

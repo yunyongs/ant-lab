@@ -39,6 +39,12 @@ export const errorMessages = {
   UNAUTHENTICATED: '로그인이 끝났습니다. 다시 로그인해 주세요.',
   INVALID_CREDENTIALS:
     '이메일이나 비밀번호가 맞지 않습니다. 다시 확인해 주세요.',
+  LEAGUE_CLOSED: '닫힌 리그에는 참가할 수 없습니다.',
+  LEAGUE_SEAT_TAKEN: '이 리그에는 이미 자리가 있습니다.',
+  LEAGUE_FULL: '리그의 자리가 모두 찼습니다.',
+  LEAGUE_STALE:
+    '시즌 설정이 리그와 달라져 참가할 수 없습니다. 리그를 새로 만들어 주세요.',
+  LEAGUE_OPEN: '리그가 닫힐 때까지 이 시즌의 복기는 볼 수 없습니다.',
 } as const satisfies Record<ErrorCode, string>;
 
 export const UNREACHABLE_TEXT =

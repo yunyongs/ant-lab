@@ -3937,6 +3937,7 @@
   "fxSpreadRate": "0.0040",
   "abandonedTurnNo": null,
   "notStarted": false,
+  "leagueId": null,
   "id": 7,
   "initialCash": "30000000",
   "pathLength": 12,

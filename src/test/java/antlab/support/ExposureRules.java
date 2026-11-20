@@ -34,9 +34,10 @@ public final class ExposureRules {
      * 주문이 어느 변경에 묶였는지만 알려 주고 역사 날짜 단서가 없다(P0-31).
      * member.id is signup order with no history-date clue; returned only to the member who just signed up.
      * lineup.asset_id is the same value as the already allowed asset.id (MVP-14).
+     * league_entry.league_id is creation order of a league, with no history-date clue (AG-04 C2).
      */
     public static final Set<String> IDENTIFIER_ALLOWED = Set.of("asset.id", "asset.asset_group_id", "season.id",
-            "turn_price.asset_id", "turn_feed.asset_id", "orders.id", "orders.formation_change_id", "member.id", "lineup.asset_id");
+            "turn_price.asset_id", "turn_feed.asset_id", "orders.id", "orders.formation_change_id", "member.id", "lineup.asset_id", "league_entry.league_id");
 
     /**
      * Identifiers only a review handler may expose. In season, a feed item with neither asset nor group is an event card,

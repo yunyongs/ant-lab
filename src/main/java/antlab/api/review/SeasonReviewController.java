@@ -64,8 +64,9 @@ public class SeasonReviewController {
             content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ApiProblem.class)))
     @ApiResponse(responseCode = "404", description = "The season does not exist — NOT_FOUND / 시즌이 없다 — NOT_FOUND",
             content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ApiProblem.class)))
-    @ApiResponse(responseCode = "409", description = "The season is not finished — SEASON_NOT_FINISHED / 끝나지 않은 "
-            + "시즌이다 — SEASON_NOT_FINISHED",
+    @ApiResponse(responseCode = "409", description = "The season is not finished — SEASON_NOT_FINISHED; or it is a "
+            + "league season and the league is still open — LEAGUE_OPEN / 끝나지 않은 시즌이다 — SEASON_NOT_FINISHED, 또는 "
+            + "리그 시즌인데 리그가 아직 열려 있다 — LEAGUE_OPEN",
             content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ApiProblem.class)))
     public SeasonReviewDto get(@PathVariable Long seasonId) {
         return reviews.get(seasonId);

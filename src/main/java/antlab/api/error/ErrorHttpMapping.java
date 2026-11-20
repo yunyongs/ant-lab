@@ -52,7 +52,8 @@ public final class ErrorHttpMapping {
             case DECISION_MISSING -> HttpStatus.CONFLICT;
             case PERSONA_VERSION_CONFLICT -> HttpStatus.CONFLICT;
             case PERSONA_VERSION_STALE -> HttpStatus.CONFLICT;
-            case LEAGUE_NOT_SETTLED -> HttpStatus.CONFLICT;
+            case LEAGUE_NOT_SETTLED, LEAGUE_CLOSED, LEAGUE_SEAT_TAKEN, LEAGUE_FULL, LEAGUE_STALE, LEAGUE_OPEN ->
+                    HttpStatus.CONFLICT;
         };
     }
 

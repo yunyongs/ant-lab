@@ -15,10 +15,11 @@ public record StartAgentSeasonRequest(
         @NotNull @Valid
         FormationDto formation,
         Integer pathLength,
+        Long leagueId,
         @NotNull @Valid
         AgentSeasonConfigRequest config) {
 
     StartSeasonRequest season() {
-        return new StartSeasonRequest(riskLimit, formation, pathLength);
+        return new StartSeasonRequest(riskLimit, formation, pathLength, leagueId);
     }
 }
