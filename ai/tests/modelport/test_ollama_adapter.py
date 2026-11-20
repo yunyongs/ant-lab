@@ -9,6 +9,7 @@ import pytest
 from modelport_helpers import OLLAMA_KEY, OLLAMA_OK, ScriptedOllama, body_of, make_request
 
 from antlab_ai.modelport import OllamaAdapter
+from antlab_ai.modelport import ollama_adapter as ollama_module
 from antlab_ai.modelport.ollama_adapter import OLLAMA_DEADLINE_S, urllib_ollama_transport
 from antlab_ai.openrouter import client as client_module
 
@@ -202,7 +203,7 @@ class FakeOpener:
 
 def test_default_transport_posts_json_and_parses_decimals(monkeypatch):
     opener = FakeOpener(FakeResponse(json.dumps({"x": 1.5}).encode()))
-    monkeypatch.setattr(client_module, "_OPENER", opener)
+    monkeypatch.setattr(ollama_module, "_OLLAMA_OPENER", opener)
     code, payload, _ = urllib_ollama_transport(LOCAL + "/api/chat", b"{}", {"A": "b"}, 9)
     request_seen, timeout = opener.seen[0]
     assert (request_seen.full_url, request_seen.get_method()) == (LOCAL + "/api/chat", "POST")
@@ -214,7 +215,7 @@ def test_default_transport_posts_json_and_parses_decimals(monkeypatch):
 def test_default_transport_treats_a_redirect_as_an_error_status(monkeypatch):
     exc = error.HTTPError(LOCAL, 302, "Found", {"Location": "http://evil.example"}, io.BytesIO(b""))  # type: ignore[arg-type]
     opener = FakeOpener(exc)
-    monkeypatch.setattr(client_module, "_OPENER", opener)
+    monkeypatch.setattr(ollama_module, "_OLLAMA_OPENER", opener)
     adapter = OllamaAdapter(LOCAL)
     attempt = adapter.attempt(make_request())
     assert attempt.status == "ERROR"
@@ -225,3 +226,33 @@ def test_default_transport_treats_a_redirect_as_an_error_status(monkeypatch):
 def test_real_opener_has_no_redirect_handler_that_follows():
     handler = client_module._NoRedirect()
     assert handler.redirect_request(None, None, 302, "Found", {}, "http://evil.example") is None
+
+
+def test_the_ollama_opener_ignores_proxy_environment(monkeypatch):
+    monkeypatch.setenv("HTTP_PROXY", "http://proxy.invalid:3128")
+    monkeypatch.setenv("http_proxy", "http://proxy.invalid:3128")
+    default = client_module._build_opener()
+    assert any(isinstance(h, client_module.request.ProxyHandler) for h in default.handlers)
+    opener = ollama_module._ollama_opener()
+    assert not any(isinstance(h, client_module.request.ProxyHandler) for h in opener.handlers)
+    assert any(isinstance(h, client_module._NoRedirect) for h in opener.handlers)
+
+
+@pytest.mark.parametrize(
+    "base", ["http://192.168.1.5:11434", "http://10.0.0.1", "http://ollama.example"]
+)
+def test_a_key_is_refused_for_a_clear_text_remote_host(base):
+    with pytest.raises(ValueError, match="clear text") as caught:
+        OllamaAdapter(base, OLLAMA_KEY)
+    assert OLLAMA_KEY not in str(caught.value)
+
+
+@pytest.mark.parametrize("base", ["https://ollama.com", LOCAL, "http://localhost:11434"])
+def test_a_key_is_allowed_over_https_or_loopback(base):
+    adapter, transport = make((200, OLLAMA_OK, {}), base=base, key=OLLAMA_KEY)
+    adapter.attempt(make_request())
+    assert transport.headers[0]["Authorization"] == "Bearer " + OLLAMA_KEY
+
+
+def test_a_clear_text_remote_host_without_a_key_still_builds():
+    OllamaAdapter("http://10.0.0.1:11434")

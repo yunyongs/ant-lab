@@ -13,8 +13,8 @@ from antlab_ai.runner.api_client import (
     ApiClient,
     ApiProblem,
     ApiUnavailable,
-    RunnerBodyError,
 )
+from antlab_ai.runner.jsonenc import RunnerBodyError
 from antlab_ai.runner.settings import RunnerSettings, SettingsError
 
 FORMATION = {"goalkeeper": 10, "defender": 30, "midfielder": 30, "forward": 30}

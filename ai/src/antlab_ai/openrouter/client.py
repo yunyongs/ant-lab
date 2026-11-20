@@ -150,11 +150,13 @@ def _read_body(response, deadline: float) -> bytes:
         chunks.append(chunk)
 
 
-def _exchange(req: request.Request, timeout: int) -> tuple[int, dict, dict]:
+def _exchange(
+    req: request.Request, timeout: int, opener: request.OpenerDirector | None = None
+) -> tuple[int, dict, dict]:
     """Send one request; the status, a JSON object body (or {}) and the headers come back."""
     deadline = time.monotonic() + timeout
     try:
-        with _OPENER.open(req, timeout=min(timeout, SOCKET_TIMEOUT_S)) as response:
+        with (opener or _OPENER).open(req, timeout=min(timeout, SOCKET_TIMEOUT_S)) as response:
             payload = json.loads(_read_body(response, deadline), parse_float=Decimal)
             return response.status, payload, dict(response.headers)
     except error.HTTPError as exc:
