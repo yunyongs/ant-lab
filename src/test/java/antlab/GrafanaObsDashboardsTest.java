@@ -293,9 +293,9 @@ class GrafanaObsDashboardsTest {
         // The two Prometheus targets of the fetch panels (OBS-08) are checked in GrafanaLedgerDashboardTest.
         assertThat(expressions(d)).hasSize(3);
         assertThat(panels(d).stream().map(p -> p.path("title").asString()).toList()).containsExactly(
-                "Last run per job", "Runs by status over time", "Requests per run against the cap",
-                "Inserted, revised and unchanged rows", "Failed targets and error codes", "Newest observation per series",
-                "Newest daily price per market", "Fetch requests today against the daily cap", "Fetch ledger readable");
+                "잡별 마지막 실행", "상태별 실행 추이", "실행당 요청 수와 상한",
+                "추가·정정·변동 없음 행", "실패 대상과 오류 코드", "시계열별 최신 관측",
+                "시장별 최신 일봉", "오늘 수집 요청 수와 일일 상한", "수집 장부 읽기");
     }
 
     @Test
@@ -325,7 +325,7 @@ class GrafanaObsDashboardsTest {
             assertThat(p.path("targets").get(0).path("expr").asString()).contains("[$__range]").doesNotContain("$__rate_interval");
         }
         assertThat(panel(overview(), 3).path("targets").get(0).path("expr").asString()).contains("status=~\"5..\"");
-        assertThat(panel(overview(), 3).path("title").asString()).isEqualTo("5xx ratio today");
+        assertThat(panel(overview(), 3).path("title").asString()).isEqualTo("오늘 5xx 비율");
     }
 
     @Test

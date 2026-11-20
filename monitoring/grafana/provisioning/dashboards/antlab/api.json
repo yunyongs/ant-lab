@@ -1,6 +1,7 @@
 {
   "uid": "antlab-api",
-  "title": "ant-lab · API",
+  "title": "ant-lab · API 요청",
+  "description": "API가 받는 요청의 양, 오류, 지연과 API가 부르는 파이썬 엔진 호출 상태를 보는 화면입니다. 위쪽 두 통계로 지금 상태를 보고, 이어서 경로별 요청·오류·지연으로 원인 경로를 좁히고, 아래쪽 엔진 호출 패널로 API 뒤의 엔진을 확인하는 순서로 읽습니다. 모든 패널은 상단 application 변수로 거른 API 하나만 보며 상태 확인·actuator 경로는 뺍니다.",
   "tags": [
     "antlab"
   ],
@@ -44,8 +45,8 @@
     {
       "id": 1,
       "type": "stat",
-      "title": "Request rate",
-      "description": "Requests per second to the API, without health probes and actuator paths. / 상태 확인과 actuator 경로를 뺀 API 초당 요청 수.",
+      "title": "초당 요청 수",
+      "description": "**왜 있나** 지금 API에 요청이 얼마나 들어오는지 보려는 칸입니다.\n\n**볼 것** 최근 구간의 초당 요청 수(req/s)입니다.\n\n**정상·이상** 혼자 쓰는 로컬 스택이라 평소엔 0에 가깝거나 낮고, 화면을 쓸 때만 오릅니다. 쓰지 않는데 계속 높다면 반복 호출을 의심합니다.\n\n**이상하면** 엔드포인트별 요청 수에서 어느 경로가 높은지 봅니다.",
       "datasource": {
         "type": "prometheus",
         "uid": "antlab-prometheus"
@@ -99,8 +100,8 @@
     {
       "id": 2,
       "type": "stat",
-      "title": "5xx ratio",
-      "description": "Share of requests answered with a 5xx status (red above 1%). The first response with a new status code is not counted (rate needs an earlier sample). / 5xx 상태로 답한 요청의 비율(1% 초과면 빨강). 새 상태 코드의 첫 응답은 세지 않는다(rate는 앞선 표본이 있어야 센다).",
+      "title": "5xx 비율",
+      "description": "**왜 있나** 서버 오류가 섞이는지 바로 보려는 칸입니다.\n\n**볼 것** 5xx 응답 수를 전체 요청 수로 나눈 비율(%)입니다.\n\n**정상·이상** 0%가 정상이고 1%를 넘으면 빨강입니다. 요청이 없는 구간에는 값이 비어 보입니다.\n\n**이상하면** 상태 코드별 오류와 오류 코드별 오류로 원인을 좁히고 API 로그를 봅니다. 5분 넘게 5%를 넘으면 경보가 울립니다.\n\n**주의** 새 상태 코드의 첫 응답은 rate가 앞선 표본을 필요로 해서 세지 않습니다.",
       "datasource": {
         "type": "prometheus",
         "uid": "antlab-prometheus"
@@ -158,8 +159,8 @@
     {
       "id": 3,
       "type": "timeseries",
-      "title": "Requests by endpoint",
-      "description": "Request rate per HTTP method and URI template. / HTTP 메서드와 URI 템플릿별 초당 요청 수.",
+      "title": "엔드포인트별 요청 수",
+      "description": "**왜 있나** 어느 경로에 요청이 몰리는지 보려는 패널입니다.\n\n**볼 것** HTTP 메서드와 URI 템플릿별 초당 요청 수(req/s) 선입니다.\n\n**정상·이상** 화면을 쓴 시각에만 선이 오르는 것이 정상입니다. 한 경로만 쉬지 않고 높으면 반복 호출이나 폴링을 의심합니다.\n\n**이상하면** 그 경로가 아래 지연·오류 패널에서도 이상한지 같이 봅니다.",
       "datasource": {
         "type": "prometheus",
         "uid": "antlab-prometheus"
@@ -211,8 +212,8 @@
     {
       "id": 4,
       "type": "timeseries",
-      "title": "Errors by status",
-      "description": "Rate of 4xx and 5xx responses per status code. The first response with a new status code is not counted (rate needs an earlier sample). / 상태 코드별 4xx·5xx 응답 초당 수. 새 상태 코드의 첫 응답은 세지 않는다(rate는 앞선 표본이 있어야 센다).",
+      "title": "상태 코드별 오류",
+      "description": "**왜 있나** 어떤 오류 응답이 나오는지 상태 코드로 보려는 패널입니다.\n\n**볼 것** 상태 코드(4xx, 5xx)별 오류 응답의 초당 수(req/s)입니다.\n\n**정상·이상** 선이 없거나 낮은 것이 정상입니다. 4xx는 잘못된 요청이나 검증 실패일 수 있고, 5xx는 서버 쪽 결함이라 더 급합니다.\n\n**이상하면** 어느 코드인지 보고 오류 코드별 오류 패널에서 API 오류 코드를 확인합니다.\n\n**주의** 새 상태 코드의 첫 응답은 rate가 앞선 표본을 필요로 해서 세지 않습니다.",
       "datasource": {
         "type": "prometheus",
         "uid": "antlab-prometheus"
@@ -265,8 +266,8 @@
     {
       "id": 5,
       "type": "timeseries",
-      "title": "Error ratio 4xx / 5xx",
-      "description": "Share of requests answered with a 4xx or 5xx status. The first response with a new status code is not counted (rate needs an earlier sample). / 4xx 또는 5xx 상태로 답한 요청의 비율. 새 상태 코드의 첫 응답은 세지 않는다(rate는 앞선 표본이 있어야 센다).",
+      "title": "오류 비율 4xx / 5xx",
+      "description": "**왜 있나** 전체 요청 중 오류 비중이 시간에 따라 어떻게 변하는지 보려는 패널입니다.\n\n**볼 것** 4xx와 5xx 각각의 비율(%) 선입니다.\n\n**정상·이상** 두 선이 0 근처이면 정상입니다. 4xx가 길게 높으면 클라이언트나 입력 문제, 5xx가 오르면 서버 문제입니다.\n\n**이상하면** 같은 시각의 상태 코드별 오류와 엔진 호출 실패를 맞춰 봅니다.\n\n**주의** 요청이 적은 구간에서는 한 건만 실패해도 비율이 크게 튑니다. 새 상태 코드의 첫 응답은 rate가 앞선 표본을 필요로 해서 세지 않습니다.",
       "datasource": {
         "type": "prometheus",
         "uid": "antlab-prometheus"
@@ -329,8 +330,8 @@
     {
       "id": 6,
       "type": "timeseries",
-      "title": "Latency p50 / p95 / p99",
-      "description": "Request latency quantiles from the histogram buckets (5 ms to 10 s). / 히스토그램 버킷(5ms~10s)으로 계산한 요청 지연 분위수.",
+      "title": "지연 p50 / p95 / p99",
+      "description": "**왜 있나** 전체 요청이 얼마나 빨리 끝나는지 보려는 패널입니다.\n\n**볼 것** 요청 지연의 p50(중앙값), p95, p99 분위수(초)입니다.\n\n**정상·이상** p50은 낮고 p95·p99가 조금 높은 것은 흔합니다. p99만 가끔 치솟는 것은 느린 요청 몇 건이고, 세 선이 함께 오르면 전반적 지연입니다. 기준 시간은 이 스택의 평소 값과 비교해 판단합니다.\n\n**이상하면** 엔드포인트별 p95로 느린 경로를 찾고, JVM·DB 풀 대시보드의 GC 멈춤과 Hikari 대기 시간을 봅니다.\n\n**주의** 히스토그램 버킷(5ms~10초)에서 보간한 값이라 버킷 경계 근처는 거칠고, 요청이 없는 구간은 NaN으로 비어 있습니다.",
       "datasource": {
         "type": "prometheus",
         "uid": "antlab-prometheus"
@@ -402,8 +403,8 @@
     {
       "id": 7,
       "type": "timeseries",
-      "title": "p95 by endpoint",
-      "description": "95th percentile latency per URI template. / URI 템플릿별 95번째 백분위 지연.",
+      "title": "엔드포인트별 p95",
+      "description": "**왜 있나** 어느 경로가 느린지 찾으려는 패널입니다.\n\n**볼 것** URI 템플릿별 p95 지연(초) 선입니다.\n\n**정상·이상** 경로마다 평소 수준이 다릅니다. 평소보다 오르거나 다른 경로보다 유독 높은 선이 병목 후보입니다.\n\n**이상하면** 그 경로가 부르는 엔진 호출 p95와 DB 대기(JVM·DB 풀 대시보드)를 같은 시각에 비교합니다.\n\n**주의** 요청이 없는 구간은 NaN으로 끊깁니다.",
       "datasource": {
         "type": "prometheus",
         "uid": "antlab-prometheus"
@@ -455,8 +456,8 @@
     {
       "id": 8,
       "type": "timeseries",
-      "title": "Max latency by endpoint",
-      "description": "Slowest request per URI template over Micrometer's rolling window (about the last 2 minutes). / Micrometer 이동 구간(약 최근 2분)에서 URI 템플릿별 가장 느린 요청.",
+      "title": "엔드포인트별 최대 지연",
+      "description": "**왜 있나** p95가 놓치는 한 건짜리 느린 요청을 보려는 패널입니다.\n\n**볼 것** Micrometer의 최근 약 2분 구간에서 URI 템플릿별 가장 느린 요청(초)입니다.\n\n**정상·이상** 가끔 튀는 것은 흔하지만 같은 경로가 반복해서 길면 문제입니다.\n\n**이상하면** 해당 경로의 로그와 DB 쿼리, 엔진 호출 지연을 확인합니다.\n\n**주의** 2분 이동 구간 값이라 시간 선택기와 정확히 맞지 않습니다.",
       "datasource": {
         "type": "prometheus",
         "uid": "antlab-prometheus"
@@ -508,8 +509,8 @@
     {
       "id": 9,
       "type": "timeseries",
-      "title": "Errors by error code",
-      "description": "Rate of error responses per API error code (the code in the problem body; other means a code outside the list or an error without a code). The first response with a new error code is not counted (rate needs an earlier sample). / API 오류 코드(문제 본문의 code)별 오류 응답 초당 수(other는 목록 밖 코드이거나 코드 없는 오류). 새 오류 코드의 첫 응답은 세지 않는다(rate는 앞선 표본이 있어야 센다).",
+      "title": "오류 코드별 오류",
+      "description": "**왜 있나** API가 돌려준 오류를 의미 있는 코드 이름으로 보려는 패널입니다.\n\n**볼 것** 문제 본문의 API 오류 코드(error_code)별 오류 응답의 초당 수(req/s)입니다.\n\n**정상·이상** 선이 없는 것이 가장 정상이고, 검증 실패 같은 예상된 코드가 가끔 보이는 정도는 흔합니다. other는 목록 밖 코드이거나 코드 없는 오류라 서버 결함 후보입니다.\n\n**이상하면** 코드 이름으로 docs/api 계약과 API 로그를 찾아 원인 경로를 확인합니다.\n\n**주의** 새 오류 코드의 첫 응답은 rate가 앞선 표본을 필요로 해서 세지 않습니다.",
       "datasource": {
         "type": "prometheus",
         "uid": "antlab-prometheus"
@@ -562,8 +563,8 @@
     {
       "id": 10,
       "type": "timeseries",
-      "title": "Engine calls by endpoint",
-      "description": "Calls per second from the API to the Python engine, per engine URI template (the engine URL, query and token never appear). The first call with a new status is not counted (rate needs an earlier sample). / API가 파이썬 엔진을 부르는 초당 호출 수(엔진 URI 템플릿별; URL 쿼리와 토큰은 나오지 않는다). 새 상태의 첫 호출은 세지 않는다(rate는 앞선 표본이 있어야 센다).",
+      "title": "엔드포인트별 엔진 호출",
+      "description": "**왜 있나** API가 파이썬 엔진을 얼마나 부르는지 보려는 패널입니다.\n\n**볼 것** 엔진 URI 템플릿(/v1/...)별 API→엔진 호출의 초당 수(req/s)입니다. URL 쿼리와 토큰은 나타나지 않습니다.\n\n**정상·이상** 엔진 기능을 쓰는 화면을 열 때만 선이 오르는 것이 정상입니다. 쓰지 않는데 높으면 반복 호출입니다.\n\n**이상하면** 엔진 대시보드에서 같은 시각 엔진 쪽 요청 수와 맞춥니다.\n\n**주의** 새 상태 코드의 첫 호출은 rate가 앞선 표본을 필요로 해서 세지 않습니다.",
       "datasource": {
         "type": "prometheus",
         "uid": "antlab-prometheus"
@@ -616,8 +617,8 @@
     {
       "id": 11,
       "type": "timeseries",
-      "title": "Engine call failures",
-      "description": "Rate of engine calls that did not end in a 2xx answer, per URI template and status (CLIENT_ERROR means no answer (connection refused or timeout) and IO_ERROR means the answer could not be read). The first failure with a new status is not counted (rate needs an earlier sample). / 2xx로 끝나지 않은 엔진 호출의 초당 수(URI 템플릿·상태별; CLIENT_ERROR는 응답이 없는 경우(연결 거부나 시간 초과), IO_ERROR는 받은 응답을 읽지 못한 경우). 새 상태의 첫 실패는 세지 않는다(rate는 앞선 표본이 있어야 센다).",
+      "title": "엔진 호출 실패",
+      "description": "**왜 있나** API가 엔진 호출에서 실패하는지 보려는 패널입니다.\n\n**볼 것** 2xx로 끝나지 않은 엔진 호출의 초당 수(req/s)를 URI 템플릿과 status별로 보입니다. CLIENT_ERROR는 응답이 없는 경우(연결 거부나 시간 초과), IO_ERROR는 받은 응답을 읽지 못한 경우입니다.\n\n**정상·이상** 선이 없는 것이 정상입니다. CLIENT_ERROR가 나타나면 엔진이 꺼졌거나 느린 것이고, 4xx·5xx 상태가 보이면 엔진이 오류로 답한 것입니다.\n\n**이상하면** 엔진 대시보드의 '엔진 가동'과 엔진 컨테이너 로그를 먼저 확인합니다. 엔진이 꺼지면 '엔진 대상 중단' 경보가 울립니다.\n\n**주의** 새 상태 코드의 첫 실패은 rate가 앞선 표본을 필요로 해서 세지 않습니다.",
       "datasource": {
         "type": "prometheus",
         "uid": "antlab-prometheus"
@@ -670,8 +671,8 @@
     {
       "id": 12,
       "type": "timeseries",
-      "title": "Engine latency p95 by endpoint",
-      "description": "95th percentile engine call latency per URI template, from fixed histogram buckets (50 ms, 100 ms, 250 ms, 500 ms, 1 s, 2.5 s, 5 s, 10 s, 30 s, 60 s), so the value is interpolated inside a bucket. / URI 템플릿별 엔진 호출 95번째 백분위 지연. 고정 히스토그램 버킷(50ms~60s) 안에서 보간한 값이다.",
+      "title": "엔드포인트별 엔진 호출 p95",
+      "description": "**왜 있나** 엔진 호출이 얼마나 느린지 보려는 패널입니다.\n\n**볼 것** URI 템플릿별 엔진 호출의 p95 지연(초)입니다.\n\n**정상·이상** 엔진 연산 종류마다 평소 수준이 다릅니다. 평소보다 오르면 엔진 쪽 부하나 연산량 증가를 의심합니다.\n\n**이상하면** 엔진 대시보드의 경로별 p95 지연과 프로세스 CPU를 같은 시각에 비교합니다.\n\n**주의** 고정 버킷(50ms~60초) 안에서 보간한 값이라 버킷 경계 근처에서는 거칩니다. 호출이 없는 구간은 NaN입니다.",
       "datasource": {
         "type": "prometheus",
         "uid": "antlab-prometheus"
@@ -723,8 +724,8 @@
     {
       "id": 13,
       "type": "timeseries",
-      "title": "Max engine latency by endpoint",
-      "description": "Slowest engine call per URI template over Micrometer's rolling window (about the last 2 minutes). / Micrometer 이동 구간(약 최근 2분)에서 URI 템플릿별 가장 느린 엔진 호출.",
+      "title": "엔드포인트별 엔진 최대 지연",
+      "description": "**왜 있나** 엔진 호출 중 가장 느렸던 한 건을 보려는 패널입니다.\n\n**볼 것** Micrometer의 최근 약 2분 구간에서 URI 템플릿별 가장 느린 엔진 호출(초)입니다.\n\n**정상·이상** 가끔 튀는 것은 흔하고, 반복해서 길면 엔진 쪽 문제입니다.\n\n**이상하면** 엔진 로그와 엔진 대시보드의 프로세스 CPU·메모리를 확인합니다.\n\n**주의** 2분 이동 구간 값입니다.",
       "datasource": {
         "type": "prometheus",
         "uid": "antlab-prometheus"

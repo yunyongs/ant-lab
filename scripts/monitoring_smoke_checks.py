@@ -60,7 +60,8 @@ MUST_HAVE_DATA = (
     ("antlab-db", 10),  # Longest open transaction over time
     ("antlab-db", 11),  # Largest tables
     # OBS-05: the engine dashboard answers once the smoke traffic has been scraped. Panel 11 (regime evaluation duration) is left out:
-    # the container has no RegimeSource yet, so evaluations return 503 and are not timed; the panel stays empty until it is wired.
+    # the smoke stack's database has no series rows and the smoke requests no regime evaluation, so nothing is timed; on a stack with
+    # the engine database settings the panel fills once the label job or a regime route runs.
     ("antlab-engine", 1),   # Engine up
     ("antlab-engine", 2),   # Requests per second
     ("antlab-engine", 3),   # Error ratio

@@ -1,6 +1,7 @@
 {
   "uid": "antlab-engine",
-  "title": "ant-lab · Engine",
+  "title": "ant-lab · 엔진",
+  "description": "파이썬 엔진의 가동, 요청량, 오류, 지연, 투영 슬롯, 국면 평가, CPU·메모리를 보는 화면입니다. 위쪽 통계 다섯 칸으로 지금 상태를 보고 아래 시계열로 추이를 확인합니다. API 대시보드의 엔진 호출 패널과 같은 시각을 맞춰 보면 API 쪽 문제인지 엔진 쪽 문제인지 가릴 수 있습니다.",
   "tags": [
     "antlab"
   ],
@@ -19,7 +20,7 @@
   "links": [
     {
       "type": "link",
-      "title": "Overview",
+      "title": "개요",
       "url": "/d/antlab-overview",
       "icon": "dashboard",
       "targetBlank": false
@@ -29,8 +30,8 @@
     {
       "id": 1,
       "type": "stat",
-      "title": "Engine up",
-      "description": "1 when Prometheus reaches the engine metrics port. / Prometheus가 엔진 지표 포트에 닿으면 UP.",
+      "title": "엔진 가동",
+      "description": "**왜 있나** 엔진이 지표 포트로 응답하는지 보려는 칸입니다.\n\n**볼 것** Prometheus가 엔진 지표 포트에 닿으면 UP, 못 닿으면 DOWN(빨강)입니다.\n\n**정상·이상** UP이 정상입니다. 엔진을 일부러 끈 때만 DOWN이 정상입니다.\n\n**이상하면** 엔진 컨테이너 상태와 로그를 확인합니다. 1분 넘게 내려가면 '엔진 대상 중단' 경보가 울립니다.",
       "datasource": {
         "type": "prometheus",
         "uid": "antlab-prometheus"
@@ -106,8 +107,8 @@
     {
       "id": 2,
       "type": "stat",
-      "title": "Requests per second",
-      "description": "Requests per second over the last 5 minutes, all routes. / 최근 5분 모든 경로의 초당 요청 수.",
+      "title": "초당 요청 수",
+      "description": "**왜 있나** 엔진이 받는 요청의 양을 보려는 칸입니다.\n\n**볼 것** 최근 5분 모든 경로의 초당 요청 수(req/s)입니다.\n\n**정상·이상** 엔진 기능을 쓸 때만 오르고 평소엔 0에 가까운 것이 정상입니다.\n\n**이상하면** API 대시보드의 엔진 호출과 같은 시각에 맞춥니다.",
       "datasource": {
         "type": "prometheus",
         "uid": "antlab-prometheus"
@@ -162,8 +163,8 @@
     {
       "id": 3,
       "type": "stat",
-      "title": "Error ratio",
-      "description": "Share of responses with status 5xx over the last 5 minutes. / 최근 5분 응답 중 5xx 비율.",
+      "title": "오류 비율",
+      "description": "**왜 있나** 엔진이 서버 오류를 내는지 보려는 칸입니다.\n\n**볼 것** 최근 5분 응답 중 5xx 비율(%)입니다.\n\n**정상·이상** 0%가 정상이고 5%를 넘으면 빨강입니다.\n\n**이상하면** 경로별 요청과 엔진 로그에서 어느 경로가 실패하는지 봅니다.\n\n**주의** 요청이 없으면 값이 비어 보입니다.",
       "datasource": {
         "type": "prometheus",
         "uid": "antlab-prometheus"
@@ -222,8 +223,8 @@
     {
       "id": 4,
       "type": "stat",
-      "title": "Projection slots in use",
-      "description": "Projections running now, of the slots the engine allows at once. / 지금 실행 중인 투영 수(동시에 허용된 슬롯 중).",
+      "title": "사용 중인 투영 슬롯",
+      "description": "**왜 있나** 동시에 도는 투영이 슬롯 한도에 얼마나 가까운지 보려는 칸입니다.\n\n**볼 것** 지금 실행 중인 투영 수입니다(슬롯 수는 투영 슬롯 패널의 capacity).\n\n**정상·이상** 여유가 있을 때는 낮고, 2에서 주황, 3에서 빨강입니다. 한도에 붙으면 새 투영이 대기하거나 거절될 수 있습니다.\n\n**이상하면** 투영 슬롯 추이와 프로세스 CPU·메모리를 확인합니다.",
       "datasource": {
         "type": "prometheus",
         "uid": "antlab-prometheus"
@@ -286,8 +287,8 @@
     {
       "id": 5,
       "type": "stat",
-      "title": "Process memory",
-      "description": "Resident memory of the engine process now. / 엔진 프로세스의 현재 상주 메모리.",
+      "title": "프로세스 메모리",
+      "description": "**왜 있나** 엔진 프로세스가 메모리를 얼마나 쓰는지 보려는 칸입니다.\n\n**볼 것** 엔진 프로세스의 현재 상주 메모리(바이트)입니다.\n\n**정상·이상** 평소 값 근처에서 평평하면 정상입니다. 컨테이너 한도에 가까워지면 위험합니다.\n\n**이상하면** 프로세스 메모리 추이에서 계속 오르는지 확인하고 투영 부하를 봅니다.",
       "datasource": {
         "type": "prometheus",
         "uid": "antlab-prometheus"
@@ -342,8 +343,8 @@
     {
       "id": 6,
       "type": "timeseries",
-      "title": "Requests per second by route",
-      "description": "Requests per second by route template (never the raw path). / 경로 템플릿별 초당 요청 수.",
+      "title": "경로별 초당 요청 수",
+      "description": "**왜 있나** 어느 경로에 요청이 가는지 보려는 패널입니다.\n\n**볼 것** 경로 템플릿별 초당 요청 수(req/s)입니다. 원본 경로는 쓰지 않습니다.\n\n**정상·이상** 엔진 기능을 쓸 때만 오르는 것이 정상입니다. 한 경로만 지속적으로 높으면 반복 호출입니다.\n\n**이상하면** API 대시보드의 엔진 호출과 비교합니다.",
       "datasource": {
         "type": "prometheus",
         "uid": "antlab-prometheus"
@@ -395,8 +396,8 @@
     {
       "id": 7,
       "type": "timeseries",
-      "title": "Error ratio over time",
-      "description": "Share of 5xx responses over time. / 시간에 따른 5xx 비율.",
+      "title": "오류 비율 추이",
+      "description": "**왜 있나** 엔진 오류가 언제 있었는지 추이로 보려는 패널입니다.\n\n**볼 것** 전체 요청 중 5xx 비율(%)입니다.\n\n**정상·이상** 0이 정상이고 올라가면 그 시각에 엔진이 실패한 것입니다.\n\n**이상하면** 같은 시각의 경로별 지연과 엔진 로그를 확인합니다.\n\n**주의** 요청이 없는 구간은 비어 있고, 요청이 적으면 한 건만 실패해도 크게 보입니다.",
       "datasource": {
         "type": "prometheus",
         "uid": "antlab-prometheus"
@@ -448,8 +449,8 @@
     {
       "id": 8,
       "type": "timeseries",
-      "title": "p95 latency by route",
-      "description": "95th percentile request duration by route template. / 경로 템플릿별 95번째 백분위 처리 시간.",
+      "title": "경로별 p95 지연",
+      "description": "**왜 있나** 엔진이 어느 경로에서 느린지 보려는 패널입니다.\n\n**볼 것** 경로 템플릿별 95번째 백분위 처리 시간(초)입니다.\n\n**정상·이상** 연산 종류마다 평소 값이 다르므로 평소보다 오르는지를 봅니다.\n\n**이상하면** 프로세스 CPU와 투영 슬롯을 같은 시각에 비교합니다.\n\n**주의** 요청이 없으면 NaN으로 끊깁니다.",
       "datasource": {
         "type": "prometheus",
         "uid": "antlab-prometheus"
@@ -501,8 +502,8 @@
     {
       "id": 9,
       "type": "timeseries",
-      "title": "Projection slots",
-      "description": "Projection slots held and the total. / 사용 중인 투영 슬롯과 전체.",
+      "title": "투영 슬롯",
+      "description": "**왜 있나** 투영 슬롯이 얼마나 쓰이는지 시간에 따라 보려는 패널입니다.\n\n**볼 것** 사용 중(in use)과 전체(capacity) 슬롯 수입니다.\n\n**정상·이상** in use가 capacity 아래에 있는 것이 정상이고, capacity에 붙은 채 오래 가면 투영이 쌓입니다.\n\n**이상하면** 오래 걸리는 투영을 찾아 엔진 로그를 확인합니다.",
       "datasource": {
         "type": "prometheus",
         "uid": "antlab-prometheus"
@@ -564,8 +565,8 @@
     {
       "id": 10,
       "type": "timeseries",
-      "title": "Regime evaluations per second",
-      "description": "Regime evaluations finished per second. Stays at 0 for now: the engine container has no regime data source wired yet, so evaluations return 503 and are not timed. / 초당 끝난 국면 평가 수. 지금은 0이다. 엔진 컨테이너에 국면 데이터 원천이 아직 연결되지 않아 평가가 503으로 끝나고 시간이 재지지 않는다.",
+      "title": "초당 국면 평가 수",
+      "description": "**왜 있나** 국면 평가가 얼마나 자주 도는지 보려는 패널입니다.\n\n**볼 것** 초당 끝난 국면 평가 수(ops)입니다.\n\n**정상·이상** 국면 라벨 잡이나 국면 경로 호출이 돌 때만 선이 생기고, 그때 오르는 것이 정상입니다. 선택한 시간 범위에 호출한 곳이 없으면 비어 있는 것도 이상이 아닙니다.\n\n**이상하면** 호출이 있었는데 비어 있다면 엔진에 DB 설정(ANTLAB_ENGINE_DB_*)이 있는지 봅니다. 설정이 없으면 경로가 503으로 답하고 시간이 재지지 않습니다. 이때 API 대시보드의 엔진 호출 실패에도 같은 시각에 나타납니다.\n\n**주의** 평가 요청이 없던 기간은 0이 아니라 빈 화면입니다.",
       "datasource": {
         "type": "prometheus",
         "uid": "antlab-prometheus"
@@ -617,8 +618,8 @@
     {
       "id": 11,
       "type": "timeseries",
-      "title": "Regime evaluation duration",
-      "description": "95th percentile and mean duration of one regime evaluation; Stays empty for now: the engine container has no regime data source wired yet, so evaluations return 503 and are not timed. / 국면 평가 한 번의 처리 시간(p95와 평균). 지금은 비어 있다. 엔진 컨테이너에 국면 데이터 원천이 아직 연결되지 않아 평가가 503으로 끝나고 시간이 재지지 않는다.",
+      "title": "국면 평가 처리 시간",
+      "description": "**왜 있나** 국면 평가 한 번이 얼마나 걸리는지 보려는 패널입니다.\n\n**볼 것** 국면 평가 처리 시간의 p95와 평균(초)입니다.\n\n**정상·이상** 라벨 잡이나 국면 경로 호출이 돈 뒤에 채워집니다. p95와 평균이 가까우면 고르게 걸린 것이고, p95만 튀면 일부 평가가 느린 것입니다. 호출이 없던 시간 범위에서는 비어 있는 것도 정상입니다.\n\n**이상하면** 호출이 있었는데 비어 있다면 엔진에 DB 설정이 없는지 확인합니다(경로가 503으로 답하고 시간이 재지지 않습니다). 오래 걸리면 프로세스 CPU와 DB 대시보드를 같은 시각에 맞춰 봅니다.\n\n**주의** 요청이 없던 구간은 NaN으로 끊깁니다.",
       "datasource": {
         "type": "prometheus",
         "uid": "antlab-prometheus"
@@ -680,8 +681,8 @@
     {
       "id": 12,
       "type": "timeseries",
-      "title": "Process CPU",
-      "description": "CPU seconds used per second by the engine process (1 = one core). / 엔진 프로세스의 초당 CPU 사용 시간.",
+      "title": "프로세스 CPU",
+      "description": "**왜 있나** 엔진이 CPU를 얼마나 쓰는지 보려는 패널입니다.\n\n**볼 것** 엔진 프로세스가 초당 쓴 CPU 시간입니다(1 = 코어 하나 전부).\n\n**정상·이상** 요청 처리 중에만 오르는 것이 정상입니다. 1 근처에서 오래 유지되면 코어 하나를 포화시킨 것입니다.\n\n**이상하면** 같은 시각의 지연과 투영 슬롯을 확인합니다.",
       "datasource": {
         "type": "prometheus",
         "uid": "antlab-prometheus"
@@ -733,8 +734,8 @@
     {
       "id": 13,
       "type": "timeseries",
-      "title": "Process memory over time",
-      "description": "Resident memory of the engine process. / 엔진 프로세스 상주 메모리.",
+      "title": "프로세스 메모리 추이",
+      "description": "**왜 있나** 엔진 메모리가 시간에 따라 어떻게 변하는지 보려는 패널입니다.\n\n**볼 것** 엔진 프로세스 상주 메모리(바이트)입니다.\n\n**정상·이상** 평평하거나 투영 시 잠시 오르내리는 것이 정상입니다. 계속 우상향하면 누수입니다.\n\n**이상하면** 엔진을 재시작해 같은 모양이 반복되는지 확인합니다.",
       "datasource": {
         "type": "prometheus",
         "uid": "antlab-prometheus"
