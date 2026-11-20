@@ -82,7 +82,7 @@ class SeasonAccountMappingTest {
     }
 
     @Test
-    void 낙관적_락_버전은_season과_cash_account에만_있고_래퍼_Long이다() {
+    void 낙관적_락_버전은_season과_cash_account와_league에만_있고_래퍼_Long이다() {
         Map<String, Class<?>> versions = new java.util.TreeMap<>();
         for (Class<?> c : MappingModel.entities(em)) {
             for (Field f : MappingModel.fields(c)) {
@@ -91,7 +91,7 @@ class SeasonAccountMappingTest {
                 }
             }
         }
-        assertThat(versions).containsOnlyKeys("CashAccount", "Season");
+        assertThat(versions).containsOnlyKeys("CashAccount", "League", "Season");
         assertThat(versions.values()).containsOnly(Long.class);
     }
 

@@ -16,6 +16,7 @@ public final class SeasonAccountCleaner {
     public static void delete(JdbcTemplate jdbc, Collection<Long> seasonIds, Collection<Long> memberIds,
             Collection<Long> assetIds, Collection<Long> groupIds, Collection<Long> blockIds) {
         for (Long s : seasonIds) {
+            jdbc.update("DELETE FROM league_entry WHERE season_id = ?", s);
             jdbc.update("DELETE FROM agent_call WHERE season_id = ?", s);
             jdbc.update("DELETE FROM season_agent_config WHERE season_id = ?", s);
             jdbc.update("DELETE FROM cash_ledger WHERE season_id = ?", s);
@@ -28,6 +29,7 @@ public final class SeasonAccountCleaner {
             jdbc.update("DELETE FROM season WHERE id = ?", s);
         }
         for (Long m : memberIds) {
+            jdbc.update("DELETE FROM league WHERE owner_member_id = ?", m);
             jdbc.update("DELETE FROM agent_profile WHERE member_id = ?", m);
             jdbc.update("DELETE FROM refresh_token WHERE member_id = ?", m);
             jdbc.update("DELETE FROM member WHERE id = ?", m);
