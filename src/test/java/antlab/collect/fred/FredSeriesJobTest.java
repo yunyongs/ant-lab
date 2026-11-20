@@ -297,6 +297,18 @@ class FredSeriesJobTest {
         }
     }
 
+    @Test
+    void 빈티지_변환_한_번도_발표되지_않은_날짜의_점은_실패가_아니라_건너뛴다() {
+        SeriesDef cpi = new SeriesDef("US_CPILFESL", SeriesSource.FRED, "CPILFESL", "INDEX", SeriesFrequency.MONTHLY, 10, true);
+        // observed live: the 2025-10 value was never published, FRED answers one row "." open to 9999-12-31
+        List<Incoming> rows = FredSeriesJob.historyRows(cpi, List.of(
+                obs("2025-09-01", "338.896", "2026-10-14", FAR),
+                obs("2025-10-01", ".", "2025-12-18", FAR),
+                obs("2025-11-01", "339.9", "2026-11-10", FAR)));
+
+        assertThat(rows).extracting(r -> r.refDate().toString()).containsExactly("2025-09-01", "2025-11-01");
+    }
+
     private FredSeriesJob metricJob(MeterRegistry registry) {
         return FredSeriesJob.create(() -> client, SeriesCatalog.fromCsv(CATALOG), jdbc, transactions, clock,
                 FredHarness.properties(1, 30, 100000), new CollectMetrics(registry));

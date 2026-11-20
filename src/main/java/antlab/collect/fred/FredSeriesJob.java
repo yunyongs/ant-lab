@@ -265,7 +265,17 @@ public final class FredSeriesJob implements FredJob {
         for (FredObservation row : fetched) {
             newest.merge(row.refDate(), row, (a, b) -> b.realtimeStart().isAfter(a.realtimeStart()) ? b : a);
         }
+        Set<LocalDate> published = new HashSet<>();
+        for (FredObservation row : fetched) {
+            if (row.value() != null) {
+                published.add(row.refDate());
+            }
+        }
         for (FredObservation last : newest.values()) {
+            // a date never published (FRED keeps "." for it, e.g. the 2025-10 CPI gap) has nothing to withdraw
+            if (!published.contains(last.refDate())) {
+                continue;
+            }
             if (last.value() == null || !last.realtimeEnd().equals(LocalDate.of(9999, 12, 31))) {
                 throw new FredException("FRED_PARSE", "the newest vintage of a date is withdrawn or ended: " + def.code());
             }
