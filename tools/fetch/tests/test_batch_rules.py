@@ -276,8 +276,8 @@ def test_zero_request_batch_does_not_use_up_the_day(tmp_path):
     assert env.run("drip", [A(2)]).stop_reason == "DONE"               # allowed: the earlier batch the same day sent nothing
 
 
-@pytest.mark.parametrize("hh,mm,ok", [(20, 59, False), (21, 0, True), (22, 59, True), (23, 0, False), (8, 30, False)])
-def test_run_window_is_21_to_23_kst(tmp_path, hh, mm, ok):
+@pytest.mark.parametrize("hh,mm,ok", [(20, 59, False), (21, 0, True), (23, 59, True), (0, 0, True), (6, 59, True), (7, 0, False), (14, 0, False)])
+def test_run_window_is_21_to_07_kst(tmp_path, hh, mm, ok):
     env = Env(tmp_path, clock=clock_at(hh=hh, mm=mm))
     if ok:
         assert env.run("drip", [A(1)]).stop_reason in ("DONE", "WINDOW_END")
@@ -292,29 +292,44 @@ def test_window_override_is_explicit(tmp_path):
     assert env.run("drip", [A(1)], outside_window=True).stop_reason == "DONE"
 
 
-def test_asset_that_cannot_finish_before_23_is_not_started(tmp_path):
-    env = Env(tmp_path, clock=clock_at(hh=22, mm=59))
+def test_asset_that_cannot_finish_before_midnight_is_not_started(tmp_path):
+    env = Env(tmp_path, clock=clock_at(hh=23, mm=59))
     env.clock.t += 30                                                  # 30 s left, the asset needs about 22 requests
     r = env.run("drip", [A(1), A(2)])
     assert r.stop_reason == "WINDOW_END" and r.requests == 0 and r.assets_done == 0
     assert env.session.calls == [] and not list((env.raw / "kis").glob("*.json"))
 
 
+def test_asset_that_cannot_finish_before_07_is_not_started(tmp_path):
+    env = Env(tmp_path, clock=clock_at(d=20, hh=6, mm=59))
+    env.clock.t += 30
+    r = env.run("drip", [A(1), A(2)])
+    assert r.stop_reason == "WINDOW_END" and r.requests == 0 and env.session.calls == []
+
+
+def test_run_after_midnight_spends_the_new_days_budget(tmp_path):
+    env = Env(tmp_path, clock=clock_at(hh=21))
+    first = env.run("drip", [A(1)])
+    env.clock.t = clock_at(d=20, hh=0, mm=30).t
+    second = env.run("drip", [A(2)])
+    assert first.day == "2026-11-19" and second.day == "2026-11-20" and second.stop_reason == "DONE"
+
+
 def test_batch_stops_between_assets_when_the_window_closes(tmp_path):
-    env = Env(tmp_path, clock=clock_at(hh=22, mm=59))
+    env = Env(tmp_path, clock=clock_at(hh=23, mm=59))
     r = env.run("drip", [A(1, "2025-06"), A(2), A(3)])
     assert (r.stop_reason, r.assets_done, r.assets_left) == ("WINDOW_END", 2, 1)
     assert not list((env.raw / "kis").glob("kis_kr_000003_*"))
 
 
-def test_no_request_leaves_after_23_even_inside_an_asset(tmp_path, monkeypatch):
-    env = Env(tmp_path, clock=clock_at(hh=22, mm=59))
+def test_no_request_leaves_after_midnight_even_inside_an_asset(tmp_path, monkeypatch):
+    env = Env(tmp_path, clock=clock_at(hh=23, mm=59))
     env.clock.t += 50
     monkeypatch.setattr(batch, "estimate_requests", lambda *a, **k: (1, False))   # the estimate was too low
     monkeypatch.setattr(batch, "WINDOW_MARGIN_SECONDS", 0)
     r = env.run("drip", [A(1)])
     assert r.stop_reason == "WINDOW_END" and r.stopped_on == "KR:000001"
-    assert batch.kst_now(env.clock).strftime("%H:%M") in ("23:00", "23:01") and env.fake.gets < 14
+    assert batch.kst_now(env.clock).strftime("%H:%M") in ("00:00", "00:01") and env.fake.gets < 14
     assert batch.asset_state(env.raw, "drip", A(1)) == "PARTIAL"
     monkeypatch.undo()
     env.next_day()                                                     # next night: the half series is not used, fetched whole

@@ -24,7 +24,7 @@ from yf import EmptySeries, YfBudgetExhausted, YfFetcher, px_file_rows
 
 KST = timezone(timedelta(hours=9))
 WINDOW_OPEN = dtime(21, 0)
-WINDOW_CLOSE = dtime(23, 0)
+WINDOW_CLOSE = dtime(7, 0)
 FULL_START = date(1995, 12, 1)
 
 DEFAULT_CAP = {"KIS": 600, "YF": 50}
@@ -47,7 +47,7 @@ _EXCD = ("NAS", "NYS", "AMS")
 
 
 class WindowClosed(KisError):
-    """The 21:00-23:00 KST window (or the KST day) ended; raised before a request leaves."""
+    """The 21:00-07:00 KST window (or the KST day) ended; raised before a request leaves."""
 
 
 class Terminated(BaseException):
@@ -205,7 +205,8 @@ def kst_now(clock: Clock) -> datetime:
 
 
 def in_window(now: datetime) -> bool:
-    return WINDOW_OPEN <= now.time() < WINDOW_CLOSE
+    t = now.time()
+    return t >= WINDOW_OPEN or t < WINDOW_CLOSE  # crosses midnight
 
 
 # -- series estimates and file names ----------------------------------------------------
@@ -373,9 +374,12 @@ class Plan:
     def window_open(self, ahead_seconds: float = 0.0) -> bool:
         """Same KST day and (unless the owner overrode it) inside the window, also `ahead_seconds` from now."""
         now = kst_now(self.clock)
+        ahead = now + timedelta(seconds=ahead_seconds)
         if now.strftime("%Y-%m-%d") != self.day:
             return False
-        return self.outside_window or (in_window(now) and in_window(now + timedelta(seconds=ahead_seconds)))
+        if self.outside_window:
+            return True
+        return ahead.strftime("%Y-%m-%d") == self.day and in_window(now) and in_window(ahead)
 
     def before_request(self) -> None:
         """Checked before every request leaves: window first, then the durable journal line."""
