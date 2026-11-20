@@ -46,6 +46,34 @@ class GrafanaDashboardsSettingsTest {
     private static final Set<String> PANEL_TYPES = Set.of("timeseries", "stat", "table", "row");
     private static final String APPLICATION_FILTER = "application=~\"$application\"";
     private static final int MIN_DESCRIPTION = 80;
+    static final List<String> PANEL_LABELS = List.of("시각화 이유", "확인 지표", "정상 범위", "이상 신호", "점검 순서", "참고");
+    static final List<String> DASHBOARD_LABELS = List.of("목적", "읽는 순서");
+
+    /** Lines `라벨: 내용`, separated by a blank line, labels in the fixed order; the first two labels are required. */
+    static List<String> labelProblems(String description, List<String> labels, int required) {
+        List<String> problems = new ArrayList<>();
+        int last = -1;
+        int seen = 0;
+        for (String line : description.split("\\n\\n", -1)) {
+            int colon = line.indexOf(": ");
+            int index = colon < 0 ? -1 : labels.indexOf(line.substring(0, colon));
+            if (index < 0 || line.substring(colon + 2).isBlank()) {
+                problems.add("line without an allowed label and content: " + line);
+            } else if (index <= last) {
+                problems.add("label out of order or repeated: " + line.substring(0, colon));
+            } else {
+                last = index;
+                seen++;
+                if (index != seen - 1 && seen <= required) {
+                    problems.add("required label missing before: " + line.substring(0, colon));
+                }
+            }
+        }
+        if (seen < required) {
+            problems.add("fewer than " + required + " labelled lines");
+        }
+        return problems;
+    }
     private static final Pattern HANGUL = Pattern.compile("[\\uAC00-\\uD7A3]");
 
     private static Map<String, JsonNode> prometheusDashboards() throws IOException {
@@ -187,6 +215,7 @@ class GrafanaDashboardsSettingsTest {
             if (!HANGUL.matcher(description).find() || description.length() < MIN_DESCRIPTION) {
                 problems.add("description must be Korean and at least " + MIN_DESCRIPTION + " characters: " + label);
             }
+            labelProblems(description, PANEL_LABELS, 2).forEach(p -> problems.add(p + " in " + label));
             JsonNode grid = panel.path("gridPos");
             if (grid.path("w").asInt(0) <= 0 || grid.path("x").asInt(-1) < 0 || grid.path("x").asInt() + grid.path("w").asInt() > 24) {
                 problems.add("gridPos out of the 24-column grid: " + label);
@@ -310,6 +339,7 @@ class GrafanaDashboardsSettingsTest {
         GrafanaDashboards.load().forEach((file, d) -> {
             assertThat(HANGUL.matcher(d.path("title").asString("")).find()).as(file + " title").isTrue();
             assertThat(HANGUL.matcher(d.path("description").asString("")).find()).as(file + " description").isTrue();
+            assertThat(labelProblems(d.path("description").asString(""), DASHBOARD_LABELS, 2)).as(file + " description labels").isEmpty();
             for (JsonNode link : d.path("links")) {
                 assertThat(HANGUL.matcher(link.path("title").asString("")).find()).as(file + " link " + link.path("title")).isTrue();
             }
@@ -321,6 +351,15 @@ class GrafanaDashboardsSettingsTest {
                         .hasSizeGreaterThanOrEqualTo(MIN_DESCRIPTION);
             }
         });
+    }
+
+    @Test
+    void 설명_줄_형식_위반을_잡는다() {
+        assertThat(labelProblems("시각화 이유: 가\n\n확인 지표: 나\n\n참고: 다", PANEL_LABELS, 2)).isEmpty();
+        assertThat(labelProblems("확인 지표: 나\n\n시각화 이유: 가", PANEL_LABELS, 2)).isNotEmpty();
+        assertThat(labelProblems("시각화 이유: 가\n\n정상 범위: 나", PANEL_LABELS, 2)).isNotEmpty();
+        assertThat(labelProblems("시각화 이유: 가\n\n확인 지표: ", PANEL_LABELS, 2)).isNotEmpty();
+        assertThat(labelProblems("시각화 이유: 가\n\n확인 지표: 나\n\n설명: 다", PANEL_LABELS, 2)).isNotEmpty();
     }
 
     @Test

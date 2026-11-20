@@ -104,9 +104,9 @@ class GrafanaLedgerDashboardTest {
         assertThat(expressions(d)).hasSize(13);
         assertThat(sourceProblems(d)).isEmpty();
         assertThat(panels(d).stream().map(p -> p.path("title").asString()).toList()).containsExactly(
-                "장부 읽기", "오늘 OpenRouter 시도 수", "오늘 OpenRouter 비용", "오늘 Ollama Cloud 지출",
+                "장부 읽기 상태", "오늘 OpenRouter 시도 수", "오늘 OpenRouter 비용", "오늘 Ollama Cloud 지출",
                 "호출자 분류별 오늘 시도 수와 상한", "모델별 오늘 시도 수",
-                "최근 1분 시도 수와 상한", "상태별 오늘 결과", "오늘 토큰",
+                "최근 1분 시도 수와 상한", "상태별 오늘 호출 결과", "오늘 토큰",
                 "Ollama Cloud 지출과 정지선");
     }
 
