@@ -139,6 +139,16 @@ Not built here: the probe, the detection-first gate rows and the replacement of 
 
 여기서 만들지 않은 것: 탐침(probe), 탐지 시험 우선 게이트, 초안 매핑 픽스처를 실측 모양으로 바꾸는 일. 이것들은 소유자가 서비스를 켠 뒤에 한다(AG-03 PR D·E, PLAN §4.16).
 
+### Personas
+
+`personas/{key}.md` holds one persona: front matter `key, version, display_name, style_master, default_risk_limit, default_formation`, then the sections `## 철학` (at most 300 characters), `## 행동 규칙` (5 to 10 list lines) and `## 하지 않는 것` (1 to 10 list lines), once each and in that order. `load_persona` refuses a file with a year or year-month, a master name from the deny list, an `events/` title, a `style_master` other than `null` while `masters/` does not exist (afterwards it must name an existing master), a body over 4,000 bytes, a CRLF or BOM. The hash is the SHA-256 of the file bytes.
+
+`personas/personas.lock` has one row `key version sha256` per released version, sorted and append-only. Any byte change needs `version + 1` and a new row; the newest row of a key must equal the file (`verify_lock`, run by the tests). Shipped drafts: `patient-value`, `trend-rider`, `steady-allocator` and `headline-chaser` (built on purpose to follow feed noise, as a comparison persona); the owner edits their wording later.
+
+`personas/{key}.md`는 성격 하나를 담는다. 머리말은 `key, version, display_name, style_master, default_risk_limit, default_formation`이고, 본문은 `## 철학`(300자 이하), `## 행동 규칙`(목록 5~10줄), `## 하지 않는 것`(목록 1~10줄)을 한 번씩 이 순서로 둔다. `load_persona`는 연도나 연월, 거장 이름 금지 목록, `events/` 제목이 있는 파일, `masters/`가 없는 동안 `null`이 아닌 `style_master`(생기면 존재하는 거장이어야 한다), 4,000바이트를 넘는 본문, CRLF·BOM을 거부한다. 해시는 파일 바이트의 SHA-256이다.
+
+`personas/personas.lock`은 배포한 버전마다 `key version sha256` 한 줄을 두며 정렬되어 있고 추가만 한다. 한 바이트라도 바꾸면 `version + 1`과 새 줄이 필요하고, 키의 가장 최신 줄은 파일과 같아야 한다(`verify_lock`, 시험이 돌린다). 초안은 `patient-value`, `trend-rider`, `steady-allocator`, `headline-chaser`(피드 소음을 일부러 따르는 비교용)이며 문구는 소유자가 나중에 고친다.
+
 CI: `.github/workflows/ai.yml` runs the four commands above (`uv lock --check`, `ruff check`, `ruff format --check`, `pytest`) on PRs and `main` pushes that touch `ai/**`, `personas/**`, the agent-runner contract, the decision schema or its corpus.
 
 CI: `.github/workflows/ai.yml`가 위의 네 명령(`uv lock --check`, `ruff check`, `ruff format --check`, `pytest`)을 `ai/**`, `personas/**`, 에이전트 러너 계약, 결정 스키마와 그 말뭉치를 바꾼 PR과 `main` 푸시에서 돌린다.
