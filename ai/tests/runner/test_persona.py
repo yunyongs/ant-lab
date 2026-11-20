@@ -9,13 +9,20 @@ from pathlib import Path
 import pytest
 import yaml
 
-from antlab_ai.runner.persona import PERSONAS_DIR, PersonaError, load_persona, parse_persona
+from antlab_ai.runner.persona import (
+    LOCK_NAME,
+    MASTER_DENY_LIST,
+    PERSONAS_DIR,
+    PersonaError,
+    load_persona,
+    parse_persona,
+    read_lock,
+    verify_lock,
+)
 
 SHIPPED = PERSONAS_DIR / "patient-value.md"
-DENY_LIST = (
-    "buffett", "lynch", "graham", "soros", "dalio", "munger", "templeton", "fisher", "marks", "greenblatt",
-    "버핏", "린치", "그레이엄", "소로스", "달리오", "멍거", "템플턴",
-)  # fmt: skip
+DENY_LIST = MASTER_DENY_LIST
+KEYS = sorted(path.stem for path in PERSONAS_DIR.glob("*.md"))
 
 
 def _text() -> str:
@@ -126,9 +133,14 @@ def test_file_level_defects_are_refused(mutate):
         parse_persona(mutate(SHIPPED.read_bytes()))
 
 
-def test_a_style_master_key_is_accepted_as_text():
-    persona = parse_persona(_swap("style_master: null", "style_master: buffett"))
-    assert persona.style_master == "buffett"
+def test_a_style_master_must_exist_in_the_masters_folder(tmp_path):
+    data = _swap("style_master: null", "style_master: sage")
+    with pytest.raises(PersonaError):
+        parse_persona(data, masters_dir=tmp_path / "missing")
+    with pytest.raises(PersonaError):
+        parse_persona(data, masters_dir=tmp_path)
+    (tmp_path / "sage.md").write_text("x", encoding="utf-8")
+    assert parse_persona(data, masters_dir=tmp_path).style_master == "sage"
 
 
 def test_file_name_must_match_key(tmp_path):
@@ -157,56 +169,20 @@ def test_missing_persona(tmp_path):
 # ---- the shipped content (D8) ---------------------------------------------------------------------------------
 
 
-def _sections() -> dict[str, list[str]]:
-    persona = load_persona("patient-value")
-    sections: dict[str, list[str]] = {}
-    current = None
-    for line in persona.body.splitlines():
-        if line.startswith("## "):
-            current = line
-            sections[current] = []
-        elif current and line.strip():
-            sections[current].append(line)
-    return sections
-
-
-def test_sections_are_present_in_order():
-    assert list(_sections()) == ["## 철학", "## 행동 규칙", "## 하지 않는 것"]
-
-
-def test_philosophy_is_at_most_300_characters():
-    text = " ".join(_sections()["## 철학"])
-    assert 0 < len(text) <= 300
-
-
-def test_rules_are_five_to_ten_lines_and_not_empty_lists():
-    rules = _sections()["## 행동 규칙"]
-    assert 5 <= len(rules) <= 10
-    assert all(line.startswith("- ") for line in rules)
-    assert _sections()["## 하지 않는 것"]
-
-
-def test_no_date_no_event_title_no_real_master_name(repo_root):
-    text = _text()
-    assert not re.search(r"(19|20)\d\d", text)
-    assert "YYYY-MM" not in text
-    assert not re.search(r"\d{4}-\d{2}", text)
-    lowered = text.lower()
-    assert [name for name in DENY_LIST if name in lowered] == []
-    events = repo_root / "events"
-    if events.is_dir():
-        for path in events.iterdir():
-            assert path.stem not in text
-
-
-def test_style_master_is_null_while_no_masters_folder_exists(repo_root):
-    assert load_persona("patient-value").style_master is None
+@pytest.mark.parametrize("key", KEYS)
+def test_shipped_personas_load_and_match_the_policy(key, repo_root):
+    persona = load_persona(key)
+    assert persona.key == key
+    assert persona.style_master is None
+    assert persona.version >= 1
+    text = (PERSONAS_DIR / f"{key}.md").read_text(encoding="utf-8")
+    assert not re.search(r"(?<!\d)(19|20)\d\d(?!\d)", text)
+    assert [name for name in DENY_LIST if name in text.lower()] == []
     assert not (repo_root / "masters").exists()
 
 
-def test_persona_name_is_not_a_real_name_and_is_short():
-    name = load_persona("patient-value").display_name
-    assert 1 <= len(name) <= 50
+def test_the_expected_personas_ship():
+    assert KEYS == ["headline-chaser", "patient-value", "steady-allocator", "trend-rider"]
 
 
 def test_loader_reads_only_inside_the_given_directory(tmp_path):
@@ -244,9 +220,227 @@ def test_body_with_a_year_month_is_refused_by_the_loader(text):
 
 
 def test_body_numbers_that_are_not_dates_pass():
-    assert parse_persona(_swap("## 철학\n", "## 철학\n여섯 턴, 20% 한도, 2030 종목, 1234567 원. "))
+    assert parse_persona(_swap("## 철학\n", "## 철학\n여섯 턴, 20% 한도, 12345 종목, 1234567 원. "))
 
 
 def test_carriage_return_in_the_body_is_refused():
     with pytest.raises(PersonaError):
         parse_persona(_swap("## 철학\n", "## 철학\r\n"))
+
+
+# ---- D8 content policy ------------------------------------------------------------------------------------
+
+GOOD_RULES = "\n".join(f"- 규칙 {i}" for i in "가나다라마")
+
+
+def _persona(philosophy="철학 문장.", rules=GOOD_RULES, avoid="- 하지 않는다.", head="") -> bytes:
+    front = (
+        "---\nkey: sample\nversion: 1\ndisplay_name: 시험\nstyle_master: null\n"
+        "default_risk_limit: -0.20\ndefault_formation: [10, 30, 30, 30]\n---\n"
+    )
+    body = f"{head}## 철학\n{philosophy}\n\n## 행동 규칙\n{rules}\n\n## 하지 않는 것\n{avoid}\n"
+    return (front + body).encode("utf-8")
+
+
+def test_the_minimal_valid_persona_passes():
+    assert parse_persona(_persona()).key == "sample"
+
+
+@pytest.mark.parametrize(
+    "data",
+    [
+        _persona(philosophy="가" * 301),
+        _persona(rules="\n".join(f"- 규칙 {i}" for i in "가나다라")),
+        _persona(rules="\n".join(f"- 규칙 {i}" for i in "가나다라마바사아자차카")),
+        _persona(rules=GOOD_RULES + "\n일반 문장"),
+        _persona(avoid=""),
+        _persona(avoid="\n".join(f"- 금지 {i}" for i in "가나다라마바사아자차카")),
+        _persona(avoid="그냥 문장"),
+        _persona(head="앞에 붙은 문장\n"),
+        _persona(philosophy="2030년에는 좋았다."),
+        _persona(philosophy="1999 이후."),
+        _persona(rules="\n".join("- " + "가" * 900 for _ in range(5))),
+    ],
+    ids=[
+        "philosophy-long", "rules-4", "rules-11", "rules-prose", "avoid-empty", "avoid-11",
+        "avoid-prose", "text-before-section", "year", "year-2", "body-too-big",
+    ],
+)  # fmt: skip
+def test_content_defects_are_refused(data):
+    with pytest.raises(PersonaError):
+        parse_persona(data)
+
+
+def test_a_repeated_or_missing_or_reordered_section_is_refused():
+    good = _persona().decode("utf-8")
+    for bad in (
+        good + "\n## 철학\n또\n",
+        good.replace("## 하지 않는 것\n- 하지 않는다.\n", ""),
+        good.replace("## 철학", "## 행동 규칙 ", 1),
+        good + "\n## 덤\n- 하나\n",
+    ):
+        with pytest.raises(PersonaError):
+            parse_persona(bad.encode("utf-8"))
+
+
+def test_empty_philosophy_is_refused():
+    with pytest.raises(PersonaError):
+        parse_persona(_persona(philosophy=""))
+
+
+@pytest.mark.parametrize("name", ["Buffett", "워런 버핏", "SOROS"])
+def test_master_names_in_body_or_display_name_are_refused(name):
+    with pytest.raises(PersonaError):
+        parse_persona(_persona(philosophy=f"{name} 처럼."))
+    data = _persona().decode("utf-8").replace("display_name: 시험", f"display_name: {name}")
+    with pytest.raises(PersonaError):
+        parse_persona(data.encode("utf-8"))
+
+
+def test_an_event_title_in_the_body_is_refused(tmp_path):
+    (tmp_path / "tags.csv").write_text(
+        "event_key,title\nev1,시험용 사건 제목\nev2,짧\n", encoding="utf-8"
+    )
+    with pytest.raises(PersonaError):
+        parse_persona(_persona(philosophy="시험용 사건 제목 때문에."), events_dir=tmp_path)
+    assert parse_persona(_persona(philosophy="짧 은 글."), events_dir=tmp_path)
+    assert parse_persona(_persona(), events_dir=tmp_path / "none")
+
+
+def test_shipped_bodies_hold_no_real_event_title():
+    for key in KEYS:
+        assert load_persona(key)  # uses the repo events folder
+
+
+# ---- personas.lock ----------------------------------------------------------------------------------------
+
+
+def _lock_dir(tmp_path, rows=None, data=None):
+    data = data or _persona()
+    (tmp_path / "sample.md").write_bytes(data)
+    sha = hashlib.sha256(data).hexdigest()
+    rows = [f"sample 1 {sha}"] if rows is None else rows
+    (tmp_path / LOCK_NAME).write_text("".join(f"{r}\n" for r in rows), encoding="utf-8")
+    return tmp_path, sha
+
+
+def test_the_shipped_lock_matches_every_file_and_is_sorted():
+    verify_lock()
+    rows = read_lock()
+    assert [r.key for r in rows if r.version == 1] == KEYS
+
+
+def test_a_valid_lock_passes(tmp_path):
+    directory, _ = _lock_dir(tmp_path)
+    verify_lock(directory)
+
+
+def test_a_changed_file_without_a_version_bump_fails(tmp_path):
+    directory, _ = _lock_dir(tmp_path)
+    (directory / "sample.md").write_bytes(_persona(philosophy="다른 철학."))
+    with pytest.raises(PersonaError):
+        verify_lock(directory)
+
+
+def test_a_bumped_version_needs_a_new_row_and_keeps_the_old_one(tmp_path):
+    directory, sha = _lock_dir(tmp_path)
+    data = _persona(philosophy="다른 철학.").decode("utf-8").replace("version: 1", "version: 2")
+    (directory / "sample.md").write_bytes(data.encode("utf-8"))
+    with pytest.raises(PersonaError):
+        verify_lock(directory)
+    new_sha = hashlib.sha256(data.encode("utf-8")).hexdigest()
+    (directory / LOCK_NAME).write_text(f"sample 1 {sha}\nsample 2 {new_sha}\n", encoding="utf-8")
+    verify_lock(directory)
+    (directory / LOCK_NAME).write_text(f"sample 2 {new_sha}\n", encoding="utf-8")
+    with pytest.raises(PersonaError):
+        verify_lock(directory)
+
+
+def test_lock_defects_are_refused(tmp_path):
+    directory, sha = _lock_dir(tmp_path)
+    other = "b" * 64
+    for rows in (
+        [f"sample 1 {sha}", f"sample 1 {sha}"],
+        [f"sample 1 {sha}", f"aaa 1 {other}"],
+        [f"sample 1 {sha}", f"zzz 1 {other}"],
+        [f"zzz 1 {other}", f"sample 1 {sha}"],
+        [f"sample 1 {sha.upper()}"],
+        [f"sample 1 {sha[:-1]}"],
+        [f"sample 1  {sha}"],
+        [f"sample 3 {sha}"],
+        [],
+    ):
+        (directory / LOCK_NAME).write_text("".join(f"{r}\n" for r in rows), encoding="utf-8")
+        with pytest.raises(PersonaError):
+            verify_lock(directory)
+
+
+def test_lock_without_final_newline_or_with_crlf_is_refused(tmp_path):
+    directory, sha = _lock_dir(tmp_path)
+    (directory / LOCK_NAME).write_text(f"sample 1 {sha}", encoding="utf-8")
+    with pytest.raises(PersonaError):
+        verify_lock(directory)
+    (directory / LOCK_NAME).write_bytes(f"sample 1 {sha}\r\n".encode())
+    with pytest.raises(PersonaError):
+        verify_lock(directory)
+
+
+def test_a_file_missing_from_the_lock_is_refused(tmp_path):
+    directory, _ = _lock_dir(tmp_path)
+    (directory / "extra.md").write_bytes(_persona().replace(b"key: sample", b"key: extra"))
+    with pytest.raises(PersonaError):
+        verify_lock(directory)
+
+
+def test_a_missing_lock_file_is_refused(tmp_path):
+    (tmp_path / "sample.md").write_bytes(_persona())
+    with pytest.raises(PersonaError):
+        verify_lock(tmp_path)
+
+
+def test_unsorted_lock_rows_are_refused_even_when_every_row_is_right(tmp_path):
+    directory, sha = _lock_dir(tmp_path)
+    data = _persona().replace(b"key: sample", b"key: other")
+    (directory / "other.md").write_bytes(data)
+    other = hashlib.sha256(data).hexdigest()
+    (directory / LOCK_NAME).write_text(f"sample 1 {sha}\nother 1 {other}\n", encoding="utf-8")
+    with pytest.raises(PersonaError):
+        verify_lock(directory)
+    (directory / LOCK_NAME).write_text(f"other 1 {other}\nsample 1 {sha}\n", encoding="utf-8")
+    verify_lock(directory)
+
+
+# ---- review round 1 ---------------------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("name", ["피셔", "마크스", "그린블랫", "Fisher", "marks"])
+def test_more_master_names_are_refused(name):
+    with pytest.raises(PersonaError):
+        parse_persona(
+            _persona(philosophy=f"{name}처럼 한다." if name.isascii() is False else f"like {name}.")
+        )
+
+
+@pytest.mark.parametrize("word", ["benchmarks", "remarks", "fishery"])
+def test_latin_deny_names_match_whole_words_only(word):
+    assert parse_persona(_persona(philosophy=f"{word} 를 본다."))
+
+
+def test_display_name_with_a_year_is_refused():
+    data = _persona().decode("utf-8").replace("display_name: 시험", "display_name: 2008 매니저")
+    with pytest.raises(PersonaError):
+        parse_persona(data.encode("utf-8"))
+
+
+def test_a_short_tags_row_is_not_a_crash(tmp_path):
+    (tmp_path / "tags.csv").write_text(
+        "event_key,month_start,title\nev1,2007-08-01\n", encoding="utf-8"
+    )
+    assert parse_persona(_persona(), events_dir=tmp_path)
+
+
+@pytest.mark.parametrize("key", KEYS)
+def test_persona_bodies_carry_no_meta_note_about_themselves(key):
+    body = load_persona(key).body
+    assert "초안" not in body
+    assert "비교용" not in body
