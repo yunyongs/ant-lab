@@ -1,6 +1,7 @@
 package antlab.agent;
 
 import antlab.common.persistence.AppendOnlyRepository;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.Query;
@@ -30,4 +31,14 @@ public interface AgentCallRepository extends AppendOnlyRepository<AgentCall, Lon
     /** All attempts of a turn in attempt order. */
     @Query("select c from AgentCall c where c.seasonId = :seasonId and c.turnNo = :turnNo order by c.attemptNo asc")
     List<AgentCall> findAllBySeasonIdAndTurnNo(@Param("seasonId") Long seasonId, @Param("turnNo") int turnNo);
+
+    /** Turns whose final call ended without a usable decision, per agent, in one grouped query. */
+    @Query("""
+            select new antlab.agent.AgentFailedTurnRow(s.memberId, count(c))
+            from AgentCall c join Season s on s.id = c.seasonId
+            where s.memberId in :memberIds and c.finalCall = true
+                and c.outcome in (antlab.agent.DecisionOutcome.NO_RESPONSE, antlab.agent.DecisionOutcome.INVALID)
+            group by s.memberId
+            """)
+    List<AgentFailedTurnRow> findFailedTurnCounts(@Param("memberIds") Collection<Long> memberIds);
 }
