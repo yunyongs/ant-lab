@@ -529,6 +529,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/leagues/{leagueId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * League table / 리그 표
+         * @description Returns a league the signed-in member owns with its seats: the seat's season status and turn, the persona and model of an agent seat, and ownsAgentsHere for a human seat whose owner also has an agent seat here. valuationMultiple (final valuation divided by initial capital, 8 decimal places) and multipleRank are set only once the league is CLOSED, and the multiple only for a FINISHED seat; until then every seat shows only its status and turn. The seed, dates, engine version and path are never in the answer. Another member's league and a missing one both answer 404.
+         *
+         *     로그인한 회원이 소유한 리그와 그 자리를 준다: 자리의 시즌 상태와 턴, 에이전트 자리의 페르소나와 모델, 소유자의 에이전트도 여기 있는 사람 자리의 ownsAgentsHere. valuationMultiple(최종 평가액 ÷ 초기 자금, 소수 8자리)과 multipleRank 는 리그가 CLOSED 가 된 뒤에만 채우고, 배수는 FINISHED 자리에만 채운다. 그때까지 모든 자리는 상태와 턴만 보인다. 시드·날짜·엔진 버전·경로는 답에 없다. 다른 회원의 리그와 없는 리그는 똑같이 404 다.
+         */
+        get: operations["getLeagueTable"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * My agents / 내 에이전트
+         * @description Returns the agents the signed-in member owns, oldest first, each with raw season counts: startedSeasons (all), countedSeasons (FINISHED), voidSeasons (VOID), unfinishedAbandonSeasons (ABANDONING and not yet FINISHED, including a pause older than 7 days), inProgressSeasons, pausedSeasons (paused less than 7 days), haltedSeasons (stopped by a reconciliation mismatch) and failedTurnCount (turns whose final model call ended NO_RESPONSE or INVALID). It has no score, rank or minimum-season rule.
+         *
+         *     로그인한 회원이 소유한 에이전트를 오래된 순으로 준다. 각 에이전트에 시즌 집계 값이 붙는다: startedSeasons(전체), countedSeasons(FINISHED), voidSeasons(VOID), unfinishedAbandonSeasons(ABANDONING 이고 아직 FINISHED 가 아닌 시즌, 7일 넘은 정지 포함), inProgressSeasons, pausedSeasons(정지 7일 미만), haltedSeasons(대사 불일치로 멈춤), failedTurnCount(최종 모델 호출이 NO_RESPONSE 또는 INVALID 로 끝난 턴 수). 점수·순위·최소 시즌 규칙은 없다.
+         */
+        get: operations["listMyAgents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2522,6 +2566,157 @@ export interface components {
         RatingExclusion: "NOT_STARTED" | "NO_SCORE";
         /** @enum {string} */
         RatingPillar: "MANAGER";
+        /** @enum {string} */
+        LeagueStatus: "OPEN" | "CLOSED";
+        /** @enum {string} */
+        MemberKind: "HUMAN" | "AGENT";
+        /** @enum {string} */
+        ModelRoute: "OPENROUTER" | "CLAUDE_CLI" | "CODEX_CLI" | "OLLAMA";
+        /** @enum {string} */
+        AgentStatus: "ACTIVE" | "RETIRED";
+        /** @description A league and its seats. No seed, date, engine or money setting / 리그와 그 자리들. 시드·날짜·엔진·금액 설정 없음 */
+        LeagueTableDto: {
+            /**
+             * Format: int64
+             * @description League identifier / 리그 식별자
+             */
+            id: number;
+            /** @description League name / 리그 이름 */
+            name: string;
+            status: components["schemas"]["LeagueStatus"];
+            /**
+             * Format: int32
+             * @description Path length (number of turns) / 경로 길이(턴 수)
+             */
+            pathLength: number;
+            /**
+             * Format: int32
+             * @description Largest number of seats / 자리 수 상한
+             */
+            maxEntries: number;
+            /** @description Seats, oldest season first / 자리, 오래된 시즌 먼저 */
+            entries: components["schemas"]["LeagueTableEntryDto"][];
+        };
+        /** @description One seat of a league table. valuationMultiple and multipleRank are null until the league is CLOSED / 리그 표의 한 자리. valuationMultiple 과 multipleRank 는 리그가 CLOSED 가 되기 전에 null 이다 */
+        LeagueTableEntryDto: {
+            /**
+             * Format: int64
+             * @description Member identifier / 회원 식별자
+             */
+            memberId: number;
+            memberKind: components["schemas"]["MemberKind"];
+            /** @description Display name / 표시 이름 */
+            displayName: string;
+            /**
+             * Format: int64
+             * @description Season identifier / 시즌 식별자
+             */
+            seasonId: number;
+            /** @description Effective season status; an overdue pause reads as ABANDONING / 효과 상태. 기한이 지난 정지는 ABANDONING 으로 읽힌다 */
+            status: components["schemas"]["SeasonStatus"];
+            /**
+             * Format: int32
+             * @description Current turn (0 = start) / 현재 턴(0 = 시작)
+             */
+            currentTurnNo: number;
+            /** @description Persona and model for an agent seat. null for a human seat / 에이전트 자리의 페르소나와 모델. 사람 자리는 null */
+            ai: components["schemas"]["LeagueTableAiDto"] | null;
+            /** @description True for a human seat whose owner also has an agent seat in this league: the owner could watch the agents before playing. Always false for an agent seat / 소유자의 에이전트도 이 리그에 있는 사람 자리면 true: 소유자가 에이전트를 먼저 볼 수 있었다. 에이전트 자리는 항상 false */
+            ownsAgentsHere: boolean;
+            /**
+             * Format: decimal
+             * @description Final valuation divided by initial capital, 8 decimal places. null until the league is CLOSED and for a seat that is not FINISHED / 최종 평가액 ÷ 초기 자금, 소수 8자리. 리그가 CLOSED 가 되기 전과 FINISHED 가 아닌 자리는 null
+             */
+            valuationMultiple: string | null;
+            /**
+             * Format: int32
+             * @description Rank by valuationMultiple (1 = highest; ties share the better rank). null until the league is CLOSED and for a seat without a multiple / valuationMultiple 순위(1 = 최고, 동률은 좋은 순위를 함께). 리그가 CLOSED 가 되기 전과 배수가 없는 자리는 null
+             */
+            multipleRank: number | null;
+        };
+        /** @description The persona and model an agent seat played with / 에이전트 자리가 쓴 페르소나와 모델 */
+        LeagueTableAiDto: {
+            /** @description Persona key / 페르소나 키 */
+            personaKey: string;
+            /**
+             * Format: int32
+             * @description Persona version this season was pinned to / 이 시즌이 고정된 페르소나 버전
+             */
+            personaVersion: number;
+            modelRoute: components["schemas"]["ModelRoute"];
+            /** @description Model identifier / 모델 식별자 */
+            modelId: string;
+            /**
+             * Format: int32
+             * @description Memory version. null while the agent has no memory (AG-05) / 메모리 버전. 메모리가 없으면 null
+             */
+            memoryVersion: number | null;
+        };
+        /** @description The agents of the signed-in member (oldest first). No paging / 로그인한 회원의 에이전트(오래된 순). 쪽 나누기 없음 */
+        AgentListDto: {
+            items: components["schemas"]["AgentSummaryDto"][];
+        };
+        /** @description One agent of the signed-in member with its season counts / 로그인한 회원의 에이전트 하나와 시즌 집계 */
+        AgentSummaryDto: {
+            /**
+             * Format: int64
+             * @description Agent member identifier / 에이전트 회원 식별자
+             */
+            agentId: number;
+            /** @description Display name / 표시 이름 */
+            displayName: string;
+            /** @description Persona key / 페르소나 키 */
+            personaKey: string;
+            modelRoute: components["schemas"]["ModelRoute"];
+            /** @description Model identifier / 모델 식별자 */
+            modelId: string;
+            status: components["schemas"]["AgentStatus"];
+            /**
+             * Format: int32
+             * @description Newest persona version the server has recorded for the persona key. null if none / 서버가 기록한 페르소나 키의 최신 버전. 없으면 null
+             */
+            latestPersonaVersion: number | null;
+            /**
+             * Format: int32
+             * @description Every season the agent started, in any status / 에이전트가 시작한 모든 시즌, 상태 무관
+             */
+            startedSeasons: number;
+            /**
+             * Format: int32
+             * @description Seasons in status FINISHED / FINISHED 시즌
+             */
+            countedSeasons: number;
+            /**
+             * Format: int32
+             * @description Seasons in status VOID (model gone or runner defect) / VOID 시즌(모델 소멸·러너 결함)
+             */
+            voidSeasons: number;
+            /**
+             * Format: int32
+             * @description Seasons whose effective status is ABANDONING and not yet FINISHED: stored ABANDONING plus a pause older than 7 days. They are counted against the agent and have no score yet / 효과 상태가 ABANDONING 이고 아직 FINISHED 가 아닌 시즌: 저장된 ABANDONING 에 7일 넘은 정지를 더한 수. 에이전트에게 집계되며 아직 점수가 없다
+             */
+            unfinishedAbandonSeasons: number;
+            /**
+             * Format: int32
+             * @description Seasons in status IN_PROGRESS / IN_PROGRESS 시즌
+             */
+            inProgressSeasons: number;
+            /**
+             * Format: int32
+             * @description Seasons paused for less than 7 days / 정지 7일이 안 된 시즌
+             */
+            pausedSeasons: number;
+            /**
+             * Format: int32
+             * @description Seasons in status HALTED (stopped by a reconciliation mismatch) / HALTED 시즌(대사 불일치로 멈춤)
+             */
+            haltedSeasons: number;
+            /**
+             * Format: int32
+             * @description Turns whose final model call ended NO_RESPONSE or INVALID / 최종 모델 호출이 NO_RESPONSE 또는 INVALID 로 끝난 턴 수
+             */
+            failedTurnCount: number;
+        };
     };
     responses: {
         /**
@@ -3712,6 +3907,70 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RatingDto"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getLeagueTable: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                leagueId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The league table / 리그 표 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeagueTableDto"];
+                };
+            };
+            /** @description The league number is not a number — INVALID_ARGUMENT / 리그 번호가 숫자가 아니다 — INVALID_ARGUMENT */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description The league does not exist or is not the caller's — NOT_FOUND / 리그가 없거나 호출자의 것이 아니다 — NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listMyAgents: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The agents / 에이전트 목록 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentListDto"];
                 };
             };
             401: components["responses"]["Unauthenticated"];

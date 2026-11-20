@@ -1200,6 +1200,71 @@ paths:
           $ref: '#/components/responses/Unauthenticated'
         '500':
           $ref: '#/components/responses/InternalError'
+  /api/v1/leagues/{leagueId}:
+    get:
+      tags: [league]
+      operationId: getLeagueTable
+      summary: League table / 리그 표
+      description: |-
+        Returns a league the signed-in member owns with its seats: the seat's season status and turn, the persona and model of an agent seat, and ownsAgentsHere for a human seat whose owner also has an agent seat here. valuationMultiple (final valuation divided by initial capital, 8 decimal places) and multipleRank are set only once the league is CLOSED, and the multiple only for a FINISHED seat; until then every seat shows only its status and turn. The seed, dates, engine version and path are never in the answer. Another member's league and a missing one both answer 404.
+
+        로그인한 회원이 소유한 리그와 그 자리를 준다: 자리의 시즌 상태와 턴, 에이전트 자리의 페르소나와 모델, 소유자의 에이전트도 여기 있는 사람 자리의 ownsAgentsHere. valuationMultiple(최종 평가액 ÷ 초기 자금, 소수 8자리)과 multipleRank 는 리그가 CLOSED 가 된 뒤에만 채우고, 배수는 FINISHED 자리에만 채운다. 그때까지 모든 자리는 상태와 턴만 보인다. 시드·날짜·엔진 버전·경로는 답에 없다. 다른 회원의 리그와 없는 리그는 똑같이 404 다.
+      parameters:
+        - name: leagueId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: The league table / 리그 표
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeagueTableDto'
+        '400':
+          description: The league number is not a number — INVALID_ARGUMENT / 리그 번호가 숫자가 아니다 — INVALID_ARGUMENT
+          x-error-codes: [INVALID_ARGUMENT]
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          description: The league does not exist or is not the caller's — NOT_FOUND / 리그가 없거나 호출자의 것이 아니다 — NOT_FOUND
+          x-error-codes: [NOT_FOUND]
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/v1/agents:
+    get:
+      tags: [agent]
+      operationId: listMyAgents
+      summary: My agents / 내 에이전트
+      description: |-
+        Returns the agents the signed-in member owns, oldest first, each with raw season counts: startedSeasons (all), countedSeasons (FINISHED), voidSeasons (VOID), unfinishedAbandonSeasons (ABANDONING and not yet FINISHED, including a pause older than 7 days), inProgressSeasons, pausedSeasons (paused less than 7 days), haltedSeasons (stopped by a reconciliation mismatch) and failedTurnCount (turns whose final model call ended NO_RESPONSE or INVALID). It has no score, rank or minimum-season rule.
+
+        로그인한 회원이 소유한 에이전트를 오래된 순으로 준다. 각 에이전트에 시즌 집계 값이 붙는다: startedSeasons(전체), countedSeasons(FINISHED), voidSeasons(VOID), unfinishedAbandonSeasons(ABANDONING 이고 아직 FINISHED 가 아닌 시즌, 7일 넘은 정지 포함), inProgressSeasons, pausedSeasons(정지 7일 미만), haltedSeasons(대사 불일치로 멈춤), failedTurnCount(최종 모델 호출이 NO_RESPONSE 또는 INVALID 로 끝난 턴 수). 점수·순위·최소 시즌 규칙은 없다.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: The agents / 에이전트 목록
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentListDto'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '500':
+          $ref: '#/components/responses/InternalError'
 components:
   securitySchemes:
     bearerAuth:
@@ -3343,3 +3408,174 @@ components:
     RatingPillar:
       type: string
       enum: [MANAGER]
+
+    LeagueStatus:
+      type: string
+      enum: [OPEN, CLOSED]
+    MemberKind:
+      type: string
+      enum: [HUMAN, AGENT]
+    ModelRoute:
+      type: string
+      enum: [OPENROUTER, CLAUDE_CLI, CODEX_CLI, OLLAMA]
+    AgentStatus:
+      type: string
+      enum: [ACTIVE, RETIRED]
+    LeagueTableDto:
+      type: object
+      description: A league and its seats. No seed, date, engine or money setting / 리그와 그 자리들. 시드·날짜·엔진·금액 설정 없음
+      required: [id, name, status, pathLength, maxEntries, entries]
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: League identifier / 리그 식별자
+        name:
+          type: string
+          description: League name / 리그 이름
+        status:
+          $ref: '#/components/schemas/LeagueStatus'
+        pathLength:
+          type: integer
+          format: int32
+          description: Path length (number of turns) / 경로 길이(턴 수)
+        maxEntries:
+          type: integer
+          format: int32
+          description: Largest number of seats / 자리 수 상한
+        entries:
+          type: array
+          description: Seats, oldest season first / 자리, 오래된 시즌 먼저
+          items:
+            $ref: '#/components/schemas/LeagueTableEntryDto'
+    LeagueTableEntryDto:
+      type: object
+      description: One seat of a league table. valuationMultiple and multipleRank are null until the league is CLOSED / 리그 표의 한 자리. valuationMultiple 과 multipleRank 는 리그가 CLOSED 가 되기 전에 null 이다
+      required: [memberId, memberKind, displayName, seasonId, status, currentTurnNo, ai, ownsAgentsHere,
+                 valuationMultiple, multipleRank]
+      properties:
+        memberId:
+          type: integer
+          format: int64
+          description: Member identifier / 회원 식별자
+        memberKind:
+          $ref: '#/components/schemas/MemberKind'
+        displayName:
+          type: string
+          description: Display name / 표시 이름
+        seasonId:
+          type: integer
+          format: int64
+          description: Season identifier / 시즌 식별자
+        status:
+          $ref: '#/components/schemas/SeasonStatus'
+          description: Effective season status; an overdue pause reads as ABANDONING / 효과 상태. 기한이 지난 정지는 ABANDONING 으로 읽힌다
+        currentTurnNo:
+          type: integer
+          format: int32
+          description: Current turn (0 = start) / 현재 턴(0 = 시작)
+        ai:
+          description: Persona and model for an agent seat. null for a human seat / 에이전트 자리의 페르소나와 모델. 사람 자리는 null
+          oneOf:
+            - $ref: '#/components/schemas/LeagueTableAiDto'
+            - type: 'null'
+        ownsAgentsHere:
+          type: boolean
+          description: 'True for a human seat whose owner also has an agent seat in this league: the owner could watch the agents before playing. Always false for an agent seat / 소유자의 에이전트도 이 리그에 있는 사람 자리면 true: 소유자가 에이전트를 먼저 볼 수 있었다. 에이전트 자리는 항상 false'
+        valuationMultiple:
+          type: [string, 'null']
+          format: decimal
+          description: Final valuation divided by initial capital, 8 decimal places. null until the league is CLOSED and for a seat that is not FINISHED / 최종 평가액 ÷ 초기 자금, 소수 8자리. 리그가 CLOSED 가 되기 전과 FINISHED 가 아닌 자리는 null
+        multipleRank:
+          type: [integer, 'null']
+          format: int32
+          description: Rank by valuationMultiple (1 = highest; ties share the better rank). null until the league is CLOSED and for a seat without a multiple / valuationMultiple 순위(1 = 최고, 동률은 좋은 순위를 함께). 리그가 CLOSED 가 되기 전과 배수가 없는 자리는 null
+    LeagueTableAiDto:
+      type: object
+      description: The persona and model an agent seat played with / 에이전트 자리가 쓴 페르소나와 모델
+      required: [personaKey, personaVersion, modelRoute, modelId, memoryVersion]
+      properties:
+        personaKey:
+          type: string
+          description: Persona key / 페르소나 키
+        personaVersion:
+          type: integer
+          format: int32
+          description: Persona version this season was pinned to / 이 시즌이 고정된 페르소나 버전
+        modelRoute:
+          $ref: '#/components/schemas/ModelRoute'
+        modelId:
+          type: string
+          description: Model identifier / 모델 식별자
+        memoryVersion:
+          type: [integer, 'null']
+          format: int32
+          description: Memory version. null while the agent has no memory (AG-05) / 메모리 버전. 메모리가 없으면 null
+    AgentListDto:
+      type: object
+      description: The agents of the signed-in member (oldest first). No paging / 로그인한 회원의 에이전트(오래된 순). 쪽 나누기 없음
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AgentSummaryDto'
+    AgentSummaryDto:
+      type: object
+      description: One agent of the signed-in member with its season counts / 로그인한 회원의 에이전트 하나와 시즌 집계
+      required: [agentId, displayName, personaKey, modelRoute, modelId, status, latestPersonaVersion, startedSeasons,
+                 countedSeasons, voidSeasons, unfinishedAbandonSeasons, inProgressSeasons, pausedSeasons, haltedSeasons, failedTurnCount]
+      properties:
+        agentId:
+          type: integer
+          format: int64
+          description: Agent member identifier / 에이전트 회원 식별자
+        displayName:
+          type: string
+          description: Display name / 표시 이름
+        personaKey:
+          type: string
+          description: Persona key / 페르소나 키
+        modelRoute:
+          $ref: '#/components/schemas/ModelRoute'
+        modelId:
+          type: string
+          description: Model identifier / 모델 식별자
+        status:
+          $ref: '#/components/schemas/AgentStatus'
+        latestPersonaVersion:
+          type: [integer, 'null']
+          format: int32
+          description: Newest persona version the server has recorded for the persona key. null if none / 서버가 기록한 페르소나 키의 최신 버전. 없으면 null
+        startedSeasons:
+          type: integer
+          format: int32
+          description: Every season the agent started, in any status / 에이전트가 시작한 모든 시즌, 상태 무관
+        countedSeasons:
+          type: integer
+          format: int32
+          description: Seasons in status FINISHED / FINISHED 시즌
+        voidSeasons:
+          type: integer
+          format: int32
+          description: Seasons in status VOID (model gone or runner defect) / VOID 시즌(모델 소멸·러너 결함)
+        unfinishedAbandonSeasons:
+          type: integer
+          format: int32
+          description: 'Seasons whose effective status is ABANDONING and not yet FINISHED: stored ABANDONING plus a pause older than 7 days. They are counted against the agent and have no score yet / 효과 상태가 ABANDONING 이고 아직 FINISHED 가 아닌 시즌: 저장된 ABANDONING 에 7일 넘은 정지를 더한 수. 에이전트에게 집계되며 아직 점수가 없다'
+        inProgressSeasons:
+          type: integer
+          format: int32
+          description: Seasons in status IN_PROGRESS / IN_PROGRESS 시즌
+        pausedSeasons:
+          type: integer
+          format: int32
+          description: Seasons paused for less than 7 days / 정지 7일이 안 된 시즌
+        haltedSeasons:
+          type: integer
+          format: int32
+          description: Seasons in status HALTED (stopped by a reconciliation mismatch) / HALTED 시즌(대사 불일치로 멈춤)
+        failedTurnCount:
+          type: integer
+          format: int32
+          description: Turns whose final model call ended NO_RESPONSE or INVALID / 최종 모델 호출이 NO_RESPONSE 또는 INVALID 로 끝난 턴 수

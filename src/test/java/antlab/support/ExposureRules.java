@@ -34,10 +34,10 @@ public final class ExposureRules {
      * 주문이 어느 변경에 묶였는지만 알려 주고 역사 날짜 단서가 없다(P0-31).
      * member.id is signup order with no history-date clue; returned only to the member who just signed up.
      * lineup.asset_id is the same value as the already allowed asset.id (MVP-14).
-     * league_entry.league_id is creation order of a league, with no history-date clue (AG-04 C2).
+     * league_entry.league_id and league.id are the creation order of a league, with no history-date clue (AG-04 C2, PR D).
      */
     public static final Set<String> IDENTIFIER_ALLOWED = Set.of("asset.id", "asset.asset_group_id", "season.id",
-            "turn_price.asset_id", "turn_feed.asset_id", "orders.id", "orders.formation_change_id", "member.id", "lineup.asset_id", "league_entry.league_id");
+            "turn_price.asset_id", "turn_feed.asset_id", "orders.id", "orders.formation_change_id", "member.id", "lineup.asset_id", "league_entry.league_id", "league.id");
 
     /**
      * Identifiers only a review handler may expose. In season, a feed item with neither asset nor group is an event card,
@@ -99,6 +99,18 @@ public final class ExposureRules {
             DecisionResultDto.FormationResultDto.class, DecisionResultDto.OrderUnitResultDto.class,
             DecisionResultDto.ThesesResultDto.class);
 
+    /**
+     * Columns tagged {@code [내부]} that the owner-only agent responses show on purpose (AG-04 PR D): the agent identity, the
+     * persona version pin, the memory version and the member kind. Allowed in these records only, matched by class, so no
+     * other response gets them. The final-call outcome is shown only as a count.
+     */
+    public static final Set<String> OWNER_AGENT_SOURCES = Set.of("member.kind", "agent_profile.persona_key",
+            "agent_profile.model_route", "agent_profile.model_id", "agent_profile.status",
+            "season_agent_config.persona_version", "season_agent_config.memory_version", "persona_version.version",
+            "agent_call.outcome");
+    public static final Set<Class<?>> OWNER_AGENT_RECORDS = Set.of(antlab.agent.AgentSummaryDto.class,
+            antlab.league.LeagueTableAiDto.class, antlab.league.LeagueTableEntryDto.class);
+
     private ExposureRules() {
     }
 
@@ -158,6 +170,10 @@ public final class ExposureRules {
             } else {
                 for (String source : from.value()) {
                     if (source.equals(ENGINE_REJECT_SOURCE) && ENGINE_REJECT_RECORDS.contains(record)
+                            && catalog.has(source)) {
+                        continue;
+                    }
+                    if (OWNER_AGENT_RECORDS.contains(record) && OWNER_AGENT_SOURCES.contains(source)
                             && catalog.has(source)) {
                         continue;
                     }
