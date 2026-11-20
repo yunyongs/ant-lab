@@ -1,6 +1,7 @@
 package antlab.league;
 
 import antlab.common.persistence.AppendOnlyRepository;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.Query;
@@ -31,4 +32,21 @@ public interface LeagueEntryRepository extends AppendOnlyRepository<LeagueEntry,
             where e.leagueId = :leagueId order by e.seasonId
             """)
     List<LeagueEntryRow> findRowsByLeagueId(@Param("leagueId") Long leagueId);
+
+    /** The agent side of the given seats, in one query. Seats of human members have no row. */
+    @Query("""
+            select new antlab.league.LeagueAiRow(c.seasonId, p.ownerMemberId, p.personaKey, c.personaVersion,
+                p.modelRoute, p.modelId, c.memoryVersion)
+            from SeasonAgentConfig c join AgentProfile p on p.memberId = c.memberId
+            where c.seasonId in :seasonIds
+            """)
+    List<LeagueAiRow> findAiRowsBySeasonIds(@Param("seasonIds") Collection<Long> seasonIds);
+
+    /** The last-turn valuation of the FINISHED ones among the given seasons, in one query. */
+    @Query("""
+            select new antlab.league.LeagueFinalValueRow(s.id, t.totalValue)
+            from Turn t join t.season s
+            where s.id in :seasonIds and s.status = antlab.season.SeasonStatus.FINISHED and t.turnNo = s.pathLength
+            """)
+    List<LeagueFinalValueRow> findFinalValues(@Param("seasonIds") Collection<Long> seasonIds);
 }
