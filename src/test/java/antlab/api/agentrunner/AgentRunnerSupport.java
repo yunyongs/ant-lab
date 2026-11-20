@@ -41,7 +41,8 @@ final class AgentRunnerSupport {
     static String startBody(String personaSha256) {
         return """
                 {"riskLimit": "-0.20", "formation": {"goalkeeper": 10, "defender": 30, "midfielder": 30, "forward": 30},
-                 "config": {"personaVersion": 1, "personaSha256": "%s", "modelRequested": "fake/model-1",
+                 "config": {"personaVersion": 1, "personaSha256": "%s", "personaDisplayName": "Value",
+                   "modelRequested": "fake/model-1",
                    "temperature": 0.7, "maxTokens": 2000, "turnTimeoutMs": 60000, "promptTemplateVersion": "p1",
                    "runnerVersion": "r1", "budgetCalls": 100, "budgetUsd": 1.5}}""".formatted(personaSha256);
     }

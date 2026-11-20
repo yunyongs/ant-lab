@@ -61,7 +61,7 @@ class AgentSeasonRollbackTest {
 
     private static StartAgentSeasonRequest request(String personaSha256) {
         return new StartAgentSeasonRequest(new BigDecimal("-0.20"), new FormationDto(10, 30, 30, 30), null,
-                new AgentSeasonConfigRequest(1, personaSha256, "fake/model-1", new BigDecimal("0.7"), null, 2000,
+                new AgentSeasonConfigRequest(1, personaSha256, "가치", "fake/model-1", new BigDecimal("0.7"), null, 2000,
                         60000, "p1", "r1", null, 100, new BigDecimal("1.5")));
     }
 

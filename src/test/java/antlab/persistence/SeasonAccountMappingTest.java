@@ -140,11 +140,17 @@ class SeasonAccountMappingTest {
         }
     }
 
+    /** One key field, or one per component of the {@code @IdClass} for the composite key of persona_version. */
+    private static int keyFieldCount(Class<?> entity) {
+        jakarta.persistence.IdClass idClass = entity.getAnnotation(jakarta.persistence.IdClass.class);
+        return idClass == null ? 1 : idClass.value().getRecordComponents().length;
+    }
+
     @Test
     void 모든_엔티티의_키_필드가_정확히_하나다() {
         for (Class<?> c : MappingModel.entities(em)) {
             assertThat(MappingModel.fields(c).stream().filter(f -> f.isAnnotationPresent(Id.class)))
-                    .as(c.getSimpleName()).hasSize(1);
+                    .as(c.getSimpleName()).hasSize(keyFieldCount(c));
         }
     }
 }

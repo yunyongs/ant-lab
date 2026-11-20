@@ -34,13 +34,14 @@ class AgentSeasonServiceTest {
     private final SeasonAgentConfigRepository configs = mock(SeasonAgentConfigRepository.class);
     private final SeasonStartService starts = mock(SeasonStartService.class);
     private final SeasonRepository seasons = mock(SeasonRepository.class);
+    private final PersonaVersionService personas = mock(PersonaVersionService.class);
     private final ScriptedClock clock = new ScriptedClock();
     private final AgentSeasonService service = new AgentSeasonService(currentMember, profiles, configs, starts, seasons,
-            new AgentRunnerProperties("x".repeat(32), 1L, 5), clock);
+            new AgentRunnerProperties("x".repeat(32), 1L, 5), personas, clock);
 
     private static StartAgentSeasonRequest request(String modelRequested) {
         return new StartAgentSeasonRequest(new BigDecimal("-0.20"), new FormationDto(10, 30, 30, 30), null,
-                new AgentSeasonConfigRequest(1, "a".repeat(64), modelRequested, new BigDecimal("0.7"), null, 2000,
+                new AgentSeasonConfigRequest(1, "a".repeat(64), "Value", modelRequested, new BigDecimal("0.7"), null, 2000,
                         60000, "p1", "r1", null, 100, new BigDecimal("1.5")));
     }
 

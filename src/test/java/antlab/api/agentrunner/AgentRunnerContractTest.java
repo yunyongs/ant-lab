@@ -196,10 +196,14 @@ class AgentRunnerContractTest {
             types.add(type.toClass());
         }
         // A new runner response type must be added here on purpose and goes through the catalog.
-        assertThat(types).containsExactlyInAnyOrder(AgentDto.class, SeasonDto.class, AgentTurnViewDto.class,
+        assertThat(types).containsExactlyInAnyOrder(AgentDto.class, SeasonDto.class, antlab.agent.AgentSeasonConfigDto.class, AgentTurnViewDto.class,
                 DecisionResultDto.class, TurnResultDto.class, AbandonResultDto.class, Void.class);
         assertThat(ExposureRules.check(SeasonDto.class, catalog, false, false)).isEmpty();
         assertThat(ExposureRules.check(AgentTurnViewDto.class, catalog, false, false)).isEmpty();
+        assertThat(Arrays.stream(antlab.agent.AgentSeasonConfigDto.class.getRecordComponents()).map(RecordComponent::getName).toList())
+                .containsExactly("personaKey", "personaVersion", "personaSha256", "modelRoute", "modelRequested",
+                        "promptTemplateVersion", "runnerVersion", "memoryVersion", "temperature", "modelSeed", "maxTokens",
+                        "turnTimeoutMs", "budgetCalls", "budgetUsd");
         assertThat(ExposureRules.check(DecisionResultDto.class, catalog, false, false)).isEmpty();
         assertThat(ExposureRules.check(TurnResultDto.class, catalog, false, false)).isEmpty();
         assertThat(ExposureRules.check(AbandonResultDto.class, catalog, false, false)).isEmpty();

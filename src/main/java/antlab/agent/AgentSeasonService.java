@@ -28,17 +28,19 @@ public class AgentSeasonService {
     private final SeasonStartService starts;
     private final SeasonRepository seasons;
     private final AgentRunnerProperties properties;
+    private final PersonaVersionService personas;
     private final Clock clock;
 
     public AgentSeasonService(CurrentMember currentMember, AgentProfileRepository profiles,
             SeasonAgentConfigRepository configs, SeasonStartService starts, SeasonRepository seasons,
-            AgentRunnerProperties properties, Clock clock) {
+            AgentRunnerProperties properties, PersonaVersionService personas, Clock clock) {
         this.currentMember = currentMember;
         this.profiles = profiles;
         this.configs = configs;
         this.starts = starts;
         this.seasons = seasons;
         this.properties = properties;
+        this.personas = personas;
         this.clock = clock;
     }
 
@@ -67,8 +69,9 @@ public class AgentSeasonService {
                 >= properties.maxSeasonsPerWeek()) {
             throw new DomainException(ErrorCode.SEASON_LIMIT, "에이전트가 한 주에 시작할 수 있는 시즌 수를 넘었다");
         }
-        SeasonDto season = starts.start(request.season());
         AgentSeasonConfigRequest c = request.config();
+        personas.pin(profile.getPersonaKey(), c.personaVersion(), c.personaSha256(), c.personaDisplayName());
+        SeasonDto season = starts.start(request.season());
         configs.save(new SeasonAgentConfig(season.id(), agentId, profile.getPersonaKey(), c.personaVersion(),
                 c.personaSha256(), profile.getModelRoute(), c.modelRequested(), c.temperature(), c.modelSeed(),
                 c.maxTokens(), c.turnTimeoutMs(), c.promptTemplateVersion(), c.runnerVersion(), c.memoryVersion(),

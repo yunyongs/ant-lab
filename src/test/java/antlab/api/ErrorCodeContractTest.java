@@ -67,7 +67,7 @@ class ErrorCodeContractTest {
                         .toList());
         var runner = ContractErrorCodes.perOperation(runnerContract());
         assertThat(runner.get("POST /internal/agent-runner/v1/agents/{agentId}/seasons").get(409))
-                .contains("AGENT_RETIRED");
+                .contains("AGENT_RETIRED", "PERSONA_VERSION_CONFLICT", "PERSONA_VERSION_STALE");
         assertThat(runner.get("POST /internal/agent-runner/v1/agents/{agentId}/seasons/{seasonId}/turns/{turnNo}/decision")
                 .get(409)).contains("DECISION_CONFLICT");
         assertThat(runner.get("POST /internal/agent-runner/v1/agents/{agentId}/seasons/{seasonId}/turns").get(409))

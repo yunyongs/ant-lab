@@ -50,6 +50,8 @@ public final class ErrorHttpMapping {
             case AGENT_RETIRED -> HttpStatus.CONFLICT;
             case DECISION_CONFLICT -> HttpStatus.CONFLICT;
             case DECISION_MISSING -> HttpStatus.CONFLICT;
+            case PERSONA_VERSION_CONFLICT -> HttpStatus.CONFLICT;
+            case PERSONA_VERSION_STALE -> HttpStatus.CONFLICT;
         };
     }
 
