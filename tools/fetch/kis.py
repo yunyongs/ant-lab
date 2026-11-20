@@ -310,6 +310,7 @@ class KisClient:
         다음 커서 = 이번에 받은 가장 이른 날짜의 전날. 진행이 없으면 멈춘다.
         """
         got: dict[str, str] = {}
+        seen_months: set[tuple[int, int]] = set()
         cursor = end
         for _ in range(500):  # 무한 반복 방지 상한
             if market == "KR":
@@ -334,11 +335,23 @@ class KisClient:
                 break
             if market == "KR" and len(rows) < DOMESTIC_PAGE:
                 break
-            # A short US monthly page means KIS history is exhausted; asking further only returns one partial bar per day.
-            if market != "KR" and period == "M" and len(rows) < OVERSEAS_PAGE:
-                break
+            # US monthly: each page after the first starts with a partial bar for the cursor day, and past the
+            # start of KIS history every page is only that bar. A page that adds no new month ends the sweep;
+            # a short page that does add one (mid-history) keeps paging.
+            if market != "KR" and period == "M":
+                page_months = {(int(r["date"][:4]), int(r["date"][4:6])) for r in rows}
+                if page_months <= seen_months:
+                    break
+                seen_months |= page_months
             nxt = earliest - timedelta(days=1)
             if nxt >= cursor:
                 break
             cursor = nxt
+        if period == "M":
+            # The partial bar at a page boundary shares its month with the full bar on the neighbouring page.
+            # The later date is the month-end bar (the partial one is cut at the cursor day), so it wins.
+            by_month: dict[str, str] = {}
+            for d in sorted(got):
+                by_month[d[:7]] = d
+            got = {d: got[d] for d in by_month.values()}
         return [{"date": d, "close": got[d]} for d in sorted(got)]
