@@ -265,6 +265,32 @@ class RoleScriptTest {
     }
 
     @Test
+    void r8_onlyTheCloseColumnUpdateOfLeagueIsToleratedAsAColumnGrantToTheAppRole() throws SQLException {
+        String closeUpdate = "GRANT UPDATE (status, closed_at, version, updated_at) ON league TO antlab_app";
+        try (RoleTestServer.Db db = new RoleTestServer.Db(SERVER, "r8l")) {
+            SERVER.migrate(db.name, SERVER.container().getUsername(), false);
+            SERVER.runRoleScript(db.name);
+            SERVER.execute(db.name, closeUpdate);
+
+            SERVER.runRoleScript(db.name);
+        }
+        for (String other : new String[] { "GRANT UPDATE (seed) ON league TO antlab_app",
+                "GRANT UPDATE (max_entries) ON league TO antlab_app", "GRANT INSERT (status) ON league TO antlab_app",
+                "GRANT SELECT (seed) ON league TO antlab_app", "GRANT UPDATE (status) ON league TO PUBLIC",
+                "GRANT UPDATE (member_id) ON league_entry TO antlab_app" }) {
+            try (RoleTestServer.Db db = new RoleTestServer.Db(SERVER, "r8m2")) {
+                SERVER.migrate(db.name, SERVER.container().getUsername(), false);
+                SERVER.runRoleScript(db.name);
+                SERVER.execute(db.name, closeUpdate);
+                SERVER.execute(db.name, other);
+
+                assertThatThrownBy(() -> SERVER.runRoleScript(db.name)).as(other)
+                        .hasMessageContaining("column-level rights are granted on public.");
+            }
+        }
+    }
+
+    @Test
     void r8_defaultPrivilegesForPublicOrTheAppRoleAreRefused() throws SQLException {
         try (RoleTestServer.Db db = new RoleTestServer.Db(SERVER, "r8d")) {
             SERVER.runRoleScript(db.name);
