@@ -78,6 +78,7 @@ def season_config(config: RunnerConfig) -> dict[str, Any]:
     return {
         "personaVersion": config.persona.version,
         "personaSha256": config.persona.sha256,
+        "personaDisplayName": config.persona.display_name,
         "modelRequested": config.model_requested,
         "temperature": format(config.temperature, "f"),
         "modelSeed": None if config.route in SUBSCRIPTION_ROUTES else config.seed,
