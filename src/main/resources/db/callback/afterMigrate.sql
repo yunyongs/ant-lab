@@ -18,9 +18,9 @@ DECLARE
         'fx_month', 'month_event', 'asset_month_attention'];
     append_tables constant text[] := ARRAY['season_path', 'turn', 'turn_price', 'formation_change', 'turn_feed',
         'reconciliation_log', 'orders', 'execution', 'cash_ledger', 'asset_daily_price', 'season_agent_config',
-        'persona_version', 'agent_call', 'season_score', 'rating_history', 'projection', 'series', 'series_observation'];
+        'persona_version', 'league_entry', 'agent_call', 'season_score', 'rating_history', 'projection', 'series', 'series_observation'];
     mutable_tables constant text[] := ARRAY['member', 'season', 'cash_account', 'holding', 'lineup', 'refresh_token',
-        'agent_profile', 'job_run'];
+        'agent_profile', 'league', 'job_run'];
     regime_table constant text := 'month_block';
     regime_columns constant text[] := ARRAY['rate_dir', 'growth_dir', 'fx_dir', 'sentiment_dir', 'rate_strength',
         'growth_strength', 'fx_strength', 'sentiment_strength', 'prob_p1', 'prob_p2', 'prob_p3', 'prob_p4', 'regime_label',

@@ -115,6 +115,12 @@ class AgentRunnerSchemaParityTest {
         assertSchemaMatches("AgentPartDto", AgentPartDto.class);
         assertSchemaMatches("RecentTradeDto", RecentTradeDto.class);
         assertSchemaMatches("RejectDto", RejectDto.class);
+        assertSchemaMatches("CreateLeagueRequest", antlab.league.CreateLeagueRequest.class);
+        assertSchemaMatches("LeagueDto", antlab.league.LeagueDto.class);
+        assertSchemaMatches("LeagueEntryDto", antlab.league.LeagueEntryDto.class);
+        assertThat(names(schemas(RUNNER).path("LeagueDto").path("required"))).isEqualTo(components(antlab.league.LeagueDto.class));
+        assertThat(names(schemas(RUNNER).path("LeagueEntryDto").path("required")))
+                .isEqualTo(components(antlab.league.LeagueEntryDto.class));
     }
 
     @ParameterizedTest

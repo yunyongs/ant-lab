@@ -17,6 +17,7 @@
 | M1-07 | Macro series: `series` and `series_observation` (Flyway V12, the number is final at merge) in 10.6. / 거시 시계열: `series`와 `series_observation`(Flyway V12, 번호는 머지 때 확정), 10.6절. | 스키마 완료 |
 | M1-08 | ECOS collector rows in the same tables (no schema change): `available_on` is always set, rule C13 (10.6.4), decision D49. / 같은 표에 ECOS 수집기 행(스키마 변경 없음): `available_on`은 항상 채우고, 규칙 C13(10.6.4), 결정 D49. | 완료 |
 | MVP-18 | Season score and rating: `season_score` and `rating_history` (Flyway V8, the number is final at merge) in 11. / 시즌 점수와 레이팅: `season_score`와 `rating_history`(Flyway V8, 번호는 머지 때 확정), 11절. | 스키마 완료 |
+| AG-04 C1 | Manual same-seed group: `league` and `league_entry` (Flyway V16, the number is final at merge) in 14. / 수동 같은 시드 묶음: `league`와 `league_entry`(Flyway V16, 번호는 머지 때 확정), 14절. | 스키마 완료 |
 | M2-06 | Projection: `projection` (Flyway V9, the number is final at merge) in 12. / 예상 분포: `projection`(Flyway V9, 번호는 머지 때 확정), 12절. | 스키마 완료 |
 
 **정본 규칙:** 타입·키·제약 이름·구분값은 이 문서가 정본이다. [PLAN.md](PLAN.md)나 [SPRING_JPA.md](SPRING_JPA.md)와 어긋나면 이 문서를 따르고, 어긋난 문서를 같은 PR에서 고친다(PLAN §12).
@@ -27,7 +28,7 @@
 
 ## 2. 공통 규칙 (PostgreSQL 17)
 
-The rules of this section apply to every confirmed table (22 through P0-04, 23 from SEC-01 / Flyway V4, 25 from M1-05 / Flyway V5, 28 from AG-02 / Flyway V6, 30 from MVP-18 / Flyway V8, 31 from M2-06 / Flyway V9, 33 from M1-07 / Flyway V12). / 이 절의 규칙은 확정 테이블 모두(P0-04까지 22개, SEC-01(Flyway V4)부터 23개, M1-05(Flyway V5)부터 25개, AG-02(Flyway V6)부터 28개, MVP-18(Flyway V8)부터 30개, M2-06(Flyway V9)부터 31개, M1-07(Flyway V12)부터 33개)에 적용된다. 6절·7절의 정의서도 같은 규칙을 쓴다.
+The rules of this section apply to every confirmed table (22 through P0-04, 23 from SEC-01 / Flyway V4, 25 from M1-05 / Flyway V5, 28 from AG-02 / Flyway V6, 30 from MVP-18 / Flyway V8, 31 from M2-06 / Flyway V9, 33 from M1-07 / Flyway V12, 34 from AG-04 PR B / Flyway V15, 36 from AG-04 PR C1 / Flyway V16). / 이 절의 규칙은 확정 테이블 모두(P0-04까지 22개, SEC-01(Flyway V4)부터 23개, M1-05(Flyway V5)부터 25개, AG-02(Flyway V6)부터 28개, MVP-18(Flyway V8)부터 30개, M2-06(Flyway V9)부터 31개, M1-07(Flyway V12)부터 33개, AG-04 PR B(Flyway V15)부터 34개, AG-04 PR C1(Flyway V16)부터 36개)에 적용된다. 6절·7절의 정의서도 같은 규칙을 쓴다.
 
 - **DB:** PostgreSQL 17, 스키마는 `public` 하나(D21). DB는 `ENCODING 'UTF8'`로 만든다(구체 명령은 DDL 기능의 `db/README.md`).
 - **Schema `obs` (OBS-01, Flyway V13):** it holds read-only views for Grafana and adds no table; the 33 tables stay in `public`. Views read `public` tables and never expose prompt or reply text, free-text error details, member credentials or season-path dates (see `db/README.md`). / **`obs` 스키마(OBS-01, Flyway V13):** Grafana용 읽기 전용 뷰만 두며 테이블을 더하지 않는다. 33개 테이블은 `public`에 그대로 있다. 뷰는 `public` 테이블을 읽고 프롬프트·응답 원문, 자유 서술 오류 내용, 회원 인증 정보, 시즌 경로의 날짜를 내보내지 않는다(`db/README.md`).
@@ -167,8 +168,6 @@ erDiagram
     MASTER_RULE["대가 원칙 (master_rule) (스케치)"]
     ASSET_FUNDAMENTAL["종목 재무 (asset_fundamental) (스케치)"]
     LINEUP_CHECK["라인업 점검 (lineup_check) (스케치)"]
-    LEAGUE["리그 (league) (스케치)"]
-    LEAGUE_ENTRY["리그 참가 (league_entry) (스케치)"]
     THESIS["논제 (thesis) (스케치)"]
     THESIS_VERDICT["논제 판정 (thesis_verdict) (스케치)"]
     MEMBER_ATTRIBUTE["속성 프로필 (member_attribute) (스케치)"]
@@ -183,8 +182,6 @@ erDiagram
     ASSET ||..o{ ASSET_FUNDAMENTAL : "기준일 재무를 갖는다"
     LINEUP ||..o{ LINEUP_CHECK : "점검된다"
     MASTER_RULE ||..o{ LINEUP_CHECK : "기준이 된다"
-    LEAGUE ||..o{ LEAGUE_ENTRY : "참가를 받는다"
-    SEASON ||..o{ LEAGUE_ENTRY : "참가한다"
     SEASON ||..o{ THESIS : "논제를 남긴다"
     ASSET ||..o{ THESIS : "논제 대상이다"
     THESIS ||..o{ THESIS_VERDICT : "판정된다"
@@ -204,8 +201,8 @@ erDiagram
 | `master_rule` | `id`, UNIQUE (`master_id`, 규칙 키) | `master` 1 : 0..N — 측정식 또는 질문, 선호 포메이션, 행동 규칙 | EXT |
 | `asset_fundamental` | `id`, UNIQUE (`asset_id`, 기준일) | `asset` 1 : 0..N — 종목 × 기준일 재무 | EXT |
 | `lineup_check` | `id`, UNIQUE (`lineup_id`, `master_rule_id`) | `lineup` 1 : 0..N, `master_rule` 1 : 0..N — 체크 결과 | EXT |
-| `league` | `id` | `league_entry`의 부모 | APP |
-| `league_entry` | `id`, UNIQUE (`league_id`, `season_id`) | `league` 1 : 0..N, `season` 1 : 0..N | APP |
+| `league` | `id` | `league_entry`의 부모 — **확정: 14절(AG-04 PR C1, Flyway V16)**, 수동 같은 시드 묶음. 주 단위 리그 동작은 APP | AG-04 (확정), APP (주간 리그) |
+| `league_entry` | PK (`league_id`, `season_id`) | `league` 1 : 0..N, `season` 1 : 0..1 — **확정: 14절** | AG-04 (확정) |
 | `thesis` | `id` | `season` 1 : 0..N, `asset` 1 : 0..N — 주장·수치·기한·기록 시각, 수정 불가 | M4 |
 | `thesis_verdict` | `id` | `thesis` 1 : 0..N — 판정, 근거, 판정자, 이의 | M4 |
 | `member_attribute` | `id`, UNIQUE (`member_id`, 속성 코드) | `member` 1 : 0..N — 속성 × 누적 점수·표본 수 | M4 |
@@ -2250,3 +2247,107 @@ Notation follows 6.4 (표기는 6.4와 같다). `FlywayV15UpgradeTest` breaks ea
 | P1 | (Enforced by the DDL since the 3-column FK; kept here for the service side.) A `season_agent_config` row carries the same `persona_sha256` as the `persona_version` row it names. `PersonaVersionService.pin` runs in the start transaction and answers another hash for a recorded version with `PERSONA_VERSION_CONFLICT` before the database has to refuse. / (3열 FK부터 DDL이 막는다. 서비스 쪽을 위해 남긴다.) `season_agent_config` 행의 `persona_sha256`은 가리키는 `persona_version` 행의 해시와 같다. `PersonaVersionService.pin`이 시작 트랜잭션 안에서 돌며 기록된 버전의 다른 해시를 DB가 거절하기 전에 `PERSONA_VERSION_CONFLICT`로 답한다. | AG-04 PR B |
 | P2 | A new version is at least the newest recorded version of the persona; a lower one is refused (`PERSONA_VERSION_STALE`), and bytes already recorded under another version are refused (`PERSONA_VERSION_CONFLICT`). / 새 버전은 그 페르소나의 기록된 최신 버전 이상이어야 하고, 낮으면 거절하며(`PERSONA_VERSION_STALE`) 다른 버전으로 이미 기록된 해시도 거절한다(`PERSONA_VERSION_CONFLICT`). | AG-04 PR B |
 | P3 | Two starts of one persona run one after the other: the service takes a transaction-level advisory lock on the persona key before it reads the table. / 한 페르소나의 시작 둘은 차례로 돈다: 서비스가 표를 읽기 전에 페르소나 키에 트랜잭션 수준 자문 잠금을 건다. | AG-04 PR B |
+
+## 14. League / 리그
+
+AG-04 PR C1 (Flyway V16; the number is final at merge) adds two tables to the `public` schema: `league`, a manual same-seed group, and `league_entry`, one season in a league. A league holds one seed drawn by the server and the season settings every entry must share; the seed is never put in a response. Entering a league through the season start, the equality checks and the review hold come with PR C2 and are not part of this section's rules. / AG-04 PR C1(Flyway V16, 번호는 머지 때 확정)은 `public` 스키마에 테이블 둘을 더한다. `league`는 수동 같은 시드 묶음, `league_entry`는 리그 안의 시즌 하나다. 리그는 서버가 뽑은 시드 하나와 모든 참가가 같아야 하는 시즌 설정을 갖고, 시드는 어떤 응답에도 싣지 않는다. 시즌 시작을 통한 참가, 같음 검사, 복기 보류는 PR C2에서 하며 이 절의 규칙이 아니다.
+
+### 14.1 Relationship diagram / 관계도
+
+`member` and `season` are parents from other sections, so only their names are drawn. / `member`와 `season`은 다른 절의 부모라 이름만 그린다.
+
+```mermaid
+erDiagram
+    MEMBER ||..o{ LEAGUE : "R44"
+    LEAGUE ||--o{ LEAGUE_ENTRY : "R45"
+    SEASON ||--o| LEAGUE_ENTRY : "R46"
+```
+
+### 14.2 Relationship summary / 관계 요약
+
+| # | 부모 → 자식 | 카디널리티 | 선 | 근거 |
+|---|---|---|---|---|
+| R44 | `member` → `league` | 1 : 0..N | 비식별 `..` | `fk_league_owner` on (`owner_member_id`, `owner_kind`) → `uq_member_id_kind`; `ck_league_owner_human_only` fixes `owner_kind = 'HUMAN'`, so an agent member cannot own a league (the D29 pattern of `agent_profile`). / 에이전트 회원은 리그를 소유할 수 없다(`agent_profile`의 D29 패턴). |
+| R45 | `league` → `league_entry` | 1 : 0..N | 식별 `--` | `fk_league_entry_league`; the league is part of the key. / 리그가 키의 일부다. |
+| R46 | `season` → `league_entry` | 1 : 0..1 | 식별 `--` | `fk_league_entry_season` on (`season_id`, `member_id`) → `uq_season_id_member`, so the entry's member is the season's own member; `uq_league_entry_season` puts a season in at most one league. / 참가의 회원은 시즌 자신의 회원이다. 한 시즌은 최대 한 리그에만 든다. |
+
+### 14.3 Entity definitions / 엔티티 정의서
+
+All FKs are `ON DELETE RESTRICT ON UPDATE RESTRICT` (2). `league` is a mutable table (`status`, `closed_at` change once; the other columns are fixed at creation by `updatable = false` in the entity); `league_entry` is append-only: the application role may only SELECT and INSERT (`db/callback/afterMigrate.sql`) and the JPA entity is `@Immutable`. / FK는 모두 `ON DELETE RESTRICT ON UPDATE RESTRICT`(2절)다. `league`는 가변 테이블이고(`status`, `closed_at`만 한 번 바뀌며 나머지는 엔티티의 `updatable = false`로 생성 때 고정), `league_entry`는 추가 전용이다.
+
+#### League / 리그 (league)
+
+| 키 | 논리명 | 물리명 | 타입 | NULL | 기본값 | 코멘트 |
+| --- | --- | --- | --- | --- | --- | --- |
+| PK | 리그번호 | id | BIGINT | NN | IDENTITY | `[내부]` |
+| FK | 소유자 회원번호 | owner_member_id | BIGINT | NN |  | `[내부]` `fk_league_owner` with `owner_kind`. |
+|  | 소유자 회원 종류 | owner_kind | VARCHAR(5) | NN | 'HUMAN' | `[내부]` `ck_league_owner_human_only`. |
+|  | 이름 | name | VARCHAR(50) | NN |  | `[노출]` `ck_league_name`: not empty, no leading or trailing space. |
+|  | 상태 | status | VARCHAR(6) | NN | 'OPEN' | `[노출]` `ck_league_status`: `OPEN`, `CLOSED`. |
+|  | 시드 | seed | BIGINT | NN |  | `[내부]` Drawn by the server at creation; never in a response. |
+|  | 경로 길이 | path_length | SMALLINT | NN |  | `[노출]` `ck_league_path_length`: `> 0` (12, 24 or 60 is a service rule, like `season`). |
+|  | 기준일 | base_date | DATE | NN |  | `[내부]` Pool base date at creation. |
+|  | 엔진 버전 | engine_version | VARCHAR(20) | NN |  | `[내부]` `ck_league_engine_version`: not empty. From the path generated once at creation. |
+|  | 데이터 스냅샷 날짜 | data_snapshot_date | DATE | NN |  | `[내부]` |
+|  | 초기 자금 | initial_cash | NUMERIC(19,4) | NN |  | `[내부]` `ck_league_initial_cash_pos`, `ck_league_initial_cash_won` (whole won, not NaN), as `season`. |
+|  | 국내 수수료율 | fee_rate_kr | NUMERIC(12,8) | NN |  | `[내부]` `ck_league_fee_rate_kr`: `>= 0 AND < 1` (NaN fails). |
+|  | 미국 수수료율 | fee_rate_us | NUMERIC(12,8) | NN |  | `[내부]` `ck_league_fee_rate_us`: same. |
+|  | 환전 비용률 | fx_spread_rate | NUMERIC(12,8) | NN |  | `[내부]` `ck_league_fx_spread_rate`: same. |
+|  | 최대 참가 수 | max_entries | SMALLINT | NN |  | `[노출]` `ck_league_max_entries`: 2 to 20. |
+|  | 마감일시 | closed_at | TIMESTAMPTZ | NULL |  | `[내부]` `ck_league_closed_at`: set exactly when `status = 'CLOSED'`. |
+|  | 버전 | version | BIGINT | NN | 0 | `[내부]` Optimistic lock version. |
+|  | 생성일시 | created_at | TIMESTAMPTZ | NN | now() | `[내부]` |
+|  | 수정일시 | updated_at | TIMESTAMPTZ | NN | now() | `[내부]` |
+
+#### League entry / 리그 참가 (league_entry)
+
+| 키 | 논리명 | 물리명 | 타입 | NULL | 기본값 | 코멘트 |
+| --- | --- | --- | --- | --- | --- | --- |
+| PK, FK | 리그번호 | league_id | BIGINT | NN |  | `[내부]` `pk_league_entry` with `season_id`. |
+| PK, FK | 시즌번호 | season_id | BIGINT | NN |  | `[내부]` `uq_league_entry_season`: a season is in one league at most. |
+| FK | 회원번호 | member_id | BIGINT | NN |  | `[내부]` `fk_league_entry_season` with `season_id`; `uq_league_entry_member` (`league_id`, `member_id`): one seat per member per league. |
+|  | 참가일시 | created_at | TIMESTAMPTZ | NN | now() | `[내부]` |
+
+### 14.4 Constraints and indexes / 제약과 인덱스
+
+Notation follows 6.4 (표기는 6.4와 같다). `FlywayV16UpgradeTest` breaks each rule once by name. / `FlywayV16UpgradeTest`가 규칙마다 이름으로 한 번씩 깬다.
+
+| 이름 | 종류 | 테이블 | 정의 |
+|---|---|---|---|
+| pk_league | PK | league | (id) |
+| fk_league_owner | FK | league | (owner_member_id, owner_kind) → member (id, kind) (R44) |
+| ck_league_owner_human_only | CK | league | owner_kind = 'HUMAN' |
+| ck_league_name | CK | league | name <> '' AND name = btrim(name) |
+| ck_league_status | CK | league | status IN ('OPEN','CLOSED') |
+| ck_league_path_length | CK | league | path_length > 0 |
+| ck_league_engine_version | CK | league | engine_version <> '' |
+| ck_league_initial_cash_pos | CK | league | initial_cash > 0 |
+| ck_league_initial_cash_won | CK | league | initial_cash = ROUND(initial_cash, 0) AND initial_cash <> 'NaN'::numeric |
+| ck_league_fee_rate_kr | CK | league | fee_rate_kr >= 0 AND fee_rate_kr < 1 |
+| ck_league_fee_rate_us | CK | league | fee_rate_us >= 0 AND fee_rate_us < 1 |
+| ck_league_fx_spread_rate | CK | league | fx_spread_rate >= 0 AND fx_spread_rate < 1 |
+| ck_league_max_entries | CK | league | max_entries BETWEEN 2 AND 20 |
+| ck_league_closed_at | CK | league | (status = 'CLOSED') = (closed_at IS NOT NULL) |
+| idx_league_owner | IDX | league | (owner_member_id) |
+| pk_league_entry | PK | league_entry | (league_id, season_id) |
+| uq_league_entry_season | UQ | league_entry | (season_id) |
+| uq_league_entry_member | UQ | league_entry | (league_id, member_id) |
+| fk_league_entry_league | FK | league_entry | (league_id) → league (id) (R45) |
+| fk_league_entry_season | FK | league_entry | (season_id, member_id) → season (id, member_id) (R46) |
+
+**Counts / 개수:**
+
+| 테이블 | PK | UNIQUE(제약) | UNIQUE 인덱스(`uq_`) | FK | CHECK | INDEX(`idx_`) |
+|---|---|---|---|---|---|---|
+| league | 1 | 0 | 0 | 1 | 12 | 1 |
+| league_entry | 1 | 2 | 0 | 2 | 0 | 0 |
+| **§14 소계** | **2** | **2** | **0** | **3** | **12** | **1** |
+
+### 14.5 Rules DDL cannot enforce / DDL로 막지 못해 검사할 규칙
+
+| # | 규칙 | 검사하는 기능 |
+|---|---|---|
+| L1 | A league can be closed only when every seat is `FINISHED` or `VOID` by its effective status (an overdue pause is an abandon, not settled); closing a closed league changes nothing. The close takes the league row lock first. / 모든 참가가 유효 상태로 `FINISHED` 또는 `VOID`일 때만 닫을 수 있다(기한이 지난 일시 정지는 포기이지 끝난 것이 아니다). 닫힌 리그를 다시 닫아도 바뀌지 않는다. 닫을 때 리그 행 잠금을 먼저 건다. | AG-04 PR C1 |
+| L2 | The league owner is the owner the runner is configured with; another owner's league and a missing league give the same `NOT_FOUND`. / 리그 소유자는 러너에 설정된 소유자이고, 다른 소유자의 리그와 없는 리그는 같은 `NOT_FOUND`다. | AG-04 PR C1 |
+| L3 | A league answer carries no seed, date, engine version or money setting. / 리그 응답은 시드·날짜·엔진 버전·돈 설정을 싣지 않는다. | AG-04 PR C1 (`AgentRunnerContractTest`) |
+| L4 | Entry rules (open league, free seat, seat limit, equal settings and path, same prices) and the review hold. / 참가 규칙(열린 리그, 빈 자리, 자리 수, 같은 설정·경로·가격)과 복기 보류. | AG-04 PR C2 |

@@ -67,14 +67,14 @@ class RepositoryShapeTest {
     }
 
     @Test
-    void 저장소는_서른두_개다() throws Exception {
-        // read-only 10 (JobRun, AssetDailyPrice since M1-05) + append-only 15 (persona_version is AG-04; turn_feed since MVP-11; season_agent_config and
-        // agent_call are AG-02; season_score and rating_history are MVP-18; projection is M2-06) + mutable 7 (RefreshToken since SEC-03, agent_profile since AG-02)
-        assertThat(repositories()).hasSize(32);
+    void 저장소는_서른네_개다() throws Exception {
+        // read-only 10 (JobRun, AssetDailyPrice since M1-05) + append-only 16 (persona_version and league_entry are AG-04; turn_feed since MVP-11; season_agent_config and
+        // agent_call are AG-02; season_score and rating_history are MVP-18; projection is M2-06) + mutable 8 (league is AG-04; RefreshToken since SEC-03, agent_profile since AG-02)
+        assertThat(repositories()).hasSize(34);
         assertThat(repositories().stream().map(RepositoryShapeTest::domainType).filter(RepositoryShapeTest::isReadOnly))
                 .hasSize(10);
         assertThat(repositories().stream().map(RepositoryShapeTest::domainType).filter(RepositoryShapeTest::isAppendOnly))
-                .hasSize(15);
+                .hasSize(16);
     }
 
     @Test

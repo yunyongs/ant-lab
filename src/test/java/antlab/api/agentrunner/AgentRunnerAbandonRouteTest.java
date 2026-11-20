@@ -36,7 +36,7 @@ class AgentRunnerAbandonRouteTest {
                     mock(CashAccountRepository.class), Clock.systemUTC()),
             abandons, mock(AgentTurnViewService.class), mock(AgentDecisionService.class),
             mock(AgentTurnAdvanceService.class),
-            mock(antlab.agent.AgentSeasonConfigQueryService.class));
+            mock(antlab.agent.AgentSeasonConfigQueryService.class), mock(antlab.league.LeagueService.class));
 
     @Test
     void aPathAgentOtherThanTheActingOneIsNotFoundAndNothingIsAbandoned() {
