@@ -67,6 +67,35 @@ _OPERATIONS: Final[dict[str, tuple[str, str, frozenset[int], str | None, bool]]]
         "TurnResultDto",
         True,
     ),
+    # Season lifecycle (AG-02 A5). Listed so the table equals the contract; the loop does not call them yet.
+    "pauseAgentSeason": (
+        "POST",
+        f"{BASE_PATH}/agents/{{agentId}}/seasons/{{seasonId}}/pause",
+        frozenset({200}),
+        "SeasonDto",
+        True,
+    ),
+    "resumeAgentSeason": (
+        "POST",
+        f"{BASE_PATH}/agents/{{agentId}}/seasons/{{seasonId}}/resume",
+        frozenset({200}),
+        "SeasonDto",
+        True,
+    ),
+    "voidAgentSeason": (
+        "POST",
+        f"{BASE_PATH}/agents/{{agentId}}/seasons/{{seasonId}}/void",
+        frozenset({200}),
+        "SeasonDto",
+        True,
+    ),
+    "abandonAgentSeason": (
+        "POST",
+        f"{BASE_PATH}/agents/{{agentId}}/seasons/{{seasonId}}/abandon",
+        frozenset({200}),
+        "AbandonResultDto",
+        True,
+    ),
 }
 OPERATIONS: Final[dict[str, tuple[str, str]]] = {k: (v[0], v[1]) for k, v in _OPERATIONS.items()}
 

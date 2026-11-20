@@ -14,10 +14,12 @@ import antlab.member.CurrentMember;
 import antlab.season.FormationDto;
 import antlab.season.SeasonRepository;
 import antlab.season.SeasonStartService;
+import antlab.season.SeasonStatus;
 import antlab.support.ScriptedClock;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
@@ -82,5 +84,29 @@ class AgentSeasonServiceTest {
                 .isInstanceOfSatisfying(DomainException.class,
                         e -> assertThat(e.getCode()).isEqualTo(ErrorCode.SEASON_LIMIT));
         verify(starts, never()).start(any());
+    }
+
+    @Test
+    void aPausedOrAbandoningSeasonBlocksANewSeasonBeforeAnythingIsStarted() {
+        when(currentMember.ensureId()).thenReturn(AGENT);
+        agentExists();
+        when(seasons.countByMemberIdAndStatusIn(AGENT, List.of(SeasonStatus.PAUSED, SeasonStatus.ABANDONING)))
+                .thenReturn(1L);
+
+        assertThatThrownBy(() -> service.start(AGENT, request("fake/model-1")))
+                .isInstanceOfSatisfying(DomainException.class,
+                        e -> assertThat(e.getCode()).isEqualTo(ErrorCode.SEASON_LIMIT));
+        verify(starts, never()).start(any());
+        verify(configs, never()).save(any());
+    }
+
+    @Test
+    void whenNoSeasonIsPausedOrAbandoningTheStartGoesOn() {
+        when(currentMember.ensureId()).thenReturn(AGENT);
+        agentExists();
+        when(starts.start(any())).thenThrow(new IllegalStateException("reached the start"));
+
+        assertThatThrownBy(() -> service.start(AGENT, request("fake/model-1")))
+                .isInstanceOf(IllegalStateException.class).hasMessage("reached the start");
     }
 }

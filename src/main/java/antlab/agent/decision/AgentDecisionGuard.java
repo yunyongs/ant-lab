@@ -39,8 +39,13 @@ public class AgentDecisionGuard {
             // Answered here, not passed on: a resume between this check and the turn path must not skip the decision check.
             throw new DomainException(ErrorCode.SEASON_HALTED, "시즌이 대사 불일치로 멈춰 있다");
         }
+        if (season.getStatus() == SeasonStatus.PAUSED) {
+            // A paused season can resume, so the turn path must not be left to answer it: a resume between this check and
+            // the facade would skip the decision check.
+            throw new DomainException(ErrorCode.SEASON_NOT_ACTIVE, "일시 정지된 시즌이다");
+        }
         if (season.getStatus() != SeasonStatus.IN_PROGRESS) {
-            // ABANDONING and FINISHED never return to IN_PROGRESS, so the turn path may answer SEASON_NOT_ACTIVE.
+            // ABANDONING, FINISHED and VOID never return to IN_PROGRESS, so the turn path may answer SEASON_NOT_ACTIVE.
             return;
         }
         // A number ahead of the turn read here must not pass: another advance could commit before the facade locks the
