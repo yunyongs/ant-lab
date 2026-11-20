@@ -78,6 +78,10 @@ class DbRoleComposeSettingsTest {
         Map<String, Object> env = environment("engine");
 
         assertThat(env.get("ANTLAB_ENGINE_DB_USER")).isEqualTo("antlab_engine");
+        assertThat(env.get("ANTLAB_ENGINE_DB_HOST")).isEqualTo("db");
+        assertThat(env.get("ANTLAB_ENGINE_DB_PORT")).isEqualTo("5432");
+        assertThat(env.get("ANTLAB_ENGINE_DB_NAME")).isEqualTo("antlab_api");
+        assertThat(env.get("ANTLAB_ENGINE_DB_PASSWORD")).isEqualTo("${ANTLAB_ENGINE_DB_PASSWORD:-}");
         assertThat(services().get("engine")).doesNotContainKey("volumes");
     }
 

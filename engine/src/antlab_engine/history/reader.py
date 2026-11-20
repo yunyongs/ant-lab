@@ -1,5 +1,7 @@
 """PostgreSQL adapter of HistoryReader: one REPEATABLE READ READ ONLY snapshot per call."""
 
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import date
 
 import psycopg
@@ -48,6 +50,25 @@ def connection_parameters(settings: DatabaseSettings) -> dict[str, object]:
         "target_session_attrs": "any",
     }
     return params
+
+
+@contextmanager
+def read_snapshot(settings: DatabaseSettings) -> Iterator[psycopg.Connection]:
+    """A REPEATABLE READ READ ONLY connection of a role that cannot write; errors are mapped."""
+    try:
+        with psycopg.connect(**connection_parameters(settings)) as conn:  # type: ignore[arg-type]
+            conn.isolation_level = IsolationLevel.REPEATABLE_READ
+            conn.read_only = True
+            unsafe = conn.execute(
+                queries.UNSAFE_ROLE_SQL, {"privileges": list(WRITE_PRIVILEGES)}
+            ).fetchone()
+            if unsafe is None or unsafe[0]:
+                raise UnsafeDatabaseRole(UNSAFE)
+            yield conn
+    except psycopg.errors.InsufficientPrivilege:
+        raise HistoryUnavailable(DENIED) from None
+    except psycopg.Error:
+        raise HistoryUnavailable(UNAVAILABLE) from None
 
 
 class PostgresHistoryReader:

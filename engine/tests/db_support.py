@@ -41,7 +41,15 @@ FORBIDDEN_DSN_KEYS = (
 REQUIRED_VAR = "ANTLAB_ENGINE_DB_TESTS"
 OWNER_PORT = 5432
 ENGINE_ROLE = "antlab_engine"
-GRANTED_TABLES = ("asset", "asset_position", "month_block", "asset_month_return", "fx_month")
+GRANTED_TABLES = (
+    "asset",
+    "asset_position",
+    "month_block",
+    "asset_month_return",
+    "fx_month",
+    "series",
+    "series_observation",
+)
 DENIED_TABLES = ("member", "refresh_token", "season_path", "turn_price", "cash_ledger")
 WRITE_VERBS = ("INSERT", "UPDATE", "DELETE", "TRUNCATE")
 

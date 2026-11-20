@@ -10,6 +10,7 @@ from .history.model import HistoryReader
 from .history.reader import PostgresHistoryReader
 from .metrics import EngineMetrics, MetricsMiddleware, SlotPool, serve_metrics
 from .openapi import build_openapi
+from .regime.pg_source import PostgresRegimeSource
 from .regime.source import RegimeSource
 from .security import EngineTokenMiddleware
 from .settings import Settings
@@ -36,6 +37,8 @@ def create_app(
     if history_reader is None and settings.database is not None:
         history_reader = PostgresHistoryReader(settings.database)
     app.state.history_reader = history_reader
+    if regime_source is None and settings.database is not None:
+        regime_source = PostgresRegimeSource(settings.database)
     app.state.regime_source = regime_source
     app.state.regime_slot = BoundedSemaphore(1)  # one evaluation at a time
     app.state.projection_slots = projection_slots

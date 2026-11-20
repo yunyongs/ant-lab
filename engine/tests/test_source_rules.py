@@ -368,10 +368,28 @@ REGIME_ALLOWED_FIRST_PARTY = {"antlab_engine.regime", "antlab_engine.engine_erro
 REGIME_BLOCKED = ("fastapi", "starlette", "pydantic", "psycopg", "pandas")
 
 
+REGIME_IO_MODULES = {"regime/pg_source.py", "regime/__main__.py"}  # the database source and its CLI
+
+
 def regime_sources() -> dict[str, str]:
     return {
-        str(p.relative_to(SRC)): p.read_text(encoding="utf-8") for p in REGIME_DIR.rglob("*.py")
+        str(p.relative_to(SRC)): p.read_text(encoding="utf-8")
+        for p in REGIME_DIR.rglob("*.py")
+        if str(p.relative_to(SRC)) not in REGIME_IO_MODULES
     }
+
+
+def test_only_the_database_source_and_its_cli_are_exempt_from_the_pure_regime_rules():
+    everything = {str(p.relative_to(SRC)) for p in REGIME_DIR.rglob("*.py")}
+    assert everything >= REGIME_IO_MODULES
+    for name in REGIME_IO_MODULES:
+        text = (SRC / name).read_text(encoding="utf-8")
+        assert not any(
+            m.split(".")[0] in {"psycopg", "fastapi", "os"} for m in imported_modules(text)
+        )
+        assert not [s for s in string_constants(text) if SQL_START.match(s)]
+    exported = (SRC / "regime" / "__init__.py").read_text(encoding="utf-8")
+    assert "pg_source" not in exported and "__main__" not in exported
 
 
 def regime_disallowed_imports(text: str) -> set[str]:
