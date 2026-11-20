@@ -45,6 +45,7 @@ class GrafanaDashboardsSettingsTest {
     private static final Pattern UID_FORMAT = Pattern.compile("^[a-z0-9-]{1,40}$");
     private static final Set<String> PANEL_TYPES = Set.of("timeseries", "stat", "table", "row");
     private static final String APPLICATION_FILTER = "application=~\"$application\"";
+    private static final int MIN_DESCRIPTION = 80;
     private static final Pattern HANGUL = Pattern.compile("[\\uAC00-\\uD7A3]");
 
     private static Map<String, JsonNode> prometheusDashboards() throws IOException {
@@ -179,12 +180,12 @@ class GrafanaDashboardsSettingsTest {
             if (type.equals("row")) {
                 continue;
             }
-            if (panel.path("title").asString("").isBlank()) {
-                problems.add("blank title: " + label);
+            if (!HANGUL.matcher(panel.path("title").asString("")).find()) {
+                problems.add("title must be Korean: " + label);
             }
             String description = panel.path("description").asString("");
-            if (!description.contains(" / ") || !HANGUL.matcher(description).find()) {
-                problems.add("description must be English / Korean: " + label);
+            if (!HANGUL.matcher(description).find() || description.length() < MIN_DESCRIPTION) {
+                problems.add("description must be Korean and at least " + MIN_DESCRIPTION + " characters: " + label);
             }
             JsonNode grid = panel.path("gridPos");
             if (grid.path("w").asInt(0) <= 0 || grid.path("x").asInt(-1) < 0 || grid.path("x").asInt() + grid.path("w").asInt() > 24) {
@@ -299,6 +300,25 @@ class GrafanaDashboardsSettingsTest {
                     names.addAll(ledgerNames);
                 }
                 assertThat(unknownNames(d, names)).as(file).isEmpty();
+            }
+        });
+    }
+
+    @Test
+    void 모든_대시보드와_패널은_한글_제목과_한글_설명을_가진다() throws IOException {
+        assertThat(GrafanaDashboards.load()).hasSize(UIDS.size());
+        GrafanaDashboards.load().forEach((file, d) -> {
+            assertThat(HANGUL.matcher(d.path("title").asString("")).find()).as(file + " title").isTrue();
+            assertThat(HANGUL.matcher(d.path("description").asString("")).find()).as(file + " description").isTrue();
+            for (JsonNode link : d.path("links")) {
+                assertThat(HANGUL.matcher(link.path("title").asString("")).find()).as(file + " link " + link.path("title")).isTrue();
+            }
+            for (JsonNode panel : panels(d)) {
+                String description = panel.path("description").asString("");
+                assertThat(HANGUL.matcher(panel.path("title").asString("")).find()).as(file + " panel " + panel.path("id")).isTrue();
+                assertThat(HANGUL.matcher(description).find()).as(file + " panel " + panel.path("id") + " description").isTrue();
+                assertThat(description).as(file + " panel " + panel.path("id") + " description length")
+                        .hasSizeGreaterThanOrEqualTo(MIN_DESCRIPTION);
             }
         });
     }

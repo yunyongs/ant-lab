@@ -11,7 +11,7 @@ groups:
     interval: 30s
     rules:
       - uid: antlab-alert-api-down
-        title: API target down
+        title: API 대상 중단
         condition: C
         data:
           - refId: A
@@ -62,10 +62,10 @@ groups:
           severity: critical
           component: api
         annotations:
-          summary: "The API metrics target has been down for 2 minutes."
-          description: "Prometheus cannot scrape api:8081. The api profile is stopped, or the app is unhealthy."
+          summary: "API 지표 대상이 2분째 내려가 있습니다."
+          description: "왜: API가 꺼졌거나 지표를 내보내지 못하면 화면과 게임 진행이 모두 멈추기 때문에 가장 먼저 알립니다. Prometheus가 api:8081을 2분 넘게 읽지 못할 때 울리고, 지표가 아예 없을 때도 울립니다. 확인: api 컨테이너 상태와 로그, 앱이 비정상(health)인지 봅니다. 서비스 개요의 API 가동 칸과 같은 원천입니다."
       - uid: antlab-alert-api-5xx
-        title: API 5xx ratio
+        title: API 5xx 비율
         condition: C
         data:
           - refId: A
@@ -116,10 +116,10 @@ groups:
           severity: warning
           component: api
         annotations:
-          summary: "More than 5 percent of API requests answered 5xx for 5 minutes."
-          description: "Ratio over the last 5 minutes, readiness and actuator paths excluded; needs at least 0.05 requests per second so a single failure does not fire it."
+          summary: "5분 동안 API 요청의 5%를 넘게 5xx로 답했습니다."
+          description: "왜: 서버 결함이 지속되는지 알려 줍니다. 최근 5분의 5xx 비율이 5%를 넘는 상태가 5분 이어질 때 울립니다. 상태 확인과 actuator 경로는 빼고, 한 건의 실패로 울리지 않도록 초당 0.05건 이상의 요청이 있을 때만 판단하며 요청이 없으면 조용합니다. 확인: API 대시보드의 상태 코드별 오류와 오류 코드별 오류, API 로그를 봅니다."
       - uid: antlab-alert-reconciliation-mismatch
-        title: Reconciliation mismatch
+        title: 대사 불일치
         condition: C
         data:
           - refId: A
@@ -170,10 +170,10 @@ groups:
           severity: critical
           component: api
         annotations:
-          summary: "A turn advance was rolled back by a reconciliation mismatch in the last 24 hours."
-          description: "The counter antlab_reconciliation_mismatch_rules_total grew. Find the season through the api log and the halted-season panel."
+          summary: "최근 24시간 안에 대사 불일치로 턴 전환이 롤백되었습니다."
+          description: "왜: 대사는 원장 정합성을 지키는 마지막 방어선이라 불일치는 기다리지 않고 바로 알립니다. antlab_reconciliation_mismatch_rules_total 카운터가 최근 24시간 안에 늘면 울립니다. 확인: 게임 대시보드의 대사 실패와 중단된 시즌 칸으로 시각을 좁히고, API 로그에서 시즌과 어긋난 규칙을 찾습니다. 시즌이 멈췄다면 관리자가 원인을 고친 뒤 재개합니다."
       - uid: antlab-alert-engine-down
-        title: Engine target down
+        title: 엔진 대상 중단
         condition: C
         data:
           - refId: A
@@ -224,15 +224,15 @@ groups:
           severity: critical
           component: engine
         annotations:
-          summary: "The engine metrics target has been down for 1 minute."
-          description: "Prometheus cannot scrape engine:8001. The engine container is stopped or unhealthy."
+          summary: "엔진 지표 대상이 1분째 내려가 있습니다."
+          description: "왜: 엔진이 꺼지면 투영과 국면 계산을 쓰는 기능이 모두 실패합니다. Prometheus가 engine:8001을 1분 넘게 읽지 못할 때 울리며 지표가 없어도 울립니다. 확인: engine 컨테이너 상태와 로그를 보고, 엔진 대시보드의 엔진 가동 칸과 API 대시보드의 엔진 호출 실패를 맞춰 봅니다. 모니터링 스모크가 이 규칙이 울렸다 풀리는지 확인합니다."
   - orgId: 1
     name: collectors
     folder: ant-lab alerts
     interval: 5m
     rules:
       - uid: antlab-alert-collector-failed
-        title: Collector last run FAILED
+        title: 수집기 마지막 실행 FAILED
         condition: C
         data:
           - refId: A
@@ -284,10 +284,10 @@ groups:
           severity: warning
           component: collectors
         annotations:
-          summary: "The latest finished run of a collector job has status FAILED."
-          description: "Jobs KIS_DAILY_PRICE, FRED_SERIES and ECOS_SERIES, newest finished run each (obs.job_run). It clears with the next run that does not fail."
+          summary: "수집 잡의 가장 최근 끝난 실행이 FAILED입니다."
+          description: "왜: 수집이 실패한 채 방치되면 데이터가 조용히 묵습니다. KIS_DAILY_PRICE, FRED_SERIES, ECOS_SERIES 잡 각각의 가장 최근 끝난 실행(obs.job_run)이 FAILED인 상태가 10분 이어지면 울립니다. 실패하지 않는 다음 실행이 나오면 풀립니다. 확인: 수집기 대시보드의 실패 대상과 오류 코드 표에서 오류 코드를 보고 원천의 상태와 키를 확인합니다."
       - uid: antlab-alert-collector-stale
-        title: Collector newest success too old
+        title: 수집기 마지막 성공이 오래됨
         condition: C
         data:
           - refId: A
@@ -339,15 +339,15 @@ groups:
           severity: warning
           component: collectors
         annotations:
-          summary: "A scheduled collector job has no successful run in the last 72 hours."
-          description: "Counts jobs that have run on a schedule at least once whose newest SUCCEEDED run is older than 72 hours or missing (obs.job_run). Silent while collectors only run by hand (before M1-10)."
+          summary: "예약된 수집 잡이 최근 72시간 안에 성공한 실행이 없습니다."
+          description: "왜: 실패 기록 없이 수집이 멎은 경우를 잡기 위한 규칙입니다. 예약으로 한 번이라도 돈 잡 가운데 마지막 SUCCEEDED 실행이 72시간보다 오래되었거나 없는 잡이 있으면, 그 상태가 10분 이어질 때 울립니다(obs.job_run). 수집을 손으로만 돌리는 동안(M1-10 전)에는 대상 잡이 없어 조용합니다. 확인: 수집기 대시보드의 잡별 마지막 실행과 일별 추이에서 멎은 시점을 봅니다."
   - orgId: 1
     name: ai-budgets
     folder: ant-lab alerts
     interval: 1m
     rules:
       - uid: antlab-alert-openrouter-cap
-        title: OpenRouter daily cap at 80 percent
+        title: OpenRouter 일일 상한 80%
         condition: C
         data:
           - refId: A
@@ -398,10 +398,10 @@ groups:
           severity: warning
           component: ledgers
         annotations:
-          summary: "OpenRouter attempts today reached 80 percent of a daily cap."
-          description: "Highest ratio of product, harness and account attempts today to its cap (threshold 0.7999 so an exact 80 percent fires) (ledger exporter). No data while the ledger is unreadable: see the ledger unreadable rule."
+          summary: "오늘 OpenRouter 시도 수가 일일 상한의 80%에 닿았습니다."
+          description: "왜: 상한에 닿으면 호출이 막히므로 미리 알립니다. product, harness, 계정 시도 수 가운데 상한 대비 가장 높은 비율이 0.7999를 넘으면(정확히 80%도 포함) 2분 뒤 울립니다. 날짜는 제한기와 같은 UTC입니다. 확인: AI 사용량 대시보드의 호출자 분류별 시도 수와 모델별 시도 수로 많이 쓰는 곳을 찾습니다. 장부를 읽지 못하면 데이터가 없어 조용하니 '장부 읽기 불가' 규칙을 함께 봅니다."
       - uid: antlab-alert-ollama-stop
-        title: Ollama Cloud spend at 80 percent of the stop
+        title: Ollama Cloud 지출이 정지선의 80%
         condition: C
         data:
           - refId: A
@@ -452,10 +452,10 @@ groups:
           severity: warning
           component: ledgers
         annotations:
-          summary: "Ollama Cloud total spend reached 80 percent of the stop."
-          description: "Total spend divided by the stop in USD (ledger exporter; threshold 0.7999 so an exact 80 percent fires). No data while the ledger is unreadable: see the ledger unreadable rule."
+          summary: "Ollama Cloud 누적 지출이 정지선의 80%에 닿았습니다."
+          description: "왜: 고정 예산을 넘기기 전에 사람이 판단할 시간을 주기 위해서입니다. 누적 지출을 정지선(USD)으로 나눈 값이 0.7999를 넘으면(정확히 80%도 포함) 2분 뒤 울립니다. 확인: AI 사용량 대시보드의 'Ollama Cloud 지출과 정지선' 패널에서 누적과 오늘 지출을 보고 사용을 줄일지 정합니다. 장부를 읽지 못하면 데이터가 없어 조용하니 '장부 읽기 불가' 규칙을 함께 봅니다."
       - uid: antlab-alert-ledger-unreadable
-        title: Ledger unreadable
+        title: 장부 읽기 불가
         condition: C
         data:
           - refId: A
@@ -506,5 +506,5 @@ groups:
           severity: info
           component: ledgers
         annotations:
-          summary: "A ledger that was readable in the last 7 days cannot be read now."
-          description: "antlab_ledger_readable fell to 0: file missing, unreadable or malformed. A ledger that was never readable (path unset) stays quiet. The two budget rules stay silent meanwhile; this rule says why."
+          summary: "최근 7일 안에 읽혔던 장부를 지금은 읽지 못합니다."
+          description: "왜: 장부를 못 읽으면 두 예산 규칙이 조용해져서 안전한 상태로 오해할 수 있으므로 이유를 따로 알립니다. antlab_ledger_readable이 0으로 떨어진 상태가 10분 이어지면 울립니다. 원인은 파일이 없거나, 읽을 수 없거나, 형식이 깨진 경우입니다. 한 번도 읽힌 적 없는 장부(경로 미설정)는 울리지 않습니다. 확인: AI 사용량 대시보드의 장부 읽기 표와 내보내기 설정의 장부 경로를 봅니다."

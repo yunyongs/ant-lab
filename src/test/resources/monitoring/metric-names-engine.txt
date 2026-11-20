@@ -1,5 +1,5 @@
 # Metric names the engine dashboard (antlab-engine) may query, one per line, sorted. Source: the antlab_engine_* names are the engine's own registry (engine/src/antlab_engine/metrics.py, prometheus_client suffixes added); process_* names come from prometheus_client's ProcessCollector, which reads /proc and so exports only on Linux (checked in the container by the live smoke). Names Prometheus makes itself (up, scrape_*) are not listed.
-# Add a name only from a real scrape; the live smoke (scripts/monitoring_smoke.sh) then proves that every panel except antlab-engine panel 11 returns data (no RegimeSource is wired in the container yet).
+# Add a name only from a real scrape; the live smoke (scripts/monitoring_smoke.sh) then proves that every panel except antlab-engine panel 11 returns data (the smoke requests no regime evaluation and its database has no series rows).
 antlab_engine_http_request_duration_seconds_bucket
 antlab_engine_http_requests_total
 antlab_engine_projection_slots_capacity

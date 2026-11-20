@@ -1,6 +1,7 @@
 {
   "uid": "antlab-overview",
-  "title": "ant-lab · Overview",
+  "title": "ant-lab · 서비스 개요",
+  "description": "가장 먼저 여는 화면입니다. 위에서 아래로 API 가동, 오늘 요청과 5xx, JVM·DB 상태, 수집기 마지막 실행, 데이터 신선도 순서로 읽고, 이상한 칸이 있으면 상단 링크의 세부 대시보드(데이터베이스·엔진·AI 사용량)나 수집기·API 대시보드로 넘어갑니다. 시간 범위는 오늘 0시부터 지금까지로 고정입니다.",
   "tags": [
     "antlab"
   ],
@@ -43,7 +44,7 @@
   "links": [
     {
       "type": "dashboards",
-      "title": "ant-lab dashboards",
+      "title": "ant-lab 대시보드 전체",
       "tags": [
         "antlab"
       ],
@@ -54,21 +55,21 @@
     },
     {
       "type": "link",
-      "title": "Database",
+      "title": "데이터베이스",
       "url": "/d/antlab-db",
       "icon": "dashboard",
       "targetBlank": false
     },
     {
       "type": "link",
-      "title": "Engine",
+      "title": "엔진",
       "url": "/d/antlab-engine",
       "icon": "dashboard",
       "targetBlank": false
     },
     {
       "type": "link",
-      "title": "AI usage",
+      "title": "AI 사용량",
       "url": "/d/antlab-ai-usage",
       "icon": "dashboard",
       "targetBlank": false
@@ -78,8 +79,8 @@
     {
       "id": 1,
       "type": "stat",
-      "title": "API up",
-      "description": "1 when Prometheus scrapes the API target (job antlab-api), 0 when it does not. / Prometheus가 API 대상(job antlab-api)을 읽으면 UP, 못 읽으면 DOWN.",
+      "title": "API 가동",
+      "description": "**왜 있나** API 프로세스가 지표를 내보내는지 한눈에 보려는 칸입니다.\n\n**볼 것** Prometheus가 antlab-api 대상을 읽으면 UP(초록), 못 읽으면 DOWN(빨강)입니다.\n\n**정상·이상** 로컬에서 API를 켜 두었다면 항상 UP이어야 합니다. DOWN이면 API가 꺼졌거나 지표 포트(8081)에 닿지 못하는 것입니다.\n\n**이상하면** docker compose의 api 컨테이너 상태와 로그를 먼저 보고, 'API 대상 중단' 경보가 울렸는지 확인합니다.\n\n**주의** API를 일부러 끈 날에는 DOWN이 정상입니다.",
       "datasource": {
         "type": "prometheus",
         "uid": "antlab-prometheus"
@@ -154,8 +155,8 @@
     {
       "id": 2,
       "type": "stat",
-      "title": "Requests today",
-      "description": "Requests answered since local midnight (the dashboard range), without health probes and actuator paths. A restart does not lose the count. / 오늘 0시부터 답한 요청 수(상태 확인과 actuator 경로 제외). 재시작해도 합이 유지된다.",
+      "title": "오늘 요청 수",
+      "description": "**왜 있나** 오늘 API가 얼마나 쓰였는지 가늠하려는 칸입니다.\n\n**볼 것** 오늘 0시 이후 답한 요청의 총 개수(단위: 건)입니다. 상태 확인(/readyz, /livez)과 actuator 경로는 뺍니다.\n\n**정상·이상** 절대 기준은 없고 평소 하루 쓰임과 비교해 판단합니다. 평소보다 갑자기 0이거나 폭증하면 이상합니다.\n\n**이상하면** API 대시보드의 엔드포인트별 요청 수에서 어느 경로가 늘었는지 봅니다.\n\n**주의** count 기반이라 재시작해도 합이 이어집니다. 시간 선택기를 바꿔도 오늘로 고정입니다.",
       "datasource": {
         "type": "prometheus",
         "uid": "antlab-prometheus"
@@ -210,8 +211,8 @@
     {
       "id": 3,
       "type": "stat",
-      "title": "5xx ratio today",
-      "description": "Share of requests answered with a 5xx status since local midnight (red above 1%), without health probes and actuator paths. Fixed to today whatever the time picker says. / 오늘 0시부터 5xx 상태로 답한 요청의 비율(1% 초과면 빨강). 시간 선택과 상관없이 오늘로 고정된다.",
+      "title": "오늘 5xx 비율",
+      "description": "**왜 있나** 오늘 서버 오류가 얼마나 섞였는지 보려는 칸입니다.\n\n**볼 것** 오늘 5xx 응답 수를 전체 요청 수로 나눈 비율(%)입니다.\n\n**정상·이상** 0%에 가까워야 정상이고 1%를 넘으면 빨강입니다. 요청이 아직 없으면 값이 비어 보일 수 있습니다.\n\n**이상하면** API 대시보드의 '상태 코드별 오류'와 '오류 코드별 오류'에서 어떤 코드가 나오는지 봅니다. 5분 넘게 5%를 넘으면 경보가 울립니다.\n\n**주의** 요청 수가 적은 날에는 한두 건만 실패해도 비율이 크게 보입니다.",
       "datasource": {
         "type": "prometheus",
         "uid": "antlab-prometheus"
@@ -270,8 +271,8 @@
     {
       "id": 4,
       "type": "stat",
-      "title": "JVM uptime",
-      "description": "Time since the API process started. / API 프로세스가 시작된 뒤 지난 시간.",
+      "title": "JVM 가동 시간",
+      "description": "**왜 있나** API가 방금 재시작되었는지 확인하려는 칸입니다.\n\n**볼 것** API 프로세스가 시작된 뒤 지난 시간(초 단위를 시·일로 환산해 표시)입니다.\n\n**정상·이상** 배포나 재시작 직후가 아니라면 계속 늘어야 합니다. 예상 못 한 시점에 작아지면 재시작이 있었다는 뜻입니다.\n\n**이상하면** API 컨테이너 로그에서 종료 원인(메모리 부족, 예외)을 찾고 JVM·DB 풀 대시보드의 힙을 봅니다.",
       "datasource": {
         "type": "prometheus",
         "uid": "antlab-prometheus"
@@ -325,8 +326,8 @@
     {
       "id": 5,
       "type": "stat",
-      "title": "Database size",
-      "description": "Size of the database as seen by the read-only role (pg_database_size). / 읽기 전용 역할이 보는 데이터베이스 크기(pg_database_size).",
+      "title": "데이터베이스 크기",
+      "description": "**왜 있나** 데이터베이스가 얼마나 커졌는지 보려는 칸입니다.\n\n**볼 것** 읽기 전용 역할이 보는 현재 데이터베이스의 디스크 크기(pg_database_size)입니다.\n\n**정상·이상** 로컬 단일 사용자 스택에서는 천천히 늘어야 합니다. 갑자기 몇 배로 뛰면 적재가 한꺼번에 들어갔거나 잘못된 반복이 있는 것입니다.\n\n**이상하면** 데이터베이스 대시보드의 '큰 테이블'과 '데이터베이스 크기 추이'로 어느 테이블이 늘었는지 봅니다.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "antlab-postgres"
@@ -382,8 +383,8 @@
     {
       "id": 6,
       "type": "table",
-      "title": "Collector last runs",
-      "description": "Status and age of the newest run of each collector job and the age of its last SUCCEEDED run; 'no run' when it never ran. Details on the collectors dashboard. / 수집 잡별 가장 최근 실행의 상태와 경과 시간, 마지막 SUCCEEDED 실행의 경과 시간. 한 번도 돌지 않았으면 'no run'. 자세한 내용은 수집기 대시보드.",
+      "title": "수집기 마지막 실행",
+      "description": "**왜 있나** 수집 잡(KIS 일봉, FRED, ECOS)이 마지막으로 어떻게 끝났는지 보려는 표입니다.\n\n**볼 것** 잡마다 가장 최근 실행의 상태, 경과 시간, 마지막 SUCCEEDED 실행 이후 경과, 보낸 요청 수, 실패 대상 수, 오류 코드입니다.\n\n**정상·이상** 최근 실행이 SUCCEEDED이고 실패 대상이 0이면 정상입니다. FAILED, 실패 대상 증가, 성공 후 경과가 계속 커지는 것은 이상 신호입니다.\n\n**이상하면** 수집기 대시보드의 '실패 대상과 오류 코드'에서 원인을 봅니다. 'FAILED'나 '성공이 오래됨' 경보와 같은 원천입니다.\n\n**주의** 한 번도 돌지 않은 잡은 'no run'으로 보입니다. 수집기 카운터는 M1-10 전에는 보이지 않을 수 있습니다.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "antlab-postgres"
@@ -490,8 +491,8 @@
     {
       "id": 7,
       "type": "stat",
-      "title": "Oldest macro series date",
-      "description": "Age in days of the oldest newest-observation date across all macro series that have an observation. Monthly series are normally weeks old. / 관측이 있는 모든 매크로 시계열 가운데 가장 오래된 최신 기준일의 경과 일수. 월간 시계열은 보통 몇 주 묵는다.",
+      "title": "가장 오래된 매크로 기준일",
+      "description": "**왜 있나** 매크로 지표 데이터가 얼마나 묵었는지 보려는 칸입니다.\n\n**볼 것** 관측이 있는 모든 매크로 시계열의 '최신 기준일' 중 가장 오래된 것이 오늘로부터 며칠 전인지(단위: 일)입니다.\n\n**정상·이상** 월간 시계열이 섞여 있어 보통 몇 주 묵는 것이 정상입니다. 평소보다 훨씬 커지면 수집이 멎은 시계열이 있다는 신호입니다.\n\n**이상하면** 수집기 대시보드의 '시계열별 최신 관측' 표를 최신 날짜가 빈 것, 오래된 것 순으로 보고 해당 잡의 마지막 실행을 확인합니다.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "antlab-postgres"
@@ -547,8 +548,8 @@
     {
       "id": 8,
       "type": "stat",
-      "title": "Oldest daily price date",
-      "description": "Age in days of the oldest newest-trade date across markets and sources. / 시장·출처 가운데 가장 오래된 최신 거래일의 경과 일수.",
+      "title": "가장 오래된 일봉 날짜",
+      "description": "**왜 있나** 가격 데이터(일봉)가 얼마나 묵었는지 보려는 칸입니다.\n\n**볼 것** 시장·출처별 최신 거래일 중 가장 오래된 날이 오늘로부터 며칠 전인지(단위: 일)입니다.\n\n**정상·이상** 주말·휴장일이 끼면 며칠 묵는 것은 정상입니다. 그 범위를 넘어 커지면 그 시장의 일봉 수집이 멎은 것입니다.\n\n**이상하면** 수집기 대시보드의 '시장별 최신 일봉' 표에서 어느 시장·출처인지 찾고 KIS 수집 잡의 마지막 실행을 확인합니다.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "antlab-postgres"
