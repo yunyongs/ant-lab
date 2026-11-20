@@ -11,7 +11,7 @@ from decimal import Decimal
 from typing import Protocol
 from urllib import request
 
-from ..openrouter.client import _exchange, json_number, map_status
+from ..openrouter.client import _build_opener, _exchange, json_number, map_status
 from .port import ModelAttempt, ModelRequest
 from .settings import is_loopback, validate_base_url
 
@@ -26,11 +26,21 @@ class OllamaTransport(Protocol):
     ) -> tuple[int, dict, dict]: ...
 
 
+# No proxy: HTTP_PROXY/HTTPS_PROXY must not carry a loopback call (or its key) off the machine.
+def _ollama_opener() -> request.OpenerDirector:
+    return _build_opener(request.ProxyHandler({}))
+
+
+_OLLAMA_OPENER = _ollama_opener()
+
+
 def urllib_ollama_transport(
     url: str, body: bytes, headers: dict[str, str], timeout: int
 ) -> tuple[int, dict, dict]:
-    """Same no-redirect, size- and time-bounded exchange as the OpenRouter client."""
-    return _exchange(request.Request(url, data=body, headers=headers, method="POST"), timeout)
+    """Same no-redirect, size- and time-bounded exchange as the OpenRouter client, without proxies."""
+    return _exchange(
+        request.Request(url, data=body, headers=headers, method="POST"), timeout, _OLLAMA_OPENER
+    )
 
 
 def _count(value: object) -> int | None:
@@ -53,6 +63,8 @@ class OllamaAdapter:
     ):
         self._url = validate_base_url(base_url) + "/api/chat"
         self._local = is_loopback(base_url)
+        if api_key and not self._local and not self._url.startswith("https://"):
+            raise ValueError("OLLAMA_API_KEY must not be sent in clear text to a non-loopback host")
         self._key = api_key
         self._structured_output = structured_output
         self._transport = transport
