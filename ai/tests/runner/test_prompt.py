@@ -60,9 +60,11 @@ def test_placeholder_text_inside_the_persona_is_not_substituted_again(persona):
 def test_user_message_is_the_turn_view_and_nothing_else(persona, small_view):
     before = copy.deepcopy(small_view)
     user = build_messages(persona, small_view)[1].content
-    assert json.loads(user) == small_view
+    shown = copy.deepcopy(small_view)
+    shown["season"].pop("leagueId", None)  # runner bookkeeping, never shown to the agent
+    assert json.loads(user) == shown
     assert small_view == before
-    assert user == json.dumps(small_view, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+    assert user == json.dumps(shown, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
 
 
 def test_canonical_form_ignores_key_order_and_keeps_korean():
@@ -296,3 +298,14 @@ def test_every_validator_keyword_of_the_schema_file_is_in_the_vocabulary():
     walk(_json.loads(decision.SCHEMA_PATH.read_text(encoding="utf-8")))
     structural = {"properties", "items", "$ref", "$defs", "$schema"}
     assert found - structural <= decision.KEYWORDS
+
+
+def test_league_id_never_reaches_the_prompt_and_the_input_is_not_changed(persona, small_view):
+    view = copy.deepcopy(small_view)
+    view["season"]["leagueId"] = 4242
+    text = prompt.canonical_json(view)
+    assert "leagueId" not in text
+    assert "4242" not in text
+    assert view["season"]["leagueId"] == 4242
+    assert prompt.canonical_json(view) == prompt.canonical_json(small_view)
+    assert "leagueId" not in build_messages(persona, view)[1].content
