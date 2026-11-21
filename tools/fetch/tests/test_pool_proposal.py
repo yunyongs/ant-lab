@@ -204,7 +204,13 @@ def test_asset_csv_matches_the_selection_and_the_sample_contract():
         sample = {(r["market"], r["ticker"]): r for r in csv.DictReader(f)}
     by_key = {(a["market"], a["ticker"]): a for a in assets}
     for key, s in sample.items():
-        assert by_key[key] == s, key
+        assert {k: v for k, v in by_key[key].items() if k != "proxy_index_name"} == {k: v for k, v in s.items() if k != "proxy_index_name"}, key
+        if s["proxy_index_name"]:
+            assert by_key[key]["proxy_index_name"] == s["proxy_index_name"], key
+    import proxy_map
+    proxied = proxy_map.run_check(FULL).proxy_months  # MVP-03: a generic proxy name exactly for assets with a proxy month (plan B2)
+    for a in assets:
+        assert bool(a["proxy_index_name"]) == (proxied.get((a["market"], a["ticker"]), 0) > 0), a["ticker"]
 
 
 def test_fetch_targets_load_and_follow_the_selection():
