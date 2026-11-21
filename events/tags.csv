@@ -83,3 +83,35 @@ ev0130.01,1997-07-01,FINANCIAL,CORPORATE_DISTRESS,START,,,KR:069500,기아그룹
 ev0131.01,1998-06-01,FINANCIAL,BANK_FAILURE,START,FAILED,,KR:055550,동화·동남·대동·충청·경기은행 5개 은행 퇴출,,https://www.seoul.co.kr/news/1998/06/30/19980630005001,2026-11-21
 ev0132.01,1999-07-01,FINANCIAL,CORPORATE_DISTRESS,START,,,KR:069500,대우그룹 구조조정안 발표와 긴급 지원 요청,,https://www.jil.go.jp/foreign/jihou/1999/10/kankokuP01.html,2026-11-21
 ev0132.02,1999-08-01,FINANCIAL,CORPORATE_DISTRESS,ONGOING,RESCUED,,KR:069500,대우그룹과 채권은행단 특별 재무구조 개선 약정 체결,,https://www.jil.go.jp/foreign/jihou/1999/10/kankokuP01.html,2026-11-21
+ev0200.01,2002-03-01,TRADE,TARIFF,START,IMPOSED,,KR:069500,미국 철강 수입품 관세 부과 발표,,https://georgewbush-whitehouse.archives.gov/news/releases/2002/03/20020305-10.html,2026-11-21
+ev0200.02,2003-12-01,TRADE,TARIFF,END,,,KR:069500,미국 철강 세이프가드 관세 조기 종료,,https://georgewbush-whitehouse.archives.gov/news/releases/2003/12/20031204-5.html,2026-11-21
+ev0201.01,2002-06-01,FINANCIAL,CORPORATE_DISTRESS,START,,,US:SPY,월드컴 대규모 회계 부정 공시,,https://web.archive.org/web/2003/https://www.sec.gov/news/press/2002-94.htm ; https://web.archive.org/web/2003/https://www.sec.gov/litigation/litreleases/lr17588.htm,2026-11-21
+ev0201.02,2002-07-01,FINANCIAL,CORPORATE_DISTRESS,END,FAILED,,US:SPY,월드컴 파산 보호 신청,,https://www.pbs.org/newshour/economy/business-july-dec02-worldcom_07-2,2026-11-21
+ev0202.01,2002-07-01,GEOPOLITICS,MILITARY_PROVOCATION,START,,,KR:069500,서해 연평도 해상 남북 해군 교전,,https://www.khan.co.kr/article/200206291847571,2026-11-21
+ev0203.01,2002-10-01,GEOPOLITICS,TERROR_ATTACK,START,,,US:SPY,인도네시아 발리 폭탄 테러,,https://news.un.org/en/story/2002/10/48302,2026-11-21
+ev0204.01,2002-11-01,POLITICS,US_MIDTERM,START,MAJORITY_KEPT,,US:SPY,미국 중간선거 집권당 하원 다수 유지,,https://history.house.gov/Institution/Party-Divisions/Party-Divisions/,2026-11-21
+ev0205.01,2002-12-01,POLITICS,KR_PRESIDENTIAL_ELECTION,START,KEEP,,KR:069500,제16대 대통령 선거와 여당 후보 당선,,https://museum.nec.go.kr/eng/eexh/eexh_2002_12_19.html ; https://www.seoul.co.kr/news/2002/12/20/20021220001001,2026-11-21
+ev0206.01,2003-03-01,GEOPOLITICS,ARMED_CONFLICT,START,,,US:SPY,미국 주도 연합군 이라크 공격 개시,,https://georgewbush-whitehouse.archives.gov/news/releases/2003/03/20030319-17.html,2026-11-21
+ev0207.01,2003-03-01,HEALTH,EPIDEMIC,START,,,KR:069500,세계보건기구 비정형 폐렴 세계 경보 발령,,https://web.archive.org/web/2003/https://www.who.int/csr/sars/archive/2003_03_12/en/,2026-11-21
+ev0208.01,2003-08-01,GEOPOLITICS,PEACE_TALKS,START,,,KR:069500,베이징에서 6자회담 첫 회의,,https://www.armscontrol.org/factsheets/6partytalks,2026-11-21
+ev0208.02,2005-02-01,GEOPOLITICS,PEACE_TALKS,ONGOING,COLLAPSED,,KR:069500,북한 핵무기 보유 선언과 6자회담 참가 무기한 중단,,https://www.rferl.org/a/1057391.html,2026-11-21
+ev0208.03,2005-09-01,GEOPOLITICS,PEACE_TALKS,ONGOING,AGREED,,KR:069500,6자회담 4차 회의 공동성명 채택,,https://2001-2009.state.gov/r/pa/prs/ps/2005/53490.htm ; https://web.archive.org/web/20051229121051/http://www.state.gov/r/pa/prs/ps/2005/53490.htm,2026-11-21
+ev0209.01,2004-03-01,GEOPOLITICS,TERROR_ATTACK,START,,,US:SPY,스페인 마드리드 열차 연쇄 폭탄 테러,,https://news.un.org/en/story/2004/03/96842,2026-11-21
+ev0210.01,2004-03-01,POLITICS,POLITICAL_CRISIS,START,,,KR:069500,국회 대통령 탄핵소추안 가결,,https://www.aljazeera.com/news/2004/5/14/impeached-s-korean-leader-restored,2026-11-21
+ev0210.02,2004-05-01,POLITICS,POLITICAL_CRISIS,END,,,KR:069500,헌법재판소 탄핵 기각과 대통령 직무 복귀,,https://www.aljazeera.com/news/2004/5/14/impeached-s-korean-leader-restored,2026-11-21
+ev0211.01,2004-04-01,POLITICS,KR_LEGISLATIVE_ELECTION,START,MAJORITY_GAINED,,KR:069500,제17대 국회의원 선거와 여당 과반 의석 확보,,https://museum.nec.go.kr/eng/eexh/eexh_2004_04_15.html,2026-11-21
+ev0212.01,2004-06-01,POLICY,MONETARY_TIGHTENING,START,RATE_HIKE,,US:SPY,미국 연준 기준금리 목표 0.25%포인트 인상,,https://www.federalreserve.gov/boarddocs/press/monetary/2004/20040630/default.htm,2026-11-21
+ev0213.01,2004-11-01,POLITICS,US_PRESIDENTIAL_ELECTION,START,KEEP,,US:SPY,미국 대통령 선거와 현직 대통령 재선,,https://www.presidency.ucsb.edu/statistics/elections/2004,2026-11-21
+ev0214.01,2004-12-01,SUPPLY_SHOCK,NATURAL_DISASTER,START,,,KR:069500,수마트라 해역 대지진과 인도양 해일,,https://www.usgs.gov/news/indian-ocean-tsunami-remembered-scientists-reflect-2004-indian-ocean-killed-thousands,2026-11-21
+ev0215.01,2005-05-01,POLITICS,REFERENDUM,START,KEEP,,US:SPY,프랑스 유럽헌법 조약 국민투표 부결,,https://www.elysee.fr/jacques-chirac/2005/05/29/declaration-de-m-jacques-chirac-president-de-la-republique-sur-les-resultats-du-referendum-pour-la-ratification-du-traite-etablissant-une-constitution-pour-leurope-a-paris-le-29-mai-2005,2026-11-21
+ev0216.01,2005-07-01,GEOPOLITICS,TERROR_ATTACK,START,,,US:SPY,영국 런던 대중교통 연쇄 폭탄 테러,,https://www.globalsecurity.org/security/library/news/2005/07/sec-050707-unnews01.htm,2026-11-21
+ev0217.01,2005-08-01,SUPPLY_SHOCK,NATURAL_DISASTER,START,,,US:SPY,허리케인 카트리나 미국 걸프 연안 상륙,,https://www.weather.gov/lix/katrina_anniversary,2026-11-21
+ev0218.01,2005-10-01,POLICY,MONETARY_TIGHTENING,START,RATE_HIKE,,KR:069500,한국은행 콜금리 목표 0.25%포인트 인상,,https://epts.kdi.re.kr/archive/frwdHist/view2?EPIC_NUM=76593,2026-11-21
+ev0219.01,2006-03-01,POLICY,MONETARY_TIGHTENING,START,ASSET_PURCHASE_CUT,,KR:069500,일본은행 양적완화 종료와 당좌예금 잔액 축소 결정,,https://www.boj.or.jp/en/mopo/mpmdeci/mpr_2006/k060309.htm,2026-11-21
+ev0220.01,2006-07-01,GEOPOLITICS,ARMED_CONFLICT,START,,,US:SPY,이스라엘과 레바논 헤즈볼라 무력 충돌,,https://www.un.org/unispal/document/auto-insert-206523,2026-11-21
+ev0220.02,2006-08-01,GEOPOLITICS,ARMED_CONFLICT,ONGOING,CEASEFIRE,,US:SPY,이스라엘·레바논 적대행위 중단 발효,,https://www.un.org/unispal/document/auto-insert-186298/ ; https://www.globalsecurity.org/military/library/news/2006/08/mil-060814-unnews01.htm,2026-11-21
+ev0221.01,2006-07-01,GEOPOLITICS,MILITARY_PROVOCATION,START,,,KR:069500,북한 탄도미사일 연쇄 발사,,https://armscontrol.org/act/2006_09/NKMissileTest,2026-11-21
+ev0222.01,2006-10-01,GEOPOLITICS,MILITARY_PROVOCATION,START,,,KR:069500,북한 핵실험 실시 발표,,https://www.globalsecurity.org/wmd/library/news/dprk/2006/dprk-061009-iaea01.htm ; https://news.un.org/en/story/2006/10/195382-security-council-members-strongly-condemn-nuclear-test-dpr-korea,2026-11-21
+ev0223.01,2006-11-01,POLITICS,US_MIDTERM,START,MAJORITY_LOST,,US:SPY,미국 중간선거 집권당 하원 다수 상실,,https://history.house.gov/Institution/Party-Divisions/Party-Divisions/,2026-11-21
+ev0224.01,2002-05-01,POLICY,MONETARY_TIGHTENING,START,RATE_HIKE,,KR:069500,한국은행 콜금리 목표 인상,,https://www.seoul.co.kr/news/2002/05/08/20020508010002,2026-11-21
+ev0225.01,2003-05-01,POLICY,MONETARY_EASING,START,RATE_CUT,,KR:069500,한국은행 콜금리 목표 0.25%포인트 인하,,https://www.seoul.co.kr/news/2003/05/16/20030516001002,2026-11-21
