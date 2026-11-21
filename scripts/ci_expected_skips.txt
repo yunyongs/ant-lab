@@ -56,6 +56,7 @@ antlab.scoring.ReconciliationGoldenTest	API_시즌에서_Java_규칙_15개와_ps
 antlab.scoring.ReconciliationGoldenTest	API가_만든_DB에서_대사_검증이_통과한다()
 antlab.scoring.ReconciliationGoldenTest	개발_엔드포인트의_기록과_SQL_수동_대사의_기록이_한_번호_공간에서_행까지_같다()
 antlab.support.SqlGoldenHarnessTest	README_회귀_모든_등록_검사가_PASS다()
+antlab.support.SqlGoldenHarnessTest	사건_적재는_표본_범위만_넣고_엄격_모드는_범위_밖에서_멈춘다()
 antlab.support.SqlGoldenReplayTest	같은_입력을_독립된_빈_DB_두_개에_적용하면_모든_테이블이_같다()
 antlab.support.SqlGoldenReplayTest	끝난_뒤_20_21_23을_다시_실행해도_모든_테이블이_그대로다()
 antlab.support.SqlGoldenReplayTest	시즌_중간의_보합_턴_뒤에도_다음_턴과_23_24_26_검증이_통과한다()
