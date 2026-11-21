@@ -33,6 +33,12 @@ final class SyntheticFeedHistory {
             new Asset("US", "F11", "산바람전력", "FEED_ENERGY"), new Asset("US", "F12", "들불정유", "FEED_ENERGY"));
 
     private static final List<Event> EVENTS = List.of(
+            // Month 0 lies before the replay start of the parity run: these two families must not lift PAIR_TYPE to n = 3.
+            new Event(0, "pair02_b1", "POLITICS", "PAIR_TYPE", 1, "0.01000000"),
+            new Event(0, "pair03_c1", "POLITICS", "PAIR_TYPE", 1, "0.01000000"),
+            // Block 99 lies in the base-date year (2026), after the replay range: it must not lift PAIR_TYPE either.
+            new Event(99, "pair04_d1", "POLITICS", "PAIR_TYPE", 1, "0.01000000"),
+            new Event(99, "pair05_e1", "POLITICS", "PAIR_TYPE", 1, "0.01000000"),
             new Event(2, "aaaaaa_01", "TRADE", "PUB_TYPE", 2, "0.05000000"),
             new Event(4, "rare01_x1", "GEOPOLITICS", "RARE_TYPE", 3, "-0.08000000"),
             new Event(4, "pair01_a1", "POLITICS", "PAIR_TYPE", 1, "0.01000000"),
@@ -133,9 +139,10 @@ final class SyntheticFeedHistory {
                 .append("SELECT v.m, v.t, v.n, 'STOCK', CASE v.m WHEN 'KR' THEN 'KRW' ELSE 'USD' END, g.id, DATE '1990-01-01', 'PRICE'\n")
                 .append("FROM (VALUES ").append(String.join(", ", assetRows)).append(") AS v(m, t, n, gc) JOIN asset_group g ON g.code = v.gc;\n");
         List<String> blocks = new ArrayList<>();
-        for (int t = 1; t <= TURNS; t++) {
+        for (int t = 0; t <= TURNS; t++) {
             blocks.add("(DATE '" + monthStart(t) + "', TRUE)");
         }
+        blocks.add("(DATE '" + monthStart(OUT_OF_RANGE_BLOCK) + "', TRUE)");
         sql.append("INSERT INTO month_block (month_start, events_reviewed) VALUES ").append(String.join(", ", blocks)).append(";\n");
         List<String> events = new ArrayList<>();
         for (Event e : EVENTS) {
@@ -187,7 +194,12 @@ final class SyntheticFeedHistory {
         return sql.toString().getBytes(StandardCharsets.UTF_8);
     }
 
+    private static final int OUT_OF_RANGE_BLOCK = 99;
+
     private static LocalDate monthStart(int turn) {
+        if (turn == OUT_OF_RANGE_BLOCK) {
+            return LocalDate.of(2026, 3, 1);
+        }
         return LocalDate.of(2001, 1, 1).plusMonths(turn);
     }
 }

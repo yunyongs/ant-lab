@@ -1,5 +1,6 @@
 -- Runs the SQL reference generator (db/24) over every turn of every season in the database and keeps, per turn, the input that
 -- tf_input assembled and the rows tf_append stored. Session-local objects only; the test reads parity_out in the same session.
+\set replay_start 2001-02-01
 \i db/24_turn_feed_def.sql
 
 CREATE TEMP TABLE parity_out (season_id bigint, turn_no integer, input jsonb, stored jsonb) ON COMMIT PRESERVE ROWS;
