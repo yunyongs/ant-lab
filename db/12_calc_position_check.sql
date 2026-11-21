@@ -922,7 +922,7 @@ INSERT INTO zz_neg (q, label, mutate, expect, alt) VALUES
      $m$SELECT pg_temp.mut_view('pos_rank', 'ORDER BY m.volatility', 'ORDER BY m.vol_raw')$m$, '1', NULL),
     ('H9_CUT', '창 끝을 기준일 달로 밀면 (end_lag = 0 — 기준일 달 이후 값이 판정에 들어간다)',
      $m$SELECT pg_temp.mut_view('pos_k', '1 AS end_lag', '0 AS end_lag')$m$, '1', NULL),
-    ('H9_CUT', '창을 240개월로 늘리면 (창 앞 달 — 표본의 2007–2012 — 이 들어간다)',
+    ('H9_CUT', '창을 240개월로 늘리면 (36개월 창 앞의 달이 들어간다)',
      $m$SELECT pg_temp.mut_view('pos_k', '36 AS win_months', '240 AS win_months')$m$, '1', NULL),
     ('H9_MOVED', '모든 판정된 기준일의 바꿀 창 안 달(창 시작 + 17개월)의 수익률을 미리 0.07 로 만들면 (시험의 변이가 같은 값으로 덮어써 아무것도 바꾸지 못해 헛돈다)',
      $m$UPDATE asset_month_return ar SET local_return = 0.07 FROM month_block mb
