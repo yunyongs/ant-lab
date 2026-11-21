@@ -85,5 +85,7 @@ public enum ErrorCode {
     /** The season settings or the generated path no longer match the league's, so an entry would be unfair. */
     LEAGUE_STALE,
     /** The review of a league season is held until the league is closed. */
-    LEAGUE_OPEN
+    LEAGUE_OPEN,
+    /** The memory version a season start names does not exist for this agent (agent runner, AG-05). */
+    MEMORY_VERSION_UNKNOWN
 }

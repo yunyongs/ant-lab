@@ -1,6 +1,7 @@
 package antlab.agent;
 
 import antlab.common.error.DomainException;
+import antlab.agent.memory.AgentMemoryRepository;
 import antlab.common.error.ErrorCode;
 import antlab.league.SeasonEntryService;
 import antlab.member.CurrentMember;
@@ -29,11 +30,12 @@ public class AgentSeasonService {
     private final SeasonRepository seasons;
     private final AgentRunnerProperties properties;
     private final PersonaVersionService personas;
+    private final AgentMemoryRepository memories;
     private final Clock clock;
 
     public AgentSeasonService(CurrentMember currentMember, AgentProfileRepository profiles,
             SeasonAgentConfigRepository configs, SeasonEntryService starts, SeasonRepository seasons,
-            AgentRunnerProperties properties, PersonaVersionService personas, Clock clock) {
+            AgentRunnerProperties properties, PersonaVersionService personas, AgentMemoryRepository memories, Clock clock) {
         this.currentMember = currentMember;
         this.profiles = profiles;
         this.configs = configs;
@@ -41,6 +43,7 @@ public class AgentSeasonService {
         this.seasons = seasons;
         this.properties = properties;
         this.personas = personas;
+        this.memories = memories;
         this.clock = clock;
     }
 
@@ -70,6 +73,11 @@ public class AgentSeasonService {
             throw new DomainException(ErrorCode.SEASON_LIMIT, "에이전트가 한 주에 시작할 수 있는 시즌 수를 넘었다");
         }
         AgentSeasonConfigRequest c = request.config();
+        // The season reads one memory version for its whole run: null keeps no memory, a number must be one of this
+        // agent's versions (older ones are fine: comparisons need them).
+        if (c.memoryVersion() != null && !memories.existsByMemberIdAndVersion(agentId, c.memoryVersion())) {
+            throw new DomainException(ErrorCode.MEMORY_VERSION_UNKNOWN, "에이전트에 없는 메모리 버전이다");
+        }
         personas.pin(profile.getPersonaKey(), c.personaVersion(), c.personaSha256(), c.personaDisplayName());
         SeasonDto season = starts.start(request.season());
         configs.save(new SeasonAgentConfig(season.id(), agentId, profile.getPersonaKey(), c.personaVersion(),
