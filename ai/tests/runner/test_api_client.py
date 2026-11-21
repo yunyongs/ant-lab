@@ -308,3 +308,83 @@ def test_register_reports_created_versus_found():
     client, _ = client_for((201, fixture("agent")), (200, fixture("agent")))
     assert client.register_agent("patient-value", "OPENROUTER", "m/x:free", "n")[1] is True
     assert client.register_agent("patient-value", "OPENROUTER", "m/x:free", "n")[1] is False
+
+
+# ---- AG-04 E: config and league operations -----------------------------------------------
+
+
+def test_start_season_with_a_league_sends_the_id_and_may_omit_the_length():
+    client, transport = client_for((201, fixture("season")))
+    client.start_season(11, "-0.20", FORMATION, None, CONFIG, league_id=5)
+    body = transport.calls[0]["body"]
+    assert body["leagueId"] == 5 and "pathLength" not in body
+    client, transport = client_for((201, fixture("season")))
+    client.start_season(11, "-0.20", FORMATION, 12, CONFIG)
+    assert "leagueId" not in transport.calls[0]["body"]
+
+
+@pytest.mark.parametrize("bad", [0, -1, True, "5", 1.5])
+def test_a_bad_league_id_is_refused_before_any_request(bad):
+    client, transport = client_for()
+    with pytest.raises(ValueError):
+        client.get_league(bad)
+    with pytest.raises(ValueError):
+        client.start_season(11, "-0.20", FORMATION, None, CONFIG, league_id=bad)
+    assert transport.calls == []
+
+
+def test_create_league_is_never_retried_and_sends_only_given_fields():
+    for first in ((503, None), OSError()):
+        client, transport = client_for(first, (201, None))
+        with pytest.raises((ApiProblem, ApiUnavailable)):
+            client.create_league("Cup")
+        assert len(transport.calls) == 1
+        assert transport.calls[0]["body"] == {"name": "Cup"}
+
+
+def test_create_league_refuses_a_body_the_contract_does_not_allow():
+    from antlab_ai.runner.contract import ContractError
+
+    client, transport = client_for()
+    with pytest.raises(ContractError):
+        client.create_league("", 12)
+    with pytest.raises(ContractError):
+        client.create_league("Cup", max_entries=1)
+    assert transport.calls == []
+
+
+def test_the_config_and_league_calls_use_the_contract_paths_and_methods():
+    league = {
+        "id": 5,
+        "name": "Cup",
+        "status": "OPEN",
+        "pathLength": 12,
+        "maxEntries": 8,
+        "entries": [],
+    }
+    config = {
+        "personaKey": "patient-value",
+        "personaVersion": 1,
+        "personaSha256": "a" * 64,
+        "modelRoute": "OPENROUTER",
+        "modelRequested": "m/x:free",
+        "promptTemplateVersion": "td1-p1",
+        "runnerVersion": "0.2.0",
+        "memoryVersion": None,
+        "temperature": "0",
+        "modelSeed": 1,
+        "maxTokens": 2048,
+        "turnTimeoutMs": 120000,
+        "budgetCalls": 36,
+        "budgetUsd": "0",
+    }
+    client, transport = client_for((200, config), (200, league), (200, league))
+    assert client.get_season_config(11, 7)["personaKey"] == "patient-value"
+    client.get_league(5)
+    client.close_league(5)
+    urls = [(c["method"], c["url"].removeprefix(BASE)) for c in transport.calls]
+    assert urls == [
+        ("GET", "/internal/agent-runner/v1/agents/11/seasons/7/config"),
+        ("GET", "/internal/agent-runner/v1/leagues/5"),
+        ("POST", "/internal/agent-runner/v1/leagues/5/close"),
+    ]
