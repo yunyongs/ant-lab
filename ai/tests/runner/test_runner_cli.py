@@ -81,9 +81,9 @@ def test_start_sends_the_persona_defaults_and_the_fixed_season_config(spring, en
     config = seen["config"]
     assert config["temperature"] == "0" and config["modelSeed"] == 1
     assert config["maxTokens"] == 2048 and config["turnTimeoutMs"] == 120000
-    assert config["promptTemplateVersion"] == "td1-p1"
+    assert config["promptTemplateVersion"] == "td1-p2"
     assert config["runnerVersion"] == "0.2.0"
-    assert config["budgetCalls"] == 36 and config["budgetUsd"] == "0"
+    assert config["budgetCalls"] == 42 and config["budgetUsd"] == "0"
     assert config["modelRequested"] == MODEL and config["memoryVersion"] is None
 
 

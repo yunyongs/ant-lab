@@ -11,8 +11,10 @@ import json
 import re
 from collections import Counter
 
-from api_helpers import fixture
+from api_helpers import REPO_ROOT, fixture
+from jsonschema import Draft202012Validator
 
+from antlab_ai.memory.filter import check_note, check_reflection, load_terms
 from antlab_ai.runner.persona import load_persona
 from antlab_ai.runner.prompt import PROMPT_TEMPLATE_VERSION
 
@@ -38,7 +40,16 @@ _ROUTES = (
     ("createLeague", "POST", re.compile(rf"{LEAGUES}$")),
     ("getLeague", "GET", re.compile(rf"{LEAGUES}/(\d+)$")),
     ("closeLeague", "POST", re.compile(rf"{LEAGUES}/(\d+)/close$")),
+    ("getAgentMemory", "GET", re.compile(rf"{PREFIX}/(\d+)/memory$")),
+    ("getMemoryComparison", "GET", re.compile(rf"{PREFIX}/(\d+)/memory/comparison$")),
+    ("getAgentMemoryVersion", "GET", re.compile(rf"{PREFIX}/(\d+)/memory/(\d+)$")),
+    ("getReflectionView", "GET", re.compile(rf"{PREFIX}/(\d+)/seasons/(\d+)/reflection-view$")),
+    ("submitSeasonMemory", "POST", re.compile(rf"{PREFIX}/(\d+)/seasons/(\d+)/memory$")),
 )
+SCHEMAS = {
+    "reflection": REPO_ROOT / "docs/api/season-reflection-1.schema.json",
+    "note": REPO_ROOT / "docs/api/operating-note-1.schema.json",
+}
 ENGINE_CODES = ("LEDGER_MISMATCH", "LINEUP_MISMATCH", "INVALID_FORMATION", "EVENT_TIME_CONFLICT")
 
 
@@ -85,12 +96,26 @@ class FakeSpring:
         self.season_limit_agents: set[int] = set()  # agents whose start answers SEASON_LIMIT
         self.next_league_season = 100
         self.started_with: list[dict] = []  # request bodies of every startAgentSeason
+        # AG-05 memory: versions are {"rules", "reflection", "carried", "source"}, oldest first.
+        self.memory_versions: list[dict] = []
+        # season id -> pending, held, done, void, abandoned or unfinished; pending ones are in finish order.
+        self.memory_seasons: dict[int, str] = {}
+        self.memory_submits: list[dict] = []
+        self.memory_outcomes: dict[int, dict] = {}
+        self.memory_forced: list[tuple[int, str, dict]] = []  # answers for the next submits
+        self.score_pending = False
+        self.event_titles_loaded = True
+        self.comparison: dict | None = None
+        self.last_query = ""
+        self.reflection_view: dict | None = None  # replaces the fixture view when set
+        self.created_with: list[dict] = []  # request bodies of every createLeague
+        self._memory_terms = load_terms()
 
     # ---- transport ------------------------------------------------------------------------
 
     def __call__(self, method, url, headers, body, timeout):
         self.token = headers.get("X-Antlab-Runner-Token")
-        path = url[url.index("/internal") :]
+        path, _, self.last_query = url[url.index("/internal") :].partition("?")
         operation, match = _route(method, path)
         self.requests[operation] += 1
         count = self.requests[operation]
@@ -207,6 +232,7 @@ class FakeSpring:
         return 200, {**config, **self.config_override}
 
     def _createLeague(self, ids, body):  # noqa: N802
+        self.created_with.append(body)
         league_id = 5 + len(self.leagues)
         league = {
             "id": league_id,
@@ -249,6 +275,8 @@ class FakeSpring:
         view["season"] = self._season()
         view["lastTurn"] = None if self.turn == 0 else self._result(self.turn)
         view["holdings"]["turnNo"] = self.turn
+        pinned = self.configs.get(ids[1], {}).get("memoryVersion")
+        view["agent"]["memory"] = None if pinned is None else self._memory_dto(pinned)
         return 200, view
 
     def _check_turn(self, turn_no):
@@ -382,6 +410,167 @@ class FakeSpring:
         if self.turn >= self.path_length:
             self.status = "FINISHED"
         return 201, self._result(self.turn)
+
+    # ---- memory (AG-05) -------------------------------------------------------------------
+
+    def _memory_dto(self, version):
+        first = max(1, version - 2)
+        return {
+            "version": version,
+            "playbook": list(self.memory_versions[version - 1]["rules"]),
+            "reflections": [
+                copy.deepcopy(self.memory_versions[n - 1]["reflection"])
+                for n in range(first, version + 1)
+            ],
+        }
+
+    def _getAgentMemory(self, ids, body):  # noqa: N802
+        pending = [s for s, state in self.memory_seasons.items() if state == "pending"]
+        held = sum(1 for state in self.memory_seasons.values() if state == "held")
+        latest = len(self.memory_versions) or None
+        return 200, {"latestVersion": latest, "pendingSeasonIds": pending, "heldSeasonCount": held}
+
+    def _getAgentMemoryVersion(self, ids, body):  # noqa: N802
+        version = ids[1]
+        if not 1 <= version <= len(self.memory_versions):
+            return problem(404, "NOT_FOUND")
+        return 200, {
+            "memory": self._memory_dto(version),
+            "playbookCarried": self.memory_versions[version - 1]["carried"],
+            "createdAt": "2026-11-20T00:00:00Z",
+        }
+
+    def _getMemoryComparison(self, ids, body):  # noqa: N802
+        return 200, copy.deepcopy(self.comparison)
+
+    def _memory_gate(self, season_id):
+        state = self.memory_seasons.get(season_id)
+        if state is None:
+            return problem(404, "NOT_FOUND")
+        pending = [s for s, st in self.memory_seasons.items() if st == "pending"]
+        codes = {
+            "unfinished": "SEASON_NOT_FINISHED",
+            "void": "MEMORY_NOT_ELIGIBLE",
+            "abandoned": "MEMORY_NOT_ELIGIBLE",
+            "done": "MEMORY_DONE",
+            "held": "LEAGUE_OPEN",
+        }
+        if state in codes:
+            return problem(409, codes[state])
+        if pending[0] != season_id:
+            return problem(409, "MEMORY_ORDER")
+        return None
+
+    def _getReflectionView(self, ids, body):  # noqa: N802
+        bad = self._memory_gate(ids[1])
+        if bad:
+            return bad
+        if self.score_pending:
+            return problem(503, "SCORE_PENDING")
+        view = (
+            copy.deepcopy(self.reflection_view)
+            if self.reflection_view
+            else fixture("reflection_view")
+        )
+        if self.memory_versions:
+            view["baseVersion"] = len(self.memory_versions)
+            view["basePlaybook"] = list(self.memory_versions[-1]["rules"])
+        return 200, view
+
+    def _submitSeasonMemory(self, ids, body):  # noqa: N802
+        season = ids[1]
+        self.memory_submits.append(copy.deepcopy(body))
+        bad = self._memory_gate(season)
+        if bad:
+            return bad
+        error = self._memory_envelope(body)
+        if error:
+            return error
+        if self.memory_forced:
+            status, code, extra = self.memory_forced.pop(0)
+            status, answer = problem(status, code)
+            return status, {**answer, **extra}
+        if not self.event_titles_loaded and body["outcome"] == "ACCEPTED":
+            return problem(409, "POOL_NOT_LOADED")
+        if body["outcome"] == "DISCARDED":
+            self.memory_seasons[season] = "done"
+            self.memory_outcomes[season] = {"outcome": "DISCARDED", "codes": body["discardCodes"]}
+            return 201, {"outcome": "DISCARDED", "version": None}
+        latest = len(self.memory_versions) or None
+        if body["baseVersion"] != latest:
+            return problem(409, "MEMORY_BASE_STALE")
+        rejected = self._memory_refused(body)
+        if rejected:
+            return rejected
+        self.memory_versions.append(
+            {
+                "rules": list(body["playbook"]["rules"]),
+                "reflection": copy.deepcopy(body["reflection"]),
+                "carried": body["playbookCarried"],
+                "source": season,
+            }
+        )
+        self.memory_seasons[season] = "done"
+        self.memory_outcomes[season] = {"outcome": "ACCEPTED"}
+        return 201, {"outcome": "ACCEPTED", "version": len(self.memory_versions)}
+
+    def _memory_envelope(self, body):
+        accepted = body["outcome"] == "ACCEPTED"
+        if accepted and not (body.get("reflection") and body.get("playbook")):
+            return problem(400, "INVALID_ARGUMENT")
+        if not accepted and (not body.get("discardCodes") or body.get("baseVersion") is not None):
+            return problem(400, "INVALID_ARGUMENT")
+        if not accepted and (
+            body.get("reflection") or body.get("playbook") or body.get("playbookCarried")
+        ):
+            return problem(400, "INVALID_ARGUMENT")
+        seen: Counter[str] = Counter()
+        for call in body["calls"]:
+            seen[call["kind"]] += 1
+            if (
+                call["kind"] not in ("REFLECTION", "PLAYBOOK")
+                or call["attemptNo"] != seen[call["kind"]]
+            ):
+                return problem(400, "INVALID_ARGUMENT")
+            if call["modelRequested"] != self.model:
+                return problem(400, "INVALID_ARGUMENT")
+            if self.route == "OPENROUTER" and call.get("ledgerCallId") is None:
+                return problem(400, "INVALID_ARGUMENT")
+        if accepted and not seen["REFLECTION"]:
+            return problem(400, "INVALID_ARGUMENT")
+        return None
+
+    def _memory_refused(self, body):
+        violations = []
+        for name, key in (("reflection", "reflection"), ("playbook", "note")):
+            validator = Draft202012Validator(json.loads(SCHEMAS[key].read_text(encoding="utf-8")))
+            violations += [
+                {"pointer": f"/{name}", "keyword": str(e.validator)}
+                for e in validator.iter_errors(body[name])
+            ]
+        if violations:
+            status, answer = problem(422, "MEMORY_SCHEMA_INVALID")
+            return status, {**answer, "violations": violations}
+        leaks = [
+            {"pointer": "/reflection" + hit.pointer, "code": hit.code}
+            for hit in check_reflection(body["reflection"], self._memory_terms).hits
+        ]
+        leaks += [
+            {"pointer": "/playbook" + hit.pointer, "code": hit.code}
+            for hit in check_note(body["playbook"], self._memory_terms).hits
+        ]
+        if leaks:
+            status, answer = problem(422, "MEMORY_LEAK")
+            return status, {**answer, "leaks": leaks}
+        if body["playbookCarried"]:
+            previous = (
+                self.memory_versions[-1]["rules"]
+                if self.memory_versions
+                else body["reflection"]["ruleCandidates"]
+            )
+            if body["playbook"]["rules"] != previous:
+                return problem(400, "INVALID_ARGUMENT")
+        return None
 
     # ---- inspection -----------------------------------------------------------------------
 

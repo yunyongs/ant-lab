@@ -32,6 +32,7 @@ FIXTURE_SCHEMAS = [
     ("turn_result", "TurnResultDto"),
     ("decision_result", "DecisionResultDto"),
     ("problem", "Problem"),
+    ("reflection_view", "ReflectionViewDto"),
 ]
 
 
@@ -240,3 +241,44 @@ def test_decimal_format_is_enforced_in_responses():
     season["cashBalance"] = "12e3"
     with pytest.raises(ContractError):
         contract.check("SeasonDto", season)
+
+
+def test_a_turn_view_with_pinned_memory_matches_the_schema():
+    view = fixture("turn_view")
+    view["agent"]["memory"] = {
+        "version": 2,
+        "playbook": ["Write the reason first."],
+        "reflections": [
+            {
+                "schema": "season-reflection/1",
+                "good": ["a", "b", "c"],
+                "mistakes": [],
+                "ruleCandidates": [],
+            }
+        ],
+    }
+    assert contract_errors("AgentTurnViewDto", view) == []
+    view["agent"]["memory"]["version"] = 0
+    assert contract_errors("AgentTurnViewDto", view) != []
+
+
+def test_the_submit_bodies_of_both_outcomes_match_the_schema():
+    accepted = {
+        "baseVersion": None,
+        "outcome": "ACCEPTED",
+        "reflection": {"schema": "season-reflection/1"},
+        "playbook": {"schema": "operating-note/1"},
+        "playbookCarried": False,
+        "calls": [],
+    }
+    discarded = {
+        "baseVersion": None,
+        "outcome": "DISCARDED",
+        "discardCodes": ["BUDGET"],
+        "calls": [],
+    }
+    assert contract_errors("SubmitSeasonMemoryRequest", accepted) == []
+    assert contract_errors("SubmitSeasonMemoryRequest", discarded) == []
+    assert (
+        contract_errors("SubmitSeasonMemoryRequest", {**discarded, "discardCodes": ["NOPE"]}) != []
+    )

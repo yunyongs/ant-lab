@@ -28,7 +28,9 @@ def persona():
 
 
 def test_template_version_id():
-    assert PROMPT_TEMPLATE_VERSION == "td1-p1"
+    assert PROMPT_TEMPLATE_VERSION == "td1-p2"
+    assert set(prompt.TEMPLATES) == {"td1-p1", "td1-p2"}
+    assert prompt.TEMPLATE_PATH == prompt.TEMPLATES[PROMPT_TEMPLATE_VERSION]
 
 
 def test_system_message_is_template_persona_and_schema_text(persona):
@@ -265,17 +267,35 @@ PINNED = {
     "td1-p1": {
         "template": "ba07cc4d2e4bba93dc9d4008df440106b5cd25f6af083e0372b16fc00a8a420a",
         "schema": "04ad409bc17f27709d63f77d140ea36726c923ab874b09644e51688f312151f6",
-    }
+    },
+    "td1-p2": {
+        "template": "ecc7ad4cd9ce82585ed939ef255565800bdec267822e40ab5788be6d64a5a4ef",
+        "schema": "04ad409bc17f27709d63f77d140ea36726c923ab874b09644e51688f312151f6",
+    },
 }
 
 
-def test_template_and_schema_text_are_pinned_to_the_version_id():
+@pytest.mark.parametrize("template_id", sorted(PINNED))
+def test_template_and_schema_text_are_pinned_to_the_version_id(template_id):
     import hashlib
 
-    pins = PINNED[PROMPT_TEMPLATE_VERSION]
-    template = hashlib.sha256(prompt.TEMPLATE_PATH.read_bytes()).hexdigest()
+    pins = PINNED[template_id]
+    template = hashlib.sha256(prompt.TEMPLATES[template_id].read_bytes()).hexdigest()
     schema = hashlib.sha256(decision.SCHEMA_PATH.read_bytes()).hexdigest()
     assert (template, schema) == (pins["template"], pins["schema"])
+
+
+def test_p2_is_p1_plus_the_memory_sentences_and_p1_still_builds(persona, small_view):
+    one = prompt.TEMPLATES["td1-p1"].read_text(encoding="utf-8").splitlines()
+    two = prompt.TEMPLATES["td1-p2"].read_text(encoding="utf-8").splitlines()
+    added = [line for line in two if line not in one]
+    assert len(added) == 1 and "agent.memory" in added[0]
+    assert [line for line in one if line not in two] == []
+    first = build_messages(persona, small_view, "td1-p1")
+    assert "agent.memory" not in first[0].content
+    assert "agent.memory" in build_messages(persona, small_view)[0].content
+    with pytest.raises(PromptError):
+        build_messages(persona, small_view, "td9-p9")
 
 
 def test_every_validator_keyword_of_the_schema_file_is_in_the_vocabulary():

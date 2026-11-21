@@ -1,0 +1,112 @@
+{
+  "baseVersion": null,
+  "basePlaybook": [],
+  "pathLength": 3,
+  "report": {
+    "seasonStatus": "FINISHED",
+    "isFinal": true,
+    "reportTurns": 3,
+    "pathLength": 3,
+    "pendingOrders": 0,
+    "pendingChanges": 0,
+    "initialCash": "100000000",
+    "finalValue": "104000000",
+    "totalReturn": "0.04000000",
+    "monthlyVolatility": "0.00",
+    "maxDrawdown": "0.00",
+    "baselineFinalValue": "0.00",
+    "baselineReturn": "0.00",
+    "excessReturn": "0.00",
+    "riskLimit": "-0.20",
+    "riskBreachTurns": 0,
+    "riskBreachDepth": "0.00",
+    "maxSingleWeight": "0.00",
+    "tradeNotional": "0.00",
+    "turnoverAnnual": "0.00",
+    "formationDeviation": "0.00",
+    "measuredFormationDeviation": "0.00",
+    "roleFit": "0.00",
+    "rolePlayersJudged": 0,
+    "rolePlayersUnjudged": 0,
+    "nudgeShare": "0.00",
+    "nudgeSameTurnShare": "0.00",
+    "totalFee": "0.00",
+    "teamFee": "0.00",
+    "formationChangeFee": "0.00",
+    "platformNudgeFee": "0.00",
+    "formationChanges": 0,
+    "formationChangeOrders": 0,
+    "changesWithoutOrders": 0,
+    "reconMismatchRows": 0,
+    "reconTurnBundles": 0,
+    "reconManualBundles": 0,
+    "reconOutOfRangeRows": 0
+  },
+  "score": {
+    "scoreVersion": "s1",
+    "score": "61.50",
+    "resultScore": "58.00",
+    "processScore": "65.00",
+    "luckPercentile": "0.50000000",
+    "sharpeDiffPercentile": "0.58000000",
+    "items": {
+      "risk": "65.00",
+      "discipline": "65.00",
+      "diversification": "65.00",
+      "turnover": "65.00",
+      "consistency": "65.00",
+      "formation": "65.00",
+      "role": "65.00",
+      "noise": "65.00",
+      "nudge": "65.00"
+    },
+    "processItems": 9,
+    "countedInRating": true,
+    "ratingExclusion": null
+  },
+  "turns": [
+    {
+      "turnNo": 0,
+      "label": "1년차 1월",
+      "reason": "hold the starting team",
+      "fills": [],
+      "rejects": [],
+      "cited": []
+    },
+    {
+      "turnNo": 1,
+      "label": "1년차 2월",
+      "reason": "trim the largest position",
+      "fills": [
+        {
+          "asset": "KR:100000",
+          "side": "SELL",
+          "quantity": 5
+        }
+      ],
+      "rejects": [],
+      "cited": [
+        {
+          "feedTurnNo": 1,
+          "seq": 2,
+          "kind": "RISE"
+        }
+      ]
+    },
+    {
+      "turnNo": 2,
+      "label": "1년차 3월",
+      "reason": null,
+      "fills": [],
+      "rejects": [
+        {
+          "unit": "ORDER",
+          "index": 0,
+          "code": "QUANTITY_INVALID",
+          "pointer": "/orders/0/quantity"
+        }
+      ],
+      "cited": []
+    }
+  ]
+}
