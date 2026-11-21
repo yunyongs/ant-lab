@@ -6,6 +6,7 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.test.context.ConfigDataApplicationContextInitializer;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Configuration;
@@ -44,6 +45,14 @@ class SeasonPropertiesTest {
             SeasonProperties p = ctx.getBean(SeasonProperties.class);
             assertThat(p.initialCash()).isEqualByComparingTo(new BigDecimal("30000000"));
             assertThat(p.feeRateKr()).isEqualByComparingTo(new BigDecimal("0.00015"));
+        });
+    }
+
+    @Test
+    void 배포_기본_초기_자금은_1억이다() {
+        runner.withInitializer(new ConfigDataApplicationContextInitializer()).run(ctx -> {
+            assertThat(ctx).hasNotFailed();
+            assertThat(ctx.getBean(SeasonProperties.class).initialCash()).isEqualByComparingTo(new BigDecimal("100000000"));
         });
     }
 

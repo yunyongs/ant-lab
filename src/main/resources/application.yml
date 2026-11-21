@@ -53,7 +53,7 @@ antlab:
   # 새 시즌에 적는 설정(요청에서 받지 않는다). 요율은 PLAN §4.6, 환전 비용 0.40% 는 소유자 결정(2026-11-08).
   # 기준일은 antlab.pool.base-date 를 그대로 쓴다. 표본 스냅샷 날짜 = db/sample/README 상태 줄(db/20 설정 표와 같음).
   season:
-    initial-cash: 30000000
+    initial-cash: 100000000
     fee-rate-kr: 0.00015
     fee-rate-us: 0.0025
     fx-spread-rate: 0.0040
