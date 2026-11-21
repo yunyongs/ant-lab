@@ -91,6 +91,9 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         if (!errors.isEmpty()) {
             problem.setProperty("errors", errors);
         }
+        if (ex instanceof DomainException de) {
+            de.getProperties().forEach(problem::setProperty);
+        }
         return super.handleExceptionInternal(ex, problem, headers, statusCode, request);
     }
 
@@ -115,7 +118,7 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
                     SEASON_HALTED, INVALID_FORMATION, EVENT_TIME_CONFLICT, EMAIL_TAKEN, INVALID_CREDENTIALS, AGENT_RETIRED,
                     DECISION_CONFLICT, DECISION_MISSING, PERSONA_VERSION_CONFLICT, PERSONA_VERSION_STALE, LEAGUE_NOT_SETTLED,
                     LEAGUE_CLOSED, LEAGUE_SEAT_TAKEN, LEAGUE_FULL, LEAGUE_STALE, LEAGUE_OPEN, MEMORY_VERSION_UNKNOWN, MEMORY_DONE, MEMORY_ORDER,
-                    MEMORY_NOT_ELIGIBLE -> "요청을 처리할 수 없는 상태다";
+                    MEMORY_NOT_ELIGIBLE, MEMORY_BASE_STALE, MEMORY_LEAK, MEMORY_SCHEMA_INVALID -> "요청을 처리할 수 없는 상태다";
             case UNAUTHENTICATED -> "인증이 필요하다";
             case FORBIDDEN -> "권한이 없다";
         };

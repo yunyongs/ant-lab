@@ -1,7 +1,9 @@
 package antlab.agent;
 
+import jakarta.persistence.LockModeType;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.Repository;
 import org.springframework.data.repository.query.Param;
@@ -12,6 +14,14 @@ public interface AgentProfileRepository extends Repository<AgentProfile, Long> {
     AgentProfile save(AgentProfile profile);
 
     Optional<AgentProfile> findById(Long memberId);
+
+    /**
+     * The agent's row under a write lock, the serialization point of one agent's memory writes (a version chain is
+     * written one at a time). Hibernate sends {@code FOR NO KEY UPDATE} on PostgreSQL.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select p from AgentProfile p where p.memberId = :memberId")
+    Optional<AgentProfile> findByIdForUpdate(@Param("memberId") Long memberId);
 
     Optional<AgentProfile> findByOwnerMemberIdAndPersonaKeyAndModelRouteAndModelId(Long ownerMemberId,
             String personaKey, ModelRoute modelRoute, String modelId);

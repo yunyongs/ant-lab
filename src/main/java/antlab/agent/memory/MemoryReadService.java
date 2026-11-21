@@ -41,7 +41,7 @@ public class MemoryReadService {
         requireActing(agentId);
         Integer latest = memories.findFirstByMemberIdOrderByVersionDesc(agentId).map(AgentMemory::getVersion).orElse(null);
         MemoryEligibility.Pending pending = eligibility.pending(agentId);
-        return new AgentMemoryStateDto(latest, pending.released(), pending.held());
+        return new AgentMemoryStateDto(latest, pending.released(), pending.heldCount());
     }
 
     @Transactional(readOnly = true)

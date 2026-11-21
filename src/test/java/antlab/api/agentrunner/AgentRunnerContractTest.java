@@ -130,6 +130,33 @@ class AgentRunnerContractTest {
         assertListed(doc, turnView, get(AGENTS + "/" + agent + "/seasons/987654321/turn-view", TOKEN));
         assertListed(doc, turnView, get(AGENTS + "/987654321/seasons/" + season + "/turn-view", TOKEN));
         assertListed(doc, turnView, get(AGENTS + "/" + agent + "/seasons/abc/turn-view", TOKEN));
+
+        String memoryState = "GET " + AGENTS + "/{agentId}/memory";
+        String memoryVersion = "GET " + AGENTS + "/{agentId}/memory/{version}";
+        String reflectionView = "GET " + AGENTS + "/{agentId}/seasons/{seasonId}/reflection-view";
+        String submitMemory = "POST " + AGENTS + "/{agentId}/seasons/{seasonId}/memory";
+        String memoryUri = AGENTS + "/" + agent + "/memory";
+        String seasonUri = startUri + "/" + season;
+        assertListed(doc, memoryState, get(memoryUri, "wrong"));
+        assertListed(doc, memoryState, get(AGENTS + "/987654321/memory", TOKEN));
+        assertListed(doc, memoryVersion, get(memoryUri + "/1", "wrong"));
+        assertListed(doc, memoryVersion, get(memoryUri + "/0", TOKEN));
+        assertListed(doc, memoryVersion, get(memoryUri + "/abc", TOKEN));
+        assertListed(doc, memoryVersion, get(memoryUri + "/1", TOKEN));
+        assertListed(doc, reflectionView, get(seasonUri + "/reflection-view", "wrong"));
+        assertListed(doc, reflectionView, get(startUri + "/987654321/reflection-view", TOKEN));
+        assertListed(doc, reflectionView, get(startUri + "/abc/reflection-view", TOKEN));
+        MockHttpServletResponse notFinished = get(seasonUri + "/reflection-view", TOKEN);
+        assertListed(doc, reflectionView, notFinished);
+        assertThat(json(notFinished).get("code").asString()).isEqualTo("SEASON_NOT_FINISHED");
+        String discard = "{\"baseVersion\": null, \"outcome\": \"DISCARDED\", \"discardCodes\": [\"YEAR\"], \"calls\": []}";
+        assertListed(doc, submitMemory, post(mvc, seasonUri + "/memory", "wrong", discard, true));
+        assertListed(doc, submitMemory, post(mvc, startUri + "/987654321/memory", discard));
+        assertListed(doc, submitMemory, post(mvc, seasonUri + "/memory", "{}"));
+        assertListed(doc, submitMemory, post(mvc, startUri + "/abc/memory", discard));
+        MockHttpServletResponse early = post(mvc, seasonUri + "/memory", discard);
+        assertListed(doc, submitMemory, early);
+        assertThat(json(early).get("code").asString()).isEqualTo("SEASON_NOT_FINISHED");
         em.flush();
         jdbc.update("UPDATE agent_profile SET status = 'RETIRED' WHERE member_id = ?", agent);
         em.clear();
@@ -199,7 +226,7 @@ class AgentRunnerContractTest {
         assertThat(types).containsExactlyInAnyOrder(AgentDto.class, SeasonDto.class, antlab.agent.AgentSeasonConfigDto.class, AgentTurnViewDto.class,
                 DecisionResultDto.class, TurnResultDto.class, AbandonResultDto.class, antlab.league.LeagueDto.class, Void.class,
                 antlab.agent.memory.AgentMemoryStateDto.class, antlab.agent.memory.AgentMemoryVersionDto.class,
-                antlab.agent.memory.ReflectionViewDto.class);
+                antlab.agent.memory.ReflectionViewDto.class, antlab.agent.memory.SubmitSeasonMemoryResultDto.class);
         assertThat(ExposureRules.check(SeasonDto.class, catalog, false, false)).isEmpty();
         assertThat(ExposureRules.check(AgentTurnViewDto.class, catalog, false, false)).isEmpty();
         assertThat(Arrays.stream(antlab.agent.AgentSeasonConfigDto.class.getRecordComponents()).map(RecordComponent::getName).toList())
@@ -211,6 +238,7 @@ class AgentRunnerContractTest {
         assertThat(ExposureRules.check(AbandonResultDto.class, catalog, false, false)).isEmpty();
         assertThat(ExposureRules.check(antlab.agent.memory.AgentMemoryStateDto.class, catalog, false, false)).isEmpty();
         assertThat(ExposureRules.check(antlab.agent.memory.AgentMemoryVersionDto.class, catalog, false, false)).isEmpty();
+        assertThat(ExposureRules.check(antlab.agent.memory.SubmitSeasonMemoryResultDto.class, catalog, false, false)).isEmpty();
         // the reflection view shows feed kinds and the report card of a finished season, like the review handlers do
         assertThat(ExposureRules.check(antlab.agent.memory.ReflectionViewDto.class, catalog, true, true)).isEmpty();
         // reviewReveal accepts every review-only column, so the view is pinned to the two it needs: the feed kind and the

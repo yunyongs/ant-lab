@@ -122,6 +122,8 @@ class AgentRunnerSchemaParityTest {
         assertSchemaMatches("ReflectionTurnDto", antlab.agent.memory.ReflectionViewDto.Turn.class);
         assertSchemaMatches("ReflectionFillDto", antlab.agent.memory.ReflectionViewDto.Fill.class);
         assertSchemaMatches("ReflectionCitedDto", antlab.agent.memory.ReflectionViewDto.Cited.class);
+        assertSchemaMatches("SubmitSeasonMemoryRequest", antlab.agent.memory.SubmitSeasonMemoryRequest.class);
+        assertSchemaMatches("SubmitSeasonMemoryResultDto", antlab.agent.memory.SubmitSeasonMemoryResultDto.class);
         assertSchemaMatches("CreateLeagueRequest", antlab.league.CreateLeagueRequest.class);
         assertSchemaMatches("LeagueDto", antlab.league.LeagueDto.class);
         assertSchemaMatches("LeagueEntryDto", antlab.league.LeagueEntryDto.class);
@@ -224,6 +226,36 @@ class AgentRunnerSchemaParityTest {
         }
         assertThat(names(s.path("CallRecordRequest").path("required")))
                 .containsExactlyInAnyOrder("attemptNo", "kind", "status", "modelRequested", "requestText", "latencyMs");
+    }
+
+    @Test
+    void the_memory_submit_enums_and_vocabulary_are_the_java_ones() throws Exception {
+        JsonNode s = schemas(RUNNER);
+        assertThat(names(s.path("ReflectionOutcome").path("enum"))).isEqualTo(enumNames(antlab.agent.ReflectionOutcome.class));
+        assertThat(names(s.path("MemoryDiscardCode").path("enum")))
+                .isEqualTo(enumNames(antlab.agent.memory.MemoryDiscardCode.class));
+        assertThat(names(s.path("CallRecordRequest").path("properties").path("kind").path("enum")))
+                .isEqualTo(enumNames(antlab.agent.AgentCallKind.class));
+        Set<String> leakCodes = enumNames(antlab.agent.memory.MemoryLeakFilter.Code.class);
+        leakCodes.add("OVERSIZE");
+        assertThat(names(s.path("MemoryLeakDto").path("properties").path("code").path("enum"))).isEqualTo(leakCodes);
+        assertThat(enumNames(antlab.agent.memory.MemoryDiscardCode.class)).containsAll(leakCodes);
+        assertThat(names(s.path("MemoryViolationDto").path("properties").path("keyword").path("enum")))
+                .containsExactlyInAnyOrder("type", "required", "additionalProperties", "const", "enum", "minLength",
+                        "maxLength", "minItems", "maxItems", "encoding");
+        assertThat(names(s.path("MemoryViolationDto").path("required"))).containsExactlyInAnyOrder("pointer", "keyword");
+        assertThat(names(s.path("MemoryLeakDto").path("required"))).containsExactlyInAnyOrder("pointer", "code");
+        assertThat(names(s.path("SubmitSeasonMemoryRequest").path("required")))
+                .containsExactlyInAnyOrder("baseVersion", "outcome", "calls");
+        assertThat(names(s.path("SubmitSeasonMemoryResultDto").path("required")))
+                .isEqualTo(components(antlab.agent.memory.SubmitSeasonMemoryResultDto.class));
+        JsonNode paths = OpenApiNormalizer.fromYaml(Files.readString(RUNNER)).path("paths");
+        JsonNode responses = paths.path("/internal/agent-runner/v1/agents/{agentId}/seasons/{seasonId}/memory").path("post")
+                .path("responses");
+        assertThat(names(responses.path("409").path("x-error-codes"))).containsExactlyInAnyOrder("SEASON_NOT_FINISHED",
+                "MEMORY_NOT_ELIGIBLE", "MEMORY_DONE", "LEAGUE_OPEN", "MEMORY_ORDER", "MEMORY_BASE_STALE", "POOL_NOT_LOADED");
+        assertThat(names(responses.path("422").path("x-error-codes")))
+                .containsExactlyInAnyOrder("MEMORY_SCHEMA_INVALID", "MEMORY_LEAK");
     }
 
     @Test

@@ -36,9 +36,11 @@ public interface AgentCallRepository extends AppendOnlyRepository<AgentCall, Lon
     /** True when a stored call already carries this ledger call id (unique across seasons). */
     boolean existsByLedgerCallId(java.util.UUID ledgerCallId);
 
-    /** All attempts of a turn in attempt order. */
-    @Query("select c from AgentCall c where c.seasonId = :seasonId and c.turnNo = :turnNo order by c.attemptNo asc")
-    List<AgentCall> findAllBySeasonIdAndTurnNo(@Param("seasonId") Long seasonId, @Param("turnNo") int turnNo);
+    /** All attempts of a turn of one call kind in attempt order. */
+    @Query("select c from AgentCall c where c.seasonId = :seasonId and c.turnNo = :turnNo and c.callKind = :kind"
+            + " order by c.attemptNo asc")
+    List<AgentCall> findAllBySeasonIdAndTurnNoAndCallKind(@Param("seasonId") Long seasonId, @Param("turnNo") int turnNo,
+            @Param("kind") AgentCallKind kind);
 
     /** Turns whose final call ended without a usable decision, per agent, in one grouped query. */
     @Query("""

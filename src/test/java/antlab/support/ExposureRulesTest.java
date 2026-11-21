@@ -367,13 +367,14 @@ class ExposureRulesTest {
     }
 
     @Test
-    void the_memory_agent_sources_pass_only_in_the_two_memory_records() {
+    void the_memory_agent_sources_pass_only_in_the_three_memory_records() {
         assertThat(ExposureRules.MEMORY_AGENT_RECORDS).containsExactlyInAnyOrder(antlab.agent.memory.AgentMemoryVersionDto.class,
-                antlab.agent.memory.ReflectionViewDto.Turn.class);
+                antlab.agent.memory.ReflectionViewDto.Turn.class, antlab.agent.memory.SubmitSeasonMemoryResultDto.class);
         assertThat(ExposureRules.MEMORY_AGENT_SOURCES).containsExactlyInAnyOrder("agent_memory.playbook_carried",
-                "agent_memory.created_at", "agent_call.parsed");
+                "agent_memory.created_at", "agent_call.parsed", "agent_reflection.outcome");
         assertThat(ExposureRules.check(antlab.agent.memory.ReflectionViewDto.Fill.class, catalog())).isEmpty();
         assertThat(ExposureRules.check(OtherAgentRecord.class, catalog())).isNotEmpty();
-        assertThat(ExposureRules.OWNER_AGENT_SOURCES).doesNotContain("agent_memory.playbook_carried", "agent_call.parsed");
+        assertThat(ExposureRules.OWNER_AGENT_SOURCES).doesNotContain("agent_memory.playbook_carried", "agent_call.parsed",
+                "agent_reflection.outcome");
     }
 }

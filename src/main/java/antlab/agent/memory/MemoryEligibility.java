@@ -35,8 +35,11 @@ public class MemoryEligibility {
               AND NOT EXISTS (SELECT 1 FROM agent_reflection r WHERE r.season_id = s.id)
             ORDER BY t.created_at, s.id""";
 
-    /** Seasons waiting for an outcome: the released ones in finish order, and how many an open league or group holds. */
-    public record Pending(List<Long> released, int held) {
+    /** Seasons waiting for an outcome: the released ones in finish order, and the ones an open league or group holds. */
+    public record Pending(List<Long> released, List<Long> held) {
+        public int heldCount() {
+            return held.size();
+        }
     }
 
     private final JdbcClient jdbc;
@@ -52,16 +55,12 @@ public class MemoryEligibility {
     @Transactional(readOnly = true)
     public Pending pending(long agentId) {
         List<Long> released = new ArrayList<>();
-        int[] held = {0};
+        List<Long> held = new ArrayList<>();
         jdbc.sql(PENDING).param("agentId", agentId).query((rs, n) -> {
-            if (rs.getBoolean("held")) {
-                held[0]++;
-            } else {
-                released.add(rs.getLong("season_id"));
-            }
+            (rs.getBoolean("held") ? held : released).add(rs.getLong("season_id"));
             return null;
         }).list();
-        return new Pending(List.copyOf(released), held[0]);
+        return new Pending(List.copyOf(released), List.copyOf(held));
     }
 
     /**
@@ -86,8 +85,12 @@ public class MemoryEligibility {
             throw new DomainException(ErrorCode.MEMORY_DONE, "이 시즌의 복기 결과는 이미 기록되었다");
         }
         Pending pending = pending(agentId);
-        if (!pending.released().contains(seasonId)) {
+        if (pending.held().contains(seasonId)) {
             throw new DomainException(ErrorCode.LEAGUE_OPEN, "리그나 같은 시드 묶음이 닫힐 때까지 복기를 쓸 수 없다");
+        }
+        if (!pending.released().contains(seasonId)) {
+            // FINISHED, not abandoned and without an outcome, yet neither held nor released: the season has no final turn row
+            throw new IllegalStateException("finished season has no final turn: " + seasonId);
         }
         if (!pending.released().get(0).equals(seasonId)) {
             throw new DomainException(ErrorCode.MEMORY_ORDER, "먼저 끝난 시즌의 복기부터 써야 한다");
