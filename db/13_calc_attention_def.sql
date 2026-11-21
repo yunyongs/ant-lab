@@ -15,10 +15,10 @@
 --   F7 streak: 부호 있는 연속 방향 달 수 (0 수익률은 0 이고 연속을 끊는다).
 --   F8 attention_index = attention_z + 0.25 × (min(|streak|, 5) − 1)  (|streak| ≥ 1, 0 이면 보너스 0). z 가 NULL 이면 NULL.
 --   F9 반올림은 z 에서 한 번뿐이다. 보너스는 0.25 의 배수라 더해도 새 반올림이 없다.
--- 정의 안의 상수는 맨 위 CTE k 한 곳에 있다 (창 12, 표준편차 하한 0.0001, 절단 3, 보너스 0.25·상한 5). 쓰기 파일의 사후 단언과 검증 파일은 독립 확인용으로 따로 적었다.
+-- 정의 안의 상수는 맨 위 CTE k 한 곳에 있다. 단 창 12는 st 의 프레임(ROWS BETWEEN 12 PRECEDING ...)에도 한 번 더 적혀 있다 (창 12, 표준편차 하한 0.0001, 절단 3, 보너스 0.25·상한 5). 쓰기 파일의 사후 단언과 검증 파일은 독립 확인용으로 따로 적었다.
 -- 타입: 모두 numeric (임의 정밀도). 부동소수 타입으로 바뀌는 함수·캐스트를 쓰지 않는다.
 --       stddev_samp(numeric) 는 numeric 을 돌려준다 (내부 sqrt 도 numeric 경로).
--- 새 문법: 자기 조인(같은 표를 별칭 둘로), 상관 서브쿼리, NOT EXISTS 자기 참조, LEFT JOIN + COUNT 로 0 세기,
+-- New syntax: window functions (OVER, PARTITION BY, ROWS BETWEEN n PRECEDING AND 1 PRECEDING), LAG, ROW_NUMBER, running sums as segment and run ids (gaps and islands), MATERIALIZED CTE,
 --       CASE 안에 나누기를 두어 조건이 거짓이면 평가하지 않게 하기, CREATE TEMP VIEW.
 -- 명령줄(psql)이 기준이다. \ir 은 psql 메타 명령이라 VS Code 에서는 통합 터미널에서 실행한다.
 -- =====================================================================
@@ -36,62 +36,48 @@ WITH k AS (
            0.25::numeric   AS bonus_step,    -- 연속 보너스 한 단계 (F8)
            5               AS streak_cap     -- 보너스 상한이 되는 연속 달 수 (F8)
 ),
-r AS (
-    -- 수익률 행 + 달. 이후 CTE 가 모두 이 행 집합에서 출발한다
+r AS MATERIALIZED (
+    -- Return rows plus month. Sorted once per asset; brk = 1 when the previous row is not exactly one month earlier (F1).
     SELECT ar.asset_id, ar.month_block_id, mb.month_start,
-           abs(ar.local_return)     AS x,    -- 수익률 크기
-           sign(ar.local_return)::integer AS sg  -- 방향: +1 상승, -1 하락, 0 보합
+           abs(ar.local_return)           AS x,
+           sign(ar.local_return)::integer AS sg,
+           CASE WHEN lag(mb.month_start) OVER (PARTITION BY ar.asset_id ORDER BY mb.month_start)
+                     = (mb.month_start - INTERVAL '1 month')::date
+                THEN 0 ELSE 1 END         AS brk
     FROM asset_month_return ar
     JOIN month_block mb ON mb.id = ar.month_block_id
 ),
-starts AS MATERIALIZED (
-    -- F1 구간 시작 달: 같은 종목의 직전 달 행이 "없는" 달. NOT EXISTS 가 연속성 규칙(erd 5.3 month_block)을 한 줄로 쓴다.
-    SELECT s.asset_id, s.month_start
-    FROM r s
-    WHERE NOT EXISTS (SELECT 1 FROM r p
-                      WHERE p.asset_id = s.asset_id
-                        AND p.month_start = (s.month_start - INTERVAL '1 month')::date)
-),
-seg AS (
-    -- 각 달의 구간 시작: 이 달 이전(포함)의 구간 시작 달 중 가장 늦은 것. 바깥 행마다 안쪽 서브쿼리가 다시 돈다 (상관 서브쿼리)
+seg AS MATERIALIZED (
+    -- Segment id = running sum of brk. Within a segment the months are consecutive, so a row count is a month count.
     SELECT r.*,
-           (SELECT max(s.month_start) FROM starts s
-            WHERE s.asset_id = r.asset_id AND s.month_start <= r.month_start) AS seg_start
+           sum(r.brk) OVER (PARTITION BY r.asset_id ORDER BY r.month_start) AS seg_id
     FROM r
 ),
-win AS (
-    -- F2·F4 창: 같은 종목의 앞선 달 중 [max(구간 시작, 12개월 전), 직전 달] 을 자기 조인으로 모은다.
-    --   LEFT JOIN 이어야 창이 비는 달(구간 시작)도 남고, COUNT(p.x) 가 0 을 센다.
-    SELECT c.asset_id, c.month_block_id, c.month_start, c.x, c.sg, c.seg_start,
-           count(p.x)       AS window_months,
-           avg(p.x)         AS mu,
-           stddev_samp(p.x) AS sd_raw
-    FROM seg c
-    CROSS JOIN k
-    LEFT JOIN r p
-           ON p.asset_id = c.asset_id
-          AND p.month_start BETWEEN GREATEST(c.seg_start, (c.month_start - make_interval(months => k.win_months))::date)
-                                AND (c.month_start - INTERVAL '1 month')::date
-    GROUP BY c.asset_id, c.month_block_id, c.month_start, c.x, c.sg, c.seg_start
+chg AS MATERIALIZED (
+    -- sg_chg = 1 where the direction differs from the previous row of the segment (zero counts as a direction) (F7).
+    SELECT s.*,
+           CASE WHEN s.sg = lag(s.sg) OVER (PARTITION BY s.asset_id, s.seg_id ORDER BY s.month_start) THEN 0 ELSE 1 END AS sg_chg
+    FROM seg s
+),
+run AS MATERIALIZED (
+    -- Run id = running sum of sg_chg: rows with the same id form one run.
+    SELECT c.*,
+           sum(c.sg_chg) OVER (PARTITION BY c.asset_id, c.seg_id ORDER BY c.month_start) AS run_id
+    FROM chg c
 ),
 st AS (
-    -- F7 streak: 같은 구간에서 이 달 이전에 "방향이 다른(0 포함) 마지막 달" b 를 찾고, b 다음 달부터 이 달까지의 행 수에 방향을 곱한다.
-    --   b 가 없으면 구간 시작부터 센다 (구간 시작 직전 달 = 시작일 − 1개월 보다 늦은 달부터). 0 수익률이면 0.
-    SELECT w.*,
-           CASE WHEN w.sg = 0 THEN 0
-                ELSE w.sg * (SELECT count(*)
-                             FROM r q
-                             WHERE q.asset_id = w.asset_id
-                               AND q.month_start <= w.month_start
-                               AND q.month_start > COALESCE((SELECT max(b.month_start)
-                                                             FROM r b
-                                                             WHERE b.asset_id = w.asset_id
-                                                               AND b.month_start >= w.seg_start
-                                                               AND b.month_start < w.month_start
-                                                               AND b.sg <> w.sg),
-                                                            (w.seg_start - INTERVAL '1 month')::date))
-           END::integer AS streak
-    FROM win w
+    -- F2/F4 window: up to 12 preceding rows of the segment (previous month included, this month excluded); 12 rows = 12 months. The 12 in the frame must equal k.win_months (a frame cannot use a column; pinned by AttentionRulesSqlParityTest).
+    -- F7 streak: position in the run times the direction; 0 for a zero return.
+    SELECT q.asset_id, q.month_block_id, q.month_start, q.x, q.sg,
+           count(q.x)       OVER pw AS window_months,
+           avg(q.x)         OVER pw AS mu,
+           stddev_samp(q.x) OVER pw AS sd_raw,
+           (CASE WHEN q.sg = 0 THEN 0
+                 ELSE q.sg * row_number() OVER (PARTITION BY q.asset_id, q.seg_id, q.run_id ORDER BY q.month_start)
+            END)::integer AS streak
+    FROM run q
+    WINDOW pw AS (PARTITION BY q.asset_id, q.seg_id ORDER BY q.month_start
+                  ROWS BETWEEN 12 PRECEDING AND 1 PRECEDING)
 ),
 zr AS (
     -- F3·F5: 창이 꽉 찼고 표준편차가 하한 이상일 때만 나눈다. 나누기는 CASE 안에 있어 조건이 거짓이면 평가되지 않는다 (0 으로 나누기 오류 방지).
