@@ -1,4 +1,4 @@
-"""Client of the internal agent-runner API: the seven operations of docs/api/agent-runner.yaml."""
+"""Client of the internal agent-runner API (docs/api/agent-runner.yaml): the season, league and memory operations."""
 
 from __future__ import annotations
 
@@ -20,6 +20,22 @@ MAX_RESPONSE_BYTES: Final = 16 * 1024 * 1024
 REQUEST_TIMEOUT_S: Final = 120
 RETRY_DELAYS_S: Final = (1, 2, 4)
 _CODE = re.compile(r"[A-Z][A-Z_]{0,39}")
+_DETAIL_POINTER = re.compile(r"(?:/[A-Za-z0-9_]{1,40}){0,8}(?:#s[1-9][0-9]{0,3})?")
+_DETAIL_WORD = re.compile(r"[A-Za-z_]{1,40}")
+_MAX_DETAILS = 20
+_POINTER_NAMES = frozenset(
+    {
+        "reflection",
+        "playbook",
+        "schema",
+        "good",
+        "mistakes",
+        "ruleCandidates",
+        "type",
+        "text",
+        "rules",
+    }
+)
 
 # operationId -> (method, path template, success statuses, response schema or None, retried on 5xx)
 _OPERATIONS: Final[dict[str, tuple[str, str, frozenset[int], str | None, bool]]] = {
@@ -115,7 +131,13 @@ _OPERATIONS: Final[dict[str, tuple[str, str, frozenset[int], str | None, bool]]]
         True,
     ),
     # AG-05 C1: memory reads; the memory commands (AG-05 E) drive them.
-    "getAgentMemory": ("GET", f"{BASE_PATH}/agents/{{agentId}}/memory", frozenset({200}), "AgentMemoryStateDto", True),
+    "getAgentMemory": (
+        "GET",
+        f"{BASE_PATH}/agents/{{agentId}}/memory",
+        frozenset({200}),
+        "AgentMemoryStateDto",
+        True,
+    ),
     # AG-05 D: two memory versions on the same seeds; the query (versionA, versionB) is added by the compare command (AG-05 E).
     "getMemoryComparison": (
         "GET",
@@ -151,12 +173,16 @@ OPERATIONS: Final[dict[str, tuple[str, str]]] = {k: (v[0], v[1]) for k, v in _OP
 
 
 class ApiProblem(Exception):
-    """The API answered with an error. Only the status and the fixed ``code`` are kept."""
+    """The API answered with an error. Only the status, the fixed ``code`` and, for a refused memory
+    document, fixed (pointer, code or keyword) pairs are kept; never text."""
 
-    def __init__(self, status: int, code: str | None) -> None:
+    def __init__(
+        self, status: int, code: str | None, details: tuple[tuple[str, str], ...] = ()
+    ) -> None:
         super().__init__(f"API answered {status} {code or '-'}")
         self.status = status
         self.code = code
+        self.details = details
 
 
 class ApiUnavailable(Exception):
@@ -312,13 +338,20 @@ class ApiClient:
         return self._call("getAgentSeasonConfig", self._season(agent_id, season_id))[1]
 
     def create_league(
-        self, name: str, path_length: int | None = None, max_entries: int | None = None
+        self,
+        name: str,
+        path_length: int | None = None,
+        max_entries: int | None = None,
+        same_seed_as: int | None = None,
     ) -> dict[str, Any]:
+        """With ``same_seed_as`` (the root league of a group) the server copies the seed and settings."""
         body: dict[str, Any] = {"name": name}
         if path_length is not None:
             body["pathLength"] = path_length
         if max_entries is not None:
             body["maxEntries"] = max_entries
+        if same_seed_as is not None:
+            body["sameSeedAs"] = _id(same_seed_as, "same_seed_as")
         contract.check("CreateLeagueRequest", body)
         return self._call("createLeague", {}, body)[1]
 
@@ -327,6 +360,36 @@ class ApiClient:
 
     def close_league(self, league_id: int) -> dict[str, Any]:
         return self._call("closeLeague", {"leagueId": _id(league_id, "league_id")})[1]
+
+    # ---- memory (AG-05) -------------------------------------------------------------------
+
+    def get_memory(self, agent_id: int) -> dict[str, Any]:
+        return self._call("getAgentMemory", {"agentId": _id(agent_id, "agent_id")})[1]
+
+    def get_memory_version(self, agent_id: int, version: int) -> dict[str, Any]:
+        ids = {"agentId": _id(agent_id, "agent_id"), "version": _id(version, "version")}
+        return self._call("getAgentMemoryVersion", ids)[1]
+
+    def get_reflection_view(self, agent_id: int, season_id: int) -> dict[str, Any]:
+        return self._call("getReflectionView", self._season(agent_id, season_id))[1]
+
+    def submit_season_memory(
+        self, agent_id: int, season_id: int, body: Mapping[str, Any]
+    ) -> dict[str, Any]:
+        """Never retried: a lost answer is read back from the memory state, a resend is MEMORY_DONE."""
+        contract.check("SubmitSeasonMemoryRequest", body)
+        return self._call("submitSeasonMemory", self._season(agent_id, season_id), body)[1]
+
+    def get_memory_comparison(
+        self, agent_id: int, version_a: int, version_b: int
+    ) -> dict[str, Any]:
+        """Version 0 means no memory."""
+        query = {
+            "versionA": _id(version_a, "version_a", 0),
+            "versionB": _id(version_b, "version_b", 0),
+        }
+        ids = {"agentId": _id(agent_id, "agent_id")}
+        return self._call("getMemoryComparison", ids, query=query)[1]
 
     # ---- plumbing -------------------------------------------------------------------------
 
@@ -339,10 +402,16 @@ class ApiClient:
         return {**cls._season(agent_id, season_id), "turnNo": _id(turn_no, "turn_no", 0)}
 
     def _call(
-        self, operation: str, path_ids: Mapping[str, int], body: Any = None
+        self,
+        operation: str,
+        path_ids: Mapping[str, int],
+        body: Any = None,
+        query: Mapping[str, int] | None = None,
     ) -> tuple[int, Any]:
         method, template, ok, schema, retried = _OPERATIONS[operation]
         url = self._base + template.format(**path_ids)
+        if query:
+            url += "?" + "&".join(f"{name}={int(value)}" for name, value in query.items())
         headers = {
             TOKEN_HEADER: self._token,
             "Accept": "application/json, application/problem+json",
@@ -374,7 +443,7 @@ class ApiClient:
         if status not in ok:
             if 200 <= status < 300:
                 raise ContractError(f"unexpected success status {status}")
-            raise ApiProblem(status, _problem_code(raw))
+            raise ApiProblem(status, _problem_code(raw), _problem_details(raw))
         if schema is None:
             return None
         try:
@@ -393,3 +462,40 @@ def _problem_code(raw: bytes) -> str | None:
         return None
     code = payload.get("code") if isinstance(payload, dict) else None
     return code if isinstance(code, str) and _CODE.fullmatch(code) else None
+
+
+def _problem_details(raw: bytes) -> tuple[tuple[str, str], ...]:
+    """Pointer and code pairs of a refused memory document (``leaks`` or ``violations``).
+
+    A member that does not have the fixed shape is dropped, so no reply text can come through.
+    """
+    try:
+        payload = json.loads(raw)
+    except ValueError:
+        return ()
+    if not isinstance(payload, dict):
+        return ()
+    found: list[tuple[str, str]] = []
+    for member, word in (("leaks", "code"), ("violations", "keyword")):
+        items = payload.get(member)
+        if not isinstance(items, list):
+            continue
+        for item in items[:_MAX_DETAILS]:
+            if not isinstance(item, dict):
+                continue
+            pointer, value = item.get("pointer"), item.get(word)
+            if (
+                isinstance(pointer, str)
+                and isinstance(value, str)
+                and (pointer == "/" or _DETAIL_POINTER.fullmatch(pointer))
+                and _DETAIL_WORD.fullmatch(value)
+            ):
+                found.append((_known_segments(pointer), value))
+    return tuple(found)
+
+
+def _known_segments(pointer: str) -> str:
+    """Segments that are not schema names or indexes become ``_``: a model-chosen key never comes back."""
+    body, hash_, tail = pointer.partition("#")
+    parts = [p if p.isdigit() or p in _POINTER_NAMES else "_" for p in body.split("/")[1:]]
+    return "".join("/" + p for p in parts) + hash_ + tail if parts else pointer
