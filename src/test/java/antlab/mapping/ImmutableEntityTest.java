@@ -34,10 +34,10 @@ class ImmutableEntityTest {
     static final Set<String> READ_ONLY = Set.of("AssetGroup", "Asset", "AssetPosition", "MonthBlock",
             "AssetMonthReturn", "FxMonth", "MonthEvent", "AssetMonthAttention", "JobRun", "AssetDailyPrice");
 
-    /** 추가 전용 16개: 넣을 수는 있고 넣은 뒤 바뀌지 않는다. 공개 생성자가 정확히 하나다. */
+    /** 추가 전용 18개: 넣을 수는 있고 넣은 뒤 바뀌지 않는다. 공개 생성자가 정확히 하나다. */
     static final Set<String> APPEND_ONLY = Set.of("SeasonPath", "Turn", "TurnPrice", "FormationChange", "TurnFeed",
             "ReconciliationLog", "Order", "Execution", "CashLedger", "SeasonAgentConfig", "AgentCall",
-            "SeasonScore", "RatingHistory", "Projection", "PersonaVersion", "LeagueEntry");
+            "SeasonScore", "RatingHistory", "Projection", "PersonaVersion", "LeagueEntry", "AgentReflection", "AgentMemory");
 
     /** 가변 8개: 상태 변경은 이름 있는 메서드만 한다(setter 없음). 분류를 바꾸려면 이 목록을 고쳐 리뷰에 드러낸다. */
     static final Set<String> MUTABLE = Set.of("Member", "Season", "Lineup", "CashAccount", "Holding",
@@ -52,7 +52,7 @@ class ImmutableEntityTest {
     }
 
     @Test
-    void 엔티티_분류는_읽기_전용_10_추가_전용_16_가변_8이다() {
+    void 엔티티_분류는_읽기_전용_10_추가_전용_18_가변_8이다() {
         assertThat(immutableEntities().stream().map(Class::getSimpleName))
                 .containsExactlyInAnyOrderElementsOf(
                         java.util.stream.Stream.concat(READ_ONLY.stream(), APPEND_ONLY.stream()).toList());

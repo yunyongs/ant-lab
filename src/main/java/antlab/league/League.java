@@ -80,6 +80,13 @@ public class League extends AuditedEntity {
     @Column(name = "max_entries", nullable = false, updatable = false)
     private int maxEntries;
 
+    /**
+     * Set only on a sibling created with the same seed as an earlier league, and then always the group root's id.
+     * Internal: it names no seed, but a group is a reason to hold a season's review (AG-05).
+     */
+    @Column(name = "seed_league_id", nullable = true, updatable = false)
+    private Long seedLeagueId;
+
     /** Set exactly while the status is CLOSED (ck_league_closed_at). */
     @Column(name = "closed_at", nullable = true)
     private Instant closedAt;
