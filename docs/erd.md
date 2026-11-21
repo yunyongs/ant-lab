@@ -19,13 +19,14 @@
 | MVP-18 | Season score and rating: `season_score` and `rating_history` (Flyway V8, the number is final at merge) in 11. / 시즌 점수와 레이팅: `season_score`와 `rating_history`(Flyway V8, 번호는 머지 때 확정), 11절. | 스키마 완료 |
 | AG-04 C1 | Manual same-seed group: `league` and `league_entry` (Flyway V16, the number is final at merge) in 14. / 수동 같은 시드 묶음: `league`와 `league_entry`(Flyway V16, 번호는 머지 때 확정), 14절. | 스키마 완료 |
 | AG-04 C2 | League entry, review hold and the column-level UPDATE of `league`: no migration; rules L4–L7 in 14.5. / 리그 참가, 복기 보류, `league`의 열 단위 UPDATE: 마이그레이션 없음, 14.5절 규칙 L4–L7. | 규칙 완료 |
+| AG-05 B | Agent memory: `agent_reflection` and `agent_memory` (Flyway V18, the number is final at merge), the memory pin on `season_agent_config`, two `agent_call` kinds and `league.seed_league_id` in 15. / 에이전트 기억: `agent_reflection`과 `agent_memory`(Flyway V18, 번호는 머지 때 확정), `season_agent_config`의 메모리 고정, `agent_call` 종류 둘, `league.seed_league_id`, 15절. | 스키마 완료 |
 | M2-06 | Projection: `projection` (Flyway V9, the number is final at merge) in 12. / 예상 분포: `projection`(Flyway V9, 번호는 머지 때 확정), 12절. | 스키마 완료 |
 
 **정본 규칙:** 타입·키·제약 이름·구분값은 이 문서가 정본이다. [PLAN.md](PLAN.md)나 [SPRING_JPA.md](SPRING_JPA.md)와 어긋나면 이 문서를 따르고, 어긋난 문서를 같은 PR에서 고친다(PLAN §12).
 
 **표기(D10):** 소유자의 ERDCloud 노트 형식을 따른다. 약어: PK(Primary Key, 기본 키), FK(Foreign Key, 외래 키), UK(Unique Key, 유일 키), NN(NOT NULL, 빈 값 불가). 엔티티는 `논리명 (물리명)`, 컬럼은 `타입 물리명 키 "논리명 | NN | 기본값"`. 선에 붙은 기호는 최소(`o` 선택, `|` 필수), 엔티티 쪽 기호는 최대(`|` 1, `{` N)이고, `--`은 식별 관계, `..`은 비식별 관계이다. Mermaid는 선 모양이 키 구성과 맞는지 검사하지 않으므로 표로 따로 확인한다.
 
-**문서 구성:** 2 공통 규칙 → 3 전체 관계도 → 4 설계 질문 답 → 5 역사 데이터와 종목 풀 → 6 회원·시즌·피드·대사 → 7 시즌 계좌 → 8 설계 결정 → 9 하류 기능 약속 → 10 수집 데이터(M1) → 11 시즌 점수와 레이팅(MVP-18) → 12 예상 분포(M2-06). 부록은 없다 — v1 계좌 정의는 7절로 옮겨 v2로 바꿨고 v1과의 대응은 7.6에 있다.
+**문서 구성:** 2 공통 규칙 → 3 전체 관계도 → 4 설계 질문 답 → 5 역사 데이터와 종목 풀 → 6 회원·시즌·피드·대사 → 7 시즌 계좌 → 8 설계 결정 → 9 하류 기능 약속 → 10 수집 데이터(M1) → 11 시즌 점수와 레이팅(MVP-18) → 12 예상 분포(M2-06) → 13 페르소나 버전(AG-04 B) → 14 리그(AG-04 C) → 15 에이전트 기억(AG-05 B). 부록은 없다 — v1 계좌 정의는 7절로 옮겨 v2로 바꿨고 v1과의 대응은 7.6에 있다.
 
 ## 2. 공통 규칙 (PostgreSQL 17)
 
@@ -211,7 +212,7 @@ erDiagram
 | `agent_profile` | `member_id` PK·FK(에이전트 회원만 — FK만으로는 강제되지 않으므로 강제 방식은 AG-02, 예: `orders`의 복합 FK 패턴 D29) | `member` 1 : 0..1 — 소유자, 페르소나 키, 모델 경로·id, 상태 (PLAN §4.16) | AG-02 |
 | `season_agent_config` | `season_id` PK·FK | `season` 1 : 0..1 — 시즌 시작 때 한 번 남기는 불변 설정(페르소나 버전·해시, 모델, 온도, 시드, 프롬프트·러너 버전, 메모리 버전) | AG-02 |
 | `agent_call` | `id`, UNIQUE (`season_id`, 턴 번호, 시도 번호, 호출 종류) | `season` 1 : 0..N — 요청·응답 원문, 파싱 결과, 거부 목록, 실제 모델, 토큰, 비용(`NUMERIC`), 지연. 불변·추가 전용(기록 재생의 재료) | AG-02 |
-| `agent_memory` | `id`, UNIQUE (`member_id`, 층, 버전) | `member` 1 : 0..N — 시즌 반성·운용 노트의 불변 버전, 출처 시즌 | AG-05 |
+| `agent_memory` | PK (`member_id`, `version`) | `member` 1 : 0..N — 운용 노트의 불변 버전, 출처 복기 — **확정: 15절(AG-05 PR B, Flyway V18)**. 시즌 복기는 `agent_reflection`(15절)에 따로 둔다 | AG-05 (확정) |
 | `detection_test`·`detection_result` | `id` | 시험 묶음(모델 × 입력 조건) 1 : 0..N 표본 달 결과(정답 여부·추정값). 보고 전용, AG-01은 파일 출력으로 시작 | AG-01 |
 
 에이전트 펀드 매니저(PLAN v3, §4.16)의 스케치는 따로 그린다. 앵커는 `member`와 `season` 둘이다. **초안 — AG-02 이후 확정 단계에 해당 기능이 컬럼을 정한다.**
@@ -223,7 +224,7 @@ erDiagram
     AGENT_PROFILE["에이전트 프로필 (agent_profile) (스케치)"]
     SEASON_AGENT_CONFIG["시즌 에이전트 설정 (season_agent_config) (스케치)"]
     AGENT_CALL["에이전트 호출 (agent_call) (스케치)"]
-    AGENT_MEMORY["에이전트 메모리 (agent_memory) (스케치)"]
+    AGENT_MEMORY["에이전트 메모리 (agent_memory) (15절에서 확정)"]
     DETECTION_TEST["탐지 시험 (detection_test) (스케치)"]
     DETECTION_RESULT["탐지 결과 (detection_result) (스케치)"]
     MEMBER ||..o| AGENT_PROFILE : "에이전트이면 프로필을 갖는다 (kind = AGENT)"
@@ -2356,3 +2357,118 @@ Notation follows 6.4 (표기는 6.4와 같다). `FlywayV16UpgradeTest` breaks ea
 | L5 | After the season is created, its engine version, base date, snapshot date, seed, path length and money settings must equal the league's, and its month-block sequence must equal the first seat's (only a count of shared turns is read); otherwise `LEAGUE_STALE` and the whole entry rolls back. / 시즌을 만든 뒤 엔진 버전·기준일·스냅샷 날짜·시드·경로 길이·돈 설정이 리그와 같고 월 블록 순서가 첫 참가와 같아야 한다(같은 턴 수만 센다). 아니면 `LEAGUE_STALE`이고 참가 전체가 되돌아간다. | AG-04 PR C2 |
 | L6 | The review of a `FINISHED` league season is `LEAGUE_OPEN` while the league is open; the status check (`SEASON_NOT_FINISHED`) comes first. The review shows real months and the seed, which would tell seats still playing what comes (PLAN §4.1-6, league seasons only). / `FINISHED` 리그 시즌의 복기는 리그가 열려 있는 동안 `LEAGUE_OPEN`이고, 상태 검사(`SEASON_NOT_FINISHED`)가 먼저다. 복기는 실제 달과 시드를 보여 주어 아직 두는 자리에 앞날을 알려 준다(PLAN §4.1-6, 리그 시즌만). | AG-04 PR C2 |
 | L7 | Lock order on every path that takes both: member row first, then the league row. `close` takes only the league row, and `create` locks the owner member before the insert, so no path waits on a league row while holding a league-first order. The weekly cap and the active-season limit count league seasons like any season. / 둘을 모두 잡는 모든 경로에서 회원 행이 먼저, 리그 행이 나중이다. `close`는 리그 행만 잡고 `create`는 넣기 전에 소유자 회원을 잠그므로 리그 행을 먼저 잡는 경로가 없다. 주간 상한과 진행 중 시즌 상한은 리그 시즌도 센다. | AG-04 PR C2 |
+
+## 15. Agent memory / 에이전트 기억
+
+AG-05 PR B (Flyway V18; the number is final at merge) adds two append-only tables to the `public` schema. `agent_reflection` holds what an agent wrote about one finished season after the leak filter `memory-filter/1`: an accepted body, or the fixed codes of a discard. `agent_memory` holds each released version of the agent's operating note, written only from an accepted reflection. A season pins one version at its start (`season_agent_config.memory_version`) and reads only that version; older versions stay readable because comparisons need them. V18 also lets `agent_call` record the two memory call kinds and gives `league` a pointer to its same-seed group root. This differs from the one-table sketch of 3.2 on purpose: a discarded reflection has a row, and the two layers keep their own keys. / AG-05 PR B(Flyway V18, 번호는 머지 때 확정)는 `public` 스키마에 추가 전용 테이블 둘을 더한다. `agent_reflection`은 에이전트가 끝난 시즌 하나에 대해 쓴 글을 누출 필터 `memory-filter/1`을 거친 뒤 담는다: 채택된 본문이거나 폐기 사유의 고정 코드다. `agent_memory`는 운용 노트의 출시된 버전마다 한 행이고 채택된 복기에서만 만든다. 시즌은 시작할 때 버전 하나를 고정하고(`season_agent_config.memory_version`) 그 버전만 읽는다. 비교에 필요하므로 이전 버전도 읽을 수 있다. V18은 `agent_call`이 메모리 호출 두 종류를 기록하게 하고, `league`에 같은 시드 묶음의 뿌리를 가리키는 열을 준다. 3.2의 한 테이블 스케치와 일부러 다르다: 폐기한 복기에도 행이 있고, 두 층이 각자의 키를 갖는다.
+
+### 15.1 Relationship diagram / 관계도
+
+```mermaid
+erDiagram
+    SEASON ||--o| AGENT_REFLECTION : "R47"
+    AGENT_PROFILE ||..o{ AGENT_REFLECTION : "R48"
+    AGENT_PROFILE ||--o{ AGENT_MEMORY : "R49"
+    AGENT_REFLECTION ||..o| AGENT_MEMORY : "R50"
+    AGENT_MEMORY |o..o{ SEASON_AGENT_CONFIG : "R51"
+    LEAGUE |o..o{ LEAGUE : "R52"
+```
+
+### 15.2 Relationship summary / 관계 요약
+
+| # | 부모 → 자식 | 카디널리티 | 선 | 근거 |
+|---|---|---|---|---|
+| R47 | `season` → `agent_reflection` | 1 : 0..1 | 식별 `--` | `fk_agent_reflection_season` on (`season_id`, `member_id`) → `uq_season_id_member`, so the reflection's member is the season's own member; the key is `season_id`, which gives one outcome per season. / 복기의 회원은 시즌 자신의 회원이다. 기본 키 `season_id`가 시즌당 결과 하나를 만든다. |
+| R48 | `agent_profile` → `agent_reflection` | 1 : 0..N | 비식별 `..` | `fk_agent_reflection_agent` (the agent-only rule, D29 pattern). / 에이전트 회원만(D29 패턴). |
+| R49 | `agent_profile` → `agent_memory` | 1 : 0..N | 식별 `--` | `fk_agent_memory_agent`; the agent is part of the key (`member_id`, `version`). / 에이전트가 키의 일부다. |
+| R50 | `agent_reflection` → `agent_memory` | 1 : 0..1 | 비식별 `..` | `fk_agent_memory_source` on (`source_season_id`, `member_id`, `source_outcome`) → `uq_agent_reflection_source` (`season_id`, `member_id`, `outcome`). `ck_agent_memory_source_outcome` fixes `source_outcome = 'ACCEPTED'`, so a discarded reflection cannot make a version and another agent's reflection cannot either (the D29 pattern); `uq_agent_memory_source` lets a reflection make at most one version. / 폐기한 복기와 다른 에이전트의 복기는 버전을 만들 수 없다(D29 패턴). 복기 하나는 버전 하나만 만든다. |
+| R51 | `agent_memory` → `season_agent_config` | 0..1 : 0..N | 비식별 `..` | `fk_season_agent_config_memory` on (`member_id`, `memory_version`) → `agent_memory` (`member_id`, `version`); a NULL `memory_version` (no memory) is not checked (`MATCH SIMPLE`). The season config of agent A can therefore pin only a version of agent A. / `memory_version`이 NULL이면(기억 없음) 검사하지 않는다. 에이전트 A의 시즌 설정은 A의 버전만 고정할 수 있다. |
+| R52 | `league` → `league` | 0..1 : 0..N | 비식별 `..` | `fk_league_seed_league` on `seed_league_id`, set only on a sibling league created with the same seed as an earlier one and always pointing at the group root (service rule); `ck_league_seed_league_not_self`. / 앞선 리그와 같은 시드로 만든 형제 리그에만 두고 늘 묶음의 뿌리를 가리킨다(서비스 규칙). |
+
+### 15.3 Entity definitions / 엔티티 정의서
+
+All FKs are `ON DELETE RESTRICT ON UPDATE RESTRICT` (2). Both tables are append-only: the application role may only SELECT and INSERT (`db/callback/afterMigrate.sql`, class APPEND) and the JPA entities are `@Immutable`, so a version is never rewritten. Version n+1 is written only when n exists, in one transaction under a row lock of `agent_profile` (a service rule, 15.5). Texts are bounded by the JSON schemas `docs/api/season-reflection-1.schema.json` and `docs/api/operating-note-1.schema.json` and by the filter caps (600 and 2,000 code points after NFC), not by a column length. / FK는 모두 `ON DELETE RESTRICT ON UPDATE RESTRICT`(2절)다. 두 테이블은 추가 전용이다: 앱 역할은 SELECT·INSERT만 갖고(`db/callback/afterMigrate.sql`, APPEND 등급) JPA 엔티티는 `@Immutable`이라 버전은 다시 쓰이지 않는다. 버전 n+1은 n이 있을 때만, `agent_profile` 행 잠금 아래 한 트랜잭션에서 쓴다(서비스 규칙, 15.5). 글의 길이는 열 길이가 아니라 위 JSON 스키마와 필터 상한(NFC 뒤 코드 포인트 600, 2,000)이 정한다.
+
+#### Agent reflection / 에이전트 시즌 복기 (agent_reflection)
+
+| 키 | 논리명 | 물리명 | 타입 | NULL | 기본값 | 코멘트 |
+| --- | --- | --- | --- | --- | --- | --- |
+| PK | 시즌번호 | season_id | BIGINT | NN |  | `[내부]` `pk_agent_reflection`; `fk_agent_reflection_season` with `member_id`. |
+| FK | 에이전트 회원번호 | member_id | BIGINT | NN |  | `[내부]` `fk_agent_reflection_agent`; `uq_agent_reflection_source` (`season_id`, `member_id`, `outcome`) is the target of `fk_agent_memory_source`. `idx_agent_reflection_member`. |
+|  | 결과 | outcome | VARCHAR(9) | NN |  | `[내부]` `ck_agent_reflection_outcome`: `ACCEPTED`, `DISCARDED`. |
+|  | 걸러 낸 복기 본문 | body | JSONB | NULL |  | `[노출]` `season-reflection/1`, shown to that agent and its owner only. `ck_agent_reflection_body`: not NULL exactly when `ACCEPTED`; `ck_agent_reflection_body_object`: a JSON object. |
+|  | 폐기 사유 코드 | discard_codes | JSONB | NULL |  | `[내부]` Array of fixed codes (filter codes, `SCHEMA`, `BUDGET`). `ck_agent_reflection_discard_codes`: not NULL exactly when `DISCARDED`; `ck_agent_reflection_discard_codes_array`: a JSON array. |
+|  | 누출 필터 버전 | filter_version | VARCHAR(32) | NN |  | `[내부]` `mf1-` plus 12 hex of the terms file hash; `ck_agent_reflection_filter_version`: not empty. |
+|  | 기록일시 | created_at | TIMESTAMPTZ | NN | now() | `[내부]` |
+
+#### Agent memory / 에이전트 메모리 버전 (agent_memory)
+
+| 키 | 논리명 | 물리명 | 타입 | NULL | 기본값 | 코멘트 |
+| --- | --- | --- | --- | --- | --- | --- |
+| PK, FK | 에이전트 회원번호 | member_id | BIGINT | NN |  | `[내부]` `pk_agent_memory` with `version`; `fk_agent_memory_agent`. |
+| PK | 버전 | version | INTEGER | NN |  | `[노출]` `ck_agent_memory_version`: `>= 1`. The pin of a season is this number. |
+| FK, UQ | 출처 시즌번호 | source_season_id | BIGINT | NN |  | `[내부]` `uq_agent_memory_source`: a reflection makes one version; `fk_agent_memory_source` with `member_id` and `source_outcome`. |
+| FK | 출처 복기 결과 | source_outcome | VARCHAR(9) | NN | 'ACCEPTED' | `[내부]` `ck_agent_memory_source_outcome`: `= 'ACCEPTED'`. The JPA field is read-only so the database default applies. |
+|  | 걸러 낸 운용 노트 | playbook | JSONB | NN |  | `[노출]` `operating-note/1`. `ck_agent_memory_playbook_object`: a JSON object. |
+|  | 이전 노트 이어받음 | playbook_carried | BOOLEAN | NN |  | `[내부]` True when the rewrite failed twice and the previous playbook was kept (the first version uses the reflection's rule candidates instead). |
+|  | 누출 필터 버전 | filter_version | VARCHAR(32) | NN |  | `[내부]` `ck_agent_memory_filter_version`: not empty. |
+|  | 기록일시 | created_at | TIMESTAMPTZ | NN | now() | `[내부]` |
+
+#### Changes to existing tables / 기존 테이블의 변경
+
+| 테이블 | 변경 |
+|---|---|
+| `season_agent_config` | New FK `fk_season_agent_config_memory` (R51); `ck_season_agent_config_memory_version` (`>= 1` or NULL) stays. / 새 FK; 기존 CHECK는 그대로다. |
+| `agent_call` | `ck_agent_call_call_kind` is replaced: `TURN_DECISION`, `REFLECTION`, `PLAYBOOK`. Memory calls use `turn_no = path_length` and `is_final = FALSE` (their result lives in `agent_reflection` / `agent_memory`), so `uq_agent_call_final_per_turn`, failed-turn counts and OBS turn counts do not change. / 메모리 호출은 `turn_no = path_length`, `is_final = FALSE`로 기록해 턴 단위 집계는 그대로다. |
+| `league` | New column `seed_league_id BIGINT NULL` `[내부]` with `fk_league_seed_league`, `ck_league_seed_league_not_self` and `idx_league_seed_league` (R52). The column is set at INSERT only and is not among the columns the application role may UPDATE. / 새 열은 INSERT 때만 정하고 앱 역할의 UPDATE 열에 들지 않는다. |
+
+### 15.4 Constraints and indexes / 제약과 인덱스
+
+Notation follows 6.4 (표기는 6.4와 같다). `FlywayV18UpgradeTest` breaks each rule once by name. / `FlywayV18UpgradeTest`가 규칙마다 이름으로 한 번씩 깬다.
+
+| 이름 | 종류 | 테이블 | 정의 |
+|---|---|---|---|
+| pk_agent_reflection | PK | agent_reflection | (season_id) |
+| uq_agent_reflection_source | UQ | agent_reflection | (season_id, member_id, outcome) — the target of `fk_agent_memory_source`; redundant with the primary key on purpose |
+| fk_agent_reflection_season | FK | agent_reflection | (season_id, member_id) → season (id, member_id) (R47) |
+| fk_agent_reflection_agent | FK | agent_reflection | (member_id) → agent_profile (member_id) (R48) |
+| ck_agent_reflection_outcome | CK | agent_reflection | outcome IN ('ACCEPTED','DISCARDED') |
+| ck_agent_reflection_body | CK | agent_reflection | (outcome = 'ACCEPTED') = (body IS NOT NULL) |
+| ck_agent_reflection_body_object | CK | agent_reflection | body IS NULL OR jsonb_typeof(body) = 'object' |
+| ck_agent_reflection_discard_codes | CK | agent_reflection | (outcome = 'DISCARDED') = (discard_codes IS NOT NULL) |
+| ck_agent_reflection_discard_codes_array | CK | agent_reflection | discard_codes IS NULL OR jsonb_typeof(discard_codes) = 'array' |
+| ck_agent_reflection_filter_version | CK | agent_reflection | filter_version <> '' |
+| idx_agent_reflection_member | IDX | agent_reflection | (member_id) |
+| pk_agent_memory | PK | agent_memory | (member_id, version) |
+| uq_agent_memory_source | UQ | agent_memory | (source_season_id) |
+| fk_agent_memory_agent | FK | agent_memory | (member_id) → agent_profile (member_id) (R49) |
+| fk_agent_memory_source | FK | agent_memory | (source_season_id, member_id, source_outcome) → agent_reflection (season_id, member_id, outcome) (R50) |
+| ck_agent_memory_version | CK | agent_memory | version >= 1 |
+| ck_agent_memory_source_outcome | CK | agent_memory | source_outcome = 'ACCEPTED' |
+| ck_agent_memory_playbook_object | CK | agent_memory | jsonb_typeof(playbook) = 'object' |
+| ck_agent_memory_filter_version | CK | agent_memory | filter_version <> '' |
+| fk_season_agent_config_memory | FK | season_agent_config | (member_id, memory_version) → agent_memory (member_id, version) (R51) |
+| ck_agent_call_call_kind | CK | agent_call | call_kind IN ('TURN_DECISION','REFLECTION','PLAYBOOK') (replaces the V6 list) |
+| fk_league_seed_league | FK | league | (seed_league_id) → league (id) (R52) |
+| ck_league_seed_league_not_self | CK | league | seed_league_id IS NULL OR seed_league_id <> id |
+| idx_league_seed_league | IDX | league | (seed_league_id) |
+
+**Counts / 개수** (new objects only; `ck_agent_call_call_kind` replaces one CHECK, so `agent_call` stays at its V6 count / 새 객체만 센다. `agent_call`의 CHECK는 하나를 바꿔 개수가 그대로다):
+
+| 테이블 | PK | UNIQUE(제약) | UNIQUE 인덱스(`uq_`) | FK | CHECK | INDEX(`idx_`) |
+|---|---|---|---|---|---|---|
+| agent_reflection | 1 | 1 | 0 | 2 | 6 | 1 |
+| agent_memory | 1 | 1 | 0 | 2 | 4 | 0 |
+| season_agent_config (added) | 0 | 0 | 0 | 1 | 0 | 0 |
+| league (added) | 0 | 0 | 0 | 1 | 1 | 1 |
+| **§15 소계** | **2** | **2** | **0** | **6** | **11** | **2** |
+
+### 15.5 Rules DDL cannot enforce / DDL로 막지 못해 검사할 규칙
+
+| # | 규칙 | 검사하는 기능 |
+|---|---|---|
+| M1 | Version n+1 is written only when n exists (no gaps), and its `baseVersion` is the agent's latest; the write takes a row lock of `agent_profile`, checks eligibility, release and order, filters, then inserts the calls, the reflection and the version in one transaction. A stale base is `MEMORY_BASE_STALE`. / 버전 n+1은 n이 있을 때만(빈 번호 없음), `baseVersion`이 에이전트의 최신 버전일 때만 쓴다. `agent_profile` 행 잠금 아래에서 자격·공개·순서를 검사하고 필터를 거쳐 호출·복기·버전을 한 트랜잭션에 넣는다. | AG-05 PR C |
+| M2 | A season is eligible for a reflection only when it is `FINISHED` and not abandoned, and released (not in an open league and not in a same-seed group with an open league); one reflection per season; released seasons are taken in finish order. / 시즌은 `FINISHED`이고 포기하지 않았고 공개된(열린 리그나 열린 같은 시드 묶음에 있지 않은) 때만 복기 자격이 있다. 시즌당 복기 하나, 공개된 시즌은 끝난 순서로 처리한다. | AG-05 PR C |
+| M3 | Every string of `body` and `playbook` passed `MemoryLeakFilter` (the Java side of `memory-filter/1`) in the same transaction as its insert, after NFC normalisation; `filter_version` names the terms file that was used. A text that breaks the filter is `MEMORY_LEAK` (422) with pointers and codes only and leaves no row. / `body`와 `playbook`의 모든 문자열은 삽입과 같은 트랜잭션에서 NFC 정규화 뒤 `MemoryLeakFilter`(자바 쪽 `memory-filter/1`)를 지난다. 어긴 글은 포인터와 코드만 담은 `MEMORY_LEAK`(422)이고 행이 남지 않는다. | AG-05 PR C (filter: PR B) |
+| M4 | A season start may name `memoryVersion` only as NULL or a version the agent has (older ones are allowed); otherwise `MEMORY_VERSION_UNKNOWN` (409) and no season is left. / 시즌 시작의 `memoryVersion`은 NULL이거나 에이전트가 가진 버전이어야 한다(이전 버전도 허용). 아니면 `MEMORY_VERSION_UNKNOWN`(409)이고 시즌이 남지 않는다. | AG-05 PR B (`AgentSeasonService`) |
+| M5 | `agent.memory` in a turn view is built from the pinned version only, never the latest. No response shows the source season, the seed or `discard_codes` to the agent. / 턴 화면의 `agent.memory`는 고정한 버전으로만 만들고 최신 버전을 읽지 않는다. 어떤 응답도 출처 시즌·시드·`discard_codes`를 에이전트에게 보이지 않는다. | AG-05 PR D |
