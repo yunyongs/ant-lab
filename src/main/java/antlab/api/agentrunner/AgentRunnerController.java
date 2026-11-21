@@ -20,8 +20,11 @@ import antlab.agent.decision.DecisionResultDto;
 import antlab.agent.memory.AgentMemoryStateDto;
 import antlab.agent.memory.AgentMemoryVersionDto;
 import antlab.agent.memory.MemoryReadService;
+import antlab.agent.memory.MemorySubmitService;
 import antlab.agent.memory.ReflectionViewDto;
 import antlab.agent.memory.ReflectionViewService;
+import antlab.agent.memory.SubmitSeasonMemoryRequest;
+import antlab.agent.memory.SubmitSeasonMemoryResultDto;
 import antlab.league.CreateLeagueRequest;
 import antlab.league.LeagueDto;
 import antlab.league.LeagueService;
@@ -64,12 +67,13 @@ public class AgentRunnerController {
     private final LeagueService leagues;
     private final MemoryReadService memories;
     private final ReflectionViewService reflectionViews;
+    private final MemorySubmitService memorySubmits;
 
     public AgentRunnerController(AgentRegistrationService registrations, AgentSeasonService seasons,
             AgentSeasonLifecycleService lifecycle, SeasonAbandonService abandons, AgentTurnViewService turnViews,
             AgentDecisionService decisions, AgentTurnAdvanceService advances,
             AgentSeasonConfigQueryService configQueries, LeagueService leagues, MemoryReadService memories,
-            ReflectionViewService reflectionViews) {
+            ReflectionViewService reflectionViews, MemorySubmitService memorySubmits) {
         this.registrations = registrations;
         this.seasons = seasons;
         this.lifecycle = lifecycle;
@@ -81,6 +85,7 @@ public class AgentRunnerController {
         this.leagues = leagues;
         this.memories = memories;
         this.reflectionViews = reflectionViews;
+        this.memorySubmits = memorySubmits;
     }
 
     @PostMapping(value = BASE + "/agents", consumes = MediaType.APPLICATION_JSON_VALUE,
@@ -178,6 +183,13 @@ public class AgentRunnerController {
             produces = MediaType.APPLICATION_JSON_VALUE)
     public ReflectionViewDto getReflectionView(@PathVariable long agentId, @PathVariable long seasonId) {
         return reflectionViews.get(agentId, seasonId);
+    }
+
+    @PostMapping(value = BASE + "/agents/{agentId}/seasons/{seasonId}/memory", consumes = MediaType.APPLICATION_JSON_VALUE,
+            produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<SubmitSeasonMemoryResultDto> submitSeasonMemory(@PathVariable long agentId,
+            @PathVariable long seasonId, @Valid @RequestBody SubmitSeasonMemoryRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(memorySubmits.submit(agentId, seasonId, request));
     }
 
     @PostMapping(value = BASE + "/leagues", consumes = MediaType.APPLICATION_JSON_VALUE,

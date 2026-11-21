@@ -236,7 +236,7 @@ paths:
         '204':
           description: Stored (or already stored) / 저장했다(이미 저장되어 있었다)
         '400':
-          description: The request is wrong — INVALID_ARGUMENT (empty or too long list, numbers that do not follow one another, text over 256 KiB, a character that cannot be stored, something that looks like a secret, a model other than the season's, a missing ledger call id on an OPENROUTER season) / 요청이 틀렸다 — INVALID_ARGUMENT(빈 목록·너무 긴 목록, 이어지지 않는 번호, 256 KiB 를 넘는 원문, 저장할 수 없는 문자, 비밀값처럼 보이는 문자열, 시즌과 다른 모델, OPENROUTER 시즌의 장부 호출 번호 누락)
+          description: The request is wrong — INVALID_ARGUMENT (empty or too long list, numbers that do not follow one another, text over 256 KiB, a character that cannot be stored, something that looks like a secret, a model other than the season's, a missing ledger call id on an OPENROUTER season, a call whose kind is not TURN_DECISION) / 요청이 틀렸다 — INVALID_ARGUMENT(빈 목록·너무 긴 목록, 이어지지 않는 번호, 256 KiB 를 넘는 원문, 저장할 수 없는 문자, 비밀값처럼 보이는 문자열, 시즌과 다른 모델, OPENROUTER 시즌의 장부 호출 번호 누락, TURN_DECISION 이 아닌 호출 종류)
           x-error-codes: [INVALID_ARGUMENT]
           content:
             application/problem+json:
@@ -724,6 +724,63 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+  /internal/agent-runner/v1/agents/{agentId}/seasons/{seasonId}/memory:
+    post:
+      tags: [agent]
+      operationId: submitSeasonMemory
+      summary: Record the memory step of a finished season / 끝난 시즌의 기억 단계를 기록한다
+      description: |-
+        Records what became of one season's reflection: ACCEPTED (a season-reflection/1 object, the rewritten operating-note/1 object, the base version it was written on, and whether the note is the carried-over one) or DISCARDED (fixed reason codes only; the model calls are kept, no version is made). It stores the model calls (kinds REFLECTION and PLAYBOOK, numbered 1, 2, ... within each kind, at the path length as turn number, never final), the outcome and, when accepted, memory version n + 1, in one transaction under a lock on the agent, so one agent's memory is written one step at a time. The checks run in a fixed order and a failure writes nothing: the request (400), the season's gates (404, 409: SEASON_NOT_FINISHED, MEMORY_NOT_ELIGIBLE, MEMORY_DONE, LEAGUE_OPEN, MEMORY_ORDER, the same rules as the reflection view), the calls (400), baseVersion against the agent's latest version (409), the two JSON schemas docs/api/season-reflection-1.schema.json and docs/api/operating-note-1.schema.json (422), then the leak filter memory-filter/1 (422). The shape is checked before the filter because the filter skips what is not a string. A string with a NUL or an unpaired surrogate is a shape error (keyword encoding). Strings are stored in NFC and measured after NFC. A carried-over note must equal the previous version's rules, or, for the first version, the reflection's ruleCandidates. A season has one outcome: sending the same step again after it was recorded is MEMORY_DONE. The refusals name pointers and fixed codes only and never echo the text. The filter needs the month event titles of the history pool; without any, it refuses (POOL_NOT_LOADED).
+
+        한 시즌의 복기가 어떻게 되었는지 기록한다: ACCEPTED(season-reflection/1 객체, 다시 쓴 operating-note/1 객체, 쓴 바탕 버전, 이월한 노트인지 여부) 또는 DISCARDED(고정 사유 코드만, 모델 호출은 남기고 버전은 만들지 않는다). 모델 호출(종류 REFLECTION·PLAYBOOK, 종류마다 1, 2, ... 번호, 턴 번호는 경로 길이, 최종 아님)과 결과, 받아들였으면 메모리 버전 n + 1을 에이전트 행 잠금 아래 한 트랜잭션으로 저장하므로 한 에이전트의 기억은 한 단계씩 쓰인다. 검사는 정해진 순서로 하고 실패하면 아무것도 쓰지 않는다: 요청(400), 시즌의 관문(404, 409: SEASON_NOT_FINISHED, MEMORY_NOT_ELIGIBLE, MEMORY_DONE, LEAGUE_OPEN, MEMORY_ORDER, 복기 화면과 같은 규칙), 호출(400), baseVersion과 에이전트의 최신 버전(409), 두 JSON 스키마 docs/api/season-reflection-1.schema.json·docs/api/operating-note-1.schema.json(422), 이어 누출 필터 memory-filter/1(422). 필터는 문자열이 아닌 것을 건너뛰므로 모양을 먼저 본다. NUL이나 짝 없는 서로게이트가 든 문자열은 모양 오류(keyword encoding)다. 문자열은 NFC로 저장하고 NFC 기준으로 잰다. 이월한 노트는 앞 버전의 규칙과 같아야 하고, 첫 버전이면 복기의 ruleCandidates와 같아야 한다. 시즌의 결과는 하나라서, 기록된 뒤 같은 단계를 다시 보내면 MEMORY_DONE이다. 거절 응답은 포인터와 고정 코드만 싣고 본문을 되풀이하지 않는다. 필터에는 역사 풀의 월별 사건 제목이 필요하며, 하나도 없으면 거절한다(POOL_NOT_LOADED).
+      parameters:
+        - $ref: '#/components/parameters/AgentId'
+        - $ref: '#/components/parameters/SeasonId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmitSeasonMemoryRequest'
+      responses:
+        '201':
+          description: The outcome is recorded / 결과를 기록했다
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubmitSeasonMemoryResultDto'
+        '400':
+          description: The request is wrong — INVALID_ARGUMENT (ACCEPTED without a reflection or note, or with discard codes; DISCARDED without codes, with a document, a base version or the carried flag; repeated codes; a call that is not of the kind REFLECTION or PLAYBOOK, or an ACCEPTED request without a REFLECTION call; attempt numbers that do not run 1, 2, ... within each kind; the rules of the calls endpoint; a carried note that differs from the one to carry). Nothing is recorded / 요청이 틀렸다 — INVALID_ARGUMENT(복기나 노트가 없는 ACCEPTED, 폐기 사유가 있는 ACCEPTED, 사유가 없거나 문서·기준 버전·이월 표시가 있는 DISCARDED, 겹친 사유, REFLECTION·PLAYBOOK 종류가 아닌 호출, REFLECTION 호출이 없는 ACCEPTED, 종류마다 1, 2, ...로 이어지지 않는 시도 번호, 호출 저장 연산의 규칙, 이월할 노트와 다른 이월 노트). 아무것도 기록하지 않는다
+          x-error-codes: [INVALID_ARGUMENT]
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          description: The agent does not exist or is not this owner's, or the season is not this agent's. One answer for all — NOT_FOUND / 에이전트가 없거나 이 소유자의 것이 아니거나 시즌이 이 에이전트의 것이 아니다. 모두 같은 응답이다 — NOT_FOUND
+          x-error-codes: [NOT_FOUND]
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: The step cannot be recorded now — SEASON_NOT_FINISHED, MEMORY_NOT_ELIGIBLE (VOID or abandoned), MEMORY_DONE (an outcome is recorded), LEAGUE_OPEN (its league or same-seed group is still open), MEMORY_ORDER (an earlier released season must come first), MEMORY_BASE_STALE (baseVersion is not the agent's latest version; read the memory again), POOL_NOT_LOADED (no month event titles for the filter) / 지금은 기록할 수 없다 — SEASON_NOT_FINISHED, MEMORY_NOT_ELIGIBLE(VOID 또는 포기), MEMORY_DONE(결과가 이미 있다), LEAGUE_OPEN(리그나 같은 시드 묶음이 아직 열려 있다), MEMORY_ORDER(먼저 공개된 시즌이 앞선다), MEMORY_BASE_STALE(baseVersion이 최신 버전이 아니다. 기억을 다시 읽는다), POOL_NOT_LOADED(필터에 쓸 월별 사건 제목이 없다)
+          x-error-codes: [SEASON_NOT_FINISHED, MEMORY_NOT_ELIGIBLE, MEMORY_DONE, LEAGUE_OPEN, MEMORY_ORDER, MEMORY_BASE_STALE, POOL_NOT_LOADED]
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          description: The reflection or note was refused, with pointers and fixed codes in the body, never the text — MEMORY_SCHEMA_INVALID (violations[] with pointer and keyword), MEMORY_LEAK (leaks[] with pointer and code) / 복기나 노트를 거절했다. 본문에는 포인터와 고정 코드만 있고 문장은 없다 — MEMORY_SCHEMA_INVALID(violations[]에 포인터와 keyword), MEMORY_LEAK(leaks[]에 포인터와 code)
+          x-error-codes: [MEMORY_SCHEMA_INVALID, MEMORY_LEAK]
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/MemoryRejectedProblem'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /internal/agent-runner/v1/leagues:
     post:
       tags: [league]
@@ -1885,7 +1942,8 @@ components:
           maximum: 32767
         kind:
           type: string
-          enum: [TURN_DECISION]
+          enum: [TURN_DECISION, REFLECTION, PLAYBOOK]
+          description: TURN_DECISION on the turn operations; REFLECTION or PLAYBOOK on the memory submit / 턴 연산에서는 TURN_DECISION, 기억 제출에서는 REFLECTION 또는 PLAYBOOK
         ledgerCallId:
           type: [string, 'null']
           format: uuid
@@ -2230,6 +2288,100 @@ components:
         kind:
           type: string
           enum: [RISE, FALL, ECHO, SPREAD, FADE, EVENT, NUDGE]
+    SubmitSeasonMemoryRequest:
+      type: object
+      description: |-
+        The memory step of one finished season. ACCEPTED needs reflection and playbook and no discardCodes; DISCARDED needs discardCodes (distinct) and none of reflection, playbook, baseVersion or playbookCarried. Calls are of the kinds REFLECTION and PLAYBOOK, at most 20; ACCEPTED needs at least one REFLECTION call
+
+        끝난 시즌 하나의 기억 단계. ACCEPTED는 reflection과 playbook이 필요하고 discardCodes가 없다. DISCARDED는 서로 다른 discardCodes가 필요하고 reflection·playbook·baseVersion·playbookCarried가 없다. 호출은 REFLECTION·PLAYBOOK 종류이며 최대 20개이고, ACCEPTED에는 REFLECTION 호출이 하나 이상 있어야 한다
+      required: [baseVersion, outcome, calls]
+      properties:
+        baseVersion:
+          type: [integer, 'null']
+          format: int32
+          minimum: 1
+          description: The agent's latest memory version the note was written on; null when it has none (ACCEPTED) and always null with DISCARDED / 노트를 쓴 바탕인 에이전트의 최신 메모리 버전. 없으면 null(ACCEPTED), DISCARDED에서는 늘 null
+        outcome:
+          $ref: '#/components/schemas/ReflectionOutcome'
+        reflection:
+          description: The reflection as a season-reflection/1 object (docs/api/season-reflection-1.schema.json); null with DISCARDED; a value that is not an object is a 422 shape error (pointer /reflection, keyword type) / season-reflection/1 객체 복기, DISCARDED에서는 null. 객체가 아닌 값은 422 모양 오류다(포인터 /reflection, keyword type)
+          type: [object, 'null']
+        playbook:
+          description: The rewritten operating note as an operating-note/1 object (docs/api/operating-note-1.schema.json); null with DISCARDED; a value that is not an object is a 422 shape error (pointer /playbook, keyword type) / operating-note/1 객체로 다시 쓴 운용 노트, DISCARDED에서는 null. 객체가 아닌 값은 422 모양 오류다(포인터 /playbook, keyword type)
+          type: [object, 'null']
+        playbookCarried:
+          type: boolean
+          description: True when the rewrite failed and the note is the previous version's rules (the reflection's ruleCandidates for the first version) / 다시 쓰기에 실패해 앞 버전의 규칙을 그대로 둔 노트면 true(첫 버전은 복기의 ruleCandidates)
+        discardCodes:
+          type: [array, 'null']
+          maxItems: 9
+          items:
+            $ref: '#/components/schemas/MemoryDiscardCode'
+        calls:
+          type: array
+          maxItems: 20
+          items:
+            $ref: '#/components/schemas/CallRecordRequest'
+    ReflectionOutcome:
+      type: string
+      enum: [ACCEPTED, DISCARDED]
+    MemoryDiscardCode:
+      type: string
+      description: The filter code the last attempt still broke, OVERSIZE (length cap), SCHEMA (never had the shape, or the first version's rewrite failed with no ruleCandidates to carry) or BUDGET (stopped for lack of calls) / 마지막 시도가 어긴 필터 코드, OVERSIZE(길이 상한), SCHEMA(모양이 처음부터 없음, 또는 첫 버전의 다시 쓰기가 실패했는데 이월할 ruleCandidates가 없음), BUDGET(호출이 모자라 멈춤)
+      enum: [YEAR, YEAR_MONTH, EVENT_TERM, FINGERPRINT, TURN_RETURN, PRICE, OVERSIZE, SCHEMA, BUDGET]
+    SubmitSeasonMemoryResultDto:
+      type: object
+      required: [outcome, version]
+      properties:
+        outcome:
+          $ref: '#/components/schemas/ReflectionOutcome'
+        version:
+          type: [integer, 'null']
+          format: int32
+          minimum: 1
+          description: The new memory version; null when the reflection was discarded / 새 메모리 버전. 폐기했으면 null
+    MemoryRejectedProblem:
+      description: A problem answer of the memory submit with the members that say where the text broke a rule. They never carry the text / 어디서 규칙을 어겼는지 알려 주는 항목이 있는 기억 제출의 오류 응답. 본문은 싣지 않는다
+      allOf:
+        - $ref: '#/components/schemas/Problem'
+        - type: object
+          properties:
+            violations:
+              type: array
+              description: With MEMORY_SCHEMA_INVALID / MEMORY_SCHEMA_INVALID일 때
+              items:
+                $ref: '#/components/schemas/MemoryViolationDto'
+            leaks:
+              type: array
+              description: With MEMORY_LEAK / MEMORY_LEAK일 때
+              items:
+                $ref: '#/components/schemas/MemoryLeakDto'
+    MemoryViolationDto:
+      type: object
+      description: |-
+        Where the reflection or note broke its schema: a JSON pointer that starts with /reflection or /playbook, and the schema keyword (encoding means a NUL or an unpaired surrogate). It never carries the offending value or a key chosen by the model
+
+        복기나 노트가 스키마를 어긴 곳: /reflection 또는 /playbook으로 시작하는 JSON 포인터와 스키마 키워드(encoding은 NUL이나 짝 없는 서로게이트). 어긴 값이나 모델이 고른 키는 싣지 않는다
+      required: [pointer, keyword]
+      properties:
+        pointer:
+          type: string
+        keyword:
+          type: string
+          enum: [type, required, additionalProperties, const, enum, minLength, maxLength, minItems, maxItems, encoding]
+    MemoryLeakDto:
+      type: object
+      description: |-
+        Where the filter memory-filter/1 hit: a pointer that starts with /reflection or /playbook (with #s<n> for the sentence) and the rule code; OVERSIZE points at the document root and means the total length cap. It never carries the text
+
+        누출 필터 memory-filter/1이 걸린 곳: /reflection 또는 /playbook으로 시작하는 포인터(문장은 #s<n>)와 규칙 코드. OVERSIZE는 문서 루트를 가리키며 전체 길이 상한을 뜻한다. 본문은 싣지 않는다
+      required: [pointer, code]
+      properties:
+        pointer:
+          type: string
+        code:
+          type: string
+          enum: [YEAR, YEAR_MONTH, EVENT_TERM, FINGERPRINT, TURN_RETURN, PRICE, OVERSIZE]
     SeasonReportDto:
       type: object
       description: Season report / 시즌 성적표
@@ -2556,4 +2708,4 @@ components:
              UNAUTHENTICATED, INVALID_CREDENTIALS, AGENT_RETIRED, DECISION_CONFLICT, DECISION_MISSING,
              PERSONA_VERSION_CONFLICT, PERSONA_VERSION_STALE, LEAGUE_NOT_SETTLED, LEAGUE_CLOSED, LEAGUE_SEAT_TAKEN,
              LEAGUE_FULL, LEAGUE_STALE, LEAGUE_OPEN, MEMORY_VERSION_UNKNOWN, MEMORY_DONE, MEMORY_ORDER, MEMORY_NOT_ELIGIBLE,
-             SCORE_PENDING]
+             SCORE_PENDING, MEMORY_BASE_STALE, MEMORY_LEAK, MEMORY_SCHEMA_INVALID]

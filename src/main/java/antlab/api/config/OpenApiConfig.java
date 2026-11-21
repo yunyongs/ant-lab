@@ -42,8 +42,9 @@ public class OpenApiConfig {
 
     /** Error codes only the internal runner paths answer (docs/api/agent-runner.yaml). */
     public static final Set<String> RUNNER_ONLY_CODES = Set.of("AGENT_RETIRED", "DECISION_CONFLICT", "DECISION_MISSING",
-            "PERSONA_VERSION_CONFLICT", "PERSONA_VERSION_STALE", "LEAGUE_NOT_SETTLED", "MEMORY_VERSION_UNKNOWN", "MEMORY_DONE", "MEMORY_ORDER",
-            "MEMORY_NOT_ELIGIBLE", "SCORE_PENDING");
+            "PERSONA_VERSION_CONFLICT", "PERSONA_VERSION_STALE", "LEAGUE_NOT_SETTLED", "MEMORY_VERSION_UNKNOWN",
+            "MEMORY_DONE", "MEMORY_ORDER", "MEMORY_NOT_ELIGIBLE", "SCORE_PENDING", "MEMORY_BASE_STALE", "MEMORY_LEAK",
+            "MEMORY_SCHEMA_INVALID");
 
     static {
         // enum 은 이름 붙은 컴포넌트로 낸다(웹 타입 이름이 된다 — 계약 docs/api/openapi.yaml 과 같게).
