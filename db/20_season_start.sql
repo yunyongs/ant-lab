@@ -27,8 +27,10 @@
 \else
   \set replay_start 2007-01-01
 \endif
+-- psql variables are not expanded inside $$ bodies, so the value goes through a session setting.
+SELECT set_config('antlab.replay_start', :'replay_start', false) AS replay_start_set \gset
 DO $$ BEGIN
-    IF date_trunc('month', :'replay_start'::date)::date <> :'replay_start'::date THEN
+    IF date_trunc('month', current_setting('antlab.replay_start')::date)::date <> current_setting('antlab.replay_start')::date THEN
         RAISE EXCEPTION 'replay_start must be the first day of a month';
     END IF;
 END $$;
