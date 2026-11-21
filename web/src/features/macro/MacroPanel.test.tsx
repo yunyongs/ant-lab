@@ -31,7 +31,7 @@ describe('MacroPanel', () => {
       .map((t) => [t.textContent, t.nextElementSibling?.textContent]);
     expect(rows).toEqual([
       ['금리', '상승 · 강도 0.41'],
-      ['성장', '하락 · 강도 1.205'],
+      ['성장', '하락 · 강도 1.21'],
       ['환율', '중립 · 강도 0.05'],
       ['심리', '상승 · 강도 0.77'],
     ]);
@@ -42,10 +42,10 @@ describe('MacroPanel', () => {
     expect(screen.getByRole('heading', { name: '국면 확률' })).toBeVisible();
     const items = screen.getAllByRole('listitem').map((i) => i.textContent);
     expect(items).toEqual([
-      '금리 하락 · 성장 둔화10%',
-      '금리 하락 · 성장 확장25%',
-      '금리 상승 · 성장 확장60%',
-      '금리 상승 · 성장 둔화5%',
+      '금리 하락 · 성장 둔화10.00%',
+      '금리 하락 · 성장 확장25.00%',
+      '금리 상승 · 성장 확장60.00%',
+      '금리 상승 · 성장 둔화5.00%',
     ]);
     const widths = Array.from(
       container.querySelectorAll<HTMLElement>('li span[aria-hidden] > span'),
@@ -129,7 +129,7 @@ describe('MacroPanel', () => {
     render(<MacroPanel macro={macroFixture({ axes: NO_DATA.axes })} />);
     expect(screen.queryByText(/거시 환경 자료가 없습니다/)).toBeNull();
     expect(screen.getAllByText('자료 없음')).toHaveLength(4);
-    expect(screen.getByText('60%')).toBeInTheDocument();
+    expect(screen.getByText('60.00%')).toBeInTheDocument();
   });
 
   it('shows no data for a missing macro, axis key or unknown direction', () => {
@@ -162,7 +162,7 @@ describe('MacroPanel', () => {
     expect(strengthText('0.41000000')).toBe('강도 0.41');
     expect(strengthText('5.00000000')).toBe('강도 5');
     expect(strengthText('0.00000000')).toBe('강도 0');
-    expect(strengthText('10.00000100')).toBe('강도 10.000001');
+    expect(strengthText('10.00000100')).toBe('강도 10');
     expect(strengthText('100')).toBe('강도 100');
   });
 });
