@@ -130,6 +130,14 @@ _OPERATIONS: Final[dict[str, tuple[str, str, frozenset[int], str | None, bool]]]
         "ReflectionViewDto",
         True,
     ),
+    # AG-05 C2: record the memory step of a season. Not retried: a lost answer is read back from the memory state.
+    "submitSeasonMemory": (
+        "POST",
+        f"{BASE_PATH}/agents/{{agentId}}/seasons/{{seasonId}}/memory",
+        frozenset({201}),
+        "SubmitSeasonMemoryResultDto",
+        False,
+    ),
 }
 OPERATIONS: Final[dict[str, tuple[str, str]]] = {k: (v[0], v[1]) for k, v in _OPERATIONS.items()}
 

@@ -131,7 +131,7 @@ class AgentMappingTest {
                 f.getId())).isEqualTo("object");
         assertThat(jdbc.queryForObject("SELECT jsonb_typeof(rejects) FROM agent_call WHERE id = ?", String.class,
                 f.getId())).isEqualTo("array");
-        assertThat(calls.findAllBySeasonIdAndTurnNo(season.getId(), 0)).extracting(AgentCall::getAttemptNo)
+        assertThat(calls.findAllBySeasonIdAndTurnNoAndCallKind(season.getId(), 0, AgentCallKind.TURN_DECISION)).extracting(AgentCall::getAttemptNo)
                 .containsExactly(1, 2);
     }
 }

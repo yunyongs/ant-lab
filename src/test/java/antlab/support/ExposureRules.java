@@ -114,12 +114,13 @@ public final class ExposureRules {
 
     /**
      * Columns tagged {@code [내부]} that the runner's memory answers show the agent on purpose (AG-05 C1): how a memory version
-     * was written and when, and the agent's own stated reason of a turn. Allowed in these two records only, matched by class.
+     * was written and when, the agent's own stated reason of a turn, and (C2) the outcome of its own memory step. Allowed in these
+     * records only, matched by class.
      */
     public static final Set<String> MEMORY_AGENT_SOURCES = Set.of("agent_memory.playbook_carried",
-            "agent_memory.created_at", "agent_call.parsed");
+            "agent_memory.created_at", "agent_call.parsed", "agent_reflection.outcome");
     public static final Set<Class<?>> MEMORY_AGENT_RECORDS = Set.of(antlab.agent.memory.AgentMemoryVersionDto.class,
-            antlab.agent.memory.ReflectionViewDto.Turn.class);
+            antlab.agent.memory.ReflectionViewDto.Turn.class, antlab.agent.memory.SubmitSeasonMemoryResultDto.class);
 
     private ExposureRules() {
     }

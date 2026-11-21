@@ -20,7 +20,7 @@ from antlab_ai.modelport.fake import scripted_attempt  # isort: skip
 
 
 def test_operation_table_equals_the_yaml():
-    assert len(OPERATIONS) == 18
+    assert len(OPERATIONS) == 19
     assert OPERATIONS == yaml_operations()
     assert contract.operations() == yaml_operations()
 
