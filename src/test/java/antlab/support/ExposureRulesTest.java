@@ -355,4 +355,25 @@ class ExposureRulesTest {
         assertThat(ExposureRules.OWNER_AGENT_SOURCES).doesNotContain("agent_profile.owner_member_id", "league.seed",
                 "season.seed");
     }
+
+    private record ReachesAMonth(@antlab.common.exposure.ExposedFrom("asset.listed_on") String listed,
+            @antlab.common.exposure.ExposedFrom("season_path.month_block_id") String order) {
+    }
+
+    @Test
+    void the_review_only_pin_sees_a_date_a_record_adds() {
+        assertThat(ExposureRules.reviewOnlySources(ReachesAMonth.class, catalog()))
+                .containsExactly("asset.listed_on", "season_path.month_block_id");
+    }
+
+    @Test
+    void the_memory_agent_sources_pass_only_in_the_two_memory_records() {
+        assertThat(ExposureRules.MEMORY_AGENT_RECORDS).containsExactlyInAnyOrder(antlab.agent.memory.AgentMemoryVersionDto.class,
+                antlab.agent.memory.ReflectionViewDto.Turn.class);
+        assertThat(ExposureRules.MEMORY_AGENT_SOURCES).containsExactlyInAnyOrder("agent_memory.playbook_carried",
+                "agent_memory.created_at", "agent_call.parsed");
+        assertThat(ExposureRules.check(antlab.agent.memory.ReflectionViewDto.Fill.class, catalog())).isEmpty();
+        assertThat(ExposureRules.check(OtherAgentRecord.class, catalog())).isNotEmpty();
+        assertThat(ExposureRules.OWNER_AGENT_SOURCES).doesNotContain("agent_memory.playbook_carried", "agent_call.parsed");
+    }
 }

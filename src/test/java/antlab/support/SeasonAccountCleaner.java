@@ -36,6 +36,8 @@ public final class SeasonAccountCleaner {
             jdbc.update("DELETE FROM season WHERE id = ?", s);
         }
         for (Long m : memberIds) {
+            // a sibling points at its group root with a RESTRICT key, so the pointers go first
+            jdbc.update("UPDATE league SET seed_league_id = NULL WHERE owner_member_id = ?", m);
             jdbc.update("DELETE FROM league WHERE owner_member_id = ?", m);
             jdbc.update("DELETE FROM agent_profile WHERE member_id = ?", m);
             jdbc.update("DELETE FROM refresh_token WHERE member_id = ?", m);

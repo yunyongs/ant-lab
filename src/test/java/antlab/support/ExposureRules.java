@@ -88,7 +88,8 @@ public final class ExposureRules {
             Map.entry(SeasonAnalysisDto.LegDto.class, Set.of("slot", "sharePercent")),
             Map.entry(SeasonAnalysisDto.AttentionFollowingDto.class, Set.of("windowTurns")),
             Map.entry(antlab.season.AbandonResultDto.class, Set.of("advancedTurns")),
-            Map.entry(antlab.season.LineupChangeDto.class, Set.of("changed")));
+            Map.entry(antlab.season.LineupChangeDto.class, Set.of("changed")),
+            Map.entry(antlab.agent.memory.ReflectionViewDto.Turn.class, Set.of("label")));
 
     /**
      * The engine's own record of what it rejected in the previous decision: {@code [내부]} in the DB, but the agent is
@@ -111,7 +112,50 @@ public final class ExposureRules {
     public static final Set<Class<?>> OWNER_AGENT_RECORDS = Set.of(antlab.agent.AgentSummaryDto.class,
             antlab.league.LeagueTableAiDto.class, antlab.league.LeagueTableEntryDto.class);
 
+    /**
+     * Columns tagged {@code [내부]} that the runner's memory answers show the agent on purpose (AG-05 C1): how a memory version
+     * was written and when, and the agent's own stated reason of a turn. Allowed in these two records only, matched by class.
+     */
+    public static final Set<String> MEMORY_AGENT_SOURCES = Set.of("agent_memory.playbook_carried",
+            "agent_memory.created_at", "agent_call.parsed");
+    public static final Set<Class<?>> MEMORY_AGENT_RECORDS = Set.of(antlab.agent.memory.AgentMemoryVersionDto.class,
+            antlab.agent.memory.ReflectionViewDto.Turn.class);
+
     private ExposureRules() {
+    }
+
+    /**
+     * The review-only sources (tagged {@code [복기 전용]}, or the finished-season and review allowances) that a response record
+     * reaches through its {@code @ExposedFrom} annotations, nested records included. A handler checked with
+     * {@code reviewReveal = true} accepts all of them, so a record that must reach only a few pins this set.
+     */
+    public static java.util.TreeSet<String> reviewOnlySources(Class<?> record, ExposureCatalog catalog) {
+        java.util.TreeSet<String> out = new java.util.TreeSet<>();
+        collectReviewOnly(record, catalog, new HashSet<>(), out);
+        return out;
+    }
+
+    private static void collectReviewOnly(Class<?> record, ExposureCatalog catalog, Set<Class<?>> seen,
+            java.util.TreeSet<String> out) {
+        if (!seen.add(record)) {
+            return;
+        }
+        for (RecordComponent rc : record.getRecordComponents()) {
+            ExposedFrom from = rc.getAnnotation(ExposedFrom.class);
+            if (from != null) {
+                for (String source : from.value()) {
+                    if (FINISHED_ONLY_ALLOWED.contains(source) || REVIEW_INTERNAL_ALLOWED.contains(source)
+                            || REVIEW_IDENTIFIER_ALLOWED.contains(source)
+                            || (catalog.has(source) && ExposureCatalog.REVEAL_ONLY.equals(catalog.tag(source)))) {
+                        out.add(source);
+                    }
+                }
+            }
+            Class<?> nested = nestedRecord(rc.getGenericType());
+            if (nested != null) {
+                collectReviewOnly(nested, catalog, seen, out);
+            }
+        }
     }
 
     /** 명시 목록, 모든 month_block_id 열, 그리고 month_block_id 열이 있는 표(달 순서로 적재됨)의 id. */
@@ -174,6 +218,10 @@ public final class ExposureRules {
                         continue;
                     }
                     if (OWNER_AGENT_RECORDS.contains(record) && OWNER_AGENT_SOURCES.contains(source)
+                            && catalog.has(source)) {
+                        continue;
+                    }
+                    if (MEMORY_AGENT_RECORDS.contains(record) && MEMORY_AGENT_SOURCES.contains(source)
                             && catalog.has(source)) {
                         continue;
                     }
