@@ -25,11 +25,17 @@
 
 -- Scope: by default the checks compare the DB with the part of the files whose month is in month_block. -v require_all_months=1
 --        compares the full files and fails if any file month is missing from month_block (full load, plan run R-L). Must match the
---        mode used for db/11_load_events.sql. Strict mode needs the R-L prep to adapt the Phase 0 constants of this file.
+--        mode used for db/11_load_events.sql. Strict mode passes on a full 1996-2025 load: nothing below depends on the Phase 0 sample.
+-- Replay start: -v replay_start=YYYY-MM-DD (default 2007-01-01, the same default as db/20 and antlab.history.replay-start, parity-tested).
+--        REVIEWED_ALL applies from that month on. Months before it are warm-up only (never drawn), so they need no review row.
 
 \if :{?require_all_months}
 \else
   \set require_all_months 0
+\endif
+\if :{?replay_start}
+\else
+  \set replay_start 2007-01-01
 \endif
 
 -- 판정 표식: 트랜잭션이 되돌아가도 남는 임시 시퀀스 (1 = 미완료 또는 실패, 2 = 1–7절 통과·흔적 확인 대기, 0 = 최종 통과)
@@ -119,6 +125,7 @@ CREATE TEMP TABLE zz_rev (month_start text, result text);
 
 -- Default mode drops file rows whose month is not in month_block from the comparison; strict mode drops nothing.
 CREATE TEMP TABLE zz_mode AS SELECT (:'require_all_months' = '1') AS strict, (:'require_all_months' IN ('0', '1')) AS valid;
+CREATE TEMP TABLE zz_replay AS SELECT date_trunc('month', :'replay_start'::date)::date AS start_month, (date_trunc('month', :'replay_start'::date)::date = :'replay_start'::date) AS valid;
 CREATE TEMP TABLE zz_scope_info AS
 SELECT (SELECT count(*) FROM zz_rev) AS file_months, (SELECT count(*) FROM zz_tags) AS file_tags,
        (SELECT count(*) FROM zz_rev r WHERE NOT EXISTS (SELECT 1 FROM month_block m WHERE m.month_start = r.month_start::date)) AS months_not_in_block;
@@ -148,8 +155,14 @@ FROM (VALUES
     ('events/ 파일 3개를 읽었다 (types·tags·reviewed 모두 1행 이상)', 'ok',
         CASE WHEN (SELECT count(*) FROM zz_types) > 0 AND (SELECT count(*) FROM zz_tags) > 0 AND (SELECT count(*) FROM zz_rev) > 0
              THEN 'ok' ELSE '파일 없음 또는 빈 파일' END),
-    -- MVP: 100 → 재생 표본 달 수, REVIEWED_ALL 은 재생 표본 조건(erd 6.5 S1)으로 한정한다. "태그 달만 TRUE"로 완화하지 않는다
-    ('10 적재가 끝나 있다 (month_block 100행)', '100', (SELECT count(*)::text FROM month_block)),
+    -- Loaded and not empty; in strict mode the calendar is one run of consecutive months (a full load), derived from the data, not a count
+    ('10 적재가 끝나 있다 (month_block 이 비어 있지 않고, 엄격 모드면 달이 끊기지 않는다)', 'true',
+        (SELECT (count(*) > 0 AND (NOT (SELECT strict FROM zz_mode)
+                                   OR count(*) = (EXTRACT(year FROM max(month_start)) - EXTRACT(year FROM min(month_start))) * 12
+                                                 + EXTRACT(month FROM max(month_start)) - EXTRACT(month FROM min(month_start)) + 1))::text
+         FROM month_block)),
+    ('replay_start 는 달의 첫날이고 month_block 의 달 하나 이상이 그 이후다', 'true',
+        (SELECT (z.valid AND EXISTS (SELECT 1 FROM month_block WHERE month_start >= z.start_month))::text FROM zz_replay z)),
     ('10 적재가 끝나 있다 (asset_month_return 이 비어 있지 않다)', 'true', (SELECT (count(*) > 0)::text FROM asset_month_return)),
     ('require_all_months 는 0 또는 1', 'true', (SELECT valid::text FROM zz_mode)),
     ('엄격 모드: reviewed.csv 의 달이 모두 month_block 에 있다 (기본 모드는 0 으로 기대하지 않는다)', '0',
@@ -285,8 +298,8 @@ INSERT INTO zz_q (code, section, item, sql) VALUES
      $q$SELECT count(*) FROM month_event
         WHERE strength IS DISTINCT FROM (CASE WHEN abs(reaction_change) >= 0.10 THEN 3 WHEN abs(reaction_change) >= 0.05 THEN 2 ELSE 1 END)$q$),
     -- MVP: 이 쿼리는 재생 표본 조건(erd 6.5 S1)으로 한정한다. "태그 달만 TRUE"로 완화하지 않는다 (PLAN §4.11)
-    ('REVIEWED_ALL', '5 편집 완료', '편집 완료가 아닌 표본 달 (Phase 0 은 100개 달 전부 TRUE)',
-     $q$SELECT count(*) FROM month_block WHERE NOT events_reviewed$q$),
+    ('REVIEWED_ALL', '5 편집 완료', '편집 완료가 아닌 재생 달 (replay_start 이후의 달 전부 TRUE, 그 앞의 준비 구간은 보지 않는다)',
+     $q$SELECT count(*) FROM month_block WHERE NOT events_reviewed AND month_start >= (SELECT start_month FROM zz_replay)$q$),
     ('TAG_REVIEWED', '5 편집 완료', '태그가 있는데 events_reviewed 가 FALSE 인 달 (태그 ⇒ 편집 완료)',
      $q$SELECT count(*) FROM month_block m WHERE NOT m.events_reviewed AND EXISTS (SELECT 1 FROM month_event e WHERE e.month_block_id = m.id)$q$),
     ('NONE_ZERO', '5 편집 완료', 'reviewed.csv 가 NONE 인데 태그가 있는 달 (NONE ⇔ 태그 0건)',
@@ -328,16 +341,23 @@ VALUES ('1 행 수', 'month_event 행 수 (정보)', '(정보)', pg_temp.val('SE
 INSERT INTO zz_check_result (section, item, expected, actual, ok)
 SELECT '6 보고·음성', '음성 전제: ' || x.item, x.expected, x.actual, x.expected IS NOT DISTINCT FROM x.actual
 FROM (VALUES
-    ('2010-11 의 태그 수 (MONTH_CAP 변이 대상)', '3',
-     pg_temp.val($$SELECT count(*)::text FROM month_event e JOIN month_block m ON m.id = e.month_block_id WHERE m.month_start = DATE '2010-11-01'$$)),
     ('ev0001 의 행 수 (한 행짜리 에피소드)', '1', pg_temp.val($$SELECT count(*)::text FROM month_event WHERE left(event_key, 6) = 'ev0001'$$)),
-    ('ev0021 유형의 에피소드 수 (HIDDEN_LIST 변이 대상)', '2',
-     pg_temp.val($$SELECT count(DISTINCT left(event_key, 6))::text FROM month_event WHERE event_type = (SELECT event_type FROM month_event WHERE event_key = 'ev0021.02')$$))
+    ('태그가 정확히 3개인 달이 ev0001 의 달 밖에 있다 (MONTH_CAP 변이 대상)', 'true',
+     pg_temp.val($$SELECT (count(*) > 0)::text FROM (SELECT month_block_id FROM month_event GROUP BY month_block_id HAVING count(*) = 3) x
+                   WHERE x.month_block_id <> (SELECT month_block_id FROM month_event WHERE event_key = 'ev0001.01')$$)),
+    ('에피소드가 정확히 2개인 유형에 행이 둘 이상인 에피소드의 둘째 행이 있다 (HIDDEN_LIST 변이 대상)', 'true',
+     pg_temp.val($$SELECT (count(*) > 0)::text FROM month_event e
+                   WHERE substr(e.event_key, 8)::integer > 1
+                     AND (SELECT count(DISTINCT left(x.event_key, 6)) FROM month_event x WHERE x.event_type = e.event_type) = 2$$)),
+    ('replay_start 이후이고 태그 없는 달(NONE)이 month_block 에 있다 (REVIEWED_ALL·NONE_ZERO 변이 대상)', 'true',
+     pg_temp.val($$SELECT (count(*) > 0)::text FROM zz_rev r, zz_replay z
+                   WHERE r.result = 'NONE' AND r.month_start::date >= z.start_month
+                     AND EXISTS (SELECT 1 FROM month_block m WHERE m.month_start = r.month_start::date)$$))
 ) AS x(item, expected, actual);
 CREATE TEMP TABLE zz_neg (n serial, q text NOT NULL, label text NOT NULL, mutate text NOT NULL, expect text NOT NULL DEFAULT '1');
 INSERT INTO zz_neg (q, label, mutate) VALUES
     ('ROWS_EVENT', '태그 행 하나를 지우면', $m$DELETE FROM month_event WHERE event_key = 'ev0001.01'$m$),
-    ('ROWS_REVIEWED', '편집 완료 표시 하나를 FALSE 로 되돌리면', $m$UPDATE month_block SET events_reviewed = FALSE WHERE month_start = DATE '2007-01-01'$m$),
+    ('ROWS_REVIEWED', '편집 완료 표시 하나를 FALSE 로 되돌리면', $m$UPDATE month_block SET events_reviewed = FALSE WHERE month_start = (SELECT min(r.month_start::date) FROM zz_rev r, zz_replay z WHERE r.result = 'NONE' AND r.month_start::date >= z.start_month AND EXISTS (SELECT 1 FROM month_block m WHERE m.month_start = r.month_start::date))$m$),
     ('MATCH', '제목 한 줄을 바꾸면', $m$UPDATE month_event SET title = title || ' x' WHERE event_key = 'ev0001.01'$m$),
     ('KEY_FORMAT', '키 하나를 ev7.1 로 바꾸면 (UNIQUE 는 안 걸린다)', $m$UPDATE month_event SET event_key = 'ev7.1' WHERE event_key = 'ev0001.01'$m$),
     ('EPISODE', '에피소드 두 번째 행을 START 로 바꾸면', $m$UPDATE month_event SET phase = 'START' WHERE event_key = 'ev0002.02'$m$),
@@ -351,12 +371,20 @@ INSERT INTO zz_neg (q, label, mutate) VALUES
     ('REACTION', '반응 변화율을 1bp 바꾸면', $m$UPDATE month_event SET reaction_change = reaction_change + 0.00010000 WHERE event_key = 'ev0001.01'$m$),
     ('REACTION_NULL', '반응 변화율을 NULL 로 만들면 (DDL 은 NULL 을 허용한다)', $m$UPDATE month_event SET reaction_change = NULL WHERE event_key = 'ev0001.01'$m$),
     ('STRENGTH', '강도 단계를 바꾸면', $m$UPDATE month_event SET strength = strength % 3 + 1 WHERE event_key = 'ev0001.01'$m$),
-    ('REVIEWED_ALL', '태그가 없는 달의 편집 완료를 FALSE 로 되돌리면', $m$UPDATE month_block SET events_reviewed = FALSE WHERE month_start = DATE '2007-01-01'$m$),
-    ('TAG_REVIEWED', '태그가 있는 달의 편집 완료를 FALSE 로 되돌리면', $m$UPDATE month_block SET events_reviewed = FALSE WHERE month_start = DATE '2007-08-01'$m$),
-    ('NONE_ZERO', '사건 없음(NONE)인 달로 다른 달의 태그 하나를 옮기면', $m$UPDATE month_event SET month_block_id = (SELECT id FROM month_block WHERE month_start = DATE '2007-01-01') WHERE event_key = 'ev0001.01'$m$),
+    ('REVIEWED_ALL', '태그가 없는 달의 편집 완료를 FALSE 로 되돌리면', $m$UPDATE month_block SET events_reviewed = FALSE WHERE month_start = (SELECT min(r.month_start::date) FROM zz_rev r, zz_replay z WHERE r.result = 'NONE' AND r.month_start::date >= z.start_month AND EXISTS (SELECT 1 FROM month_block m WHERE m.month_start = r.month_start::date))$m$),
+    ('TAG_REVIEWED', '태그가 있는 달의 편집 완료를 FALSE 로 되돌리면', $m$UPDATE month_block SET events_reviewed = FALSE
+        WHERE id = (SELECT month_block_id FROM month_event WHERE event_key = 'ev0001.01')$m$),
+    ('NONE_ZERO', '사건 없음(NONE)인 달로 다른 달의 태그 하나를 옮기면', $m$UPDATE month_event SET month_block_id = (SELECT id FROM month_block WHERE month_start = (SELECT min(r.month_start::date) FROM zz_rev r, zz_replay z WHERE r.result = 'NONE' AND r.month_start::date >= z.start_month AND EXISTS (SELECT 1 FROM month_block m WHERE m.month_start = r.month_start::date))) WHERE event_key = 'ev0001.01'$m$),
     ('TAGGED_SOME', 'TAGGED 달의 태그를 지우면', $m$DELETE FROM month_event WHERE event_key = 'ev0001.01'$m$),
-    ('MONTH_CAP', '태그 3개인 달(2010-11)로 한 행짜리 에피소드의 태그를 옮기면 4개', $m$UPDATE month_event SET month_block_id = (SELECT id FROM month_block WHERE month_start = DATE '2010-11-01') WHERE event_key = 'ev0001.01'$m$),
-    ('HIDDEN_LIST', '2건짜리 유형에 에피소드 하나를 더 붙이면 (n 이 3 이 되어 숨김 목록에서 빠진다)', $m$UPDATE month_event SET event_key = 'ev9999.01' WHERE event_key = 'ev0021.02'$m$);
+    ('MONTH_CAP', '태그 3개인 달로 한 행짜리 에피소드의 태그를 옮기면 4개', $m$UPDATE month_event SET month_block_id = (
+            SELECT month_block_id FROM month_event GROUP BY month_block_id HAVING count(*) = 3
+               AND month_block_id <> (SELECT month_block_id FROM month_event WHERE event_key = 'ev0001.01')
+            ORDER BY month_block_id LIMIT 1) WHERE event_key = 'ev0001.01'$m$),
+    ('HIDDEN_LIST', '2건짜리 유형에 에피소드 하나를 더 붙이면 (n 이 3 이 되어 숨김 목록에서 빠진다)', $m$UPDATE month_event SET event_key = 'ev9999.01'
+        WHERE event_key = (SELECT e.event_key FROM month_event e
+                           WHERE substr(e.event_key, 8)::integer > 1
+                             AND (SELECT count(DISTINCT left(x.event_key, 6)) FROM month_event x WHERE x.event_type = e.event_type) = 2
+                           ORDER BY e.event_key COLLATE "C" LIMIT 1)$m$);
 
 DO $$
 DECLARE
