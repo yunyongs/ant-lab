@@ -3,6 +3,8 @@
 One JSON object per line, never rewritten. The directory is private to the owner (0700) and the
 file too (0600); a second runner on the same season is refused by an exclusive file lock. The
 journal is a local file, not the database: only the API writes the database.
+A memory reply that the API refused after it was accepted locally keeps its text in its row (a restart must not call
+the model again); the file is private to the owner and no command prints record texts.
 """
 
 from __future__ import annotations
@@ -10,7 +12,9 @@ from __future__ import annotations
 import fcntl
 import json
 import os
+import re
 import stat
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Final
@@ -18,7 +22,23 @@ from typing import Any, Final
 from antlab_ai.runner.records import check_record
 
 VERSION: Final = 1
-KINDS: Final = ("attempt", "flushed", "decided", "advanced", "pause", "resume")
+KINDS: Final = (
+    "attempt",
+    "flushed",
+    "decided",
+    "advanced",
+    "pause",
+    "resume",
+    "mattempt",
+    "mbase",
+    "mreject",
+    "mstop",
+    "mdone",
+)
+MEMORY_STEPS: Final = ("REFLECTION", "PLAYBOOK")
+MEMORY_OUTCOMES: Final = ("ACCEPTED", "DISCARDED", "UNKNOWN")
+_FIXED_WORD = re.compile(r"[A-Z][A-Z_]{0,39}")
+_FIXED_POINTER = re.compile(r"(?:/[A-Za-z0-9_]{1,40}){0,6}(?:#s[1-9][0-9]{0,3})?|/")
 PAUSE_REASONS: Final = (
     "LIMITED_DAILY",
     "CREDIT",
@@ -56,9 +76,34 @@ class TurnState:
     advanced: bool = False
 
 
+def _steps_of(factory: Callable[[], Any]) -> Any:
+    return field(default_factory=lambda: {step: factory() for step in MEMORY_STEPS})
+
+
+@dataclass
+class MemoryState:
+    """The memory step of this season: model attempts per call kind, in order.
+
+    ``violations`` holds fixed pointer/code pairs per attempt (never reply text). A rejected
+    reply keeps its record; only its status and violations change. ``barrier`` is the number of
+    attempts a stop had already handled.
+    """
+
+    base: int | None = None
+    based: bool = False
+    attempts: dict[str, list[dict[str, Any]]] = _steps_of(list)
+    retry_after: dict[str, list[int | None]] = _steps_of(list)
+    violations: dict[str, list[list[tuple[str, str]]]] = _steps_of(list)
+    barrier: dict[str, int] = _steps_of(int)
+    sent: int = 0
+    last_stop: str | None = None
+    done: dict[str, Any] | None = None
+
+
 @dataclass
 class JournalState:
     turns: dict[int, TurnState] = field(default_factory=dict)
+    memory: MemoryState = field(default_factory=MemoryState)
     attempt_total: int = 0
     no_response_streak: int = 0
     pauses: list[tuple[int | None, str]] = field(default_factory=list)
@@ -80,11 +125,99 @@ def _turn_no(row: dict[str, Any]) -> int:
     return value
 
 
+def _pairs(value: Any) -> list[tuple[str, str]]:
+    if not isinstance(value, list) or len(value) > 20:
+        raise JournalCorrupt("a violation list is malformed")
+    pairs = []
+    for item in value:
+        if (
+            not isinstance(item, list)
+            or len(item) != 2
+            or not all(isinstance(part, str) for part in item)
+            or not _FIXED_POINTER.fullmatch(item[0])
+            or not re.fullmatch(r"[A-Za-z_]{1,40}", item[1])
+        ):
+            raise JournalCorrupt("a violation is not a fixed pointer and code")
+        pairs.append((item[0], item[1]))
+    return pairs
+
+
+def _step(row: dict[str, Any]) -> str:
+    step = row.get("step")
+    if step not in MEMORY_STEPS:
+        raise JournalCorrupt("a memory row has an unknown step")
+    return step
+
+
+def _clear(memory: MemoryState, step: str) -> None:
+    memory.attempts[step] = []
+    memory.retry_after[step] = []
+    memory.violations[step] = []
+    memory.barrier[step] = 0
+
+
+def _apply_memory(state: JournalState, row: dict[str, Any]) -> None:
+    memory = state.memory
+    kind = row["kind"]
+    if memory.done is not None:
+        raise JournalCorrupt("a memory row follows the outcome")
+    if kind == "mbase":
+        base = row.get("base")
+        if base is not None and (type(base) is not int or base < 1):
+            raise JournalCorrupt("a memory base row is malformed")
+        if memory.based and memory.base != base:
+            # The playbook was written on an older note; the reflection does not depend on it.
+            _clear(memory, "PLAYBOOK")
+        memory.base, memory.based = base, True
+    elif kind == "mattempt":
+        step = _step(row)
+        record = row.get("record")
+        retry = row.get("retryAfter")
+        if (
+            not isinstance(record, dict)
+            or record.get("kind") != step
+            or (retry is not None and type(retry) is not int)
+        ):
+            raise JournalCorrupt("a memory attempt row is malformed")
+        if record.get("attemptNo") != len(memory.attempts[step]) + 1:
+            raise JournalCorrupt("memory attempt numbers do not follow one another")
+        memory.attempts[step].append(record)
+        memory.retry_after[step].append(retry)
+        memory.violations[step].append(_pairs(row.get("violations")))
+        memory.sent += 1
+    elif kind == "mreject":
+        step = _step(row)
+        attempts = memory.attempts[step]
+        if not attempts or attempts[-1].get("status") != "OK":
+            raise JournalCorrupt("a memory reject row has no accepted reply to reject")
+        attempts[-1] = {**attempts[-1], "status": "INVALID"}
+        memory.violations[step][-1] = _pairs(row.get("violations"))
+        if step == "REFLECTION":
+            _clear(memory, "PLAYBOOK")
+    elif kind == "mstop":
+        reason = row.get("reason")
+        if not isinstance(reason, str) or not _FIXED_WORD.fullmatch(reason):
+            raise JournalCorrupt("a memory stop row is malformed")
+        memory.last_stop = reason
+        for step in MEMORY_STEPS:
+            memory.barrier[step] = len(memory.attempts[step])
+    else:  # mdone
+        version = row.get("version")
+        if row.get("outcome") not in MEMORY_OUTCOMES or (
+            version is not None and (type(version) is not int or version < 1)
+        ):
+            raise JournalCorrupt("a memory outcome row is malformed")
+        memory.done = {"outcome": row["outcome"], "version": version}
+
+
 def _apply(state: JournalState, row: dict[str, Any]) -> None:
     """Fold one row into the state; the same code reads old rows and checks new ones."""
     if row.get("v") != VERSION or row.get("kind") not in KINDS:
         raise JournalCorrupt("a row has an unknown version or kind")
     kind = row["kind"]
+    if kind in ("mattempt", "mbase", "mreject", "mstop", "mdone"):
+        _apply_memory(state, row)
+        return
     if kind == "resume":
         state.resumes += 1
         state.no_response_streak = 0
@@ -266,10 +399,59 @@ class Journal:
     def append_resume(self) -> None:
         self._append({"kind": "resume"})
 
+    # ---- memory step rows ------------------------------------------------------------------
+
+    def append_memory_base(self, base: int | None) -> None:
+        self._append({"kind": "mbase", "base": base})
+
+    def append_memory_attempt(
+        self,
+        step: str,
+        record: dict[str, Any],
+        violations: Sequence[tuple[str, str]] = (),
+        retry_after_s: int | None = None,
+    ) -> None:
+        check_record(record)
+        self._append(
+            {
+                "kind": "mattempt",
+                "step": step,
+                "record": record,
+                "violations": [list(pair) for pair in violations],
+                "retryAfter": retry_after_s,
+            }
+        )
+
+    def append_memory_reject(self, step: str, violations: Sequence[tuple[str, str]]) -> None:
+        self._append(
+            {"kind": "mreject", "step": step, "violations": [list(pair) for pair in violations]}
+        )
+
+    def append_memory_stop(self, reason: str) -> None:
+        self._append({"kind": "mstop", "reason": reason})
+
+    def append_memory_done(self, outcome: str, version: int | None) -> None:
+        self._append({"kind": "mdone", "outcome": outcome, "version": version})
+
+
+def _copy_memory(memory: MemoryState) -> MemoryState:
+    return MemoryState(
+        base=memory.base,
+        based=memory.based,
+        attempts={k: list(v) for k, v in memory.attempts.items()},
+        retry_after={k: list(v) for k, v in memory.retry_after.items()},
+        violations={k: list(v) for k, v in memory.violations.items()},
+        barrier=dict(memory.barrier),
+        sent=memory.sent,
+        last_stop=memory.last_stop,
+        done=memory.done,
+    )
+
 
 def _copy(state: JournalState) -> JournalState:
     """Shallow-enough copy for a dry run of ``_apply`` (rows only append or flip fields)."""
     return JournalState(
+        memory=_copy_memory(state.memory),
         turns={
             n: TurnState(list(t.attempts), list(t.retry_after), t.flushed, t.decided, t.advanced)
             for n, t in state.turns.items()
