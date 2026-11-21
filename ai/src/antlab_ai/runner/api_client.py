@@ -96,7 +96,7 @@ _OPERATIONS: Final[dict[str, tuple[str, str, frozenset[int], str | None, bool]]]
         "AbandonResultDto",
         True,
     ),
-    # AG-04 B. Listed so the table equals the contract; the mismatch check in run is added with the CLI work (PR E).
+    # AG-04 B: the config the season was started with; `run` compares it before any model call.
     "getAgentSeasonConfig": (
         "GET",
         f"{BASE_PATH}/agents/{{agentId}}/seasons/{{seasonId}}/config",
@@ -104,7 +104,7 @@ _OPERATIONS: Final[dict[str, tuple[str, str, frozenset[int], str | None, bool]]]
         "AgentSeasonConfigDto",
         True,
     ),
-    # League operations (AG-04 PR C1): the table knows them; the client methods come with the runner CLI (PR E).
+    # League operations (AG-04 C1); the runner's `league` command drives them.
     "createLeague": ("POST", f"{BASE_PATH}/leagues", frozenset({201}), "LeagueDto", False),
     "getLeague": ("GET", f"{BASE_PATH}/leagues/{{leagueId}}", frozenset({200}), "LeagueDto", True),
     "closeLeague": (
@@ -228,15 +228,20 @@ class ApiClient:
         agent_id: int,
         risk_limit: Decimal | str,
         formation: Mapping[str, int],
-        path_length: int,
+        path_length: int | None,
         config: Mapping[str, Any],
+        league_id: int | None = None,
     ) -> dict[str, Any]:
-        body = {
+        """With ``league_id`` the league fixes the path: pass ``path_length=None`` to omit it."""
+        body: dict[str, Any] = {
             "riskLimit": _decimal_text(risk_limit, "risk_limit"),
             "formation": dict(formation),
-            "pathLength": path_length,
             "config": dict(config),
         }
+        if path_length is not None:
+            body["pathLength"] = path_length
+        if league_id is not None:
+            body["leagueId"] = _id(league_id, "league_id")
         contract.check("StartAgentSeasonRequest", body)
         return self._call("startAgentSeason", {"agentId": _id(agent_id, "agent_id")}, body)[1]
 
@@ -270,6 +275,26 @@ class ApiClient:
         body = {"expectedTurnNo": expected_turn_no}
         contract.check("AdvanceTurnRequest", body)
         return self._call("advanceAgentTurn", self._season(agent_id, season_id), body)[1]
+
+    def get_season_config(self, agent_id: int, season_id: int) -> dict[str, Any]:
+        return self._call("getAgentSeasonConfig", self._season(agent_id, season_id))[1]
+
+    def create_league(
+        self, name: str, path_length: int | None = None, max_entries: int | None = None
+    ) -> dict[str, Any]:
+        body: dict[str, Any] = {"name": name}
+        if path_length is not None:
+            body["pathLength"] = path_length
+        if max_entries is not None:
+            body["maxEntries"] = max_entries
+        contract.check("CreateLeagueRequest", body)
+        return self._call("createLeague", {}, body)[1]
+
+    def get_league(self, league_id: int) -> dict[str, Any]:
+        return self._call("getLeague", {"leagueId": _id(league_id, "league_id")})[1]
+
+    def close_league(self, league_id: int) -> dict[str, Any]:
+        return self._call("closeLeague", {"leagueId": _id(league_id, "league_id")})[1]
 
     # ---- plumbing -------------------------------------------------------------------------
 

@@ -232,8 +232,9 @@ def live_env(monkeypatch, tmp_path, base_url):
 
 
 def test_a_remote_ollama_address_is_refused_before_anything_is_built(
-    spring, env, monkeypatch, tmp_path, capsys
+    env, monkeypatch, tmp_path, capsys
 ):
+    spring = FakeSpring(path_length=3, model="llama3", route="OLLAMA")
     env.update(live_env(monkeypatch, tmp_path, "http://remote.example:11434"))
 
     def refuse(*args, **kwargs):
