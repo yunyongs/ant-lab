@@ -95,5 +95,11 @@ public enum ErrorCode {
     /** The season is VOID or was abandoned, so it never gets a reflection (agent runner, AG-05). */
     MEMORY_NOT_ELIGIBLE,
     /** The season's score is not stored yet; transient (agent runner, AG-05). */
-    SCORE_PENDING
+    SCORE_PENDING,
+    /** The memory the agent wrote on is not its latest version any more; read the memory again (agent runner, AG-05). */
+    MEMORY_BASE_STALE,
+    /** The reflection or operating note breaks the leak filter; the answer names pointers and codes only (agent runner, AG-05). */
+    MEMORY_LEAK,
+    /** The reflection or operating note does not have the shape of its JSON schema (agent runner, AG-05). */
+    MEMORY_SCHEMA_INVALID
 }
