@@ -320,7 +320,7 @@ antlab.pool.base-date: ${ANTLAB_POOL_BASE_DATE:2026-01-02}   # P0-27: 기준일 
 # Reproducibility: a path follows from (engine_version, seed, base date, replay start, month_block snapshot); season_path is stored and the history digest records the replayable set; changing the setting changes future paths only. / 경로는 (engine_version, 시드, 기준일, 재생 시작, month_block 스냅샷)으로 재현되고 season_path가 저장되며 이력 해시가 재생 가능한 달 집합을 기록한다. 설정을 바꿔도 앞으로 만드는 경로만 바뀐다.
 antlab.history.replay-start: ${ANTLAB_HISTORY_REPLAY_START:2007-01-01}
 # P0-30: 새 시즌에 적는 설정(요청에서 받지 않는다). 시즌 행의 8개 설정 컬럼은 DB 기본값이 없으므로 값이 빠지면 기동 실패(@Validated)
-antlab.season.initial-cash: 30000000        # PLAN §4.1-1 기본 초기 자금
+antlab.season.initial-cash: 100000000       # PLAN §4.1-1 기본 초기 자금(2026-11-21 ₩3천만 → ₩1억). The test profile pins 30000000
 antlab.season.fee-rate-kr: 0.00015          # PLAN §4.6
 antlab.season.fee-rate-us: 0.0025
 antlab.season.fx-spread-rate: 0.0040        # 환전 비용 0.40%(소유자, 2026-11-08)
