@@ -33,6 +33,8 @@ YF_CAP = 50  # the same per-day yfinance ceiling the price batch uses; both coun
 HISTORY_START, HISTORY_END = date(1995, 12, 1), date(2026, 1, 2)
 ECOS_WINDOW = {"D": ("19951201", "20251231"), "M": ("199512", "202512")}
 SOURCES = ("FRED", "ECOS", "WB", "YF")
+# FRED inputs that feed fx_month, not a proxy ladder: they are not proxy_series rows, so proxy_map.py check cannot see or name them.
+FX_FRED_INPUTS = ("DEXKOUS",)
 
 
 @dataclass
@@ -48,7 +50,10 @@ class AuxResult:
 
 
 def rows_for(source: str, full: Path = FULL) -> list[dict[str, str]]:
-    return [r for r in read_csv(full / "proxy_series.csv", SERIES_COLUMNS) if r["source"] == source]
+    rows = [r for r in read_csv(full / "proxy_series.csv", SERIES_COLUMNS) if r["source"] == source]
+    if source == "FRED":
+        rows += [{"series_id": f"FX_{code}", "source_code": code} for code in FX_FRED_INPUTS]
+    return rows
 
 
 def ecos_cycle(row: dict[str, str]) -> str:

@@ -44,11 +44,24 @@ def run(world, source, handler=fred_handler, **kw):
 
 def test_fred_batch_fetches_every_series_once_and_books_the_ledger(world):
     res = run(world, "FRED")
-    assert (res.requests, res.stop_reason, res.fetched) == (4, "DONE", 4)
+    assert (res.requests, res.stop_reason, res.fetched) == (5, "DONE", 5)
     rows = Ledger(world[1] / "ledger.csv").rows()
-    assert [(r["source"], r["requests"], r["stop_reason"], r["batch_no"]) for r in rows] == [("FRED", "4", "DONE", "1")]
+    assert [(r["source"], r["requests"], r["stop_reason"], r["batch_no"]) for r in rows] == [("FRED", "5", "DONE", "1")]
     again = run(world, "FRED")
-    assert again.requests == 0 and again.cached == 4 and again.fetched == 0  # a second run reads the cache
+    assert again.requests == 0 and again.cached == 5 and again.fetched == 0  # a second run reads the cache
+
+
+def test_the_fx_input_dexkous_is_fetched_with_the_fred_batch_and_is_not_a_proxy_series(world):
+    seen = []
+
+    def handler(method, url, kw):
+        seen.append(kw["params"]["id"])
+        return fred_handler(method, url, kw)
+
+    run(world, "FRED", handler)
+    assert "DEXKOUS" in seen and fa.FX_FRED_INPUTS == ("DEXKOUS",)
+    assert (world[1] / "aux" / "fred" / "DEXKOUS.csv").is_file()
+    assert "DEXKOUS" not in (REAL / "proxy_series.csv").read_text()
 
 
 def test_the_daily_cap_is_enforced_from_the_ledger(world):
@@ -56,13 +69,13 @@ def test_the_daily_cap_is_enforced_from_the_ledger(world):
     assert (res.requests, res.stop_reason, res.fetched) == (3, "BUDGET", 3)
     with pytest.raises(AuxError, match="already used 3 requests"):
         run(world, "FRED", cap=3)
-    res = run(world, "FRED", cap=4)  # one more request is allowed under a higher cap; the fourth file is the only one missing
-    assert (res.requests, res.stop_reason) == (1, "DONE")
+    res = run(world, "FRED", cap=5)  # a higher cap allows the two missing files
+    assert (res.requests, res.stop_reason) == (2, "DONE")
 
 
 def test_the_cap_cannot_be_raised_above_the_hard_maximum(world):
     res = run(world, "FRED", cap=500)
-    assert res.requests == 4
+    assert res.requests == 5
     repo, raw, _ = world
     Ledger(raw / "ledger.csv").append({"day_kst": "2026-11-19", "source": "FRED", "batch_no": 2, "requests": 20, "stop_reason": "BUDGET", "first_target": "", "last_target": ""})
     with pytest.raises(AuxError, match="already used"):
@@ -133,7 +146,7 @@ def test_yfinance_run_spaces_calls_and_counts_them(world):
 def test_status_reads_the_cache_offline(world, capsys):
     assert fa.main(["status", "--raw-dir", str(world[1])]) == 0
     out = capsys.readouterr().out
-    assert "FRED: 0 of 4 cached" in out and "ECOS: 0 of 6 cached" in out and "YF: 0 of 7 cached" in out
+    assert "FRED: 0 of 5 cached" in out and "ECOS: 0 of 6 cached" in out and "YF: 0 of 7 cached" in out
 
 
 def test_monthly_average_ecos_rows_are_fetched_as_monthly_statistics(world):

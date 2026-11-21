@@ -165,15 +165,37 @@ The World Bank file name is stable but its path holds a release id that changes 
 7. Korean technology and semiconductor stocks and `091160` use the broad KOSPI: no free Korean technology index exists before 2003 (PLAN §4.7 asks for one).
 8. `476760` is a 30-year Treasury ETF filled by the 20-year yield (FRED `DGS30` has a gap 2002-02..2006-02).
 
-**ETF fees.** `annual_fee` is the funetf value of docs/MACRO_ETF.md §3.2 for its 15 ETFs (`fee_source = MACRO_ETF_3_2`). The 14 other ETFs that have proxy months (`091160` and the US ETFs QQQ, TLT, IEF, SHY, GLD, IWM, EFA, EEM, XLE, XLF, XLV, XLK, XLP) are `PENDING` with a blank fee: no issuer page has been read for them and a fee is never typed from memory. `proxy_map.py check` warns; `check --strict` (the build gate) fails until they are filled.
+**ETF fees.** `annual_fee` is the funetf value of docs/MACRO_ETF.md §3.2 for its 15 ETFs (`fee_source = MACRO_ETF_3_2`, unchanged). The 15 other ETFs (`091160` and the US ETFs EEM, EFA, GLD, IEF, IWM, QQQ, SHY, SPY, TLT, XLE, XLF, XLK, XLP, XLV) take the total expense ratio printed on the issuer's own fund page, read on 2026-11-21 (`fee_source = ISSUER_PAGE`; `PENDING` stays allowed for a page that cannot be read, and a fee is never typed from memory). `check --strict` (the build gate) now passes: no fee is pending.
+
+| Ticker | `annual_fee` | Printed on the page | Issuer page (read 2026-11-21) |
+|--------|--------------|---------------------|-------------------------------|
+| 091160 | 0.0045 | 0.450% (total fee: management 0.389%, other parts 0.061%) | https://www.samsungfund.com/etf/product/view.do?id=2ETF07 |
+| EEM | 0.0072 | Expense Ratio 0.72 | https://www.ishares.com/us/products/239637/ishares-msci-emerging-markets-etf |
+| EFA | 0.0032 | Expense Ratio 0.32 | https://www.ishares.com/us/products/239623/ishares-msci-eafe-etf |
+| GLD | 0.004 | Gross Expense Ratio 0.40% | https://www.ssga.com/us/en/intermediary/etfs/spdr-gold-shares-gld |
+| IEF | 0.0015 | Expense Ratio 0.15 | https://www.ishares.com/us/products/239456/ishares-710-year-treasury-bond-etf |
+| IWM | 0.0019 | Expense Ratio 0.19 | https://www.ishares.com/us/products/239710/ishares-russell-2000-etf |
+| QQQ | 0.0018 | Total Expense Ratio 0.18% (as of 2026-11-19) | https://www.invesco.com/qqq-etf/en/about.html |
+| SHY | 0.0015 | Expense Ratio 0.15 | https://www.ishares.com/us/products/239452/ishares-13-year-treasury-bond-etf |
+| SPY | 0.000945 | Gross Expense Ratio 0.0945% | https://www.ssga.com/us/en/intermediary/etfs/state-street-spdr-sp-500-etf-trust-spy |
+| TLT | 0.0015 | Expense Ratio 0.15 | https://www.ishares.com/us/products/239454/ishares-20-year-treasury-bond-etf |
+| XLE | 0.0008 | Gross Expense Ratio 0.08% | https://www.ssga.com/us/en/intermediary/etfs/state-street-energy-select-sector-spdr-etf-xle |
+| XLF | 0.0008 | Gross Expense Ratio 0.08% | https://www.ssga.com/us/en/intermediary/etfs/state-street-financial-select-sector-spdr-etf-xlf |
+| XLK | 0.0008 | Gross Expense Ratio 0.08% | https://www.ssga.com/us/en/intermediary/etfs/state-street-technology-select-sector-spdr-etf-xlk |
+| XLP | 0.0008 | Gross Expense Ratio 0.08% | https://www.ssga.com/us/en/intermediary/etfs/state-street-consumer-staples-select-sector-spdr-etf-xlp |
+| XLV | 0.0008 | Gross Expense Ratio 0.08% | https://www.ssga.com/us/en/intermediary/etfs/state-street-health-care-select-sector-spdr-etf-xlv |
+
+The owner checked the iShares figures (EEM, EFA, IEF, IWM, SHY, TLT), `091160` and QQQ in a browser on 2026-11-21.
+
+Bias: one current fee is applied to every past proxy month of an ETF. Real fees changed over the years and the past values were not read, so the deduction in early months can be off in either direction (not measured). Pages that show a gross figure are used as printed (no waiver is netted).
 
 **Requests made for this step (live, 2026-11-21).** FRED 5 (4 series CSV + the legal page), ECOS 5 (2 item lists, 1 data page, 2 portal pages), World Bank 2 (the commodity page and the workbook), yfinance 3 (`^GSPC`, `^NDX`, `^RUT`, one full-range call each), Yahoo terms page 1: 16 in total, all `200`; round 2 added 3 ECOS requests (item list `721Y001` and the two monthly series), and 4 yfinance calls (`VEIEX`, `VEURX`, `VPACX`, `USO`), so 23 in all. No key or token appears in any file.
 
 **Scope of the gate.** `proxy_map.py check` looks at the months before an asset's first actual return and treats each series as one unbroken span. A gap in the middle of an asset's actual history (H7: a month with no close, and the month after it) or a hole inside a series is not visible to it: the build (06-A) must assert, per cell, that the chosen series has a value in that month.
 
-**Commands.** `tools/fetch/fetch_aux.py status|fetch --source FRED|ECOS|WB|YF` fetches the files into `data/raw/mvp-04/` from the main checkout only (daily caps FRED 20, ECOS 40, World Bank 2, yfinance 50 shared with the price batch, all counted in `ledger.csv`). `tools/fetch/proxy_map.py generate` rewrites `proxy_map.csv` and `asset.csv` `proxy_index_name` from the rule table (a test fails when the tracked files drift from it); `check [--strict]` is the coverage gate.
+**Commands.** `tools/fetch/fetch_aux.py status|fetch --source FRED|ECOS|WB|YF` fetches the files into `data/raw/mvp-04/` from the main checkout only (daily caps FRED 20, ECOS 40, World Bank 2, yfinance 50 shared with the price batch, all counted in `ledger.csv`). `tools/fetch/proxy_map.py generate` rewrites `proxy_map.csv` and `asset.csv` `proxy_index_name` from the rule table (a test fails when the tracked files drift from it); `check [--strict]` is the coverage gate. `fetch --source FRED` also fetches the FX input `DEXKOUS` (`FX_FRED_INPUTS` in `fetch_aux.py`): it feeds `fx_month` only, is not a `proxy_series.csv` row, and so cannot be named by the map.
 
-**Open items for the owner (defaults continue).** (1) Settled (owner, 2026-11-21): keep ECOS, `terms_url` is the data.go.kr listing; index-fund and futures-fund proxy inputs are allowed (4 yfinance calls, done). (2) Settled: the daily Korean government yields start in 1998-11 (3-year) and 2000-12 (10-year); earlier months use the monthly government yields of bias 4. (3) ETF fees for the 14 pending ETFs stay `PENDING` for a follow-up data PR (issuer page, dated read) before the build. (4) `0019K0`: the issuer document (prospectus or product page) must confirm the benchmark composition and the unhedged currency; the unhedged assumption for `426030`, `476760`, `329750` rests on names without `(H)`.
+**Open items for the owner (defaults continue).** (1) Settled (owner, 2026-11-21): keep ECOS, `terms_url` is the data.go.kr listing; index-fund and futures-fund proxy inputs are allowed (4 yfinance calls, done). (2) Settled: the daily Korean government yields start in 1998-11 (3-year) and 2000-12 (10-year); earlier months use the monthly government yields of bias 4. (3) Settled: ETF fees are read from the issuer pages (table above). (4) `0019K0`: the issuer document (prospectus or product page) must confirm the benchmark composition and the unhedged currency; the unhedged assumption for `426030`, `476760`, `329750` rests on names without `(H)`.
 
 ## Build (MVP-06 A)
 
@@ -367,15 +389,19 @@ MVP 이력(종목 180 × 월 블록 360)을 위한 손 편집 풀 파일이다. 
 7. 국내 기술·반도체 주식과 `091160`은 넓은 KOSPI를 쓴다: 2003년 전에는 무료 국내 기술 지수가 없다(PLAN §4.7은 기술 지수를 요구한다).
 8. `476760`은 30년 국채 ETF인데 20년 금리로 채운다(FRED `DGS30`은 2002-02–2006-02가 비어 있다).
 
-**ETF 보수.** `annual_fee`는 docs/MACRO_ETF.md §3.2의 15종은 그 문서의 funetf 값이다(`fee_source = MACRO_ETF_3_2`). 대체 달이 있는 나머지 ETF 14종(`091160`과 미국 QQQ, TLT, IEF, SHY, GLD, IWM, EFA, EEM, XLE, XLF, XLV, XLK, XLP)은 `PENDING`이고 보수가 비어 있다: 운용사 페이지를 읽지 않았고 보수를 기억으로 적지 않는다. `proxy_map.py check`는 경고하고, 빌드 관문인 `check --strict`는 채울 때까지 실패한다.
+**ETF 보수.** `annual_fee`는 docs/MACRO_ETF.md §3.2의 15종은 그 문서의 funetf 값이다(`fee_source = MACRO_ETF_3_2`, 변경 없음). 나머지 ETF 15종(`091160`과 미국 EEM, EFA, GLD, IEF, IWM, QQQ, SHY, SPY, TLT, XLE, XLF, XLK, XLP, XLV)은 2026-11-21에 읽은 운용사 자체 펀드 페이지의 총보수를 쓴다(`fee_source = ISSUER_PAGE`. 페이지를 열 수 없는 행은 `PENDING`을 그대로 둘 수 있고, 보수는 기억으로 적지 않는다). 빌드 관문인 `check --strict`는 이제 통과한다. 대기 중인 보수가 없다. 종목별 값과 주소는 위 영문 표와 같다.
+
+iShares 수치(EEM, EFA, IEF, IWM, SHY, TLT), `091160`, QQQ는 소유자가 2026-11-21에 브라우저로 확인했다.
+
+편향: 한 ETF의 대체 달 전체에 현재 보수 하나를 적용한다. 실제 보수는 해마다 달랐고 과거 값은 읽지 않았으므로 초기 달의 차감은 어느 쪽으로든 어긋날 수 있다(측정하지 않았다). 총보수(gross)가 표시된 페이지는 인쇄된 값 그대로 쓰며 면제분은 빼지 않는다.
 
 **이 단계의 요청(2026-11-21 실제).** FRED 5(시리즈 CSV 4 + 약관 페이지), ECOS 5(항목 목록 2, 자료 1쪽, 포털 2), 세계은행 2(상품 페이지와 통합 문서), yfinance 3(`^GSPC`, `^NDX`, `^RUT` 전 구간 각 1회), Yahoo 약관 페이지 1: 합계 16건, 모두 `200`. 2차 수정에서 ECOS 3건(`721Y001` 항목 목록과 월별 시리즈 2개)과 yfinance 4건(`VEIEX`, `VEURX`, `VPACX`, `USO`)을 더해 모두 23건이다. 어느 파일에도 키·토큰이 없다.
 
 **관문의 범위.** `proxy_map.py check`는 종목의 첫 실제 수익률 앞의 달만 보고 시리즈를 끊김 없는 한 구간으로 본다. 실제 이력 중간의 구멍(H7: 종가가 없는 달과 그 다음 달)이나 시리즈 안의 구멍은 보지 못한다: 빌드(06-A)가 칸마다 고른 시리즈에 그 달의 값이 있는지 확인해야 한다.
 
-**명령.** `tools/fetch/fetch_aux.py status|fetch --source FRED|ECOS|WB|YF`는 본 저장소에서만 `data/raw/mvp-04/`로 받는다(하루 상한 FRED 20, ECOS 40, 세계은행 2, yfinance 50은 가격 배치와 공유, 모두 `ledger.csv`에 센다). `tools/fetch/proxy_map.py generate`는 규칙 표에서 `proxy_map.csv`와 `asset.csv`의 `proxy_index_name`을 다시 쓰고(추적 파일이 규칙과 어긋나면 시험이 실패), `check [--strict]`가 충족 관문이다.
+**명령.** `tools/fetch/fetch_aux.py status|fetch --source FRED|ECOS|WB|YF`는 본 저장소에서만 `data/raw/mvp-04/`로 받는다(하루 상한 FRED 20, ECOS 40, 세계은행 2, yfinance 50은 가격 배치와 공유, 모두 `ledger.csv`에 센다). `tools/fetch/proxy_map.py generate`는 규칙 표에서 `proxy_map.csv`와 `asset.csv`의 `proxy_index_name`을 다시 쓰고(추적 파일이 규칙과 어긋나면 시험이 실패), `check [--strict]`가 충족 관문이다. `fetch --source FRED`는 환율 입력 `DEXKOUS`도 함께 받는다(`fetch_aux.py`의 `FX_FRED_INPUTS`). `fx_month`에만 쓰이고 `proxy_series.csv` 행이 아니므로 대응표가 이름 붙일 수 없다.
 
-**소유자 확인(기본값으로 계속).** (1) 해결(소유자, 2026-11-21): ECOS 유지, `terms_url`은 data.go.kr 목록. 지수 펀드·선물 펀드 대체 입력도 허용(yfinance 4회 호출, 완료). (2) 해결: 일별 국고채 금리는 1998-11(3년)·2000-12(10년)에 시작하고 그 전 달은 편향 4의 월별 국고채 금리를 쓴다. (3) 대기 중인 ETF 14종의 보수는 빌드 전 후속 데이터 PR(운용사 페이지, 날짜 있는 확인)까지 `PENDING`으로 둔다. (4) `0019K0`은 운용사 문서(투자설명서나 상품 페이지)로 비교지수 구성과 환노출을 확인해야 한다. `426030`·`476760`·`329750`의 환노출 가정은 이름에 `(H)`가 없다는 데 근거한다.
+**소유자 확인(기본값으로 계속).** (1) 해결(소유자, 2026-11-21): ECOS 유지, `terms_url`은 data.go.kr 목록. 지수 펀드·선물 펀드 대체 입력도 허용(yfinance 4회 호출, 완료). (2) 해결: 일별 국고채 금리는 1998-11(3년)·2000-12(10년)에 시작하고 그 전 달은 편향 4의 월별 국고채 금리를 쓴다. (3) 해결: ETF 보수는 운용사 페이지에서 읽었다(위 표). (4) `0019K0`은 운용사 문서(투자설명서나 상품 페이지)로 비교지수 구성과 환노출을 확인해야 한다. `426030`·`476760`·`329750`의 환노출 가정은 이름에 `(H)`가 없다는 데 근거한다.
 
 ## 빌드 (MVP-06 A)
 
