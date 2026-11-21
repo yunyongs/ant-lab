@@ -24,6 +24,16 @@
 -- 명령줄(psql)이 기준이다. VS Code 에서는 통합 터미널에서 실행한다.
 -- =====================================================================
 
+-- Scope: by default only rows whose month exists in month_block are loaded (the Phase 0 sample holds 100 of the 360 months); the rest are
+--        counted and reported, never an error. -v require_all_months=1 restores the strict full-load rule: every file month must be in
+--        month_block, otherwise the run stops. In both modes a tag in a month_block month whose reaction reference has no value that
+--        month is an error.
+
+\if :{?require_all_months}
+\else
+  \set require_all_months 0
+\endif
+
 -- [파일 확인] events/ 의 CSV 3개가 없으면 DB 에 닿기 전에 분명한 메시지로 멈춘다 (10 적재와 같은 방식).
 \! test -f events/types.csv -a -f events/tags.csv -a -f events/reviewed.csv
 \if :SHELL_ERROR
@@ -32,6 +42,14 @@
 \endif
 
 BEGIN;
+
+CREATE TEMP TABLE ld_mode ON COMMIT DROP AS
+SELECT (:'require_all_months' = '1') AS strict, (:'require_all_months' IN ('0', '1')) AS valid;
+DO $$ BEGIN
+    IF NOT (SELECT valid FROM ld_mode) THEN
+        RAISE EXCEPTION 'P0-09 적재: require_all_months 는 0 또는 1 이다';
+    END IF;
+END $$;
 
 -- [이름 해석 확인] 5개 이름이 public 으로 해석될 때만 계속한다 (01 스키마 파일의 블록과 같은 방식)
 DO $$
@@ -108,7 +126,7 @@ SELECT 'types 형식: ' || row_to_json(t)::text FROM stg_ev_types t
        OR t.category NOT IN ('GEOPOLITICS', 'TRADE', 'POLITICS', 'SUPPLY_SHOCK', 'FINANCIAL', 'POLICY', 'HEALTH')
        OR (t.outcomes IS NOT NULL AND t.outcomes !~ '^[A-Z][A-Z_]*(;[A-Z][A-Z_]*)*$')
        OR t.direction_rule NOT IN ('NONE', 'UP_DOWN')
-       OR t.reaction_refs !~ '^(KR:[0-9]{6}|US:[A-Z]+|FX:USD)(;(KR:[0-9]{6}|US:[A-Z]+|FX:USD))*$'
+       OR t.reaction_refs !~ '^(KR:[0-9A-Z]{6}|US:[A-Z]+(\.[A-Z])?|FX:USD)(;(KR:[0-9A-Z]{6}|US:[A-Z]+(\.[A-Z])?|FX:USD))*$'
        OR t.name_ko ~ '^\s|\s$'
 UNION ALL SELECT 'tags 형식: ' || row_to_json(t)::text FROM stg_ev_tags t
     WHERE t.event_key !~ '^ev[0-9]{4}\.[0-9]{2}$'
@@ -118,7 +136,7 @@ UNION ALL SELECT 'tags 형식: ' || row_to_json(t)::text FROM stg_ev_tags t
        OR t.phase NOT IN ('START', 'ONGOING', 'END')
        OR (t.outcome IS NOT NULL AND (t.outcome !~ '^[A-Z][A-Z_]*$' OR length(t.outcome) > 20))
        OR (t.direction IS NOT NULL AND t.direction NOT IN ('UP', 'DOWN'))
-       OR t.reaction_ref !~ '^(KR:[0-9]{6}|US:[A-Z]+|FX:USD)$'
+       OR t.reaction_ref !~ '^(KR:[0-9A-Z]{6}|US:[A-Z]+(\.[A-Z])?|FX:USD)$'
        OR length(t.title) NOT BETWEEN 1 AND 100 OR t.title ~ $q$["“”'‘’「」]$q$ OR t.title ~ '^\s|\s$'
        OR (t.hindsight IS NOT NULL AND t.hindsight ~ '^\s|\s$')
        OR (t.hindsight IS NOT NULL AND (length(t.hindsight) NOT BETWEEN 1 AND 300 OR t.hindsight ~ $q$["“”'‘’「」]$q$))
@@ -187,23 +205,25 @@ UNION ALL SELECT 'tags 반응 참조가 유형의 허용 목록 밖이다: ' || 
     FROM stg_ev_tags t JOIN stg_ev_types y ON y.event_type = t.event_type
     WHERE NOT (t.reaction_ref = ANY (string_to_array(y.reaction_refs, ';')));
 
--- 날짜·종목 참조: month_block 에 없는 달, 풀에 없는 종목
+-- Month not in month_block and type refs outside the asset pool: errors only in strict mode (require_all_months=1);
+-- the scope below drops such rows and reports their count. A missing reaction value in a month_block month is always an error.
 INSERT INTO ld_err
 SELECT 'tags 의 달이 month_block 에 없다: ' || t.event_key || ' ' || t.month_start FROM stg_ev_tags t
-    WHERE NOT EXISTS (SELECT 1 FROM month_block m WHERE m.month_start = t.month_start::date)
+    WHERE (SELECT strict FROM ld_mode) AND NOT EXISTS (SELECT 1 FROM month_block m WHERE m.month_start = t.month_start::date)
 UNION ALL SELECT 'reviewed 의 달이 month_block 에 없다: ' || r.month_start FROM stg_ev_reviewed r
-    WHERE NOT EXISTS (SELECT 1 FROM month_block m WHERE m.month_start = r.month_start::date)
+    WHERE (SELECT strict FROM ld_mode) AND NOT EXISTS (SELECT 1 FROM month_block m WHERE m.month_start = r.month_start::date)
 UNION ALL SELECT 'types.reaction_refs 의 종목이 asset 에 없다: ' || y.event_type || ' ' || ref
     FROM stg_ev_types y CROSS JOIN LATERAL unnest(string_to_array(y.reaction_refs, ';')) AS ref
-    WHERE split_part(ref, ':', 1) IN ('KR', 'US')
+    WHERE (SELECT strict FROM ld_mode) AND split_part(ref, ':', 1) IN ('KR', 'US')
       AND NOT EXISTS (SELECT 1 FROM asset a WHERE a.market = split_part(ref, ':', 1) AND a.ticker = split_part(ref, ':', 2))
-UNION ALL SELECT 'tags 의 반응 참조가 이 달의 값을 갖지 못한다: ' || t.event_key || ' ' || t.reaction_ref
-    FROM stg_ev_tags t JOIN month_block m ON m.month_start = t.month_start::date
-    WHERE CASE WHEN split_part(t.reaction_ref, ':', 1) = 'FX'
-               THEN NOT EXISTS (SELECT 1 FROM fx_month f WHERE f.month_block_id = m.id AND f.currency = split_part(t.reaction_ref, ':', 2))
-               ELSE NOT EXISTS (SELECT 1 FROM asset_month_return r JOIN asset a ON a.id = r.asset_id
-                                WHERE r.month_block_id = m.id AND a.market = split_part(t.reaction_ref, ':', 1) AND a.ticker = split_part(t.reaction_ref, ':', 2))
-          END;
+UNION ALL SELECT 'tags 의 반응 참조가 이 달의 값을 갖지 못한다: ' || u.event_key || ' ' || u.reaction_ref
+    FROM (SELECT t.event_key, t.reaction_ref FROM stg_ev_tags t JOIN month_block m ON m.month_start = t.month_start::date
+          WHERE CASE WHEN split_part(t.reaction_ref, ':', 1) = 'FX'
+                     THEN NOT EXISTS (SELECT 1 FROM fx_month f WHERE f.month_block_id = m.id AND f.currency = split_part(t.reaction_ref, ':', 2))
+                     ELSE NOT EXISTS (SELECT 1 FROM asset_month_return r JOIN asset a ON a.id = r.asset_id
+                                      WHERE r.month_block_id = m.id AND a.market = split_part(t.reaction_ref, ':', 1) AND a.ticker = split_part(t.reaction_ref, ':', 2))
+                END) u
+    ;
 
 -- 편집 완료 표와 태그의 교차 확인 (사건 없음 / 아직 안 봄 / 태그 있음)
 INSERT INTO ld_err
@@ -244,6 +264,23 @@ BEGIN
     END IF;
 END $$;
 
+-- [Scope] reviewed.csv months that exist in month_block (strict mode already stopped on any other month).
+CREATE TEMP TABLE ld_scope ON COMMIT DROP AS
+SELECT m.id AS month_block_id, r.month_start::date AS month_start
+FROM stg_ev_reviewed r JOIN month_block m ON m.month_start = r.month_start::date;
+
+CREATE TEMP TABLE ld_scope_stat ON COMMIT DROP AS
+SELECT (SELECT count(*) FROM stg_ev_tags t WHERE NOT EXISTS (SELECT 1 FROM ld_scope s WHERE s.month_start = t.month_start::date)) AS out_tags,
+       (SELECT count(*) FROM stg_ev_tags) AS all_tags,
+       (SELECT count(*) FROM stg_ev_reviewed) - (SELECT count(*) FROM ld_scope) AS out_months;
+DO $$
+DECLARE
+    st ld_scope_stat;
+BEGIN
+    SELECT * INTO st FROM ld_scope_stat;
+    RAISE NOTICE 'P0-09 적재 범위: 적재하지 않은 달 %개, 태그 %개 (month_block 밖, 파일 태그 %개)', st.out_months, st.out_tags, st.all_tags;
+END $$;
+
 -- [계산] reaction_change 와 strength (events/README.md "반응 변화율과 강도 경계")
 --   KR:·US: → asset_month_return.local_return, FX: → fx_month.fx_change. 반올림 없이 복사한다.
 CREATE TEMP TABLE ld_calc ON COMMIT DROP AS
@@ -251,6 +288,7 @@ SELECT t.event_key, m.id AS month_block_id, v.val AS reaction_change,
        CASE WHEN abs(v.val) >= 0.10 THEN 3 WHEN abs(v.val) >= 0.05 THEN 2 ELSE 1 END::smallint AS strength
 FROM stg_ev_tags t
 JOIN month_block m ON m.month_start = t.month_start::date
+JOIN ld_scope sc ON sc.month_block_id = m.id
 CROSS JOIN LATERAL (
     SELECT CASE WHEN split_part(t.reaction_ref, ':', 1) = 'FX'
                 THEN (SELECT f.fx_change FROM fx_month f
@@ -322,11 +360,16 @@ END $$;
 -- [편집 완료 표시] FALSE → TRUE 만. 이미 TRUE 인 달은 건드리지 않는다
 WITH u AS (
     UPDATE month_block m SET events_reviewed = TRUE
-    FROM stg_ev_reviewed r
+    FROM stg_ev_reviewed r JOIN ld_scope sc ON sc.month_start = r.month_start::date
     WHERE m.month_start = r.month_start::date AND NOT m.events_reviewed
     RETURNING 1)
 INSERT INTO ld_report (tbl, file_rows, changed_rows)
 SELECT 'month_block.events_reviewed (FALSE → TRUE 로 바꾼 달)', (SELECT count(*) FROM stg_ev_reviewed), (SELECT count(*) FROM u);
+
+-- Out of scope: file_rows = rows in the file, changed_rows = rows not loaded (always 0 in strict mode)
+INSERT INTO ld_report (tbl, file_rows, changed_rows)
+VALUES ('범위 밖 태그 (적재하지 않음)', (SELECT count(*) FROM stg_ev_tags), (SELECT out_tags FROM ld_scope_stat)),
+       ('범위 밖 달 (events_reviewed 를 건드리지 않음)', (SELECT count(*) FROM stg_ev_reviewed), (SELECT out_months FROM ld_scope_stat));
 
 -- [사후 단언] 이번 실행이 끝난 DB 기준: 태그 ⇒ 편집 완료, NONE ⇔ 태그 0건, TAGGED ⇔ 태그 1건 이상
 INSERT INTO ld_err
@@ -334,15 +377,15 @@ SELECT 'DB: 태그가 있는 달인데 events_reviewed 가 FALSE: ' || m.month_s
 FROM month_block m WHERE NOT m.events_reviewed AND EXISTS (SELECT 1 FROM month_event e WHERE e.month_block_id = m.id)
 UNION ALL
 SELECT 'DB: NONE 인 달에 태그가 있다: ' || r.month_start
-FROM stg_ev_reviewed r JOIN month_block m ON m.month_start = r.month_start::date
+FROM stg_ev_reviewed r JOIN ld_scope sc ON sc.month_start = r.month_start::date JOIN month_block m ON m.month_start = r.month_start::date
 WHERE r.result = 'NONE' AND EXISTS (SELECT 1 FROM month_event e WHERE e.month_block_id = m.id)
 UNION ALL
 SELECT 'DB: TAGGED 인 달에 태그가 없다: ' || r.month_start
-FROM stg_ev_reviewed r JOIN month_block m ON m.month_start = r.month_start::date
+FROM stg_ev_reviewed r JOIN ld_scope sc ON sc.month_start = r.month_start::date JOIN month_block m ON m.month_start = r.month_start::date
 WHERE r.result = 'TAGGED' AND NOT EXISTS (SELECT 1 FROM month_event e WHERE e.month_block_id = m.id)
 UNION ALL
 SELECT 'DB: reviewed.csv 의 달인데 events_reviewed 가 FALSE: ' || r.month_start
-FROM stg_ev_reviewed r JOIN month_block m ON m.month_start = r.month_start::date WHERE NOT m.events_reviewed;
+FROM stg_ev_reviewed r JOIN ld_scope sc ON sc.month_start = r.month_start::date JOIN month_block m ON m.month_start = r.month_start::date WHERE NOT m.events_reviewed;
 
 DO $$
 DECLARE

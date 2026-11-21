@@ -23,6 +23,15 @@
 -- 명령줄(psql)이 기준이다. VS Code 에서는 통합 터미널에서 실행한다.
 -- =====================================================================
 
+-- Scope: by default the checks compare the DB with the part of the files whose month is in month_block. -v require_all_months=1
+--        compares the full files and fails if any file month is missing from month_block (full load, plan run R-L). Must match the
+--        mode used for db/11_load_events.sql. Strict mode needs the R-L prep to adapt the Phase 0 constants of this file.
+
+\if :{?require_all_months}
+\else
+  \set require_all_months 0
+\endif
+
 -- 판정 표식: 트랜잭션이 되돌아가도 남는 임시 시퀀스 (1 = 미완료 또는 실패, 2 = 1–7절 통과·흔적 확인 대기, 0 = 최종 통과)
 CREATE TEMP SEQUENCE IF NOT EXISTS zz_verdict MINVALUE 0 START 1;
 DO $$ BEGIN
@@ -108,6 +117,16 @@ CREATE TEMP TABLE zz_rev (month_start text, result text);
   \copy zz_rev FROM 'events/reviewed.csv' WITH (FORMAT csv, HEADER MATCH)
 \endif
 
+-- Default mode drops file rows whose month is not in month_block from the comparison; strict mode drops nothing.
+CREATE TEMP TABLE zz_mode AS SELECT (:'require_all_months' = '1') AS strict, (:'require_all_months' IN ('0', '1')) AS valid;
+CREATE TEMP TABLE zz_scope_info AS
+SELECT (SELECT count(*) FROM zz_rev) AS file_months, (SELECT count(*) FROM zz_tags) AS file_tags,
+       (SELECT count(*) FROM zz_rev r WHERE NOT EXISTS (SELECT 1 FROM month_block m WHERE m.month_start = r.month_start::date)) AS months_not_in_block;
+DELETE FROM zz_tags t WHERE NOT (SELECT strict FROM zz_mode)
+    AND NOT EXISTS (SELECT 1 FROM month_block m WHERE m.month_start = t.month_start::date);
+DELETE FROM zz_rev r WHERE NOT (SELECT strict FROM zz_mode)
+    AND NOT EXISTS (SELECT 1 FROM month_block m WHERE m.month_start = r.month_start::date);
+
 -- 0 전제 -------------------------------------------------------------------
 -- 하나라도 FAIL 이면 1절 이후 결과를 믿지 않는다.
 
@@ -131,12 +150,20 @@ FROM (VALUES
              THEN 'ok' ELSE '파일 없음 또는 빈 파일' END),
     -- MVP: 100 → 재생 표본 달 수, REVIEWED_ALL 은 재생 표본 조건(erd 6.5 S1)으로 한정한다. "태그 달만 TRUE"로 완화하지 않는다
     ('10 적재가 끝나 있다 (month_block 100행)', '100', (SELECT count(*)::text FROM month_block)),
-    ('10 적재가 끝나 있다 (asset_month_return 이 비어 있지 않다)', 'true', (SELECT (count(*) > 0)::text FROM asset_month_return))
+    ('10 적재가 끝나 있다 (asset_month_return 이 비어 있지 않다)', 'true', (SELECT (count(*) > 0)::text FROM asset_month_return)),
+    ('require_all_months 는 0 또는 1', 'true', (SELECT valid::text FROM zz_mode)),
+    ('엄격 모드: reviewed.csv 의 달이 모두 month_block 에 있다 (기본 모드는 0 으로 기대하지 않는다)', '0',
+        CASE WHEN (SELECT strict FROM zz_mode) THEN (SELECT months_not_in_block::text FROM zz_scope_info) ELSE '0' END)
 ) AS x(item, expected, actual);
 
 -- 정보 행: 현재 DB 이름 (FAIL 아님)
 INSERT INTO zz_check_result (section, item, expected, actual, ok)
 VALUES ('0 전제', '현재 DB 이름 (정보)', '(정보)', current_database(), true);
+INSERT INTO zz_check_result (section, item, expected, actual, ok)
+SELECT '0 전제', '범위 (정보): 모드 ' || CASE WHEN z.strict THEN '엄격' ELSE '기본' END, '(정보)',
+       '파일 달 ' || i.file_months || ' · 파일 태그 ' || i.file_tags || ' · month_block 밖 달 ' || i.months_not_in_block
+       || ' · 대조 대상 태그 ' || (SELECT count(*) FROM zz_tags), true
+FROM zz_mode z, zz_scope_info i;
 
 -- 0절 결과를 먼저 보여 주고, FAIL 이 있으면 멈춘다 (표식은 1로 남아 ON_ERROR_STOP 없이도 마지막 줄이 FAIL 이다).
 SELECT seq, item, expected, actual, CASE WHEN ok THEN 'PASS' ELSE 'FAIL' END AS result
@@ -212,14 +239,14 @@ INSERT INTO zz_q (code, section, item, sql) VALUES
               IS DISTINCT FROM (m.month_start, e.category, e.event_type, e.phase, e.outcome, e.direction, e.title, e.source, e.hindsight)$q$),
     ('KEY_FORMAT', '2 대조·형식', 'event_key 가 ^ev[0-9]{4}\.[0-9]{2}$ 가 아닌 행 (날짜·이름이 키에 없다)',
      $q$SELECT count(*) FROM month_event WHERE event_key !~ '^ev[0-9]{4}\.[0-9]{2}$'$q$),
-    ('EPISODE', '2 대조·형식', '에피소드 규칙 위반 행 (유형·범주 혼합, 순번 빈틈, 달 비증가, START 가 01 아님, END 가 마지막 아님)',
+    ('EPISODE', '2 대조·형식', '에피소드 규칙 위반 행 (유형·범주 혼합, 순번 빈틈 — 기본 모드는 범위 밖 달이 빠진 빈틈을 허용한다 —, 달 비증가, START 가 01 아님, END 가 마지막 아님)',
      $q$WITH t AS (
             SELECT e.event_key, left(e.event_key, 6) AS ep, substr(e.event_key, 8)::integer AS seq, m.month_start, e.category, e.event_type, e.phase,
                    row_number() OVER w AS rn, count(*) OVER (PARTITION BY left(e.event_key, 6)) AS ep_n, lag(m.month_start) OVER w AS prev_month
             FROM month_event e JOIN month_block m ON m.id = e.month_block_id
             WINDOW w AS (PARTITION BY left(e.event_key, 6) ORDER BY e.event_key COLLATE "C"))
         SELECT (SELECT count(*) FROM (SELECT ep FROM t GROUP BY ep HAVING count(DISTINCT event_type) > 1 OR count(DISTINCT category) > 1) a)
-             + (SELECT count(*) FROM t WHERE seq <> rn)
+             + (SELECT count(*) FROM t WHERE CASE WHEN (SELECT strict FROM zz_mode) THEN seq <> rn ELSE seq < rn END)
              + (SELECT count(*) FROM t WHERE prev_month IS NOT NULL AND month_start <= prev_month)
              + (SELECT count(*) FROM t WHERE phase = 'START' AND seq <> 1)
              + (SELECT count(*) FROM t WHERE phase = 'END' AND rn <> ep_n)$q$),
