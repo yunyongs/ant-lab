@@ -20,8 +20,8 @@ describe('PoolList', () => {
     expect(first).toHaveTextContent('종목 가');
     expect(first).toHaveTextContent('KR');
     expect(first).toHaveTextContent('미드필더');
-    expect(first).toHaveTextContent('0.91000000');
-    expect(first).toHaveTextContent('-0.31000000');
+    expect(first).toHaveTextContent('0.91');
+    expect(first).toHaveTextContent('-31.00%');
     expect(second).toHaveTextContent('US');
     expect(second).toHaveTextContent('공격수·돌파형');
     expect(third).toHaveTextContent('채권 ETF 다');

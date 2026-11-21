@@ -20,7 +20,7 @@ describe('SeasonsPage', () => {
     if (!first) throw new Error('missing card');
     expect(within(first).getByText('진행 중')).toBeInTheDocument();
     expect(within(first).getByText('3 / 24턴')).toBeInTheDocument();
-    expect(within(first).getByText('-0.30000000 (-30%)')).toBeInTheDocument();
+    expect(within(first).getByText('-30.00%')).toBeInTheDocument();
     expect(within(first).getByText('62,300,000원')).toBeInTheDocument();
     expect(
       within(first).getByRole('link', { name: '이어하기' }),
@@ -29,7 +29,7 @@ describe('SeasonsPage', () => {
     const second = seasonCards[1];
     if (!second) throw new Error('missing card');
     expect(within(second).getByText('진행 중 · 팀 구성')).toBeInTheDocument();
-    expect(within(second).getByText('-0.20000000 (-20%)')).toBeInTheDocument();
+    expect(within(second).getByText('-20.00%')).toBeInTheDocument();
     expect(within(second).getByText('100,000,000원')).toBeInTheDocument();
     expect(
       within(second).getByRole('link', { name: '팀 구성하러 가기' }),

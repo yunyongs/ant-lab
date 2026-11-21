@@ -1,3 +1,5 @@
+import { formatDecimal } from '../format/decimal.ts';
+import { ratioToPercent } from '../format/ratio.ts';
 import { positionLabel } from '../seasons/labels.ts';
 import type { Holding, PoolAsset } from './queries.ts';
 import styles from './Team.module.css';
@@ -40,19 +42,19 @@ export function PoolCard({
       <dl className={styles.basis}>
         <div>
           <dt>상승 참여</dt>
-          <dd>{asset.upParticipation}</dd>
+          <dd>{formatDecimal(asset.upParticipation)}</dd>
         </div>
         <div>
           <dt>하락 참여</dt>
-          <dd>{asset.downParticipation}</dd>
+          <dd>{formatDecimal(asset.downParticipation)}</dd>
         </div>
         <div>
           <dt>변동성</dt>
-          <dd>{asset.volatility}</dd>
+          <dd>{ratioToPercent(asset.volatility)}</dd>
         </div>
         <div>
           <dt>최대 낙폭</dt>
-          <dd>{asset.maxDrawdown}</dd>
+          <dd>{ratioToPercent(asset.maxDrawdown)}</dd>
         </div>
       </dl>
       {holding && (

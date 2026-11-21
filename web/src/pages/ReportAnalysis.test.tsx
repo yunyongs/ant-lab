@@ -45,7 +45,7 @@ describe('report analysis blocks', () => {
     await openReport();
 
     const noise = block('소음 반응');
-    expect(valueOf(noise, '소음을 따른 비중')).toBe('0.31250000 (31.25%)');
+    expect(valueOf(noise, '소음을 따른 비중')).toBe('31.25%');
     expect(valueOf(noise, '매매한 턴')).toBe('9턴');
     expect(valueOf(noise, '따라 산 금액')).toBe('1,234,000원');
     expect(valueOf(noise, '따라 판 금액')).toBe('567,000원');
@@ -68,13 +68,13 @@ describe('report analysis blocks', () => {
       '직접7건7,500,000원7,500원',
     ]);
     expect(valueOf(platform, '랭킹·알림에서 시작된 수수료')).toBe('6,400원');
-    expect(valueOf(platform, '그 몫의 비중')).toBe('0.21262000 (21.262%)');
+    expect(valueOf(platform, '그 몫의 비중')).toBe('21.26%');
 
     const change = block('전술 변경 뒤 6턴 효과');
     const items = within(change).getAllByRole('listitem');
     expect(items.map((li) => li.textContent)).toEqual([
-      '3턴 변경 · 6턴 뒤 · 151,000원 (0.151%)',
-      '8턴 변경 · 4턴 뒤 · -262,000원 (-0.262%)',
+      '3턴 변경 · 6턴 뒤 · 151,000원 (0.15%)',
+      '8턴 변경 · 4턴 뒤 · -262,000원 (-0.26%)',
     ]);
   });
 
@@ -98,7 +98,7 @@ describe('report analysis blocks', () => {
       '해당 없음 (총 수수료가 0입니다)',
     );
     expect(valueOf(platform, '랭킹·알림에서 시작된 수수료')).toBe('6,400원');
-    expect(within(platform).queryByText(/0%/)).toBeNull();
+    expect(within(platform).queryByText(/(^|[^\d.])0\.00%/)).toBeNull();
   });
 
   it('A3 tells null effects from an empty list, keeps equal turns and a minus sign', async () => {
@@ -148,8 +148,8 @@ describe('report analysis blocks', () => {
       'listitem',
     );
     expect(items.map((li) => li.textContent)).toEqual([
-      '4턴 변경 · 6턴 뒤 · -5,000원 (-0.005%)',
-      '4턴 변경 · 2턴 뒤 · 7,000원 (0.007%)',
+      '4턴 변경 · 6턴 뒤 · -5,000원 (-0.01%)',
+      '4턴 변경 · 2턴 뒤 · 7,000원 (0.01%)',
     ]);
     expect(block('전술 변경 뒤 6턴 효과')).not.toHaveTextContent(/손실|이익/);
   });
@@ -179,7 +179,7 @@ describe('report analysis blocks', () => {
     const allowed = new Set(
       [
         ...JSON.stringify(platform).matchAll(/\d+/g),
-        ...['21', '262'].map((digits) => [digits]),
+        ...['21', '26', '15'].map((digits) => [digits]),
         ...['0', '1'].map((digits) => [digits]),
       ].map((match) => match[0]),
     );

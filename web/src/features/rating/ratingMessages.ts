@@ -1,3 +1,5 @@
+import { formatDecimal } from '../format/decimal.ts';
+
 export const RATING_TITLE = '매니저 레이팅';
 export const RATING_LOADING_TEXT = '레이팅을 불러오는 중입니다…';
 export const RATING_ERROR_TEXT = '레이팅을 지금 불러오지 못했습니다.';
@@ -6,7 +8,7 @@ export const RATING_NONE_TEXT = '레이팅이 아직 없습니다.';
 export const HISTORY_TITLE = '레이팅 이력 (최근 시즌부터)';
 export const NO_RATING_MARK = '—';
 
-export const ratingValueText = (rating: string) => `${rating}점`;
+export const ratingValueText = (rating: string) => `${formatDecimal(rating)}점`;
 export const countedText = (counted: number) =>
   `집계 시즌 ${String(counted)}개`;
 export const missingText = (missing: number, counted: number) =>
@@ -24,4 +26,4 @@ export const historyRowText = (
   score: string,
   rating: string | null,
 ) =>
-  `시즌 ${String(seasonId)} · ${score}점 · 레이팅 ${rating ?? NO_RATING_MARK}`;
+  `시즌 ${String(seasonId)} · ${formatDecimal(score)}점 · 레이팅 ${rating === null ? NO_RATING_MARK : formatDecimal(rating)}`;

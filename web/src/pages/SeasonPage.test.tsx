@@ -14,7 +14,7 @@ describe('SeasonPage', () => {
     const summary = await screen.findByRole('region', { name: '시즌 요약' });
     expect(within(summary).getByText('진행 중 · 팀 구성')).toBeInTheDocument();
     expect(within(summary).getByText('0 / 12턴')).toBeInTheDocument();
-    expect(within(summary).getByText('-0.20000000 (-20%)')).toBeInTheDocument();
+    expect(within(summary).getByText('-20.00%')).toBeInTheDocument();
     expect(within(summary).getByText('100,000,000원')).toBeInTheDocument();
     expect(
       within(summary).getByText(

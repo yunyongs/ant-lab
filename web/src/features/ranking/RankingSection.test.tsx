@@ -34,7 +34,7 @@ describe('RankingSection', () => {
     const rows = await within(region).findAllByRole('listitem');
     expect(rows.map((r) => r.textContent)).toEqual([
       '1위종목 나12.34%',
-      '2위종목 가5%',
+      '2위종목 가5.00%',
       '1위채권 ETF 다-7.25%',
     ]);
   });
@@ -49,7 +49,7 @@ describe('RankingSection', () => {
       within(panel)
         .getAllByRole('listitem')
         .map((r) => r.textContent),
-    ).toEqual(['1위종목 가4턴 연속5%']);
+    ).toEqual(['1위종목 가4턴 연속5.00%']);
     expect(within(panel).getByText('해당하는 종목이 없습니다')).toBeVisible();
   });
 

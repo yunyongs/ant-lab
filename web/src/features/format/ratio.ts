@@ -1,3 +1,5 @@
+import { groupThousands, roundDecimalText } from './decimal.ts';
+
 const DECIMAL = /^(-?)(\d+)(?:\.(\d+))?$/;
 
 interface Shifted {
@@ -28,17 +30,26 @@ function join(shifted: Shifted, fraction: string): string {
     : `${sign}${shifted.whole}.${fraction}`;
 }
 
-// "-0.20000000" -> "-20%"; text only, trailing zeros trimmed.
+// "-0.20000000" -> "-20.00%": percent with exactly two decimals, rounded half
+// away from zero on the text so columns align.
 export function ratioToPercent(value: string): string {
   const shifted = shiftTwo(value);
   if (shifted === null) return value;
-  return `${join(shifted, shifted.fraction.replace(/0+$/, ''))}%`;
+  const rounded = roundDecimalText(join(shifted, shifted.fraction), 2);
+  if (rounded === null) return value;
+  const sign = rounded.negative ? '-' : '';
+  return `${sign}${groupThousands(rounded.whole)}.${rounded.fraction}%`;
 }
 
-// "-0.20000000" -> "-0.20000000 (-20%)".
-export function ratioWithPercent(value: string): string {
+// Choice labels such as "-20%": the same rounding, trailing zeros trimmed.
+export function ratioToPercentTrimmed(value: string): string {
   const percent = ratioToPercent(value);
-  return percent === value ? value : `${value} (${percent})`;
+  return percent === value ? value : percent.replace(/\.?0+%$/, '%');
+}
+
+// The raw ratio is no longer shown next to the percent (it has up to 8 decimals).
+export function ratioWithPercent(value: string): string {
+  return ratioToPercent(value);
 }
 
 // "0.62000000" -> "62.000000%", for a CSS width (no trimming needed).
@@ -54,8 +65,6 @@ export function ratioToPoints(value: string): string {
   return percent === value ? value : `${percent.slice(0, -1)}%p`;
 }
 
-// "0.05120000" -> "0.05120000 (5.12%p)": the same text trick, labelled as a gap.
 export function ratioWithPoints(value: string): string {
-  const points = ratioToPoints(value);
-  return points === value ? value : `${value} (${points})`;
+  return ratioToPoints(value);
 }

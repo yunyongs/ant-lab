@@ -49,13 +49,9 @@ describe('review facts', () => {
     const attention = block('관심 추종');
     expect(attention).toHaveTextContent('점수에는 들어가지 않습니다.');
     expect(valueOf(attention, '관심 상위 종목 매수')).toBe('4건 · 8,100,000원');
-    expect(valueOf(attention, '관심 상위 매수의 6턴 뒤 수익률')).toBe(
-      '0.04500000 (4.5%)',
-    );
+    expect(valueOf(attention, '관심 상위 매수의 6턴 뒤 수익률')).toBe('4.50%');
     expect(valueOf(attention, '그 밖의 매수')).toBe('11건 · 9,200,000원');
-    expect(valueOf(attention, '그 밖의 매수의 6턴 뒤 수익률')).toBe(
-      '0.01750000 (1.75%)',
-    );
+    expect(valueOf(attention, '그 밖의 매수의 6턴 뒤 수익률')).toBe('1.75%');
     expect(
       valueOf(attention, '창이 끝나지 않아 어느 쪽에도 넣지 않은 매수'),
     ).toBe('2건');
@@ -65,7 +61,7 @@ describe('review facts', () => {
     expect(valueOf(defender, '시장이 내린 턴')).toBe('5턴');
     expect(valueOf(defender, '득점')).toBe('8회');
     expect(valueOf(defender, '득점 금액')).toBe('777,000원');
-    expect(valueOf(defender, '득점 수익률')).toBe('0.00777000 (0.777%)');
+    expect(valueOf(defender, '득점 수익률')).toBe('0.78%');
   });
 
   it('A6 takes the window length from windowTurns and gives reasons for null returns', async () => {

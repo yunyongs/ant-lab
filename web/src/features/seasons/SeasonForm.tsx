@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { messageFor, UNREACHABLE_TEXT } from '../../api/errorMessages.ts';
 import { ProblemError } from '../../api/problem.ts';
 import { SEASON_START_DISCLOSURE } from '../feed/feedMessages.ts';
-import { ratioToPercent } from '../format/ratio.ts';
+import { ratioToPercentTrimmed } from '../format/ratio.ts';
 import {
   checkFormation,
   FORMATION_PROBLEM_TEXT,
@@ -120,7 +120,7 @@ export function SeasonForm({
                   setRisk(value);
                 }}
               />
-              <span>{ratioToPercent(value)}</span>
+              <span>{ratioToPercentTrimmed(value)}</span>
             </label>
           ))}
         </div>

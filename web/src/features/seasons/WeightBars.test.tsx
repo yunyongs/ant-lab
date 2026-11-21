@@ -19,8 +19,8 @@ describe('WeightBars', () => {
     for (const label of ['골키퍼', '수비수', '미드필더', '공격수']) {
       expect(screen.getByText(label)).toBeInTheDocument();
     }
-    expect(screen.getByText('40% / 목표 40%')).toBeInTheDocument();
-    expect(screen.getByText('10% / 목표 10%')).toBeInTheDocument();
+    expect(screen.getByText('40.00% / 목표 40%')).toBeInTheDocument();
+    expect(screen.getByText('10.00% / 목표 10%')).toBeInTheDocument();
     expect(screen.getByTestId('fill-defender').style.width).toBe('30%');
     const marks = container.querySelectorAll<HTMLElement>('[class*="target"]');
     expect(Array.from(marks).map((m) => m.style.left)).toEqual([
@@ -51,10 +51,10 @@ describe('WeightBars', () => {
       />,
     );
     expect(
-      screen.getByText('40% / 목표 40% (0%p) · 40,000,000원'),
+      screen.getByText('40.00% / 목표 40% (0.00%p) · 40,000,000원'),
     ).toBeInTheDocument();
     expect(
-      screen.getByText('30% / 목표 30% (-3.1%p) · 30,000,000원'),
+      screen.getByText('30.00% / 목표 30% (-3.10%p) · 30,000,000원'),
     ).toBeInTheDocument();
     expect(screen.getByText(/\(15.88%p\)/)).toBeInTheDocument();
   });

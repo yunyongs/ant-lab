@@ -47,12 +47,12 @@ describe('ProjectionPage', () => {
       '103,456,700원',
       '114,567,800원',
       '125,678,900원',
-      '-31%',
-      '-24%',
-      '-15%',
-      '-8%',
-      '-4%',
-      '-1%',
+      '-31.00%',
+      '-24.00%',
+      '-15.00%',
+      '-8.00%',
+      '-4.00%',
+      '-1.00%',
     ]) {
       expect(within(first).getByText(text)).toBeInTheDocument();
     }
@@ -60,11 +60,11 @@ describe('ProjectionPage', () => {
       within(first).getByText('10% 확률로 이보다 나쁨'),
     ).toBeInTheDocument();
     expect(
-      within(first).getByText('위험 선언(-20%)을 넘길 확률 12.34%'),
+      within(first).getByText('위험 선언(-20.00%)을 넘길 확률 12.34%'),
     ).toBeInTheDocument();
     const second = block('60턴 뒤 (5년)');
     expect(
-      within(second).getByText('위험 선언(-20%)을 넘길 확률 38.76%'),
+      within(second).getByText('위험 선언(-20.00%)을 넘길 확률 38.76%'),
     ).toBeInTheDocument();
     expect(
       screen.getByText('지금 팀 · 4턴 · 총 평가액 100,000,000원'),

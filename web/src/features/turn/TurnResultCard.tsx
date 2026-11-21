@@ -79,7 +79,7 @@ export function TurnResultCard({ turn }: { turn: TurnResult }) {
           </div>
           <div className={styles.row}>
             <dt>한도까지 여유</dt>
-            <dd>{`${turn.riskHeadroom} (${ratioToPoints(turn.riskHeadroom)})`}</dd>
+            <dd>{ratioToPoints(turn.riskHeadroom)}</dd>
           </div>
         </dl>
       </section>
