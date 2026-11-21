@@ -37,6 +37,7 @@ TOKEN_REUSE_SECONDS = 3600  # 남은 시간이 이보다 길면 캐시 토큰을
 TOKEN_RETRY_WAIT = 65  # 토큰 재발급은 1분에 1회
 RATE_LIMIT_CODE = "EGW00201"
 RATE_RETRY_WAITS = (1, 2, 4)
+CONNECTION_RETRY_WAITS = (2, 5, 10)  # GET only: retries after a failure where no HTTP response arrived
 DOMESTIC_PAGE = 100
 OVERSEAS_PAGE = 100
 
@@ -142,20 +143,37 @@ class KisClient:
             self.clock.sleep(wait)
         self._last_call = self.clock.now()
 
+    def _refresh_session(self) -> None:
+        """Drop pooled connections so a retry opens a fresh one (a stale keep-alive socket resets on reuse)."""
+        close = getattr(self._session, "close", None)
+        if callable(close):
+            try:
+                close()
+            except Exception:
+                pass
+
     def _send(self, method: str, path: str, **kwargs: Any) -> Any:
         tr_id = (kwargs.get("headers") or {}).get("tr_id")
         check_path(path, method, tr_id)
-        if self.max_requests is not None and self.requests_made >= self.max_requests:
-            raise BudgetExhausted(self._m(f"요청 상한 {self.max_requests}건에 닿았다 — 더 보내지 않는다"), reason="BUDGET")
-        self._throttle()
-        if self.on_send is not None:
-            self.on_send()  # after the wait: nothing leaves after the window closes
-        self.requests_made += 1
+        retry_waits = CONNECTION_RETRY_WAITS if method == "get" else ()
         kwargs.pop("allow_redirects", None)  # 호출부가 바꿀 수 없다
-        try:
-            resp = getattr(self._session, method)(self.base + path, timeout=30, allow_redirects=False, **kwargs)
-        except Exception as exc:  # requests 예외 메시지에 URL·머리글이 들어갈 수 있다
-            raise self._fail(f"{method.upper()} {path} 연결 실패: {type(exc).__name__}: {exc}", "CONNECTION") from None
+        attempt = 0
+        while True:
+            if self.max_requests is not None and self.requests_made >= self.max_requests:
+                raise BudgetExhausted(self._m(f"요청 상한 {self.max_requests}건에 닿았다 — 더 보내지 않는다"), reason="BUDGET")
+            self._throttle()
+            if self.on_send is not None:
+                self.on_send()  # after the wait: nothing leaves after the window closes
+            self.requests_made += 1
+            try:
+                resp = getattr(self._session, method)(self.base + path, timeout=30, allow_redirects=False, **kwargs)
+                break
+            except Exception as exc:  # requests 예외 메시지에 URL·머리글이 들어갈 수 있다
+                if attempt >= len(retry_waits):
+                    raise self._fail(f"{method.upper()} {path} 연결 실패: {type(exc).__name__}: {exc}", "CONNECTION") from None
+                self.clock.sleep(retry_waits[attempt])
+                attempt += 1
+                self._refresh_session()
         status = getattr(resp, "status_code", 0)
         if isinstance(status, int) and 300 <= status < 400:
             raise self._fail(f"{method.upper()} {path}: 리다이렉트 응답 HTTP {status} — 따라가지 않는다", "REDIRECT")
