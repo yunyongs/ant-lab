@@ -8,6 +8,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import antlab.agent.memory.AgentMemoryRepository;
 import antlab.common.error.DomainException;
 import antlab.common.error.ErrorCode;
 import antlab.league.SeasonEntryService;
@@ -35,14 +36,19 @@ class AgentSeasonServiceTest {
     private final SeasonEntryService starts = mock(SeasonEntryService.class);
     private final SeasonRepository seasons = mock(SeasonRepository.class);
     private final PersonaVersionService personas = mock(PersonaVersionService.class);
+    private final AgentMemoryRepository memories = mock(AgentMemoryRepository.class);
     private final ScriptedClock clock = new ScriptedClock();
     private final AgentSeasonService service = new AgentSeasonService(currentMember, profiles, configs, starts, seasons,
-            new AgentRunnerProperties("x".repeat(32), 1L, 5), personas, clock);
+            new AgentRunnerProperties("x".repeat(32), 1L, 5), personas, memories, clock);
 
     private static StartAgentSeasonRequest request(String modelRequested) {
+        return request(modelRequested, null);
+    }
+
+    private static StartAgentSeasonRequest request(String modelRequested, Integer memoryVersion) {
         return new StartAgentSeasonRequest(new BigDecimal("-0.20"), new FormationDto(10, 30, 30, 30), null, null,
                 new AgentSeasonConfigRequest(1, "a".repeat(64), "Value", modelRequested, new BigDecimal("0.7"), null, 2000,
-                        60000, "p1", "r1", null, 100, new BigDecimal("1.5")));
+                        60000, "p1", "r1", memoryVersion, 100, new BigDecimal("1.5")));
     }
 
     private void agentExists() {
@@ -109,5 +115,33 @@ class AgentSeasonServiceTest {
 
         assertThatThrownBy(() -> service.start(AGENT, request("fake/model-1")))
                 .isInstanceOf(IllegalStateException.class).hasMessage("reached the start");
+    }
+
+    @Test
+    void aMemoryVersionTheAgentDoesNotHaveIsMEMORY_VERSION_UNKNOWNAndStartsNothing() {
+        when(currentMember.ensureId()).thenReturn(AGENT);
+        agentExists();
+        when(memories.existsByMemberIdAndVersion(AGENT, 3)).thenReturn(false);
+
+        assertThatThrownBy(() -> service.start(AGENT, request("fake/model-1", 3)))
+                .isInstanceOfSatisfying(DomainException.class,
+                        e -> assertThat(e.getCode()).isEqualTo(ErrorCode.MEMORY_VERSION_UNKNOWN));
+        verify(starts, never()).start(any());
+        verify(configs, never()).save(any());
+    }
+
+    @Test
+    void anExistingOlderMemoryVersionIsAcceptedAndNullAsksNoLookup() {
+        when(currentMember.ensureId()).thenReturn(AGENT);
+        agentExists();
+        when(memories.existsByMemberIdAndVersion(AGENT, 1)).thenReturn(true);
+        when(starts.start(any())).thenThrow(new IllegalStateException("reached the start"));
+
+        assertThatThrownBy(() -> service.start(AGENT, request("fake/model-1", 1)))
+                .isInstanceOf(IllegalStateException.class).hasMessage("reached the start");
+        assertThatThrownBy(() -> service.start(AGENT, request("fake/model-1", null)))
+                .isInstanceOf(IllegalStateException.class).hasMessage("reached the start");
+        verify(memories).existsByMemberIdAndVersion(AGENT, 1);
+        org.mockito.Mockito.verifyNoMoreInteractions(memories);
     }
 }

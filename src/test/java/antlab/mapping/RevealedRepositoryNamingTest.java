@@ -57,7 +57,9 @@ class RevealedRepositoryNamingTest {
 
     /** Only these sources may mention the reveal queries. */
     static final Set<String> CALLERS = Set.of("antlab/season/SeasonPathRepository.java", "antlab/season/SeasonReviewService.java",
-            "antlab/season/TurnFeedRepository.java", "antlab/account/OrderService.java");
+            "antlab/season/TurnFeedRepository.java", "antlab/account/OrderService.java",
+            // the memory leak filter reads every month_event title as a leak term; it never returns one
+            "antlab/history/MonthEventRepository.java", "antlab/agent/memory/MemoryLeakFilters.java");
 
     /** The engine exemption is declared in its repository and called only by the two path sources (in-process and engine). */
     static final Set<String> ENGINE_CALLERS = Set.of("antlab/history/MonthBlockRepository.java", "antlab/engine/BootstrapPathSource.java",

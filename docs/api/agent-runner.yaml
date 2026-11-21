@@ -102,10 +102,10 @@ paths:
                 $ref: '#/components/schemas/Problem'
         '409':
           description: |-
-            A season cannot be started now — POOL_NOT_LOADED, POOL_NOT_JUDGED, SEASON_LIMIT (3 in progress, or the weekly limit), AGENT_RETIRED, PERSONA_VERSION_CONFLICT (the persona version is recorded with another file hash, or this hash with another version), PERSONA_VERSION_STALE (a newer persona version is recorded); with a leagueId: LEAGUE_CLOSED, LEAGUE_SEAT_TAKEN (one seat per member), LEAGUE_FULL, LEAGUE_STALE (the settings or the path no longer match the league's). The start records the persona version on first use; on refusal no season is left
+            A season cannot be started now — POOL_NOT_LOADED, POOL_NOT_JUDGED, SEASON_LIMIT (3 in progress, or the weekly limit), AGENT_RETIRED, PERSONA_VERSION_CONFLICT (the persona version is recorded with another file hash, or this hash with another version), PERSONA_VERSION_STALE (a newer persona version is recorded); with a leagueId: LEAGUE_CLOSED, LEAGUE_SEAT_TAKEN (one seat per member), LEAGUE_FULL, LEAGUE_STALE (the settings or the path no longer match the league's). A config.memoryVersion the agent does not have: MEMORY_VERSION_UNKNOWN (null keeps no memory; an older existing version is allowed). The start records the persona version on first use; on refusal no season is left
 
-            지금은 시작할 수 없다 — POOL_NOT_LOADED, POOL_NOT_JUDGED, SEASON_LIMIT(진행 중 3개 또는 주간 상한), AGENT_RETIRED, PERSONA_VERSION_CONFLICT(그 페르소나 버전이 다른 파일 해시로, 또는 이 해시가 다른 버전으로 기록되어 있다), PERSONA_VERSION_STALE(더 새로운 페르소나 버전이 기록되어 있다). leagueId 가 있으면 LEAGUE_CLOSED, LEAGUE_SEAT_TAKEN(회원당 한 자리), LEAGUE_FULL, LEAGUE_STALE(설정이나 경로가 리그와 달라졌다). 처음 쓰는 페르소나 버전은 시작 때 기록하고, 거절하면 시즌이 남지 않는다
-          x-error-codes: [POOL_NOT_LOADED, POOL_NOT_JUDGED, SEASON_LIMIT, AGENT_RETIRED, PERSONA_VERSION_CONFLICT, PERSONA_VERSION_STALE, LEAGUE_CLOSED, LEAGUE_SEAT_TAKEN, LEAGUE_FULL, LEAGUE_STALE]
+            지금은 시작할 수 없다 — POOL_NOT_LOADED, POOL_NOT_JUDGED, SEASON_LIMIT(진행 중 3개 또는 주간 상한), AGENT_RETIRED, PERSONA_VERSION_CONFLICT(그 페르소나 버전이 다른 파일 해시로, 또는 이 해시가 다른 버전으로 기록되어 있다), PERSONA_VERSION_STALE(더 새로운 페르소나 버전이 기록되어 있다). leagueId 가 있으면 LEAGUE_CLOSED, LEAGUE_SEAT_TAKEN(회원당 한 자리), LEAGUE_FULL, LEAGUE_STALE(설정이나 경로가 리그와 달라졌다). config.memoryVersion 이 에이전트에 없는 버전이면 MEMORY_VERSION_UNKNOWN(null 은 메모리 없음, 이전 버전도 있으면 허용). 처음 쓰는 페르소나 버전은 시작 때 기록하고, 거절하면 시즌이 남지 않는다
+          x-error-codes: [POOL_NOT_LOADED, POOL_NOT_JUDGED, SEASON_LIMIT, AGENT_RETIRED, PERSONA_VERSION_CONFLICT, PERSONA_VERSION_STALE, LEAGUE_CLOSED, LEAGUE_SEAT_TAKEN, LEAGUE_FULL, LEAGUE_STALE, MEMORY_VERSION_UNKNOWN]
           content:
             application/problem+json:
               schema:
@@ -1995,4 +1995,4 @@ components:
              INVALID_FORMATION, EVENT_TIME_CONFLICT, RECONCILIATION_FAILED, SEASON_HALTED, FORBIDDEN, EMAIL_TAKEN,
              UNAUTHENTICATED, INVALID_CREDENTIALS, AGENT_RETIRED, DECISION_CONFLICT, DECISION_MISSING,
              PERSONA_VERSION_CONFLICT, PERSONA_VERSION_STALE, LEAGUE_NOT_SETTLED, LEAGUE_CLOSED, LEAGUE_SEAT_TAKEN,
-             LEAGUE_FULL, LEAGUE_STALE, LEAGUE_OPEN]
+             LEAGUE_FULL, LEAGUE_STALE, LEAGUE_OPEN, MEMORY_VERSION_UNKNOWN]

@@ -24,8 +24,11 @@ import org.springframework.jdbc.core.JdbcTemplate;
 @JpaMappingTest
 class EnumCheckContractTest {
 
-    /** 예외: fx_month.currency 는 원화 행이 없어 CHECK(USD) ⊆ enum(KRW, USD). 이유는 erd 5.3 fx_month. */
-    private static final Set<String> SUBSET_ALLOWED = Set.of("fx_month.currency");
+    /**
+     * 예외: fx_month.currency 는 원화 행이 없어 CHECK(USD) ⊆ enum(KRW, USD). 이유는 erd 5.3 fx_month.
+     * agent_memory.source_outcome: CHECK(ACCEPTED) ⊆ enum(ACCEPTED, DISCARDED); only an accepted reflection makes a version (erd 15).
+     */
+    private static final Set<String> SUBSET_ALLOWED = Set.of("fx_month.currency", "agent_memory.source_outcome");
 
     @Autowired
     EntityManager em;

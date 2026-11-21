@@ -21,7 +21,7 @@ DECLARE
         'fx_month', 'month_event', 'asset_month_attention'];
     append_tables constant text[] := ARRAY['season_path', 'turn', 'turn_price', 'formation_change', 'turn_feed',
         'reconciliation_log', 'orders', 'execution', 'cash_ledger', 'asset_daily_price', 'season_agent_config',
-        'persona_version', 'league', 'league_entry', 'agent_call', 'season_score', 'rating_history', 'projection', 'series', 'series_observation'];
+        'persona_version', 'league', 'league_entry', 'agent_call', 'agent_reflection', 'agent_memory', 'season_score', 'rating_history', 'projection', 'series', 'series_observation'];
     mutable_tables constant text[] := ARRAY['member', 'season', 'cash_account', 'holding', 'lineup', 'refresh_token',
         'agent_profile', 'job_run'];
     regime_table constant text := 'month_block';
