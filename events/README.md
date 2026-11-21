@@ -61,7 +61,7 @@ Phase 0 표본 100개 달(2007-01–2012-04, 2023-01–2025-12 — P0-08)에 **�
 | `PANDEMIC` | HEALTH | 감염병 대유행 | (빈 칸) | NONE | `US:SPY;KR:069500` |
 | `FISCAL_STANDOFF` | POLICY | 예산·부채 한도 대치와 정부 폐쇄 | `SHUTDOWN;RESOLVED` | NONE | `US:SPY;US:TLT` |
 | `FISCAL_STIMULUS` | POLICY | 대규모 재정 부양·구제 법안 | (빈 칸) | NONE | `US:SPY;KR:069500` |
-| `MONETARY_EASING` | POLICY | 통화 완화(인하·자산 매입) | `RATE_CUT;ASSET_PURCHASE;EMERGENCY_CUT` | NONE | `US:TLT;US:SHY;US:SPY;KR:069500` |
+| `MONETARY_EASING` | POLICY | 통화 완화(인하·자산 매입) | `RATE_CUT;ASSET_PURCHASE;EMERGENCY_CUT;FRAMEWORK_CHANGE` | NONE | `US:TLT;US:SHY;US:SPY;KR:069500` |
 | `MONETARY_TIGHTENING` | POLICY | 통화 긴축(인상·자산 매입 축소) | `RATE_HIKE;ASSET_PURCHASE_CUT;BALANCE_SHEET_CUT;SIGNALED` | NONE | `US:TLT;US:SHY;US:SPY;KR:069500` |
 | `KR_LEGISLATIVE_ELECTION` | POLITICS | 한국 총선 | `MAJORITY_GAINED;MAJORITY_KEPT;MAJORITY_LOST;MINORITY_KEPT` | NONE | `KR:069500` |
 | `KR_PRESIDENTIAL_ELECTION` | POLITICS | 한국 대선 | `CHANGE;KEEP` | NONE | `KR:069500` |
@@ -89,7 +89,7 @@ Phase 0 표본 100개 달(2007-01–2012-04, 2023-01–2025-12 — P0-08)에 **�
 | `HALTED` | 증시 폭락 | 한국 또는 미국 시장 전체의 거래가 멈춤(서킷 브레이커 발동, 거래소 휴장) |
 | `ESCALATED` / `CEASEFIRE` | 무력 분쟁, 국가 부채 위기(`ESCALATED`만) | 확전·확산 / 휴전 |
 | `AGREED` / `COLLAPSED` | 정상회담·평화 협상 | 공동 선언·합의 서명 / 합의 없이 결렬 |
-| `RATE_CUT` / `EMERGENCY_CUT` / `ASSET_PURCHASE` | 통화 완화 | 정례 인하 / 정례 회의 밖 긴급 인하 / 자산 매입 계획 발표 |
+| `RATE_CUT` / `EMERGENCY_CUT` / `ASSET_PURCHASE` / `FRAMEWORK_CHANGE` | 통화 완화 | 정례 인하 / 정례 회의 밖 긴급 인하 / 자산 매입 계획 발표 / 중앙은행이 새 정책 틀이나 목표 체제를 발표(수익률 곡선 통제와 그 변동 허용 폭·목표 변경, 평균 물가 목표 전략 등. 기존 프로그램의 규모 변경은 아님) |
 | `RATE_HIKE` / `ASSET_PURCHASE_CUT` / `BALANCE_SHEET_CUT` / `SIGNALED` | 통화 긴축 | 정책금리 인상 / 자산 매입 규모 축소 결정 / 보유 자산 축소 시작 결정 / 축소·인상 예고(결정은 아직 없음) |
 | `SHUTDOWN` / `RESOLVED` | 예산·부채 한도 대치 | 정부 업무 정지가 시작됨 / 예산·부채 한도 법안 서명으로 해소 |
 | `IMPOSED` / `RETALIATED` / `PAUSED` / `AGREED` | 관세 | 부과 / 맞대응 / 유예 / 합의 |
@@ -161,42 +161,44 @@ Phase 0 표본 100개 달(2007-01–2012-04, 2023-01–2025-12 — P0-08)에 **�
 - 세부 편집(작은 사건) — EXT.
 - 사건 카드 문장의 유형·결과별 템플릿 — 소음 짝이 함께 필요해 P0-18 또는 EXT에서 새 id로 더한다.
 
-## MVP extension drafting rules (MVP-07, 07-B..E) / MVP 확장 편집 규칙
+## MVP extension drafting rules (MVP-07, 07-B..F) / MVP 확장 편집 규칙
 
 ### English
 
-These rules add to everything above (formats, T1–T4, selection rules 1–4, episode rules, sources). They apply to the four drafting PRs: 07-B 1997-01–2001-12, 07-C 2002-01–2006-12, 07-D 2012-05–2017-12, 07-E 2018-01–2022-12.
+These rules add to everything above (formats, T1–T4, selection rules 1–4, episode rules, sources). They apply to the four drafting PRs: 07-B 1997-01–2001-12, 07-C 2002-01–2006-12, 07-D 2012-05–2017-12, 07-E 2018-01–2022-12. 07-F (foreign central-bank sweep) adds rows in any era under the same rules.
 
 1. **Types are fixed for drafting.** Use only `types.csv`. If an event fits no type, put it in the hold list with the reason; a new type needs its own reviewed change to `types.csv` (07-A rules: no year, no proper noun, two-letter tokens only `US`/`KR`, reusable for three or more episodes across 1997–2025).
-2. **Every month of the era gets a `reviewed.csv` row** (`TAGGED` or `NONE`). Regular elections are always tagged (rule 1): US presidential elections and midterms (November), KR presidential elections (1997-12, 2002-12, 2012-12, 2017-05, 2022-03) and KR legislative elections (2000-04, 2004-04, 2016-04, 2020-04). The `outcome` is blank when the result was not settled at month end (a decisive recount or court case still open); add an `ONGOING` row with the outcome in the month it was settled (T3).
+2. **Every month of the era gets a `reviewed.csv` row** (`TAGGED` or `NONE`). Regular elections are always tagged (rule 1): US presidential elections and midterms (November), KR presidential elections (1997-12, 2002-12, 2012-12, 2017-05, 2022-03) and KR legislative elections (2000-04, 2004-04, 2016-04, 2020-04). The `outcome` is blank when the result was not settled at month end (a decisive recount or court case still open); add an `ONGOING` row with the outcome in the month it was settled (T3). Major foreign central banks (the Bank of Japan, the ECB, the People's Bank of China) are checked in every era: their move is tagged when it is front-page news in KR or US, even though the asset pool stays KR/US.
 3. **Type choice.**
    - Official devaluation or a dropped peg → `CURRENCY_SHOCK` `DEVALUED`; an IMF or bilateral rescue of a currency crisis → `CURRENCY_SHOCK` `RESCUED`. A sovereign default → `SOVEREIGN_DEBT` `DEFAULTED`. A default and a devaluation of the same country in the same month are one tag (`SOVEREIGN_DEBT`).
    - A bank, broker or hedge fund failing or rescued → `BANK_FAILURE`. A non-financial company or conglomerate in default, workout or an accounting fraud that headlines → `CORPORATE_DISTRESS` (no outcome in the month the fraud is revealed; `FAILED` on a bankruptcy filing or default, `RESCUED` on a creditor workout or bailout). A frozen consumer or corporate credit market → `CREDIT_CRUNCH`.
    - `MARKET_CRASH` only when the fall itself is the headline and no other tag of that month is its reported cause; `HALTED` only for a market-wide circuit breaker or an exchange closure in KR or US. "Bubble" and "bust" are later names: they go to `hindsight`, never to the type.
    - `PANDEMIC` when, at month end, the WHO has declared a pandemic, or a PHEIC for a new virus already spreading across continents (precedent `ev0010`); any other outbreak is `EPIDEMIC`. An episode keeps the type of its first row.
-   - `MONETARY_TIGHTENING`: `START` = first hike of a cycle or the first headline signal (`SIGNALED`); `ONGOING` only for an outsized hike, a purchase cut or the start of balance-sheet runoff. One episode per central bank and cycle; the Fed and the Bank of Korea are separate episodes. An easing episode ends when the same bank starts tightening; the next easing is a new episode.
+   - `MONETARY_TIGHTENING`: `START` = first hike of a cycle or the first headline signal (`SIGNALED`); `ONGOING` only for an outsized hike, a purchase cut or the start of balance-sheet runoff. One episode per central bank and cycle; the Fed and the Bank of Korea are separate episodes. An easing episode ends when the same bank starts tightening; the next easing is a new episode. A cycle that starts with a purchase cut or a signal and a later policy-rate hike cycle are separate episodes: the first hike is a new `START` (precedents ev0309/ev0338, ev0430/ev0433). After a `RATE_HIKE` `START`, a purchase cut or the start of runoff is an `ONGOING` row of that episode (ev0029.02, ev0433.02).
+   - `MONETARY_EASING` `FRAMEWORK_CHANGE`: a new policy framework or target regime announced by the central bank (yield-curve control, a change of its band or target, an average-inflation-targeting strategy). It is not a size change of an existing programme, and not a restatement or an operational detail inside the same band. Each such decision is its own `ONGOING` row even when the previous row is also `FRAMEWORK_CHANGE` (an exception to selection rule 2), but only when the decision was front-page news in KR or US. An announced enlargement of an existing purchase programme is an `ONGOING` `ASSET_PURCHASE` row only when the enlargement itself was front-page news (precedents ev0002.06, ev0308.03); routine or step-by-step increases stay held.
    - `FISCAL_STANDOFF` (`SHUTDOWN` / `RESOLVED`), `REFERENDUM` (`CHANGE` = the side changing the status quo won), `PEACE_TALKS` (`AGREED` / `COLLAPSED`), `SANCTION` (export controls, embargoes, financial sanctions; tariffs stay `TARIFF`), `TERROR_ATTACK` (mass-casualty attack leading world news). A referendum inside a debt crisis is tagged as `SOVEREIGN_DEBT`.
    - Wars and invasions → `ARMED_CONFLICT`; tests, launches and clashes around the Korean peninsula → `MILITARY_PROVOCATION`.
-4. **Episode keys.** Each PR uses its own block so parallel drafts never collide: 07-B `ev0100`–`ev0199`, 07-C `ev0200`–`ev0299`, 07-D `ev0300`–`ev0399`, 07-E `ev0400`–`ev0499`. The era of the `START` row owns the episode; a later era adds `ONGOING` rows to that key (merge in era order). An episode of the sample (`ev0001`–`ev0021`) continues with its next sequence number only if the new month is after its last row; otherwise the candidate goes to the hold list (a new episode would raise n).
+4. **Episode keys.** Each PR uses its own block so parallel drafts never collide: 07-B `ev0100`–`ev0199`, 07-C `ev0200`–`ev0299`, 07-D `ev0300`–`ev0399`, 07-E `ev0400`–`ev0499`. The era of the `START` row owns the episode; a later era adds `ONGOING` rows to that key (merge in era order). An episode of the sample (`ev0001`–`ev0099`) continues with its next sequence number only if the new month is after its last row; otherwise the candidate goes to the hold list (a new episode would raise n). A new episode whose `START` is in a sample month takes the next free key after the highest `ev00xx` (07-F: `ev0029`, `ev0030`).
 5. **`reaction_ref`.** Choose from the type's list; for a type that is likely n < 3 in the replay range, pick `KR:069500` or `US:SPY` first. Before listing (`KR:069500` 2002-10, `KR:055550` 2001-09, `US:TLT`/`US:SHY` 2002-07, `US:QQQ` 1999-03) the value is the proxy-index return; keep it, because it is the same number the turn screen shows for that asset.
 6. **Sources.** Open every URL on the day of drafting and write that date in `checked_on`. Primary sources first (central banks, election commissions, WHO, IMF, governments, exchanges); encyclopedia pages for dates only. Nothing from memory without an opened source. Titles are short facts in Korean with the name used at month end; later names and judgements ("tantrum", "bubble", "the last hike", "the peak of the crisis") go to `hindsight`.
 7. **Checks before review.** `tools/fetch/tests/test_events_files.py` checks format, order, H5 and H6 without a database (`tools/fetch/.venv/bin/python -m pytest -q tools/fetch/tests/test_events_files.py`). The loader and `db/11_load_events_check.sql` run only on a database whose `month_block` holds the new months (full load, plan run R-L).
 
 ### 한국어
 
-위의 모든 규칙(형식, T1–T4, 선정 규칙 1–4, 에피소드 규칙, 출처)에 더하는 규칙이다. 네 편집 PR에 적용한다: 07-B 1997-01–2001-12, 07-C 2002-01–2006-12, 07-D 2012-05–2017-12, 07-E 2018-01–2022-12.
+위의 모든 규칙(형식, T1–T4, 선정 규칙 1–4, 에피소드 규칙, 출처)에 더하는 규칙이다. 네 편집 PR에 적용한다: 07-B 1997-01–2001-12, 07-C 2002-01–2006-12, 07-D 2012-05–2017-12, 07-E 2018-01–2022-12. 07-F(해외 중앙은행 점검)는 같은 규칙으로 모든 구간에 행을 더한다.
 
 1. **편집 중 유형은 고정이다.** `types.csv`의 유형만 쓴다. 맞는 유형이 없으면 이유와 함께 보류 목록에 둔다. 새 유형은 `types.csv`를 따로 리뷰받아 더한다(07-A 규칙: 연도·고유명사 금지, 두 글자 토큰은 `US`/`KR`만, 1997–2025에서 에피소드 3개 이상에 다시 쓸 수 있을 것).
-2. **그 구간의 모든 달에 `reviewed.csv` 행을 둔다**(`TAGGED` 또는 `NONE`). 정기 선거는 늘 태그한다(규칙 1): 미국 대선·중간선거(11월), 한국 대선(1997-12, 2002-12, 2012-12, 2017-05, 2022-03), 한국 총선(2000-04, 2004-04, 2016-04, 2020-04). 그 달 말에 결과가 확정되지 않았으면(결과를 좌우하는 재검표·소송이 진행 중) `outcome`을 비우고, 확정된 달에 결과가 든 `ONGOING` 행을 더한다(T3).
+2. **그 구간의 모든 달에 `reviewed.csv` 행을 둔다**(`TAGGED` 또는 `NONE`). 정기 선거는 늘 태그한다(규칙 1): 미국 대선·중간선거(11월), 한국 대선(1997-12, 2002-12, 2012-12, 2017-05, 2022-03), 한국 총선(2000-04, 2004-04, 2016-04, 2020-04). 그 달 말에 결과가 확정되지 않았으면(결과를 좌우하는 재검표·소송이 진행 중) `outcome`을 비우고, 확정된 달에 결과가 든 `ONGOING` 행을 더한다(T3). 주요 해외 중앙은행(일본은행, 유럽중앙은행, 중국인민은행)은 모든 구간에서 확인한다. 자산 풀은 한국·미국이지만 그 결정이 한국·미국 1면 뉴스였다면 태그한다.
 3. **유형 고르기.**
    - 공식 평가절하나 고정 환율 포기 → `CURRENCY_SHOCK` `DEVALUED`. 통화 위기에 대한 국제통화기금·양자 구제 → `CURRENCY_SHOCK` `RESCUED`. 국가 채무 불이행 → `SOVEREIGN_DEBT` `DEFAULTED`. 같은 나라의 채무 불이행과 평가절하가 같은 달이면 태그 하나(`SOVEREIGN_DEBT`)다.
    - 은행·증권사·헤지펀드의 파산·구제 → `BANK_FAILURE`. 금융사가 아닌 회사·재벌의 부도·채권단 관리·1면에 오른 회계 부정 → `CORPORATE_DISTRESS`(부정이 드러난 달은 결과 없음, 파산 신청·부도는 `FAILED`, 채권단 관리·구제는 `RESCUED`). 소비자·기업 신용 시장이 얼어붙음 → `CREDIT_CRUNCH`.
    - `MARKET_CRASH`는 하락 자체가 1면이고 그 달 다른 태그가 원인으로 보도되지 않았을 때만 쓴다. `HALTED`는 한국·미국 시장 전체의 서킷 브레이커나 휴장일 때만이다. "거품"과 "붕괴"는 나중에 붙은 이름이라 `hindsight`에만 쓰고 유형으로 고르지 않는다.
    - `PANDEMIC`은 그 달 말에 세계보건기구가 대유행을 선언했거나, 이미 여러 대륙으로 퍼진 새 바이러스에 국제 공중보건 비상사태(PHEIC)를 선포했을 때다(선례 `ev0010`). 그 밖의 유행은 `EPIDEMIC`이다. 에피소드는 첫 행의 유형을 유지한다.
-   - `MONETARY_TIGHTENING`: `START` = 인상 주기의 첫 인상이나 1면에 오른 첫 예고(`SIGNALED`). `ONGOING`은 큰 폭 인상, 자산 매입 축소, 보유 자산 축소 시작만이다. 에피소드는 중앙은행·주기마다 하나이고 미국 연준과 한국은행은 다른 에피소드다. 완화 에피소드는 같은 은행이 긴축을 시작하면 끝나고, 다음 완화는 새 에피소드다.
+   - `MONETARY_TIGHTENING`: `START` = 인상 주기의 첫 인상이나 1면에 오른 첫 예고(`SIGNALED`). `ONGOING`은 큰 폭 인상, 자산 매입 축소, 보유 자산 축소 시작만이다. 에피소드는 중앙은행·주기마다 하나이고 미국 연준과 한국은행은 다른 에피소드다. 완화 에피소드는 같은 은행이 긴축을 시작하면 끝나고, 다음 완화는 새 에피소드다. 자산 매입 축소나 예고로 시작한 주기와 뒤의 정책금리 인상 주기는 다른 에피소드다. 첫 인상은 새 `START`다(선례 ev0309/ev0338, ev0430/ev0433). `RATE_HIKE` `START` 뒤의 매입 축소나 보유 자산 축소 시작은 그 에피소드의 `ONGOING` 행이다(ev0029.02, ev0433.02).
+   - `MONETARY_EASING` `FRAMEWORK_CHANGE`: 중앙은행이 새 정책 틀이나 목표 체제를 발표한 경우(수익률 곡선 통제, 그 변동 허용 폭이나 목표의 변경, 평균 물가 목표 전략). 기존 프로그램의 규모 변경이나 같은 허용 폭 안의 재확인·운용 세부는 아니다. 앞 행도 `FRAMEWORK_CHANGE`여도 결정마다 `ONGOING` 행을 하나 둔다(선정 규칙 2의 예외). 단 그 결정이 한국·미국 1면 뉴스였을 때만이다. 기존 자산 매입 프로그램의 확대 발표는 확대 자체가 1면 뉴스였을 때만 `ONGOING` `ASSET_PURCHASE` 행이다(선례 ev0002.06, ev0308.03). 정례·단계적 증액은 보류한다.
    - `FISCAL_STANDOFF`(`SHUTDOWN` / `RESOLVED`), `REFERENDUM`(`CHANGE` = 현 상태를 바꾸는 쪽이 이김), `PEACE_TALKS`(`AGREED` / `COLLAPSED`), `SANCTION`(수출 통제·금수·금융 제재, 관세는 `TARIFF` 그대로), `TERROR_ATTACK`(세계 뉴스 첫머리에 오른 대량 인명 피해 공격). 부채 위기 안의 국민투표는 `SOVEREIGN_DEBT`로 태그한다.
    - 전쟁·침공 → `ARMED_CONFLICT`. 한반도 주변의 핵실험·미사일 발사·교전 → `MILITARY_PROVOCATION`.
-4. **에피소드 키.** 병행 편집이 부딪히지 않도록 PR마다 번호 구간을 쓴다: 07-B `ev0100`–`ev0199`, 07-C `ev0200`–`ev0299`, 07-D `ev0300`–`ev0399`, 07-E `ev0400`–`ev0499`. `START` 행이 있는 구간의 PR이 에피소드를 갖고, 뒤 구간은 그 키에 `ONGOING` 행을 더한다(구간 순서로 머지). 표본의 에피소드(`ev0001`–`ev0021`)는 새 달이 그 에피소드의 마지막 행보다 뒤일 때만 다음 순번으로 잇는다. 아니면 보류 목록에 둔다(새 에피소드로 만들면 n이 늘어난다).
+4. **에피소드 키.** 병행 편집이 부딪히지 않도록 PR마다 번호 구간을 쓴다: 07-B `ev0100`–`ev0199`, 07-C `ev0200`–`ev0299`, 07-D `ev0300`–`ev0399`, 07-E `ev0400`–`ev0499`. `START` 행이 있는 구간의 PR이 에피소드를 갖고, 뒤 구간은 그 키에 `ONGOING` 행을 더한다(구간 순서로 머지). 표본의 에피소드(`ev0001`–`ev0099`)는 새 달이 그 에피소드의 마지막 행보다 뒤일 때만 다음 순번으로 잇는다. 아니면 보류 목록에 둔다(새 에피소드로 만들면 n이 늘어난다). `START`가 표본 달에 있는 새 에피소드는 가장 큰 `ev00xx` 다음 빈 키를 쓴다(07-F: `ev0029`, `ev0030`).
 5. **`reaction_ref`.** 유형의 허용 목록에서 고르고, 재생 구간에서 n < 3이 될 것 같은 유형은 `KR:069500`이나 `US:SPY`를 먼저 고른다. 상장 전 달(`KR:069500` 2002-10, `KR:055550` 2001-09, `US:TLT`/`US:SHY` 2002-07, `US:QQQ` 1999-03)의 값은 대리 지수 수익률이다. 턴 화면이 그 종목에 보여 주는 숫자와 같으므로 그대로 쓴다.
 6. **출처.** 편집한 날 모든 URL을 직접 열고 그 날짜를 `checked_on`에 적는다. 1차 자료(중앙은행, 선거관리기관, 세계보건기구, 국제통화기금, 정부, 거래소)를 먼저 쓰고 백과사전은 날짜 확인용으로만 쓴다. 열어 본 출처 없이 기억으로 쓰지 않는다. `title`은 그 달 말에 쓰이던 이름으로 쓴 한국어 짧은 사실이다. 나중 이름과 평가("발작", "거품", "마지막 인상", "위기의 정점")는 `hindsight`에 쓴다.
 7. **리뷰 전 검사.** `tools/fetch/tests/test_events_files.py`가 DB 없이 형식·순서·H5·H6을 본다(`tools/fetch/.venv/bin/python -m pytest -q tools/fetch/tests/test_events_files.py`). 적재와 `db/11_load_events_check.sql`은 새 달이 `month_block`에 들어간 DB(전체 적재, 계획의 R-L)에서만 돌릴 수 있다.
@@ -291,6 +293,56 @@ psql -X -q -v ON_ERROR_STOP=1 -d antlab -f db/11_load_events_check.sql
 | 국가 부채 위기의 `START` 앞선 달(2009-12–2010-04) | 그리스 재정 적자 공개·등급 강등 등을 확인하지 못했다 |
 | 2008-09 보험사 구제 결정 | 같은 달 은행 파산과 한 에피소드로 보아 따로 태그하지 않았다(결정이 아니라 선택) |
 | 2차 편집 과제 | 시장 반응이 큰 달에서 거꾸로 사건 찾기, 공식 자료로 출처 보강 |
+
+## MVP extension: judgement records and hold lists (07-B..07-F) / MVP 확장 판단 기록과 보류 목록
+
+Candidates not tagged either have no opened primary source or are blocked by a rule; none was filled from memory. Keys below are the final keys in `tags.csv`.
+
+### English
+
+**1997–2001 (07-B)**
+- Judgements: Fed cuts of 1998-10, 2001-01 and 2001-09 are `EMERGENCY_CUT` (conference calls, not scheduled meetings). Korea's crisis starts in 1997-11 (IMF request) and is `RESCUED` in 1997-12. The Korean credit-rating episode starts at the first downgrade (1997-10). The 2000 Korean legislative election is `MINORITY_KEPT` on the party basis (the ruling party alone). The 2000 US election has a blank outcome in November (recount open) and `CHANGE` in December. Oil rows are anchored on a front-page month, not on a price threshold. Daewoo is `RESCUED` on the 1999-08 creditor agreement.
+- Held: Turkey lira float 2001-02 (date not stated on an opened page); North Korea missile over Japan 1998-08 (no opened source); Hong Kong intervention 1998-08, euro intervention 2000-09, Argentina IMF package 2001-08 (no opened source); Fed hikes 1999-08 and 2000-02 and the 2001-04 intermeeting cut (same outcome, rule 2); Daewoo workout of 1999-08-26 (not confirmed).
+
+**2002–2006 (07-C)**
+- Judgements: the 2002-06-29 (Saturday) clash is placed in 2002-07 (T1). The 2002 Korean presidential election is `KEEP` (the 1997 winner's party continued as the ruling party). The French referendum of 2005-05 is `KEEP` (the change side lost). The 2004 Korean legislative election is `MAJORITY_GAINED`. Nuclear tests are `MILITARY_PROVOCATION`. A 2005-02 North Korean walk-out is `COLLAPSED`. The 2006-03 Bank of Japan row is a tightening `START` (end of quantitative easing).
+- Held: SK Global 2003-03, LG Card 2003-11, Delphi 2005-10, Amaranth 2006-09 (no opened primary source); Fed cut 2003-06 (same outcome); Iraq and Afghanistan follow-ups; yuan revaluation 2005-07 (`CURRENCY_SHOCK` fits a devaluation only); North Korea NPT withdrawal 2003-01 (no type); UN sanctions after the 2006-10 test (type with n = 0 and the same event).
+
+**2012-05–2017 (07-D)**
+- Judgements: the Fed 2013 taper episode (ev0309) and the 2015–2017 hike cycle (ev0338) are separate episodes. Runoff is tagged in 2017-09, when the decision was published. Spain (2012-06) and Cyprus (2013-03) are separate euro-area episodes. Greece 2015-06 `DEFAULTED` (IMF repayment missed), 2015-07 `RESCUED`. The 2013-10 shutdown is one `START` row with `RESOLVED`. MERS is `EPIDEMIC` in 2015-06. The Swiss floor removal is `DEVALUED` by the dropped-peg rule although the franc rose. The 2016-01 China circuit breaker is `MARKET_CRASH` with a blank outcome (`HALTED` is KR/US only). Banco Popular is `FAILED` (sale in resolution), BES `RESCUED`. A 2014-10 expansion of an existing Bank of Japan purchase programme is an `ONGOING` `ASSET_PURCHASE` row (see rule 3).
+- Held: THAAD-related measures 2017-03 (no official measure, no primary source); Sewol 2014-04 and Detroit 2013-07 (no type); Kumamoto 2016-04, Catalonia 2017-10, Charlie Hebdo 2015-01, Boston 2013-04, Nice 2016-07, Zika 2016-02, Ebola end 2016-03, Syria 2015-09, Mosul 2014-06 (no opened source or below the bar); Toshiba 2015-07, Deutsche Bank 2016-09, Monte dei Paschi 2016-12, Shibor 2013-06, China equity plunge 2015-06/07 (no opened source or reported cause is tagged); Bank of Korea follow-up cuts 2013–2016 (same outcome); ECB 2012-07 cut, 2014-09 cut and 2017-10 purchase reduction, Bank of Japan 2012 incremental expansions and 2016-07 ETF increase (same outcome or ambiguous first cut); PBoC cuts of 2014-11 and 2015-06 (not clearly front-page).
+
+**2018–2022 (07-E)**
+- Judgements: the 2021-11 Fed taper and the 2022 hike cycle are separate episodes. The Fed 2018 hikes and the Bank of Korea 2018-11 hike are not outsized, so there is no row (rule 3). Sri Lanka 2022-04 is `DEFAULTED` (declared suspension of external debt service). The 2018-12 shutdown is placed in December (T1). COVID is `PANDEMIC` from 2020-01 (PHEIC, precedent ev0010). The 2020 Korean legislative election is `MAJORITY_GAINED` (ruling party and satellite party 180 of 300). US-China tariffs are one episode, and the 2019-08 currency-manipulator designation is an `ONGOING` `RETALIATED` row. Intermeeting Fed and Bank of Korea moves of 2020-03 are `EMERGENCY_CUT`. The ECB 2018 purchase end is tightening (`SIGNALED` 2018-06, `ASSET_PURCHASE_CUT` 2018-12); the 2019-09 ECB restart is a new easing episode.
+- Held: WHO pandemic wording, OPEC+ price war and circuit breakers of 2020-03 (month cap); Bank of Japan ETF doubling 2020-03 (month cap); Fed policy pivot 2019 (no outcome fits); Brexit milestones (no outcome change of the referendum episode); FTX 2022-11, Archegos 2021-03, Terra 2022-05, Evergrande 2021-12 (no opened source or no fitting type); North Korea 2020-06 and 2022-10/11 (no opened source); Taiwan 2022-08, Capitol and GameStop 2021-01 (no type); repo stress 2019-09; EU oil price cap 2022-12 (same outcome); Argentina 2018-05, 2019-08, 2020-05 and Turkey follow-ups (no opened source).
+
+**07-F (foreign central-bank sweep)**
+- Judgements: `FRAMEWORK_CHANGE` is a `MONETARY_EASING` outcome (rule 3). The Bank of Japan 1999-02 call-rate guideline is `RATE_CUT` (0.25 percent to as low as possible). The 2000-08 end of that policy is a tightening `START`. The 2024-03 end of negative rates and yield-curve control is a tightening `START` (`RATE_HIKE`); the 2024-07 row is allowed by the purchase-cut clause of rule 3 (the same release decides a reduction plan for government bond purchases), not by the size of the hike. The Bank of Japan 2006-07 hike (end of zero rates) is a new tightening `START` (`ev0228`), separate from the 2006-03 purchase-cut episode `ev0219` (rule 3). The 2024-08 sell-off is `MARKET_CRASH` `HALTED` (on 5 August 2024 the Korea Exchange halted KOSPI and KOSDAQ trading by circuit breaker); there is no other tag in that month. The PBoC 2004-10 and ECB 2005-12 hikes are cycle starts.
+- Held: Bank of Japan 2023-10 yield-curve control change (no opened source; tag only if front-page, rule 3); 2025-01 Bank of Japan hike (25 bp, not outsized); Bank of Japan 2020-03 ETF doubling (month cap, see 07-E).
+
+### 한국어
+
+위 영어 목록의 한국어 요약이다. 열어 본 1차 출처가 없거나 규칙에 막힌 후보는 태그하지 않았고, 기억으로 채우지 않았다.
+
+**1997–2001 (07-B)**
+- 판단: 1998-10·2001-01·2001-09 연준 인하는 회의 밖(전화 회의)이라 `EMERGENCY_CUT`. 한국 위기는 1997-11(국제통화기금 지원 요청)에 시작해 1997-12에 `RESCUED`. 한국 신용등급 에피소드는 첫 강등(1997-10)에서 시작. 2000 총선은 집권당 단독 기준 `MINORITY_KEPT`. 2000 미국 대선은 11월 결과 빈 칸(재검표 진행), 12월 `CHANGE`. 유가 행은 가격 임계값이 아니라 1면에 오른 달에 둔다. 대우는 1999-08 채권단 약정으로 `RESCUED`.
+- 보류: 터키 리라 변동환율 2001-02(열어 본 쪽에 날짜 없음), 북한 일본 상공 미사일 1998-08, 홍콩 시장 개입 1998-08, 유로 개입 2000-09, 아르헨티나 국제통화기금 지원 2001-08(열어 본 출처 없음), 연준 1999-08·2000-02 인상과 2001-04 회의 밖 인하(같은 결과, 규칙 2), 대우 1999-08-26 워크아웃(확인 못 함).
+
+**2002–2006 (07-C)**
+- 판단: 2002-06-29(토) 교전은 2002-07(T1). 2002 대선은 `KEEP`(1997 당선자 정당이 집권당으로 이어짐). 2005-05 프랑스 국민투표는 `KEEP`(바꾸는 쪽이 짐). 2004 총선 `MAJORITY_GAINED`. 핵실험은 `MILITARY_PROVOCATION`. 2005-02 북한 6자회담 중단은 `COLLAPSED`. 2006-03 일본은행 행은 긴축 `START`(양적완화 종료).
+- 보류: SK글로벌 2003-03, LG카드 2003-11, 델파이 2005-10, 아마란스 2006-09(1차 출처 없음), 연준 2003-06 인하(같은 결과), 이라크·아프간 후속, 위안 절상 2005-07(`CURRENCY_SHOCK`은 절하만), 북한 NPT 탈퇴 2003-01(유형 없음), 2006-10 핵실험 뒤 유엔 제재(n = 0 유형, 같은 사건).
+
+**2012-05–2017 (07-D)**
+- 판단: 연준 2013 테이퍼(ev0309)와 2015–2017 인상 주기(ev0338)는 다른 에피소드. 보유 자산 축소는 결정이 알려진 2017-09. 스페인(2012-06)·키프로스(2013-03)는 별도 에피소드. 그리스 2015-06 `DEFAULTED`, 2015-07 `RESCUED`. 2013-10 정부 폐쇄는 `START` 한 행에 `RESOLVED`. 메르스는 2015-06 `EPIDEMIC`. 스위스 환율 하한 폐지는 고정 환율 포기 규칙으로 `DEVALUED`. 2016-01 중국 서킷 브레이커는 결과 없는 `MARKET_CRASH`. 방코 포풀라르 `FAILED`, BES `RESCUED`. 2014-10 일본은행 자산 매입 확대는 `ONGOING` `ASSET_PURCHASE`(규칙 3).
+- 보류: 사드 관련 조치 2017-03, 세월호 2014-04·디트로이트 2013-07(유형 없음), 구마모토·카탈루냐·샤를리 에브도·보스턴·니스·지카·에볼라 종료·시리아·모술(열어 본 출처 없음 또는 기준 미달), 도시바·도이체방크·몬테데파스키·시보 급등·2015-06/07 중국 증시(출처 없음 또는 보도 원인이 이미 태그), 한국은행 2013–2016 후속 인하(같은 결과), 유럽중앙은행 2012-07·2014-09 인하와 2017-10 매입 축소, 일본은행 2012년 단계 확대와 2016-07 상장지수펀드 확대(같은 결과 또는 첫 인하 모호), 중국인민은행 2014-11·2015-06 인하(1면 불분명).
+
+**2018–2022 (07-E)**
+- 판단: 연준 2021-11 테이퍼와 2022 인상 주기는 다른 에피소드. 연준 2018 인상과 한국은행 2018-11 인상은 큰 폭이 아니라 행 없음(규칙 3). 스리랑카 2022-04 `DEFAULTED`(대외 채무 상환 중단 선언). 2018-12 정부 폐쇄는 12월(T1). 코로나는 2020-01부터 `PANDEMIC`(선례 ev0010). 2020 총선 `MAJORITY_GAINED`(집권당과 위성정당 300석 중 180석). 미중 관세는 한 에피소드이고 2019-08 환율조작국 지정은 `ONGOING` `RETALIATED`. 2020-03 연준·한국은행 회의 밖 조치는 `EMERGENCY_CUT`. 유럽중앙은행 2018 순자산 매입 종료는 긴축(2018-06 `SIGNALED`, 2018-12 `ASSET_PURCHASE_CUT`), 2019-09 재개는 새 완화 에피소드.
+- 보류: 2020-03 세계보건기구 대유행 표현·OPEC+ 가격 전쟁·서킷 브레이커(달 상한), 일본은행 2020-03 상장지수펀드 두 배(달 상한), 연준 2019 기조 전환(맞는 결과 없음), 브렉시트 단계(국민투표 에피소드의 결과 변화 없음), FTX·아케고스·테라·헝다(출처 없음 또는 유형 없음), 북한 2020-06·2022-10/11(열어 본 출처 없음), 대만 2022-08·미 의회 난입·게임스톱(유형 없음), 2019-09 환매조건부채권 시장 불안, 2022-12 유럽연합 유가 상한(같은 결과), 아르헨티나 2018-05·2019-08·2020-05와 터키 후속(출처 없음).
+
+**07-F (해외 중앙은행 점검)**
+- 판단: `FRAMEWORK_CHANGE`는 `MONETARY_EASING` 결과(규칙 3). 일본은행 1999-02 콜금리 지침은 `RATE_CUT`(0.25%에서 최대한 낮게). 2000-08 그 정책 해제는 긴축 `START`. 2024-03 마이너스 금리·수익률 곡선 통제 종료는 긴축 `START`(`RATE_HIKE`). 2024-07 행은 인상 폭이 아니라 같은 발표의 국채 매입 감액 계획(규칙 3의 매입 축소 조항)으로 허용. 일본은행 2006-07 인상(제로 금리 해제)은 2006-03 매입 축소 에피소드 `ev0219`와 다른 새 긴축 `START`(`ev0228`)다(규칙 3). 2024-08 폭락은 `MARKET_CRASH` `HALTED`(2024-08-05 한국거래소가 서킷 브레이커로 코스피·코스닥 거래를 멈춤)이고 그 달 다른 태그는 없다. 중국인민은행 2004-10과 유럽중앙은행 2005-12 인상은 주기 시작.
+- 보류: 일본은행 2023-10 수익률 곡선 통제 변경(열어 본 출처 없음, 1면이었을 때만 태그, 규칙 3), 2025-01 인상(25bp, 큰 폭 아님), 2020-03 상장지수펀드 두 배(달 상한, 07-E 참조).
 
 ## 하류 약속
 
