@@ -3,6 +3,7 @@ package antlab.feed;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import antlab.common.money.MoneyMath;
+import antlab.history.HistoryProperties;
 import antlab.season.FeedKind;
 import antlab.support.GoldenCleanup;
 import antlab.support.SharedPostgres;
@@ -19,6 +20,7 @@ import antlab.support.SqlGoldenScenario.ScriptStep;
 import java.math.BigDecimal;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.LinkedHashMap;
@@ -215,7 +217,8 @@ class FeedGeneratorSqlParityTest {
                 "jdbc:postgresql://" + container.getHost() + ":" + container.getMappedPort(5432) + "/" + database.name(),
                 container.getUsername(), container.getPassword());
         JdbcClient jdbc = JdbcClient.create(source);
-        FeedInputReader reader = new FeedInputReader(jdbc);
+        FeedInputReader reader = new FeedInputReader(jdbc,
+                new HistoryProperties(LocalDate.of(2001, 2, 1)));
         int checked = 0;
         int withStory = 0;
         for (int i = 0; i < result.size(); i++) {

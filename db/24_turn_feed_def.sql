@@ -14,6 +14,14 @@
 --   규칙 버전 유지   입력 → 출력이 이전에 성공하던 경우는 바이트 단위로 같고, 예전에 오류이던 입력(후보 없음, 사건만 있음)만 0–3행을 돌려준다. 버전 문자열은 해시 입력이라 올리면 저장된 v2 피드의 "저장 = 재생성"이 깨진다.
 -- =====================================================================
 
+-- N1 (rare-type test) counts replay-range months only (erd S1): from replay_start up to January 1 of the season's base-date year.
+-- replay_start is a psql variable (default 2007-01-01, same as db/20); psql variables do not expand inside $$ bodies, so it is passed as a session setting.
+\if :{?replay_start}
+\else
+  \set replay_start 2007-01-01
+\endif
+SELECT set_config('antlab.replay_start', :'replay_start', false) AS replay_start \gset
+
 DO $$
 BEGIN
     IF to_regclass('pg_temp.tf_templates') IS NOT NULL THEN DROP TABLE pg_temp.tf_templates; END IF;
@@ -174,7 +182,9 @@ BEGIN
                                         'reaction', e.reaction_change, 'strength', e.strength, 'hidden', e.hidden)
                      ORDER BY e.event_key COLLATE "C")
     INTO v_events
-    FROM (SELECT x.*, (SELECT count(DISTINCT left(y.event_key, 6)) FROM month_event y WHERE y.event_type = x.event_type) < 3 AS hidden
+    FROM (SELECT x.*, (SELECT count(DISTINCT left(y.event_key, 6)) FROM month_event y JOIN month_block yb ON yb.id = y.month_block_id
+                       WHERE y.event_type = x.event_type AND yb.month_start >= current_setting('antlab.replay_start')::date
+                         AND yb.month_start < make_date(EXTRACT(YEAR FROM (SELECT base_date FROM season WHERE id = p_season_id))::int, 1, 1)) < 3 AS hidden
           FROM month_event x WHERE x.month_block_id = v_block) e;
     WITH asset_rows AS (
         SELECT a.id, a.name, g.id AS group_id, g.code AS group_code, g.name AS group_name, a.market, a.ticker,

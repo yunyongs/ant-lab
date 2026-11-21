@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import antlab.account.CashAccountRepository;
+import antlab.history.HistoryProperties;
 import antlab.history.MoveDirection;
 import antlab.member.Member;
 import antlab.member.MemberRepository;
@@ -13,6 +14,7 @@ import antlab.support.IntegrationTest;
 import antlab.support.SeasonAccountFixture;
 import antlab.support.SqlRecorder;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -21,6 +23,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.simple.JdbcClient;
 
 /**
  * {@link FeedInputReader} on a hand-built season of three fake assets at turn 3 (blocks b1..b4; b4 is the next block, which the
@@ -41,7 +44,8 @@ class FeedInputReaderTest {
     private static final int TURN = 3;
 
     @Autowired
-    FeedInputReader reader;
+    JdbcClient jdbcClient;
+    private FeedInputReader reader;
     @Autowired
     JdbcTemplate jdbc;
     @Autowired
@@ -62,6 +66,7 @@ class FeedInputReaderTest {
 
     @BeforeEach
     void build() {
+        reader = readerStartingAt(1498);
         fixture = new SeasonAccountFixture(jdbc, members, seasons, accounts);
         Member member = fixture.newMember();
         season = fixture.newSeason(member);
@@ -72,7 +77,9 @@ class FeedInputReaderTest {
         blocks = new long[5];
         for (int i = 1; i <= 4; i++) {
             blocks[i] = fixture.newMonthBlockId();
-            jdbc.update("UPDATE month_block SET events_reviewed = TRUE WHERE id = ?", blocks[i]);
+            // One block per year so the replay range bounds (start, January 1 of the base-date year) can cut between them.
+            jdbc.update("UPDATE month_block SET events_reviewed = TRUE, month_start = ? WHERE id = ?",
+                    LocalDate.of(1497 + i, 6, 1), blocks[i]);
             jdbc.update("INSERT INTO season_path (season_id, turn_no, month_block_id) VALUES (?, ?, ?)", season.getId(), i,
                     blocks[i]);
         }
@@ -105,6 +112,10 @@ class FeedInputReaderTest {
             jdbc.update("DELETE FROM asset_month_return WHERE asset_id = ?", asset);
         }
         fixture.cleanUp();
+    }
+
+    private FeedInputReader readerStartingAt(int year) {
+        return new FeedInputReader(jdbcClient, new HistoryProperties(LocalDate.of(year, 1, 1)));
     }
 
     private long namedAsset(String name) {
@@ -252,6 +263,29 @@ class FeedInputReaderTest {
         assertThat(rare.category()).isNull();
         assertThat(rare.reaction()).isEqualTo(d("-0.02000000"));
         assertThat(events).allSatisfy(e -> assertThat(e.asOfTurn()).isEqualTo(TURN));
+    }
+
+    @Test
+    void months_before_the_replay_start_do_not_count_toward_n() {
+        FeedInput counted = read();
+        assertThat(counted.events()).filteredOn(e -> e.eventKey().equals("ZT10C_EVENT")).allSatisfy(e -> assertThat(e.hidden()).isFalse());
+
+        reader = readerStartingAt(1499);
+
+        assertThat(read().events()).filteredOn(e -> e.eventKey().equals("ZT10C_EVENT"))
+                .as("the 1498 episode is warm-up, so n is 2").allSatisfy(e -> {
+                    assertThat(e.hidden()).isTrue();
+                    assertThat(e.category()).isNull();
+                });
+    }
+
+    @Test
+    void months_from_january_of_the_base_date_year_do_not_count_toward_n() {
+        jdbc.update("UPDATE season SET base_date = DATE '1500-01-02', data_snapshot_date = DATE '1500-01-02' WHERE id = ?",
+                season.getId());
+
+        assertThat(read().events()).filteredOn(e -> e.eventKey().equals("ZT10C_EVENT"))
+                .as("the 1500 episode is at or after the base-date year, so n is 2").allSatisfy(e -> assertThat(e.hidden()).isTrue());
     }
 
     @Test

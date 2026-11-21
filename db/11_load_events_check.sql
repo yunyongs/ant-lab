@@ -312,13 +312,15 @@ INSERT INTO zz_q (code, section, item, sql) VALUES
      $q$SELECT count(*) FROM (SELECT month_block_id FROM month_event GROUP BY month_block_id HAVING count(*) > 3) x$q$),
     ('HIDDEN_LIST', '6 보고·음성', 'n < 3 유형 목록(DB, 정의 N1)이 tags.csv 에서 독립으로 센 목록과 다른 유형 수',
      $q$SELECT (SELECT count(*) FROM (
-                    SELECT event_type FROM month_event GROUP BY event_type HAVING count(DISTINCT left(event_key, 6)) < 3
+                    SELECT e.event_type FROM month_event e JOIN month_block mb ON mb.id = e.month_block_id
+                    WHERE mb.month_start >= (SELECT start_month FROM zz_replay) GROUP BY e.event_type HAVING count(DISTINCT left(e.event_key, 6)) < 3
                     EXCEPT
-                    SELECT event_type FROM zz_tags GROUP BY event_type HAVING count(DISTINCT left(event_key, 6)) < 3) a)
+                    SELECT event_type FROM zz_tags WHERE month_start::date >= (SELECT start_month FROM zz_replay) GROUP BY event_type HAVING count(DISTINCT left(event_key, 6)) < 3) a)
               + (SELECT count(*) FROM (
-                    SELECT event_type FROM zz_tags GROUP BY event_type HAVING count(DISTINCT left(event_key, 6)) < 3
+                    SELECT event_type FROM zz_tags WHERE month_start::date >= (SELECT start_month FROM zz_replay) GROUP BY event_type HAVING count(DISTINCT left(event_key, 6)) < 3
                     EXCEPT
-                    SELECT event_type FROM month_event GROUP BY event_type HAVING count(DISTINCT left(event_key, 6)) < 3) b)$q$);
+                    SELECT e.event_type FROM month_event e JOIN month_block mb ON mb.id = e.month_block_id
+                    WHERE mb.month_start >= (SELECT start_month FROM zz_replay) GROUP BY e.event_type HAVING count(DISTINCT left(e.event_key, 6)) < 3) b)$q$);
 
 -- 1~6 양성: 위 쿼리 모두 위반 0건 ---------------------------------------------------
 INSERT INTO zz_check_result (section, item, expected, actual, ok)
@@ -410,18 +412,20 @@ BEGIN
 END $$;
 
 -- 6.1 보고: 유형별 표본 수 n (정의 N1: 태그가 하나 이상 있는 에피소드의 수)와 범주를 말하지 않는 카드 대상(n < 3).
---       Phase 0 은 month_block 전체(표본 100개 달)가 재생 표본이다. 정보 행이며 단언은 HIDDEN_LIST 가 한다.
+--       Replay sample = months from replay_start on (the erd S1 lower bound; there is no season here, so no base-date upper bound). Info rows; HIDDEN_LIST asserts.
 INSERT INTO zz_check_result (section, item, expected, actual, ok)
 SELECT '6 보고·음성', '유형별 표본 수 (정보) ' || e.event_type, '(정보)',
        'n=' || count(DISTINCT left(e.event_key, 6)) || ' 태그=' || count(*) || CASE WHEN count(DISTINCT left(e.event_key, 6)) < 3 THEN ' 범주 비공개 대상' ELSE '' END, true
-FROM month_event e
+FROM month_event e JOIN month_block mb ON mb.id = e.month_block_id
+WHERE mb.month_start >= (SELECT start_month FROM zz_replay)
 GROUP BY e.event_type
 ORDER BY e.event_type COLLATE "C";
 
 INSERT INTO zz_check_result (section, item, expected, actual, ok)
 VALUES ('6 보고·음성', 'n < 3 유형 목록 (정보)', '(정보)',
         COALESCE((SELECT string_agg(event_type, ' ' ORDER BY event_type COLLATE "C") FROM (
-                      SELECT event_type FROM month_event GROUP BY event_type HAVING count(DISTINCT left(event_key, 6)) < 3) h), '(없음)'), true);
+                      SELECT e.event_type FROM month_event e JOIN month_block mb ON mb.id = e.month_block_id
+                    WHERE mb.month_start >= (SELECT start_month FROM zz_replay) GROUP BY e.event_type HAVING count(DISTINCT left(e.event_key, 6)) < 3) h), '(없음)'), true);
 
 SELECT substr(item, length('유형별 표본 수 (정보) ') + 1) AS event_type, actual AS sample_size
 FROM zz_check_result
