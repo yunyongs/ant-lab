@@ -40,6 +40,9 @@ ev0026.01,2025-02-01,TRADE,TARIFF,START,IMPOSED,,US:SPY,미국 중국·캐나다
 ev0026.02,2025-04-01,TRADE,TARIFF,ONGOING,PAUSED,,US:SPY,미국 상호관세 발표 뒤 중국을 제외한 국가별 상호관세 90일 유예,,https://en.wikipedia.org/wiki/Liberation_Day_tariffs ; https://en.wikipedia.org/wiki/2025_United_States_tariffs,2026-11-07
 ev0027.01,2025-05-01,FINANCIAL,CREDIT_RATING_DOWNGRADE,START,,,US:SPY,무디스 미국 국가 신용등급 Aaa에서 Aa1로 강등,,https://en.wikipedia.org/wiki/United_States_federal_government_credit-rating_downgrades,2026-11-07
 ev0028.01,2025-06-01,POLITICS,KR_PRESIDENTIAL_ELECTION,START,CHANGE,,KR:069500,제21대 대통령 선거와 정권 교체,,https://en.wikipedia.org/wiki/2025_South_Korean_presidential_election,2026-11-07
+ev0029.01,2024-03-01,POLICY,MONETARY_TIGHTENING,START,RATE_HIKE,,KR:069500,일본은행 마이너스 금리와 장기금리 통제 정책 종료 결정,,https://www.boj.or.jp/en/mopo/mpmdeci/mpr_2024/k240319a.pdf,2026-11-21
+ev0029.02,2024-07-01,POLICY,MONETARY_TIGHTENING,ONGOING,ASSET_PURCHASE_CUT,,KR:069500,일본은행 정책금리 인상과 국채 매입 감액 계획 결정,,https://www.boj.or.jp/en/mopo/mpmdeci/mpr_2024/k240731a.pdf,2026-11-21
+ev0030.01,2024-08-01,FINANCIAL,MARKET_CRASH,START,HALTED,,KR:069500,일본·한국 증시 동반 폭락과 한국 증시 서킷 브레이커 발동,엔 캐리 트레이드 청산 등으로 불린 변동성 급등의 일부,https://www.koreatimes.co.kr/amp/economy/20240805/kospi-tumbles-over-8-on-us-recession-fears ; https://fortune.com/asia/2024/08/05/asia-markets-meltdown-japan-nikkei-topix-korea-kospi-taiwan-taiex-shares-drop/ ; https://www.bis.org/publ/bisbull90.htm,2026-11-21
 ev0100.01,1997-01-01,FINANCIAL,CORPORATE_DISTRESS,START,FAILED,,KR:069500,한보철강 부도,이후 이어진 대기업 연쇄 부도의 첫 사례로 꼽힘,https://csmonitor.com/1997/1222/122297.econ.econ.11.html ; https://www.spokesman.com/stories/1997/jan/28/bankruptcy-shakes-s-korea/,2026-11-21
 ev0101.01,1997-07-01,FINANCIAL,CURRENCY_SHOCK,START,DEVALUED,,FX:USD,태국 바트화 변동환율제 전환,이후 동아시아 전역의 외환 위기로 번짐,https://web.archive.org/web/20081122102249/http://www.imf.org/external/np/sec/nb/1997/nb9712.htm ; https://www.federalreservehistory.org/essays/asian-financial-crisis,2026-11-21
 ev0101.02,1997-08-01,FINANCIAL,CURRENCY_SHOCK,ONGOING,RESCUED,,FX:USD,국제통화기금 태국 대기성 신용 약 39억 달러 승인과 각국 지원 약속,,https://web.archive.org/web/20080829112208/http://www.imf.org/external/np/sec/pr/1997/pr9737.htm,2026-11-21
@@ -75,6 +78,7 @@ ev0121.02,2000-12-01,POLITICS,US_PRESIDENTIAL_ELECTION,ONGOING,CHANGE,,US:SPY,"�
 ev0122.01,2000-12-01,SUPPLY_SHOCK,OIL_SHOCK,START,,DOWN,US:XOM,국제 유가 급락,,https://fred.stlouisfed.org/graph/fredgraph.csv?id=MCOILWTICO&cosd=1997-01-01&coed=2001-12-31,2026-11-21
 ev0123.01,2001-01-01,POLICY,MONETARY_EASING,START,EMERGENCY_CUT,,US:SPY,미국 연준 회의 밖 기준금리 목표 0.5%포인트 긴급 인하,,https://www.federalreserve.gov/boarddocs/press/general/2001/20010103/ ; https://www.federalreserve.gov/monetarypolicy/fomchistorical2001.htm,2026-11-21
 ev0123.02,2001-09-01,POLICY,MONETARY_EASING,ONGOING,EMERGENCY_CUT,,US:SPY,미국 연준 회의 밖 기준금리 목표 0.5%포인트 긴급 인하와 유동성 공급 약속,,https://www.federalreserve.gov/boarddocs/press/general/2001/20010917/ ; https://www.federalreserve.gov/monetarypolicy/fomchistorical2001.htm,2026-11-21
+ev0123.03,2002-11-01,POLICY,MONETARY_EASING,ONGOING,RATE_CUT,,US:SPY,미국 연준 기준금리 목표 0.5%포인트 인하,,https://www.federalreserve.gov/boarddocs/press/monetary/2002/20021106/default.htm,2026-11-21
 ev0124.01,2001-03-01,POLICY,MONETARY_EASING,START,ASSET_PURCHASE,,KR:069500,일본은행 양적완화 도입,,https://www.boj.or.jp/en/mopo/mpmdeci/mpr_2001/k010319a.htm ; https://en.wikipedia.org/wiki/Quantitative_easing,2026-11-21
 ev0125.01,2001-09-01,GEOPOLITICS,TERROR_ATTACK,START,,,US:SPY,미국 뉴욕·워싱턴 항공기 동시 테러,,https://en.wikipedia.org/wiki/September_11_attacks ; https://www.federalreserve.gov/boarddocs/press/general/2001/20010917/,2026-11-21
 ev0126.01,2001-10-01,FINANCIAL,CORPORATE_DISTRESS,START,,,US:SPY,엔론 3분기 순손실 6억 1800만 달러 발표,,https://www.ogj.com/general-interest/companies/article/17262425/enron-reports-third-quarter-loss-on-1-billion-charge-for-nonenergy-assets,2026-11-21
@@ -82,10 +86,13 @@ ev0126.02,2001-12-01,FINANCIAL,CORPORATE_DISTRESS,END,FAILED,,US:SPY,엔론 파�
 ev0127.01,2001-10-01,GEOPOLITICS,ARMED_CONFLICT,START,,,US:SPY,미국·영국 아프가니스탄 공습 시작,,https://georgewbush-whitehouse.archives.gov/news/releases/2001/10/20011007-8.html ; https://en.wikipedia.org/wiki/War_in_Afghanistan_(2001%E2%80%932021),2026-11-21
 ev0128.01,2001-10-01,SUPPLY_SHOCK,OIL_SHOCK,START,,DOWN,US:XOM,국제 유가 급락,,https://fred.stlouisfed.org/graph/fredgraph.csv?id=MCOILWTICO&cosd=1997-01-01&coed=2001-12-31,2026-11-21
 ev0129.01,2001-12-01,FINANCIAL,SOVEREIGN_DEBT,START,DEFAULTED,,US:SPY,아르헨티나 대외 공공 채무 대부분 상환 중단,,https://www.pbs.org/newshour/politics/latin_america-july-dec01-argentina_12-24 ; https://en.mercopress.com/2001/12/23/the-long-expected-moratorium,2026-11-21
+ev0129.02,2002-01-01,FINANCIAL,SOVEREIGN_DEBT,ONGOING,ESCALATED,,US:SPY,아르헨티나 태환제 폐지와 페소 평가절하 발표,,https://www.voanews.com/a/a-13-a-2002-01-07-6-argentina/295989.html,2026-11-21
 ev0130.01,1997-07-01,FINANCIAL,CORPORATE_DISTRESS,START,,,KR:069500,기아그룹 대출 상환 차질로 은행 지원 대상에 오름,,https://csmonitor.com/1997/1222/122297.econ.econ.11.html,2026-11-21
 ev0131.01,1998-06-01,FINANCIAL,BANK_FAILURE,START,FAILED,,KR:055550,동화·동남·대동·충청·경기은행 5개 은행 퇴출,,https://www.seoul.co.kr/news/1998/06/30/19980630005001,2026-11-21
 ev0132.01,1999-07-01,FINANCIAL,CORPORATE_DISTRESS,START,,,KR:069500,대우그룹 구조조정안 발표와 긴급 지원 요청,,https://www.jil.go.jp/foreign/jihou/1999/10/kankokuP01.html,2026-11-21
 ev0132.02,1999-08-01,FINANCIAL,CORPORATE_DISTRESS,ONGOING,RESCUED,,KR:069500,대우그룹과 채권은행단 특별 재무구조 개선 약정 체결,,https://www.jil.go.jp/foreign/jihou/1999/10/kankokuP01.html,2026-11-21
+ev0133.01,1999-02-01,POLICY,MONETARY_EASING,START,RATE_CUT,,KR:069500,일본은행 무담보 콜금리를 최대한 낮추도록 유도하기로 결정,,https://www.boj.or.jp/en/mopo/mpmdeci/mpr_1999/k990212c.htm,2026-11-21
+ev0134.01,2000-08-01,POLICY,MONETARY_TIGHTENING,START,RATE_HIKE,,KR:069500,일본은행 콜금리 유도 목표 0.25% 상향으로 제로 금리 정책 해제,,https://www.boj.or.jp/en/mopo/mpmdeci/mpr_2000/k000811.htm,2026-11-21
 ev0200.01,2002-03-01,TRADE,TARIFF,START,IMPOSED,,KR:069500,미국 철강 수입품 관세 부과 발표,,https://georgewbush-whitehouse.archives.gov/news/releases/2002/03/20020305-10.html,2026-11-21
 ev0200.02,2003-12-01,TRADE,TARIFF,END,,,KR:069500,미국 철강 세이프가드 관세 조기 종료,,https://georgewbush-whitehouse.archives.gov/news/releases/2003/12/20031204-5.html,2026-11-21
 ev0201.01,2002-06-01,FINANCIAL,CORPORATE_DISTRESS,START,,,US:SPY,월드컴 대규모 회계 부정 공시,,https://web.archive.org/web/2003/https://www.sec.gov/news/press/2002-94.htm ; https://web.archive.org/web/2003/https://www.sec.gov/litigation/litreleases/lr17588.htm,2026-11-21
@@ -118,6 +125,9 @@ ev0222.01,2006-10-01,GEOPOLITICS,MILITARY_PROVOCATION,START,,,KR:069500,북한 �
 ev0223.01,2006-11-01,POLITICS,US_MIDTERM,START,MAJORITY_LOST,,US:SPY,미국 중간선거 집권당 하원 다수 상실,,https://history.house.gov/Institution/Party-Divisions/Party-Divisions/,2026-11-21
 ev0224.01,2002-05-01,POLICY,MONETARY_TIGHTENING,START,RATE_HIKE,,KR:069500,한국은행 콜금리 목표 인상,,https://www.seoul.co.kr/news/2002/05/08/20020508010002,2026-11-21
 ev0225.01,2003-05-01,POLICY,MONETARY_EASING,START,RATE_CUT,,KR:069500,한국은행 콜금리 목표 0.25%포인트 인하,,https://www.seoul.co.kr/news/2003/05/16/20030516001002,2026-11-21
+ev0226.01,2004-10-01,POLICY,MONETARY_TIGHTENING,START,RATE_HIKE,,KR:069500,중국인민은행 예금·대출 기준금리 인상,,https://nanjing.pbc.gov.cn/english/130721/2025080815062882524/index.html ; https://www.pbc.gov.cn/english/130727/130879/130937/2025080815072055411/index.html,2026-11-21
+ev0227.01,2005-12-01,POLICY,MONETARY_TIGHTENING,START,RATE_HIKE,,KR:069500,유럽중앙은행 정책금리 0.25%포인트 인상,,https://www.ecb.europa.eu/press/pr/date/2005/html/pr051201.en.html,2026-11-21
+ev0228.01,2006-07-01,POLICY,MONETARY_TIGHTENING,START,RATE_HIKE,,KR:069500,일본은행 콜금리 유도 목표 0.25%로 올려 제로 금리 해제,,https://www.boj.or.jp/en/mopo/mpmdeci/mpr_2006/k060714.pdf,2026-11-21
 ev0300.01,2012-09-01,POLICY,MONETARY_EASING,START,ASSET_PURCHASE,,KR:069500,유럽중앙은행 국채 매입 프로그램 세부 방식 발표,,https://www.ecb.europa.eu/press/pr/date/2012/html/pr120906_1.en.html,2026-11-21
 ev0300.02,2014-06-01,POLICY,MONETARY_EASING,ONGOING,RATE_CUT,,KR:069500,유럽중앙은행 예금금리 마이너스 도입과 정책금리 인하,,https://www.ecb.europa.eu/press/pr/date/2014/html/pr140605.en.html,2026-11-21
 ev0300.03,2015-01-01,POLICY,MONETARY_EASING,ONGOING,ASSET_PURCHASE,,KR:069500,유럽중앙은행 국채 포함 자산 매입 확대 발표,,https://www.ecb.europa.eu/press/pr/date/2015/html/pr150122_1.en.html,2026-11-21
@@ -134,12 +144,16 @@ ev0308.01,2013-01-01,POLICY,MONETARY_EASING,START,ASSET_PURCHASE,,KR:069500,일�
 ev0308.02,2013-04-01,POLICY,MONETARY_EASING,ONGOING,ASSET_PURCHASE,,KR:069500,일본은행 양적·질적 금융완화 도입,,https://www.boj.or.jp/en/mopo/mpmdeci/mpr_2013/k130404a.pdf,2026-11-21
 ev0308.03,2014-10-01,POLICY,MONETARY_EASING,ONGOING,ASSET_PURCHASE,,KR:069500,일본은행 양적·질적 금융완화 확대,,https://www.boj.or.jp/en/mopo/mpmdeci/mpr_2014/k141031a.pdf,2026-11-21
 ev0308.04,2016-01-01,POLICY,MONETARY_EASING,ONGOING,RATE_CUT,,KR:069500,일본은행 마이너스 금리 부가 양적·질적 금융완화 도입,,https://www.boj.or.jp/en/mopo/mpmdeci/mpr_2016/k160129a.pdf,2026-11-21
+ev0308.05,2016-09-01,POLICY,MONETARY_EASING,ONGOING,FRAMEWORK_CHANGE,,KR:069500,일본은행 장단기 금리 조작 부가 양적·질적 금융완화 도입,,https://www.boj.or.jp/en/mopo/mpmdeci/mpr_2016/k160921a.pdf,2026-11-21
+ev0308.06,2018-07-01,POLICY,MONETARY_EASING,ONGOING,FRAMEWORK_CHANGE,,KR:069500,일본은행 정책금리 선제 안내 도입과 장기금리 변동 허용,,https://www.boj.or.jp/en/mopo/mpmdeci/state_2018/k180731a.htm,2026-11-21
+ev0308.07,2022-12-01,POLICY,MONETARY_EASING,ONGOING,FRAMEWORK_CHANGE,,KR:069500,일본은행 10년 국채 금리 변동 허용 폭 확대,,https://www.boj.or.jp/en/mopo/mpmdeci/state_2022/k221220a.htm,2026-11-21
+ev0308.08,2023-07-01,POLICY,MONETARY_EASING,ONGOING,FRAMEWORK_CHANGE,,KR:069500,일본은행 장기금리 통제 운용 유연화 결정,,https://www.boj.or.jp/en/mopo/mpmdeci/mpr_2023/k230728a.pdf,2026-11-21
 ev0309.01,2013-05-01,POLICY,MONETARY_TIGHTENING,START,SIGNALED,,US:TLT,연준 의장 의회 증언에서 자산 매입 속도 조절 가능성 언급,,https://www.federalreserve.gov/newsevents/testimony/bernanke20130522a.htm,2026-11-21
 ev0309.02,2013-12-01,POLICY,MONETARY_TIGHTENING,ONGOING,ASSET_PURCHASE_CUT,,US:TLT,미국 연준 자산 매입 규모 축소 결정,,https://www.federalreserve.gov/newsevents/pressreleases/monetary20131218a.htm,2026-11-21
 ev0310.01,2013-10-01,POLICY,FISCAL_STANDOFF,START,RESOLVED,,US:SPY,미국 연방정부 일부 업무 정지 뒤 예산·부채 한도 법안 서명으로 재개,,https://obamawhitehouse.archives.gov/blog/2013/10/17/government-shutdown-over,2026-11-21
 ev0311.01,2014-03-01,GEOPOLITICS,ARMED_CONFLICT,START,,,US:SPY,러시아 크림반도 병합 조약 서명,,https://www.pbs.org/newshour/world/putin-signs-treaty-annex-crimea-russia ; https://www.rferl.org/a/russia-crimea-ukraine-treaty/25301179.html,2026-11-21
 ev0311.02,2014-07-01,GEOPOLITICS,ARMED_CONFLICT,ONGOING,ESCALATED,,US:SPY,우크라이나 동부 상공 말레이시아 여객기 격추,,https://www.gov.uk/government/speeches/this-is-a-dark-moment-for-the-international-community ; https://www.globalsecurity.org/wmd/library/news/ukraine/2014/ukraine-140721-unnews01.htm,2026-11-21
-ev0311.03,2014-09-01,GEOPOLITICS,ARMED_CONFLICT,ONGOING,CEASEFIRE,,US:SPY,우크라이나 동부 민스크 의정서 서명,,https://www.osce.org/home/123257,2026-11-21
+ev0311.03,2014-09-01,GEOPOLITICS,ARMED_CONFLICT,ONGOING,CEASEFIRE,,US:SPY,우크라이나 동부 민스크 의정서 서명,,https://www.osce.org/home/123257 ; https://digitallibrary.un.org/record/788519/files/S_2015_135-EN.pdf,2026-11-21
 ev0311.04,2022-02-01,GEOPOLITICS,ARMED_CONFLICT,ONGOING,ESCALATED,,US:SPY,러시아 우크라이나 대규모 군사 작전 개시,,https://news.un.org/en/story/2022/02/1112592,2026-11-21
 ev0312.01,2014-03-01,TRADE,SANCTION,START,IMPOSED,,KR:069500,미국 러시아 관련 인사 대상 제재 확대,,https://ofac.treasury.gov/recent-actions/20140317 ; https://obamawhitehouse.archives.gov/the-press-office/2014/03/17/executive-order-blocking-property-additional-persons-contributing-situat,2026-11-21
 ev0313.01,2014-08-01,HEALTH,EPIDEMIC,START,,,KR:069500,세계보건기구 서아프리카 에볼라 국제 공중보건 비상사태 선포,,https://www.who.int/news/item/08-08-2014-statement-on-the-1st-meeting-of-the-ihr-emergency-committee-on-the-2014-ebola-outbreak-in-west-africa,2026-11-21
@@ -203,6 +217,7 @@ ev0413.02,2020-03-01,POLICY,MONETARY_EASING,ONGOING,EMERGENCY_CUT,,KR:069500,한
 ev0413.03,2020-05-01,POLICY,MONETARY_EASING,ONGOING,RATE_CUT,,KR:069500,한국은행 기준금리 추가 인하,,https://www.bok.or.kr/eng/bbs/B0000308/view.do?nttId=10058439&menuNo=400380,2026-11-21
 ev0414.01,2019-07-01,POLICY,MONETARY_EASING,START,RATE_CUT,,US:SPY,미국 연준 기준금리 목표 범위 인하,,https://www.federalreserve.gov/newsevents/pressreleases/monetary20190731a.htm,2026-11-21
 ev0414.02,2020-03-01,POLICY,MONETARY_EASING,ONGOING,EMERGENCY_CUT,,US:SPY,미국 연준 임시 회의로 기준금리 목표 범위 연이어 인하,,https://www.federalreserve.gov/newsevents/pressreleases/monetary20200303a.htm ; https://www.federalreserve.gov/newsevents/pressreleases/monetary20200315a.htm,2026-11-21
+ev0414.03,2020-08-01,POLICY,MONETARY_EASING,ONGOING,FRAMEWORK_CHANGE,,US:SPY,미국 연준 물가 평균 2% 목표를 담은 장기 목표·통화정책 전략 성명 개정,,https://www.federalreserve.gov/newsevents/pressreleases/monetary20200827a.htm,2026-11-21
 ev0415.01,2019-07-01,TRADE,SANCTION,START,IMPOSED,,KR:005930,일본 한국 대상 통제 품목 수출 허가 운용 변경 발표,,https://web.archive.org/web/2019/https://www.meti.go.jp/english/press/2019/0701_001.html,2026-11-21
 ev0415.02,2019-08-01,TRADE,SANCTION,ONGOING,RETALIATED,,KR:005930,한국 일본을 수출 우대국 명단에서 제외하기로 결정,,https://www.koreatimes.co.kr/business/companies/20190812/korea-removes-japan-from-whitelist-in-tit-for-tat-move,2026-11-21
 ev0416.01,2019-09-01,POLICY,MONETARY_EASING,START,ASSET_PURCHASE,,KR:069500,유럽중앙은행 예금금리 인하와 순자산 매입 재개 결정,,https://www.ecb.europa.eu/press/pr/date/2019/html/ecb.mp190912~08de50b4d2.en.html,2026-11-21
@@ -231,6 +246,7 @@ ev0434.01,2022-03-01,POLITICS,KR_PRESIDENTIAL_ELECTION,START,CHANGE,,KR:069500,�
 ev0435.01,2022-03-01,SUPPLY_SHOCK,OIL_SHOCK,START,,UP,US:XOM,러시아 침공 속 국제에너지기구 회원국 긴급 비축유 방출 합의,,https://web.archive.org/web/2022/https://www.iea.org/news/iea-member-countries-to-make-60-million-barrels-of-oil-available-following-russias-invasion-of-ukraine,2026-11-21
 ev0436.01,2022-04-01,FINANCIAL,SOVEREIGN_DEBT,START,DEFAULTED,,US:SPY,스리랑카 대외 공공 부채 원리금 상환 중단 선언,,https://www.treasury.gov.lk/api/file/3816b192-2bd9-4587-9c69-53e54a3394de,2026-11-21
 ev0437.01,2022-07-01,POLICY,MONETARY_TIGHTENING,START,RATE_HIKE,,KR:069500,유럽중앙은행 정책금리 인상과 전달 보호 수단 승인,,https://www.ecb.europa.eu/press/pr/date/2022/html/ecb.mp220721~53e5bdd317.en.html,2026-11-21
+ev0437.02,2022-09-01,POLICY,MONETARY_TIGHTENING,ONGOING,RATE_HIKE,,KR:069500,유럽중앙은행 정책금리 0.75%포인트 인상,,https://www.ecb.europa.eu/press/pr/date/2022/html/ecb.mp220908~c1b6839378.en.html,2026-11-21
 ev0438.01,2022-09-01,FINANCIAL,SOVEREIGN_DEBT,START,,,US:SPY,영란은행 장기 국채 시장 안정 위한 한시 매입 개시,,https://www.bankofengland.co.uk/news/2022/september/bank-of-england-announces-gilt-market-operation,2026-11-21
 ev0439.01,2022-09-01,FINANCIAL,CURRENCY_SHOCK,START,,,KR:069500,일본 정부 엔화 지지 위한 외환시장 개입,,https://www.cnbc.com/2022/09/22/japan-intervenes-in-fx-market-to-stem-yen-falls-after-boj-keeps-low-rates.html,2026-11-21
 ev0440.01,2022-10-01,TRADE,SANCTION,START,IMPOSED,,KR:005930,미국 중국 대상 첨단 반도체·제조장비 수출 통제 시행,,https://www.bis.gov/press-release/commerce-implements-new-export-controls-advanced-computing-semiconductor-manufacturing-items-peoples,2026-11-21
