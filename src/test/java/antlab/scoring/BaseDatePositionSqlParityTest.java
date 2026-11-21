@@ -3,6 +3,7 @@ package antlab.scoring;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import antlab.support.FullDataDb;
 import antlab.support.GoldenCleanup;
 import antlab.support.SharedPostgres;
 import antlab.support.GoldenFixtureSource;
@@ -66,6 +67,16 @@ class BaseDatePositionSqlParityTest {
     private static PositionParity.Inputs inputs(DatabaseHandle db) throws Exception {
         return PositionParity.inputs(harness.readRows(db, PositionParity.ASSETS, 0L), harness.readRows(db, PositionParity.BLOCKS, 0L),
                 harness.readRows(db, PositionParity.RETURNS, 0L), harness.readRows(db, PositionParity.FX, 0L));
+    }
+
+    @Test
+    void 전체_이력_골든의_읽기_경로가_같은_DB에서_같은_결과를_낸다() throws Exception {
+        DatabaseHandle db = load(SyntheticHistory.positions(), "position_full_tier");
+        assertThat(harness.run(db, new ScriptStep("db/12_calc_position.sql", Kind.RUN, null, STEP_TIMEOUT)).process().exitCode()).isZero();
+        FullDataDb tier = new FullDataDb("jdbc:postgresql://" + container.getHost() + ":"
+                + container.getMappedPort(5432) + "/" + db.name(), container.getUsername(), container.getPassword());
+        PositionParity.Coverage coverage = PositionParity.compareDatabase(tier);
+        assertThat(coverage.judged()).isPositive();
     }
 
     @Test

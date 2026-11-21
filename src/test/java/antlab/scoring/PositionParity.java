@@ -5,12 +5,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import antlab.asset.Currency;
 import antlab.asset.Position;
 import antlab.common.money.MoneyMath;
+import antlab.support.FullDataDb;
 import antlab.support.RowSet;
 import antlab.support.RowSet.ColumnType;
 import antlab.support.RowSet.RowColumn;
 import antlab.support.RowSet.RowQuery;
 import antlab.support.SyntheticHistory;
 import java.math.BigDecimal;
+import java.nio.file.Path;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.ArrayList;
@@ -131,6 +133,17 @@ final class PositionParity {
                 series.get(key(ReportRules.BENCH_KR_MARKET, ReportRules.BENCH_KR_TICKER)),
                 series.get(key(ReportRules.BENCH_US_MARKET, ReportRules.BENCH_US_TICKER)));
         return new Inputs(history, series);
+    }
+
+    /** The full-data tier: the calculator is rebuilt from the raw tables and must reproduce every stored judgement and reason. */
+    static Coverage compareDatabase(FullDataDb db) throws Exception {
+        Path definition = Path.of(DEFINITION);
+        Inputs inputs = inputs(db.read(ASSETS), db.read(BLOCKS), db.read(RETURNS), db.read(FX));
+        RowSet stored = db.read(STORED);
+        Coverage coverage = compare(inputs, stored, db.readWithDefinition(definition, REASONS),
+                db.readWithDefinition(definition, MARKET_MDD));
+        assertThat(coverage.judged() + coverage.unjudged()).as("compared rows").isEqualTo(stored.size());
+        return coverage;
     }
 
     /** Judges every base date of {@code stored} and checks each stored row and each reason. */

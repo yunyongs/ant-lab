@@ -218,7 +218,7 @@ public final class SqlGoldenHarness implements AutoCloseable {
         }
     }
 
-    private static Object readCell(ResultSet rs, int index, ColumnType type) throws SQLException {
+    static Object readCell(ResultSet rs, int index, ColumnType type) throws SQLException {
         return switch (type) {
             case TEXT -> rs.getString(index);
             case LONG -> {
