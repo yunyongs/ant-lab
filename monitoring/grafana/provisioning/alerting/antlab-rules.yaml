@@ -508,3 +508,62 @@ groups:
         annotations:
           summary: "최근 7일 안에 읽혔던 장부를 지금은 읽지 못합니다."
           description: "발생 조건: antlab_ledger_readable이 0으로 떨어진 상태가 10분 이어지면 울립니다. 한 번도 읽힌 적 없는 장부(경로 미설정)는 울리지 않습니다.\n\n의미: 파일이 없거나, 읽을 수 없거나, 형식이 깨졌다는 뜻입니다. 이 동안 두 예산 규칙이 조용하므로 안전한 상태로 오해하지 않도록 이유를 알립니다.\n\n점검 순서: AI 사용량 대시보드의 '장부 읽기 상태' 표와 내보내기 설정의 장부 경로를 봅니다."
+  - orgId: 1
+    name: host
+    folder: ant-lab alerts
+    interval: 1m
+    rules:
+      - uid: antlab-alert-host-stale-process
+        title: 남은 고CPU 프로세스
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: antlab-prometheus
+            model:
+              refId: A
+              datasource:
+                type: prometheus
+                uid: antlab-prometheus
+              expr: "sum(antlab_host_process_stale{job=\"antlab-host\"})"
+              instant: true
+              range: false
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: reduce
+              expression: A
+              reducer: last
+              settings:
+                mode: dropNN
+              datasource:
+                type: __expr__
+                uid: __expr__
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              datasource:
+                type: __expr__
+                uid: __expr__
+        noDataState: OK
+        execErrState: Error
+        for: 30m
+        isPaused: false
+        labels:
+          severity: warning
+          component: host
+        annotations:
+          summary: "2시간 넘게 CPU를 50% 넘게 쓰는 ant-lab 프로세스가 30분째 남아 있습니다."
+          description: "발생 조건: 실행 후 2시간이 넘었고 CPU가 50%를 넘는 ant-lab 프로세스(Gradle, pytest, java, python, node 등)가 하나라도 있는 상태가 30분 이어지면 울립니다. 내보내기가 꺼져 있거나 값이 없으면 조용합니다.\n\n의미: 끝난 작업의 시험이나 서버가 계속 CPU를 쓰며 맥의 배터리와 다른 작업을 잡아먹고 있다는 뜻입니다. 2026-11-21에 낡은 워크트리의 pytest 두 개가 이틀 동안 코어를 거의 꽉 쓴 일이 그 예입니다.\n\n점검 순서: 로컬 리소스 점검 대시보드의 '오래 남은 고CPU 프로세스' 표에서 종류와 워크트리를 보고, ps -axo pid,etime,pcpu,command | grep <워크트리>로 확인한 뒤 하던 일이 아니면 kill <pid>로 끝냅니다."

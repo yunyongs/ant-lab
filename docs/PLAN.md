@@ -943,7 +943,8 @@ The owner approved the tables below with the recommended defaults for Q1–Q7 (2
 | OBS-09 | Agent dashboard / 에이전트 대시보드 | After OBS-02 / OBS-02 뒤 | OBS-02 |
 | OBS-10 | Local alert rules as code (optional, last) / 코드로 관리하는 로컬 경보 규칙(선택, 마지막) | After OBS-03, OBS-05, OBS-07, OBS-08, OBS-09 / OBS-03, OBS-05, OBS-07, OBS-08, OBS-09 뒤 | OBS-03, OBS-05, OBS-07, OBS-08, OBS-09 |
 | OBS-11 | Log collection with Loki (deferred, owner 2026-11-19) / Loki 로그 수집(보류, 소유자 2026-11-19) | Any time in OBS / OBS 안에서 언제든 | — |
-| OBS-12 | Observability smoke and run docs / 관측 스모크와 실행 문서 | Last in OBS / OBS 마지막 | OBS-01–OBS-10 |
+| OBS-12 | Observability smoke and run docs / 관측 스모크와 실행 문서 | Last in OBS / OBS 마지막 | OBS-01–OBS-10 (OBS-13 is outside the smoke / OBS-13은 스모크 밖) |
+| OBS-13 | Local resource dashboard: antlab processes, containers, worktrees and left-over or unused resources on this Mac (host exporter run by launchd, dashboard `antlab-host-resources`, one alert rule) / 로컬 리소스 점검 대시보드: 이 맥의 antlab 프로세스·컨테이너·워크트리와 남아 있거나 안 쓰는 자원(launchd로 도는 호스트 내보내기, 대시보드 `antlab-host-resources`, 경보 규칙 하나) | After OBS-10 (owner request 2026-11-21) / OBS-10 뒤(소유자 요청 2026-11-21) | OBS-03, OBS-10 |
 
 **SEC feature table / SEC 기능 표**
 

@@ -1,0 +1,874 @@
+{
+  "uid": "antlab-host-resources",
+  "title": "ant-lab · 로컬 리소스 점검",
+  "description": "목적: 이 맥에서 ant-lab 작업이 쓰는 CPU·메모리와, 일이 끝났는데 남아 있는 프로세스·컨테이너·작업 폴더를 찾아 정리하게 돕습니다.\n\n읽는 순서: 맨 위 줄로 내보내기가 켜져 있고 원천이 읽히는지 확인하고, 종류별 CPU·메모리로 전체 부담을 본 뒤, 오래 남은 고CPU 프로세스와 놀고 있는 데몬 표에서 정리할 것을 찾습니다. 컨테이너 메모리와 워크트리 표는 그 아래입니다. 이 대시보드는 아무것도 지우지 않으며 정리 명령은 각 패널 설명에 적어 두었습니다.",
+  "tags": [
+    "antlab"
+  ],
+  "editable": false,
+  "graphTooltip": 1,
+  "timezone": "Asia/Seoul",
+  "schemaVersion": 42,
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "refresh": "1m",
+  "templating": {
+    "list": []
+  },
+  "links": [
+    {
+      "type": "link",
+      "title": "개요",
+      "url": "/d/antlab-overview",
+      "icon": "dashboard",
+      "targetBlank": false
+    }
+  ],
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "내보내기 응답",
+      "description": "시각화 이유: 이 대시보드의 숫자를 믿어도 되는지 먼저 확인하려는 칸입니다. 내보내기는 컨테이너가 아니라 맥 본체에서 도는 별도 프로세스입니다.\n\n확인 지표: Prometheus가 호스트 내보내기(host.docker.internal:9191)를 마지막 수집에서 읽었으면 1, 못 읽었으면 0입니다.\n\n정상 범위: 켜 둔 동안은 응답 중(1)입니다.\n\n이상 신호: 꺼짐(0)이면 아래 모든 칸이 비거나 마지막 값에서 멈춥니다. 꺼져 있는 것이 이상일 뿐 자원이 0이라는 뜻은 아닙니다.\n\n점검 순서: launchctl list | grep antlab로 에이전트가 떠 있는지, curl -s http://127.0.0.1:9191/metrics | head로 응답하는지 봅니다. 설치 방법은 docs/DEPLOY.md의 OBS-13 항목입니다.\n\n참고: 설치하지 않은 상태에서는 항상 꺼짐이며 다른 경보나 대시보드에 영향을 주지 않습니다.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "antlab-prometheus"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 0,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          },
+          "noValue": "no data",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "꺼짐",
+                  "color": "red",
+                  "index": 0
+                },
+                "1": {
+                  "text": "응답 중",
+                  "color": "green",
+                  "index": 1
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "antlab-prometheus"
+          },
+          "refId": "A",
+          "expr": "up{job=\"antlab-host\"}",
+          "instant": true
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "남은 Testcontainers",
+      "description": "시각화 이유: 통합 시험이 띄운 일회용 컨테이너가 시험이 끝난 뒤에도 남아 자원을 쓰는지 보려는 칸입니다.\n\n확인 지표: 라벨 org.testcontainers=true인 실행 중 컨테이너 수(개)입니다.\n\n정상 범위: 시험이 돌지 않을 때는 0입니다. 시험 도중에는 1 이상일 수 있습니다.\n\n이상 신호: 시험을 돌리지 않는데 1 이상이면 이전 시험이 정리하지 못하고 남긴 컨테이너입니다.\n\n점검 순서: docker ps --filter label=org.testcontainers=true로 이름과 시작 시각을 확인하고, 돌고 있는 시험이 없는 것을 확인한 뒤 docker rm -f <이름>으로 지웁니다. Ryuk 컨테이너(testcontainers/ryuk)는 시험이 끝나면 스스로 사라집니다.\n\n참고: Docker가 꺼져 있으면 수집이 실패해 값이 비어 있을 수 있으니 '수집 원천 상태'를 함께 봅니다.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "antlab-prometheus"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 4,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              }
+            ]
+          },
+          "noValue": "no data"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "antlab-prometheus"
+          },
+          "refId": "A",
+          "expr": "antlab_host_testcontainers_running{job=\"antlab-host\"}",
+          "instant": true
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "슬롯 점유",
+      "description": "시각화 이유: 무거운 빌드와 시험이 한 번에 하나만 돌도록 하는 슬롯이 지금 잡혀 있는지, 주인 없이 남았는지 보려는 칸입니다.\n\n확인 지표: 슬롯 디렉터리 중 기록된 프로세스가 살아 있는 것(점유)과 죽은 것(남은 슬롯)의 개수입니다.\n\n정상 범위: 점유는 0 또는 1이고, 남은 슬롯은 0입니다.\n\n이상 신호: 점유가 오래 1에서 안 내려오면 어떤 작업이 막혀 있는 것이고, 남은 슬롯이 1 이상이면 다음 작업이 슬롯을 치우기 전까지 기록만 남은 상태입니다.\n\n점검 순서: 슬롯 디렉터리(ANTLAB_HOST_SLOTS_DIR)를 ls로 보고 번호별 pid 파일을 확인한 뒤, ps -p <pid>로 정말 살아 있는 작업인지 봅니다. 죽은 pid의 슬롯은 다음 무거운 실행이 스스로 치우므로 보통 손댈 필요가 없습니다.\n\n참고: 슬롯 디렉터리를 읽지 못하면 값이 비고 '수집 원천 상태'의 slots가 0이 됩니다. 디렉터리를 설정하지 않으면 이 칸은 항상 비어 있습니다.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "antlab-prometheus"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 8,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "noValue": "no data"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "antlab-prometheus"
+          },
+          "refId": "A",
+          "expr": "antlab_host_slots_held{job=\"antlab-host\"}",
+          "legendFormat": "점유",
+          "instant": true
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "antlab-prometheus"
+          },
+          "refId": "B",
+          "expr": "antlab_host_slots_stale{job=\"antlab-host\"}",
+          "legendFormat": "남은 슬롯",
+          "instant": true
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Gradle 데몬·워커 수",
+      "description": "시각화 이유: 빌드가 끝난 뒤에도 남아 메모리를 잡고 있는 Gradle 프로세스를 눈에 띄게 하려는 칸입니다.\n\n확인 지표: Gradle 데몬과 시험 워커 프로세스 수(개)입니다. 데몬은 여러 체크아웃이 공유하므로 워크트리 구분 없이 합칩니다.\n\n정상 범위: 빌드 중에는 데몬 1, 워커 몇 개이고, 슬롯 실행은 --no-daemon이라 빌드가 없을 때는 둘 다 0이어야 합니다.\n\n이상 신호: 빌드를 하지 않는데 데몬이 1 이상이면 한가한 데몬이 남은 것입니다. 워커가 남아 있으면 시험이 끝나지 않은 것입니다.\n\n점검 순서: 아래 '놀고 있는 데몬' 표에서 오래 한가했는지 확인하고 ./gradlew --stop으로 데몬을 끕니다. 워커가 남으면 ps -axo pid,etime,pcpu,command | grep GradleWorkerMain으로 확인한 뒤 kill <pid>합니다.\n\n참고: 다른 프로젝트의 Gradle도 같은 종류로 셉니다. 이 맥에서는 ant-lab만 쓰는 것을 전제로 한 값입니다.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "antlab-prometheus"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 12,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "noValue": "no data"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "antlab-prometheus"
+          },
+          "refId": "A",
+          "expr": "sum(antlab_host_process_count{job=\"antlab-host\",kind=\"gradle_daemon\"})",
+          "legendFormat": "데몬",
+          "instant": true
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "antlab-prometheus"
+          },
+          "refId": "B",
+          "expr": "sum(antlab_host_process_count{job=\"antlab-host\",kind=\"gradle_worker\"})",
+          "legendFormat": "워커",
+          "instant": true
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 5,
+      "type": "table",
+      "title": "수집 원천 상태",
+      "description": "시각화 이유: 아래 숫자가 어느 원천에서 왔고 그 원천이 지금 읽히는지 보려는 표입니다.\n\n확인 지표: 원천(ps, docker, docker_stats, git, slots)마다 한 행이며 마지막 수집에서 성공하면 1, 실패하면 0입니다.\n\n정상 범위: 모두 1입니다.\n\n이상 신호: 0이면 그 원천의 칸은 0이 아니라 아예 비어 있습니다. 비어 있는 칸을 '문제 없음'으로 읽으면 안 됩니다.\n\n점검 순서: docker가 0이면 Docker Desktop이 떠 있는지, git이 0이면 저장소 경로와 origin/main이 있는지, slots가 0이면 슬롯 디렉터리가 있는지 봅니다. 에이전트 환경 변수는 docs/DEPLOY.md의 OBS-13 항목에 있습니다.\n\n참고: 한 번 수집에 걸린 시간은 아래 '수집 소요 시간'에서 봅니다.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "antlab-prometheus"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 18,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "상태"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "0": {
+                        "text": "읽기 실패",
+                        "color": "red",
+                        "index": 0
+                      },
+                      "1": {
+                        "text": "정상",
+                        "color": "green",
+                        "index": 1
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "antlab-prometheus"
+          },
+          "refId": "A",
+          "expr": "antlab_host_source_ok{job=\"antlab-host\"}",
+          "instant": true,
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "job": true,
+              "instance": true,
+              "__name__": true
+            },
+            "renameByName": {
+              "Value": "상태",
+              "source": "원천"
+            }
+          }
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      }
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "종류별 CPU 사용률",
+      "description": "시각화 이유: ant-lab 작업이 종류별로 CPU를 얼마나 쓰는지 비교해 어디서 새는지 찾으려는 패널입니다.\n\n확인 지표: 종류(kind)별 프로세스 CPU 사용률의 합(%)입니다. 100%는 코어 하나를 꽉 쓴다는 뜻이라 코어가 여러 개면 100%를 넘을 수 있습니다.\n\n정상 범위: 작업이 없을 때 모든 종류가 0에 가깝습니다. 빌드나 시험 중에는 pytest와 java가 한시적으로 오릅니다.\n\n이상 신호: 작업을 시킨 적이 없는데 pytest나 uv_or_python_ai가 계속 높으면 끝나지 않은 프로세스입니다. 오래 높은 줄은 아래 '오래 남은 고CPU 프로세스' 표가 잡아 줍니다.\n\n점검 순서: 높은 종류를 정하고 '오래 남은 고CPU 프로세스' 표에서 워크트리를 확인한 뒤 ps -axo pid,etime,pcpu,command | grep <워크트리>로 프로세스를 찾아 kill <pid>합니다.\n\n참고: ps의 CPU는 최근 값을 부드럽게 만든 근사치라 짧은 급등은 놓칠 수 있습니다. Docker 가상 머신은 컨테이너 칸이 아니라 맥의 활성 상태 보기에서 봅니다.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "antlab-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 5
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "auto",
+            "spanNulls": false
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "antlab-prometheus"
+          },
+          "refId": "A",
+          "expr": "sum by (kind) (antlab_host_process_cpu_percent{job=\"antlab-host\"})",
+          "legendFormat": "{{kind}}"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "종류별 메모리 사용량",
+      "description": "시각화 이유: ant-lab 프로세스가 종류별로 메모리를 얼마나 잡고 있는지 보려는 패널입니다.\n\n확인 지표: 종류(kind)별 프로세스 상주 메모리(RSS)의 합(바이트)입니다.\n\n정상 범위: 작업이 없을 때는 0에 가깝고, Gradle 데몬이 떠 있으면 수백 MB를 잡습니다.\n\n이상 신호: 작업을 하지 않는데 오래 평평하게 높은 줄은 남은 프로세스입니다. 시간이 갈수록 계속 오르면 누수 가능성이 있습니다.\n\n점검 순서: 높은 종류가 gradle_daemon이면 ./gradlew --stop, pytest나 java이면 '오래 남은 고CPU 프로세스'와 '놀고 있는 데몬' 표에서 해당 워크트리를 찾아 확인한 뒤 kill <pid>합니다.\n\n참고: RSS는 공유 메모리를 중복해서 셀 수 있어 합이 실제보다 크게 보일 수 있습니다.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "antlab-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 5
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "auto",
+            "spanNulls": false
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "antlab-prometheus"
+          },
+          "refId": "A",
+          "expr": "sum by (kind) (antlab_host_process_rss_bytes{job=\"antlab-host\"})",
+          "legendFormat": "{{kind}}"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 8,
+      "type": "table",
+      "title": "오래 남은 고CPU 프로세스",
+      "description": "시각화 이유: 며칠째 CPU를 꽉 쓰는 낡은 시험처럼 사람이 잊은 프로세스를 바로 잡아내려는 표입니다.\n\n확인 지표: 실행 후 2시간이 넘었고 CPU가 50%를 넘는 ant-lab 프로세스의 개수(개)를 종류(kind)와 워크트리별로 보여 줍니다. 기타(other_antlab)는 세지 않습니다.\n\n정상 범위: 표가 비어 있는 것이 정상입니다.\n\n이상 신호: 행이 하나라도 있으면 일이 끝난 뒤에도 남았거나 멈춘 채 돌고 있을 가능성이 큽니다. 30분 이어지면 '남은 고CPU 프로세스' 경보가 울립니다.\n\n점검 순서: 표의 워크트리 이름으로 ps -axo pid,etime,pcpu,command | grep <워크트리>를 실행해 어떤 시험인지 확인하고, 하던 일이 아니면 kill <pid>로 끝냅니다. 반응이 없을 때만 kill -9 <pid>를 씁니다. 같은 워크트리의 다른 작업을 끊지 않도록 pid를 한 번 더 확인합니다.\n\n참고: ps는 종료된 프로세스를 보여 주지 않으므로 정리하면 한두 번의 수집(30초 안팎) 안에 사라집니다.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "antlab-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 13
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "antlab-prometheus"
+          },
+          "refId": "A",
+          "expr": "sum by (kind, worktree) (antlab_host_process_stale{job=\"antlab-host\"}) > 0",
+          "instant": true,
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "job": true,
+              "instance": true,
+              "__name__": true
+            },
+            "renameByName": {
+              "Value": "개수",
+              "kind": "종류",
+              "worktree": "워크트리"
+            }
+          }
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      }
+    },
+    {
+      "id": 9,
+      "type": "table",
+      "title": "놀고 있는 데몬",
+      "description": "시각화 이유: 일이 없는데도 메모리만 잡고 남아 있는 데몬과 서버를 찾으려는 표입니다.\n\n확인 지표: 실행 후 1시간이 넘었고 CPU가 1% 미만인 ant-lab 프로세스의 개수(개)를 종류(kind)와 워크트리별로 보여 줍니다.\n\n정상 범위: 작업 중이 아닐 때 비어 있는 것이 정상입니다. 일부러 켜 둔 개발 서버나 로컬 API는 한가해도 여기에 나타납니다.\n\n이상 신호: 켠 기억이 없는 gradle_daemon, postgres_temp, java_api_local이 있으면 정리 대상입니다. 워크트리가 이미 머지되었다면 더 확실합니다.\n\n점검 순서: Gradle 데몬이면 ./gradlew --stop으로 끕니다. 다른 종류는 ps -axo pid,etime,pcpu,command | grep <워크트리>로 확인하고 필요 없으면 kill <pid>로 끝냅니다. 임시 postgres는 같은 작업 폴더의 pg_ctl stop -D <데이터 폴더>로 먼저 끕니다.\n\n참고: 한가함은 순간 CPU만 보므로 통신을 기다리는 서버도 한가하게 보입니다. 지우기 전에 어떤 작업의 것인지 확인합니다.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "antlab-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 13
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "antlab-prometheus"
+          },
+          "refId": "A",
+          "expr": "sum by (kind, worktree) (antlab_host_process_idle{job=\"antlab-host\"}) > 0",
+          "instant": true,
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "job": true,
+              "instance": true,
+              "__name__": true
+            },
+            "renameByName": {
+              "Value": "개수",
+              "kind": "종류",
+              "worktree": "워크트리"
+            }
+          }
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      }
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "컨테이너 메모리 대비 상한",
+      "description": "시각화 이유: 메모리 상한(mem_limit)에 가까워진 컨테이너가 있는지, 반대로 상한만 크고 거의 안 쓰는지 보려는 패널입니다.\n\n확인 지표: compose 서비스별 사용 메모리를 그 서비스의 메모리 상한으로 나눈 비율입니다. 남은 컨테이너 묶음(other_leftover_running)은 상한이 없어 제외합니다.\n\n정상 범위: 대부분 80% 아래이고, 1.0은 상한과 같습니다.\n\n이상 신호: 90%를 넘는 상태가 이어지면 메모리 부족으로 재시작되거나 느려질 수 있습니다. 2026-11-19에 Grafana가 256m 중 243.6MiB를 쓰며 디스크 읽기가 몰렸던 것이 그 예입니다.\n\n점검 순서: docker stats --no-stream으로 서비스별 값을 확인하고, 계속 높으면 compose.yaml의 mem_limit을 올리는 것을 검토합니다. 반대로 항상 20% 아래이면 상한을 낮출 수 있습니다.\n\n참고: antlab 프로젝트가 아닌 컨테이너는 'other_leftover_running' 하나로 묶이며 이 비율에서는 빠지고, 아래 '멈추거나 남은 컨테이너' 표에서 봅니다.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "antlab-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 21
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "auto",
+            "spanNulls": false
+          },
+          "min": 0,
+          "max": 1.1
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "antlab-prometheus"
+          },
+          "refId": "A",
+          "expr": "sum by (service) (antlab_host_container_mem_bytes{job=\"antlab-host\",service!=\"other_leftover_running\"}) / (sum by (service) (antlab_host_container_mem_limit_bytes{job=\"antlab-host\",service!=\"other_leftover_running\"}) > 0)",
+          "legendFormat": "{{service}}"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "수집 소요 시간",
+      "description": "시각화 이유: 이 내보내기가 맥에 주는 부담이 작은지, 어느 원천이 느린지 보려는 패널입니다.\n\n확인 지표: 원천(ps, docker, docker_stats, git, slots)별 마지막 수집에 걸린 시간(초)입니다. 15초 캐시 안의 수집은 새로 재지 않습니다.\n\n정상 범위: docker_stats가 1~3초로 가장 크고 나머지는 1초 미만입니다.\n\n이상 신호: 어느 원천이든 10초에 가까워지면 시간 제한(15초)에 걸려 실패할 수 있습니다. docker_stats가 계속 길면 컨테이너 수나 Docker Desktop 상태를 봅니다.\n\n점검 순서: 긴 원천의 명령(docker stats --no-stream, git worktree list)을 직접 실행해 같은 시간이 걸리는지 확인합니다. 부담이 크면 Prometheus 수집 간격을 늘립니다.\n\n참고: 첫 수집은 git status를 모든 워크트리에 돌려 이후보다 오래 걸리고, 이후 10분 동안은 캐시된 값을 씁니다.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "antlab-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 21
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "auto",
+            "spanNulls": false
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "antlab-prometheus"
+          },
+          "refId": "A",
+          "expr": "antlab_host_collect_seconds{job=\"antlab-host\"}",
+          "legendFormat": "{{source}}"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 12,
+      "type": "table",
+      "title": "머지된 브랜치의 워크트리",
+      "description": "시각화 이유: 이미 origin/main에 합쳐진 브랜치의 작업 폴더를 찾아 정리 후보로 올리려는 표입니다.\n\n확인 지표: 브랜치가 origin/main에 포함되었고 끝 커밋이 main의 끝과 다른 워크트리와 그 마지막 커밋 이후 경과 시간입니다. 자기 커밋이 없는 브랜치(main의 첫 부모 줄에 있는 커밋)는 제외됩니다.\n\n정상 범위: 머지가 끝난 작업은 곧 정리하므로 몇 개 이하이면 정상입니다.\n\n이상 신호: 오래된 행이 쌓이면 디스크와 오래된 프로세스의 원인이 됩니다.\n\n점검 순서: 먼저 '미커밋 변경이 있는 워크트리' 표에 같은 이름이 없는지, PR이 실제로 머지되었는지 확인합니다. 그 뒤에 소유자 승인으로 git worktree remove <경로>를 실행합니다. 이 패널은 지우지 않고 알려 주기만 합니다.\n\n참고: 스쿼시 머지로 합친 브랜치는 잡히지 않습니다. 이 저장소는 머지 커밋을 쓰므로 해당되지 않습니다. origin/main은 마지막으로 가져온 상태 기준이라 fetch 전의 머지는 보이지 않습니다.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "antlab-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 29
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "antlab-prometheus"
+          },
+          "refId": "A",
+          "expr": "antlab_host_worktree_last_commit_age_seconds{job=\"antlab-host\"} and on(worktree) antlab_host_worktree_merged{job=\"antlab-host\"} == 1",
+          "instant": true,
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "job": true,
+              "instance": true,
+              "__name__": true
+            },
+            "renameByName": {
+              "Value": "마지막 커밋 이후",
+              "worktree": "워크트리"
+            }
+          }
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      }
+    },
+    {
+      "id": 13,
+      "type": "table",
+      "title": "미커밋 변경이 있는 워크트리",
+      "description": "시각화 이유: 정리하기 전에 아직 저장하지 않은 작업이 남은 워크트리를 걸러 내려는 표입니다.\n\n확인 지표: git status --porcelain이 보여 주는 변경·미추적 파일 수(개)가 1 이상인 워크트리입니다. 값은 10분 캐시라 방금 한 변경은 늦게 보입니다.\n\n정상 범위: 작업 중인 워크트리에 있는 것은 정상입니다.\n\n이상 신호: 머지된 브랜치의 워크트리에 변경이 남아 있으면 지우면 안 되는 작업일 수 있습니다. 오래 방치된 채 변경이 있는 행도 확인 대상입니다.\n\n점검 순서: git -C <경로> status로 내용을 보고 커밋할지 버릴지 소유자가 정합니다. 확인 전에는 git worktree remove를 쓰지 않습니다.\n\n참고: 이 값은 읽기 전용으로 센 것이며 어떤 파일도 건드리지 않습니다.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "antlab-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 29
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "antlab-prometheus"
+          },
+          "refId": "A",
+          "expr": "antlab_host_worktree_uncommitted_files{job=\"antlab-host\"} > 0",
+          "instant": true,
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "job": true,
+              "instance": true,
+              "__name__": true
+            },
+            "renameByName": {
+              "Value": "변경 파일 수",
+              "worktree": "워크트리"
+            }
+          }
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      }
+    },
+    {
+      "id": 14,
+      "type": "table",
+      "title": "멈추거나 남은 컨테이너",
+      "description": "시각화 이유: 이미 멈춘 antlab 컨테이너와 antlab 프로젝트 밖에서 떠 있는 컨테이너처럼 사람이 잊기 쉬운 컨테이너를 찾으려는 표입니다.\n\n확인 지표: compose 서비스별로 멈춘 컨테이너 수(개)와, antlab 프로젝트가 아닌 실행 중 컨테이너 묶음(other_leftover_running)의 개수입니다.\n\n정상 범위: 의도해서 멈춰 둔 서비스(예: 프로필을 켜지 않은 api)만 있고 남은 컨테이너 묶음은 0입니다.\n\n이상 신호: 켠 기억이 없는 남은 컨테이너가 있거나, 멈춘 채 오래 둔 서비스가 쌓이는 것입니다.\n\n점검 순서: docker ps -a --filter status=exited로 이름과 종료 시각을 확인하고, 필요 없는 것만 docker rm <이름>으로 지웁니다. 남은 컨테이너는 docker ps로 이름과 이미지를 보고 시험이 돌고 있지 않은 것을 확인한 뒤 docker rm -f <이름>합니다.\n\n참고: 지워도 볼륨(데이터)은 남지만, 이름 붙은 볼륨은 docker volume rm을 따로 하지 않는 한 그대로입니다.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "antlab-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 37
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "antlab-prometheus"
+          },
+          "refId": "A",
+          "expr": "antlab_host_container_stopped{job=\"antlab-host\"} > 0 or antlab_host_container_running{job=\"antlab-host\",service=\"other_leftover_running\"} > 0",
+          "instant": true,
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "job": true,
+              "instance": true,
+              "__name__": true
+            },
+            "renameByName": {
+              "Value": "개수",
+              "service": "서비스"
+            }
+          }
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      }
+    }
+  ]
+}

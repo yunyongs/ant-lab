@@ -296,7 +296,7 @@ class MonitoringComposeSettingsTest {
     @SuppressWarnings("unchecked")
     void scrape_설정은_db_지표_잡을_내부_주소로_긁는다() throws IOException {
         var jobs = (List<Map<String, Object>>) load("monitoring/prometheus/prometheus.yml").get("scrape_configs");
-        assertThat(jobs).extracting(j -> j.get("job_name")).containsExactly("antlab-api", "antlab-db", "antlab-engine", "antlab-ledgers");
+        assertThat(jobs).extracting(j -> j.get("job_name")).containsExactly("antlab-api", "antlab-db", "antlab-engine", "antlab-ledgers", "antlab-host");
         var job = jobs.get(1);
         var targets = (List<Map<String, Object>>) job.get("static_configs");
         assertThat(targets).hasSize(1);

@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  OBS-13 host exporter as a per-user launchd agent. Template only: nothing installs it for you.
+  Replace __HOME__ (your home folder), __REPO__ (the main checkout) and __PYTHON__ (Python 3.13). __JOB_TMP__ (the folder where local agent jobs keep temporary files) and __SLOTS_DIR__ (the heavy-run slot folder) are optional: leave their two keys out to turn that part off. docs/DEPLOY.md has the install and uninstall commands.
+  It listens on 127.0.0.1:9191 only; the file holds no secret and the exporter reads none.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.antlab.host-exporter</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>__PYTHON__</string>
+    <string>-m</string>
+    <string>antlab_ai.host_exporter</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>__REPO__/ai</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PYTHONPATH</key>
+    <string>__REPO__/ai/src</string>
+    <key>PATH</key>
+    <string>/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:/usr/local/bin:/Applications/Docker.app/Contents/Resources/bin</string>
+    <key>HOME</key>
+    <string>__HOME__</string>
+    <key>ANTLAB_HOST_REPO</key>
+    <string>__REPO__</string>
+    <key>ANTLAB_HOST_JOB_TMP</key>
+    <string>__JOB_TMP__</string>
+    <key>ANTLAB_HOST_SLOTS_DIR</key>
+    <string>__SLOTS_DIR__</string>
+    <key>ANTLAB_HOST_EXPORTER_PORT</key>
+    <string>9191</string>
+  </dict>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>Nice</key>
+  <integer>15</integer>
+  <key>ProcessType</key>
+  <string>Background</string>
+  <key>LowPriorityIO</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>__HOME__/Library/Logs/antlab-host-exporter.log</string>
+  <key>StandardErrorPath</key>
+  <string>__HOME__/Library/Logs/antlab-host-exporter.log</string>
+</dict>
+</plist>
