@@ -30,7 +30,7 @@ class GrafanaAlertRulesSettingsTest {
     private static final Set<String> EXPECTED_UIDS = Set.of(
             "antlab-alert-api-down", "antlab-alert-api-5xx", "antlab-alert-reconciliation-mismatch", "antlab-alert-engine-down",
             "antlab-alert-collector-failed", "antlab-alert-collector-stale", "antlab-alert-openrouter-cap", "antlab-alert-ollama-stop",
-            "antlab-alert-ledger-unreadable");
+            "antlab-alert-ledger-unreadable", "antlab-alert-host-stale-process");
     private static final Pattern UID_FORMAT = Pattern.compile("^antlab-alert-[a-z0-9-]{1,30}$");
     private static final Set<String> SEVERITIES = Set.of("critical", "warning", "info");
     private static final Pattern RELATION = Pattern.compile("(?i)\\b(?:from|join)\\s+([a-z_][a-z0-9_.]*)");
@@ -86,7 +86,7 @@ class GrafanaAlertRulesSettingsTest {
 
     private static Set<String> allowedMetrics() throws IOException {
         Set<String> names = new HashSet<>(Set.of("up"));
-        for (String file : List.of("metric-names.txt", "metric-names-ledger.txt", "metric-names-engine.txt")) {
+        for (String file : List.of("metric-names.txt", "metric-names-ledger.txt", "metric-names-engine.txt", "metric-names-host.txt")) {
             names.addAll(allowlist(Path.of("src/test/resources/monitoring", file)).keySet());
         }
         return names;
@@ -268,7 +268,7 @@ class GrafanaAlertRulesSettingsTest {
     }
 
     @Test
-    void theNineRulesAreProvisionedFromOneFile() throws IOException {
+    void theTenRulesAreProvisionedFromOneFile() throws IOException {
         Set<String> uids = new HashSet<>();
         rules(provisioned()).forEach(r -> uids.add((String) r.get("uid")));
         assertThat(uids).isEqualTo(EXPECTED_UIDS);

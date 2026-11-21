@@ -25,7 +25,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-UIDS = ("antlab-api", "antlab-jvm-db", "antlab-game", "antlab-collectors", "antlab-overview", "antlab-db", "antlab-engine", "antlab-ai-usage")
+UIDS = ("antlab-api", "antlab-jvm-db", "antlab-game", "antlab-collectors", "antlab-overview", "antlab-db", "antlab-engine", "antlab-ai-usage", "antlab-host-resources")
 FOLDER_UID = "antlab"
 PG_DATASOURCE_UID = "antlab-postgres"
 APPLICATION = "antlab-api"
@@ -345,7 +345,7 @@ ALERT_RULES_API = "/api/prometheus/grafana/api/v1/rules"
 ALERT_UIDS = (
     "antlab-alert-api-down", "antlab-alert-api-5xx", "antlab-alert-reconciliation-mismatch", "antlab-alert-engine-down",
     "antlab-alert-collector-failed", "antlab-alert-collector-stale", "antlab-alert-openrouter-cap", "antlab-alert-ollama-stop",
-    "antlab-alert-ledger-unreadable",
+    "antlab-alert-ledger-unreadable", "antlab-alert-host-stale-process",
 )
 
 

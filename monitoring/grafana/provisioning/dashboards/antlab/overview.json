@@ -73,6 +73,13 @@
       "url": "/d/antlab-ai-usage",
       "icon": "dashboard",
       "targetBlank": false
+    },
+    {
+      "type": "link",
+      "title": "로컬 리소스",
+      "url": "/d/antlab-host-resources",
+      "icon": "dashboard",
+      "targetBlank": false
     }
   ],
   "panels": [

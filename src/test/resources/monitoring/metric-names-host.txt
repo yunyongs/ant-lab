@@ -1,0 +1,23 @@
+# Metric names the dashboard antlab-host-resources and the rule antlab-alert-host-stale-process may query, one per line, sorted. Source: the host exporter in ai/src/antlab_ai/host_exporter (job antlab-host); a pytest and GrafanaHostDashboardTest check that it exports exactly these. Names Prometheus makes itself (up, scrape_*) are not listed.
+antlab_host_collect_seconds
+antlab_host_container_cpu_percent
+antlab_host_container_mem_bytes
+antlab_host_container_mem_limit_bytes
+antlab_host_container_running
+antlab_host_container_stopped
+antlab_host_container_up_seconds
+antlab_host_dir_bytes
+antlab_host_process_count
+antlab_host_process_cpu_percent
+antlab_host_process_idle
+antlab_host_process_max_age_seconds
+antlab_host_process_rss_bytes
+antlab_host_process_stale
+antlab_host_slots_held
+antlab_host_slots_stale
+antlab_host_source_ok
+antlab_host_testcontainers_running
+antlab_host_worktree_last_commit_age_seconds
+antlab_host_worktree_merged
+antlab_host_worktree_uncommitted_files
+antlab_host_worktrees

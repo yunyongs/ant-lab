@@ -39,7 +39,7 @@ class GrafanaDashboardsSettingsTest {
     private static final Map<String, String> UIDS = Map.of(
             "api.json", "antlab-api", "jvm-db.json", "antlab-jvm-db", "game.json", "antlab-game",
             "collectors.json", "antlab-collectors", "overview.json", "antlab-overview", "db.json", "antlab-db", "engine.json", "antlab-engine",
-            "ai-usage.json", "antlab-ai-usage");
+            "ai-usage.json", "antlab-ai-usage", "host-resources.json", "antlab-host-resources");
     /** Dashboards that read Prometheus only; the PostgreSQL and mixed ones are checked in {@link GrafanaObsDashboardsTest}. */
     private static final Set<String> PROMETHEUS_ONLY = Set.of("api.json", "jvm-db.json", "game.json");
     private static final Pattern UID_FORMAT = Pattern.compile("^[a-z0-9-]{1,40}$");
@@ -285,7 +285,7 @@ class GrafanaDashboardsSettingsTest {
     }
 
     @Test
-    void 대시보드는_정해진_uid_일곱_개다() throws IOException {
+    void 대시보드는_정해진_uid_아홉_개다() throws IOException {
         Map<String, JsonNode> dashboards = GrafanaDashboards.load();
         assertThat(dashboards.keySet()).containsExactlyInAnyOrderElementsOf(UIDS.keySet());
         dashboards.forEach((file, d) -> assertThat(d.path("uid").asString()).as(file).isEqualTo(UIDS.get(file)));
@@ -322,7 +322,7 @@ class GrafanaDashboardsSettingsTest {
         // The database dashboard reads postgres_exporter, not the API: its names are checked against its own allowlist (GrafanaDbDashboardTest), the engine dashboard likewise (GrafanaEngineDashboardTest).
         GrafanaDashboards.load().forEach((file, d) -> {
             // ai-usage.json reads the ledger exporter only (GrafanaLedgerDashboardTest); the ledger panels of collectors.json may use its names on top of the API ones.
-            if (!"db.json".equals(file) && !"engine.json".equals(file) && !"ai-usage.json".equals(file)) {
+            if (!"db.json".equals(file) && !"engine.json".equals(file) && !"ai-usage.json".equals(file) && !"host-resources.json".equals(file)) {
                 Set<String> names = "overview.json".equals(file) ? withUp : allowed;
                 if ("collectors.json".equals(file)) {
                     names = new java.util.HashSet<>(names);

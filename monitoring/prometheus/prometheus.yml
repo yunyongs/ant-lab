@@ -24,3 +24,10 @@ scrape_configs:
   - job_name: antlab-ledgers
     static_configs:
       - targets: ["ledger-exporter:9190"]
+
+  # OBS-13: the host exporter (processes, containers, worktrees, slots of this Mac). It runs on the host, not in compose: Docker Desktop routes host.docker.internal to the host loopback, where it listens on 127.0.0.1:9191 only. While the exporter is not installed or not running the target is simply down (`up` 0) and nothing else is affected.
+  - job_name: antlab-host
+    scrape_interval: 30s
+    scrape_timeout: 20s
+    static_configs:
+      - targets: ["host.docker.internal:9191"]
