@@ -1,9 +1,11 @@
 package antlab.feed;
 
 import antlab.common.money.MoneyMath;
+import antlab.history.HistoryProperties;
 import antlab.history.MoveDirection;
 import antlab.season.FeedKind;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -27,12 +29,19 @@ public class FeedInputReader {
             JOIN month_block mb ON mb.id = sp.month_block_id
             WHERE sp.season_id = :seasonId AND sp.turn_no = :turnNo""";
 
-    /** {@code hidden}: a type seen in fewer than three distinct key families anywhere is too rare to name its category. */
+    /**
+     * {@code hidden}: a type seen in fewer than three distinct key families (N1) is too rare to name its category. Only months of the
+     * replay range count (erd 6.5 S1): from the replay start up to January 1 of the season's base-date year, so warm-up months do not
+     * inflate n.
+     */
     private static final String EVENTS = """
             SELECT e.id AS event_id, e.event_key AS event_key, e.category AS category, e.reaction_change AS reaction,
                    e.strength AS strength,
-                   (SELECT count(DISTINCT left(y.event_key, 6)) FROM month_event y WHERE y.event_type = e.event_type) < 3 AS hidden
+                   (SELECT count(DISTINCT left(y.event_key, 6)) FROM month_event y JOIN month_block yb ON yb.id = y.month_block_id
+                    WHERE y.event_type = e.event_type AND yb.month_start >= :replayStart
+                      AND yb.month_start < make_date(EXTRACT(YEAR FROM s.base_date)::int, 1, 1)) < 3 AS hidden
             FROM season_path sp
+            JOIN season s ON s.id = sp.season_id
             JOIN month_event e ON e.month_block_id = sp.month_block_id
             WHERE sp.season_id = :seasonId AND sp.turn_no = :turnNo
             ORDER BY e.event_key COLLATE "C\"""";
@@ -70,9 +79,11 @@ public class FeedInputReader {
     }
 
     private final JdbcClient jdbc;
+    private final LocalDate replayStart;
 
-    public FeedInputReader(JdbcClient jdbc) {
+    public FeedInputReader(JdbcClient jdbc, HistoryProperties history) {
         this.jdbc = jdbc;
+        this.replayStart = history.replayStart();
     }
 
     /**
@@ -90,7 +101,7 @@ public class FeedInputReader {
             throw new FeedGenerationException(FeedFailure.FEED_EVENTS_UNREVIEWED, "the events of the turn are not reviewed");
         }
         List<EventFacts> events = jdbc.sql(EVENTS).param("seasonId", seasonId).param("turnNo", turnNo)
-                .query((rs, n) -> {
+                .param("replayStart", replayStart).query((rs, n) -> {
                     boolean hidden = rs.getBoolean("hidden");
                     return new EventFacts(turnNo, rs.getLong("event_id"), rs.getString("event_key"),
                             hidden ? null : rs.getString("category"), rs.getBigDecimal("reaction"),
