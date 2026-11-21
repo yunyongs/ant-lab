@@ -1,6 +1,10 @@
 import os
+import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field
+from datetime import date
+
+from antlab_engine.bootstrap.simple import REPLAY_START as DEFAULT_REPLAY_START
 
 TOKEN_VARIABLE = "ANTLAB_ENGINE_TOKEN"  # noqa: S105 - a variable name, not a secret
 MIN_TOKEN_LENGTH = 32
@@ -16,6 +20,8 @@ DEFAULT_METRICS_PORT = 8001
 METRICS_HOST_VARIABLE = "ANTLAB_ENGINE_METRICS_HOST"
 DEFAULT_METRICS_HOST = "127.0.0.1"  # the container sets 0.0.0.0 in compose
 WORKERS_VARIABLE = "WEB_CONCURRENCY"
+REPLAY_START_VARIABLE = "ANTLAB_HISTORY_REPLAY_START"  # the same name the api reads
+_ISO_DATE = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}")
 
 
 class SettingsError(ValueError):
@@ -45,6 +51,26 @@ def _metrics_port(values: Mapping[str, str]) -> int:
     if not (value.isascii() and value.isdigit() and 1 <= int(value) <= 65535):
         raise SettingsError(f"{METRICS_PORT_VARIABLE} must be a port number from 1 to 65535")
     return int(value)
+
+
+def _replay_start(values: Mapping[str, str]) -> date:
+    value = values.get(REPLAY_START_VARIABLE)
+    if value is None:
+        return DEFAULT_REPLAY_START
+    try:
+        if not _ISO_DATE.fullmatch(value):
+            raise ValueError
+        return _first_of_month(date.fromisoformat(value))
+    except ValueError:
+        raise SettingsError(
+            f"{REPLAY_START_VARIABLE} must be the first day of a month as YYYY-MM-DD, got {value!r}"
+        ) from None
+
+
+def _first_of_month(value: date) -> date:
+    if value.day != 1:
+        raise ValueError
+    return value
 
 
 def _single_worker(values: Mapping[str, str]) -> None:
@@ -81,8 +107,11 @@ class Settings:
     database: DatabaseSettings | None = None
     metrics_port: int | None = None
     metrics_host: str = DEFAULT_METRICS_HOST
+    replay_start: date = DEFAULT_REPLAY_START
 
     def __post_init__(self) -> None:
+        if type(self.replay_start) is not date or self.replay_start.day != 1:
+            raise SettingsError("replay_start must be the first day of a month")
         token = self.engine_token
         if len(token) < MIN_TOKEN_LENGTH or any(not 33 <= ord(c) <= 126 for c in token):
             raise SettingsError(
@@ -101,4 +130,5 @@ class Settings:
             DatabaseSettings.from_env(values),
             _metrics_port(values),
             values.get(METRICS_HOST_VARIABLE, DEFAULT_METRICS_HOST),
+            _replay_start(values),
         )

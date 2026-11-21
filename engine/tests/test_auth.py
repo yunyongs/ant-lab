@@ -46,6 +46,7 @@ def test_right_token_returns_info(client, auth):
         "service": "antlab-engine",
         "apiVersion": "v1",
         "version": __version__,
+        "replayStart": "2007-01-01",
     }
 
 

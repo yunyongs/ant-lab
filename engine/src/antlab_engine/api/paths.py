@@ -18,7 +18,7 @@ from antlab_engine.engine_errors import InvalidArgument
 from antlab_engine.errors import Problem
 
 from . import PROBLEM_RESPONSES
-from .deps import history_reader
+from .deps import history_reader, replay_start
 
 MONTH_PATTERN = r"^[0-9]{4}-(0[1-9]|1[0-2])$"
 SEED_PATTERN = r"^-?[0-9]{1,19}$"
@@ -80,10 +80,15 @@ def _month(value: str) -> date:
     return date(int(value[:4]), int(value[5:7]), 1)
 
 
-def history_digest(engine_version: str, months: list[date], base_date: date) -> str:
+def history_digest(
+    engine_version: str,
+    months: list[date],
+    base_date: date,
+    replay_start: date = simple.REPLAY_START,
+) -> str:
     """SHA-256 over the engine version and the sorted replayable months of the snapshot."""
     upper = simple.replay_upper_bound(base_date)
-    replayable = sorted({m for m in months if simple.REPLAY_START <= m < upper})
+    replayable = sorted({m for m in months if replay_start <= m < upper})
     text = "\n".join([engine_version, *(f"{m:%Y-%m}" for m in replayable)])
     return hashlib.sha256(text.encode("ascii")).hexdigest()
 
@@ -100,8 +105,12 @@ def _check(request: PathRequest) -> tuple[int, Fraction]:
     return seed, threshold
 
 
-def _simple_path(months: list[date], request: PathRequest, seed: int, digest: str) -> PathResult:
-    path = simple.generate_months(months, request.baseDate, request.length, seed)
+def _simple_path(
+    months: list[date], request: PathRequest, seed: int, digest: str, replay_start: date
+) -> PathResult:
+    path = simple.generate_months(
+        months, request.baseDate, request.length, seed, replay_start=replay_start
+    )
     size = simple.BLOCK_LENGTH
     return PathResult(
         engineVersion=simple.ENGINE_VERSION,
@@ -118,7 +127,12 @@ def _simple_path(months: list[date], request: PathRequest, seed: int, digest: st
 
 
 def _stationary_path(
-    months: list[date], request: PathRequest, seed: int, threshold: Fraction, digest: str
+    months: list[date],
+    request: PathRequest,
+    seed: int,
+    threshold: Fraction,
+    digest: str,
+    replay_start: date,
 ) -> PathResult:
     path = stationary.generate(
         months,
@@ -127,6 +141,7 @@ def _stationary_path(
         seed,
         recent_months=[_month(m) for m in request.recentMonths],
         max_overlap=threshold,
+        replay_start=replay_start,
     )
     return PathResult(
         engineVersion=path.engine_version,
@@ -165,7 +180,8 @@ def create_path(request: PathRequest, http_request: Request) -> PathResult:
     reader = history_reader(http_request)
     snapshot = reader.read(request.baseDate)
     months = [m.month_start for m in snapshot.months]
-    digest = history_digest(request.engineVersion, months, request.baseDate)
+    start = replay_start(http_request)
+    digest = history_digest(request.engineVersion, months, request.baseDate, start)
     if request.engineVersion == simple.ENGINE_VERSION:
-        return _simple_path(months, request, seed, digest)
-    return _stationary_path(months, request, seed, threshold, digest)
+        return _simple_path(months, request, seed, digest, start)
+    return _stationary_path(months, request, seed, threshold, digest, start)

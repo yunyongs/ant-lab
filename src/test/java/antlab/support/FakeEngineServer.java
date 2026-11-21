@@ -122,7 +122,11 @@ public final class FakeEngineServer implements AutoCloseable {
     private void handle(HttpExchange exchange) throws IOException {
         String body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
         String path = exchange.getRequestURI().getPath();
-        requests.add(new Recorded(exchange.getRequestMethod(), path, Map.copyOf(exchange.getRequestHeaders()), body));
+        // the client's first-call replay-start check asks /v1/info; it is not a recorded request unless a test scripted it
+        boolean implicitInfo = "/v1/info".equals(path) && !routes.containsKey(path) && !queued.containsKey(path);
+        if (!implicitInfo) {
+            requests.add(new Recorded(exchange.getRequestMethod(), path, Map.copyOf(exchange.getRequestHeaders()), body));
+        }
         if (!delay.isZero()) {
             try {
                 Thread.sleep(delay);
@@ -132,7 +136,10 @@ public final class FakeEngineServer implements AutoCloseable {
         }
         ConcurrentLinkedQueue<Canned> scripted = queued.get(path);
         Canned next = scripted == null ? null : scripted.poll();
-        Canned canned = next != null ? next : routes.getOrDefault(path, new Canned(404, "text/plain", "", null));
+        Canned fallback = implicitInfo
+                ? new Canned(200, "application/json", fixture("info-response.json"), null)
+                : new Canned(404, "text/plain", "", null);
+        Canned canned = next != null ? next : routes.getOrDefault(path, fallback);
         byte[] bytes = canned.body().getBytes(StandardCharsets.UTF_8);
         exchange.getResponseHeaders().add("Content-Type", canned.contentType());
         if (canned.location() != null) {

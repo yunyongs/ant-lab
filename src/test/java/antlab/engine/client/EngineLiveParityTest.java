@@ -43,6 +43,8 @@ import org.junit.jupiter.api.Test;
  *   <li>L2: {@code m2-sb6-v1} answers carry the same digest and obey the path rules the Spring path source checks.</li>
  *   <li>L3: one projection answer is accepted by the strict client records (they mirror {@code docs/api/engine.yaml}).</li>
  * </ul>
+ * Setting {@code ANTLAB_ENGINE_LIVE_REPLAY_START} (the same value the engine was started with, default 2007-01-01) runs the
+ * same checks with that start and also exercises the first-call {@code /v1/info} comparison.
  * The won prices are covered by the tracked vectors, which need no engine, so they are not repeated here.
  */
 class EngineLiveParityTest {
@@ -56,6 +58,7 @@ class EngineLiveParityTest {
     private List<ReplayMonth> replayable;
     private Map<LocalDate, Long> idByMonth;
     private LocalDate baseDate;
+    private LocalDate replayStart;
     private final List<String> tickers = new ArrayList<>();
 
     @BeforeEach
@@ -70,7 +73,9 @@ class EngineLiveParityTest {
 
         EngineProperties properties = new EngineProperties(url, token, Duration.ofSeconds(2), Duration.ofSeconds(10),
                 Duration.ofSeconds(60), Duration.ofSeconds(60), EngineProperties.PathSourceMode.JAVA, "m2-sb6-v1", 2000);
-        client = EngineClientConfig.newClient(properties, ObservationRegistry.NOOP);
+        String configured = System.getenv("ANTLAB_ENGINE_LIVE_REPLAY_START");
+        replayStart = configured == null || configured.isBlank() ? SimpleBootstrap.REPLAY_START : LocalDate.parse(configured);
+        client = EngineClientConfig.newClient(properties, ObservationRegistry.NOOP, replayStart);
         String date = System.getenv("ANTLAB_ENGINE_LIVE_BASE_DATE");
         baseDate = date == null || date.isBlank() ? LocalDate.of(2026, 1, 2) : LocalDate.parse(date);
 
@@ -80,7 +85,7 @@ class EngineLiveParityTest {
             try (ResultSet rs = statement.executeQuery("select id, month_start from month_block order by month_start")) {
                 while (rs.next()) {
                     LocalDate start = rs.getDate(2).toLocalDate();
-                    if (!start.isBefore(SimpleBootstrap.REPLAY_START) && start.isBefore(SimpleBootstrap.replayUpperBound(baseDate))) {
+                    if (!start.isBefore(replayStart) && start.isBefore(SimpleBootstrap.replayUpperBound(baseDate))) {
                         replayable.add(new ReplayMonth(rs.getLong(1), start));
                         idByMonth.put(start, rs.getLong(1));
                     }
@@ -111,7 +116,7 @@ class EngineLiveParityTest {
 
     private Outcome javaPath(long seed, int length) {
         try {
-            GeneratedPath path = SimpleBootstrap.generate(replayable, new PathRequest(baseDate, length, seed));
+            GeneratedPath path = SimpleBootstrap.generate(replayable, new PathRequest(baseDate, length, seed), replayStart);
             return new Outcome(path.monthBlockIds(), null);
         } catch (DomainException e) {
             return new Outcome(null, e.getCode());
@@ -123,7 +128,7 @@ class EngineLiveParityTest {
             EnginePathResult result = client.createPath(EnginePathRequest.of(version, seed, length, baseDate));
             assertThat(result.engineVersion()).isEqualTo(version);
             assertThat(result.historyDigest()).as("history digest")
-                    .isEqualTo(HistoryDigest.of(version, replayable.stream().map(ReplayMonth::monthStart).toList(), baseDate));
+                    .isEqualTo(HistoryDigest.of(version, replayable.stream().map(ReplayMonth::monthStart).toList(), baseDate, replayStart));
             List<Long> ids = new ArrayList<>();
             List<LocalDate> months = new ArrayList<>();
             for (String text : result.months()) {
@@ -133,8 +138,8 @@ class EngineLiveParityTest {
             }
             assertThat(ids).as("every engine month exists in the database").doesNotContainNull();
             List<String> broken = version.equals(SimpleBootstrap.ENGINE_VERSION)
-                    ? PathRules.violations(months, baseDate, length, SimpleBootstrap.BLOCK_LENGTH)
-                    : PathRules.violations(months, baseDate, length).stream().filter(rule -> !"S4".equals(rule)).toList();
+                    ? PathRules.violations(months, baseDate, length, SimpleBootstrap.BLOCK_LENGTH, replayStart)
+                    : PathRules.violations(months, baseDate, length, 0, replayStart).stream().filter(rule -> !"S4".equals(rule)).toList();
             assertThat(broken).as("path rules of " + version).isEmpty();
             return new Outcome(ids, null);
         } catch (EngineUnavailableException e) {

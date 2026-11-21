@@ -2,7 +2,6 @@ package antlab.history;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import antlab.engine.client.EngineProperties;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -32,11 +31,11 @@ class ReplayStartDefaultParityTest {
     }
 
     @Test
-    void the_engine_constant_equals_the_engine_source() throws IOException {
+    void the_engine_default_equals_the_java_default() throws IOException {
         String text = first(Path.of("engine/src/antlab_engine/bootstrap/simple.py"), "REPLAY_START = date\\((\\d+, \\d+, \\d+)\\)");
         String[] y = text.split(", ");
         assertThat(LocalDate.of(Integer.parseInt(y[0]), Integer.parseInt(y[1]), Integer.parseInt(y[2])))
-                .isEqualTo(EngineProperties.ENGINE_REPLAY_START);
+                .isEqualTo(HistoryProperties.DEFAULT_REPLAY_START);
     }
 
     @Test
