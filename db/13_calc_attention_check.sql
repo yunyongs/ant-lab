@@ -117,12 +117,30 @@ CREATE TEMP TABLE zz_rank_def AS SELECT :'rank_text'::text AS txt;
 CREATE TEMP TABLE zz_cfg (h8_view text NOT NULL, leak_scale numeric NOT NULL);
 INSERT INTO zz_cfg VALUES ('attn_calc', 1);
 
--- H8 기준 달 M 목록 (표본 구조를 아는 값: 구간 끝 2012-04, 구간 시작 2023-01, 창이 막 찬 달 등. 마지막 줄은 마지막 달의 직전 달)
+-- H8 reference months M, derived from the data (not from the Phase 0 sample): window just short of full (first month + 11) and first full window
+-- (first month + 12), the quarter points of the calendar, the last month of a segment before a gap and the first month after it (when an asset
+-- has a gap), and the month before the last one. Month ordinals count the calendar rows of month_block.
+-- A full-size history (more than 20000 return rows) uses only the middle month, the gap months and the month before the last one: each
+-- case recomputes the whole table, so the full list would take minutes there. The Phase 0 sample keeps the full list.
 CREATE TEMP TABLE zz_h8_m (month_start date PRIMARY KEY);
 INSERT INTO zz_h8_m
-SELECT d FROM (VALUES (DATE '2007-12-01'), (DATE '2009-06-01'), (DATE '2012-03-01'), (DATE '2012-04-01'),
-                      (DATE '2023-01-01'), (DATE '2024-01-01'),
-                      ((SELECT (max(month_start) - INTERVAL '1 month')::date FROM month_block))) AS v(d);
+WITH cal AS (SELECT month_start, row_number() OVER (ORDER BY month_start) AS ord, count(*) OVER () AS n FROM month_block),
+gap AS (
+    SELECT min(cur.month_start) AS gap_start,
+           (SELECT max(bm.month_start) FROM month_block bm WHERE bm.month_start < min(cur.month_start)) AS gap_end
+    FROM asset_month_return ar JOIN month_block cur ON cur.id = ar.month_block_id
+    WHERE EXISTS (SELECT 1 FROM asset_month_return b JOIN month_block bm ON bm.id = b.month_block_id
+                  WHERE b.asset_id = ar.asset_id AND bm.month_start < cur.month_start)
+      AND NOT EXISTS (SELECT 1 FROM asset_month_return p JOIN month_block pm ON pm.id = p.month_block_id
+                      WHERE p.asset_id = ar.asset_id AND pm.month_start = (cur.month_start - INTERVAL '1 month')::date)
+)
+SELECT DISTINCT m FROM (
+    SELECT c.month_start AS m FROM cal c
+    WHERE c.ord IN (ceil(c.n * 0.5), c.n - 1)
+       OR (c.ord IN (12, 13, ceil(c.n * 0.25), ceil(c.n * 0.75)) AND (SELECT count(*) FROM asset_month_return) <= 20000)
+    UNION ALL SELECT gap_start FROM gap WHERE gap_start IS NOT NULL
+    UNION ALL SELECT gap_end FROM gap WHERE gap_start IS NOT NULL AND gap_end IS NOT NULL
+) x WHERE m IN (SELECT month_start FROM month_block);
 
 -- 독립 계산 뷰: 윈도 함수로 구간·창·연속을 만든다.
 --   구간 번호 = 직전 달이 이어지지 않는 달에서 +1 하는 누적 합 (gaps-and-islands)
@@ -392,36 +410,43 @@ END $$;
 
 -- 순위 R 이 독립 정의와 다른 행 수: 순위 = 1 + (같은 달·같은 풀에서 지수가 더 큰 행 수), n_ranked = 지수 있는 행 수,
 -- 표시 순서 = 지수 내림차순 뒤 market, ticker (바이트 순서), 상위 q 표시 = 순위 ≤ CEIL(0.10 × n), 행 집합 = 풀 ∩ 지수 있음
+-- Positive pass: the independent rank count compares every month (zz_rank_scope.all_months). Negative cases (set false just before
+-- zz_neg): all months on a small history; on a full-size one (more than 20000 return rows) every 12th calendar month, the last and the
+-- tie month, because each case changes the shared definition for every month and recomputes the table.
+CREATE TEMP TABLE zz_rank_months (month_block_id bigint PRIMARY KEY);
+INSERT INTO zz_rank_months
+SELECT id FROM (SELECT id, row_number() OVER (ORDER BY month_start) AS ord, count(*) OVER () AS n FROM month_block) c
+WHERE (SELECT count(*) FROM asset_month_return) <= 20000 OR c.ord % 12 = 0 OR c.ord = c.n;
+CREATE TEMP TABLE zz_rank_scope (all_months boolean NOT NULL);
+INSERT INTO zz_rank_scope VALUES (true);
+
 CREATE FUNCTION pg_temp.rank_diff() RETURNS bigint
 LANGUAGE sql AS $$
+    -- One grouped pass over (output row x pool row of the same base date and month) gives the same five counts a correlated
+    -- subquery per output row would: rank = 1 + larger indexes, n_ranked, display order, stored index, top share.
     SELECT (SELECT count(*)
-            FROM zz_rank_out o
-            JOIN asset so ON so.id = o.asset_id
-            WHERE o.attention_rank IS DISTINCT FROM
-                  1 + (SELECT count(*) FROM asset_month_attention t2
-                       JOIN asset_position p2 ON p2.asset_id = t2.asset_id AND p2.base_date = o.base_date
-                       WHERE t2.month_block_id = o.month_block_id AND t2.attention_index > o.attention_index)
-               OR o.n_ranked IS DISTINCT FROM
-                  (SELECT count(*) FROM asset_month_attention t2
-                   JOIN asset_position p2 ON p2.asset_id = t2.asset_id AND p2.base_date = o.base_date
-                   WHERE t2.month_block_id = o.month_block_id AND t2.attention_index IS NOT NULL)
-               OR o.display_order IS DISTINCT FROM
-                  1 + (SELECT count(*) FROM asset_month_attention t2
-                       JOIN asset_position p2 ON p2.asset_id = t2.asset_id AND p2.base_date = o.base_date
-                       JOIN asset s2 ON s2.id = t2.asset_id
-                       WHERE t2.month_block_id = o.month_block_id AND t2.attention_index IS NOT NULL
-                         AND (t2.attention_index > o.attention_index
-                              OR (t2.attention_index = o.attention_index
-                                  AND (s2.market COLLATE "C", s2.ticker COLLATE "C") < (so.market COLLATE "C", so.ticker COLLATE "C"))))
-               OR o.attention_index IS DISTINCT FROM
-                  (SELECT t.attention_index FROM asset_month_attention t WHERE t.asset_id = o.asset_id AND t.month_block_id = o.month_block_id)
-               OR o.is_top IS DISTINCT FROM
-                  (1 + (SELECT count(*) FROM asset_month_attention t2
-                        JOIN asset_position p2 ON p2.asset_id = t2.asset_id AND p2.base_date = o.base_date
-                        WHERE t2.month_block_id = o.month_block_id AND t2.attention_index > o.attention_index)
-                   <= CEIL(0.10 * (SELECT count(*) FROM asset_month_attention t2
-                                   JOIN asset_position p2 ON p2.asset_id = t2.asset_id AND p2.base_date = o.base_date
-                                   WHERE t2.month_block_id = o.month_block_id AND t2.attention_index IS NOT NULL))))
+            FROM (SELECT o.attention_rank, o.n_ranked, o.display_order, o.attention_index, o.is_top,
+                         1 + count(*) FILTER (WHERE x.attention_index > o.attention_index) AS rk,
+                         count(*) FILTER (WHERE x.attention_index IS NOT NULL) AS n,
+                         1 + count(*) FILTER (WHERE x.attention_index IS NOT NULL
+                                 AND (x.attention_index > o.attention_index
+                                      OR (x.attention_index = o.attention_index
+                                          AND (x.market COLLATE "C", x.ticker COLLATE "C") < (so.market COLLATE "C", so.ticker COLLATE "C")))) AS disp,
+                         max(x.attention_index) FILTER (WHERE x.asset_id = o.asset_id) AS stored
+                  FROM zz_rank_out o
+                  JOIN asset so ON so.id = o.asset_id
+                  LEFT JOIN (SELECT p2.base_date, t2.month_block_id, t2.asset_id, t2.attention_index, s2.market, s2.ticker
+                             FROM asset_month_attention t2
+                             JOIN asset_position p2 ON p2.asset_id = t2.asset_id
+                             JOIN asset s2 ON s2.id = t2.asset_id) x
+                         ON x.base_date = o.base_date AND x.month_block_id = o.month_block_id
+                  WHERE (SELECT all_months FROM zz_rank_scope) OR o.month_block_id IN (SELECT month_block_id FROM zz_rank_months)
+                  GROUP BY o.base_date, o.month_block_id, o.asset_id, o.attention_rank, o.n_ranked, o.display_order, o.attention_index, o.is_top) g
+            WHERE g.attention_rank IS DISTINCT FROM g.rk
+               OR g.n_ranked IS DISTINCT FROM g.n
+               OR g.display_order IS DISTINCT FROM g.disp
+               OR g.attention_index IS DISTINCT FROM g.stored
+               OR g.is_top IS DISTINCT FROM (g.rk <= CEIL(0.10 * g.n)))
          + (SELECT count(*) FROM (
                (SELECT base_date, month_block_id, asset_id FROM zz_rank_out
                 EXCEPT ALL
@@ -465,6 +490,7 @@ BEGIN
     BEGIN
         UPDATE asset_month_attention SET attention_index = 4
         WHERE month_block_id = v_m AND asset_id IN (v_lo, v_hi);
+        INSERT INTO zz_rank_months VALUES (v_m) ON CONFLICT DO NOTHING;
         PERFORM pg_temp.canon_load('RANK', 'zz_rank_out'::regclass);
         v := v + pg_temp.rank_diff();
         v := v + (SELECT CASE WHEN count(*) = 1 AND bool_and(a.attention_rank = b.attention_rank AND a.display_order < b.display_order) THEN 0 ELSE 1 END
@@ -538,13 +564,15 @@ FROM (VALUES
         (SELECT (to_regclass('pg_temp.attn_rank') IS NOT NULL AND length(txt) > 300 AND position('CREATE TEMP VIEW attn_rank' IN txt) > 0)::text FROM zz_rank_def)),
     ('10 적재가 끝나 있다 (asset_month_return 이 비어 있지 않다)', 'true', (SELECT (count(*) > 0)::text FROM asset_month_return)),
     ('13 계산이 끝나 있다 (asset_month_attention 이 비어 있지 않다 — 빈 표로 헛 PASS 하지 않는다)', 'true', (SELECT (count(*) > 0)::text FROM asset_month_attention)),
-    ('H8 기준 달이 모두 month_block 에 있다', (SELECT count(*)::text FROM zz_h8_m),
-        (SELECT count(*)::text FROM zz_h8_m h JOIN month_block m ON m.month_start = h.month_start)),
-    ('표본의 구간 시작 달 (직전 달 행이 없는 달) 집합 — 표본 구조 전제 (MVP 에서는 이 행을 갱신한다)', '2007-01-01,2023-01-01',
-        (SELECT string_agg(d::text, ',' ORDER BY d) FROM
-            (SELECT DISTINCT mb.month_start AS d FROM asset_month_return ar JOIN month_block mb ON mb.id = ar.month_block_id
-             WHERE NOT EXISTS (SELECT 1 FROM asset_month_return p JOIN month_block pm ON pm.id = p.month_block_id
-                               WHERE p.asset_id = ar.asset_id AND pm.month_start = (mb.month_start - INTERVAL '1 month')::date)) s)),
+    ('H8 reference months were derived (at least 2, each with a later month in month_block)', 'true',
+        (SELECT (count(*) >= 2 AND count(*) = count(*) FILTER (WHERE EXISTS (SELECT 1 FROM month_block n WHERE n.month_start > h.month_start)))::text FROM zz_h8_m h)),
+    ('Every segment start that is not an asset first month follows a gap of month_block (no interior hole in a calendar-complete load)', '0',
+        (SELECT count(*)::text FROM asset_month_return ar JOIN month_block mb ON mb.id = ar.month_block_id
+         WHERE EXISTS (SELECT 1 FROM asset_month_return b JOIN month_block bm ON bm.id = b.month_block_id
+                       WHERE b.asset_id = ar.asset_id AND bm.month_start < mb.month_start)
+           AND NOT EXISTS (SELECT 1 FROM asset_month_return p JOIN month_block pm ON pm.id = p.month_block_id
+                           WHERE p.asset_id = ar.asset_id AND pm.month_start = (mb.month_start - INTERVAL '1 month')::date)
+           AND EXISTS (SELECT 1 FROM month_block q WHERE q.month_start = (mb.month_start - INTERVAL '1 month')::date))),
     ('손 계산 사례가 쓰는 종목 12개가 있고 각자 첫 13개 달이 이어진다 (k = 0–12)', '12',
         (SELECT count(*)::text FROM (SELECT p.arank FROM zz_pos p WHERE p.arank <= 12 AND p.k <= 12
                                      GROUP BY p.arank HAVING count(*) = 13
@@ -608,7 +636,7 @@ INSERT INTO zz_q (code, section, item, sql) VALUES
         WHERE t.attention_z IS NOT NULL
           AND (t.attention_index IS DISTINCT FROM t.attention_z + CASE WHEN t.streak = 0 THEN 0 ELSE 0.25 * (LEAST(abs(t.streak), 5) - 1) END
                OR t.attention_index IS DISTINCT FROM ROUND(i.z_c + CASE WHEN t.streak = 0 THEN 0 ELSE 0.25 * (LEAST(abs(t.streak), 5) - 1) END, 8))$q$),
-    ('SEG_START', '3 규칙', '구간 시작 달(직전 달 수익률 행이 없는 달)인데 창이 0 이 아니거나 |streak| > 1 이거나 z 가 있는 행 (2012-04 와 2023-01 이 이어지지 않는다)',
+    ('SEG_START', '3 규칙', '구간 시작 달(직전 달 수익률 행이 없는 달)인데 창이 0 이 아니거나 |streak| > 1 이거나 z 가 있는 행 (표본의 끊김 뒤 첫 달과 종목의 첫 달)',
      $q$SELECT count(*) FROM asset_month_attention t
         WHERE NOT EXISTS (SELECT 1 FROM asset_month_return p JOIN month_block pm ON pm.id = p.month_block_id
                           JOIN month_block cm ON cm.id = t.month_block_id
@@ -619,7 +647,7 @@ INSERT INTO zz_q (code, section, item, sql) VALUES
              + (SELECT count(*) FROM attn_calc WHERE attention_z = 'NaN'::numeric OR attention_index = 'NaN'::numeric OR z_raw = 'NaN'::numeric OR sd_raw = 'NaN'::numeric)$q$),
     ('HAND', '4 손 계산', '합성 수익률을 덮어쓴 구간에서 attn_calc 가 손 계산 기대값(리터럴)과 다른 행 + 덮어쓰지 못한 달',
      $q$SELECT pg_temp.hand_count()$q$),
-    ('H8_CUT', '5 H8', '기준 달 M 뒤 수익률을 바꾸거나 지운 상태에서 다시 계산했을 때 M 이하 행이 변이 전 같은 뷰의 결과와 다르거나 한쪽에만 있는 수 + (정식 계산이면) 변이 전 결과와 저장값의 차이 (사례 7개 달 × 변이 3종의 합)',
+    ('H8_CUT', '5 H8', '기준 달 M 뒤 수익률을 바꾸거나 지운 상태에서 다시 계산했을 때 M 이하 행이 변이 전 같은 뷰의 결과와 다르거나 한쪽에만 있는 수 + (정식 계산이면) 변이 전 결과와 저장값의 차이 (기준 달 × 변이 3종의 합)',
      $q$SELECT pg_temp.h8_count((SELECT h8_view FROM zz_cfg), 'cut')$q$),
     ('H8_MOVED', '5 H8', 'M 뒤 행이 하나도 달라지지 않은 사례 수 (시험이 헛돌지 않는다 — 변이가 M 뒤 행에 닿는다)',
      $q$SELECT pg_temp.h8_count((SELECT h8_view FROM zz_cfg), 'moved')$q$),
@@ -648,6 +676,7 @@ VALUES ('1 행 수', 'asset_month_attention 행 수 = asset_month_return 행 수
        ('3 규칙', '구간 시작 달 행 수 (창 0, 정보)', '(정보)', pg_temp.val('SELECT count(*) FROM asset_month_attention WHERE window_months = 0'), true);
 
 -- 음성 사례: 일부러 위반을 만들면 그 규칙의 검사 쿼리가 기대한 개수로 잡는지 (서브트랜잭션 안의 DELETE/UPDATE, 끝에 되돌린다) ----------
+UPDATE zz_rank_scope SET all_months = false;
 -- expect: 기대 위반 수. cmp = 'ge' 이면 그 수 이상이면 통과. alt: 변이가 01 스키마의 CHECK 에 막혀 이 오류 코드로 끝나도 통과
 CREATE TEMP TABLE zz_neg (n serial, q text NOT NULL, label text NOT NULL, mutate text NOT NULL, expect text NOT NULL DEFAULT '1',
                           cmp text NOT NULL DEFAULT 'eq', alt text);
@@ -672,9 +701,14 @@ INSERT INTO zz_neg (q, label, mutate, expect, cmp, alt) VALUES
      $m$UPDATE asset_month_attention SET attention_z = 3.5 WHERE id = (SELECT min(id) FROM asset_month_attention WHERE attention_z IS NOT NULL)$m$, '1', 'eq', NULL),
     ('INDEX_FORMULA', 'attention_index 를 1e-8 바꾸면',
      $m$UPDATE asset_month_attention SET attention_index = attention_index + 0.00000001 WHERE id = (SELECT min(id) FROM asset_month_attention WHERE attention_index IS NOT NULL)$m$, '1', 'eq', NULL),
-    ('SEG_START', '2023-01(표본이 끊긴 뒤 첫 달) 행의 창을 3 으로 만들면 (z 는 NULL 이라 DDL 은 통과)',
+    ('SEG_START', 'a segment-start row (prefer the first month after a gap, else an asset first month) gets window 3 (z is NULL there, so the DDL accepts it)',
      $m$UPDATE asset_month_attention SET window_months = 3
-        WHERE id = (SELECT min(t.id) FROM asset_month_attention t JOIN month_block m ON m.id = t.month_block_id WHERE m.month_start = DATE '2023-01-01')$m$, '1', 'eq', NULL),
+        WHERE id = (SELECT t.id FROM asset_month_attention t JOIN month_block m ON m.id = t.month_block_id
+                    WHERE NOT EXISTS (SELECT 1 FROM asset_month_return p JOIN month_block pm ON pm.id = p.month_block_id
+                                      WHERE p.asset_id = t.asset_id AND pm.month_start = (m.month_start - INTERVAL '1 month')::date)
+                    ORDER BY EXISTS (SELECT 1 FROM asset_month_return b JOIN month_block bm ON bm.id = b.month_block_id
+                                     WHERE b.asset_id = t.asset_id AND bm.month_start < m.month_start) DESC, t.id
+                    LIMIT 1)$m$, '1', 'eq', NULL),
     ('NO_NAN', 'attention_z 를 NaN 으로 만들면 (01 스키마가 NaN 을 막으면 23514 로 막힌 것도 통과)',
      $m$UPDATE asset_month_attention SET attention_z = 'NaN'::numeric WHERE id = (SELECT min(id) FROM asset_month_attention WHERE attention_z IS NOT NULL)$m$, '1', 'eq', '^ERROR 23514'),
     ('HAND', '기대값 한 칸(H1 의 z)을 1e-8 바꾸면',
@@ -693,6 +727,11 @@ INSERT INTO zz_neg (q, label, mutate, expect, cmp, alt) VALUES
      $m$CALL pg_temp.mut_rank('0.10::numeric AS top_q', '0.20::numeric AS top_q')$m$, '1', 'ge', NULL),
     ('RANK_RULE', '표시 순서에서 ticker 를 내림차순으로 바꾸면 (합성 동률의 순서가 뒤집힌다)',
      $m$UPDATE zz_canon SET sql = replace(sql, 's.ticker COLLATE "C") AS display_order', 's.ticker COLLATE "C" DESC) AS display_order') WHERE name = 'RANK'$m$, '1', 'ge', NULL),
+    ('RANK_RULE', 'a one-month defect (is_top flipped in the 6th month from the end) is caught by the all-month positive pass',
+     $m$WITH s AS (UPDATE zz_rank_scope SET all_months = true)
+        UPDATE zz_canon SET sql = replace(sql, 'r.is_top_q AS is_top',
+            'CASE WHEN r.month_start = (SELECT month_start FROM month_block ORDER BY month_start DESC OFFSET 5 LIMIT 1) THEN NOT r.is_top_q ELSE r.is_top_q END AS is_top')
+        WHERE name = 'RANK'$m$, '1', 'ge', NULL),
     ('GROUP_AVG', '정본 쿼리가 NULL 지수를 0 으로 평균내면',
      $m$UPDATE zz_canon SET sql = replace(sql, 'AVG(t.attention_index)', 'AVG(COALESCE(t.attention_index, 0))') WHERE name = 'GROUP'$m$, '1', 'ge', NULL),
     ('GROUP_AVG', '정본 쿼리가 n_pool 을 지수 있는 종목 수로 세면',
