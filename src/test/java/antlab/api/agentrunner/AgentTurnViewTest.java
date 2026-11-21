@@ -115,6 +115,10 @@ class AgentTurnViewTest {
     @Autowired
     antlab.account.OrderRepository orderRepository;
     @Autowired
+    antlab.agent.SeasonAgentConfigRepository configs;
+    @Autowired
+    antlab.agent.memory.MemoryReadService memories;
+    @Autowired
     TestTokens tokens;
     @Autowired
     TestMembers members;
@@ -461,7 +465,7 @@ class AgentTurnViewTest {
         Agent a = startAgent();
         playToTurnFour(a);
         AgentTurnViewService two = new AgentTurnViewService(currentMember, seasonQueries, turnQueries, holdingsQueries,
-                pools, orderRepository, calls, 2);
+                pools, orderRepository, calls, configs, memories, 2);
         var trades = acting(a.id(), () -> two.get(a.id(), a.season())).agent().recentTrades();
         assertThat(trades).extracting(RecentTradeDto::turnNo).containsExactly(2, 3);
     }

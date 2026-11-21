@@ -99,7 +99,7 @@ class AgentTurnViewRejectsTest {
     @ParameterizedTest
     @ValueSource(ints = {0, -1})
     void a_window_of_less_than_one_turn_is_refused_at_start(int turns) {
-        assertThatThrownBy(() -> new AgentTurnViewService(null, null, null, null, null, null, null, turns))
+        assertThatThrownBy(() -> new AgentTurnViewService(null, null, null, null, null, null, null, null, null, turns))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 }

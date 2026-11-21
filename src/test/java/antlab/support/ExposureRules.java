@@ -89,7 +89,12 @@ public final class ExposureRules {
             Map.entry(SeasonAnalysisDto.AttentionFollowingDto.class, Set.of("windowTurns")),
             Map.entry(antlab.season.AbandonResultDto.class, Set.of("advancedTurns")),
             Map.entry(antlab.season.LineupChangeDto.class, Set.of("changed")),
-            Map.entry(antlab.agent.memory.ReflectionViewDto.Turn.class, Set.of("label")));
+            Map.entry(antlab.agent.memory.ReflectionViewDto.Turn.class, Set.of("label")),
+            // the comparison names groups by an opaque label and counts them; no column is read for these
+            Map.entry(antlab.agent.memory.MemoryComparisonDto.class, Set.of("versionA", "versionB")),
+            Map.entry(antlab.agent.memory.MemoryComparisonDto.Group.class, Set.of("groupLabel")),
+            Map.entry(antlab.agent.memory.MemoryComparisonDto.Side.class, Set.of("experiencedSeed")),
+            Map.entry(antlab.agent.memory.MemoryComparisonDto.Summary.class, Set.of("groups", "bWins", "anecdotal")));
 
     /**
      * The engine's own record of what it rejected in the previous decision: {@code [내부]} in the DB, but the agent is
@@ -113,14 +118,17 @@ public final class ExposureRules {
             antlab.league.LeagueTableAiDto.class, antlab.league.LeagueTableEntryDto.class);
 
     /**
-     * Columns tagged {@code [내부]} that the runner's memory answers show the agent on purpose (AG-05 C1): how a memory version
-     * was written and when, the agent's own stated reason of a turn, and (C2) the outcome of its own memory step. Allowed in these
-     * records only, matched by class.
+     * Columns tagged {@code [내부]} that the runner's memory answers show the agent on purpose (AG-05 C1, C2): how a memory
+     * version was written and when, the agent's own stated reason of a turn, and the outcome of its own memory step. Each
+     * source is allowed in its own record only, matched by class, so no other response (the memory answers included) gets
+     * a memory field it does not own.
      */
-    public static final Set<String> MEMORY_AGENT_SOURCES = Set.of("agent_memory.playbook_carried",
-            "agent_memory.created_at", "agent_call.parsed", "agent_reflection.outcome");
-    public static final Set<Class<?>> MEMORY_AGENT_RECORDS = Set.of(antlab.agent.memory.AgentMemoryVersionDto.class,
-            antlab.agent.memory.ReflectionViewDto.Turn.class, antlab.agent.memory.SubmitSeasonMemoryResultDto.class);
+    public static final Map<Class<?>, Set<String>> MEMORY_AGENT_ALLOWED = Map.of(
+            antlab.agent.memory.AgentMemoryVersionDto.class, Set.of("agent_memory.playbook_carried", "agent_memory.created_at"),
+            antlab.agent.memory.ReflectionViewDto.Turn.class, Set.of("agent_call.parsed"),
+            antlab.agent.memory.SubmitSeasonMemoryResultDto.class, Set.of("agent_reflection.outcome"),
+            antlab.agent.memory.MemoryComparisonDto.Side.class,
+            Set.of("season_agent_config.memory_version", "season_agent_config.persona_version", "agent_call.outcome"));
 
     private ExposureRules() {
     }
@@ -222,8 +230,7 @@ public final class ExposureRules {
                             && catalog.has(source)) {
                         continue;
                     }
-                    if (MEMORY_AGENT_RECORDS.contains(record) && MEMORY_AGENT_SOURCES.contains(source)
-                            && catalog.has(source)) {
+                    if (MEMORY_AGENT_ALLOWED.getOrDefault(record, Set.of()).contains(source) && catalog.has(source)) {
                         continue;
                     }
                     out.addAll(checkRestricted(where, source, from.value(), rc.getType(), catalog, finishedSeasonOnly,
