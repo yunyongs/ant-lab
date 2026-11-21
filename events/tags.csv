@@ -5,6 +5,7 @@ ev0002.02,2008-01-01,POLICY,MONETARY_EASING,ONGOING,EMERGENCY_CUT,,US:SPY,미국
 ev0002.03,2008-10-01,POLICY,MONETARY_EASING,ONGOING,RATE_CUT,,US:SPY,미국 연준 등 주요 중앙은행 정책금리 공동 인하 발표,,https://www.federalreserve.gov/newsevents/pressreleases/monetary20081008a.htm,2026-11-07
 ev0002.04,2008-12-01,POLICY,MONETARY_EASING,ONGOING,RATE_CUT,,US:SPY,미국 연준 기준금리 목표를 0~0.25%로 낮춤,,https://www.federalreserve.gov/newsevents/pressreleases/monetary20081216b.htm,2026-11-07
 ev0002.05,2010-11-01,POLICY,MONETARY_EASING,ONGOING,ASSET_PURCHASE,,US:SPY,미국 연준 추가 증권 매입 계획 발표,,https://www.federalreserve.gov/newsevents/pressreleases/monetary20101103a.htm,2026-11-07
+ev0002.06,2012-09-01,POLICY,MONETARY_EASING,ONGOING,ASSET_PURCHASE,,US:SPY,미국 연준 주택저당증권 월 400억 달러 추가 매입 결정,,https://www.federalreserve.gov/newsevents/pressreleases/monetary20120913a.htm,2026-11-21
 ev0003.01,2007-12-01,POLITICS,KR_PRESIDENTIAL_ELECTION,START,CHANGE,,KR:069500,제17대 대통령 선거와 정권 교체,,https://en.wikipedia.org/wiki/2007_South_Korean_presidential_election,2026-11-07
 ev0004.01,2008-03-01,FINANCIAL,BANK_FAILURE,START,RESCUED,,US:SPY,미국 투자은행 베어스턴스 연준 지원 속 JP모건 인수 합의,이후 같은 해 9월 대형 투자은행 파산으로 번진 위기의 초기 충격으로 불림,https://en.wikipedia.org/wiki/Bear_Stearns ; https://en.wikipedia.org/wiki/2008_financial_crisis,2026-11-07
 ev0005.01,2008-04-01,POLITICS,KR_LEGISLATIVE_ELECTION,START,MAJORITY_GAINED,,KR:069500,제18대 국회의원 선거 집권 여당 과반 확보,,https://en.wikipedia.org/wiki/2008_South_Korean_legislative_election,2026-11-07
@@ -17,6 +18,8 @@ ev0010.01,2009-04-01,HEALTH,PANDEMIC,START,,,US:SPY,신종 인플루엔자 발�
 ev0010.02,2009-06-01,HEALTH,PANDEMIC,ONGOING,,,US:SPY,세계보건기구 신종 인플루엔자 대유행 선언,,https://en.wikipedia.org/wiki/2009_swine_flu_pandemic,2026-11-07
 ev0011.01,2010-03-01,GEOPOLITICS,MILITARY_PROVOCATION,START,,,KR:069500,서해 초계함 침몰,원인은 같은 해 5월 민군 합동조사단 발표에서 어뢰 공격으로 결론,https://en.wikipedia.org/wiki/Sinking_of_ROKS_Cheonan,2026-11-07
 ev0012.01,2010-05-01,FINANCIAL,SOVEREIGN_DEBT,START,RESCUED,,US:SPY,그리스 구제금융 합의(유럽연합·국제통화기금),이후 유럽 재정 위기로 확산,https://en.wikipedia.org/wiki/Greek_government-debt_crisis ; https://en.wikipedia.org/wiki/European_debt_crisis,2026-11-07
+ev0012.02,2015-06-01,FINANCIAL,SOVEREIGN_DEBT,ONGOING,DEFAULTED,,US:SPY,그리스 국제통화기금 상환 기한 넘겨 연체 상태,,https://web.archive.org/web/20150701221411/http://www.imf.org/external/np/sec/pr/2015/pr15310.htm,2026-11-21
+ev0012.03,2015-07-01,FINANCIAL,SOVEREIGN_DEBT,ONGOING,RESCUED,,US:SPY,유로 정상회의 그리스 새 구제금융 협상 조건 합의와 국제통화기금 연체 해소,,https://www.esm.europa.eu/sites/default/files/2015-07-12_euro_summit_statement_on_greece.pdf ; https://web.archive.org/web/20150722175242/http://www.imf.org/external/np/sec/pr/2015/pr15344.htm,2026-11-21
 ev0013.01,2010-11-01,POLITICS,US_MIDTERM,START,MAJORITY_LOST,,US:SPY,미국 중간선거 집권당 하원 과반 상실,,https://en.wikipedia.org/wiki/2010_United_States_House_of_Representatives_elections,2026-11-07
 ev0014.01,2010-11-01,GEOPOLITICS,MILITARY_PROVOCATION,START,,,KR:069500,서해 섬 포격 교전,,https://en.wikipedia.org/wiki/Bombardment_of_Yeonpyeong,2026-11-07
 ev0015.01,2011-02-01,GEOPOLITICS,ARMED_CONFLICT,START,,,US:SPY,북아프리카 리비아 시위가 무력 충돌로 확산,,https://en.wikipedia.org/wiki/Libyan_civil_war_(2011),2026-11-07
@@ -115,3 +118,59 @@ ev0222.01,2006-10-01,GEOPOLITICS,MILITARY_PROVOCATION,START,,,KR:069500,북한 �
 ev0223.01,2006-11-01,POLITICS,US_MIDTERM,START,MAJORITY_LOST,,US:SPY,미국 중간선거 집권당 하원 다수 상실,,https://history.house.gov/Institution/Party-Divisions/Party-Divisions/,2026-11-21
 ev0224.01,2002-05-01,POLICY,MONETARY_TIGHTENING,START,RATE_HIKE,,KR:069500,한국은행 콜금리 목표 인상,,https://www.seoul.co.kr/news/2002/05/08/20020508010002,2026-11-21
 ev0225.01,2003-05-01,POLICY,MONETARY_EASING,START,RATE_CUT,,KR:069500,한국은행 콜금리 목표 0.25%포인트 인하,,https://www.seoul.co.kr/news/2003/05/16/20030516001002,2026-11-21
+ev0300.01,2012-09-01,POLICY,MONETARY_EASING,START,ASSET_PURCHASE,,KR:069500,유럽중앙은행 국채 매입 프로그램 세부 방식 발표,,https://www.ecb.europa.eu/press/pr/date/2012/html/pr120906_1.en.html,2026-11-21
+ev0300.02,2014-06-01,POLICY,MONETARY_EASING,ONGOING,RATE_CUT,,KR:069500,유럽중앙은행 예금금리 마이너스 도입과 정책금리 인하,,https://www.ecb.europa.eu/press/pr/date/2014/html/pr140605.en.html,2026-11-21
+ev0300.03,2015-01-01,POLICY,MONETARY_EASING,ONGOING,ASSET_PURCHASE,,KR:069500,유럽중앙은행 국채 포함 자산 매입 확대 발표,,https://www.ecb.europa.eu/press/pr/date/2015/html/pr150122_1.en.html,2026-11-21
+ev0301.01,2012-07-01,POLICY,MONETARY_EASING,START,RATE_CUT,,KR:069500,한국은행 기준금리 인하,,https://www.koreatimes.co.kr/business/companies/20120712/bok-unexpectedly-cuts-key-rate-to-3,2026-11-21
+ev0302.01,2012-10-01,SUPPLY_SHOCK,NATURAL_DISASTER,START,,,US:SPY,허리케인 샌디 상륙 속 뉴욕증권거래소 이틀 휴장,,https://www.npr.org/2012/10/29/163845750/hurricane-sandy-shuts-down-wall-street ; https://www.npr.org/2012/10/30/163960661/new-york-stock-exchange-to-reopen-wednesday,2026-11-21
+ev0303.01,2012-11-01,POLITICS,US_PRESIDENTIAL_ELECTION,START,KEEP,,US:SPY,미국 대선 현직 대통령 재선,,https://www.archives.gov/electoral-college/2012,2026-11-21
+ev0304.01,2012-12-01,POLITICS,KR_PRESIDENTIAL_ELECTION,START,KEEP,,KR:069500,한국 대선 새누리당 박근혜 후보 당선,,https://museum.nec.go.kr/eng/eexh/eexh_2012_12_19.html,2026-11-21
+ev0305.01,2012-12-01,POLICY,FISCAL_STANDOFF,START,,,US:SPY,미국 재정절벽 협상 난항,,https://obamawhitehouse.archives.gov/the-press-office/2012/12/21/statement-president,2026-11-21
+ev0305.02,2013-01-01,POLICY,FISCAL_STANDOFF,ONGOING,RESOLVED,,US:SPY,미국 대통령 재정절벽 회피 법안 서명,,https://www.rferl.org/a/obama-signs-fiscal-cliff-law/24814445.html ; https://obamawhitehouse.archives.gov/the-press-office/2013/01/03/statement-press-secretary-hr-8,2026-11-21
+ev0306.01,2013-02-01,GEOPOLITICS,MILITARY_PROVOCATION,START,,,KR:069500,북한 3차 핵실험 실시,,https://www.globalsecurity.org/wmd/library/news/dprk/2013/dprk-130212-unnews02.htm,2026-11-21
+ev0307.01,2013-03-01,FINANCIAL,SOVEREIGN_DEBT,START,RESCUED,,US:SPY,유로그룹 키프로스 구제금융 프로그램 핵심 사항 합의,,https://www.ecb.europa.eu/press/pr/date/2013/html/pr130325.en.html,2026-11-21
+ev0308.01,2013-04-01,POLICY,MONETARY_EASING,START,ASSET_PURCHASE,,KR:069500,일본은행 양적·질적 금융완화 도입,,https://www.boj.or.jp/en/mopo/mpmdeci/mpr_2013/k130404a.pdf,2026-11-21
+ev0308.02,2014-10-01,POLICY,MONETARY_EASING,ONGOING,ASSET_PURCHASE,,KR:069500,일본은행 양적·질적 금융완화 확대,,https://www.boj.or.jp/en/mopo/mpmdeci/mpr_2014/k141031a.pdf,2026-11-21
+ev0308.03,2016-01-01,POLICY,MONETARY_EASING,ONGOING,RATE_CUT,,KR:069500,일본은행 마이너스 금리 부가 양적·질적 금융완화 도입,,https://www.boj.or.jp/en/mopo/mpmdeci/mpr_2016/k160129a.pdf,2026-11-21
+ev0309.01,2013-05-01,POLICY,MONETARY_TIGHTENING,START,SIGNALED,,US:TLT,연준 의장 의회 증언에서 자산 매입 속도 조절 가능성 언급,,https://www.federalreserve.gov/newsevents/testimony/bernanke20130522a.htm,2026-11-21
+ev0309.02,2013-12-01,POLICY,MONETARY_TIGHTENING,ONGOING,ASSET_PURCHASE_CUT,,US:TLT,미국 연준 자산 매입 규모 축소 결정,,https://www.federalreserve.gov/newsevents/pressreleases/monetary20131218a.htm,2026-11-21
+ev0310.01,2013-10-01,POLICY,FISCAL_STANDOFF,START,RESOLVED,,US:SPY,미국 연방정부 일부 업무 정지 뒤 예산·부채 한도 법안 서명으로 재개,,https://obamawhitehouse.archives.gov/blog/2013/10/17/government-shutdown-over,2026-11-21
+ev0311.01,2014-03-01,GEOPOLITICS,ARMED_CONFLICT,START,,,US:SPY,러시아 크림반도 병합 조약 서명,,https://www.pbs.org/newshour/world/putin-signs-treaty-annex-crimea-russia ; https://www.rferl.org/a/russia-crimea-ukraine-treaty/25301179.html,2026-11-21
+ev0311.02,2014-07-01,GEOPOLITICS,ARMED_CONFLICT,ONGOING,ESCALATED,,US:SPY,우크라이나 동부 상공 말레이시아 여객기 격추,,https://www.gov.uk/government/speeches/this-is-a-dark-moment-for-the-international-community ; https://www.globalsecurity.org/wmd/library/news/ukraine/2014/ukraine-140721-unnews01.htm,2026-11-21
+ev0311.03,2014-09-01,GEOPOLITICS,ARMED_CONFLICT,ONGOING,CEASEFIRE,,US:SPY,우크라이나 동부 민스크 의정서 서명,,https://www.osce.org/home/123257,2026-11-21
+ev0312.01,2014-03-01,TRADE,SANCTION,START,IMPOSED,,KR:069500,미국 러시아 관련 인사 대상 제재 확대,,https://ofac.treasury.gov/recent-actions/20140317 ; https://obamawhitehouse.archives.gov/the-press-office/2014/03/17/executive-order-blocking-property-additional-persons-contributing-situat,2026-11-21
+ev0313.01,2014-08-01,HEALTH,EPIDEMIC,START,,,KR:069500,세계보건기구 서아프리카 에볼라 국제 공중보건 비상사태 선포,,https://www.who.int/news/item/08-08-2014-statement-on-the-1st-meeting-of-the-ihr-emergency-committee-on-the-2014-ebola-outbreak-in-west-africa,2026-11-21
+ev0314.01,2014-08-01,FINANCIAL,BANK_FAILURE,START,RESCUED,,US:SPY,포르투갈 중앙은행 에스피리투 산투 은행 정리 조치 적용,,https://www.bis.org/speeches/20140808-application-resolution-measure-banco-espirito-santo,2026-11-21
+ev0315.01,2014-09-01,POLITICS,REFERENDUM,START,KEEP,,US:SPY,스코틀랜드 독립 투표 반대 우세,,https://www.gov.uk/government/topical-events/scottish-independence-referendum/about,2026-11-21
+ev0316.01,2014-11-01,SUPPLY_SHOCK,OIL_SHOCK,START,,DOWN,US:XOM,석유수출국기구 감산 없이 생산 한도 유지 결정,,https://www.opec.org/pr-detail/84-27-nov-2014.html,2026-11-21
+ev0317.01,2014-11-01,POLITICS,US_MIDTERM,START,MINORITY_KEPT,,US:SPY,미국 중간선거 대통령 소속 정당 하원 소수 유지,,https://history.house.gov/Institution/Party-Divisions/Party-Divisions/,2026-11-21
+ev0318.01,2014-12-01,FINANCIAL,CURRENCY_SHOCK,START,,,KR:069500,러시아 중앙은행 긴급 금리 인상에도 루블 급락,,https://www.npr.org/sections/thetwo-way/2014/12/15/371032048/russia-boosts-interest-rates-to-17-percent-amid-currencys-slide,2026-11-21
+ev0319.01,2015-01-01,FINANCIAL,CURRENCY_SHOCK,START,DEVALUED,,KR:069500,스위스 중앙은행 유로 대비 최저 환율 제도 폐지,,https://www.snb.ch/en/publications/communication/press-releases/2015/pre_20150115,2026-11-21
+ev0320.01,2015-06-01,HEALTH,EPIDEMIC,START,,,KR:069500,한국 중동호흡기증후군 유행 확산,,https://www.who.int/news/item/02-06-2015-mers-cov-outbreak-largest-outside-kingdom-of-saudi-arabia ; https://www.who.int/emergencies/disease-outbreak-news/item/30-may-2015-mers-korea-en,2026-11-21
+ev0321.01,2015-08-01,FINANCIAL,CURRENCY_SHOCK,START,DEVALUED,,KR:069500,중국 인민은행 위안화 기준환율 산출 방식 개편 뒤 위안 급락,,https://en.people.cn/n/2015/0811/c90000-8934466.html,2026-11-21
+ev0322.01,2015-11-01,GEOPOLITICS,TERROR_ATTACK,START,,,US:SPY,파리 동시 다발 테러,,https://www.globalsecurity.org/security/library/news/2015/11/sec-151114-pdo01.htm,2026-11-21
+ev0323.01,2016-01-01,GEOPOLITICS,MILITARY_PROVOCATION,START,,,KR:069500,북한 4차 핵실험 발표,,https://www.rferl.org/a/north-korea-nuclear-test-un-meets/27472500.html,2026-11-21
+ev0324.01,2016-01-01,FINANCIAL,MARKET_CRASH,START,,,KR:069500,중국 증시 서킷 브레이커 발동 뒤 제도 시행 중단,,https://fortune.com/2016/01/07/china-suspends-market-circuit-breaker-after-stock-rout/,2026-11-21
+ev0325.01,2016-03-01,GEOPOLITICS,TERROR_ATTACK,START,,,US:SPY,브뤼셀 공항·지하철 연쇄 폭탄 테러,,https://news.un.org/en/story/2016/03/525072,2026-11-21
+ev0326.01,2016-04-01,POLITICS,KR_LEGISLATIVE_ELECTION,START,MAJORITY_LOST,,KR:069500,제20대 국회의원 선거 집권 여당 과반 상실,,https://museum.nec.go.kr/eng/eexh/eexh_2016_04_13.html,2026-11-21
+ev0327.01,2016-06-01,POLITICS,REFERENDUM,START,CHANGE,,US:SPY,영국 유럽연합 탈퇴 국민투표 탈퇴 우세,,https://www.irishtimes.com/news/world/uk/brexit-uk-votes-to-leave-the-eu-1.2697025,2026-11-21
+ev0328.01,2016-08-01,FINANCIAL,CORPORATE_DISTRESS,START,FAILED,,KR:069500,한진해운 법정관리 신청,,https://fsc.go.kr/eng/pr010101/22142,2026-11-21
+ev0329.01,2016-09-01,GEOPOLITICS,MILITARY_PROVOCATION,START,,,KR:069500,북한 5차 핵실험 실시,,https://news.un.org/en/story/2016/09/538782,2026-11-21
+ev0330.01,2016-10-01,POLITICS,POLITICAL_CRISIS,START,,,KR:069500,대통령 연설문 유출 의혹 속 대통령 대국민 사과,,https://www.koreatimes.co.kr/southkorea/20161025/park-apologizes-over-choi-soon-sil-scandal-controversy-still-lingers,2026-11-21
+ev0330.02,2016-12-01,POLITICS,POLITICAL_CRISIS,ONGOING,,,KR:069500,국회 대통령 탄핵소추안 가결,,https://www.globalsecurity.org/wmd/library/news/rok/2017/rok-170310-pdo01.htm,2026-11-21
+ev0330.03,2017-03-01,POLITICS,POLITICAL_CRISIS,END,,,KR:069500,헌법재판소 대통령 탄핵 인용 파면 결정,,https://www.globalsecurity.org/wmd/library/news/rok/2017/rok-170310-pdo01.htm ; https://www.npr.org/sections/thetwo-way/2017/03/09/519547627/south-korean-judges-uphold-president-park-geun-hyes-impeachment,2026-11-21
+ev0331.01,2016-11-01,POLITICS,US_PRESIDENTIAL_ELECTION,START,CHANGE,,US:SPY,미국 대선 공화당 후보 당선,,https://www.archives.gov/electoral-college/2016,2026-11-21
+ev0332.01,2016-11-01,SUPPLY_SHOCK,OIL_SHOCK,START,,UP,US:XOM,석유수출국기구 생산 목표 하향 조정 합의,,https://www.opec.org/pr-detail/458-30-nov-2016.html,2026-11-21
+ev0333.01,2017-05-01,POLITICS,KR_PRESIDENTIAL_ELECTION,START,CHANGE,,KR:069500,한국 대선 더불어민주당 문재인 후보 당선,,https://www.globalsecurity.org/wmd/library/news/rok/2017/rok-170510-pdo01.htm,2026-11-21
+ev0334.01,2017-06-01,FINANCIAL,BANK_FAILURE,START,FAILED,,US:SPY,스페인 방코 포풀라르 정리 결정과 산탄데르 매각,,https://www.bankingsupervision.europa.eu/press/pr/date/2017/html/ssm.pr170607.en.html,2026-11-21
+ev0335.01,2017-07-01,GEOPOLITICS,MILITARY_PROVOCATION,START,,,KR:069500,북한 대륙간탄도미사일급 발사,,https://www.nato.int/en/about-us/official-texts-and-resources/official-texts/2017/07/12/statement-by-the-north-atlantic-council-on-the-democratic-peoples-republic-of-korea-dprk ; https://www.mfa.gov.sg/Newsroom/Press-Statements-Transcripts-and-Photos/2017/07/MFA-Press-Statement-Democratic-Peoples-Republic-of-Koreas-Ballistic-Missile-Test-on-4-July-2017,2026-11-21
+ev0336.01,2017-09-01,GEOPOLITICS,MILITARY_PROVOCATION,START,,,KR:069500,북한 6차 핵실험 실시,,https://www.aljazeera.com/news/2017/9/10/nato-chief-calls-for-united-response-to-north-korea,2026-11-21
+ev0337.01,2017-11-01,POLICY,MONETARY_TIGHTENING,START,RATE_HIKE,,KR:069500,한국은행 기준금리 인상,,https://www.koreatimes.co.kr/amp/economy/20171130/bok-raises-key-rate-to-15,2026-11-21
+ev0338.01,2015-12-01,POLICY,MONETARY_TIGHTENING,START,RATE_HIKE,,US:SHY,미국 연준 기준금리 목표 범위 인상,,https://www.federalreserve.gov/newsevents/pressreleases/monetary20151216a.htm,2026-11-21
+ev0338.02,2017-09-01,POLICY,MONETARY_TIGHTENING,ONGOING,BALANCE_SHEET_CUT,,US:TLT,미국 연준 보유 자산 축소 10월 시작 결정,,https://www.federalreserve.gov/newsevents/pressreleases/monetary20170920a.htm,2026-11-21
+ev0339.01,2012-06-01,FINANCIAL,SOVEREIGN_DEBT,START,RESCUED,,US:SPY,유로그룹 스페인 은행 구제 위한 최대 1000억 유로 지원 용의 표명,,https://mondovisione.com/news/eurogroup-statement-on-spain-201269/ ; https://www.lamoncloa.gob.es/lang/en/gobierno/news/paginas/2012/20120625_requestaidbanks.aspx,2026-11-21
+ev0340.01,2016-12-01,POLITICS,REFERENDUM,START,KEEP,,US:SPY,이탈리아 헌법 개정 국민투표 부결과 총리 사임 표명,,https://www.robert-schuman.eu/en/monitor/1668 ; https://www.aljazeera.com/news/2016/12/5/pm-matteo-renzi-vows-to-resign-after-referendum-defeat,2026-11-21
+ev0341.01,2017-11-01,GEOPOLITICS,MILITARY_PROVOCATION,START,,,KR:069500,북한 신형 대륙간탄도미사일급 발사,,https://news.un.org/en/story/2017/11/637681-after-dprk-missile-launch-un-political-chief-urges-security-council-do-all-it,2026-11-21
+ev0342.01,2017-12-01,POLICY,FISCAL_STIMULUS,START,,,US:SPY,미국 대통령 대규모 감세 법안 서명,,https://www.pbs.org/newshour/politics/trump-signs-1-5-trillion-tax-overhaul-into-law,2026-11-21
+ev0343.01,2015-08-01,GEOPOLITICS,MILITARY_PROVOCATION,START,,,KR:069500,남북 서부 전선 포격 교전,,https://www.globalsecurity.org/wmd/library/news/dprk/2015/dprk-150820-voa01.htm,2026-11-21
+ev0344.01,2017-08-01,GEOPOLITICS,MILITARY_PROVOCATION,START,,,KR:069500,북한 일본 상공 넘는 탄도미사일 발사,,https://www.aljazeera.com/news/2017/8/30/un-council-unanimously-condemns-n-korea-missile-tests,2026-11-21
