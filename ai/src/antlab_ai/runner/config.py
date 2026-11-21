@@ -21,6 +21,7 @@ OLLAMA: Final = "OLLAMA"
 CLAUDE_CLI: Final = "CLAUDE_CLI"
 CODEX_CLI: Final = "CODEX_CLI"
 SUBSCRIPTION_ROUTES: Final = (CLAUDE_CLI, CODEX_CLI)
+KNOWN_ROUTES: Final = (OPENROUTER, CLAUDE_CLI, CODEX_CLI, OLLAMA)
 # How the season budget treats cost: a USD bound, no bound possible (pause before sending), or a
 # flat subscription fee bounded by the call budget, the batch call cap and the usage guard.
 KNOWN: Final = "KNOWN"

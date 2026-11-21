@@ -1,0 +1,15 @@
+# One seat per [[entry]]. The league fixes the path, the seed and the money settings;
+# a roster never carries them. route defaults to OPENROUTER.
+
+[[entry]]
+persona = "patient-value"
+model_id = "vendor/model-a:free"
+
+[[entry]]
+persona = "trend-rider"
+model_id = "vendor/model-a:free"
+
+[[entry]]
+persona = "steady-allocator"
+model_id = "vendor/model-b:free"
+route = "OPENROUTER"
