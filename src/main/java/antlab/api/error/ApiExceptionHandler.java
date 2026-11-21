@@ -37,7 +37,7 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(DomainException.class)
     public ResponseEntity<Object> handleDomain(DomainException ex, WebRequest request) {
         HttpStatus status = ErrorHttpMapping.status(ex.getCode());
-        if (ex.getCode() == ErrorCode.ENGINE_UNAVAILABLE) {
+        if (ex.getCode() == ErrorCode.ENGINE_UNAVAILABLE || ex.getCode() == ErrorCode.SCORE_PENDING) {
             // A transient engine outage: the engine client already logged its reason key; no stack trace.
             log.warn("엔진을 쓸 수 없다(503)");
         } else if (status.is5xxServerError()) {
@@ -107,14 +107,15 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
             case UNSUPPORTED_MEDIA_TYPE -> "지원하지 않는 본문 형식이다";
             case MALFORMED_REQUEST -> ProblemErrorReportValve.DETAIL;
             case INTERNAL_ERROR -> "처리 중 오류가 났다";
-            case ENGINE_UNAVAILABLE -> "일시적으로 처리할 수 없다. 잠시 뒤 다시 시도한다";
+            case ENGINE_UNAVAILABLE, SCORE_PENDING -> "일시적으로 처리할 수 없다. 잠시 뒤 다시 시도한다";
             // 4xx 도메인 코드는 던진 쪽 문장을 쓰므로 여기에 오지 않는다(위 분기). 기본 분기를 두지 않아 코드 추가 시 컴파일이 막는다.
             case POOL_NOT_LOADED, POOL_NOT_JUDGED, PATH_TOO_LONG, SEASON_LIMIT, TURN_NOT_REACHED,
                     SEASON_NOT_ACTIVE, SEASON_NOT_FINISHED, TURN_MISMATCH, LEDGER_MISMATCH, LINEUP_MISMATCH, ASSET_NOT_IN_POOL,
                     SOURCE_NOT_VISIBLE, INSUFFICIENT_CASH, INSUFFICIENT_HOLDING, POSITION_CONFLICT, POSITION_REQUIRED, RECONCILIATION_FAILED,
                     SEASON_HALTED, INVALID_FORMATION, EVENT_TIME_CONFLICT, EMAIL_TAKEN, INVALID_CREDENTIALS, AGENT_RETIRED,
                     DECISION_CONFLICT, DECISION_MISSING, PERSONA_VERSION_CONFLICT, PERSONA_VERSION_STALE, LEAGUE_NOT_SETTLED,
-                    LEAGUE_CLOSED, LEAGUE_SEAT_TAKEN, LEAGUE_FULL, LEAGUE_STALE, LEAGUE_OPEN, MEMORY_VERSION_UNKNOWN -> "요청을 처리할 수 없는 상태다";
+                    LEAGUE_CLOSED, LEAGUE_SEAT_TAKEN, LEAGUE_FULL, LEAGUE_STALE, LEAGUE_OPEN, MEMORY_VERSION_UNKNOWN, MEMORY_DONE, MEMORY_ORDER,
+                    MEMORY_NOT_ELIGIBLE -> "요청을 처리할 수 없는 상태다";
             case UNAUTHENTICATED -> "인증이 필요하다";
             case FORBIDDEN -> "권한이 없다";
         };

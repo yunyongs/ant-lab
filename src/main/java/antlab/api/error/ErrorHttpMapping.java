@@ -53,7 +53,8 @@ public final class ErrorHttpMapping {
             case PERSONA_VERSION_CONFLICT -> HttpStatus.CONFLICT;
             case PERSONA_VERSION_STALE -> HttpStatus.CONFLICT;
             case LEAGUE_NOT_SETTLED, LEAGUE_CLOSED, LEAGUE_SEAT_TAKEN, LEAGUE_FULL, LEAGUE_STALE, LEAGUE_OPEN,
-                    MEMORY_VERSION_UNKNOWN -> HttpStatus.CONFLICT;
+                    MEMORY_VERSION_UNKNOWN, MEMORY_DONE, MEMORY_ORDER, MEMORY_NOT_ELIGIBLE -> HttpStatus.CONFLICT;
+            case SCORE_PENDING -> HttpStatus.SERVICE_UNAVAILABLE;
         };
     }
 

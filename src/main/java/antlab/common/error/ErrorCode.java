@@ -87,5 +87,13 @@ public enum ErrorCode {
     /** The review of a league season is held until the league is closed. */
     LEAGUE_OPEN,
     /** The memory version a season start names does not exist for this agent (agent runner, AG-05). */
-    MEMORY_VERSION_UNKNOWN
+    MEMORY_VERSION_UNKNOWN,
+    /** The season already has a reflection outcome (agent runner, AG-05). */
+    MEMORY_DONE,
+    /** An earlier released season of this agent must get its reflection outcome first (agent runner, AG-05). */
+    MEMORY_ORDER,
+    /** The season is VOID or was abandoned, so it never gets a reflection (agent runner, AG-05). */
+    MEMORY_NOT_ELIGIBLE,
+    /** The season's score is not stored yet; transient (agent runner, AG-05). */
+    SCORE_PENDING
 }

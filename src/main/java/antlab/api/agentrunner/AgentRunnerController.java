@@ -17,6 +17,11 @@ import antlab.agent.decision.AgentTurnAdvanceService;
 import antlab.agent.decision.CallsRequest;
 import antlab.agent.decision.DecisionRequest;
 import antlab.agent.decision.DecisionResultDto;
+import antlab.agent.memory.AgentMemoryStateDto;
+import antlab.agent.memory.AgentMemoryVersionDto;
+import antlab.agent.memory.MemoryReadService;
+import antlab.agent.memory.ReflectionViewDto;
+import antlab.agent.memory.ReflectionViewService;
 import antlab.league.CreateLeagueRequest;
 import antlab.league.LeagueDto;
 import antlab.league.LeagueService;
@@ -57,11 +62,14 @@ public class AgentRunnerController {
     private final AgentTurnAdvanceService advances;
     private final AgentSeasonConfigQueryService configQueries;
     private final LeagueService leagues;
+    private final MemoryReadService memories;
+    private final ReflectionViewService reflectionViews;
 
     public AgentRunnerController(AgentRegistrationService registrations, AgentSeasonService seasons,
             AgentSeasonLifecycleService lifecycle, SeasonAbandonService abandons, AgentTurnViewService turnViews,
             AgentDecisionService decisions, AgentTurnAdvanceService advances,
-            AgentSeasonConfigQueryService configQueries, LeagueService leagues) {
+            AgentSeasonConfigQueryService configQueries, LeagueService leagues, MemoryReadService memories,
+            ReflectionViewService reflectionViews) {
         this.registrations = registrations;
         this.seasons = seasons;
         this.lifecycle = lifecycle;
@@ -71,6 +79,8 @@ public class AgentRunnerController {
         this.advances = advances;
         this.configQueries = configQueries;
         this.leagues = leagues;
+        this.memories = memories;
+        this.reflectionViews = reflectionViews;
     }
 
     @PostMapping(value = BASE + "/agents", consumes = MediaType.APPLICATION_JSON_VALUE,
@@ -152,6 +162,22 @@ public class AgentRunnerController {
             @Valid @RequestBody AbandonSeasonRequest request) {
         lifecycle.requireActing(agentId);
         return abandons.abandon(seasonId, request.expectedTurnNo());
+    }
+
+    @GetMapping(value = BASE + "/agents/{agentId}/memory", produces = MediaType.APPLICATION_JSON_VALUE)
+    public AgentMemoryStateDto getMemory(@PathVariable long agentId) {
+        return memories.state(agentId);
+    }
+
+    @GetMapping(value = BASE + "/agents/{agentId}/memory/{version}", produces = MediaType.APPLICATION_JSON_VALUE)
+    public AgentMemoryVersionDto getMemoryVersion(@PathVariable long agentId, @PathVariable @Min(1) int version) {
+        return memories.version(agentId, version);
+    }
+
+    @GetMapping(value = BASE + "/agents/{agentId}/seasons/{seasonId}/reflection-view",
+            produces = MediaType.APPLICATION_JSON_VALUE)
+    public ReflectionViewDto getReflectionView(@PathVariable long agentId, @PathVariable long seasonId) {
+        return reflectionViews.get(agentId, seasonId);
     }
 
     @PostMapping(value = BASE + "/leagues", consumes = MediaType.APPLICATION_JSON_VALUE,
