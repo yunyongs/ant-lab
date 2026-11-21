@@ -13,7 +13,11 @@ from collections import Counter
 
 from api_helpers import fixture
 
+from antlab_ai.runner.persona import load_persona
+from antlab_ai.runner.prompt import PROMPT_TEMPLATE_VERSION
+
 PREFIX = "/internal/agent-runner/v1/agents"
+LEAGUES = "/internal/agent-runner/v1/leagues"
 _ROUTES = (
     ("registerAgent", "POST", re.compile(rf"{PREFIX}$")),
     ("startAgentSeason", "POST", re.compile(rf"{PREFIX}/(\d+)/seasons$")),
@@ -30,6 +34,10 @@ _ROUTES = (
         re.compile(rf"{PREFIX}/(\d+)/seasons/(\d+)/turns/(\d+)/decision$"),
     ),
     ("advanceAgentTurn", "POST", re.compile(rf"{PREFIX}/(\d+)/seasons/(\d+)/turns$")),
+    ("getAgentSeasonConfig", "GET", re.compile(rf"{PREFIX}/(\d+)/seasons/(\d+)/config$")),
+    ("createLeague", "POST", re.compile(rf"{LEAGUES}$")),
+    ("getLeague", "GET", re.compile(rf"{LEAGUES}/(\d+)$")),
+    ("closeLeague", "POST", re.compile(rf"{LEAGUES}/(\d+)/close$")),
 )
 ENGINE_CODES = ("LEDGER_MISMATCH", "LINEUP_MISMATCH", "INVALID_FORMATION", "EVENT_TIME_CONFLICT")
 
@@ -70,6 +78,13 @@ class FakeSpring:
         self.lose_answer: Counter[str] = Counter()
         self.token = None
         self.fail: dict[str, tuple[int, str]] = {}
+        self.agents: dict[int, dict] = {}
+        self.configs: dict[int, dict] = {}
+        self.config_override: dict = {}  # fields of the recorded config to change, for mismatch tests
+        self.leagues: dict[int, dict] = {}
+        self.season_limit_agents: set[int] = set()  # agents whose start answers SEASON_LIMIT
+        self.next_league_season = 100
+        self.started_with: list[dict] = []  # request bodies of every startAgentSeason
 
     # ---- transport ------------------------------------------------------------------------
 
@@ -98,14 +113,124 @@ class FakeSpring:
     # ---- operations -----------------------------------------------------------------------
 
     def _registerAgent(self, ids, body):  # noqa: N802
+        key = (body["personaKey"], body["modelRoute"], body["modelId"])
+        for agent in self.agents.values():
+            if (agent["personaKey"], agent["modelRoute"], agent["modelId"]) == key:
+                return 200, copy.deepcopy(agent)
         agent = fixture("agent")
-        agent.update(modelId=body["modelId"], modelRoute=body["modelRoute"])
-        return 201, agent
+        agent.update(
+            agentId=11 + len(self.agents),
+            personaKey=body["personaKey"],
+            displayName=body["displayName"],
+            modelId=body["modelId"],
+            modelRoute=body["modelRoute"],
+        )
+        self.agents[agent["agentId"]] = agent
+        return 201, copy.deepcopy(agent)
 
     def _startAgentSeason(self, ids, body):  # noqa: N802
-        if body["config"]["modelRequested"] != self.model:
+        self.started_with.append(body)
+        agent = self.agents.get(ids[0])
+        expected_model = self.model if agent is None else agent["modelId"]
+        if body["config"]["modelRequested"] != expected_model:
             return problem(400, "INVALID_ARGUMENT")
-        return 201, self._season()
+        league_id = body.get("leagueId")
+        season = self._season()
+        if ids[0] in self.season_limit_agents:  # the real service checks limits before the seat
+            return problem(409, "SEASON_LIMIT")
+        if league_id is not None:
+            league = self.leagues.get(league_id)
+            if league is None:
+                return problem(404, "NOT_FOUND")
+            if "pathLength" in body and body["pathLength"] != league["pathLength"]:
+                return problem(400, "INVALID_ARGUMENT")
+            if league["status"] == "CLOSED":
+                return problem(409, "LEAGUE_CLOSED")
+            if any(e["memberId"] == ids[0] for e in league["entries"]):
+                return problem(409, "LEAGUE_SEAT_TAKEN")
+            if len(league["entries"]) >= league["maxEntries"]:
+                return problem(409, "LEAGUE_FULL")
+            self.next_league_season += 1
+            season.update(id=self.next_league_season, pathLength=league["pathLength"])
+            league["entries"].append(
+                {
+                    "memberId": ids[0],
+                    "memberKind": "AGENT",
+                    "displayName": "agent",
+                    "seasonId": season["id"],
+                    "status": "IN_PROGRESS",
+                    "currentTurnNo": 0,
+                }
+            )
+        persona_key = "patient-value" if agent is None else agent["personaKey"]
+        self.configs[season["id"]] = self._recorded(body["config"], persona_key, agent)
+        return 201, season
+
+    def _recorded(self, config, persona_key, agent):
+        return {
+            "personaKey": persona_key,
+            "personaVersion": config["personaVersion"],
+            "personaSha256": config["personaSha256"],
+            "modelRoute": self.route if agent is None else agent["modelRoute"],
+            "modelRequested": config["modelRequested"],
+            "promptTemplateVersion": config["promptTemplateVersion"],
+            "runnerVersion": config["runnerVersion"],
+            "memoryVersion": config["memoryVersion"],
+            "temperature": config["temperature"],
+            "modelSeed": config["modelSeed"],
+            "maxTokens": config["maxTokens"],
+            "turnTimeoutMs": config["turnTimeoutMs"],
+            "budgetCalls": config["budgetCalls"],
+            "budgetUsd": config["budgetUsd"],
+        }
+
+    def _getAgentSeasonConfig(self, ids, body):  # noqa: N802
+        config = self.configs.get(ids[1])
+        if config is None:
+            persona = load_persona("patient-value")
+            config = {
+                "personaKey": persona.key,
+                "personaVersion": persona.version,
+                "personaSha256": persona.sha256,
+                "modelRoute": self.route,
+                "modelRequested": self.model,
+                "promptTemplateVersion": PROMPT_TEMPLATE_VERSION,
+                "runnerVersion": "0.0.1",
+                "memoryVersion": None,
+                "temperature": "0",
+                "modelSeed": 1,
+                "maxTokens": 2048,
+                "turnTimeoutMs": 120000,
+                "budgetCalls": 36,
+                "budgetUsd": "0",
+            }
+        return 200, {**config, **self.config_override}
+
+    def _createLeague(self, ids, body):  # noqa: N802
+        league_id = 5 + len(self.leagues)
+        league = {
+            "id": league_id,
+            "name": body["name"],
+            "status": "OPEN",
+            "pathLength": body.get("pathLength", 12),
+            "maxEntries": body.get("maxEntries", 8),
+            "entries": [],
+        }
+        self.leagues[league_id] = league
+        return 201, copy.deepcopy(league)
+
+    def _getLeague(self, ids, body):  # noqa: N802
+        league = self.leagues.get(ids[0])
+        return (200, copy.deepcopy(league)) if league else problem(404, "NOT_FOUND")
+
+    def _closeLeague(self, ids, body):  # noqa: N802
+        league = self.leagues.get(ids[0])
+        if league is None:
+            return problem(404, "NOT_FOUND")
+        if any(e["status"] not in ("FINISHED", "VOID") for e in league["entries"]):
+            return problem(409, "LEAGUE_NOT_SETTLED")
+        league["status"] = "CLOSED"
+        return 200, copy.deepcopy(league)
 
     def _season(self):
         season = fixture("season")

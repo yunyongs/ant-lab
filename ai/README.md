@@ -70,7 +70,15 @@ uv run --frozen python -m antlab_ai.runner start --agent-id <n> --persona patien
 uv run --frozen python -m antlab_ai.runner run --agent-id <n> --season-id <n> --persona patient-value --model-id <id> --model-script <file.json> [--max-calls <n>] [--resume]
 uv run --frozen python -m antlab_ai.runner run ... --live --max-calls <n> [--env-file <path>]
 uv run --frozen python -m antlab_ai.runner status --agent-id <n> --season-id <n>
+uv run --frozen python -m antlab_ai.runner start ... --league <id>
+uv run --frozen python -m antlab_ai.runner league create --name <text> [--path-length 12|24|60] [--max-entries 2..20]
+uv run --frozen python -m antlab_ai.runner league enter --league <id> --roster rosters/sample.toml
+uv run --frozen python -m antlab_ai.runner league show|close --league <id>
 ```
+
+`run` reads the season's recorded config (`getAgentSeasonConfig`) before any model call and ends with exit code 2 when persona key, version or hash, route, model or prompt template version differ from the local values; the runner version may differ. `league enter` registers and starts one season per roster entry with `leagueId` (the league fixes the path; a roster never holds a seed); an entry whose member already has a seat is reported, not restarted. Seasons are then run one at a time with `run`.
+
+`run`은 모델을 부르기 전에 시즌에 기록된 설정(`getAgentSeasonConfig`)을 읽고, 페르소나 키·버전·해시, 경로, 모델, 프롬프트 템플릿 버전이 로컬 값과 다르면 종료 코드 2로 끝낸다. 러너 버전은 달라도 된다. `league enter`는 명단의 항목마다 `leagueId`로 시즌을 등록·시작한다(경로는 리그가 정하고 명단에는 시드가 없다). 이미 자리가 있는 회원은 다시 시작하지 않고 알린다. 이후 시즌은 `run`으로 하나씩 진행한다.
 
 Tests and `run` without `--live` make no network call to a model: `--model-script` is a JSON list of scripted attempts (`{"reply": {...}}` or `{"text": "..."}`, optional `status`, `http_status`, `retry_after_s`, `credit_refusal`, `repeat`). `--live` needs `OPENROUTER_API_KEY`, an absolute `ANTLAB_OPENROUTER_LEDGER` and `--max-calls`, a hard ceiling on model requests sent in the run. A live run is not part of any test or CI job, and none is allowed before the owner answers the data-policy and tier questions.
 
