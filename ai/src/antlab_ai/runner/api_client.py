@@ -114,6 +114,28 @@ _OPERATIONS: Final[dict[str, tuple[str, str, frozenset[int], str | None, bool]]]
         "LeagueDto",
         True,
     ),
+    # AG-05 C1: memory reads; the memory commands (AG-05 E) drive them.
+    "getAgentMemory": (
+        "GET",
+        f"{BASE_PATH}/agents/{{agentId}}/memory",
+        frozenset({200}),
+        "AgentMemoryStateDto",
+        True,
+    ),
+    "getAgentMemoryVersion": (
+        "GET",
+        f"{BASE_PATH}/agents/{{agentId}}/memory/{{version}}",
+        frozenset({200}),
+        "AgentMemoryVersionDto",
+        True,
+    ),
+    "getReflectionView": (
+        "GET",
+        f"{BASE_PATH}/agents/{{agentId}}/seasons/{{seasonId}}/reflection-view",
+        frozenset({200}),
+        "ReflectionViewDto",
+        True,
+    ),
 }
 OPERATIONS: Final[dict[str, tuple[str, str]]] = {k: (v[0], v[1]) for k, v in _OPERATIONS.items()}
 

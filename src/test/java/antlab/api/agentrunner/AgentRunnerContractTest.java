@@ -197,7 +197,9 @@ class AgentRunnerContractTest {
         }
         // A new runner response type must be added here on purpose and goes through the catalog.
         assertThat(types).containsExactlyInAnyOrder(AgentDto.class, SeasonDto.class, antlab.agent.AgentSeasonConfigDto.class, AgentTurnViewDto.class,
-                DecisionResultDto.class, TurnResultDto.class, AbandonResultDto.class, antlab.league.LeagueDto.class, Void.class);
+                DecisionResultDto.class, TurnResultDto.class, AbandonResultDto.class, antlab.league.LeagueDto.class, Void.class,
+                antlab.agent.memory.AgentMemoryStateDto.class, antlab.agent.memory.AgentMemoryVersionDto.class,
+                antlab.agent.memory.ReflectionViewDto.class);
         assertThat(ExposureRules.check(SeasonDto.class, catalog, false, false)).isEmpty();
         assertThat(ExposureRules.check(AgentTurnViewDto.class, catalog, false, false)).isEmpty();
         assertThat(Arrays.stream(antlab.agent.AgentSeasonConfigDto.class.getRecordComponents()).map(RecordComponent::getName).toList())
@@ -207,6 +209,14 @@ class AgentRunnerContractTest {
         assertThat(ExposureRules.check(DecisionResultDto.class, catalog, false, false)).isEmpty();
         assertThat(ExposureRules.check(TurnResultDto.class, catalog, false, false)).isEmpty();
         assertThat(ExposureRules.check(AbandonResultDto.class, catalog, false, false)).isEmpty();
+        assertThat(ExposureRules.check(antlab.agent.memory.AgentMemoryStateDto.class, catalog, false, false)).isEmpty();
+        assertThat(ExposureRules.check(antlab.agent.memory.AgentMemoryVersionDto.class, catalog, false, false)).isEmpty();
+        // the reflection view shows feed kinds and the report card of a finished season, like the review handlers do
+        assertThat(ExposureRules.check(antlab.agent.memory.ReflectionViewDto.class, catalog, true, true)).isEmpty();
+        // reviewReveal accepts every review-only column, so the view is pinned to the two it needs: the feed kind and the
+        // path order that the report's aggregates use. A month, event title or price date can never join silently.
+        assertThat(ExposureRules.reviewOnlySources(antlab.agent.memory.ReflectionViewDto.class, catalog))
+                .containsExactly("season_path.month_block_id", "turn_feed.kind");
         // The league answers carry no seed, date, engine or money field: only these components exist.
         assertThat(Arrays.stream(antlab.league.LeagueDto.class.getRecordComponents()).map(RecordComponent::getName).toList())
                 .containsExactly("id", "name", "status", "pathLength", "maxEntries", "entries");

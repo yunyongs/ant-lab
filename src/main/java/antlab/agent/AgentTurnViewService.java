@@ -110,7 +110,7 @@ public class AgentTurnViewService {
     }
 
     /** The usable items of a stored list and how many items (or whole lists) were left out. */
-    record ParsedRejects(List<RejectDto> items, int dropped) {
+    public record ParsedRejects(List<RejectDto> items, int dropped) {
     }
 
     /**
@@ -119,7 +119,7 @@ public class AgentTurnViewService {
      * A unit reject: unit in {@link #UNITS}; index 0-39 for ORDER, null otherwise; no pointer. A reply-level reject:
      * no unit, no index, code {@value #REPLY_CODE}, and a pointer of plain names.
      */
-    static ParsedRejects parseRejects(String json) {
+    public static ParsedRejects parseRejects(String json) {
         JsonNode root;
         try {
             root = JsonMapper.shared().readTree(json);

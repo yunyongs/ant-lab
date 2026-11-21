@@ -25,6 +25,14 @@ public interface AgentCallRepository extends AppendOnlyRepository<AgentCall, Lon
     Optional<String> findFinalRejects(@Param("seasonId") Long seasonId, @Param("turnNo") int turnNo,
             @Param("kind") AgentCallKind kind);
 
+    /** The final decision call of every decided turn of a season, in turn order, without the request and reply texts. */
+    @Query("""
+            select new antlab.agent.AgentFinalCallRow(c.turnNo, c.outcome, c.parsed, c.rejects) from AgentCall c
+            where c.seasonId = :seasonId and c.callKind = antlab.agent.AgentCallKind.TURN_DECISION and c.finalCall = true
+            order by c.turnNo
+            """)
+    List<AgentFinalCallRow> findFinalDecisions(@Param("seasonId") Long seasonId);
+
     /** True when a stored call already carries this ledger call id (unique across seasons). */
     boolean existsByLedgerCallId(java.util.UUID ledgerCallId);
 

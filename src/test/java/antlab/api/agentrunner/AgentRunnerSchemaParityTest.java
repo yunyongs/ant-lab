@@ -115,6 +115,13 @@ class AgentRunnerSchemaParityTest {
         assertSchemaMatches("AgentPartDto", AgentPartDto.class);
         assertSchemaMatches("RecentTradeDto", RecentTradeDto.class);
         assertSchemaMatches("RejectDto", RejectDto.class);
+        assertSchemaMatches("AgentMemoryStateDto", antlab.agent.memory.AgentMemoryStateDto.class);
+        assertSchemaMatches("AgentMemoryDto", antlab.agent.memory.AgentMemoryDto.class);
+        assertSchemaMatches("AgentMemoryVersionDto", antlab.agent.memory.AgentMemoryVersionDto.class);
+        assertSchemaMatches("ReflectionViewDto", antlab.agent.memory.ReflectionViewDto.class);
+        assertSchemaMatches("ReflectionTurnDto", antlab.agent.memory.ReflectionViewDto.Turn.class);
+        assertSchemaMatches("ReflectionFillDto", antlab.agent.memory.ReflectionViewDto.Fill.class);
+        assertSchemaMatches("ReflectionCitedDto", antlab.agent.memory.ReflectionViewDto.Cited.class);
         assertSchemaMatches("CreateLeagueRequest", antlab.league.CreateLeagueRequest.class);
         assertSchemaMatches("LeagueDto", antlab.league.LeagueDto.class);
         assertSchemaMatches("LeagueEntryDto", antlab.league.LeagueEntryDto.class);
@@ -125,7 +132,8 @@ class AgentRunnerSchemaParityTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"SeasonDto", "FormationDto", "TurnResultDto", "HoldingsDto", "HoldingDto", "TurnPricesDto",
-            "TurnPriceDto", "PoolAssetDto", "FeedItemDto", "MacroDto", "MacroAxesDto", "MacroAxisDto", "RegimeProbabilitiesDto"})
+            "TurnPriceDto", "PoolAssetDto", "FeedItemDto", "MacroDto", "MacroAxesDto", "MacroAxisDto", "RegimeProbabilitiesDto",
+            "SeasonReportDto", "SeasonScoreDto", "SeasonScoreItemsDto"})
     void the_shared_schemas_equal_the_public_ones(String schema) throws Exception {
         JsonNode runnerSchemas = schemas(RUNNER);
         JsonNode openSchemas = schemas(PUBLIC);
