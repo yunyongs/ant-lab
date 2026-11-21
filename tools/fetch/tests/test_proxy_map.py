@@ -58,10 +58,25 @@ def test_no_stock_month_from_2007_is_a_proxy_month():
             assert a.first_return() <= pm.MAIN_PERIOD_START, a.key
 
 
-def test_pending_fees_warn_by_default_and_fail_in_strict_mode():
-    rep = pm.run_check(REAL)
-    assert rep.warnings and all("fee pending" in w for w in rep.warnings)
-    assert any("fee pending" in e for e in pm.run_check(REAL, strict=True).errors)
+def test_the_tracked_map_has_no_pending_fee_and_passes_the_strict_gate():
+    rep = pm.run_check(REAL, strict=True)
+    assert not rep.errors and not rep.warnings
+    sources = {}
+    for r in pm.read_csv(REAL / "proxy_map.csv", pm.MAP_COLUMNS):
+        if r["fee_applied"] == "Y":
+            sources.setdefault(r["fee_source"], set()).add((r["market"], r["ticker"]))
+    assert set(sources) == {"MACRO_ETF_3_2", "ISSUER_PAGE"} and len(sources["ISSUER_PAGE"]) == 15 and len(sources["MACRO_ETF_3_2"]) == 15
+
+
+def test_a_pending_fee_warns_by_default_and_fails_in_strict_mode(full):
+    edit(full / "proxy_map.csv", pm.MAP_COLUMNS, lambda rows: [r.update(annual_fee="", fee_source="PENDING") for r in rows if (r["market"], r["ticker"]) == ("US", "QQQ")])
+    assert pm.run_check(full).warnings and all("fee pending" in w for w in pm.run_check(full).warnings)
+    assert any("fee pending" in e for e in pm.run_check(full, strict=True).errors)
+
+
+def test_an_unknown_fee_source_is_an_error(full):
+    edit(full / "proxy_map.csv", pm.MAP_COLUMNS, lambda rows: [r.update(fee_source="ISSUER") for r in rows if (r["market"], r["ticker"]) == ("US", "SPY")])
+    assert any("fee_source" in e for e in errors(full))
 
 
 def test_first_months_follow_the_measured_month_then_the_listing_month():

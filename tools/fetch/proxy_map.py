@@ -34,7 +34,7 @@ ASSET_COLUMNS = ["market", "ticker", "name", "asset_type", "currency", "group_co
 SOURCES = {"YF", "FRED", "ECOS", "WB", "ASSET", "DERIVED"}
 BASES = {"PRICE", "TOTAL", "RATE"}  # RATE = a yield that only feeds a DERIVED row; the map may not name it
 OBSERVATIONS = {"MONTH_END", "MONTH_AVG"}
-FEE_SOURCES = {"MACRO_ETF_3_2", "PENDING"}
+FEE_SOURCES = {"MACRO_ETF_3_2", "ISSUER_PAGE", "PENDING"}
 FORMULAS = {"PAR_BOND_TR": 2, "CASH_ACCRUAL": 1, "MIX_50_50": 2, "MIX_50_50_FX": 2, "MIX_W": 3}  # name -> number of arguments (the maturity counts)
 
 _MONTH = re.compile(r"^\d{4}-(0[1-9]|1[0-2])$")
@@ -56,12 +56,18 @@ def months(a: str, b: str) -> list[str]:
 
 
 # -- ladder rules --------------------------------------------------------------------------------------------
-# Fee ratios (annual) are the funetf values of docs/MACRO_ETF.md section 3.2 (2026-10-30). ETFs outside that table stay PENDING:
-# no issuer page was read for them, and a fee is never typed from memory.
+# Fee ratios (annual) are the funetf values of docs/MACRO_ETF.md section 3.2 (2026-10-30). ETFs outside that table take the
+# total expense ratio printed on the issuer's own page (ISSUER_FEE, read 2026-11-21, URLs in db/full/README.md); an ETF whose
+# page could not be read stays PENDING, and a fee is never typed from memory.
 MACRO_ETF_FEE = {
     "069500": "0.0015", "360750": "0.000068", "133690": "0.000068", "458730": "0.0001", "476850": "0.005",
     "426030": "0.008", "0019K0": "0.0025", "476760": "0.0005", "148070": "0.0005", "114260": "0.0015",
     "329750": "0.003", "459580": "0.0002", "411060": "0.0019", "160580": "0.0083", "261220": "0.0035",
+}
+ISSUER_FEE = {
+    ("KR", "091160"): "0.0045", ("US", "EEM"): "0.0072", ("US", "EFA"): "0.0032", ("US", "GLD"): "0.004", ("US", "IEF"): "0.0015",
+    ("US", "IWM"): "0.0019", ("US", "QQQ"): "0.0018", ("US", "SHY"): "0.0015", ("US", "SPY"): "0.000945", ("US", "TLT"): "0.0015",
+    ("US", "XLE"): "0.0008", ("US", "XLF"): "0.0008", ("US", "XLK"): "0.0008", ("US", "XLP"): "0.0008", ("US", "XLV"): "0.0008",
 }
 KR_ETF_LADDER = {
     "069500": ["KR_KOSPI"],
@@ -187,10 +193,11 @@ def build_map(assets: list[Asset], series: list[dict[str, str]]) -> list[dict[st
                 raise ValueError(f"{a.key}: unknown series {s}")
             krw = a.currency == "KRW" and sid[s]["currency"] == "USD" and not hedged(a.name)
             etf = a.asset_type == "ETF"
-            fee = MACRO_ETF_FEE.get(a.ticker, "") if etf and a.market == "KR" else ""
+            macro = MACRO_ETF_FEE.get(a.ticker, "") if etf and a.market == "KR" else ""
+            fee = macro or (ISSUER_FEE.get(a.key, "") if etf else "")
             out.append({"market": a.market, "ticker": a.ticker, "priority": str(i), "series_id": s, "to_krw": "Y" if krw else "N",
                         "fee_applied": "Y" if etf else "N", "annual_fee": fee,
-                        "fee_source": ("MACRO_ETF_3_2" if fee else "PENDING") if etf else ""})
+                        "fee_source": ("MACRO_ETF_3_2" if macro else "ISSUER_PAGE" if fee else "PENDING") if etf else ""})
     return out
 
 
