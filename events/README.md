@@ -209,17 +209,18 @@ These rules add to everything above (formats, T1–T4, selection rules 1–4, ep
 
 n < 3인 유형은 시즌에서 **범주를 말하지 않는 카드**로 나간다(PLAN §4.11 고유 사건 예외). PLAN의 "3회"는 사건의 횟수이고, 달 수로 세면 6개월 이어진 사건 하나가 n = 6이 되어 숨겨야 할 유형이 드러난다. 에피소드로 세면 한 사건을 띄엄띄엄 태그해도 n이 늘지 않는다. 통계 보드의 n < 5 숨김·5 ≤ n < 10 "일화" 규칙(PLAN §4.11)은 그 조건에 실제로 들어간 에피소드 수로 센다(START가 표본 안에 있는 에피소드 — N1 이하라 숨김이 늘어나는 쪽).
 
-재생 표본은 Phase 0에서 `month_block` 전체(100개 달)다. MVP부터는 erd 6.5 S1의 재생 범위 조건을 `WHERE`에 더한다.
+재생 표본은 erd 6.5 S1의 재생 범위다: `antlab.history.replay-start`(검증 SQL의 `-v replay_start`) 이후이고 시즌 기준일의 해 1월 1일 앞인 달. 준비 구간과 그 범위 밖의 달은 세지 않는다(세면 드문 유형이 n ≥ 3으로 보여 숨겨야 할 범주가 드러난다). Phase 0 표본의 달은 모두 범위 안이라 전체와 같다.
 
 ```sql
 SELECT e.event_type, count(DISTINCT left(e.event_key, 6)) AS n, count(*) AS tag_rows,
        count(DISTINCT left(e.event_key, 6)) < 3 AS category_hidden
 FROM month_event e JOIN month_block m ON m.id = e.month_block_id
--- WHERE <재생 표본 조건 — Phase 0은 없음, MVP는 S1>
+WHERE m.month_start >= :'replay_start'::date                          -- S1 아래쪽
+  AND m.month_start < make_date(EXTRACT(YEAR FROM :'base_date'::date)::int, 1, 1)  -- S1 위쪽
 GROUP BY e.event_type ORDER BY e.event_type COLLATE "C";
 ```
 
-적재의 보고와 검증 SQL 6절이 같은 식을 쓴다. 표본이 100개 달뿐이라 **대부분의 유형이 n < 3**이다. 이것은 표본 크기 때문이며 MVP 전체 표본에서 다시 센다. `turn_feed.category_hidden`이 판정 결과를 저장하므로(erd D27) 표본이 바뀌어도 지난 시즌에 "보인 그대로"는 유지된다.
+적재의 보고와 검증 SQL 6절은 시즌이 없어 아래쪽 경계만 쓰고, 피드 생성(`db/24`)과 API는 두 경계를 모두 쓴다. 표본이 100개 달뿐이라 **대부분의 유형이 n < 3**이다. 이것은 표본 크기 때문이며 MVP 전체 표본에서 다시 센다. `turn_feed.category_hidden`이 판정 결과를 저장하므로(erd D27) 표본이 바뀌어도 지난 시즌에 "보인 그대로"는 유지된다.
 
 ## 반응 변화율과 강도 경계
 
