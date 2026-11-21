@@ -306,3 +306,27 @@ def test_tracked_exporter_files_do_not_mention_the_harness_folder():
         for path in folder.rglob("*"):
             if path.is_file() and path.suffix in {".py", ".example"}:
                 assert "." + "claude" not in path.read_text(), path.name
+
+
+def test_the_budget_ends_a_slow_collection_with_a_partial_result_and_an_error_count(tmp_path):
+    ticks = {"t": 0.0}
+
+    class Slow(Env):
+        def __call__(self, argv, timeout):
+            assert timeout <= 14.0
+            if argv[0] == "docker" and argv[1] == "stats":
+                ticks["t"] += 20.0  # docker stats eats the whole budget
+            return super().__call__(argv, timeout)
+
+    config = Config(repo=ROOTS.repo, worktrees=ROOTS.worktrees, job_tmp=ROOTS.job_tmp, slots_dir="")
+    collector = HostCollector(
+        config, run=Slow(), clock=lambda: ticks["t"], wall=lambda: NOW, own_pid=500
+    )
+    text = collector.exposition()
+    s = samples(text)
+    assert get(s, "antlab_host_source_ok", source="ps") == 1
+    assert get(s, "antlab_host_source_ok", source="git") == 0
+    assert get(s, "antlab_host_source_errors_total", source="git") >= 1
+    assert get(s, "antlab_host_source_errors_total", source="ps") == 0
+    assert "# TYPE antlab_host_source_errors_total counter" in text
+    assert get(s, "antlab_host_process_stale", kind="pytest", worktree="old1") == 2

@@ -15,6 +15,7 @@ antlab_host_process_rss_bytes
 antlab_host_process_stale
 antlab_host_slots_held
 antlab_host_slots_stale
+antlab_host_source_errors_total
 antlab_host_source_ok
 antlab_host_testcontainers_running
 antlab_host_worktree_last_commit_age_seconds

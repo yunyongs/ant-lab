@@ -50,6 +50,8 @@ PS_TIMEOUT = 5.0
 DOCKER_PS_TIMEOUT = 5.0
 DOCKER_STATS_TIMEOUT = 8.0
 GIT_TIMEOUT = 5.0
+# Whole collection stays under the 20 s scrape timeout: later commands get what is left, then fail fast.
+COLLECT_BUDGET = 14.0
 SOURCES = ("ps", "docker", "docker_stats", "git", "slots")
 
 
@@ -104,6 +106,9 @@ class HostCollector:
     ) -> None:
         self.config = config
         self._run = run
+        self._deadline = 0.0
+        self._git_partial = False
+        self._errors: dict[str, int] = {}
         self._clock = clock
         self._wall = wall
         self._pid_alive = pid_alive
@@ -117,7 +122,10 @@ class HostCollector:
             now = self._clock()
             if self._cached is not None and now - self._cached[0] < CACHE_SECONDS:
                 return self._cached[1]
-            text = render(self.collect())
+            text = render(self.collect()).replace(
+                "# TYPE antlab_host_source_errors_total gauge",
+                "# TYPE antlab_host_source_errors_total counter",
+            )
             self._cached = (self._clock(), text)
             return text
 
@@ -130,6 +138,12 @@ class HostCollector:
         self._slow[key] = (now, value)
         return value
 
+    def _exec(self, argv: list[str], timeout: float) -> str:
+        left = self._deadline - self._clock()
+        if left <= 0:
+            raise SourceError("collect budget used up")
+        return self._run(argv, min(timeout, left))
+
     def _timed(self, name: str, meta: Series, fn: Callable[[], object]) -> object | None:
         start = self._clock()
         try:
@@ -137,6 +151,7 @@ class HostCollector:
             ok = 1
         except (SourceError, OSError, ValueError):
             value, ok = None, 0
+            self._errors[name] = self._errors.get(name, 0) + 1
         meta.append(("antlab_host_source_ok", {"source": name}, ok))
         meta.append(
             ("antlab_host_collect_seconds", {"source": name}, round(self._clock() - start, 3))
@@ -147,6 +162,8 @@ class HostCollector:
         cfg = self.config
         meta: Series = []
         body: Series = []
+        self._deadline = self._clock() + COLLECT_BUDGET
+        self._git_partial = False
         roots = Roots(cfg.repo, cfg.worktrees, cfg.job_tmp)
 
         procs = self._timed("ps", meta, lambda: parse_ps(self._ps()))
@@ -164,6 +181,15 @@ class HostCollector:
             meta.append(("antlab_host_source_ok", {"source": "docker_stats"}, 0))
 
         git_body = self._timed("git", meta, self._git_series)
+        if self._git_partial:
+            # Partial result: the worktrees that were read stay, and the source reports the failure.
+            self._errors["git"] = self._errors.get("git", 0) + 1
+            meta[:] = [
+                (n, lb, 0)
+                if n == "antlab_host_source_ok" and lb == {"source": "git"}
+                else (n, lb, v)
+                for n, lb, v in meta
+            ]
         if git_body is not None:
             body += git_body  # type: ignore[operator]
 
@@ -176,12 +202,16 @@ class HostCollector:
                 ("antlab_host_slots_held", {}, held),
                 ("antlab_host_slots_stale", {}, stale),
             ]
+        meta += [
+            ("antlab_host_source_errors_total", {"source": name}, self._errors.get(name, 0))
+            for name in SOURCES
+        ]
         return body + meta
 
     # ---- processes ----
 
     def _ps(self) -> str:
-        return self._run(["ps", "-axwwo", "pid=,etime=,pcpu=,rss=,command="], PS_TIMEOUT)
+        return self._exec(["ps", "-axwwo", "pid=,etime=,pcpu=,rss=,command="], PS_TIMEOUT)
 
     def _process_series(self, procs: list, roots: Roots) -> Series:
         out: Series = []
@@ -200,10 +230,10 @@ class HostCollector:
     # ---- containers ----
 
     def _docker_ps(self) -> str:
-        return self._run(["docker", "ps", "-a", "--format", "{{json .}}"], DOCKER_PS_TIMEOUT)
+        return self._exec(["docker", "ps", "-a", "--format", "{{json .}}"], DOCKER_PS_TIMEOUT)
 
     def _docker_stats(self) -> str:
-        return self._run(
+        return self._exec(
             ["docker", "stats", "--no-stream", "--format", "{{json .}}"], DOCKER_STATS_TIMEOUT
         )
 
@@ -232,7 +262,7 @@ class HostCollector:
     # ---- worktrees ----
 
     def _git(self, *args: str, cwd: str) -> str:
-        return self._run(["git", "--no-optional-locks", "-C", cwd, *args], GIT_TIMEOUT)
+        return self._exec(["git", "--no-optional-locks", "-C", cwd, *args], GIT_TIMEOUT)
 
     def _worktree_name(self, path: str) -> str | None:
         base = self.config.worktrees.rstrip("/") + "/"
@@ -258,7 +288,12 @@ class HostCollector:
                 continue
             names.append(name)
             labels = {"worktree": name}
-            stamp = parse_commit_time(self._git("log", "-1", "--format=%ct", cwd=wt.path))
+            try:
+                stamp = parse_commit_time(self._git("log", "-1", "--format=%ct", cwd=wt.path))
+            except SourceError:
+                self._git_partial = True
+                names.pop()
+                continue
             out.append(
                 ("antlab_host_worktree_last_commit_age_seconds", labels, max(0, int(now - stamp)))
             )
@@ -267,11 +302,15 @@ class HostCollector:
                 # branch with no commits of its own always is, however far main has moved on.
                 is_merged = bool(wt.branch) and wt.branch in merged and wt.head not in first_parent
                 out.append(("antlab_host_worktree_merged", labels, int(is_merged)))
-            changes = self._slow_get(
-                f"status:{wt.path}",
-                SLOW_CACHE_SECONDS,
-                lambda p=wt.path: parse_status_count(self._git("status", "--porcelain", cwd=p)),
-            )
+            try:
+                changes = self._slow_get(
+                    f"status:{wt.path}",
+                    SLOW_CACHE_SECONDS,
+                    lambda p=wt.path: parse_status_count(self._git("status", "--porcelain", cwd=p)),
+                )
+            except SourceError:
+                self._git_partial = True
+                continue
             out.append(("antlab_host_worktree_uncommitted_files", labels, changes))
         out.append(("antlab_host_worktrees", {}, len(names)))
         if cfg.sizes:
