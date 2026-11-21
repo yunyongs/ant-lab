@@ -3,6 +3,8 @@ package antlab.agent;
 import antlab.account.CashAccountRepository;
 import antlab.common.error.DomainException;
 import antlab.common.error.ErrorCode;
+import antlab.league.LeagueEntry;
+import antlab.league.LeagueEntryRepository;
 import antlab.member.CurrentMember;
 import antlab.member.MemberKind;
 import antlab.season.Season;
@@ -34,13 +36,15 @@ public class AgentSeasonLifecycleService {
     private final CurrentMember currentMember;
     private final SeasonRepository seasons;
     private final CashAccountRepository accounts;
+    private final LeagueEntryRepository leagueEntries;
     private final Clock clock;
 
     public AgentSeasonLifecycleService(CurrentMember currentMember, SeasonRepository seasons,
-            CashAccountRepository accounts, Clock clock) {
+            CashAccountRepository accounts, LeagueEntryRepository leagueEntries, Clock clock) {
         this.currentMember = currentMember;
         this.seasons = seasons;
         this.accounts = accounts;
+        this.leagueEntries = leagueEntries;
         this.clock = clock;
     }
 
@@ -125,7 +129,8 @@ public class AgentSeasonLifecycleService {
 
     private SeasonDto dto(Season season) {
         return SeasonDto.from(season, accounts.findById(season.getId())
-                .orElseThrow(() -> new IllegalStateException("시즌에 현금 계좌가 없다")).getBalance(), MemberKind.AGENT);
+                .orElseThrow(() -> new IllegalStateException("시즌에 현금 계좌가 없다")).getBalance(), MemberKind.AGENT,
+                leagueEntries.findBySeasonId(season.getId()).map(LeagueEntry::getLeagueId).orElse(null));
     }
 
     private static DomainException notActive(Season season) {

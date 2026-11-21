@@ -27,7 +27,12 @@ public record StartSeasonRequest(
         @Schema(requiredMode = RequiredMode.NOT_REQUIRED, defaultValue = "12",
                 description = "Path length (number of turns): 12, 24 or 60. 12 when omitted / 경로 길이(턴 수) 12, 24, "
                         + "60. 생략하면 12")
-        Integer pathLength) {
+        Integer pathLength,
+        @Schema(requiredMode = RequiredMode.NOT_REQUIRED,
+                description = "Enter this league (only its owner and the owner's agents may). The league fixes the "
+                        + "path; pathLength must then be omitted or equal the league's / 이 리그에 참가한다(리그 소유자와 "
+                        + "소유자의 에이전트만). 경로는 리그가 정하므로 pathLength 는 생략하거나 리그와 같아야 한다")
+        Long leagueId) {
 
     static final int DEFAULT_PATH_LENGTH = 12;
 

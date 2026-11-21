@@ -25,10 +25,10 @@ class AppPrivilegeMatrixTest {
     static final Set<String> READ = Set.of("asset_group", "asset", "asset_position", "month_block", "asset_month_return",
             "fx_month", "month_event", "asset_month_attention");
     static final Set<String> APPEND = Set.of("season_path", "turn", "turn_price", "formation_change", "turn_feed",
-            "reconciliation_log", "orders", "execution", "cash_ledger", "asset_daily_price", "season_agent_config", "persona_version", "league_entry", "agent_call",
+            "reconciliation_log", "orders", "execution", "cash_ledger", "asset_daily_price", "season_agent_config", "persona_version", "league", "league_entry", "agent_call",
             "season_score", "rating_history", "projection", "series", "series_observation");
     static final Set<String> MUTABLE = Set.of("member", "season", "cash_account", "holding", "lineup", "refresh_token",
-            "agent_profile", "league", "job_run");
+            "agent_profile", "job_run");
     static final List<String> PRIVILEGES = List.of("SELECT", "INSERT", "UPDATE", "DELETE", "TRUNCATE", "REFERENCES", "TRIGGER",
             "MAINTAIN");
 
@@ -37,6 +37,10 @@ class AppPrivilegeMatrixTest {
     static final Set<String> REGIME_COLUMNS = Set.of("rate_dir", "growth_dir", "fx_dir", "sentiment_dir", "rate_strength",
             "growth_strength", "fx_strength", "sentiment_strength", "prob_p1", "prob_p2", "prob_p3", "prob_p4", "regime_label",
             "indicator_z");
+
+    /** The second column-level right (AG-04 C2): league is append-class, and only the close columns can be updated. */
+    static final String LEAGUE_TABLE = "league";
+    static final Set<String> LEAGUE_COLUMNS = Set.of("status", "closed_at", "version", "updated_at");
 
     private static Set<String> expected(String table) {
         if (READ.contains(table)) {
@@ -53,7 +57,7 @@ class AppPrivilegeMatrixTest {
 
     /** What {@code has_any_column_privilege} reports: the table-level rights, plus UPDATE on a column of the regime table. */
     private static boolean expectedOnSomeColumn(String table, String privilege) {
-        return expected(table).contains(privilege) || (table.equals(REGIME_TABLE) && privilege.equals("UPDATE"));
+        return expected(table).contains(privilege) || ((table.equals(REGIME_TABLE) || table.equals(LEAGUE_TABLE)) && privilege.equals("UPDATE"));
     }
 
     private static List<String> columnsOf(JdbcTemplate jdbc, String table) {
@@ -139,6 +143,44 @@ class AppPrivilegeMatrixTest {
             assertThat(jdbc.queryForObject("SELECT count(*) FROM pg_class c, aclexplode(c.relacl) x "
                     + "WHERE c.relnamespace = 'public'::regnamespace AND c.relkind = 'S' AND x.grantee <> c.relowner",
                     Integer.class)).as("no sequence grant").isZero();
+        }
+    }
+
+    @Test
+    void p10b_exactlyTheLeagueCloseColumnsCanBeUpdatedAndTheSeedAndSettingsCannot() throws SQLException {
+        try (RoleTestServer.Db db = new RoleTestServer.Db(SERVER, "p10b")) {
+            JdbcTemplate jdbc = prepare(db);
+
+            List<String> columns = columnsOf(jdbc, LEAGUE_TABLE);
+            assertThat(columns).containsAll(LEAGUE_COLUMNS).hasSizeGreaterThan(LEAGUE_COLUMNS.size());
+            List<String> wrong = new ArrayList<>();
+            for (String column : columns) {
+                for (String privilege : List.of("UPDATE", "INSERT", "REFERENCES")) {
+                    boolean has = Boolean.TRUE.equals(jdbc.queryForObject("SELECT has_column_privilege('antlab_app', ?::regclass, ?, ?)",
+                            Boolean.class, "public." + LEAGUE_TABLE, column, privilege));
+                    // INSERT is a table-level right (a league row is created whole), so it shows on every column
+                    boolean should = privilege.equals("INSERT") || (privilege.equals("UPDATE") && LEAGUE_COLUMNS.contains(column));
+                    if (has != should) {
+                        wrong.add(privilege + " on " + column + " is " + has);
+                    }
+                }
+            }
+            assertThat(wrong).isEmpty();
+            assertThat(jdbc.queryForObject("SELECT has_table_privilege('antlab_app', 'public.league', 'UPDATE')", Boolean.class))
+                    .as("no table-level UPDATE").isFalse();
+
+            JdbcTemplate app = db.as("antlab_app");
+            for (String column : List.of("seed", "path_length", "base_date", "engine_version", "data_snapshot_date", "initial_cash",
+                    "fee_rate_kr", "fee_rate_us", "fx_spread_rate", "max_entries", "name", "owner_member_id", "created_at")) {
+                assertThat(sqlState(app, "UPDATE league SET " + column + " = " + column)).as(column).isEqualTo("42501");
+            }
+            for (String column : LEAGUE_COLUMNS) {
+                assertThat(sqlState(app, "UPDATE league SET " + column + " = " + column)).as(column).isEqualTo("no error");
+            }
+            assertThat(sqlState(app, "SELECT * FROM league FOR UPDATE")).as("the entry and the close lock the league row")
+                    .isEqualTo("no error");
+            assertThat(sqlState(app, "DELETE FROM league")).isEqualTo("42501");
+            assertThat(sqlState(app, "TRUNCATE league")).isEqualTo("42501");
         }
     }
 

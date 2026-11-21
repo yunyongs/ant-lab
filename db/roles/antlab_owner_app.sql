@@ -261,11 +261,14 @@ BEGIN
         WHERE c.relnamespace = 'public'::regnamespace AND c.relkind IN ('r', 'p', 'v', 'm', 'f')
           AND EXISTS (SELECT 1 FROM pg_attribute a, aclexplode(a.attacl) x
                       WHERE a.attrelid = c.oid AND a.attacl IS NOT NULL AND x.grantee IN (0, owner_oid, app_oid) AND x.grantee <> c.relowner
-                        -- the one column-level right the callback grants: the regime label job fills these columns of month_block
+                        -- the column-level rights the callback grants: the regime label job fills these columns of month_block
                         AND NOT (c.relname = 'month_block' AND x.grantee = app_oid AND x.privilege_type = 'UPDATE'
                                  AND a.attname::text = ANY (ARRAY['rate_dir', 'growth_dir', 'fx_dir', 'sentiment_dir', 'rate_strength',
                                      'growth_strength', 'fx_strength', 'sentiment_strength', 'prob_p1', 'prob_p2', 'prob_p3', 'prob_p4',
-                                     'regime_label', 'indicator_z'])))
+                                     'regime_label', 'indicator_z']))
+                        -- and the one of league (AG-04 C2): only the columns the close changes
+                        AND NOT (c.relname = 'league' AND x.grantee = app_oid AND x.privilege_type = 'UPDATE'
+                                 AND a.attname::text = ANY (ARRAY['status', 'closed_at', 'version', 'updated_at'])))
     LOOP
         problems := problems || format('column-level rights are granted on public.%s', r.relname);
     END LOOP;

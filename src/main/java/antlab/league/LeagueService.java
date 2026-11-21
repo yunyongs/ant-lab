@@ -31,6 +31,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class LeagueService {
 
+    private static final int NAME_MAX = 50;
     private static final List<SeasonStatus> SETTLED = List.of(SeasonStatus.FINISHED, SeasonStatus.VOID);
 
     private final AgentRunnerProperties runner;
@@ -66,6 +67,7 @@ public class LeagueService {
         if (owner.getKind() != MemberKind.HUMAN) {
             throw unauthenticated();
         }
+        String name = checkedName(request.name());
         LocalDate baseDate = poolProperties.baseDate();
         List<AssetPosition> pool = positions.findByBaseDate(baseDate);
         PoolReadiness.require(pool, p -> p.getSystemPosition() == null);
@@ -74,7 +76,7 @@ public class LeagueService {
         int length = request.pathLengthOrDefault();
         long seed = seedGenerator.nextSeed();
         GeneratedPath path = pathSource.generate(new PathRequest(baseDate, length, seed));
-        League league = leagues.save(new League(ownerId, request.name().strip(), seed, length, baseDate,
+        League league = leagues.save(new League(ownerId, name, seed, length, baseDate,
                 path.engineVersion(), seasonProperties.dataSnapshotDate(),
                 MoneyMath.exactWon(seasonProperties.initialCash()), seasonProperties.feeRateKr(),
                 seasonProperties.feeRateUs(), seasonProperties.fxSpreadRate(), request.maxEntriesOrDefault()));
@@ -108,6 +110,16 @@ public class LeagueService {
         }
         league.close(now);
         return toDto(league, rows);
+    }
+
+    /** The name as stored: stripped first, then 1 to 50 characters with no control character (tab, newline, ...). */
+    private static String checkedName(String raw) {
+        String name = raw == null ? "" : raw.strip();
+        int length = name.codePointCount(0, name.length());
+        if (length < 1 || length > NAME_MAX || name.codePoints().anyMatch(Character::isISOControl)) {
+            throw new DomainException(ErrorCode.INVALID_ARGUMENT, "리그 이름은 제어 문자 없는 1~50자다");
+        }
+        return name;
     }
 
     private LeagueDto toDto(League league, List<LeagueEntryRow> rows) {

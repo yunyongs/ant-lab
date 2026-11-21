@@ -75,8 +75,8 @@ class LeastPrivilegeFlowTest {
         {"ZZUS03", "40", "FORWARD_DEFENSIVE"},
     };
 
-    /** Tables nothing in the application writes yet: agent_call (AG-02 part 3), season_score and rating_history (MVP-18 schema), projection (written only by a call to the engine, which this flow has none of), league_entry (entry is AG-04 PR C2; PR C1 only creates and closes a league). turn_feed is written by the turn advance since MVP-11. */
-    private static final List<String> WITHOUT_WRITER = List.of("agent_call", "season_score", "rating_history", "projection", "league_entry");
+    /** Tables nothing in the application writes yet: agent_call (AG-02 part 3), season_score and rating_history (MVP-18 schema), projection (written only by a call to the engine, which this flow has none of). turn_feed is written by the turn advance since MVP-11. */
+    private static final List<String> WITHOUT_WRITER = List.of("agent_call", "season_score", "rating_history", "projection");
 
     private static AppRoleDatabase database;
 
@@ -231,7 +231,18 @@ class LeastPrivilegeFlowTest {
         Reply view = anonymous.send(HttpMethod.GET, "/internal/agent-runner/v1/agents/" + agent + "/seasons/"
                 + start.json().get("id").asLong() + "/turn-view", null, null, "application/json", runner);
         assertThat(view.status()).as("agent turn view " + view.body()).isEqualTo(200);
-        // a league is a mutable row: the create inserts it and the close updates it, both as the app role
+        // a league is an insert plus a close-column update, both as the app role; an entry locks the row and appends a seat
+        Reply seated = anonymous.post("/internal/agent-runner/v1/leagues", "{\"name\": \"FAKE seat league\"}", runner);
+        assertThat(seated.status()).as("league create " + seated.body()).isEqualTo(201);
+        long seatedId = seated.json().get("id").asLong();
+        Reply entered = anonymous.post("/internal/agent-runner/v1/agents/" + agent + "/seasons", """
+                {"riskLimit": "-0.20", "formation": {"goalkeeper": 10, "defender": 30, "midfielder": 30, "forward": 30},
+                 "leagueId": %d,
+                 "config": {"personaVersion": 1, "personaSha256": "%s", "personaDisplayName": "Value", "modelRequested": "fake/model-1",
+                   "temperature": 0.7, "maxTokens": 2000, "turnTimeoutMs": 60000, "promptTemplateVersion": "p1",
+                   "runnerVersion": "r1", "budgetCalls": 100, "budgetUsd": 1.5}}""".formatted(seatedId, "a".repeat(64)), runner);
+        assertThat(entered.status()).as("league entry " + entered.body()).isEqualTo(201);
+        assertThat(entered.json().get("leagueId").asLong()).isEqualTo(seatedId);
         Reply league = anonymous.post("/internal/agent-runner/v1/leagues", "{\"name\": \"FAKE league\"}", runner);
         assertThat(league.status()).as("league create " + league.body()).isEqualTo(201);
         Reply closed = anonymous.post("/internal/agent-runner/v1/leagues/" + league.json().get("id").asLong() + "/close", "", runner);

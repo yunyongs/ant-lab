@@ -2,10 +2,10 @@ package antlab.agent;
 
 import antlab.common.error.DomainException;
 import antlab.common.error.ErrorCode;
+import antlab.league.SeasonEntryService;
 import antlab.member.CurrentMember;
 import antlab.season.SeasonDto;
 import antlab.season.SeasonRepository;
-import antlab.season.SeasonStartService;
 import antlab.season.SeasonStatus;
 import java.util.List;
 import java.time.Clock;
@@ -25,14 +25,14 @@ public class AgentSeasonService {
     private final CurrentMember currentMember;
     private final AgentProfileRepository profiles;
     private final SeasonAgentConfigRepository configs;
-    private final SeasonStartService starts;
+    private final SeasonEntryService starts;
     private final SeasonRepository seasons;
     private final AgentRunnerProperties properties;
     private final PersonaVersionService personas;
     private final Clock clock;
 
     public AgentSeasonService(CurrentMember currentMember, AgentProfileRepository profiles,
-            SeasonAgentConfigRepository configs, SeasonStartService starts, SeasonRepository seasons,
+            SeasonAgentConfigRepository configs, SeasonEntryService starts, SeasonRepository seasons,
             AgentRunnerProperties properties, PersonaVersionService personas, Clock clock) {
         this.currentMember = currentMember;
         this.profiles = profiles;

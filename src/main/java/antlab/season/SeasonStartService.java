@@ -38,6 +38,15 @@ public class SeasonStartService {
     static final int MAX_ACTIVE_SEASONS = 3;
     private static final List<SeasonStatus> NOT_ACTIVE = List.of(SeasonStatus.FINISHED, SeasonStatus.VOID);
 
+    /** The seed and path length a league fixes for every entry. The seed is the league's secret and is never returned. */
+    public record FixedPath(long seed, int pathLength) {
+
+        @Override
+        public String toString() {
+            return "FixedPath[pathLength=" + pathLength + "]";
+        }
+    }
+
     private final CurrentMember currentMember;
     private final SeasonRepository seasons;
     private final CashAccountRepository accounts;
@@ -67,8 +76,18 @@ public class SeasonStartService {
         this.poolProperties = poolProperties;
     }
 
+    /** A season outside any league. A league entry goes through {@code SeasonEntryService}, which fixes the seed. */
     @Transactional
     public SeasonDto start(StartSeasonRequest request) {
+        if (request.leagueId() != null) {
+            throw new IllegalStateException("a league entry must start through SeasonEntryService");
+        }
+        return start(request, null);
+    }
+
+    /** The start with a league's seed and length instead of a drawn seed; everything else is the same path. */
+    @Transactional
+    public SeasonDto start(StartSeasonRequest request, FixedPath fixed) {
         long memberId = currentMember.ensureId();
         if (seasons.countByMemberIdAndStatusNotIn(memberId, NOT_ACTIVE) >= MAX_ACTIVE_SEASONS) {
             throw new DomainException(ErrorCode.SEASON_LIMIT, "진행 중인 시즌은 최대 3개다. 끝난 뒤 새로 시작한다");
@@ -79,8 +98,8 @@ public class SeasonStartService {
         PoolReadiness.require(pool, p -> p.getSystemPosition() == null);
 
         // 경로는 season INSERT 전에 만든다 — 길이 정책 위반이면 어떤 행도 만들지 않는다.
-        int length = request.pathLengthOrDefault();
-        long seed = seedGenerator.nextSeed();
+        int length = fixed == null ? request.pathLengthOrDefault() : fixed.pathLength();
+        long seed = fixed == null ? seedGenerator.nextSeed() : fixed.seed();
         GeneratedPath path = pathSource.generate(new PathRequest(baseDate, length, seed));
 
         BigDecimal initialCash = MoneyMath.exactWon(properties.initialCash());
@@ -105,6 +124,6 @@ public class SeasonStartService {
             turnPrices.save(new TurnPrice(season, 0, p.getAssetId(),
                     MoneyMath.initialPrice(p.getBasePrice(), p.getBaseFxRate())));
         }
-        return SeasonDto.forNewSeason(season, account.getBalance());
+        return SeasonDto.forNewSeason(season, account.getBalance(), request.leagueId());
     }
 }

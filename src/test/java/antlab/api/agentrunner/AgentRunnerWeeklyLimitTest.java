@@ -57,6 +57,26 @@ class AgentRunnerWeeklyLimitTest {
     }
 
     @Test
+    void league_seasons_count_toward_the_weekly_limit() throws Exception {
+        long agent = AgentRunnerSupport.register(mvc, REGISTER_BODY);
+        long first = json(post(mvc, AGENTS.replace("/agents", "/leagues"), "{\"name\": \"A\"}")).get("id").asLong();
+        long second = json(post(mvc, AGENTS.replace("/agents", "/leagues"), "{\"name\": \"B\"}")).get("id").asLong();
+        assertThat(post(mvc, AGENTS + "/" + agent + "/seasons", AgentRunnerSupport.startBody("fake/model-1", first, null))
+                .getStatus()).isEqualTo(201);
+        assertThat(post(mvc, AGENTS + "/" + agent + "/seasons", AgentRunnerSupport.startBody("fake/model-1", second, null))
+                .getStatus()).isEqualTo(201);
+
+        MockHttpServletResponse plain = start(agent);
+        MockHttpServletResponse third = post(mvc, AGENTS + "/" + agent + "/seasons",
+                AgentRunnerSupport.startBody("fake/model-1", first, null));
+
+        assertThat(plain.getStatus()).isEqualTo(409);
+        assertThat(json(plain).get("code").asString()).isEqualTo("SEASON_LIMIT");
+        assertThat(third.getStatus()).as("the limit comes before the league's seat check").isEqualTo(409);
+        assertThat(json(third).get("code").asString()).isEqualTo("SEASON_LIMIT");
+    }
+
+    @Test
     void a_season_older_than_a_week_does_not_count() throws Exception {
         long agent = AgentRunnerSupport.register(mvc, REGISTER_BODY);
         long first = json(start(agent)).get("id").asLong();

@@ -107,7 +107,13 @@ _OPERATIONS: Final[dict[str, tuple[str, str, frozenset[int], str | None, bool]]]
     # League operations (AG-04 PR C1): the table knows them; the client methods come with the runner CLI (PR E).
     "createLeague": ("POST", f"{BASE_PATH}/leagues", frozenset({201}), "LeagueDto", False),
     "getLeague": ("GET", f"{BASE_PATH}/leagues/{{leagueId}}", frozenset({200}), "LeagueDto", True),
-    "closeLeague": ("POST", f"{BASE_PATH}/leagues/{{leagueId}}/close", frozenset({200}), "LeagueDto", True),
+    "closeLeague": (
+        "POST",
+        f"{BASE_PATH}/leagues/{{leagueId}}/close",
+        frozenset({200}),
+        "LeagueDto",
+        True,
+    ),
 }
 OPERATIONS: Final[dict[str, tuple[str, str]]] = {k: (v[0], v[1]) for k, v in _OPERATIONS.items()}
 

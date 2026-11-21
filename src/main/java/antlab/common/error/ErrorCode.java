@@ -75,5 +75,15 @@ public enum ErrorCode {
     /** A newer persona version is already recorded, so this one cannot start a season (agent runner). */
     PERSONA_VERSION_STALE,
     /** A league cannot be closed while a seat is still playing (agent runner). */
-    LEAGUE_NOT_SETTLED
+    LEAGUE_NOT_SETTLED,
+    /** The league is closed, so no season can enter it. */
+    LEAGUE_CLOSED,
+    /** The member already holds a seat in this league (one seat per member). */
+    LEAGUE_SEAT_TAKEN,
+    /** The league has all its seats taken. */
+    LEAGUE_FULL,
+    /** The season settings or the generated path no longer match the league's, so an entry would be unfair. */
+    LEAGUE_STALE,
+    /** The review of a league season is held until the league is closed. */
+    LEAGUE_OPEN
 }

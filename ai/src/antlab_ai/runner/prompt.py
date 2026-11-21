@@ -61,6 +61,10 @@ def _guard(node: Any, path: str = "") -> None:
 
 
 def canonical_json(turn_view: Mapping[str, Any]) -> str:
+    # The league a season sits in is bookkeeping for the runner; the agent never sees it.
+    season = turn_view.get("season")
+    if isinstance(season, Mapping) and "leagueId" in season:
+        turn_view = {**turn_view, "season": {k: v for k, v in season.items() if k != "leagueId"}}
     _guard(turn_view)
     return json.dumps(turn_view, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
 

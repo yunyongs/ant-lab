@@ -9,6 +9,9 @@
 -- One exception to the class of a table: month_block stays READ and gets a column-level UPDATE on its regime columns
 -- (M2-08, the regime label job fills them from NULL once). Nothing else of the table can be updated and nobody can
 -- INSERT or DELETE there.
+-- A second exception (AG-04 C2): league is a state row, but its seed, dates and money settings never change, so it is
+-- classed APPEND (SELECT, INSERT) and gets a column-level UPDATE on the columns the close changes only. SELECT ... FOR
+-- UPDATE (the league row lock of every entry and close) needs UPDATE on at least one column, which this gives.
 -- Nobody but the owner gets DELETE, TRUNCATE, REFERENCES, TRIGGER or MAINTAIN. Sequences get no grant: identity columns
 -- need none.
 
@@ -18,13 +21,15 @@ DECLARE
         'fx_month', 'month_event', 'asset_month_attention'];
     append_tables constant text[] := ARRAY['season_path', 'turn', 'turn_price', 'formation_change', 'turn_feed',
         'reconciliation_log', 'orders', 'execution', 'cash_ledger', 'asset_daily_price', 'season_agent_config',
-        'persona_version', 'league_entry', 'agent_call', 'season_score', 'rating_history', 'projection', 'series', 'series_observation'];
+        'persona_version', 'league', 'league_entry', 'agent_call', 'season_score', 'rating_history', 'projection', 'series', 'series_observation'];
     mutable_tables constant text[] := ARRAY['member', 'season', 'cash_account', 'holding', 'lineup', 'refresh_token',
-        'agent_profile', 'league', 'job_run'];
+        'agent_profile', 'job_run'];
     regime_table constant text := 'month_block';
     regime_columns constant text[] := ARRAY['rate_dir', 'growth_dir', 'fx_dir', 'sentiment_dir', 'rate_strength',
         'growth_strength', 'fx_strength', 'sentiment_strength', 'prob_p1', 'prob_p2', 'prob_p3', 'prob_p4', 'regime_label',
         'indicator_z'];
+    league_table constant text := 'league';
+    league_columns constant text[] := ARRAY['status', 'closed_at', 'version', 'updated_at'];
     privileges constant text[] := ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER',
         'MAINTAIN'];
     col text;
@@ -87,6 +92,8 @@ BEGIN
     END LOOP;
     EXECUTE format('GRANT UPDATE (%s) ON TABLE public.%I TO antlab_app',
         (SELECT string_agg(quote_ident(c), ', ') FROM unnest(regime_columns) AS c), regime_table);
+    EXECUTE format('GRANT UPDATE (%s) ON TABLE public.%I TO antlab_app',
+        (SELECT string_agg(quote_ident(c), ', ') FROM unnest(league_columns) AS c), league_table);
 
     -- Verify the effective result for every table, whatever the source of a right.
     FOR t IN
@@ -104,23 +111,27 @@ BEGIN
                 problems := problems || format('%s on %s should be %s', p, t, CASE WHEN p = ANY (expected) THEN 'granted' ELSE 'denied' END);
             END IF;
             -- column level: any column holding the right counts, so the one allowed exception is named here
-            column_rights := p = ANY (expected) OR (t = regime_table AND p = 'UPDATE');
+            column_rights := p = ANY (expected) OR (t IN (regime_table, league_table) AND p = 'UPDATE');
             IF p IN ('SELECT', 'INSERT', 'UPDATE', 'REFERENCES')
                AND has_any_column_privilege('antlab_app', format('public.%I', t)::regclass, p) <> column_rights THEN
                 problems := problems || format('%s on a column of %s should be %s', p, t, CASE WHEN column_rights THEN 'granted' ELSE 'denied' END);
             END IF;
         END LOOP;
     END LOOP;
-    -- exactly the regime columns can be updated, and no other column carries any right of its own
-    FOR col IN
-        SELECT a.attname::text FROM pg_attribute a
-        WHERE a.attrelid = format('public.%I', regime_table)::regclass AND a.attnum > 0 AND NOT a.attisdropped
-        ORDER BY a.attnum
-    LOOP
-        IF has_column_privilege('antlab_app', format('public.%I', regime_table)::regclass, col, 'UPDATE') <> (col = ANY (regime_columns)) THEN
-            problems := problems || format('UPDATE on %s.%s should be %s', regime_table, col,
-                CASE WHEN col = ANY (regime_columns) THEN 'granted' ELSE 'denied' END);
-        END IF;
+    -- exactly the listed columns can be updated, and no other column carries any right of its own
+    FOREACH t IN ARRAY ARRAY[regime_table, league_table] LOOP
+        FOR col IN
+            SELECT a.attname::text FROM pg_attribute a
+            WHERE a.attrelid = format('public.%I', t)::regclass AND a.attnum > 0 AND NOT a.attisdropped
+            ORDER BY a.attnum
+        LOOP
+            IF has_column_privilege('antlab_app', format('public.%I', t)::regclass, col, 'UPDATE')
+               <> (col = ANY (CASE WHEN t = regime_table THEN regime_columns ELSE league_columns END)) THEN
+                problems := problems || format('UPDATE on %s.%s should be %s', t, col,
+                    CASE WHEN col = ANY (CASE WHEN t = regime_table THEN regime_columns ELSE league_columns END)
+                         THEN 'granted' ELSE 'denied' END);
+            END IF;
+        END LOOP;
     END LOOP;
     IF cardinality(problems) > 0 THEN
         RAISE EXCEPTION 'afterMigrate: antlab_app rights differ from the classes: %', array_to_string(problems, '; ');

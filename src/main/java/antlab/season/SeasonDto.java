@@ -63,31 +63,35 @@ public record SeasonDto(
         @Schema(requiredMode = RequiredMode.REQUIRED, description = "True for a human member who abandoned before "
                 + "turn 3 (derived from the abandon turn and the member kind; not stored) / 사람 회원이 3턴 전에 포기하면 "
                 + "true(포기 턴과 회원 종류에서 계산, 저장하지 않는다)")
-        Boolean notStarted) {
+        Boolean notStarted,
+        @ExposedFrom("league_entry.league_id")
+        @Schema(requiredMode = RequiredMode.REQUIRED, types = {"integer", "null"}, description = "The league this "
+                + "season entered. null for a season outside any league / 이 시즌이 참가한 리그. 리그 밖의 시즌이면 null")
+        Long leagueId) {
 
     /** A season that was just started: nothing is abandoned yet, so the member kind does not matter. */
-    public static SeasonDto forNewSeason(Season s, BigDecimal cashBalance) {
-        return from(s, cashBalance, MemberKind.HUMAN);
+    public static SeasonDto forNewSeason(Season s, BigDecimal cashBalance, Long leagueId) {
+        return from(s, cashBalance, MemberKind.HUMAN, leagueId);
     }
 
     /** The stored state, for a season the caller has just changed. Reads use the overload with a clock. */
-    public static SeasonDto from(Season s, BigDecimal cashBalance, MemberKind memberKind) {
-        return from(s, cashBalance, memberKind, s.getStatus(), s.getAbandonedTurnNo());
+    public static SeasonDto from(Season s, BigDecimal cashBalance, MemberKind memberKind, Long leagueId) {
+        return from(s, cashBalance, memberKind, s.getStatus(), s.getAbandonedTurnNo(), leagueId);
     }
 
     /** The state a read shows: an overdue pause is already an abandon (O-2). */
-    public static SeasonDto from(Season s, BigDecimal cashBalance, MemberKind memberKind, Instant now) {
-        return from(s, cashBalance, memberKind, s.effectiveStatus(now), s.effectiveAbandonedTurnNo(now));
+    public static SeasonDto from(Season s, BigDecimal cashBalance, MemberKind memberKind, Instant now, Long leagueId) {
+        return from(s, cashBalance, memberKind, s.effectiveStatus(now), s.effectiveAbandonedTurnNo(now), leagueId);
     }
 
     private static SeasonDto from(Season s, BigDecimal cashBalance, MemberKind memberKind, SeasonStatus status,
-            Integer abandonedTurnNo) {
+            Integer abandonedTurnNo, Long leagueId) {
         return new SeasonDto(s.getId(), status, s.getCurrentTurnNo(), s.getPathLength(),
                 MoneyMath.exactRate(s.getRiskLimit()),
                 FormationDto.from(s.getStartFormation()), FormationDto.from(s.getCurrentFormation()),
                 MoneyMath.exactWon(s.getInitialCash()), MoneyMath.exactWon(cashBalance),
                 MoneyMath.exactRate(s.getFeeRateKr()), MoneyMath.exactRate(s.getFeeRateUs()),
                 MoneyMath.exactRate(s.getFxSpreadRate()), abandonedTurnNo,
-                AbandonRules.notStarted(memberKind, abandonedTurnNo));
+                AbandonRules.notStarted(memberKind, abandonedTurnNo), leagueId);
     }
 }

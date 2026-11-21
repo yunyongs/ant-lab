@@ -43,8 +43,8 @@ public interface SeasonRepository extends Repository<Season, Long> {
 
     /** 회원의 시즌 전부와 잔액을 질의 한 번으로, 시즌 번호 내림차순. */
     @Query("""
-            select new antlab.season.SeasonWithBalance(s, a.balance)
-            from Season s join CashAccount a on a.seasonId = s.id
+            select new antlab.season.SeasonWithBalance(s, a.balance, e.leagueId)
+            from Season s join CashAccount a on a.seasonId = s.id left join LeagueEntry e on e.seasonId = s.id
             where s.memberId = :memberId order by s.id desc
             """)
     List<SeasonWithBalance> findWithBalanceByMemberId(@Param("memberId") Long memberId);

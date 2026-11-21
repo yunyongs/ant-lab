@@ -9,6 +9,14 @@ import org.springframework.data.repository.query.Param;
 /** SeasonPath 추가 전용 저장소 — 넣기와 번호로 읽기만. 조회 메서드는 쓰는 기능이 더한다. */
 public interface SeasonPathRepository extends AppendOnlyRepository<SeasonPath, Long> {
 
+    /**
+     * How many turns of two seasons name the same month block. Only a count leaves the query, so no block id is read into
+     * the application; two seasons of length n have the same path exactly when this is n (league entry check).
+     */
+    @Query("select count(a) from SeasonPath a, SeasonPath b where a.season.id = :seasonId and b.season.id = :otherSeasonId "
+            + "and b.turnNo = a.turnNo and b.monthBlockId = a.monthBlockId")
+    long countSharedTurns(@Param("seasonId") long seasonId, @Param("otherSeasonId") long otherSeasonId);
+
     /** 그 턴의 경로 행이 있는지. 블록 번호는 읽지 않는다. */
     boolean existsBySeasonIdAndTurnNo(Long seasonId, int turnNo);
 

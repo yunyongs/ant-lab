@@ -29,6 +29,7 @@ export function seasonFixture(overrides: Partial<SeasonDto> = {}): SeasonDto {
     fxSpreadRate: '0.00400000',
     abandonedTurnNo: null,
     notStarted: false,
+    leagueId: null,
     ...overrides,
   };
 }
