@@ -54,3 +54,11 @@ def test_shipped_persona_bodies_pass(path, shipped_terms):
 
 def test_persona_files_exist():
     assert len(_persona_files()) >= 4
+
+
+def test_comment_lines_may_start_with_any_unicode_whitespace(tmp_path):
+    from antlab_ai.memory.filter import load_terms
+
+    path = tmp_path / "terms.txt"
+    path.write_text(" # memo\n　# memo\n리먼\n", encoding="utf-8")
+    assert load_terms(terms_path=path, tags_path=None).terms == ("리먼",)
