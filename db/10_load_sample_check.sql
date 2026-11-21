@@ -1,6 +1,7 @@
 -- =====================================================================
 -- my Fund Manager Phase 0 — 표본 적재 검증 SQL (P0-08)
 -- 대상: db/10_load_sample.sql 이 채운 6개 테이블 (asset_group, asset, month_block, asset_position, asset_month_return, fx_month)
+-- Phase 0 sample only: the H7 listing-month rule below is not the full-history rule (lineage, erd H7); MVP-06 checks that.
 -- 근거: docs/erd.md 5.3(정의서), 5.5(검증 규칙 H1·H3·H4·H7), 9절 P0-08, db/01_schema_history_check.sql 의 판정 계약
 -- 실행: 저장소 루트에서  psql -X -q -v ON_ERROR_STOP=1 -d <DB이름> -f db/10_load_sample_check.sql
 --       적재(db/10_load_sample.sql) 뒤에 실행한다. INSERT 를 하지 않으므로 identity(번호표)를 소비하지 않아
