@@ -2424,7 +2424,7 @@ All FKs are `ON DELETE RESTRICT ON UPDATE RESTRICT` (2). Both tables are append-
 
 ### 15.4 Constraints and indexes / 제약과 인덱스
 
-Notation follows 6.4 (표기는 6.4와 같다). `FlywayV18UpgradeTest` breaks each rule once by name. / `FlywayV18UpgradeTest`가 규칙마다 이름으로 한 번씩 깬다.
+Notation follows 6.4 (표기는 6.4와 같다). `FlywayV18UpgradeTest` breaks each rule once by name. / `FlywayV18UpgradeTest`가 규칙마다 이름으로 한 번씩 깬다. V19 rows are checked by `FlywayV19UpgradeTest` / V19 행은 `FlywayV19UpgradeTest`가 확인한다.
 
 | 이름 | 종류 | 테이블 | 정의 |
 |---|---|---|---|
@@ -2452,6 +2452,9 @@ Notation follows 6.4 (표기는 6.4와 같다). `FlywayV18UpgradeTest` breaks ea
 | fk_league_seed_league | FK | league | (seed_league_id) → league (id) (R52) |
 | ck_league_seed_league_not_self | CK | league | seed_league_id IS NULL OR seed_league_id <> id |
 | idx_league_seed_league | IDX | league | (seed_league_id) |
+| uq_league_id_seed | UQ | league | (id, seed) — V19, the target of `fk_league_seed_group`; redundant with the primary key on purpose / V19, `fk_league_seed_group`의 대상. 기본 키와 겹치는 것이 의도다 |
+| fk_league_seed_group | FK | league | (seed_league_id, seed) → league (id, seed) — V19: a sibling plays the seed of its group root; NULL (a root or a plain league) is not checked / V19: 형제 리그는 묶음 뿌리의 시드로 한다. NULL(뿌리나 보통 리그)은 검사하지 않는다 |
+| idx_season_agent_config_memory | IDX | season_agent_config | (member_id, memory_version) — V19, the memory pin is read by agent and version / V19, 메모리 고정은 에이전트와 버전으로 읽는다 |
 
 **Counts / 개수** (new objects only; `ck_agent_call_call_kind` replaces one CHECK, so `agent_call` stays at its V6 count / 새 객체만 센다. `agent_call`의 CHECK는 하나를 바꿔 개수가 그대로다):
 
@@ -2459,9 +2462,9 @@ Notation follows 6.4 (표기는 6.4와 같다). `FlywayV18UpgradeTest` breaks ea
 |---|---|---|---|---|---|---|
 | agent_reflection | 1 | 1 | 0 | 2 | 6 | 1 |
 | agent_memory | 1 | 1 | 0 | 2 | 4 | 0 |
-| season_agent_config (added) | 0 | 0 | 0 | 1 | 0 | 0 |
-| league (added) | 0 | 0 | 0 | 1 | 1 | 1 |
-| **§15 소계** | **2** | **2** | **0** | **6** | **11** | **2** |
+| season_agent_config (added) | 0 | 0 | 0 | 1 | 0 | 1 |
+| league (added) | 0 | 1 | 0 | 2 | 1 | 1 |
+| **§15 소계** | **2** | **3** | **0** | **7** | **11** | **3** |
 
 ### 15.5 Rules DDL cannot enforce / DDL로 막지 못해 검사할 규칙
 

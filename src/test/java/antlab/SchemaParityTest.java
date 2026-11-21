@@ -57,7 +57,8 @@ class SchemaParityTest {
             Map.entry("V15__persona_version.sql", "7d8ccfe6bf5aeac33fc7e287e02f6ae04486e4a01aac0ecb6492512498cc20d9"),
             Map.entry("V16__league.sql", "855730fe48b0a9b969763bb5fb5f43a9161bea42540a5f361cc9114803eb6b0b"),
             Map.entry("V17__drop_asset_proxy_etf.sql", "fae1cba6d49e5438e3c7a72cd08b98d920284eda8deeda24954cd9c09923223e"),
-            Map.entry("V18__agent_memory.sql", "1040ae3b6f5ef85e5565af5d4049da5948043244277cfbc7ea42a8d67126c2db"));
+            Map.entry("V18__agent_memory.sql", "1040ae3b6f5ef85e5565af5d4049da5948043244277cfbc7ea42a8d67126c2db"),
+            Map.entry("V19__agent_memory_followup.sql", "96d8bbb5dd257bddcb7646d237af1bc262cb35bde2d964d0fa1995751558d1aa"));
 
     private static final Path MIGRATION_DIR = Path.of("src/main/resources/db/migration");
 
