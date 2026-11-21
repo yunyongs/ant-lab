@@ -312,7 +312,7 @@ def test_start_with_a_league_uses_the_league_path_and_omits_the_length(spring, e
     assert code == 0
     body = spring.started_with[-1]
     assert body["leagueId"] == 5 and "pathLength" not in body
-    assert body["config"]["budgetCalls"] == 72  # 3 calls per turn over the league's 24 turns
+    assert body["config"]["budgetCalls"] == 78  # 3 calls per turn over 24 turns, 6 kept for memory
 
 
 def test_start_with_a_league_refuses_another_path_length(spring, env, capsys):
@@ -331,3 +331,18 @@ def test_start_without_a_league_sends_no_league_id_and_keeps_the_default_length(
     )
     body = spring.started_with[-1]
     assert "leagueId" not in body and body["pathLength"] == 12
+
+
+def test_league_enter_pins_the_latest_memory_of_each_agent(tmp_path, spring, env):
+    spring.memory_versions.append(
+        {
+            "rules": ["One."],
+            "reflection": {"schema": "season-reflection/1"},
+            "carried": False,
+            "source": 1,
+        }
+    )
+    call(spring, env, "league", "create", "--name", "Cup")
+    roster = make_roster(tmp_path, ROSTER)
+    assert call(spring, env, "league", "enter", "--league", "5", "--roster", str(roster)) == 0
+    assert [b["config"]["memoryVersion"] for b in spring.started_with] == [1, 1]

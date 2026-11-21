@@ -1,6 +1,7 @@
-"""Command line of the agent runner: register, start, run, status, league.
+"""Command line of the agent runner: register, start, run, status, league, memory.
 
 Console output holds counts, turn numbers and reason codes only; never prompts, replies, keys or tokens.
+The one exception is ``memory show``, which prints the agent's own filtered memory on purpose.
 Without ``--live`` a run uses a scripted fake model and makes no model call at all.
 """
 
@@ -14,11 +15,22 @@ import time
 from collections.abc import Callable, Mapping, Sequence
 from contextlib import ExitStack
 from dataclasses import dataclass, replace
+from decimal import Decimal
 from pathlib import Path
 from typing import Final
 from uuid import uuid4
 
 from antlab_ai import __version__
+from antlab_ai.memory.reflect import (
+    NOT_OFFERED,
+    PENDING,
+    MemoryStep,
+    StepResult,
+)
+from antlab_ai.memory.reflect import (
+    STOPPED as MEMORY_STOPPED,
+)
+from antlab_ai.memory.report import render_comparison
 from antlab_ai.modelport.port import AdapterDisabled, ModelPort, SubscriptionRefusal
 from antlab_ai.modelport.registry import SubscriptionWiring, build_registry
 from antlab_ai.modelport.settings import ModelPortSettings, is_loopback
@@ -66,7 +78,7 @@ from antlab_ai.runner.contract import ContractError
 from antlab_ai.runner.journal import Journal, JournalError, JournalLocked
 from antlab_ai.runner.loop import FINISHED, FlatFeeGate, RunnerAbort, SeasonRunner, StillPaused
 from antlab_ai.runner.persona import Persona, PersonaError, load_persona
-from antlab_ai.runner.prompt import PROMPT_TEMPLATE_VERSION, PromptError
+from antlab_ai.runner.prompt import TEMPLATES, PromptError
 from antlab_ai.runner.records import RunnerDefect
 from antlab_ai.runner.roster import RosterError, load_roster
 from antlab_ai.runner.settings import RunnerSettings, SettingsError
@@ -77,6 +89,7 @@ EXIT_ERROR: Final = 1
 EXIT_USAGE: Final = 2
 EXIT_PAUSED: Final = 3
 DEFAULT_PATH_LENGTH: Final = 12
+DEFAULT_MAX_SEASONS: Final = 5
 ROUTES: Final = KNOWN_ROUTES
 
 
@@ -126,6 +139,12 @@ _RUN_ERRORS = (
 )
 
 
+def _memory_option(value: str) -> str:
+    if value in ("latest", "none") or (value.isascii() and value.isdigit() and int(value) >= 1):
+        return value
+    raise argparse.ArgumentTypeError("use latest, none or a version number of at least 1")
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="antlab_ai.runner")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -141,6 +160,12 @@ def _parser() -> argparse.ArgumentParser:
     start.add_argument("--agent-id", type=int, required=True)
     start.add_argument("--path-length", type=int)
     start.add_argument("--league", type=int)
+    start.add_argument(
+        "--memory",
+        type=_memory_option,
+        default="latest",
+        help="memory version to pin: latest (default), none, or a version number",
+    )
     agent_args(start)
     run = sub.add_parser("run")
     run.add_argument("--agent-id", type=int, required=True)
@@ -162,11 +187,38 @@ def _parser() -> argparse.ArgumentParser:
     create.add_argument("--name", required=True)
     create.add_argument("--path-length", type=int)
     create.add_argument("--max-entries", type=int)
+    create.add_argument(
+        "--same-seed-as", type=int, help="root league of an earlier same-seed group"
+    )
     enter = league_sub.add_parser("enter")
     enter.add_argument("--league", type=int, required=True)
     enter.add_argument("--roster", type=Path, required=True)
     for name in ("show", "close"):
         league_sub.add_parser(name).add_argument("--league", type=int, required=True)
+    memory = sub.add_parser("memory")
+    memory_sub = memory.add_subparsers(dest="memory_command", required=True)
+    reflect = memory_sub.add_parser("reflect")
+    agent_args(reflect)
+    reflect.add_argument("--agent-id", type=int, required=True)
+    which = reflect.add_mutually_exclusive_group()
+    which.add_argument("--season-id", type=int)
+    which.add_argument("--all-pending", action="store_true")
+    reflect.add_argument("--max-seasons", type=int, default=DEFAULT_MAX_SEASONS)
+    reflect.add_argument("--model-script", type=Path)
+    reflect.add_argument("--live", action="store_true")
+    reflect.add_argument("--max-calls", type=int)
+    reflect.add_argument("--env-file")
+    reflect.add_argument("--discard-on-budget", action="store_true")
+    for name in ("pending", "show"):
+        command = memory_sub.add_parser(name)
+        command.add_argument("--agent-id", type=int, required=True)
+        if name == "show":
+            command.add_argument("--version", type=int)
+    compare = memory_sub.add_parser("compare")
+    compare.add_argument("--agent-id", type=int, required=True)
+    compare.add_argument("--version-a", type=int, required=True)
+    compare.add_argument("--version-b", type=int, required=True)
+    compare.add_argument("--out", type=Path)
     return parser
 
 
@@ -180,13 +232,16 @@ def _formation(persona: Persona) -> dict[str, int]:
     }
 
 
-def _config(args: argparse.Namespace, persona: Persona, path_length: int) -> RunnerConfig:
+def _config(
+    args: argparse.Namespace, persona: Persona, path_length: int, template_id: str
+) -> RunnerConfig:
     return RunnerConfig(
         model_requested=args.model_id,
         route=args.route,
         persona=persona,
         path_length=path_length,
         turn_timeout_ms=default_timeout_ms(args.route),
+        template_id=template_id,
     )
 
 
@@ -348,6 +403,7 @@ def _start_season(
     *,
     length: int,
     league_id: int | None = None,
+    memory_version: int | None = None,
 ) -> dict:
     """Start one season; with a league the league's path length is used and not sent."""
     config = RunnerConfig(
@@ -356,6 +412,7 @@ def _start_season(
         persona=persona,
         path_length=length,
         turn_timeout_ms=default_timeout_ms(route),
+        memory_version=memory_version,
     )
     return api.start_season(
         agent_id,
@@ -375,6 +432,12 @@ def _start(api: ApiClient, args: argparse.Namespace) -> int:
         length = api.get_league(args.league)["pathLength"]
         if args.path_length is not None and args.path_length != length:
             raise UsageError("--path-length differs from the league's path length")
+    waiting = None
+    if args.memory == "latest":
+        state = api.get_memory(args.agent_id)
+        pin, waiting = state["latestVersion"], len(state["pendingSeasonIds"])
+    else:
+        pin = None if args.memory == "none" else int(args.memory)
     season = _start_season(
         api,
         persona,
@@ -383,8 +446,13 @@ def _start(api: ApiClient, args: argparse.Namespace) -> int:
         args.agent_id,
         length=length,
         league_id=args.league,
+        memory_version=pin,
     )
-    print(f"season_id={season['id']} path_length={season['pathLength']}")
+    print(
+        f"season_id={season['id']} path_length={season['pathLength']} "
+        f"memory_version={'none' if pin is None else pin}"
+        + (f" memory_pending={waiting}" if waiting else "")
+    )
     return EXIT_OK
 
 
@@ -424,6 +492,7 @@ def _league_enter(api: ApiClient, args: argparse.Namespace) -> int:
             taken += 1
             print(f"entry={number} agent_id={agent_id} seat=taken")
             continue
+        latest = api.get_memory(agent_id)["latestVersion"]
         try:
             season = _start_season(
                 api,
@@ -433,6 +502,7 @@ def _league_enter(api: ApiClient, args: argparse.Namespace) -> int:
                 agent_id,
                 length=league["pathLength"],
                 league_id=args.league,
+                memory_version=latest,
             )
         except ApiProblem as problem:
             # A seat taken between the read and the start (a second runner).
@@ -449,7 +519,7 @@ def _league_enter(api: ApiClient, args: argparse.Namespace) -> int:
 def _league(api: ApiClient, args: argparse.Namespace) -> int:
     command = args.league_command
     if command == "create":
-        league = api.create_league(args.name, args.path_length, args.max_entries)
+        league = api.create_league(args.name, args.path_length, args.max_entries, args.same_seed_as)
         print(_league_line(league))
     elif command == "enter":
         return _league_enter(api, args)
@@ -470,23 +540,40 @@ def _check_bound(path: Path, wanted: dict[str, str]) -> None:
         raise UsageError("persona, model or route differ from this season's first run")
 
 
-def _check_recorded(api: ApiClient, args: argparse.Namespace, persona: Persona) -> None:
+def _check_recorded(
+    api: ApiClient, agent_id: int, season_id: int, args: argparse.Namespace, persona: Persona
+) -> dict:
     """Compare the season's recorded config with the local values before any model call.
 
-    The runner version may differ. A difference ends the run (exit 2) and prints no value.
+    The runner version may differ, and so may the prompt template as long as it is a known one: a
+    season keeps the template it was started with. A difference ends the run (exit 2) and prints
+    no value. Returns the recorded config.
     """
-    recorded = api.get_season_config(args.agent_id, args.season_id)
+    recorded = api.get_season_config(agent_id, season_id)
     local = {
         "personaKey": persona.key,
         "personaVersion": persona.version,
         "personaSha256": persona.sha256,
         "modelRoute": args.route,
         "modelRequested": args.model_id,
-        "promptTemplateVersion": PROMPT_TEMPLATE_VERSION,
     }
-    if any(recorded.get(name) != value for name, value in local.items()):
+    if (
+        any(recorded.get(name) != value for name, value in local.items())
+        or recorded.get("promptTemplateVersion") not in TEMPLATES
+    ):
         raise UsageError(
             "persona, model, route or prompt template differ from the season's recorded config"
+        )
+    return recorded
+
+
+def _check_pinned_memory(recorded: dict, view: dict) -> None:
+    """The turn screen must carry the memory version the season was started with, and nothing else."""
+    pinned = recorded["memoryVersion"]
+    memory = view["agent"]["memory"]
+    if (memory is None) != (pinned is None) or (memory is not None and memory["version"] != pinned):
+        raise UsageError(
+            "the turn screen's memory differs from the version the season was started with"
         )
 
 
@@ -525,9 +612,12 @@ def _run(
         ExitStack() as stack,
         Journal.open(settings.state_dir, args.agent_id, args.season_id) as journal,
     ):
-        _check_recorded(api, args, persona)
+        recorded = _check_recorded(api, args.agent_id, args.season_id, args, persona)
         view = api.get_turn_view(args.agent_id, args.season_id)
-        config = _config(args, persona, view["season"]["pathLength"])
+        _check_pinned_memory(recorded, view)
+        config = _config(
+            args, persona, view["season"]["pathLength"], recorded["promptTemplateVersion"]
+        )
         _bind(journal.path, config)
         state = journal.state
         if len(state.pauses) > state.resumes and not args.resume:
@@ -572,6 +662,152 @@ def _status(api: ApiClient, settings: RunnerSettings, args: argparse.Namespace) 
     return EXIT_OK
 
 
+# ---- memory commands (AG-05) ------------------------------------------------------------
+
+
+def _memory_pending(api: ApiClient, args: argparse.Namespace) -> int:
+    state = api.get_memory(args.agent_id)
+    latest = state["latestVersion"]
+    print(
+        f"latest_version={'none' if latest is None else latest} "
+        f"pending={len(state['pendingSeasonIds'])} held={state['heldSeasonCount']}"
+    )
+    for season_id in state["pendingSeasonIds"]:
+        print(f"pending season_id={season_id}")
+    return EXIT_OK
+
+
+def _memory_show(api: ApiClient, args: argparse.Namespace) -> int:
+    version = args.version
+    if version is None:
+        version = api.get_memory(args.agent_id)["latestVersion"]
+        if version is None:
+            print("latest_version=none")
+            return EXIT_OK
+    shown = api.get_memory_version(args.agent_id, version)
+    memory = shown["memory"]
+    print(f"version={memory['version']} carried={str(shown['playbookCarried']).lower()}")
+    for number, rule in enumerate(memory["playbook"], start=1):
+        print(f"rule {number}: {rule}")
+    for body in memory["reflections"]:
+        print("reflection:")
+        for line in body["good"]:
+            print(f"  good: {line}")
+        for item in body["mistakes"]:
+            print(f"  mistake {item['type']}: {item['text']}")
+        for line in body["ruleCandidates"]:
+            print(f"  candidate: {line}")
+    return EXIT_OK
+
+
+def _memory_compare(api: ApiClient, args: argparse.Namespace) -> int:
+    report = render_comparison(
+        api.get_memory_comparison(args.agent_id, args.version_a, args.version_b)
+    )
+    if args.out is None:
+        print(report, end="")
+    else:
+        args.out.write_text(report, encoding="utf-8")
+        print(f"written={args.out.name}")
+    return EXIT_OK
+
+
+def _memory_line(season_id: int, result: StepResult) -> str:
+    parts = [f"season_id={season_id}", f"state={result.state}"]
+    if result.version is not None:
+        parts.append(f"version={result.version}")
+    if result.reason:
+        parts.append(f"reason={result.reason}")
+    parts.append(f"sends={result.sends}")
+    if result.dropped:
+        parts.append(f"dropped={result.dropped}")
+    return " ".join(parts)
+
+
+def _memory_reflect(
+    api: ApiClient,
+    settings: RunnerSettings,
+    args: argparse.Namespace,
+    environ: Mapping[str, str],
+    sleep: Callable[[float], None],
+    io: Interaction,
+) -> int:
+    if args.route in SUBSCRIPTION_ROUTES:
+        raise UsageError("the memory step does not run on a subscription route")
+    if args.season_id is None and not args.all_pending:
+        raise UsageError("memory reflect needs --season-id or --all-pending")
+    if args.max_calls is not None and args.max_calls < 1:
+        raise UsageError("--max-calls must be at least 1")
+    if args.max_seasons < 1:
+        raise UsageError("--max-seasons must be at least 1")
+    persona = load_persona(args.persona)
+    base = RunnerConfig(
+        model_requested=args.model_id,
+        route=args.route,
+        persona=persona,
+        path_length=DEFAULT_PATH_LENGTH,
+        turn_timeout_ms=default_timeout_ms(args.route),
+    )
+    with ExitStack() as stack:
+        context = LiveContext(persona, api, settings.state_dir, stack, io)
+        port, base, _gate = _port(args, environ, base, context)
+        send_cap = None if args.max_calls is None else SendCap(args.max_calls)
+        if args.season_id is not None:
+            seasons = [args.season_id]
+        else:
+            seasons = api.get_memory(args.agent_id)["pendingSeasonIds"][: args.max_seasons]
+        waiting = False
+        for season_id in seasons:
+            recorded = _check_recorded(api, args.agent_id, season_id, args, persona)
+            config = replace(
+                base,
+                budget_calls=recorded["budgetCalls"],
+                budget_usd=Decimal(recorded["budgetUsd"]),
+                memory_reserve=0,
+            )
+            with Journal.open(settings.state_dir, args.agent_id, season_id) as journal:
+                step = MemoryStep(
+                    api=api,
+                    journal=journal,
+                    port=port,
+                    config=config,
+                    agent_id=args.agent_id,
+                    season_id=season_id,
+                    sleep=sleep,
+                    send_cap=send_cap,
+                    discard_on_budget=args.discard_on_budget,
+                )
+                result = step.run()
+            print(_memory_line(season_id, result))
+            if result.state == NOT_OFFERED and result.reason == "MEMORY_NOT_ELIGIBLE":
+                continue  # a VOID or abandoned season never gets a reflection; it does not hold the rest back
+            if result.state in (PENDING, MEMORY_STOPPED, NOT_OFFERED):
+                # Later seasons would be refused (MEMORY_ORDER) until this one has an outcome.
+                waiting = True
+                break
+        if not seasons:
+            print("pending=0")
+    return EXIT_PAUSED if waiting else EXIT_OK
+
+
+def _memory(
+    api: ApiClient,
+    settings: RunnerSettings,
+    args: argparse.Namespace,
+    environ: Mapping[str, str],
+    sleep: Callable[[float], None],
+    io: Interaction,
+) -> int:
+    command = args.memory_command
+    if command == "reflect":
+        return _memory_reflect(api, settings, args, environ, sleep, io)
+    if command == "pending":
+        return _memory_pending(api, args)
+    if command == "show":
+        return _memory_show(api, args)
+    return _memory_compare(api, args)
+
+
 def main(
     argv: Sequence[str] | None = None,
     *,
@@ -591,6 +827,8 @@ def main(
             return _start(api, args)
         if args.command == "league":
             return _league(api, args)
+        if args.command == "memory":
+            return _memory(api, settings, args, env, sleep, io or Interaction())
         if args.command == "run":
             return _run(api, settings, args, env, sleep, io or Interaction())
         return _status(api, settings, args)

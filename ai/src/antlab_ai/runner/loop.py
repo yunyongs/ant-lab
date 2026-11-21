@@ -232,7 +232,7 @@ class SeasonRunner:
         return None
 
     def _decide(self, view: dict[str, Any], turn_no: int, turn: TurnState) -> RunResult | None:
-        base = build_messages(self._cfg.persona, view)
+        base = build_messages(self._cfg.persona, view, self._cfg.template_id)
         while True:
             step = failure.next_step(_results(turn), barrier=turn.flushed, jitter=self._jitter())
             if isinstance(step, failure.Pause):
@@ -259,7 +259,7 @@ class SeasonRunner:
     def _refusal(self) -> str | None:
         """A pause reason when the season budget forbids another attempt, before anything is sent."""
         cfg = self._cfg
-        if self._journal.state.attempt_total >= cfg.budget_calls:
+        if self._journal.state.attempt_total >= cfg.turn_budget_calls:
             return "BUDGET"
         if cfg.cost_mode == UNKNOWN:
             return "BUDGET"

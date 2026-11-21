@@ -12,6 +12,7 @@ from antlab_ai.runner.decision import Parsed, Rejected, is_storable
 
 INVALID: Final = "INVALID"
 KIND: Final = "TURN_DECISION"
+CALL_KINDS: Final = ("TURN_DECISION", "REFLECTION", "PLAYBOOK")
 OUTCOMES: Final = ("DECISION", "INVALID", "NO_RESPONSE")
 MAX_CALLS: Final = 20
 MAX_MODEL_ACTUAL: Final = 200
@@ -63,8 +64,6 @@ class RecordBuilder:
         self, attempt: ModelAttempt, attempt_no: int, verdict: Parsed | Rejected | None
     ) -> dict[str, Any]:
         """``verdict`` is the runner's judgement of an OK reply, and must be None otherwise."""
-        if type(attempt_no) is not int or not 1 <= attempt_no <= _MAX_ATTEMPT_NO:
-            raise RunnerDefect("attempt number is outside the contract range")
         if attempt.status == OK:
             if verdict is None:
                 raise RunnerDefect("an OK reply needs the runner's verdict")
@@ -73,6 +72,19 @@ class RecordBuilder:
             if verdict is not None:
                 raise RunnerDefect("only an OK reply carries a verdict")
             status = attempt.status
+        return self.build_as(attempt, attempt_no, status, KIND)
+
+    def build_as(
+        self, attempt: ModelAttempt, attempt_no: int, status: str, kind: str
+    ) -> dict[str, Any]:
+        """A record with the status and call kind decided by the caller (the memory calls)."""
+        if kind not in CALL_KINDS:
+            raise RunnerDefect("call kind is not a contract kind")
+        allowed = (OK, INVALID) if attempt.status == OK else (attempt.status,)
+        if status not in allowed:
+            raise RunnerDefect("record status does not follow the attempt")
+        if type(attempt_no) is not int or not 1 <= attempt_no <= _MAX_ATTEMPT_NO:
+            raise RunnerDefect("attempt number is outside the contract range")
         if not is_storable(attempt.request_text):
             raise RunnerDefect("request text cannot be stored")
         if self._route == "OPENROUTER" and attempt.ledger_call_id is None:
@@ -80,7 +92,7 @@ class RecordBuilder:
         http = attempt.http_status
         record = {
             "attemptNo": attempt_no,
-            "kind": KIND,
+            "kind": kind,
             "ledgerCallId": None if attempt.ledger_call_id is None else str(attempt.ledger_call_id),
             "status": status,
             "httpStatus": http if http is not None and 100 <= http <= 599 else None,

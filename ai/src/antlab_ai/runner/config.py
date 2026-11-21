@@ -32,6 +32,8 @@ MODEL_SEED: Final = 1
 MAX_TOKENS: Final = 2048
 TEMPERATURE: Final = Decimal(0)
 CALLS_PER_TURN: Final = 3
+# Calls kept back for the memory step of the season: reflection and playbook, one re-ask each, two transport retries.
+MEMORY_CALL_RESERVE: Final = 6
 TURN_TIMEOUT_MS: Final = {
     OPENROUTER: 120_000,
     OLLAMA: 300_000,
@@ -58,12 +60,27 @@ class RunnerConfig:
     budget_calls: int = 0
     budget_usd: Decimal = Decimal(0)
     cost_mode: str = KNOWN
+    memory_version: int | None = None
+    template_id: str = PROMPT_TEMPLATE_VERSION
+    # Part of budget_calls the turns may not use; set only with the default budget.
+    memory_reserve: int = 0
 
     def __post_init__(self) -> None:
         if self.cost_mode not in COST_MODES:
             raise ValueError("cost_mode is not a known mode")
+        if self.memory_version is not None and (
+            type(self.memory_version) is not int or self.memory_version < 1
+        ):
+            raise ValueError("memory_version must be a positive integer or None")
         if self.budget_calls < 1:
-            object.__setattr__(self, "budget_calls", CALLS_PER_TURN * self.path_length)
+            object.__setattr__(
+                self, "budget_calls", CALLS_PER_TURN * self.path_length + MEMORY_CALL_RESERVE
+            )
+            object.__setattr__(self, "memory_reserve", MEMORY_CALL_RESERVE)
+
+    @property
+    def turn_budget_calls(self) -> int:
+        return max(0, self.budget_calls - self.memory_reserve)
 
 
 def default_timeout_ms(route: str) -> int:
@@ -85,9 +102,9 @@ def season_config(config: RunnerConfig) -> dict[str, Any]:
         "modelSeed": None if config.route in SUBSCRIPTION_ROUTES else config.seed,
         "maxTokens": config.max_tokens,
         "turnTimeoutMs": config.turn_timeout_ms,
-        "promptTemplateVersion": PROMPT_TEMPLATE_VERSION,
+        "promptTemplateVersion": config.template_id,
         "runnerVersion": __version__,
-        "memoryVersion": None,
+        "memoryVersion": config.memory_version,
         "budgetCalls": config.budget_calls,
         "budgetUsd": format(config.budget_usd, "f"),
     }

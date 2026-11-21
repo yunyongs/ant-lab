@@ -121,6 +121,12 @@ def _extract(text: str | None) -> str | Rejected:
     return trimmed
 
 
+def extract_json_text(text: str | None) -> str | None:
+    """The JSON text of a reply (a lone code fence is peeled), or None when there is none."""
+    extracted = _extract(text)
+    return None if isinstance(extracted, Rejected) else extracted
+
+
 def _walk_strings(node: Any, path: tuple[Any, ...]):
     """Yield (path, text) for every key and string value."""
     if isinstance(node, str):

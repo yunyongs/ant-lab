@@ -20,8 +20,14 @@ from antlab_ai.runner.decision import (
 )
 from antlab_ai.runner.persona import Persona
 
-PROMPT_TEMPLATE_VERSION = "td1-p1"
-TEMPLATE_PATH = Path(__file__).resolve().parent / "prompts" / "turn-decision-1.md"
+PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
+# A season keeps the template it was started with; a new season records the current one.
+TEMPLATES: dict[str, Path] = {
+    "td1-p1": PROMPTS_DIR / "turn-decision-1.md",
+    "td1-p2": PROMPTS_DIR / "turn-decision-2.md",
+}
+PROMPT_TEMPLATE_VERSION = "td1-p2"
+TEMPLATE_PATH = TEMPLATES[PROMPT_TEMPLATE_VERSION]
 
 # The provider body adds the model id and options around the messages; keep that much of the 256 KiB free.
 REQUEST_HEADROOM = 4096
@@ -69,12 +75,18 @@ def canonical_json(turn_view: Mapping[str, Any]) -> str:
     return json.dumps(turn_view, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
 
 
-def system_message(persona: Persona) -> str:
-    template = TEMPLATE_PATH.read_text(encoding="utf-8")
-    schema = SCHEMA_PATH.read_text(encoding="utf-8")
+def fill_template(template_path: Path, persona: Persona, schema_path: Path) -> str:
+    template = template_path.read_text(encoding="utf-8")
+    schema = schema_path.read_text(encoding="utf-8")
     values = {"PERSONA": persona.body, "SCHEMA": schema}
     # One pass, so placeholder text inside the persona body is never substituted again.
     return _PLACEHOLDER.sub(lambda m: values[m.group(1)], template)
+
+
+def system_message(persona: Persona, template_id: str = PROMPT_TEMPLATE_VERSION) -> str:
+    if template_id not in TEMPLATES:
+        raise PromptError("unknown prompt template id")
+    return fill_template(TEMPLATES[template_id], persona, SCHEMA_PATH)
 
 
 def _size(messages: Iterable[Message]) -> int:
@@ -84,13 +96,19 @@ def _size(messages: Iterable[Message]) -> int:
     )
 
 
-def build_messages(persona: Persona, turn_view: Mapping[str, Any]) -> tuple[Message, ...]:
-    messages = (
-        Message("system", system_message(persona)),
-        Message("user", canonical_json(turn_view)),
-    )
+def require_storable(messages: Iterable[Message]) -> None:
     if _size(messages) > MAX_TEXT_BYTES - REQUEST_HEADROOM:
         raise PromptError("prompt is too large to store as a call record")
+
+
+def build_messages(
+    persona: Persona, turn_view: Mapping[str, Any], template_id: str = PROMPT_TEMPLATE_VERSION
+) -> tuple[Message, ...]:
+    messages = (
+        Message("system", system_message(persona, template_id)),
+        Message("user", canonical_json(turn_view)),
+    )
+    require_storable(messages)
     return messages
 
 
