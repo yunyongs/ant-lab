@@ -294,7 +294,7 @@ class OneSeasonE2ETest {
         Reply report = http.get(url("/report"));
         assertThat(report.status()).as(report.body()).isEqualTo(200);
         JsonNode r = report.json();
-        assertThat(r.size()).as("report keys").isEqualTo(37);
+        assertThat(r.size()).as("report keys").isEqualTo(38);
         List<String> names = new ArrayList<>();
         r.propertyNames().forEach(names::add);
         assertThat(names).as("report keys are the DTO's components").containsExactlyInAnyOrderElementsOf(
