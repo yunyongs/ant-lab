@@ -1,0 +1,116 @@
+# Leak terms for memory-filter/1 (agent memory text).
+# OWNER-EDITABLE: add, remove or reword entries freely. One term per line; blank lines and lines
+# starting with '#' are ignored. Matching ignores case, spacing and punctuation, so "Dot-com",
+# "dot com" and "닷 컴" are all caught by one entry. Keep entries generic: eras, crises, named
+# shocks, central bank chairs and heads of state. Do not add years or other numbers (the YEAR
+# rule already covers them). Every edit changes the filter version label (mf1-<hash>).
+# The shared corpus (src/test/resources/agent/memory-filter/manifest.json) uses a few entries
+# below; if you remove one, update the corpus case that names it.
+
+# Eras and crises
+닷컴
+dot-com
+외환위기
+imf 구제금융
+imf 위기
+아시아 금융위기
+asian financial crisis
+대공황
+great depression
+서브프라임
+subprime
+리먼
+lehman
+글로벌 금융위기
+세계 금융위기
+global financial crisis
+유럽 재정위기
+유로존 위기
+그리스 위기
+eurozone crisis
+브렉시트
+brexit
+코로나
+covid
+우크라이나 전쟁
+걸프전
+gulf war
+세계무역센터
+world trade center
+
+# Named shocks and episodes
+블랙먼데이
+black monday
+테이퍼 탠트럼
+taper tantrum
+플래시 크래시
+flash crash
+차이나 쇼크
+오일쇼크
+oil shock
+석유파동
+플라자 합의
+plaza accord
+롱텀캐피탈
+long-term capital management
+엔론
+enron
+
+# Central bank chairs
+그린스펀
+greenspan
+버냉키
+bernanke
+볼커
+volcker
+옐런
+yellen
+파월
+powell
+드라기
+draghi
+
+# Heads of state
+레이건
+reagan
+클린턴
+clinton
+오바마
+obama
+트럼프
+trump
+바이든
+biden
+조지 w 부시
+george w bush
+
+# Added in review: heads of state, Bank of Korea governors, short names, compounds
+김영삼
+김대중
+노무현
+이명박
+박근혜
+문재인
+윤석열
+이재명
+부시
+bush
+이성태
+김중수
+이주열
+이창용
+imf
+포스트코로나
+위드코로나
+gfc
+svb
+카드대란
+아베노믹스
+abenomics
+라가르드
+lagarde
+구로다
+kuroda
+트리셰
+trichet
+한보철강

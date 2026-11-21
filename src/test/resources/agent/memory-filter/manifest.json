@@ -1,0 +1,825 @@
+{
+ "schema": "memory-filter/1",
+ "titles": [
+  "미국 대형 투자은행 파산 신청 사태"
+ ],
+ "cases": [
+  {
+   "id": "year-month-ko",
+   "text": "2008년 9월처럼 급락했다",
+   "codes": [
+    "YEAR",
+    "YEAR_MONTH"
+   ]
+  },
+  {
+   "id": "year-two-digit-ko",
+   "text": "08년처럼 급락했다",
+   "codes": [
+    "YEAR"
+   ]
+  },
+  {
+   "id": "year-apostrophe",
+   "text": "'08 같은 장에서는 줄인다",
+   "codes": [
+    "YEAR"
+   ]
+  },
+  {
+   "id": "year-month-en",
+   "text": "Sep 2008 같은 장에서는 줄인다",
+   "codes": [
+    "YEAR",
+    "YEAR_MONTH"
+   ]
+  },
+  {
+   "id": "year-month-en-dot",
+   "text": "Sep. 2008 같은 장에서는 줄인다",
+   "codes": [
+    "YEAR",
+    "YEAR_MONTH"
+   ]
+  },
+  {
+   "id": "year-fullwidth",
+   "text": "２００８년 같은 장에서는 줄인다",
+   "codes": [
+    "YEAR"
+   ]
+  },
+  {
+   "id": "decade-ko-4",
+   "text": "2000년대 초 같은 장에서는 줄인다",
+   "codes": [
+    "YEAR"
+   ]
+  },
+  {
+   "id": "decade-ko-2",
+   "text": "90년대 같은 장에서는 줄인다",
+   "codes": [
+    "YEAR"
+   ]
+  },
+  {
+   "id": "decade-s",
+   "text": "90s 같은 장에서는 줄인다",
+   "codes": [
+    "YEAR"
+   ]
+  },
+  {
+   "id": "year-month-iso",
+   "text": "2008-09 구간처럼 줄인다",
+   "codes": [
+    "YEAR",
+    "YEAR_MONTH"
+   ]
+  },
+  {
+   "id": "year-month-dot",
+   "text": "2008.9 구간처럼 줄인다",
+   "codes": [
+    "YEAR",
+    "YEAR_MONTH"
+   ]
+  },
+  {
+   "id": "fiscal-year",
+   "text": "FY08 같은 장에서는 줄인다",
+   "codes": [
+    "YEAR"
+   ]
+  },
+  {
+   "id": "term-ko",
+   "text": "리먼 사태 같은 장에서는 줄인다",
+   "codes": [
+    "EVENT_TERM"
+   ]
+  },
+  {
+   "id": "term-split",
+   "text": "리 먼 사태 같은 장에서는 줄인다",
+   "codes": [
+    "EVENT_TERM"
+   ]
+  },
+  {
+   "id": "term-upper",
+   "text": "LEHMAN 같은 장에서는 줄인다",
+   "codes": [
+    "EVENT_TERM"
+   ]
+  },
+  {
+   "id": "term-zero-width",
+   "text": "리\u200b먼 사태 같은 장에서는 줄인다",
+   "codes": [
+    "EVENT_TERM"
+   ]
+  },
+  {
+   "id": "term-chair",
+   "text": "Greenspan 풋 같은 말에 기대지 않는다",
+   "codes": [
+    "EVENT_TERM"
+   ]
+  },
+  {
+   "id": "term-title",
+   "text": "미국 대형 투자은행 파산 신청 사태 같은 장에서는 줄인다",
+   "codes": [
+    "EVENT_TERM"
+   ]
+  },
+  {
+   "id": "fingerprint-signed",
+   "text": "-20%, +8%, +6%",
+   "codes": [
+    "FINGERPRINT"
+   ]
+  },
+  {
+   "id": "fingerprint-render-style",
+   "text": "1.20%, 3.40%, 0.50%",
+   "codes": [
+    "FINGERPRINT"
+   ]
+  },
+  {
+   "id": "fingerprint-decimal-point",
+   "text": "수익률 -1.5%, +2.5%, +3.5%",
+   "codes": [
+    "FINGERPRINT"
+   ]
+  },
+  {
+   "id": "turn-return-year",
+   "text": "1년차 7월에 -12%로 팔았다",
+   "codes": [
+    "TURN_RETURN"
+   ]
+  },
+  {
+   "id": "turn-return-turn",
+   "text": "3턴에 +4.5%p 올랐다",
+   "codes": [
+    "TURN_RETURN"
+   ]
+  },
+  {
+   "id": "price-won",
+   "text": "54,000원에 샀다",
+   "codes": [
+    "PRICE"
+   ]
+  },
+  {
+   "id": "price-dollar",
+   "text": "$120 근처에서 샀다",
+   "codes": [
+    "PRICE"
+   ]
+  },
+  {
+   "id": "price-man-won",
+   "text": "5만원으로 샀다",
+   "codes": [
+    "PRICE"
+   ]
+  },
+  {
+   "id": "price-thousands",
+   "text": "1,200 근처에서 샀다",
+   "codes": [
+    "PRICE"
+   ]
+  },
+  {
+   "id": "combined",
+   "text": "2008년에 54,000원에 샀다",
+   "codes": [
+    "YEAR",
+    "PRICE"
+   ]
+  },
+  {
+   "id": "negative-month",
+   "text": "7월에는 수비수를 늘린다",
+   "codes": []
+  },
+  {
+   "id": "negative-cash",
+   "text": "현금 10%를 유지한다",
+   "codes": []
+  },
+  {
+   "id": "negative-range",
+   "text": "6–8종목으로 나눈다",
+   "codes": []
+  },
+  {
+   "id": "negative-risk",
+   "text": "낙폭이 선언을 넘으면 줄인다",
+   "codes": []
+  },
+  {
+   "id": "negative-two-turns",
+   "text": "한 턴에 두 종목만 바꾼다",
+   "codes": []
+  },
+  {
+   "id": "negative-principle",
+   "text": "5원칙을 지킨다",
+   "codes": []
+  },
+  {
+   "id": "negative-points",
+   "text": "비중을 5%p 줄인다",
+   "codes": []
+  },
+  {
+   "id": "negative-two-returns",
+   "text": "-5%, +3% 사이에서는 가만히 둔다",
+   "codes": []
+  },
+  {
+   "id": "negative-turn-label",
+   "text": "1년차에는 현금을 늘린다",
+   "codes": []
+  },
+  {
+   "id": "negative-multiple",
+   "text": "한 종목이 1.5배 커지면 덜어 낸다",
+   "codes": []
+  },
+  {
+   "id": "negative-word-boundary-ri",
+   "text": "손실 관리 먼저 한다",
+   "codes": []
+  },
+  {
+   "id": "negative-word-boundary-ri-2",
+   "text": "현금 정리 먼저 한다",
+   "codes": []
+  },
+  {
+   "id": "negative-word-boundary-dra",
+   "text": "트렌드라기보다 소음이다",
+   "codes": []
+  },
+  {
+   "id": "negative-word-boundary-pa",
+   "text": "돌파 월간 흐름을 본다",
+   "codes": []
+  },
+  {
+   "id": "negative-latin-word-end",
+   "text": "trumpet",
+   "codes": []
+  },
+  {
+   "id": "term-particle",
+   "text": "리먼의 교훈",
+   "codes": [
+    "EVENT_TERM"
+   ]
+  },
+  {
+   "id": "term-curly-apostrophe",
+   "text": "Lehman’s",
+   "codes": [
+    "EVENT_TERM"
+   ]
+  },
+  {
+   "id": "term-kr-head-of-state",
+   "text": "이명박 정부 때처럼",
+   "codes": [
+    "EVENT_TERM"
+   ]
+  },
+  {
+   "id": "term-boK-governor",
+   "text": "이주열 총재 때처럼",
+   "codes": [
+    "EVENT_TERM"
+   ]
+  },
+  {
+   "id": "term-imf",
+   "text": "IMF 때처럼 줄인다",
+   "codes": [
+    "EVENT_TERM"
+   ]
+  },
+  {
+   "id": "term-compound",
+   "text": "포스트코로나",
+   "codes": [
+    "EVENT_TERM"
+   ]
+  },
+  {
+   "id": "fingerprint-split-sentences",
+   "text": "첫째 -20%. 둘째 +8%. 셋째 +6%.",
+   "codes": [
+    "FINGERPRINT"
+   ]
+  },
+  {
+   "id": "fingerprint-attached",
+   "text": "A사1.20%, B사3.40%, C사0.50%",
+   "codes": [
+    "FINGERPRINT"
+   ]
+  },
+  {
+   "id": "fingerprint-dash-fold",
+   "text": "–0.2, –0.3, –0.4",
+   "codes": [
+    "FINGERPRINT"
+   ]
+  },
+  {
+   "id": "negative-weights",
+   "text": "현금 10%, 채권 30%, 주식 60%",
+   "codes": []
+  },
+  {
+   "id": "negative-two-thresholds",
+   "text": "손절 -7%. 익절 +15%",
+   "codes": []
+  },
+  {
+   "id": "turn-return-unsigned",
+   "text": "1년차 3월 손실 5%",
+   "codes": [
+    "TURN_RETURN"
+   ]
+  },
+  {
+   "id": "turn-return-turn-unsigned",
+   "text": "3턴 12% 올랐다",
+   "codes": [
+    "TURN_RETURN"
+   ]
+  },
+  {
+   "id": "turn-return-ordinal",
+   "text": "3번째 턴에 -5%",
+   "codes": [
+    "TURN_RETURN"
+   ]
+  },
+  {
+   "id": "turn-return-attached",
+   "text": "1년차 7월에-12%로 팔았다",
+   "codes": [
+    "TURN_RETURN"
+   ]
+  },
+  {
+   "id": "turn-return-weight-strict",
+   "text": "1년차 7월에 현금 10%로 늘린다",
+   "codes": [
+    "TURN_RETURN"
+   ]
+  },
+  {
+   "id": "turn-return-english",
+   "text": "turn 3 rose 12%",
+   "codes": [
+    "TURN_RETURN"
+   ]
+  },
+  {
+   "id": "negative-return-word",
+   "text": "월간 리턴 12%",
+   "codes": []
+  },
+  {
+   "id": "year-quarter",
+   "text": "3Q08 실적처럼",
+   "codes": [
+    "YEAR"
+   ]
+  },
+  {
+   "id": "year-half",
+   "text": "1H08",
+   "codes": [
+    "YEAR"
+   ]
+  },
+  {
+   "id": "year-quarter-lead",
+   "text": "Q3 08",
+   "codes": [
+    "YEAR"
+   ]
+  },
+  {
+   "id": "year-zero-width",
+   "text": "2\u200b008년",
+   "codes": [
+    "YEAR"
+   ]
+  },
+  {
+   "id": "year-arabic-indic",
+   "text": "٢٠٠٨년",
+   "codes": [
+    "YEAR"
+   ]
+  },
+  {
+   "id": "year-two-digit-zero-duration",
+   "text": "08년 동안",
+   "codes": [
+    "YEAR"
+   ]
+  },
+  {
+   "id": "year-two-digit-after",
+   "text": "97년 이후",
+   "codes": [
+    "YEAR"
+   ]
+  },
+  {
+   "id": "year-two-digit-ambiguous",
+   "text": "20년 후",
+   "codes": [
+    "YEAR"
+   ]
+  },
+  {
+   "id": "decade-s-strict",
+   "text": "20s 투자자",
+   "codes": [
+    "YEAR"
+   ]
+  },
+  {
+   "id": "negative-duration",
+   "text": "10년 이상 보유한다",
+   "codes": []
+  },
+  {
+   "id": "negative-duration-2",
+   "text": "20년 동안 오른 종목",
+   "codes": []
+  },
+  {
+   "id": "negative-tenor",
+   "text": "10년물 금리가 오르면 줄인다",
+   "codes": []
+  },
+  {
+   "id": "negative-maturity",
+   "text": "15년 만기 채권",
+   "codes": []
+  },
+  {
+   "id": "negative-year-label",
+   "text": "12년차에는 현금을 늘린다",
+   "codes": []
+  },
+  {
+   "id": "negative-quantity",
+   "text": "수량 12005주를 넘기지 않는다",
+   "codes": []
+  },
+  {
+   "id": "price-stacked-units",
+   "text": "5천만원으로 샀다",
+   "codes": [
+    "PRICE"
+   ]
+  },
+  {
+   "id": "price-stacked-units-2",
+   "text": "1억5천만원으로 샀다",
+   "codes": [
+    "PRICE"
+   ]
+  },
+  {
+   "id": "fingerprint-unsigned-moves",
+   "text": "20%, 8%, 6% 떨어졌다",
+   "codes": [
+    "FINGERPRINT"
+   ]
+  },
+  {
+   "id": "fingerprint-unsigned-moves-2",
+   "text": "20% 하락, 8% 반등, 6% 반등",
+   "codes": [
+    "FINGERPRINT"
+   ]
+  },
+  {
+   "id": "negative-weights-with-keep",
+   "text": "현금 10%, 채권 30%, 주식 60%를 유지한다",
+   "codes": []
+  },
+  {
+   "id": "negative-unsigned-two-moves",
+   "text": "8% 떨어지면 줄이고 6% 오르면 늘린다",
+   "codes": []
+  },
+  {
+   "id": "price-yen",
+   "text": "120엔에 샀다",
+   "codes": [
+    "PRICE"
+   ]
+  },
+  {
+   "id": "price-euro",
+   "text": "1.1유로 근처에서 샀다",
+   "codes": [
+    "PRICE"
+   ]
+  },
+  {
+   "id": "price-euros-en",
+   "text": "120 euros",
+   "codes": [
+    "PRICE"
+   ]
+  },
+  {
+   "id": "price-index-level",
+   "text": "지수 3000 돌파 때처럼",
+   "codes": [
+    "PRICE"
+   ]
+  },
+  {
+   "id": "price-points",
+   "text": "1200 포인트까지 올랐다",
+   "codes": [
+    "PRICE"
+   ]
+  },
+  {
+   "id": "price-barrel",
+   "text": "배럴당 140 근처",
+   "codes": [
+    "PRICE"
+   ]
+  },
+  {
+   "id": "negative-index-name",
+   "text": "코스피200 비중을 늘린다",
+   "codes": []
+  },
+  {
+   "id": "negative-index-name-2",
+   "text": "S&P 500 비중을 늘린다",
+   "codes": []
+  },
+  {
+   "id": "negative-generic-title",
+   "text": "국제 유가 급락에 에너지를 줄였다",
+   "codes": []
+  },
+  {
+   "id": "term-hanbo",
+   "text": "한보철강 부도 같은 장에서는 줄인다",
+   "codes": [
+    "EVENT_TERM"
+   ]
+  },
+  {
+   "id": "year-month-day-en",
+   "text": "September 15, 2008 같은 장",
+   "codes": [
+    "YEAR",
+    "YEAR_MONTH"
+   ]
+  },
+  {
+   "id": "year-month-slash",
+   "text": "9/2008 같은 장",
+   "codes": [
+    "YEAR",
+    "YEAR_MONTH"
+   ]
+  },
+  {
+   "id": "year-month-quarter-ko",
+   "text": "2008년 3분기 같은 장",
+   "codes": [
+    "YEAR",
+    "YEAR_MONTH"
+   ]
+  },
+  {
+   "id": "year-month-quarter-en",
+   "text": "Q3 2008 같은 장",
+   "codes": [
+    "YEAR",
+    "YEAR_MONTH"
+   ]
+  },
+  {
+   "id": "year-month-quarter-after",
+   "text": "2008 Q3 같은 장",
+   "codes": [
+    "YEAR",
+    "YEAR_MONTH"
+   ]
+  },
+  {
+   "id": "price-kospi-line",
+   "text": "코스피 2,000선이 무너졌다",
+   "codes": [
+    "PRICE"
+   ]
+  },
+  {
+   "id": "price-sp-level",
+   "text": "S&P 4500 근처에서 줄인다",
+   "codes": [
+    "PRICE"
+   ]
+  },
+  {
+   "id": "price-yen-symbol",
+   "text": "¥120 근처에서 샀다",
+   "codes": [
+    "PRICE"
+   ]
+  },
+  {
+   "id": "price-euro-symbol",
+   "text": "€1.1 근처에서 샀다",
+   "codes": [
+    "PRICE"
+   ]
+  },
+  {
+   "id": "price-pound-symbol",
+   "text": "£90 근처에서 샀다",
+   "codes": [
+    "PRICE"
+   ]
+  },
+  {
+   "id": "price-yuan",
+   "text": "5위안에 샀다",
+   "codes": [
+    "PRICE"
+   ]
+  },
+  {
+   "id": "price-fullwidth-yen",
+   "text": "￥120 근처에서 샀다",
+   "codes": [
+    "PRICE"
+   ]
+  }
+ ],
+ "documents": [
+  {
+   "file": "documents/reflection_leaky.json",
+   "kind": "season-reflection/1",
+   "oversize": false,
+   "hits": [
+    {
+     "pointer": "/good/0#s1",
+     "code": "YEAR"
+    },
+    {
+     "pointer": "/good/0#s1",
+     "code": "YEAR_MONTH"
+    },
+    {
+     "pointer": "/good/2#s1",
+     "code": "EVENT_TERM"
+    },
+    {
+     "pointer": "/good/2#s1",
+     "code": "FINGERPRINT"
+    },
+    {
+     "pointer": "/mistakes/0/text#s1",
+     "code": "TURN_RETURN"
+    },
+    {
+     "pointer": "/ruleCandidates/0#s1",
+     "code": "PRICE"
+    }
+   ]
+  },
+  {
+   "file": "documents/reflection_clean.json",
+   "kind": "season-reflection/1",
+   "oversize": false,
+   "hits": []
+  },
+  {
+   "file": "documents/reflection_at_cap.json",
+   "kind": "season-reflection/1",
+   "oversize": false,
+   "hits": []
+  },
+  {
+   "file": "documents/reflection_oversize.json",
+   "kind": "season-reflection/1",
+   "oversize": true,
+   "hits": []
+  },
+  {
+   "file": "documents/note_clean.json",
+   "kind": "operating-note/1",
+   "oversize": false,
+   "hits": []
+  },
+  {
+   "file": "documents/note_leaky.json",
+   "kind": "operating-note/1",
+   "oversize": false,
+   "hits": [
+    {
+     "pointer": "/rules/2#s2",
+     "code": "YEAR"
+    }
+   ]
+  },
+  {
+   "file": "documents/note_at_cap.json",
+   "kind": "operating-note/1",
+   "oversize": false,
+   "hits": []
+  },
+  {
+   "file": "documents/note_oversize.json",
+   "kind": "operating-note/1",
+   "oversize": true,
+   "hits": []
+  },
+  {
+   "file": "documents/reflection_split_fingerprint.json",
+   "kind": "season-reflection/1",
+   "oversize": false,
+   "hits": [
+    {
+     "pointer": "/good/2#s3",
+     "code": "FINGERPRINT"
+    }
+   ]
+  },
+  {
+   "file": "documents/reflection_at_cap_astral.json",
+   "kind": "season-reflection/1",
+   "oversize": false,
+   "hits": []
+  },
+  {
+   "file": "documents/note_pointer_order.json",
+   "kind": "operating-note/1",
+   "oversize": false,
+   "hits": [
+    {
+     "pointer": "/rules/0#s1",
+     "code": "YEAR"
+    },
+    {
+     "pointer": "/rules/0#s1",
+     "code": "PRICE"
+    },
+    {
+     "pointer": "/rules/2#s1",
+     "code": "EVENT_TERM"
+    },
+    {
+     "pointer": "/rules/2#s3",
+     "code": "YEAR"
+    }
+   ]
+  }
+ ],
+ "rules": [
+  "Both filters read src/main/resources/agent/leak-terms.txt and the titles listed here (the shipped filter also reads month_event titles). Each case lists the exact set of codes reported for the whole text; each document lists the exact ordered hits and the oversize flag.",
+  "A hit is a pointer plus a code; the offending text is never reported. A pointer is the JSON pointer of the string plus #s<n> for the n-th non-blank sentence (1-based).",
+  "Hit order: good, then mistakes[*].text, then ruleCandidates (or rules), each by index; inside a string by sentence; inside a sentence in the order YEAR, YEAR_MONTH, EVENT_TERM, FINGERPRINT, TURN_RETURN, PRICE.",
+  "Spring normalises every incoming string to NFC before schema validation, filtering and storage, so the stored text is what was measured. Schema maxLength (120 or 150) applies to that NFC string.",
+  "Caps count Unicode code points (Java codePointCount) of all strings after NFC: 600 for season-reflection/1, 2,000 for operating-note/1. Over the cap is reported as oversize, not as a code.",
+  "Normalisation, in this order: NFKC; lower case (Python str.lower, Java toLowerCase(Locale.ROOT)); drop every general category Cf character; fold every Nd digit to ASCII 0-9; fold U+2212, U+2013 and U+2012 to '-'.",
+  "Every pattern uses explicit ASCII classes ([0-9], [a-z], blank = space, tab, CR, LF): no digit, word-character, word-boundary or whitespace shorthand. A letter is a general category L* character; a letter-or-digit is L* or an ASCII digit (after folding).",
+  "Sentences end at '.', '!', '?', the ideographic full stop (U+3002) or a newline, except a '.' with a digit on both sides and the dot of a month abbreviation (Sep.). Segments that hold only blanks are dropped before numbering.",
+  "Dictionary terms match on the compact text (letters and digits only, spacing and punctuation ignored) but only from a word start: the first matched character must be the first letter-or-digit of the sentence or follow a non-letter-or-digit character in the normalised text. A term ending in a Latin letter also needs the next character of the normalised text not to be a-z. Korean particles are free (리먼의). Titles match as plain substrings of the compact text and need at least 7 compact characters (shorter titles such as \"국제 유가 급락\" are generic phrases).",
+  "Return-like numbers: signed percent (+8%, -12%), percentage points (5%p), unsigned percent with a fraction (3.40%), signed decimal (+0.8). Only a digit or a dot before the number blocks a match. FINGERPRINT counts them over the whole string (all sentences) and is reported once, at the sentence where the running count reaches 3. When the sentence holds a movement word (상승 하락 올랐 오른 오르 떨어 내렸 내린 반등 급락 급등 폭락 폭등 뛰었 빠졌, rose fell gained dropped rallied plunged jumped), unsigned integer percents count as return-like too; a weight list without such a word passes.",
+  "TURN_RETURN: in one sentence, a turn label (N년차, N년차 M월, N턴, N번째 턴, turn N, 턴 N; 턴 right after a Hangul letter is not a label) and any percent (signed or not) or return-like number. A weight written next to a turn label is therefore rejected on purpose.",
+  "YEAR: four-digit 19xx/20xx not touching other digits; 0N년 always; NN년 (N=1-9 first) except when followed by a duration or tenor word (이상 이하 미만 초과 동안 간 째 물 만기 넘게 가까이 가량 정도 만에 마다 주기 짜리 차); 'NN; FYNN; N0s; quarter and half forms with a two-digit year (3Q08, Q3 08, 1H08). '이후 이전 전 후 부터 까지 에' after NN년 stay YEAR.",
+  "Known gaps (not detected on purpose or not yet): homoglyphs (Cyrillic letters), numbers in words (이천팔년), spaced digits (2 0 0 8년), unsigned percent sequences without a movement word, index levels written without a name or unit, paraphrased eras. PRICE also covers yen, euro, yuan and pound amounts next to digits, 3+ digit point counts, a 4+ digit level after an index name (지수, 코스피, S&P ...) and 배럴당 N.",
+  "The curated terms file is owner-editable: an edit that removes the entry a case relies on must update that case. The file is decoded as UTF-8 (a BOM is ignored), lines starting with '#' and blank lines are comments, and there are no inline comments."
+ ]
+}
