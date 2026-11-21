@@ -591,7 +591,7 @@ export interface components {
             name: string;
             assetType: components["schemas"]["AssetType"];
             returnBasis: components["schemas"]["ReturnBasis"];
-            /** @description Name of the tracked index used for the period before listing (ETFs only) / 상장 전 구간에 쓰는 추종 지수 이름(ETF만) */
+            /** @description Generic name of the index that fills the months without an actual return, for any asset that has proxy months (ETF or stock) / 실제 수익률이 없는 달을 채우는 대체 지수의 일반 이름(대체 달이 있는 ETF·개별 주식) */
             proxyIndexName: string | null;
             /** Format: int64 */
             groupId: number;
