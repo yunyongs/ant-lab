@@ -310,10 +310,15 @@ spring.flyway:
   baseline-on-migrate: false
   clean-disabled: true
   validate-on-migrate: true
-# 블록 길이(6)·허용 경로 길이·재생 시작·엔진 판은 설정이 아니라 SimpleBootstrap 상수다(P0-29) — 설정으로 두면 같은 engine_version 이 다른 경로를 낼 수 있어 재현성이 깨진다.
+# 블록 길이(6)·허용 경로 길이·엔진 판은 설정이 아니라 SimpleBootstrap 상수다(P0-29) — 설정으로 두면 같은 engine_version 이 다른 경로를 낼 수 있어 재현성이 깨진다.
 # antlab.engine.* (M2-06): URL, token, timeouts (connect 1 s, paths 3 s, projections 15 s, regime 60 s), path-source (java default | engine), path-version, projection-paths 2000. With path-source=engine the URL and token are required at startup. / URL, 토큰, 시간 제한(연결 1초, 경로 3초, 예상 분포 15초, 국면 60초), path-source(기본 java | engine), path-version, projection-paths 2000. path-source=engine이면 URL과 토큰이 없을 때 기동하지 않는다.
 # antlab.engine.regime-timeout (M2-08, default 60 s); run the label job with antlab.regime.run-once=LABEL_MONTHS. / 국면 호출 시간 제한 `antlab.engine.regime-timeout`(기본 60초), 라벨 잡은 `antlab.regime.run-once=LABEL_MONTHS`로 돌린다.
 antlab.pool.base-date: ${ANTLAB_POOL_BASE_DATE:2026-01-02}   # P0-27: 기준일 풀(매년 1월 첫 거래일). P0-30 시즌 시작도 같은 값을 쓴다
+# MVP-06 B13: replay start (erd S1), the first month a path may draw: the first day of a month, before January 1 of the base-date year, else startup fails; the end stays January 1 of the base-date year (exclusive); months before the start are warm-up. / 재생 시작(erd S1) — 경로가 뽑을 수 있는 첫 달. 달의 1일이고 기준일 해 1월 1일보다 앞이어야 하며 어기면 기동 실패. 끝은 기준일 해 1월 1일(제외), 시작 앞의 달은 준비 구간이다.
+# The default 2007-01-01 is the Phase 0 sample start; the coverage-report value replaces it at the full load (R-L). db/20 takes the same value as psql -v replay_start=... (same default, a test pins them). / 기본 2007-01-01은 Phase 0 표본의 시작이고 전체 적재(R-L) 때 적재 범위 보고서의 측정값으로 바꾼다. db/20은 같은 값을 psql 변수로 받는다(기본 같음, 시험이 묶는다).
+# While the Python engine uses its own start (2007-01-01), startup fails if the engine is wired (antlab.engine.url or path-source=engine) and this setting differs. / 파이썬 엔진이 자기 시작을 쓰는 동안 엔진이 연결되어 있으면(antlab.engine.url 또는 path-source=engine) 이 값이 다를 때 기동하지 않는다.
+# Reproducibility: a path follows from (engine_version, seed, base date, replay start, month_block snapshot); season_path is stored and the history digest records the replayable set; changing the setting changes future paths only. / 경로는 (engine_version, 시드, 기준일, 재생 시작, month_block 스냅샷)으로 재현되고 season_path가 저장되며 이력 해시가 재생 가능한 달 집합을 기록한다. 설정을 바꿔도 앞으로 만드는 경로만 바뀐다.
+antlab.history.replay-start: ${ANTLAB_HISTORY_REPLAY_START:2007-01-01}
 # P0-30: 새 시즌에 적는 설정(요청에서 받지 않는다). 시즌 행의 8개 설정 컬럼은 DB 기본값이 없으므로 값이 빠지면 기동 실패(@Validated)
 antlab.season.initial-cash: 30000000        # PLAN §4.1-1 기본 초기 자금
 antlab.season.fee-rate-kr: 0.00015          # PLAN §4.6

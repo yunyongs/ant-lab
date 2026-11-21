@@ -2,6 +2,7 @@ package antlab.engine;
 
 import antlab.engine.client.EngineClient;
 import antlab.engine.client.EngineProperties;
+import antlab.history.HistoryProperties;
 import antlab.history.MonthBlockRepository;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
@@ -16,7 +17,8 @@ class PathSourceConfig {
 
     @Bean
     @ConditionalOnProperty(prefix = "antlab.engine", name = "path-source", havingValue = "engine")
-    PathSource enginePathSource(EngineClient client, EngineProperties properties, MonthBlockRepository monthBlocks) {
-        return new EnginePathSource(client, properties, monthBlocks);
+    PathSource enginePathSource(EngineClient client, EngineProperties properties, MonthBlockRepository monthBlocks,
+            HistoryProperties history) {
+        return new EnginePathSource(client, properties, monthBlocks, history);
     }
 }

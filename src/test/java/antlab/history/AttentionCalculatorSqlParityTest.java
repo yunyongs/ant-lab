@@ -2,6 +2,7 @@ package antlab.history;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import antlab.support.FullDataDb;
 import antlab.support.GoldenCleanup;
 import antlab.support.SharedPostgres;
 import antlab.support.GoldenFixtureSource;
@@ -52,6 +53,14 @@ class AttentionCalculatorSqlParityTest {
     @AfterAll
     static void stop() throws Exception {
         GoldenCleanup.closeThenStop(harness, null);
+    }
+
+    @Test
+    void 전체_이력_골든의_읽기_경로가_같은_DB에서_같은_결과를_낸다() throws Exception {
+        FullDataDb tier = new FullDataDb("jdbc:postgresql://" + container.getHost() + ":"
+                + container.getMappedPort(5432) + "/" + db.name(), container.getUsername(), container.getPassword());
+        AttentionParity.Coverage coverage = AttentionParity.compareDatabase(tier);
+        assertThat(coverage.rows()).isEqualTo(history.returnRowCount());
     }
 
     @Test

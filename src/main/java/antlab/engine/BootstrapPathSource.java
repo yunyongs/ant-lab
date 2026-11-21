@@ -1,5 +1,6 @@
 package antlab.engine;
 
+import antlab.history.HistoryProperties;
 import antlab.history.MonthBlockRepository;
 import antlab.history.ReplayMonth;
 import java.time.LocalDate;
@@ -7,6 +8,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
@@ -20,16 +22,23 @@ import org.springframework.stereotype.Component;
 public class BootstrapPathSource implements PathSource {
 
     private final MonthBlockRepository monthBlocks;
+    private final LocalDate replayStart;
+
+    @Autowired
+    public BootstrapPathSource(MonthBlockRepository monthBlocks, HistoryProperties history) {
+        this.monthBlocks = monthBlocks;
+        this.replayStart = history.replayStart();
+    }
 
     public BootstrapPathSource(MonthBlockRepository monthBlocks) {
-        this.monthBlocks = monthBlocks;
+        this(monthBlocks, HistoryProperties.defaults());
     }
 
     @Override
     public GeneratedPath generate(PathRequest request) {
         List<ReplayMonth> months = monthBlocks.findReplayMonths(
-                SimpleBootstrap.REPLAY_START, SimpleBootstrap.replayUpperBound(request.baseDate()));
-        GeneratedPath path = SimpleBootstrap.generate(months, request);
+                replayStart, SimpleBootstrap.replayUpperBound(request.baseDate()));
+        GeneratedPath path = SimpleBootstrap.generate(months, request, replayStart);
 
         // 엔진 버그 방어선: 번호 → 달로 되돌려 규칙을 다시 본다. 정상이면 도달하지 않는다.
         Map<Long, LocalDate> monthById = new HashMap<>();
@@ -41,7 +50,7 @@ public class BootstrapPathSource implements PathSource {
             pathMonths.add(monthById.get(id));
         }
         List<String> violations = PathRules.violations(
-                pathMonths, request.baseDate(), request.length(), SimpleBootstrap.BLOCK_LENGTH);
+                pathMonths, request.baseDate(), request.length(), SimpleBootstrap.BLOCK_LENGTH, replayStart);
         if (!violations.isEmpty()) {
             throw new IllegalStateException("경로 규칙 위반: " + violations);
         }

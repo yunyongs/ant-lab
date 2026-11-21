@@ -2,6 +2,7 @@ package antlab.history;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import antlab.support.FullDataDb;
 import antlab.support.RowSet;
 import antlab.support.RowSet.ColumnType;
 import antlab.support.RowSet.RowColumn;
@@ -49,6 +50,14 @@ final class AttentionParity {
     }
 
     private AttentionParity() {
+    }
+
+    /** The full-data tier: every stored row of the database must equal the calculator fed from its raw return rows. */
+    static Coverage compareDatabase(FullDataDb db) throws Exception {
+        RowSet returns = db.read(RETURNS);
+        Coverage coverage = compare(toReturns(returns), db.read(STORED));
+        assertThat(coverage.rows()).as("compared rows").isEqualTo(returns.size());
+        return coverage;
     }
 
     /** Groups the rows of {@link #RETURNS} by {@code MARKET/TICKER}, ascending by month. */

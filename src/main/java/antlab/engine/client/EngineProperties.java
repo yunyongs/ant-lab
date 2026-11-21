@@ -31,6 +31,8 @@ public record EngineProperties(
     public enum PathSourceMode { JAVA, ENGINE }
 
     public static final int MIN_TOKEN_LENGTH = 32;
+    /** The replay start the Python engine uses (engine/.../bootstrap/simple.py REPLAY_START); a parity test pins it. */
+    public static final java.time.LocalDate ENGINE_REPLAY_START = java.time.LocalDate.of(2007, 1, 1);
     static final Set<String> PATH_VERSIONS = Set.of("m2-sb6-v1", "p0-boot6-v1");
     private static final Duration MAX_TIMEOUT = Duration.ofSeconds(120);
 

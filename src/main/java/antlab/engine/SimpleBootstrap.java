@@ -2,6 +2,7 @@ package antlab.engine;
 
 import antlab.common.error.DomainException;
 import antlab.common.error.ErrorCode;
+import antlab.history.HistoryProperties;
 import antlab.history.ReplayMonth;
 import java.time.LocalDate;
 import java.time.YearMonth;
@@ -26,8 +27,8 @@ public final class SimpleBootstrap {
     public static final List<Integer> ALLOWED_LENGTHS = List.of(12, 24, 60);
     /** 허용 길이의 최댓값. 이보다 길면 PATH_TOO_LONG. */
     public static final int MAX_LENGTH = 60;
-    /** 재생 시작(erd S1, Phase 0). */
-    public static final LocalDate REPLAY_START = LocalDate.of(2007, 1, 1);
+    /** 재생 시작의 기본값(erd S1). 운영 값은 antlab.history.replay-start 이고 아래 오버로드가 받는다. */
+    public static final LocalDate REPLAY_START = HistoryProperties.DEFAULT_REPLAY_START;
     /** season.engine_version 에 저장하는 값(VARCHAR(20)). */
     public static final String ENGINE_VERSION = "p0-boot6-v1";
 
@@ -44,9 +45,14 @@ public final class SimpleBootstrap {
 
     /** 턴 순서의 month_block 번호 목록으로 경로를 만든다. 결과는 달(month_start) 기준으로 재현된다. */
     public static GeneratedPath generate(List<ReplayMonth> months, PathRequest request) {
+        return generate(months, request, REPLAY_START);
+    }
+
+    /** 같은 경로 생성기에 재생 시작을 넘긴다. 시작 이전의 달(준비 구간)은 뽑지 않는다. */
+    public static GeneratedPath generate(List<ReplayMonth> months, PathRequest request, LocalDate replayStart) {
         Objects.requireNonNull(months, "months");
         Objects.requireNonNull(request, "request");
-        TreeMap<YearMonth, Long> idByMonth = present(months, request.baseDate());
+        TreeMap<YearMonth, Long> idByMonth = present(months, request.baseDate(), replayStart);
         List<YearMonth> picked = pickMonths(idByMonth, request);
         List<Long> ids = new ArrayList<>(picked.size());
         for (YearMonth ym : picked) {
@@ -57,17 +63,22 @@ public final class SimpleBootstrap {
 
     /** 턴 순서의 달 목록(각 달의 1일). 패키지 안 시험 전용 — 달은 [복기 전용]이라 엔진 밖으로 내지 않는다. */
     static List<LocalDate> generateMonths(List<ReplayMonth> months, PathRequest request) {
+        return generateMonths(months, request, REPLAY_START);
+    }
+
+    static List<LocalDate> generateMonths(List<ReplayMonth> months, PathRequest request, LocalDate replayStart) {
         Objects.requireNonNull(months, "months");
         Objects.requireNonNull(request, "request");
         List<LocalDate> result = new ArrayList<>();
-        for (YearMonth ym : pickMonths(present(months, request.baseDate()), request)) {
+        for (YearMonth ym : pickMonths(present(months, request.baseDate(), replayStart), request)) {
             result.add(ym.atDay(1));
         }
         return result;
     }
 
     /** 재생 범위 안의 달만 모아 달 오름차순으로 정렬한다. 입력 순서·번호와 무관하다. */
-    private static TreeMap<YearMonth, Long> present(List<ReplayMonth> months, LocalDate baseDate) {
+    private static TreeMap<YearMonth, Long> present(List<ReplayMonth> months, LocalDate baseDate, LocalDate replayStart) {
+        Objects.requireNonNull(replayStart, "replayStart");
         LocalDate upper = replayUpperBound(baseDate);
         TreeMap<YearMonth, Long> result = new TreeMap<>();
         for (ReplayMonth m : months) {
@@ -75,7 +86,7 @@ public final class SimpleBootstrap {
             if (start.getDayOfMonth() != 1) {
                 throw new IllegalArgumentException("월 목록 오류: 1일이 아닌 달이 있다");
             }
-            if (start.isBefore(REPLAY_START) || !start.isBefore(upper)) {
+            if (start.isBefore(replayStart) || !start.isBefore(upper)) {
                 continue;
             }
             if (result.put(YearMonth.from(start), Objects.requireNonNull(m.monthBlockId(), "monthBlockId")) != null) {

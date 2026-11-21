@@ -24,12 +24,17 @@ public final class HistoryDigest {
     }
 
     public static String of(String engineVersion, Collection<LocalDate> monthStarts, LocalDate baseDate) {
+        return of(engineVersion, monthStarts, baseDate, SimpleBootstrap.REPLAY_START);
+    }
+
+    public static String of(String engineVersion, Collection<LocalDate> monthStarts, LocalDate baseDate, LocalDate replayStart) {
+        Objects.requireNonNull(replayStart, "replayStart");
         Objects.requireNonNull(engineVersion, "engineVersion");
         Objects.requireNonNull(monthStarts, "monthStarts");
         LocalDate upper = SimpleBootstrap.replayUpperBound(baseDate);
         TreeSet<YearMonth> replayable = new TreeSet<>();
         for (LocalDate start : monthStarts) {
-            if (!start.isBefore(SimpleBootstrap.REPLAY_START) && start.isBefore(upper)) {
+            if (!start.isBefore(replayStart) && start.isBefore(upper)) {
                 replayable.add(YearMonth.from(start));
             }
         }
