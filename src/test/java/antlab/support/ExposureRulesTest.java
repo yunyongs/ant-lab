@@ -333,4 +333,26 @@ class ExposureRulesTest {
         assertThat(ExposureRules.check(GroupLink.class, catalog())).singleElement().asString()
                 .contains("turn_feed.asset_group_id");
     }
+
+    record OtherAgentRecord(@ExposedFrom("agent_profile.persona_key") String personaKey) {
+    }
+
+    record OwnerAgentSecret(@ExposedFrom("agent_profile.owner_member_id") Long owner) {
+    }
+
+    @Test
+    void the_owner_agent_sources_pass_only_in_the_owner_agent_records() {
+        Map<String, String> tags = new LinkedHashMap<>(catalog().tags());
+        tags.put("agent_profile.persona_key", ExposureCatalog.INTERNAL);
+        tags.put("agent_profile.owner_member_id", ExposureCatalog.INTERNAL);
+        ExposureCatalog withAgents = new ExposureCatalog(tags);
+        assertThat(ExposureRules.check(OtherAgentRecord.class, withAgents)).singleElement().asString()
+                .contains("agent_profile.persona_key");
+        assertThat(ExposureRules.check(OwnerAgentSecret.class, withAgents)).singleElement().asString()
+                .contains("agent_profile.owner_member_id");
+        assertThat(ExposureRules.OWNER_AGENT_RECORDS).containsExactlyInAnyOrder(antlab.agent.AgentSummaryDto.class,
+                antlab.league.LeagueTableAiDto.class, antlab.league.LeagueTableEntryDto.class);
+        assertThat(ExposureRules.OWNER_AGENT_SOURCES).doesNotContain("agent_profile.owner_member_id", "league.seed",
+                "season.seed");
+    }
 }

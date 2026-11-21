@@ -48,4 +48,23 @@ public interface SeasonRepository extends Repository<Season, Long> {
             where s.memberId = :memberId order by s.id desc
             """)
     List<SeasonWithBalance> findWithBalanceByMemberId(@Param("memberId") Long memberId);
+
+    /**
+     * Season counts per agent in one grouped query. A stored PAUSED season with {@code pausedAt <= cutoff} (cutoff = now
+     * minus {@link Season#PAUSE_LIMIT}) is an overdue pause and counts as an unfinished abandon, the same cut as
+     * {@link Season#pauseExpired}; nothing is written.
+     */
+    @Query("""
+            select new antlab.agent.AgentSeasonCountRow(s.memberId, count(s),
+                count(case when s.status = antlab.season.SeasonStatus.FINISHED then 1 end),
+                count(case when s.status = antlab.season.SeasonStatus.VOID then 1 end),
+                count(case when s.status = antlab.season.SeasonStatus.ABANDONING
+                    or (s.status = antlab.season.SeasonStatus.PAUSED and s.pausedAt <= :cutoff) then 1 end),
+                count(case when s.status = antlab.season.SeasonStatus.IN_PROGRESS then 1 end),
+                count(case when s.status = antlab.season.SeasonStatus.PAUSED and s.pausedAt > :cutoff then 1 end),
+                count(case when s.status = antlab.season.SeasonStatus.HALTED then 1 end))
+            from Season s where s.memberId in :memberIds group by s.memberId
+            """)
+    List<antlab.agent.AgentSeasonCountRow> findAgentSeasonCounts(@Param("memberIds") Collection<Long> memberIds,
+            @Param("cutoff") Instant cutoff);
 }

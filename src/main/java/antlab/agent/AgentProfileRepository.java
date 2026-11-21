@@ -1,7 +1,10 @@
 package antlab.agent;
 
+import java.util.List;
 import java.util.Optional;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.Repository;
+import org.springframework.data.repository.query.Param;
 
 /** AgentProfile repository: insert, read, and the identity lookup the runner registration needs. No delete. */
 public interface AgentProfileRepository extends Repository<AgentProfile, Long> {
@@ -12,4 +15,12 @@ public interface AgentProfileRepository extends Repository<AgentProfile, Long> {
 
     Optional<AgentProfile> findByOwnerMemberIdAndPersonaKeyAndModelRouteAndModelId(Long ownerMemberId,
             String personaKey, ModelRoute modelRoute, String modelId);
+
+    /** The owner's agents with their member names, in one query, oldest agent first. */
+    @Query("""
+            select new antlab.agent.AgentListRow(p.memberId, m.name, p.personaKey, p.modelRoute, p.modelId, p.status)
+            from AgentProfile p join Member m on m.id = p.memberId
+            where p.ownerMemberId = :ownerId order by p.memberId
+            """)
+    List<AgentListRow> findRowsByOwner(@Param("ownerId") Long ownerId);
 }

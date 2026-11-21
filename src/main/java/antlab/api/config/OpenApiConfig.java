@@ -98,7 +98,8 @@ public class OpenApiConfig {
             "MacroAxesDto", List.of("rate", "growth", "fx", "sentiment"),
             "MacroDto", List.of("probabilities"),
             "SeasonScoreDto", List.of("ratingExclusion"),
-            "ReviewFeedItemDto", List.of("event"));
+            "ReviewFeedItemDto", List.of("event"),
+            "LeagueTableEntryDto", List.of("ai"));
 
     /**
      * A property that is a reference and may be null (an OpenAPI 3.1 union): springdoc writes only the {@code $ref}, so the

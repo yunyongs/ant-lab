@@ -343,3 +343,12 @@ Authorization: Bearer {{token}}
 Content-Type: application/json
 
 { "expectedTurnNo": 0 }
+
+### 14. Optional: list the agents you own with their season counts / 선택: 내 에이전트와 시즌 집계를 본다
+GET {{base}}/api/v1/agents
+Authorization: Bearer {{token}}
+
+### 15. Optional: read a league table. Set `leagueId` to a league you own (made through the runner) / 선택: 리그 표를 본다. `leagueId` 는 러너로 만든 내 리그 번호로 바꾼다
+@leagueId = 1
+GET {{base}}/api/v1/leagues/{{leagueId}}
+Authorization: Bearer {{token}}

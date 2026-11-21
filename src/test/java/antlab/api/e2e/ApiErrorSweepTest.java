@@ -71,8 +71,8 @@ class ApiErrorSweepTest {
             return method + " " + template;
         }
 
-        boolean onSeason() {
-            return template.contains("{seasonId}");
+        boolean onIdPath() {
+            return template.contains("{seasonId}") || template.contains("{leagueId}");
         }
 
         boolean hasTurnNo() {
@@ -80,12 +80,12 @@ class ApiErrorSweepTest {
         }
 
         /** A concrete path: {@code seasonId} and {@code turnNo} filled in. */
-        String path(String seasonId, String turnNo) {
-            return template.replace("{seasonId}", seasonId).replace("{turnNo}", turnNo);
+        String path(String id, String turnNo) {
+            return template.replace("{seasonId}", id).replace("{leagueId}", id).replace("{turnNo}", turnNo);
         }
 
-        String path(String seasonId) {
-            return path(seasonId, "1");
+        String path(String id) {
+            return path(id, "1");
         }
 
         String validBody() {
@@ -175,7 +175,7 @@ class ApiErrorSweepTest {
             probes.add(new Probe("no bearer token", 401, ErrorCode.UNAUTHENTICATED));
             probes.add(new Probe("forged bearer token", 401, ErrorCode.UNAUTHENTICATED));
         }
-        if (op.onSeason()) {
+        if (op.onIdPath()) {
             probes.add(new Probe("non-numeric season id", 400, ErrorCode.INVALID_ARGUMENT));
             probes.add(new Probe("unknown season", 404, ErrorCode.NOT_FOUND));
             probes.add(new Probe("unknown member token", 401, ErrorCode.UNAUTHENTICATED));
