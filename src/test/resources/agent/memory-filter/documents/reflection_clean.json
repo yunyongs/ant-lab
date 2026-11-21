@@ -1,0 +1,17 @@
+{
+ "schema": "season-reflection/1",
+ "good": [
+  "포메이션을 지켰다",
+  "낙폭이 선언에 닿기 전에 줄였다",
+  "한 턴에 두 종목만 바꿨다"
+ ],
+ "mistakes": [
+  {
+   "type": "CHASE_BUY",
+   "text": "오른 종목을 뒤쫓아 샀다"
+  }
+ ],
+ "ruleCandidates": [
+  "뉴스 한 줄로 매매하지 않는다"
+ ]
+}
