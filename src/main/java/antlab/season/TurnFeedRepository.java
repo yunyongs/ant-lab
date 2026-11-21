@@ -34,4 +34,13 @@ public interface TurnFeedRepository extends AppendOnlyRepository<TurnFeed, Long>
             + "from TurnFeed f left join MonthEvent me on me.id = f.monthEventId "
             + "where f.season.id = :seasonId order by f.turnNo, f.seq")
     List<RevealedFeedRow> findRevealedFeed(@Param("seasonId") long seasonId);
+
+    /**
+     * Reflection view only: the feed items that orders of a finished season cited (order turn, display number, stored kind),
+     * in order. Reads the {@code [복기 전용]} kind, hence the name; {@code ReflectionTurnReader} is the only caller and calls
+     * it after the FINISHED and release checks.
+     */
+    @Query("select new antlab.season.CitedFeedRow(o.turnNo, f.turnNo, f.seq, f.kind) from Orders o join TurnFeed f on f.id = o.turnFeedId "
+            + "where o.seasonId = :seasonId order by o.turnNo, o.id")
+    List<CitedFeedRow> findRevealedCitedItems(@Param("seasonId") long seasonId);
 }

@@ -593,6 +593,137 @@ paths:
                 $ref: '#/components/schemas/Problem'
         '500':
           $ref: '#/components/responses/InternalError'
+  /internal/agent-runner/v1/agents/{agentId}/memory:
+    get:
+      tags: [agent]
+      operationId: getAgentMemory
+      summary: Memory state of the agent / 에이전트의 기억 상태
+      description: |-
+        Returns the agent's latest memory version (null without one), the finished seasons that wait for a reflection and whose review is released (eligible: FINISHED and not abandoned; in finish order, so the first one is the next to write), and how many such seasons an open league or an open same-seed group still holds back. Only the agent's own record is read.
+
+        에이전트의 최신 메모리 버전(없으면 null), 복기를 기다리는 끝난 시즌 중 복기가 공개된 것(자격: FINISHED 이고 포기하지 않음, 끝난 순서대로이며 첫 번째가 다음에 쓸 시즌), 열린 리그나 열린 같은 시드 묶음이 아직 붙들고 있는 같은 종류의 시즌 수를 준다. 에이전트 본인의 기록만 읽는다.
+      parameters:
+        - $ref: '#/components/parameters/AgentId'
+      responses:
+        '200':
+          description: The memory state / 기억 상태
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentMemoryStateDto'
+        '400':
+          description: The agent number is not a number — INVALID_ARGUMENT / 에이전트 번호가 숫자가 아니다 — INVALID_ARGUMENT
+          x-error-codes: [INVALID_ARGUMENT]
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          description: The agent does not exist or is not this owner's. One answer for both — NOT_FOUND / 에이전트가 없거나 이 소유자의 것이 아니다. 둘 다 같은 응답이다 — NOT_FOUND
+          x-error-codes: [NOT_FOUND]
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /internal/agent-runner/v1/agents/{agentId}/memory/{version}:
+    get:
+      tags: [agent]
+      operationId: getAgentMemoryVersion
+      summary: One memory version of the agent / 에이전트의 메모리 버전 하나
+      description: |-
+        Returns one memory version of the agent as a season pinned to it reads it: the operating note of that version and the reflections that made that version and the two before it (oldest first, at most 3), plus whether the note was carried over from the version before and when the version was written. Older versions stay readable. A version the agent does not have is not found.
+
+        에이전트의 메모리 버전 하나를 그 버전에 고정한 시즌이 읽는 모양으로 준다: 그 버전의 운용 노트와 그 버전과 앞선 두 버전을 만든 복기(오래된 것부터, 최대 3개), 노트를 앞 버전에서 이어 받았는지, 버전을 쓴 시각. 이전 버전도 읽을 수 있다. 에이전트에 없는 버전은 없는 것과 같다.
+      parameters:
+        - $ref: '#/components/parameters/AgentId'
+        - name: version
+          in: path
+          required: true
+          description: Memory version, 1 or more / 메모리 버전, 1 이상
+          schema:
+            type: integer
+            format: int32
+            minimum: 1
+      responses:
+        '200':
+          description: The memory version / 메모리 버전
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentMemoryVersionDto'
+        '400':
+          description: A number in the path is not a number or the version is below 1 — INVALID_ARGUMENT / 경로의 번호가 숫자가 아니거나 버전이 1 미만이다 — INVALID_ARGUMENT
+          x-error-codes: [INVALID_ARGUMENT]
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          description: The agent does not exist or is not this owner's, or it has no such version. One answer for all — NOT_FOUND / 에이전트가 없거나 이 소유자의 것이 아니거나 그 버전이 없다. 모두 같은 응답이다 — NOT_FOUND
+          x-error-codes: [NOT_FOUND]
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /internal/agent-runner/v1/agents/{agentId}/seasons/{seasonId}/reflection-view:
+    get:
+      tags: [agent]
+      operationId: getReflectionView
+      summary: What the agent sees of a finished season for its reflection / 복기를 쓰는 에이전트가 끝난 시즌에서 보는 것
+      description: |-
+        Returns what the agent writes its reflection from: the base memory version and operating note (null and empty for the first), the path length, the season report and the stored score, and for every decision turn 0 to pathLength - 1 a relative label (such as 1년차 7월), the agent's own stated reason, its fills (asset, side, quantity; no price), the engine's rejects, and the display number and kind of the feed items its orders cited. No date, month, event name, seed, price or feed text is carried. It is available only when the season is the next one to write: FINISHED, not VOID, not abandoned, without an outcome, with its league and same-seed group closed, and with no earlier released season waiting. The score is made on demand; until it is stored the answer is SCORE_PENDING.
+
+        에이전트가 복기를 쓸 때 바탕이 되는 것을 준다: 기준 메모리 버전과 운용 노트(처음이면 null과 빈 목록), 경로 길이, 시즌 성적표와 저장된 점수, 그리고 결정 턴 0부터 pathLength - 1 마다 상대 라벨(예: 1년차 7월), 에이전트 본인이 적은 이유, 체결(종목·방향·수량, 가격 없음), 엔진의 거부, 주문이 인용한 피드 항목의 표시 번호와 종류. 날짜·달·사건 이름·시드·가격·피드 문장은 싣지 않는다. 시즌이 다음에 쓸 차례일 때만 열린다: FINISHED 이고 VOID 도 포기도 아니며 결과가 아직 없고, 리그와 같은 시드 묶음이 닫혔고, 먼저 공개된 대기 시즌이 없어야 한다. 점수는 요청 때 만들며, 저장되기 전에는 SCORE_PENDING 이다.
+      parameters:
+        - $ref: '#/components/parameters/AgentId'
+        - $ref: '#/components/parameters/SeasonId'
+      responses:
+        '200':
+          description: The reflection view / 복기 화면
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReflectionViewDto'
+        '400':
+          description: A number in the path is not a number — INVALID_ARGUMENT / 경로의 번호가 숫자가 아니다 — INVALID_ARGUMENT
+          x-error-codes: [INVALID_ARGUMENT]
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          description: The agent does not exist or is not this owner's, or the season is not this agent's. One answer for all — NOT_FOUND / 에이전트가 없거나 이 소유자의 것이 아니거나 시즌이 이 에이전트의 것이 아니다. 모두 같은 응답이다 — NOT_FOUND
+          x-error-codes: [NOT_FOUND]
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: The season cannot be reflected on now — SEASON_NOT_FINISHED, MEMORY_NOT_ELIGIBLE (VOID or abandoned), MEMORY_DONE (an outcome is recorded), LEAGUE_OPEN (its league or same-seed group is still open), MEMORY_ORDER (an earlier released season must come first) / 지금은 복기를 쓸 수 없다 — SEASON_NOT_FINISHED, MEMORY_NOT_ELIGIBLE(VOID 또는 포기), MEMORY_DONE(결과가 이미 있다), LEAGUE_OPEN(리그나 같은 시드 묶음이 아직 열려 있다), MEMORY_ORDER(먼저 공개된 시즌이 앞선다)
+          x-error-codes: [SEASON_NOT_FINISHED, MEMORY_NOT_ELIGIBLE, MEMORY_DONE, LEAGUE_OPEN, MEMORY_ORDER]
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          description: The season score is not stored yet; try again later — SCORE_PENDING / 시즌 점수가 아직 저장되지 않았다. 잠시 뒤 다시 시도한다 — SCORE_PENDING
+          x-error-codes: [SCORE_PENDING]
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
   /internal/agent-runner/v1/leagues:
     post:
       tags: [league]
@@ -1955,6 +2086,435 @@ components:
         currentTurnNo:
           type: integer
           format: int32
+    AgentMemoryStateDto:
+      type: object
+      required: [latestVersion, pendingSeasonIds, heldSeasonCount]
+      properties:
+        latestVersion:
+          type: [integer, 'null']
+          format: int32
+          minimum: 1
+          description: Latest memory version; null when the agent has none / 최신 메모리 버전, 없으면 null
+        pendingSeasonIds:
+          type: array
+          description: Finished, eligible seasons without an outcome whose review is released, in finish order / 결과가 없는 끝난 시즌 중 복기가 공개된 것, 끝난 순서대로
+          items:
+            type: integer
+            format: int64
+        heldSeasonCount:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Such seasons an open league or group still holds back / 열린 리그나 묶음이 아직 붙들고 있는 같은 종류의 시즌 수
+    AgentMemoryDto:
+      type: object
+      description: |-
+        The memory a season pinned to one version reads: the operating note of that version and the reflections that made that version and the two before it
+
+        한 버전에 고정한 시즌이 읽는 기억: 그 버전의 운용 노트와 그 버전과 앞선 두 버전을 만든 복기
+      required: [version, playbook, reflections]
+      properties:
+        version:
+          type: integer
+          format: int32
+          minimum: 1
+        playbook:
+          type: array
+          description: Rules of the operating note (operating-note/1), each at most 150 characters / 운용 노트(operating-note/1)의 규칙, 각각 150자 이하
+          minItems: 1
+          maxItems: 15
+          items:
+            type: string
+        reflections:
+          type: array
+          description: season-reflection/1 bodies (docs/api/season-reflection-1.schema.json), oldest first, at most 3 / season-reflection/1 본문, 오래된 것부터 최대 3개
+          maxItems: 3
+          items:
+            type: object
+    AgentMemoryVersionDto:
+      type: object
+      required: [memory, playbookCarried, createdAt]
+      properties:
+        memory:
+          $ref: '#/components/schemas/AgentMemoryDto'
+        playbookCarried:
+          type: boolean
+          description: True when the rewrite failed and the note of the version before was kept / 다시 쓰기에 실패해 앞 버전의 노트를 그대로 둔 경우 true
+        createdAt:
+          type: string
+          format: date-time
+    ReflectionViewDto:
+      type: object
+      description: |-
+        What an agent sees of a finished season to write its reflection. No date, month, event name, seed, price or feed text
+
+        에이전트가 복기를 쓰려고 끝난 시즌에서 보는 것. 날짜·달·사건 이름·시드·가격·피드 문장은 없다
+      required: [baseVersion, basePlaybook, pathLength, report, score, turns]
+      properties:
+        baseVersion:
+          type: [integer, 'null']
+          format: int32
+          minimum: 1
+          description: The latest memory version the new one is built on; null for the first / 새 버전의 바탕이 되는 최신 메모리 버전, 첫 번째면 null
+        basePlaybook:
+          type: array
+          description: Rules of the base operating note; empty without a base / 기준 운용 노트의 규칙, 기준이 없으면 빈 목록
+          items:
+            type: string
+        pathLength:
+          type: integer
+          format: int32
+        report:
+          $ref: '#/components/schemas/SeasonReportDto'
+        score:
+          $ref: '#/components/schemas/SeasonScoreDto'
+        turns:
+          type: array
+          description: Decision turns 0 to pathLength - 1, in order / 결정 턴 0부터 pathLength - 1 까지, 순서대로
+          items:
+            $ref: '#/components/schemas/ReflectionTurnDto'
+    ReflectionTurnDto:
+      type: object
+      required: [turnNo, label, reason, fills, rejects, cited]
+      properties:
+        turnNo:
+          type: integer
+          format: int32
+          minimum: 0
+        label:
+          type: string
+          pattern: '^[1-9][0-9]*년차 ([1-9]|1[0-2])월$'
+          description: Relative label, year of play and month of that year from the start; not a calendar date / 상대 라벨, 시작부터 센 해와 그 해의 달. 달력 날짜가 아니다
+        reason:
+          type: [string, 'null']
+          description: The agent's own stated reason for the turn; null when it made no usable decision / 에이전트가 그 턴에 적은 이유, 쓸 수 있는 결정이 없으면 null
+        fills:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReflectionFillDto'
+        rejects:
+          type: array
+          description: Units the engine rejected in that turn's decision / 그 턴 결정에서 엔진이 거부한 단위
+          items:
+            $ref: '#/components/schemas/RejectDto'
+        cited:
+          type: array
+          description: Feed items the orders of the turn cited, by turn, display number and kind / 그 턴 주문이 인용한 피드 항목, 표시 번호와 종류
+          items:
+            $ref: '#/components/schemas/ReflectionCitedDto'
+    ReflectionFillDto:
+      type: object
+      required: [asset, side, quantity]
+      properties:
+        asset:
+          type: string
+          pattern: '^(KR|US):[A-Z0-9.]{1,12}$'
+          description: MARKET:TICKER / 시장:종목코드
+        side:
+          $ref: '#/components/schemas/OrderSide'
+        quantity:
+          type: integer
+          format: int32
+    ReflectionCitedDto:
+      type: object
+      required: [feedTurnNo, seq, kind]
+      properties:
+        feedTurnNo:
+          type: integer
+          format: int32
+          minimum: 1
+          description: Turn the feed item was shown in; an order may cite an earlier turn's item / 피드 항목이 나온 턴. 주문은 이전 턴의 항목도 인용할 수 있다
+        seq:
+          type: integer
+          format: int32
+        kind:
+          type: string
+          enum: [RISE, FALL, ECHO, SPREAD, FADE, EVENT, NUDGE]
+    SeasonReportDto:
+      type: object
+      description: Season report / 시즌 성적표
+      required: [seasonStatus, isFinal, reportTurns, pathLength, pendingOrders, pendingChanges, initialCash, finalValue, totalReturn, monthlyVolatility, maxDrawdown, baselineFinalValue, baselineReturn, excessReturn, riskLimit, riskBreachTurns, riskBreachDepth, maxSingleWeight, tradeNotional, turnoverAnnual, formationDeviation, measuredFormationDeviation, roleFit, rolePlayersJudged, rolePlayersUnjudged, nudgeShare, nudgeSameTurnShare, totalFee, teamFee, formationChangeFee, platformNudgeFee, formationChanges, formationChangeOrders, changesWithoutOrders, reconMismatchRows, reconTurnBundles, reconManualBundles, reconOutOfRangeRows]
+      properties:
+        seasonStatus:
+          $ref: '#/components/schemas/SeasonStatus'
+          description: Season status (FINISHED, because only a finished season has a report) / 시즌 상태(끝난 시즌만 성적표를 내므로 FINISHED)
+        isFinal:
+          type: boolean
+          description: |-
+            Whether the report is final (true for a finished season; an interim report during play comes after the MVP)
+
+            확정 여부(끝난 시즌이면 true, 진행 중 잠정 성적표는 MVP 이후)
+        reportTurns:
+          type: integer
+          format: int32
+          description: Number of reported turns = the last snapshot turn / 보고 턴 수 = 마지막 스냅샷 턴
+        pathLength:
+          type: integer
+          format: int32
+          description: Path length (number of turns) / 경로 길이(턴 수)
+        pendingOrders:
+          type: integer
+          format: int32
+          description: Pending orders of the reported turn (0 for a finished season) / 보고 턴의 보류 주문 수(끝난 시즌은 0)
+        pendingChanges:
+          type: integer
+          format: int32
+          description: Pending formation changes of the reported turn (0 for a finished season) / 보고 턴의 보류 전술 변경 수(끝난 시즌은 0)
+        initialCash:
+          type: string
+          format: decimal
+          description: Initial capital, whole KRW / 초기 자금, 원 단위 정수
+        finalValue:
+          type: string
+          format: decimal
+          description: Final total valuation, whole KRW / 최종 총 평가액, 원 단위 정수
+        totalReturn:
+          type: string
+          format: decimal
+          description: Total return = (final − initial) ÷ initial, 8 decimal places / 총 수익률 = (최종 − 초기) ÷ 초기, 소수 8자리
+        monthlyVolatility:
+          type: [string, null]
+          format: decimal
+          description: |-
+            Monthly volatility = sample standard deviation of monthly returns (n − 1), not annualized, 8 decimal places. null for one turn
+
+            월 변동성 = 월 수익률의 표본 표준편차(n − 1), 연율화하지 않음, 소수 8자리. 한 턴이면 null
+        maxDrawdown:
+          type: string
+          format: decimal
+          description: Maximum drawdown (0 or less), 8 decimal places / 최대 낙폭(0 이하), 소수 8자리
+        baselineFinalValue:
+          type: string
+          format: decimal
+          description: |-
+            Final valuation of the benchmark (buy and hold of a proxy ETF for the market index), whole KRW
+
+            기준선(시장 지수 대용 ETF 매수 후 보유)의 최종 평가액, 원 단위 정수
+        baselineReturn:
+          type: string
+          format: decimal
+          description: Benchmark return, 8 decimal places / 기준선 수익률, 소수 8자리
+        excessReturn:
+          type: string
+          format: decimal
+          description: |-
+            Excess return = (final − benchmark final) ÷ initial, divided once — not the difference of two returns. 8 decimal places
+
+            초과 수익률 = (최종 − 기준선 최종) ÷ 초기, 한 번 나눔 — 두 수익률의 차가 아니다. 소수 8자리
+        riskLimit:
+          type: string
+          format: decimal
+          description: Risk limit (0 or less), 8 decimal places / 위험 선언(0 이하), 소수 8자리
+        riskBreachTurns:
+          type: integer
+          format: int32
+          description: Number of turns where the drawdown crossed the risk limit / 낙폭이 위험 선언을 넘은 턴 수
+        riskBreachDepth:
+          type: string
+          format: decimal
+          description: Deepest excess beyond the risk limit (0 or less, 0 if never crossed), 8 decimal places / 위험 선언을 넘은 가장 깊은 정도(0 이하, 넘은 적 없으면 0), 소수 8자리
+        maxSingleWeight:
+          type: string
+          format: decimal
+          description: |-
+            Maximum single-asset share = the maximum over turns of (largest asset value ÷ total valuation) (0 without holdings), 8 decimal places
+
+            최대 단일 종목 비중 = 턴마다 (가장 큰 종목 가치 ÷ 총 평가액)의 최댓값(보유가 없으면 0), 소수 8자리
+        tradeNotional:
+          type: string
+          format: decimal
+          description: Total traded amount (fill price × quantity, turn-0 team setup excluded), whole KRW / 매매 대금 합(체결가 × 수량, 0턴 팀 구성 제외), 원 단위 정수
+        turnoverAnnual:
+          type: string
+          format: decimal
+          description: |-
+            Annualized turnover = 12 × traded amount ÷ sum of per-turn total valuations, 8 decimal places
+
+            연 환산 회전율 = 12 × 매매 대금 ÷ 턴별 총 평가액 합, 소수 8자리
+        formationDeviation:
+          type: string
+          format: decimal
+          description: |-
+            Average formation deviation = exact average over turns of Σ|actual share − target share| (divided once by the common denominator), 8 decimal places. Declared positions; not scored from s63-v3 (see measuredFormationDeviation)
+
+            포메이션 이탈 평균 = 턴마다 Σ|실제 비중 − 목표 비중|의 정확한 평균(공통 분모로 한 번 나눔), 소수 8자리. 선언 포지션 기준이며 s63-v3부터 채점하지 않음(measuredFormationDeviation 참고)
+        measuredFormationDeviation:
+          type: string
+          format: decimal
+          description: |-
+            Average formation deviation on season-measured positions (the scored basis from score version s63-v3; seasons scored under s63-v1 or s63-v2 keep the declared basis): the same formula as formationDeviation, with the actual weights grouped by the position each player really played on this season's path; a player the season cannot measure counts by the base-date system judgement, never by the declaration; cash is goalkeeper. Declared positions do not enter, so relabelling cannot change it. Provisional while the season runs. 8 decimal places
+
+            시즌 실측 포지션 기준 포메이션 이탈 평균(점수 버전 s63-v3부터 채점 기준, s63-v1·s63-v2로 채점한 시즌은 선언 기준 그대로): 식은 formationDeviation과 같고 실제 비중을 이 시즌 경로에서 선수가 실제로 한 역할로 묶는다. 시즌으로 실측할 수 없는 선수는 기준일 시스템 판정으로 세고 선언으로는 세지 않으며 현금은 골키퍼다. 선언 포지션은 들어가지 않으므로 라벨을 바꿔도 값이 달라지지 않는다. 진행 중에는 잠정, 소수 8자리
+        roleFit:
+          type: [string, null]
+          format: decimal
+          description: |-
+            Role fit = the exposed value of players whose declared and measured season positions match ÷ the exposed value of measured players, 8 decimal places. null if there is no measured exposure.
+
+            역할 수행 = 선언과 시즌 실측 포지션이 같은 선수의 노출 가치 ÷ 실측된 선수의 노출 가치, 소수 8자리. 실측된 노출이 없으면 null
+        rolePlayersJudged:
+          type: integer
+          format: int32
+          description: Number of exposed assets whose position was measured / 실측 포지션이 나온 노출 종목 수
+        rolePlayersUnjudged:
+          type: integer
+          format: int32
+          description: Number of exposed assets that could not be measured for lack of samples (counted by the base-date system judgement in measuredFormationDeviation) / 표본 부족으로 실측하지 못한 노출 종목 수(measuredFormationDeviation에서는 기준일 시스템 판정으로 센다)
+        nudgeShare:
+          type: [string, null]
+          format: decimal
+          description: |-
+            Encouragement share = traded amount from trades initiated through rankings, feed and alerts ÷ traded amount, 8 decimal places. null if the traded amount is 0.
+
+            독려 비중 = 랭킹·피드·알림에서 시작된 매매 대금 ÷ 매매 대금, 소수 8자리. 매매 대금이 0이면 null
+        nudgeSameTurnShare:
+          type: [string, null]
+          format: decimal
+          description: |-
+            Same-turn encouragement share = encouraged traded amount whose ranking or feed turn equals the order turn ÷ traded amount, 8 decimal places. null if the traded amount is 0
+
+            같은 턴 독려 비중 = 랭킹 또는 피드 턴과 주문 턴이 같은 독려 매매 대금 ÷ 매매 대금, 소수 8자리. 매매 대금이 0이면 null
+        totalFee:
+          type: string
+          format: decimal
+          description: Total fees (turn-0 team setup included), whole KRW / 수수료 합(0턴 팀 구성 포함), 원 단위 정수
+        teamFee:
+          type: string
+          format: decimal
+          description: Turn-0 team setup fees (buys and sells), whole KRW / 0턴 팀 구성 수수료(매수·매도 모두), 원 단위 정수
+        formationChangeFee:
+          type: string
+          format: decimal
+          description: Total fees of fills linked to a formation change, whole KRW / 전술 변경에 연결된 체결의 수수료 합, 원 단위 정수
+        platformNudgeFee:
+          type: string
+          format: decimal
+          description: |-
+            Encouragement portion of platform revenue = fees from trades initiated through rankings and alerts, whole KRW.
+
+            플랫폼 수익 중 독려 몫 = 랭킹·알림에서 시작된 매매의 수수료, 원 단위 정수
+        formationChanges:
+          type: integer
+          format: int32
+          description: Number of formation changes (in the report range) / 전술 변경 수(보고 범위)
+        formationChangeOrders:
+          type: integer
+          format: int32
+          description: Number of orders linked to a formation change / 전술 변경에 연결된 주문 수
+        changesWithoutOrders:
+          type: integer
+          format: int32
+          description: Number of formation changes with no linked order / 연결된 주문이 없는 전술 변경 수
+        reconMismatchRows:
+          type: integer
+          format: int32
+          description: Number of recorded reconciliation mismatch rows (recovered attempts included) / 기록된 대사 불일치 행 수(복구된 시도 포함)
+        reconTurnBundles:
+          type: integer
+          format: int32
+          description: Number of turn-advance reconciliation bundles (17 rows per turn and attempt) / 턴 전환 대사 묶음 수(턴·시도마다 17행)
+        reconManualBundles:
+          type: integer
+          format: int32
+          description: Number of manual reconciliation bundles (15 rows per turn and attempt) / 수동 대사 묶음 수(턴·시도마다 15행)
+        reconOutOfRangeRows:
+          type: integer
+          format: int32
+          description: Number of reconciliation rows for turns beyond the path length / 경로 길이를 넘는 턴의 대사 행 수
+    SeasonScoreDto:
+      type: object
+      description: Season score / 시즌 점수
+      required: [scoreVersion, score, resultScore, processScore, luckPercentile, sharpeDiffPercentile, items, processItems, countedInRating, ratingExclusion]
+      properties:
+        scoreVersion:
+          type: string
+          description: Formula version the score was computed with / 점수를 계산한 공식 버전
+        score:
+          type: [string, 'null']
+          format: decimal
+          description: |-
+            Season score 0.00-100.00 = 0.5 x result + 0.5 x process; null when the season has no path distribution
+
+            시즌 점수 0.00~100.00 = 0.5 × 결과 + 0.5 × 과정. 경로 분포가 없으면 null
+        resultScore:
+          type: [string, 'null']
+          format: decimal
+          description: |-
+            Result score = 100 x the mid-rank percentile of the Sharpe difference among the engine paths of the season-start team held still; null without a distribution
+
+            결과 점수 = 100 × (시즌 시작 팀을 그대로 보유한 엔진 경로들 안에서 샤프 차이의 중간 순위 백분위). 분포가 없으면 null
+        processScore:
+          type: string
+          format: decimal
+          description: |-
+            Process score: the equal-weight mean of the item scores that have a value, 0.00-100.00 / 과정 점수: 값이 있는 항목 점수의 같은 가중 평균, 0.00~100.00
+        luckPercentile:
+          type: [string, 'null']
+          format: decimal
+          description: |-
+            Where the end value of the start team, held still, sits among the engine paths, 0-1, 8 decimals; shown, not scored
+
+            시작 팀을 그대로 보유했을 때의 최종 가치가 엔진 경로 안에서 놓이는 자리, 0~1, 소수 8자리. 보여 주기만 하고 점수에는 넣지 않는다
+        sharpeDiffPercentile:
+          type: [string, 'null']
+          format: decimal
+          description: |-
+            Mid-rank percentile of the Sharpe difference among the engine paths, 0-1, 8 decimals
+
+            샤프 차이의 경로 안 중간 순위 백분위, 0~1, 소수 8자리
+        items:
+          $ref: '#/components/schemas/SeasonScoreItemsDto'
+          description: The nine process item scores; all nine keys are always present, null where the input does not exist yet / 과정 항목 점수 아홉 개. 키는 항상 아홉 개이고 입력이 아직 없으면 null
+        processItems:
+          type: integer
+          format: int32
+          description: How many item scores have a value (1-9) / 값이 있는 항목 점수의 수(1~9)
+        countedInRating:
+          type: boolean
+          description: Whether the season counts in the manager rating / 시즌이 매니저 레이팅에 집계되는지
+        ratingExclusion:
+          oneOf:
+            - $ref: '#/components/schemas/RatingExclusion'
+            - type: 'null'
+          description: |-
+            Why the season is left out of the rating: NOT_STARTED (abandoned before turn 3 by a human) or NO_SCORE (no path distribution); null when it counts
+
+            레이팅에서 빠진 이유: NOT_STARTED(사람이 3턴 전에 포기), NO_SCORE(경로 분포 없음). 집계되면 null
+    SeasonScoreItemsDto:
+      type: object
+      description: Process item scores / 과정 항목 점수
+      required: [risk, discipline, diversification, turnover, consistency, formation, role, noise, nudge]
+      properties:
+        risk:
+          type: [string, 'null']
+          format: decimal
+        discipline:
+          type: [string, 'null']
+          format: decimal
+        diversification:
+          type: [string, 'null']
+          format: decimal
+        turnover:
+          type: [string, 'null']
+          format: decimal
+        consistency:
+          type: [string, 'null']
+          format: decimal
+        formation:
+          type: [string, 'null']
+          format: decimal
+        role:
+          type: [string, 'null']
+          format: decimal
+        noise:
+          type: [string, 'null']
+          format: decimal
+        nudge:
+          type: [string, 'null']
+          format: decimal
+    RatingExclusion:
+      type: string
+      enum: [NOT_STARTED, NO_SCORE]
     Problem:
       type: object
       description: RFC 9457 problem details + a top-level code / RFC 9457 문제 상세 + 최상위 code
@@ -1995,4 +2555,5 @@ components:
              INVALID_FORMATION, EVENT_TIME_CONFLICT, RECONCILIATION_FAILED, SEASON_HALTED, FORBIDDEN, EMAIL_TAKEN,
              UNAUTHENTICATED, INVALID_CREDENTIALS, AGENT_RETIRED, DECISION_CONFLICT, DECISION_MISSING,
              PERSONA_VERSION_CONFLICT, PERSONA_VERSION_STALE, LEAGUE_NOT_SETTLED, LEAGUE_CLOSED, LEAGUE_SEAT_TAKEN,
-             LEAGUE_FULL, LEAGUE_STALE, LEAGUE_OPEN, MEMORY_VERSION_UNKNOWN]
+             LEAGUE_FULL, LEAGUE_STALE, LEAGUE_OPEN, MEMORY_VERSION_UNKNOWN, MEMORY_DONE, MEMORY_ORDER, MEMORY_NOT_ELIGIBLE,
+             SCORE_PENDING]
