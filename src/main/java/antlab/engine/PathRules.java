@@ -11,7 +11,7 @@ import java.util.Set;
  * 경로 규칙 검사기(순수). 위반한 규칙의 이름만 돌려주고 달·번호는 싣지 않는다([복기 전용] 값).
  * 운영 사후 검사, 골든 고정 경로, 시험이 함께 쓴다.
  * <ul>
- *   <li>S1_COUNT 행 수 = 길이 · S1_RANGE 모든 달이 2007-01-01 이상 기준일 해 1월 1일 미만</li>
+ *   <li>S1_COUNT 행 수 = 길이 · S1_RANGE 모든 달이 재생 시작(기본 2007-01-01) 이상 기준일 해 1월 1일 미만</li>
  *   <li>S4 턴 k 의 달 = ((k−1) % 12) + 1월 · REUSE 같은 달을 두 번 쓰지 않음</li>
  *   <li>BLOCK_GAP 블록 안의 연속된 턴이 연속된 달이 아님(끊긴 곳을 넘음) · BLOCK_JOIN 블록 경계가 역사 그대로 이어짐 —
  *       블록 길이를 아는 검사에서만 본다</li>
@@ -29,6 +29,13 @@ public final class PathRules {
 
     /** blockLength &gt; 0 이면 BLOCK_GAP·BLOCK_JOIN 도 본다. */
     public static List<String> violations(List<LocalDate> months, LocalDate baseDate, int length, int blockLength) {
+        return violations(months, baseDate, length, blockLength, SimpleBootstrap.REPLAY_START);
+    }
+
+    /** Same checks with the configured replay start (S1_RANGE). */
+    public static List<String> violations(List<LocalDate> months, LocalDate baseDate, int length, int blockLength,
+            LocalDate replayStart) {
+        Objects.requireNonNull(replayStart, "replayStart");
         Objects.requireNonNull(months, "months");
         Objects.requireNonNull(baseDate, "baseDate");
         List<String> result = new ArrayList<>();
@@ -42,7 +49,7 @@ public final class PathRules {
         Set<LocalDate> seen = new HashSet<>();
         for (int i = 0; i < months.size(); i++) {
             LocalDate m = months.get(i);
-            outOfRange |= m.isBefore(SimpleBootstrap.REPLAY_START) || !m.isBefore(upper);
+            outOfRange |= m.isBefore(replayStart) || !m.isBefore(upper);
             calendar |= m.getMonthValue() != (i % 12) + 1;
             reuse |= !seen.add(m);
         }

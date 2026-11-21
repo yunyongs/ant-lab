@@ -6,6 +6,7 @@ import antlab.engine.client.EngineClient;
 import antlab.engine.client.EnginePathRequest;
 import antlab.engine.client.EnginePathResult;
 import antlab.engine.client.EngineProperties;
+import antlab.history.HistoryProperties;
 import antlab.history.MonthBlockRepository;
 import antlab.history.ReplayMonth;
 import java.time.LocalDate;
@@ -31,18 +32,25 @@ public final class EnginePathSource implements PathSource {
     private final EngineClient client;
     private final MonthBlockRepository monthBlocks;
     private final String engineVersion;
+    private final LocalDate replayStart;
 
     public EnginePathSource(EngineClient client, EngineProperties properties, MonthBlockRepository monthBlocks) {
+        this(client, properties, monthBlocks, HistoryProperties.defaults());
+    }
+
+    public EnginePathSource(EngineClient client, EngineProperties properties, MonthBlockRepository monthBlocks,
+            HistoryProperties history) {
         this.client = client;
         this.monthBlocks = monthBlocks;
         this.engineVersion = properties.pathVersion();
+        this.replayStart = history.replayStart();
     }
 
     @Override
     public GeneratedPath generate(PathRequest request) {
         requireAllowedLength(request.length());
         List<ReplayMonth> replayable = monthBlocks.findReplayMonths(
-                SimpleBootstrap.REPLAY_START, SimpleBootstrap.replayUpperBound(request.baseDate()));
+                replayStart, SimpleBootstrap.replayUpperBound(request.baseDate()));
 
         EnginePathResult result = client.createPath(
                 EnginePathRequest.of(engineVersion, request.seed(), request.length(), request.baseDate()));
@@ -51,7 +59,7 @@ public final class EnginePathSource implements PathSource {
             throw mismatch("engine.version_mismatch", "engine version differs from the requested one");
         }
         String expectedDigest = HistoryDigest.of(engineVersion,
-                replayable.stream().map(ReplayMonth::monthStart).toList(), request.baseDate());
+                replayable.stream().map(ReplayMonth::monthStart).toList(), request.baseDate(), replayStart);
         if (!expectedDigest.equals(result.historyDigest())) {
             throw mismatch("engine.view_mismatch", "engine history differs from the database history");
         }
@@ -93,9 +101,9 @@ public final class EnginePathSource implements PathSource {
      */
     private List<String> violations(List<LocalDate> months, PathRequest request) {
         if (SimpleBootstrap.ENGINE_VERSION.equals(engineVersion)) {
-            return PathRules.violations(months, request.baseDate(), request.length(), SimpleBootstrap.BLOCK_LENGTH);
+            return PathRules.violations(months, request.baseDate(), request.length(), SimpleBootstrap.BLOCK_LENGTH, replayStart);
         }
-        return PathRules.violations(months, request.baseDate(), request.length()).stream()
+        return PathRules.violations(months, request.baseDate(), request.length(), 0, replayStart).stream()
                 .filter(rule -> !"S4".equals(rule)).toList();
     }
 

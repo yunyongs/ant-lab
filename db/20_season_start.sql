@@ -19,7 +19,19 @@
 -- 새 문법: 임시 표에 설정을 한 번만 적고 여러 INSERT … SELECT 가 읽기, 데이터 변경 CTE(WITH … INSERT … RETURNING)로 건수 세기,
 --       CREATE TEMP VIEW 로 이 시즌 찾기, ROUND(numeric, 0) 한 번(PLAN §5.2), 트랜잭션 하나로 6개 테이블을 묶어 한 곳이 실패하면 전부 되돌리기.
 -- 명령줄(psql)이 기준이다. VS Code 에서는 통합 터미널에서 실행한다.
+-- 재생 시작(S1): psql 변수 replay_start (-v replay_start=2007-01-01). 없으면 2007-01-01 — 애플리케이션 antlab.history.replay-start 의 기본값과 같아야 한다
+--       (시험 ReplayStartDefaultParityTest 가 두 기본값을 묶는다).
 -- =====================================================================
+
+\if :{?replay_start}
+\else
+  \set replay_start 2007-01-01
+\endif
+DO $$ BEGIN
+    IF date_trunc('month', :'replay_start'::date)::date <> :'replay_start'::date THEN
+        RAISE EXCEPTION 'replay_start must be the first day of a month';
+    END IF;
+END $$;
 
 BEGIN;
 
@@ -54,7 +66,7 @@ INSERT INTO ss_setting VALUES (
 );
 
 -- [손 경로] 턴 번호와 실제 달. 블록 안은 실제 순서대로 이어지고, 블록 사이는 이어지지 않는다. 한 달 = 한 턴.
---           고른 규칙: 턴 k 의 달 = ((k − 1) % 12) + 1 월 (달력 정렬, S4) · 2007-01-01 이상 기준일 해 1월 1일 미만 (S1) ·
+--           고른 규칙: 턴 k 의 달 = ((k − 1) % 12) + 1 월 (달력 정렬, S4) · 재생 시작(기본 2007-01-01) 이상 기준일 해 1월 1일 미만 (S1) ·
 --           블록 3개(길이 4·3·3, 연대순 아님) · 관심 지수가 있는 달만. 수익률·가격을 보지 않고 골랐다.
 CREATE TEMP TABLE ss_path (
     turn_no     smallint NOT NULL,
@@ -303,7 +315,7 @@ BEGIN
 END $$;
 
 -- [사후 단언] 이번 실행이 끝난 DB 기준 (erd S1·S4 와 시작 직후에도 언제나 참인 것)
---   S1: 행 수 = path_length, turn_no 1..path_length 빈틈 없음, 모든 달이 2007-01-01 이상 · 기준일 해 1월 1일 미만
+--   S1: 행 수 = path_length, turn_no 1..path_length 빈틈 없음, 모든 달이 재생 시작(replay_start, 기본 2007-01-01) 이상 · 기준일 해 1월 1일 미만
 --   S4: 턴 k 의 달 = ((k − 1) % 12) + 1 월
 --   블록 수 ≥ 2 (역사 한 구간을 그대로 재생하지 않는다), 0턴 가격은 있고 current_turn_no 를 넘는 가격은 없다 (S3)
 INSERT INTO ss_err
@@ -315,9 +327,9 @@ SELECT 'S1: turn_no 가 1..path_length 의 빈틈 없는 열이 아니다'
 FROM ss_cur c
 WHERE (SELECT count(DISTINCT sp.turn_no) FROM season_path sp WHERE sp.season_id = c.id AND sp.turn_no BETWEEN 1 AND c.path_length) <> c.path_length
 UNION ALL
-SELECT 'S1: 재생 범위(2007-01-01 이상, 기준일 해 1월 1일 미만)를 벗어난 턴 ' || count(*) || ' 개'
+SELECT 'S1: 재생 범위(' || :'replay_start' || ' 이상, 기준일 해 1월 1일 미만)를 벗어난 턴 ' || count(*) || ' 개'
 FROM ss_cur c JOIN season_path sp ON sp.season_id = c.id JOIN month_block mb ON mb.id = sp.month_block_id
-WHERE mb.month_start < DATE '2007-01-01' OR mb.month_start >= date_trunc('year', c.base_date::timestamp)::date
+WHERE mb.month_start < DATE :'replay_start' OR mb.month_start >= date_trunc('year', c.base_date::timestamp)::date
 GROUP BY c.id HAVING count(*) > 0
 UNION ALL
 SELECT 'S4: 달력 정렬을 어긴 턴 ' || count(*) || ' 개'

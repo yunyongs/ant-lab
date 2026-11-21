@@ -27,6 +27,13 @@
 -- 명령줄(psql)이 기준이다. VS Code 에서는 통합 터미널에서 실행한다.
 -- =====================================================================
 
+-- 재생 시작(S1): psql 변수 replay_start (기본 2007-01-01, db/20 과 같다). $q$ 문자열 안에는 psql 변수가 풀리지 않아 세션 설정으로 넘긴다.
+\if :{?replay_start}
+\else
+  \set replay_start 2007-01-01
+\endif
+SELECT set_config('antlab.replay_start', :'replay_start', false) AS replay_start \gset
+
 -- 판정 표식: 트랜잭션이 되돌아가도 남는 임시 시퀀스 (1 = 미완료 또는 실패, 2 = 1–8절 통과·흔적 확인 대기, 0 = 최종 통과)
 CREATE TEMP SEQUENCE IF NOT EXISTS zz_verdict MINVALUE 0 START 1;
 DO $$ BEGIN
@@ -234,9 +241,9 @@ INSERT INTO zz_q (code, section, item, sql) VALUES
      $q$SELECT abs((SELECT count(*) FROM season_path sp JOIN zz_cur c ON c.id = sp.season_id) - (SELECT path_length FROM zz_cur))
              + (SELECT count(*) FROM generate_series(1, (SELECT path_length::int FROM zz_cur)) g(n)
                 WHERE NOT EXISTS (SELECT 1 FROM season_path sp JOIN zz_cur c ON c.id = sp.season_id WHERE sp.turn_no = g.n))$q$),
-    ('PATH_RANGE', '3 경로', 'S1 뒷부분: 2007-01-01 이상 · 기준일이 속한 해 1월 1일 미만을 벗어난 턴 수 (PLAN §4.2 "작년 말까지")',
+    ('PATH_RANGE', '3 경로', 'S1 뒷부분: 재생 시작(기본 2007-01-01) 이상 · 기준일이 속한 해 1월 1일 미만을 벗어난 턴 수 (PLAN §4.2 "작년 말까지")',
      $q$SELECT count(*) FROM zz_cur c JOIN season_path sp ON sp.season_id = c.id JOIN month_block mb ON mb.id = sp.month_block_id
-        WHERE mb.month_start < DATE '2007-01-01'
+        WHERE mb.month_start < current_setting('antlab.replay_start')::date
            OR mb.month_start >= make_date(EXTRACT(YEAR FROM c.base_date)::int, 1, 1)$q$),
     ('CALENDAR', '3 경로', 'S4: 턴 k 의 실제 달의 월 ≠ ((k − 1) % 12) + 1 인 턴 수 (PLAN §4.11 달력 정렬)',
      $q$SELECT count(*) FROM zz_cur c JOIN season_path sp ON sp.season_id = c.id JOIN month_block mb ON mb.id = sp.month_block_id

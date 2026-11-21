@@ -2,6 +2,7 @@ package antlab.engine;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import antlab.history.HistoryProperties;
 import antlab.history.MonthBlockRepository;
 import antlab.history.ReplayMonth;
 import antlab.support.FixedPathSource;
@@ -73,6 +74,19 @@ class BootstrapPathSourceTest {
                 assertThat(source.generate(req).monthBlockIds()).isEqualTo(path.monthBlockIds());
                 assertThat(path.engineVersion()).isEqualTo("p0-boot6-v1");
             }
+        }
+    }
+
+    @Test
+    void 재생_시작을_늦추면_운영_출처는_그_앞의_달을_뽑지_않는다() {
+        LocalDate later = LocalDate.of(2010, 1, 1);
+        BootstrapPathSource late = new BootstrapPathSource(repository, new HistoryProperties(later));
+        Map<Long, LocalDate> monthById = new HashMap<>();
+        repository.findReplayMonths(LocalDate.of(2000, 1, 1), LocalDate.of(2100, 1, 1))
+                .forEach(m -> monthById.put(m.monthBlockId(), m.monthStart()));
+        for (long seed = 0; seed < 100; seed++) {
+            GeneratedPath path = late.generate(new PathRequest(BASE, 24, seed));
+            assertThat(path.monthBlockIds().stream().map(monthById::get)).allSatisfy(m -> assertThat(m).isAfterOrEqualTo(later));
         }
     }
 

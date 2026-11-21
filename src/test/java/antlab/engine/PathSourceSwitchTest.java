@@ -5,6 +5,7 @@ import static org.mockito.Mockito.mock;
 
 import antlab.engine.client.EngineClient;
 import antlab.engine.client.EngineProperties;
+import antlab.history.HistoryProperties;
 import antlab.history.MonthBlockRepository;
 import java.time.Duration;
 import org.junit.jupiter.api.Test;
@@ -24,6 +25,7 @@ class PathSourceSwitchTest {
                 .withUserConfiguration(PathSourceConfig.class, BootstrapPathSource.class)
                 .withBean(MonthBlockRepository.class, () -> mock(MonthBlockRepository.class))
                 .withBean(EngineClient.class, () -> client)
+                .withBean(HistoryProperties.class, HistoryProperties::defaults)
                 .withBean(EngineProperties.class, () -> properties(mode));
     }
 

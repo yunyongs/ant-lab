@@ -42,6 +42,11 @@ antlab:
   db:
     # MVP-20: refuse to start when the DB user is not the least-privilege role. On in prod.
     least-privilege-check: false
+  history:
+    # First month a season path may draw (erd S1, MVP-06 B13); months before it are warm-up only. First day of a month, before January 1 of the base-date year.
+    # 2007-01-01 is the Phase 0 sample start; the value measured by the coverage report replaces it at the full load (R-L).
+    # db/20 reads the same value through psql -v replay_start=... (default 2007-01-01).
+    replay-start: ${ANTLAB_HISTORY_REPLAY_START:2007-01-01}
   pool:
     # 기준일 풀(PLAN §7 매년 1월 첫 거래일). 표본 = 2026-01-02(db/20_season_start.sql 설정 표와 같음)
     base-date: ${ANTLAB_POOL_BASE_DATE:2026-01-02}

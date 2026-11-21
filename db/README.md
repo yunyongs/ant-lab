@@ -42,6 +42,11 @@ psql -X -q -v ON_ERROR_STOP=1 -d antlab_api -f db/13_calc_attention_check.sql
 시즌 시작 골든(`SeasonStartGoldenTest`, P0-30)은 하네스 컨테이너의 API DB(Flyway로 V1–V4가 적용된 DB)에 이 순서에서 **`10 → 12`만** 적재한다(`SqlGoldenScenario.apiDbLoad()`; 11·13은 시즌 시작에 사용하지 않는다). 시즌은 `POST /api/v1/seasons`로 만들고, 같은 DB에 `20_season_start_check.sql`을 그대로 실행해 `p0_14_check = PASS`인지 확인한다.
 `10`을 적재하기 전이면 409 `POOL_NOT_LOADED`, `12`를 계산하기 전이면 409 `POOL_NOT_JUDGED`다. 기준일은
 `antlab.pool.base-date` 설정(환경 변수 `ANTLAB_POOL_BASE_DATE`, 기본 2026-01-02)으로 정한다.
+The replay start is the setting `antlab.history.replay-start` (env `ANTLAB_HISTORY_REPLAY_START`, default 2007-01-01); `db/20` and its check read the same value through the psql variable `replay_start` (default 2007-01-01).
+재생 시작은 `antlab.history.replay-start` 설정(환경 변수 `ANTLAB_HISTORY_REPLAY_START`, 기본 2007-01-01)이고, `db/20`·`db/20_season_start_check.sql`은 같은 값을 psql 변수로 받는다: `psql -v replay_start=2007-01-01 -f db/20_season_start.sql`(생략하면 2007-01-01).
+
+The full-history golden tests compare every row of a database loaded by `db/30` and calculated by `db/12`/`db/13` with the Java calculators when `ANTLAB_FULL_DATA_DB_URL` (JDBC URL, plus optional `_USER`/`_PASSWORD`) is set. Read-only (a role with SELECT and TEMP is enough: the position definition creates temporary views and functions); skipped with a reason otherwise (CI never sets it).
+전체 이력 골든(`AttentionCalculatorFullDataGoldenTest`, `BaseDatePositionFullDataGoldenTest`, MVP-06)은 `db/30` 적재와 `db/12`·`db/13` 계산이 끝난 DB를 `ANTLAB_FULL_DATA_DB_URL`(JDBC URL, 필요하면 `ANTLAB_FULL_DATA_DB_USER`·`ANTLAB_FULL_DATA_DB_PASSWORD`)로 가리키면 모든 행을 Java 계산과 정확히 비교한다. 읽기만 하며(SELECT와 TEMP 권한만 있는 역할 권장 — 위치 판정 정의가 임시 뷰·함수를 만든다), 설정이 없으면 이유를 적고 건너뛴다(CI는 설정하지 않는다).
 
 `antlab_api`에서는 (b)·(b′)(01–03 전체 파일. 테이블을 지운다)와 20번대 SQL(시즌·팀·대사·턴 —
 API에서는 Java가 쓴다)을 실행하지 않는다. 적재한 뒤에는 01–03 `_check`도 실행하지 않는다(0절이 빈 테이블을
