@@ -220,6 +220,45 @@ Bias: one current fee is applied to every past proxy month of an ETF. Real fees 
 
 **Dry run.** `-v partial=1` on the current raw cache shows which inputs and cells are still missing (the drip is incomplete until every KIS file is cached); it never relaxes a stop.
 
+## Load (MVP-06 B1)
+
+`db/30_load_full.sql` loads the build outputs into a Flyway-migrated database; `db/30_load_full_check.sql` checks the result. Both refuse to run without `-v ON_ERROR_STOP=1` (a missing file would otherwise commit a partial set, and the check could end on a stale `PASS`); the load is one-time (once collectors add months, a re-run with the 360-month files is refused). Both run from the repository root (`\copy` paths are relative to it) and read one directory, the psql variable `indir` (default `db/full`). Files read: `asset_group.csv`, `asset.csv` (tracked), `month_block.csv`, `fx_month.csv`, `asset_position.csv`, `asset_month_return.csv` (build outputs). `lineage.csv` is not a table (plan D-7); the check reads it into a temporary table together with `proxy_series.csv`.
+
+```
+psql -X -v ON_ERROR_STOP=1 -d <db> -f db/30_load_full.sql
+psql -X -q -A -v ON_ERROR_STOP=1 -d <db> -f db/30_load_full_check.sql
+psql -X -v ON_ERROR_STOP=1 -d <db> -f db/12_calc_position.sql    # then db/13_calc_attention.sql
+```
+
+**Load rules.**
+- Same way as `db/10`: all-text staging tables, `\copy ... HEADER MATCH`, input checks (quoted empty strings, blanks in required cells, whitespace in keys, 4/8-decimal formats, duplicate keys, dangling references), natural-key joins, `INSERT ... ON CONFLICT (natural key) DO NOTHING`. A second run with the same files inserts 0 rows and leaves every row, id and `created_at` as it was (a re-run uses up identity numbers for the skipped rows; nothing reads ids as counts).
+- **Refusal rule.** Nothing is ever deleted or updated. The load stops, and rolls everything back before it inserts, when (1) a row that is already in the database has the natural key of a file row but another value (asset: name, type, currency, group, listing date, basis, proxy name; position: price, FX, rank; return: value and kind; FX change; group: name, kind), (2) the database has an `asset` or a `month_block` that no file names, or (3) the database already holds rows in any of the six tables and this run would insert any row (only an empty database or a complete earlier load passes; the owner's rebuild in place of `antlab_api` (Q8) starts empty). A database that holds the Phase 0 sample is refused this way (its proxy names and its US 2008-01..2012-04 returns differ; D-14): load the full history into a freshly migrated database.
+- Not loaded: the position judgement columns of `asset_position` (`db/12`), the regime and event columns of `month_block`, and attention (`db/13`).
+- KR tickers are 6 upper-case letters or digits (`0019K0` exists in the pool); `db/10` still insists on 6 digits, which is its Phase 0 rule.
+
+**Checks** (each violation is a row `code|detail`, at most 20 per code; the script then fails with exit code 3 and prints no `PASS`; `PASS` as the last line with zero rows means success). Variables `first_month` (1996-01-01), `exp_months` (360), `exp_assets` (180), `stock_actual_from` (2007-01-01) default to the full history; tests pass fixture sizes.
+
+| Code | Rule |
+|------|------|
+| `CNT_MONTH`, `CNT_ASSET`, `CNT_RETURN`, `CNT_FX`, `CNT_POS` | row counts 360 / 180 / 64,800 / 360 / 180 |
+| `CAL_MISSING`, `CAL_EXTRA` | months are exactly `first_month` .. +`exp_months`-1 |
+| `H1` | one USD base-date rate per date, KRW is 1 |
+| `H3` | no empty (asset, month) cell |
+| `H4` | exactly one USD FX row per month |
+| `H7_LINEAGE_MISSING`, `_DUP`, `_ORPHAN`, `H7_KIND` | every cell has exactly one lineage row of the same `return_kind`, and every lineage row has a cell |
+| `H7_PROXY_SERIES` | a `PROXY_INDEX` cell has a lineage row that names a series of `proxy_series.csv` |
+| `H7_ACTUAL_SERIES` | an `ACTUAL` cell has no series |
+| `H7_STOCK` | stocks are `ACTUAL` from `stock_actual_from` (the PLAN 4.7 stock rule, not the replay start) |
+| `H7_ETF_LISTING` | an ETF has no `ACTUAL` month in or before its listing month |
+| `H7_BASIS` | KR basis `PRICE`, US basis `TOTAL` |
+| `A2` | a `PROXY_INDEX` month after the asset's first `ACTUAL` month is reported (interior gap) |
+| `R2_NAME_MISSING`, `R2_NAME_EXTRA` | `proxy_index_name` is set exactly for assets with at least one proxy month |
+| `FMT_TICKER`, `ETF_RANK`, `POS_MISSING`, `POS_BASE_DATE` | ticker form, no ETF rank, every asset has a base-date row, one base date |
+
+Not in this script: H2 (`db/12_calc_position_check.sql`), H5 and H6 (`db/11_load_events_check.sql`), H8 (`db/13_calc_attention_check.sql`), H9 (`db/12_calc_position_check.sql`). That the fee/12 deduction only touched ETF proxy months cannot be seen in the database (no fee is stored); the build fixture test covers it.
+
+**Tests.** `src/test/java/antlab/history/FullHistoryLoadTest.java` (Testcontainers PostgreSQL 17, Flyway, the 06-A build fixture): load twice (second run 0 new rows, every row unchanged), the check passes, refusals leave the database as it was, bad input is rejected, and one planted violation per check code gives exactly one row of that code.
+
 ---
 
 # db/full — MVP 종목 풀 (승인용 선정 결과)
@@ -425,3 +464,25 @@ iShares 수치(EEM, EFA, IEF, IWM, SHY, TLT), `091160`, QQQ는 소유자가 2026
 **시험.** `tools/fetch/.venv/bin/python -I -m pytest -q tests`(`tools/fetch`에서)가 임시 폴더의 유닉스 소켓에서 버릴 PostgreSQL 17을 띄운다(`initdb`·`pg_ctl`·`psql`이 없으면 이유와 함께 건너뛴다). 합성 세계(`tools/fetch/tests/fixtures/build_full/`, 가짜 티커, 2006-09–2007-04, `make_build_full_fixture.py`로 만듦)에 골든 출력(`expected/`), `build_full_reference.py`와의 일치 시험, 모든 만기를 지나는 10년 채권 시험, 하드 스톱마다 하나씩의 부정 시험이 있다.
 
 **예행.** 현재 원본 캐시에 `-v partial=1`을 돌리면 아직 없는 입력과 칸이 나온다(KIS 파일을 모두 받기 전에는 드립이 끝나지 않은 상태). 멈춤 조건은 풀지 않는다.
+
+## 적재 (MVP-06 B1)
+
+`db/30_load_full.sql`은 빌드 산출물을 Flyway로 만든 DB에 넣고, `db/30_load_full_check.sql`은 결과를 검사한다. 둘 다 `-v ON_ERROR_STOP=1` 없이는 실행하지 않는다(파일이 없을 때 일부만 커밋되거나 검사가 낡은 `PASS`로 끝나는 것을 막는다). 적재는 한 번만 하는 것이다(수집기가 달을 더한 뒤 360개월 파일로 다시 돌리면 거부된다). 둘 다 저장소 루트에서 실행하며(`\copy` 경로가 루트 기준) 한 폴더, 곧 psql 변수 `indir`(기본 `db/full`)만 읽는다. 읽는 파일은 `asset_group.csv`·`asset.csv`(추적), `month_block.csv`·`fx_month.csv`·`asset_position.csv`·`asset_month_return.csv`(빌드 산출물)이다. `lineage.csv`는 테이블이 아니다(계획 D-7). 검사가 `proxy_series.csv`와 함께 임시 테이블로 읽는다.
+
+```
+psql -X -v ON_ERROR_STOP=1 -d <db> -f db/30_load_full.sql
+psql -X -q -A -v ON_ERROR_STOP=1 -d <db> -f db/30_load_full_check.sql
+psql -X -v ON_ERROR_STOP=1 -d <db> -f db/12_calc_position.sql    # 그다음 db/13_calc_attention.sql
+```
+
+**적재 규칙.**
+- `db/10`과 같은 방식이다: 모두 text인 스테이징 테이블, `\copy ... HEADER MATCH`, 입력 검사(따옴표 친 빈 문자열, 필수 칸의 빈 칸, 키의 공백, 소수 4·8자리 형식, 키 중복, 끊긴 참조), 자연 키 조인, `INSERT ... ON CONFLICT (자연 키) DO NOTHING`. 같은 파일로 다시 실행하면 새 행이 0이고 모든 행, id, `created_at`이 그대로다(다시 실행하면 건너뛴 행만큼 identity 번호가 소비된다. id를 개수로 읽는 곳은 없다).
+- **거부 규칙.** 아무것도 지우거나 고치지 않는다. 다음이면 넣기 전에 전부 되돌리고 멈춘다. (1) DB에 이미 있는 행이 파일 행과 자연 키가 같은데 값이 다르다(종목: 이름·유형·통화·그룹·상장일·기준·대체 지수명, 기준일 행: 가격·환율·순위, 수익률: 값·종류, 환율 변화, 그룹: 이름·종류). (2) DB에 어떤 파일에도 없는 `asset`이나 `month_block`이 있다. (3) 여섯 테이블 중 어느 한 곳에 이미 행이 있는데 이번 실행이 새 행을 넣게 된다(빈 DB 또는 완전한 이전 적재만 통과. 소유자의 `antlab_api` 제자리 재구성(Q8)은 빈 DB에서 시작한다). Phase 0 표본이 든 DB는 이렇게 거부된다(대체 지수명과 미국 2008-01–2012-04 수익률이 다르다. D-14). 전체 이력은 새로 Flyway를 돌린 DB에 넣는다.
+- 넣지 않는 것: `asset_position`의 판정 컬럼(`db/12`), `month_block`의 국면·사건 컬럼, 관심 지수(`db/13`).
+- KR 티커는 대문자 영문·숫자 6자다(풀에 `0019K0`이 있다). `db/10`은 아직 숫자 6자만 받는데 그것은 Phase 0 규칙이다.
+
+**검사**(위반마다 `code|detail` 행, 코드당 최대 20행. 위반이 있으면 종료 코드 3으로 끝나고 `PASS`는 나오지 않는다. 위반 0행에 마지막 줄이 `PASS`면 성공). 변수 `first_month`(1996-01-01), `exp_months`(360), `exp_assets`(180), `stock_actual_from`(2007-01-01)의 기본값이 전체 이력이고, 시험은 작은 값을 넘긴다. 위 영문 표의 코드와 규칙이 같다.
+
+여기서 하지 않는 것: H2(`db/12_calc_position_check.sql`), H5·H6(`db/11_load_events_check.sql`), H8(`db/13_calc_attention_check.sql`), H9(`db/12_calc_position_check.sql`). 보수/12 차감이 ETF 대체 달에만 적용됐는지는 DB에 보수가 없어 볼 수 없다(빌드 고정물 시험이 맡는다).
+
+**시험.** `src/test/java/antlab/history/FullHistoryLoadTest.java`(Testcontainers PostgreSQL 17, Flyway, 06-A 빌드 고정물): 두 번 적재(두 번째는 새 행 0, 모든 행 그대로), 검사 통과, 거부 시 DB 그대로, 잘못된 입력 거부, 검사 코드마다 위반을 하나 심으면 그 코드의 행이 정확히 1개 나온다.
