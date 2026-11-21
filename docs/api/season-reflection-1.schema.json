@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "season-reflection/1",
+  "description": "An agent's own filtered reflection on one finished season. Shape only: the leak filter memory-filter/1 and the total size cap (600 characters over all strings, counted after NFC) are checked separately by the API. Every string is at most 120 characters. / 에이전트가 끝난 시즌 하나에 대해 쓰는 필터 통과 복기다. 이 파일은 모양만 정하며, 누출 필터 memory-filter/1과 전체 길이 상한(모든 문자열 합 600자, NFC 기준)은 API가 따로 검사한다. 문자열은 각각 120자 이하다.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "good",
+    "mistakes",
+    "ruleCandidates"
+  ],
+  "properties": {
+    "schema": {
+      "const": "season-reflection/1"
+    },
+    "good": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {
+        "$ref": "#/$defs/line"
+      }
+    },
+    "mistakes": {
+      "type": "array",
+      "maxItems": 3,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "type",
+          "text"
+        ],
+        "properties": {
+          "type": {
+            "enum": [
+              "RISK_BREACH",
+              "PANIC_SELL",
+              "CHASE_BUY",
+              "OVERTRADE",
+              "CONCENTRATION",
+              "STRUCTURE_DRIFT",
+              "ROLE_MISS",
+              "NOISE_FOLLOW",
+              "NUDGE_FOLLOW",
+              "OTHER"
+            ]
+          },
+          "text": {
+            "$ref": "#/$defs/line"
+          }
+        }
+      }
+    },
+    "ruleCandidates": {
+      "type": "array",
+      "maxItems": 3,
+      "items": {
+        "$ref": "#/$defs/line"
+      }
+    }
+  },
+  "$defs": {
+    "line": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120
+    }
+  }
+}

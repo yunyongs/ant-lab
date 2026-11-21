@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "operating-note/1",
+  "description": "An agent's operating note (playbook): a short list of rules rewritten after each accepted reflection. Shape only: the leak filter memory-filter/1 and the total size cap (2,000 characters over all rules, counted after NFC) are checked separately by the API. Every rule is at most 150 characters. / 에이전트의 운용 노트(플레이북)로, 받아들여진 복기마다 다시 쓰는 짧은 규칙 목록이다. 이 파일은 모양만 정하며, 누출 필터 memory-filter/1과 전체 길이 상한(모든 규칙 합 2,000자, NFC 기준)은 API가 따로 검사한다. 규칙은 각각 150자 이하다.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "rules"
+  ],
+  "properties": {
+    "schema": {
+      "const": "operating-note/1"
+    },
+    "rules": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 15,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 150
+      }
+    }
+  }
+}
