@@ -24,7 +24,7 @@ public final class PsqlScriptRunner {
     public static final String WORK_ROOT = "/work";
 
     private static final Pattern SAFE_PATH = Pattern.compile("[A-Za-z0-9_][A-Za-z0-9_./-]*");
-    private static final Pattern SAFE_VAR_NAME = Pattern.compile("[a-z][a-z0-9_]{0,30}");
+    private static final Pattern SAFE_VAR_NAME = Pattern.compile("[A-Za-z][A-Za-z0-9_]{0,30}");
     private static final Pattern SAFE_VAR_VALUE = Pattern.compile("[A-Za-z0-9_.-]{0,40}");
     private static final Pattern SAFE_DB = Pattern.compile("[a-z][a-z0-9_]{0,62}");
     /** timeout 명령이 시간 초과로 끝날 때의 종료 코드 */
