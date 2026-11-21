@@ -35,4 +35,12 @@ class AttentionRulesSqlParityTest {
         assertThat(new BigDecimal(literal(sql, "bonus_step"))).isEqualByComparingTo(AttentionRules.BONUS_STEP);
         assertThat(Integer.parseInt(literal(sql, "streak_cap"))).isEqualTo(AttentionRules.STREAK_CAP);
     }
+
+    @Test
+    void 창_프레임의_12가_상수와_같다() throws IOException {
+        Matcher m = Pattern.compile("ROWS BETWEEN (\\d+) PRECEDING AND 1 PRECEDING").matcher(Files.readString(DEFINITION));
+        assertThat(m.find()).as("window frame").isTrue();
+        assertThat(Integer.parseInt(m.group(1))).isEqualTo(AttentionRules.WINDOW_MONTHS);
+        assertThat(m.find()).as("one frame").isFalse();
+    }
 }
