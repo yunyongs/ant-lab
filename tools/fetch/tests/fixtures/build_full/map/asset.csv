@@ -1,0 +1,9 @@
+market,ticker,name,asset_type,currency,group_code,listed_on,return_basis,proxy_index_name
+KR,100001,Fake stock A,STOCK,KRW,FIN,2000-01-03,PRICE,
+KR,100002,Fake stock B,STOCK,KRW,FIN,2000-01-03,PRICE,
+KR,200001,Fake bond ETF,ETF,KRW,BOND,2000-01-03,PRICE,
+KR,200002,Fake gold ETF,ETF,KRW,GOLD,2000-01-03,PRICE,
+KR,200003,Fake mix ETF,ETF,KRW,MIX,2000-01-03,PRICE,
+US,SPY,Fake index ETF,ETF,USD,IDX,2000-01-03,TOTAL,
+US,TECH1,Fake tech stock,STOCK,USD,TECH,2000-01-03,TOTAL,
+US,MIXE,Fake mix ETF US,ETF,USD,MIX,2000-01-03,TOTAL,

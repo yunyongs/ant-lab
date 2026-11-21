@@ -1,0 +1,9 @@
+market,ticker,name,asset_type,group_code,listed_on,listed_check,return_basis,rule,rule_rank,mcap_rank_public,mcap_asof,source_url,kis_excd,yf_symbol,kis_first_month,yf_first_month,has_2006_12,status,owner_decision,note
+KR,100001,Fake stock A,STOCK,FIN,2000-01-03,CONFIRMED,PRICE,RULE,1,1,2026-11-01,https://example.org/terms,,,2006-08,,Y,SELECTED,,
+KR,100002,Fake stock B,STOCK,FIN,2000-01-03,CONFIRMED,PRICE,RULE,2,2,2026-11-01,https://example.org/terms,,,2006-11,,Y,SELECTED,,
+KR,200001,Fake bond ETF,ETF,BOND,2000-01-03,CONFIRMED,PRICE,RULE,3,,2026-11-01,https://example.org/terms,,,2006-12,,Y,SELECTED,,
+KR,200002,Fake gold ETF,ETF,GOLD,2000-01-03,CONFIRMED,PRICE,RULE,4,,2026-11-01,https://example.org/terms,,,2006-11,,Y,SELECTED,,
+KR,200003,Fake mix ETF,ETF,MIX,2000-01-03,CONFIRMED,PRICE,RULE,5,,2026-11-01,https://example.org/terms,,,2006-12,,Y,SELECTED,,
+US,SPY,Fake index ETF,ETF,IDX,2000-01-03,CONFIRMED,TOTAL,RULE,6,,2026-11-01,https://example.org/terms,,,2006-08,,Y,SELECTED,,
+US,TECH1,Fake tech stock,STOCK,TECH,2000-01-03,CONFIRMED,TOTAL,RULE,7,1,2026-11-01,https://example.org/terms,,,2006-08,,Y,SELECTED,,
+US,MIXE,Fake mix ETF US,ETF,MIX,2000-01-03,CONFIRMED,TOTAL,RULE,8,,2026-11-01,https://example.org/terms,,,2006-12,,Y,SELECTED,,
