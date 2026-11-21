@@ -16,7 +16,7 @@ from antlab_engine.metrics import SlotPool
 from antlab_engine.projection import Portfolio, rank
 
 from . import PROBLEM_RESPONSES, RETRY_AFTER_HEADER
-from .deps import history_reader, projection_slots
+from .deps import history_reader, projection_slots, replay_start
 from .percentile_models import (
     PercentilePortfolio,
     PercentileRequest,
@@ -62,6 +62,7 @@ def create_percentile(
     benchmark = _portfolio("BENCHMARK", request.benchmark)
     # resolved after the checks: a bad request is 400 even without a configured database
     reader = history_reader(http_request)
+    start = replay_start(http_request)
     if not slots.acquire(blocking=False):
         raise EngineBusy("Too many projections are running; try again later.")
     try:
@@ -77,9 +78,10 @@ def create_percentile(
             observed_end_multiple=Decimal(request.observed.endMultiple),
             observed_sharpe_diff=Decimal(request.observed.sharpeDiff),
             n=request.n,
+            replay_start=start,
         )
         used = sorted({asset for p in (team, benchmark) for asset, _ in p.active})
-        digest = history_digest(snapshot, panel, used, request.baseDate)
+        digest = history_digest(snapshot, panel, used, request.baseDate, start)
     finally:
         slots.release()
     return PercentileResult(

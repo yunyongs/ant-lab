@@ -1,3 +1,4 @@
+from datetime import date
 from threading import BoundedSemaphore
 
 from fastapi import Request
@@ -20,6 +21,10 @@ def history_reader(request: Request) -> HistoryReader:
     if reader is None:
         raise HistoryUnavailable(NOT_CONFIGURED)
     return reader
+
+
+def replay_start(request: Request) -> date:
+    return request.app.state.replay_start
 
 
 def regime_slot(request: Request) -> BoundedSemaphore:

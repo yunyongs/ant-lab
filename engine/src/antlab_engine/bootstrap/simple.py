@@ -44,7 +44,9 @@ def replay_upper_bound(base_date: date) -> date:
     return date(base_date.year, 1, 1)
 
 
-def _present(months: Sequence[date], base_date: date) -> list[int]:
+def _present(
+    months: Sequence[date], base_date: date, replay_start: date = REPLAY_START
+) -> list[int]:
     """Month indexes inside the replay range, ascending; input order does not matter."""
     upper = replay_upper_bound(base_date)
     seen: set[int] = set()
@@ -53,7 +55,7 @@ def _present(months: Sequence[date], base_date: date) -> list[int]:
             raise TypeError("months must contain date values")
         if start.day != 1:
             raise ValueError("invalid month list: a month does not start on day 1")
-        if start < REPLAY_START or start >= upper:
+        if start < replay_start or start >= upper:
             continue
         index = _index(start)
         if index in seen:
@@ -66,11 +68,17 @@ def _overlaps(start: int, used: set[int]) -> bool:
     return any(start + i in used for i in range(BLOCK_LENGTH))
 
 
-def generate_months(months: Sequence[date], base_date: date, length: int, seed: int) -> list[date]:
+def generate_months(
+    months: Sequence[date],
+    base_date: date,
+    length: int,
+    seed: int,
+    replay_start: date = REPLAY_START,
+) -> list[date]:
     """First-of-month dates of the path in turn order."""
     _require_int(length, "length")
     rng = SplitMix64(seed)
-    present = _present(months, base_date)
+    present = _present(months, base_date, replay_start)
     if length > MAX_LENGTH:
         raise PathTooLong(f"Path length {length} turns cannot be built (allowed: 12, 24, 60)")
     if length not in ALLOWED_LENGTHS:

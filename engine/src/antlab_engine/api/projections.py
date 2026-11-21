@@ -22,7 +22,7 @@ from antlab_engine.projection import PROJECTION_VERSION, Portfolio, Projection, 
 from antlab_engine.projection.stats import BAND_POINTS, MDD_POINTS
 
 from . import PROBLEM_RESPONSES, RETRY_AFTER_HEADER
-from .deps import history_reader, projection_slots
+from .deps import history_reader, projection_slots, replay_start
 from .projection_models import (
     EndQuantiles,
     MddQuantiles,
@@ -63,7 +63,11 @@ def _plain(value: Decimal) -> str:
 
 
 def history_digest(
-    snapshot: HistorySnapshot, panel: ReturnPanel, used: list[str], base_date: date
+    snapshot: HistorySnapshot,
+    panel: ReturnPanel,
+    used: list[str],
+    base_date: date,
+    replay_start: date = REPLAY_START,
 ) -> str:
     """SHA-256 over the versions, the held assets and the source returns of the eligible months.
 
@@ -83,7 +87,7 @@ def history_digest(
     lines = [PROJECTION_VERSION, stationary.ENGINE_VERSION, " ".join(used)]
     for row in panel.rows_with(used):
         month = panel.months[int(row)]
-        if REPLAY_START <= month < upper:
+        if replay_start <= month < upper:
             cells = []
             for asset in used:
                 found = local[(asset, month)]
@@ -163,7 +167,7 @@ def create_projection(
     if not slots.acquire(blocking=False):
         raise EngineBusy("Too many projections are running; try again later.")
     try:
-        return _run(request, reader, books, seed, risk_limit)
+        return _run(request, reader, books, seed, risk_limit, replay_start(http_request))
     finally:
         slots.release()
 
@@ -174,6 +178,7 @@ def _run(
     books: list[Portfolio],
     seed: int,
     risk_limit: Decimal,
+    start: date,
 ) -> ProjectionResult:
     snapshot = reader.read(request.baseDate)
     panel = panel_from_snapshot(snapshot)
@@ -186,6 +191,7 @@ def _run(
         risk_limit=risk_limit,
         n=request.n,
         summary_turns=request.summaryTurns,
+        replay_start=start,
     )
     used = sorted({asset for p in books for asset, _ in p.active})
-    return _result(projection, history_digest(snapshot, panel, used, request.baseDate))
+    return _result(projection, history_digest(snapshot, panel, used, request.baseDate, start))
