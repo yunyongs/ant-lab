@@ -227,8 +227,15 @@ Bias: one current fee is applied to every past proxy month of an ETF. Real fees 
 ```
 psql -X -v ON_ERROR_STOP=1 -d <db> -f db/30_load_full.sql
 psql -X -q -A -v ON_ERROR_STOP=1 -d <db> -f db/30_load_full_check.sql
-psql -X -v ON_ERROR_STOP=1 -d <db> -f db/12_calc_position.sql    # then db/13_calc_attention.sql
+psql -X -v ON_ERROR_STOP=1 -d <db> -f db/12_calc_position.sql
+psql -X -v ON_ERROR_STOP=1 -d <db> -f db/13_calc_attention.sql
+psql -X -v ON_ERROR_STOP=1 -v require_all_months=1 -d <db> -f db/11_load_events.sql
+psql -X -q -A -v ON_ERROR_STOP=1 -d <db> -f db/12_calc_position_check.sql
+psql -X -q -A -v ON_ERROR_STOP=1 -d <db> -f db/13_calc_attention_check.sql
+psql -X -q -A -v ON_ERROR_STOP=1 -v require_all_months=1 -d <db> -f db/11_load_events_check.sql
 ```
+
+**R-L order (plan run R-L).** Final `compare` -> `norm` -> build -> rebuild `antlab_api` in place (Q8) -> Flyway -> the commands above in this order (`db/30`, `db/30` check, `db/12`, `db/13`, `db/11` with `require_all_months=1`, then the three checks); every line must end with `PASS` (the checks) or exit 0 (the loads). No constant has to be adapted by hand any more: the checks derive their reference months, segment starts, negative-case targets and counts from the data and the events files, so the same scripts pass on the Phase 0 sample and on the full 1996-2025 load. The only switches are `require_all_months=1` (db/11 load and check: every file month must be in `month_block`) and `replay_start` (db/11 check, default `2007-01-01` like `db/20` and `antlab.history.replay-start`; months before it are warm-up and need no review row, `REVIEWED_ALL` applies from it). If the replay start is decided differently at R-L, pass the same `-v replay_start=...` to the db/11 check, `db/20` and set `antlab.history.replay-start`. `FullHistoryRunOrderTest` runs this whole order on synthetic 180 x 360 data.
 
 **Load rules.**
 - Same way as `db/10`: all-text staging tables, `\copy ... HEADER MATCH`, input checks (quoted empty strings, blanks in required cells, whitespace in keys, 4/8-decimal formats, duplicate keys, dangling references), natural-key joins, `INSERT ... ON CONFLICT (natural key) DO NOTHING`. A second run with the same files inserts 0 rows and leaves every row, id and `created_at` as it was (a re-run uses up identity numbers for the skipped rows; nothing reads ids as counts).
@@ -472,8 +479,15 @@ iShares 수치(EEM, EFA, IEF, IWM, SHY, TLT), `091160`, QQQ는 소유자가 2026
 ```
 psql -X -v ON_ERROR_STOP=1 -d <db> -f db/30_load_full.sql
 psql -X -q -A -v ON_ERROR_STOP=1 -d <db> -f db/30_load_full_check.sql
-psql -X -v ON_ERROR_STOP=1 -d <db> -f db/12_calc_position.sql    # 그다음 db/13_calc_attention.sql
+psql -X -v ON_ERROR_STOP=1 -d <db> -f db/12_calc_position.sql
+psql -X -v ON_ERROR_STOP=1 -d <db> -f db/13_calc_attention.sql
+psql -X -v ON_ERROR_STOP=1 -v require_all_months=1 -d <db> -f db/11_load_events.sql
+psql -X -q -A -v ON_ERROR_STOP=1 -d <db> -f db/12_calc_position_check.sql
+psql -X -q -A -v ON_ERROR_STOP=1 -d <db> -f db/13_calc_attention_check.sql
+psql -X -q -A -v ON_ERROR_STOP=1 -v require_all_months=1 -d <db> -f db/11_load_events_check.sql
 ```
+
+**R-L 순서(계획의 R-L 실행).** 최종 `compare` → `norm` → 빌드 → `antlab_api` 제자리 재구성(Q8) → Flyway → 위 명령을 이 순서로(`db/30`, `db/30` 검사, `db/12`, `db/13`, `require_all_months=1`을 준 `db/11`, 그다음 검사 셋). 모든 줄이 `PASS`(검사) 또는 종료 코드 0(적재)으로 끝나야 한다. 이제 손으로 맞출 상수가 없다. 검사가 기준 달·구간 시작·음성 사례 대상·건수를 데이터와 사건 파일에서 스스로 구하므로 같은 스크립트가 Phase 0 표본에서도 전체 1996–2025 적재에서도 통과한다. 스위치는 둘뿐이다. `require_all_months=1`(db/11 적재·검사: 파일의 모든 달이 `month_block`에 있어야 한다)과 `replay_start`(db/11 검사. 기본 `2007-01-01`로 `db/20`·`antlab.history.replay-start`와 같다. 그 앞의 달은 준비 구간이라 검토 행이 필요 없고 `REVIEWED_ALL`은 이 달부터 적용된다). R-L에서 재생 시작을 다르게 정하면 db/11 검사·`db/20`에 같은 `-v replay_start=...`를 주고 `antlab.history.replay-start`도 바꾼다. `FullHistoryRunOrderTest`가 이 순서 전체를 합성 180 x 360 데이터로 돌린다.
 
 **적재 규칙.**
 - `db/10`과 같은 방식이다: 모두 text인 스테이징 테이블, `\copy ... HEADER MATCH`, 입력 검사(따옴표 친 빈 문자열, 필수 칸의 빈 칸, 키의 공백, 소수 4·8자리 형식, 키 중복, 끊긴 참조), 자연 키 조인, `INSERT ... ON CONFLICT (자연 키) DO NOTHING`. 같은 파일로 다시 실행하면 새 행이 0이고 모든 행, id, `created_at`이 그대로다(다시 실행하면 건너뛴 행만큼 identity 번호가 소비된다. id를 개수로 읽는 곳은 없다).
