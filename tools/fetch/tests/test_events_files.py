@@ -17,7 +17,7 @@ TAG_COLUMNS = [
     "reaction_ref", "title", "hindsight", "source", "checked_on",
 ]
 CODE = re.compile(r"[A-Z][A-Z_]*")
-REF = re.compile(r"KR:[0-9]{6}|US:[A-Z]+|FX:USD")
+REF = re.compile(r"KR:[0-9A-Z]{6}|US:[A-Z]+(\.[A-Z])?|FX:USD")
 QUOTES = re.compile("[\"“”'‘’「」]")
 
 
@@ -165,3 +165,10 @@ def test_readme_type_table_mirrors_types_csv():
         outcomes = "" if cells[3] == "(빈 칸)" else cells[3]
         mirrored.append([cells[0], cells[1], cells[2], outcomes, cells[4], cells[5]])
     assert mirrored == [[r[c] for c in TYPE_COLUMNS] for r in _types()]
+
+
+def test_ref_pattern_accepts_pool_tickers():
+    for ok in ("KR:0019K0", "KR:069500", "US:BRK.B", "US:SPY", "FX:USD"):
+        assert REF.fullmatch(ok), ok
+    for bad in ("KR:12345", "US:brk.b", "US:BRK.BB", "US:BRK."):
+        assert not REF.fullmatch(bad), bad

@@ -375,4 +375,58 @@ class SqlGoldenHarnessTest {
         long checks = SqlGoldenScenario.readmeRegression().steps().stream().filter(s -> s.kind() == Kind.CHECK).count();
         assertThat(checks).isEqualTo(27);
     }
+
+    @Test
+    @Tag("sql-golden")
+    @Timeout(value = 10, unit = java.util.concurrent.TimeUnit.MINUTES)
+    void 사건_적재는_표본_범위만_넣고_엄격_모드는_범위_밖에서_멈춘다() throws Exception {
+        harness.inspectFixtures().requireOrSkip();
+        harness.stageInputs();
+        DatabaseHandle db = harness.createSqlDatabase("events_scope");
+        harness.execute(db, new ScenarioPlan("EVENTS_SCOPE_PREP", List.of(
+                run("db/01_schema_history.sql"), run("db/10_load_sample.sql"))));
+
+        var strict = harness.run(db, new ScriptStep("db/11_load_events.sql", Kind.RUN, null, Duration.ofSeconds(120),
+                java.util.Map.of("require_all_months", "1")));
+        assertThat(strict.process().exitCode()).isNotZero();
+        assertThat(strict.process().stderr()).contains("month_block 에 없다");
+        assertThat(scalar(db, "SELECT count(*) FROM month_event")).isZero();
+
+        var scoped = harness.run(db, run("db/11_load_events.sql"));
+        assertThat(scoped.process().exitCode()).isZero();
+        assertThat(scoped.process().stdout()).contains("범위 밖 태그 (적재하지 않음)");
+        long loaded = scalar(db, "SELECT count(*) FROM month_event");
+        assertThat(loaded).isPositive();
+        long fileTags = reportCell(scoped.process().stdout(), "month_event (새 행)", 1);
+        long outOfScope = reportCell(scoped.process().stdout(), "범위 밖 태그 (적재하지 않음)", 2);
+        assertThat(outOfScope).isPositive();
+        assertThat(loaded + outOfScope).isEqualTo(fileTags);
+        java.util.Set<String> blockMonths = new java.util.HashSet<>(java.nio.file.Files.readAllLines(
+                java.nio.file.Path.of("db/sample/month_block.csv")));
+        long expectedInBlock = java.nio.file.Files.readAllLines(java.nio.file.Path.of("events/tags.csv")).stream().skip(1)
+                .filter(l -> blockMonths.contains(l.split(",")[1])).count();
+        assertThat(loaded).isEqualTo(expectedInBlock);
+        assertThat(scalar(db, "SELECT count(*) FROM month_event e JOIN month_block m ON m.id = e.month_block_id WHERE NOT m.events_reviewed"))
+                .isZero();
+
+        var again = harness.run(db, run("db/11_load_events.sql"));
+        assertThat(again.process().exitCode()).isZero();
+        assertThat(scalar(db, "SELECT count(*) FROM month_event")).isEqualTo(loaded);
+
+        var strictCheck = harness.run(db, new ScriptStep("db/11_load_events_check.sql", Kind.CHECK, "p0_09_check",
+                Duration.ofSeconds(120), java.util.Map.of("require_all_months", "1")));
+        assertThat(strictCheck.process().exitCode()).isNotZero();
+        harness.assertCheckPassed(harness.run(db, check("db/11_load_events_check.sql", "p0_09_check")), "p0_09_check");
+    }
+
+    /** Reads one numeric cell of a loader report row (tbl | file_rows | changed_rows); column 1 = file_rows, 2 = changed_rows. */
+    private static long reportCell(String stdout, String table, int column) {
+        for (String line : stdout.split("\n")) {
+            if (line.contains(table)) {
+                String[] cells = line.split("\\|");
+                return Long.parseLong(cells[column].trim());
+            }
+        }
+        throw new AssertionError("보고 행이 없다: " + table + "\n" + stdout);
+    }
 }
