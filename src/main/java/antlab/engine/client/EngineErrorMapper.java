@@ -5,6 +5,7 @@ import antlab.common.error.ErrorCode;
 import java.net.SocketTimeoutException;
 import java.net.http.HttpConnectTimeoutException;
 import java.net.http.HttpTimeoutException;
+import java.time.LocalDate;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
@@ -71,6 +72,12 @@ final class EngineErrorMapper {
             case HISTORY_UNAVAILABLE -> unavailable(rule.logKey(), operation, EngineUnavailableException.Reason.HISTORY_UNAVAILABLE);
             case BUSY -> unavailable(rule.logKey(), operation, EngineUnavailableException.Reason.BUSY);
         };
+    }
+
+    /** The engine and the api read different replay starts; both values are settings, not data, so they may be logged. */
+    static RuntimeException replayStartMismatch(String operation, LocalDate api, LocalDate engine) {
+        LOG.error("engine.replay_start_mismatch operation={} api={} engine={}", operation, api, engine);
+        return new DomainException(ErrorCode.INTERNAL_ERROR, INTERNAL_MESSAGE);
     }
 
     /** A body or status the contract does not allow: wrong media type, schema violation, unknown code, redirect. */

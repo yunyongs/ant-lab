@@ -2,6 +2,7 @@ package antlab.engine.client;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.LocalDate;
 import java.util.List;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.ClientHttpRequestInterceptor;
@@ -35,9 +36,22 @@ public final class EngineClient {
     private final RestClient paths;
     private final RestClient projections;
     private final RestClient regime;
+    private final LocalDate expectedReplayStart;
 
     EngineClient(EngineProperties properties, RestClient.Builder pathsBuilder, RestClient.Builder projectionsBuilder,
             RestClient.Builder regimeBuilder) {
+        this(properties, pathsBuilder, projectionsBuilder, regimeBuilder, null);
+    }
+
+    /**
+     * @param expectedReplayStart the api's {@code antlab.history.replay-start}; when set, every path, projection or
+     *        percentile call first asks {@code /v1/info} and fails if the engine reports another start. Nothing is cached, so an
+     *        engine recreated with another start is caught on the next call; there is no check at startup, so an engine that
+     *        is down does not block the api
+     */
+    EngineClient(EngineProperties properties, RestClient.Builder pathsBuilder, RestClient.Builder projectionsBuilder,
+            RestClient.Builder regimeBuilder, LocalDate expectedReplayStart) {
+        this.expectedReplayStart = expectedReplayStart;
         if (properties.configured()) {
             this.paths = build(pathsBuilder, properties);
             this.projections = build(projectionsBuilder, properties);
@@ -59,16 +73,19 @@ public final class EngineClient {
     }
 
     public EnginePathResult createPath(EnginePathRequest request) {
+        verifyReplayStart("createPath");
         return call("createPath", paths, true, PATHS_URI, EngineWire.write(request), EnginePathResult.class);
     }
 
     public EngineProjectionResult createProjection(EngineProjectionRequest request) {
+        verifyReplayStart("createProjection");
         return call("createProjection", projections, true, PROJECTIONS_URI, EngineWire.write(request),
                 EngineProjectionResult.class);
     }
 
     /** Same timeout family as projections: it runs the same path simulation. */
     public EnginePercentileResult createPercentile(EnginePercentileRequest request) {
+        verifyReplayStart("createPercentile");
         return call("createPercentile", projections, true, PERCENTILES_URI, EngineWire.write(request),
                 EnginePercentileResult.class);
     }
@@ -79,6 +96,17 @@ public final class EngineClient {
 
     public EngineInfo info() {
         return call("getEngineInfo", paths, false, INFO_URI, null, EngineInfo.class);
+    }
+
+    /** Seasons and projections must draw from the same range as the engine; a mismatch is a deployment fault. */
+    private void verifyReplayStart(String operation) {
+        if (expectedReplayStart == null || paths == null) {
+            return;
+        }
+        LocalDate reported = info().replayStart();
+        if (!expectedReplayStart.equals(reported)) {
+            throw EngineErrorMapper.replayStartMismatch(operation, expectedReplayStart, reported);
+        }
     }
 
     private <T> T call(String operation, RestClient client, boolean post, String uri, byte[] body, Class<T> type) {
