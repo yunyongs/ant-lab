@@ -10,7 +10,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
 
-/** The replay start default is written in three places that must agree: Java, application.yml and the psql default of db/20 and db/11 check. */
+/** The replay start default is written in several places that must agree: Java, application.yml and the psql default of db/20, db/11 check and db/24 def. */
 class ReplayStartDefaultParityTest {
 
     private static String first(Path file, String regex) throws IOException {
@@ -29,6 +29,7 @@ class ReplayStartDefaultParityTest {
         assertThat(first(Path.of("db/20_season_start.sql"), "\\\\set replay_start ([0-9-]+)")).isEqualTo(java);
         assertThat(first(Path.of("db/20_season_start_check.sql"), "\\\\set replay_start ([0-9-]+)")).isEqualTo(java);
         assertThat(first(Path.of("db/11_load_events_check.sql"), "\\\\set replay_start ([0-9-]+)")).isEqualTo(java);
+        assertThat(first(Path.of("db/24_turn_feed_def.sql"), "\\\\set replay_start ([0-9-]+)")).isEqualTo(java);
     }
 
     @Test

@@ -220,7 +220,9 @@ BEGIN
     JOIN month_event e ON e.id = f.month_event_id
     JOIN tf_templates t ON t.template_id = f.template_id
     WHERE f.season_id = v_sid AND f.kind = 'EVENT'
-      AND (f.category_hidden IS DISTINCT FROM ((SELECT count(DISTINCT substr(y.event_key, 1, 6)) FROM month_event y WHERE y.event_type = e.event_type) < 3)
+      AND (f.category_hidden IS DISTINCT FROM ((SELECT count(DISTINCT substr(y.event_key, 1, 6)) FROM month_event y JOIN month_block yb ON yb.id = y.month_block_id
+                                                     WHERE y.event_type = e.event_type AND yb.month_start >= current_setting('antlab.replay_start')::date
+                                                       AND yb.month_start < make_date(EXTRACT(YEAR FROM (SELECT base_date FROM season WHERE id = v_sid))::int, 1, 1)) < 3)
            OR t.category_hidden IS DISTINCT FROM f.category_hidden
            OR (f.category_hidden AND (f.direction IS NOT NULL
                                      OR (SELECT array_agg(k ORDER BY k) FROM jsonb_object_keys(f.template_vars) k) IS DISTINCT FROM ARRAY['reaction']))
