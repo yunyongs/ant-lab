@@ -115,7 +115,13 @@ _OPERATIONS: Final[dict[str, tuple[str, str, frozenset[int], str | None, bool]]]
         True,
     ),
     # AG-05 C1: memory reads; the memory commands (AG-05 E) drive them.
-    "getAgentMemory": ("GET", f"{BASE_PATH}/agents/{{agentId}}/memory", frozenset({200}), "AgentMemoryStateDto", True),
+    "getAgentMemory": (
+        "GET",
+        f"{BASE_PATH}/agents/{{agentId}}/memory",
+        frozenset({200}),
+        "AgentMemoryStateDto",
+        True,
+    ),
     "getAgentMemoryVersion": (
         "GET",
         f"{BASE_PATH}/agents/{{agentId}}/memory/{{version}}",
