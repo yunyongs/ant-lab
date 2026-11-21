@@ -13,19 +13,19 @@ describe('TurnResultCard', () => {
     render(<TurnResultCard turn={turnResultFixture()} />);
     expect(screen.getByText('104,820,000원')).toBeInTheDocument();
     expect(screen.getByText('1,520,000원')).toBeInTheDocument();
-    expect(screen.getByText('0.01471442 (1.471442%)')).toBeInTheDocument();
+    expect(screen.getByText('1.47%')).toBeInTheDocument();
     expect(screen.getByText('12,000,000원')).toBeInTheDocument();
     expect(screen.getByText('92,820,000원')).toBeInTheDocument();
     const risk = screen.getByRole('region', { name: '위험 한도' });
     expect(within(risk).getByText('선언 안')).toBeInTheDocument();
-    expect(within(risk).getByText('-0.04120000 (-4.12%)')).toBeInTheDocument();
-    expect(within(risk).getByText('-0.20000000 (-20%)')).toBeInTheDocument();
-    expect(within(risk).getByText('0.15880000 (15.88%p)')).toBeInTheDocument();
+    expect(within(risk).getByText('-4.12%')).toBeInTheDocument();
+    expect(within(risk).getByText('-20.00%')).toBeInTheDocument();
+    expect(within(risk).getByText('15.88%p')).toBeInTheDocument();
     expect(risk).toHaveAttribute('data-breached', 'false');
-    expect(screen.getByText('0.59864000 (59.864%p)')).toBeInTheDocument();
+    expect(screen.getByText('59.86%p')).toBeInTheDocument();
     // The weights add to 0.99999998 and are printed as sent.
     expect(
-      screen.getByText('21.771998% / 목표 10% (11.771998%p) · 22,820,000원'),
+      screen.getByText('21.77% / 목표 10% (11.77%p) · 22,820,000원'),
     ).toBeInTheDocument();
     expect(screen.queryByText(/위험 선언을 넘었습니다/)).toBeNull();
     expect(
@@ -40,7 +40,7 @@ describe('TurnResultCard', () => {
     const risk = screen.getByRole('region', { name: '위험 한도' });
     expect(within(risk).getByText('초과')).toBeInTheDocument();
     expect(risk).toHaveAttribute('data-breached', 'true');
-    expect(within(risk).getByText('-0.02000000 (-2%p)')).toBeInTheDocument();
+    expect(within(risk).getByText('-2.00%p')).toBeInTheDocument();
     expect(screen.getByText('위험 선언을 넘었습니다')).toBeInTheDocument();
     expect(
       screen.getByText(
@@ -77,9 +77,9 @@ describe('TurnResultCard', () => {
         })}
       />,
     );
-    expect(screen.getByText('0.12345678 (12.345678%)')).toBeInTheDocument();
-    expect(screen.getByText('-0.31000000 (-31%)')).toBeInTheDocument();
-    expect(screen.getByText('0.07654321 (7.654321%p)')).toBeInTheDocument();
+    expect(screen.getByText('12.35%')).toBeInTheDocument();
+    expect(screen.getByText('-31.00%')).toBeInTheDocument();
+    expect(screen.getByText('7.65%p')).toBeInTheDocument();
     expect(screen.queryByText(/1\.471442/)).toBeNull();
   });
 

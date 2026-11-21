@@ -20,9 +20,9 @@ describe('rankingRows', () => {
   });
 
   it('turns server ratios into percent text only', () => {
-    expect(rows.gainers.map((r) => r.change)).toEqual(['12.34%', '5%']);
+    expect(rows.gainers.map((r) => r.change)).toEqual(['12.34%', '5.00%']);
     expect(rows.losers.map((r) => r.change)).toEqual(['-7.25%']);
-    expect(rows.risingStreaks[0]).toMatchObject({ streak: 4, change: '5%' });
+    expect(rows.risingStreaks[0]).toMatchObject({ streak: 4, change: '5.00%' });
   });
 
   it('prints attention as a grade label with no change figure', () => {

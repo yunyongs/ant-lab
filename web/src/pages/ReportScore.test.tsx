@@ -42,9 +42,9 @@ describe('ReportPage score card', () => {
     serveReport();
     const world = serveScore();
     const { container } = await openReport();
-    await screen.findByText('58.30점');
-    expect(valueOf('점수')).toBe('58.30점');
-    expect(valueOf('결과 점수')).toBe('63.10점');
+    await screen.findByText('58.3점');
+    expect(valueOf('점수')).toBe('58.3점');
+    expect(valueOf('결과 점수')).toBe('63.1점');
     expect(valueOf('과정 점수')).toBe('51.45점');
     const labels = [
       '위험 준수',
@@ -58,15 +58,15 @@ describe('ReportPage score card', () => {
       '독려 반응',
     ];
     const values = [
-      '71.10',
-      '48.20',
-      '55.30',
-      '39.40',
-      '62.50',
-      '44.60',
-      '66.70',
-      '33.80',
-      '41.90',
+      '71.1',
+      '48.2',
+      '55.3',
+      '39.4',
+      '62.5',
+      '44.6',
+      '66.7',
+      '33.8',
+      '41.9',
     ];
     labels.forEach((label, at) => {
       expect(valueOf(label)).toBe(`${values[at] ?? ''}점`);
@@ -93,7 +93,7 @@ describe('ReportPage score card', () => {
     serveReport();
     serveScore({ score: scoreFixture({ scoreVersion: 's63-v3' }) });
     await openReport();
-    await screen.findByText('58.30점');
+    await screen.findByText('58.3점');
     expect(
       within(card()).getByText(
         '포메이션 준수는 시즌 실측 포지션 기준으로 매긴 점수입니다.',
@@ -108,7 +108,7 @@ describe('ReportPage score card', () => {
       serveReport();
       serveScore({ score: scoreFixture({ scoreVersion }) });
       await openReport();
-      await screen.findByText('58.30점');
+      await screen.findByText('58.3점');
       expect(
         within(card()).getByText(
           '포메이션 준수는 선언한 포지션 기준으로 매긴 점수입니다.',
@@ -121,10 +121,10 @@ describe('ReportPage score card', () => {
     serveReport();
     serveScore({ score: scoreWithNullItems });
     await openReport();
-    await screen.findByText('58.30점');
+    await screen.findByText('58.3점');
     expect(valueOf('일관성')).toBe('아직 없음');
     expect(valueOf('소음 반응')).toBe('아직 없음');
-    expect(valueOf('위험 준수')).toBe('71.10점');
+    expect(valueOf('위험 준수')).toBe('71.1점');
     expect(card().textContent).not.toMatch(/(^|[^\d.])0(\.00)?점/);
     expect(
       within(card()).getByRole('heading', {
@@ -172,9 +172,9 @@ describe('ReportPage score card', () => {
     });
     await openReport();
     await screen.findByText('99.99점');
-    expect(valueOf('결과 점수')).toBe('10.00점');
-    expect(valueOf('과정 점수')).toBe('10.00점');
-    expect(valueOf('운 백분위')).toBe('경로 백분위 63.125%');
+    expect(valueOf('결과 점수')).toBe('10점');
+    expect(valueOf('과정 점수')).toBe('10점');
+    expect(valueOf('운 백분위')).toBe('경로 백분위 63.13%');
     expect(valueOf('샤프 차이 백분위')).toBe('경로 백분위 41.25%');
     const text = card().textContent;
     expect(text).not.toContain('36.875');
@@ -210,7 +210,7 @@ describe('ReportPage score card', () => {
     await settle(queryClient);
     expect(world.scoreGets).toBe(1);
     await user.click(retry);
-    await screen.findByText('58.30점');
+    await screen.findByText('58.3점');
     expect(world.scoreGets).toBe(2);
     expect(screen.queryByRole('button', { name: '다시 시도' })).toBeNull();
   });
@@ -265,7 +265,7 @@ describe('ReportPage score card', () => {
     await user.click(
       within(alert).getByRole('button', { name: '다시 불러오기' }),
     );
-    await screen.findByText('58.30점');
+    await screen.findByText('58.3점');
     expect(world.scoreGets).toBe(2);
   });
 
@@ -293,7 +293,7 @@ describe('ReportPage score card', () => {
     serveReport();
     const world = serveScore();
     const { router, queryClient } = await openReport();
-    await screen.findByText('58.30점');
+    await screen.findByText('58.3점');
     await act(async () => {
       await router.navigate('/seasons/7');
     });
@@ -301,7 +301,7 @@ describe('ReportPage score card', () => {
     await act(async () => {
       await router.navigate('/seasons/7/report');
     });
-    await screen.findByText('58.30점');
+    await screen.findByText('58.3점');
     await settle(queryClient);
     expect(world.scoreGets).toBe(1);
   });

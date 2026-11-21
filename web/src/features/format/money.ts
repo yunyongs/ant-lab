@@ -1,11 +1,11 @@
-const DECIMAL = /^(-?)(\d+)(\.\d+)?$/;
+import { groupThousands, roundDecimalText } from './decimal.ts';
 
-// Presentation only: the server's decimal string gets thousands separators and
-// the won sign. Nothing is parsed into a number, added or rounded.
+// Presentation only: the server's decimal string is rounded to whole won
+// (half away from zero) on the text itself, then gets thousands separators and
+// the won sign. Nothing is parsed into a number.
 export function formatWon(value: string): string {
-  const match = DECIMAL.exec(value);
-  if (match === null) return value;
-  const [, sign = '', whole = '', fraction = ''] = match;
-  const grouped = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-  return `${sign}${grouped}${fraction}원`;
+  const rounded = roundDecimalText(value, 0);
+  if (rounded === null) return value;
+  const sign = rounded.negative ? '-' : '';
+  return `${sign}${groupThousands(rounded.whole)}원`;
 }

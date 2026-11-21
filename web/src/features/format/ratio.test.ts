@@ -9,28 +9,35 @@ import {
 
 describe('ratioToPercent', () => {
   it.each([
-    ['-0.20000000', '-20%'],
-    ['-0.40000000', '-40%'],
+    ['-0.20000000', '-20.00%'],
+    ['-0.40000000', '-40.00%'],
     ['0.07120000', '7.12%'],
-    ['1.00000000', '100%'],
-    ['0.00000001', '0.000001%'],
-    ['0.00000000', '0%'],
-    ['-0.00000000', '0%'],
-    ['0.50000001', '50.000001%'],
-    ['0.5', '50%'],
-    ['2', '200%'],
+    ['0.03100000', '3.10%'],
+    ['1.00000000', '100.00%'],
+    ['0.00000001', '0.00%'],
+    ['0.00000000', '0.00%'],
+    ['-0.00000000', '0.00%'],
+    ['-0.00000001', '0.00%'],
+    ['0.50000001', '50.00%'],
+    ['0.00005', '0.01%'],
+    ['-0.00005', '-0.01%'],
+    ['0.00004', '0.00%'],
+    ['0.99999', '100.00%'],
+    ['0.5', '50.00%'],
+    ['2', '200.00%'],
+    ['1234.5678', '123,456.78%'],
   ])('moves %s to %s', (input, expected) => {
     expect(ratioToPercent(input)).toBe(expected);
   });
 
-  it.each(['abc', '', '1e-2', '.5'])('passes %j through', (input) => {
+  it.each(['abc', '', '1e-2', '.5', 'NaN'])('passes %j through', (input) => {
     expect(ratioToPercent(input)).toBe(input);
   });
 });
 
 describe('ratioWithPercent', () => {
-  it('keeps the server string and adds the percent', () => {
-    expect(ratioWithPercent('-0.20000000')).toBe('-0.20000000 (-20%)');
+  it('shows only the rounded percent', () => {
+    expect(ratioWithPercent('-0.20000000')).toBe('-20.00%');
   });
 
   it('passes a malformed value through', () => {
@@ -51,11 +58,11 @@ describe('ratioToCssPercent', () => {
 });
 
 describe('ratioToPoints', () => {
-  it('prints percentage points', () => {
+  it('prints percentage points with two decimals', () => {
     expect(ratioToPoints('0.15880000')).toBe('15.88%p');
-    expect(ratioToPoints('-0.03100000')).toBe('-3.1%p');
-    expect(ratioToPoints('0.00000000')).toBe('0%p');
-    expect(ratioToPoints('-0.00000001')).toBe('-0.000001%p');
+    expect(ratioToPoints('-0.03100000')).toBe('-3.10%p');
+    expect(ratioToPoints('0.00000000')).toBe('0.00%p');
+    expect(ratioToPoints('-0.00000001')).toBe('0.00%p');
   });
 
   it('passes a malformed value through', () => {
@@ -65,10 +72,10 @@ describe('ratioToPoints', () => {
 
 describe('ratioWithPoints', () => {
   it.each([
-    ['0.05120000', '0.05120000 (5.12%p)'],
-    ['-0.02000000', '-0.02000000 (-2%p)'],
-    ['0.00000000', '0.00000000 (0%p)'],
-    ['0.59864000', '0.59864000 (59.864%p)'],
+    ['0.05120000', '5.12%p'],
+    ['-0.02000000', '-2.00%p'],
+    ['0.00000000', '0.00%p'],
+    ['0.59864000', '59.86%p'],
   ])('shows %s as %s', (input, expected) => {
     expect(ratioWithPoints(input)).toBe(expected);
   });

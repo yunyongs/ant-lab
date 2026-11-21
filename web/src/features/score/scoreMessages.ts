@@ -1,3 +1,4 @@
+import { formatDecimal } from '../format/decimal.ts';
 export const SCORE_TITLE = '시즌 점수';
 export const SCORE_LOADING_TEXT =
   '점수를 계산하는 중입니다… 처음 열 때는 몇 초 걸릴 수 있습니다.';
@@ -16,7 +17,7 @@ export const LUCK_NOTE = '보여 주기만 하고 점수에는 넣지 않습니�
 export const PROCESS_NOTE =
   '값이 있는 항목의 평균입니다. 값이 없는 항목은 아직 없음으로 보입니다.';
 
-export const pointsText = (value: string) => `${value}점`;
+export const pointsText = (value: string) => `${formatDecimal(value)}점`;
 export const itemsTitle = (processItems: number) =>
   `과정 항목 (값이 있는 ${String(processItems)}개의 평균)`;
 const DECLARED_FORMATION_VERSIONS = ['s63-v1', 's63-v2'];

@@ -38,10 +38,10 @@ describe('TeamBuild', () => {
     renderRoute('/seasons/7');
     const summary = await screen.findByRole('region', { name: '팀 요약' });
     expect(within(summary).getAllByText('100,000,000원')).toHaveLength(2);
-    expect(within(summary).getByText('100% / 목표 40%')).toBeInTheDocument();
-    expect(within(summary).getByText('0% / 목표 30%')).toBeInTheDocument();
-    expect(within(summary).getByText('0% / 목표 20%')).toBeInTheDocument();
-    expect(within(summary).getByText('0% / 목표 10%')).toBeInTheDocument();
+    expect(within(summary).getByText('100.00% / 목표 40%')).toBeInTheDocument();
+    expect(within(summary).getByText('0.00% / 목표 30%')).toBeInTheDocument();
+    expect(within(summary).getByText('0.00% / 목표 20%')).toBeInTheDocument();
+    expect(within(summary).getByText('0.00% / 목표 10%')).toBeInTheDocument();
     expect(
       within(summary).getByText(/골키퍼에는 현금이 포함됩니다/),
     ).toBeInTheDocument();
@@ -65,10 +65,8 @@ describe('TeamBuild', () => {
     );
     renderRoute('/seasons/7');
     const summary = await screen.findByRole('region', { name: '팀 요약' });
-    expect(within(summary).getByText('40% / 목표 40%')).toBeInTheDocument();
-    expect(
-      within(summary).getByText('9.999999% / 목표 10%'),
-    ).toBeInTheDocument();
+    expect(within(summary).getByText('40.00% / 목표 40%')).toBeInTheDocument();
+    expect(within(summary).getByText('10.00% / 목표 10%')).toBeInTheDocument();
     // jsdom rounds long CSS values; the exact string is covered in ratio.test.
     expect(within(summary).getByTestId('fill-goalkeeper').style.width).toBe(
       '40%',
@@ -142,7 +140,7 @@ describe('TeamBuild', () => {
   });
 });
 
-// jsdom may normalise "62.000000%" to "62%": compare the number only.
+// jsdom may normalise "62.00%" to "62.00%": compare the number only.
 function parseCssPercent(width: string): string {
   return width.replace('%', '').replace(/\.0+$/, '');
 }

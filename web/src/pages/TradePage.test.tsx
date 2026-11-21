@@ -101,12 +101,12 @@ describe('TradePage', () => {
         '골키퍼 40 · 수비수 30 · 미드필더 20 · 공격수 10',
       ),
     ).toBeInTheDocument();
-    expect(within(summary).getByText('1.20000000 (120%p)')).toBeInTheDocument();
+    expect(within(summary).getByText('120.00%p')).toBeInTheDocument();
     const list = screen.getByRole('region', { name: '보유 종목' });
     expect(within(list).getByText('보유 종목 (1)')).toBeInTheDocument();
     expect(within(list).getByText('종목 가')).toBeInTheDocument();
-    expect(within(list).getByText('71,350.0000원')).toBeInTheDocument();
-    expect(within(list).getByText('8.904%')).toBeInTheDocument();
+    expect(within(list).getByText('71,350원')).toBeInTheDocument();
+    expect(within(list).getByText('8.90%')).toBeInTheDocument();
     expect(within(list).getByText('74,200원')).toBeInTheDocument();
     expect(within(list).getByText('8,904,000원')).toBeInTheDocument();
     expect(
@@ -352,8 +352,8 @@ describe('sell sheet', () => {
       '20',
     );
     await user.click(within(dialog).getByRole('button', { name: '20주 매도' }));
-    expect(await within(dialog).findByText('137,000.0000원')).toBeVisible();
-    expect(within(dialog).getByText('71,350.0000원')).toBeVisible();
+    expect(await within(dialog).findByText('137,000원')).toBeVisible();
+    expect(within(dialog).getByText('71,350원')).toBeVisible();
     expect(
       within(dialog).getByText(
         '이번 턴 전술 변경에 묶인 주문입니다 (변경 번호 41)',
@@ -369,7 +369,7 @@ describe('sell sheet', () => {
       expect(spy.holdingsCalls).toBe(2);
     });
     await user.click(within(dialog).getByRole('button', { name: '닫기' }));
-    expect(await screen.findByText('7.442223%')).toBeVisible();
+    expect(await screen.findByText('7.44%')).toBeVisible();
     expect(screen.getByText('100주')).toBeVisible();
   });
 

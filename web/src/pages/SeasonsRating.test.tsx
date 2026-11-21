@@ -33,10 +33,10 @@ describe('SeasonsPage rating card', () => {
     expect(details?.open).toBe(false);
     const links = within(card()).getAllByRole('link');
     expect(links.map((a) => a.textContent)).toEqual([
-      '시즌 2012 · 64.10점 · 레이팅 61.25',
-      '시즌 1999 · 58.00점 · 레이팅 57.80',
-      '시즌 7 · 52.30점 · 레이팅 —',
-      '시즌 4 · 40.70점 · 레이팅 —',
+      '시즌 2012 · 64.1점 · 레이팅 61.25',
+      '시즌 1999 · 58점 · 레이팅 57.8',
+      '시즌 7 · 52.3점 · 레이팅 —',
+      '시즌 4 · 40.7점 · 레이팅 —',
     ]);
     expect(links.map((a) => a.getAttribute('href'))).toEqual([
       '/seasons/2012/report',
@@ -102,7 +102,7 @@ describe('SeasonsPage rating card', () => {
       }),
     });
     renderRoute('/');
-    expect(await screen.findByText('70.00점')).toBeInTheDocument();
+    expect(await screen.findByText('70점')).toBeInTheDocument();
     expect(screen.getByText('집계 시즌 1개')).toBeInTheDocument();
   });
 
@@ -188,7 +188,7 @@ describe('SeasonsPage rating card', () => {
     await screen.findByText('61.25점');
     expect(world.ratingGets).toBe(1);
     await go(router, '/seasons/7/report');
-    await screen.findByText('58.30점');
+    await screen.findByText('58.3점');
     await settle(queryClient);
     expect(world.ratingGets).toBe(1);
     await go(router, '/');

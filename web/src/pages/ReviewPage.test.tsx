@@ -118,7 +118,7 @@ describe('ReviewPage', () => {
       expect(rows()[11]).toHaveTextContent('총 평가액 100,000,012원');
     });
     expect(rows()[0]).toHaveTextContent(
-      '총 평가액 100,000,001원 · 턴 수익률 0.01000000 (1%)',
+      '총 평가액 100,000,001원 · 턴 수익률 1.00%',
     );
     expect(container.querySelector('svg, canvas')).toBeNull();
   });
