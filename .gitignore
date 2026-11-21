@@ -184,6 +184,13 @@ db/sample/asset_month_return.csv
 db/sample/asset_position.csv
 db/sample/hand_check.csv
 db/sample/fx_month.csv
+# MVP-06: full-history build outputs (db/full/build_full.sql) and its generated load scripts
+db/full/month_block.csv
+db/full/fx_month.csv
+db/full/asset_position.csv
+db/full/asset_month_return.csv
+db/full/lineage.csv
+db/full/.build_full_*
 backtest-results/
 reports/output/
 *.parquet
