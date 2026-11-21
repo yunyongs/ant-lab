@@ -116,6 +116,18 @@ public class League extends AuditedEntity {
         this.maxEntries = maxEntries;
     }
 
+    /**
+     * A league that plays the seed and settings of {@code root}, the root league of its same-seed group. The caller has
+     * checked that the root is a root and still OPEN.
+     */
+    public static League siblingOf(League root, String name, int maxEntries) {
+        League sibling = new League(root.ownerMemberId, name, root.seed, root.pathLength, root.baseDate,
+                root.engineVersion, root.dataSnapshotDate, root.initialCash, root.feeRateKr, root.feeRateUs,
+                root.fxSpreadRate, maxEntries);
+        sibling.seedLeagueId = root.id;
+        return sibling;
+    }
+
     /** Stops new entries. Closing a closed league is the caller's decision, not a state change. */
     public void close(Instant now) {
         if (status == LeagueStatus.CLOSED) {

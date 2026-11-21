@@ -63,6 +63,9 @@ public class LeagueService {
     @Transactional
     public LeagueDto create(CreateLeagueRequest request) {
         long ownerId = ownerId();
+        if (request.sameSeedAs() != null) {
+            return createSibling(ownerId, request);
+        }
         Member owner = members.findByIdForUpdate(ownerId).orElseThrow(LeagueService::unauthenticated);
         if (owner.getKind() != MemberKind.HUMAN) {
             throw unauthenticated();
@@ -81,6 +84,35 @@ public class LeagueService {
                 MoneyMath.exactWon(seasonProperties.initialCash()), seasonProperties.feeRateKr(),
                 seasonProperties.feeRateUs(), seasonProperties.fxSpreadRate(), request.maxEntriesOrDefault()));
         return toDto(league, List.of());
+    }
+
+    /**
+     * A league in the same-seed group of an earlier league, for comparisons: the seed and settings are copied from the
+     * root, the seed still leaves the server in no response. The root row is locked first (the order an entry takes: league,
+     * then member), so a close of the root cannot run between the checks and the insert: the sibling joins a group whose
+     * root is OPEN, or it is refused, and a group that was released (all leagues closed) never gets a new open league.
+     */
+    private LeagueDto createSibling(long ownerId, CreateLeagueRequest request) {
+        League root = leagues.findByIdForUpdate(request.sameSeedAs()).filter(this::ownedByRunnerOwner)
+                .orElseThrow(LeagueService::notFound);
+        Member owner = members.findByIdForUpdate(ownerId).orElseThrow(LeagueService::unauthenticated);
+        if (owner.getKind() != MemberKind.HUMAN) {
+            throw unauthenticated();
+        }
+        if (root.getSeedLeagueId() != null) {
+            throw new DomainException(ErrorCode.INVALID_ARGUMENT, "같은 시드 묶음의 뿌리 리그를 가리켜야 한다");
+        }
+        if (root.getStatus() == LeagueStatus.CLOSED) {
+            throw new DomainException(ErrorCode.LEAGUE_CLOSED, "닫힌 묶음에는 리그를 더할 수 없다");
+        }
+        if (request.pathLength() != null && request.pathLength() != root.getPathLength()) {
+            throw new DomainException(ErrorCode.INVALID_ARGUMENT, "경로 길이는 뿌리 리그가 정한다 — 생략하거나 같아야 한다");
+        }
+        String name = checkedName(request.name());
+        PoolReadiness.require(positions.findByBaseDate(root.getBaseDate()), p -> p.getSystemPosition() == null);
+        League sibling = leagues.save(League.siblingOf(root, name,
+                request.maxEntries() == null ? root.getMaxEntries() : request.maxEntries()));
+        return toDto(sibling, List.of());
     }
 
     @Transactional(readOnly = true)

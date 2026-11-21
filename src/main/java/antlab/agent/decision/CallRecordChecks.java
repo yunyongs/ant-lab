@@ -13,6 +13,7 @@ import java.util.regex.Pattern;
 
 /**
  * Rules every stored model call must meet, whichever route records it (a turn decision or a memory submit): no NUL, no
+ * lone surrogate (the driver would store a "?" and the text would no longer be what the model got or said), no
  * text over 256 KiB, nothing that looks like a secret, the model of the season config, and a ledger call id on an
  * OPENROUTER season. Each failure is an INVALID_ARGUMENT that never carries the offending text.
  */
@@ -53,7 +54,7 @@ public final class CallRecordChecks {
         textOk(c.requestText());
         textOk(c.responseText());
         for (String small : new String[] {c.modelRequested(), c.modelActual(), c.provider()}) {
-            if (small != null && (small.indexOf('\u0000') >= 0 || looksLikeSecret(small))) {
+            if (small != null && (small.indexOf('\u0000') >= 0 || hasLoneSurrogate(small) || looksLikeSecret(small))) {
                 throw invalid("호출 기록에 쓸 수 없는 문자열이 있다");
             }
         }
@@ -65,11 +66,24 @@ public final class CallRecordChecks {
         }
     }
 
+    /** A high surrogate without the low one after it, or a low one without the high one before it. */
+    static boolean hasLoneSurrogate(String text) {
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            if (Character.isHighSurrogate(c) && i + 1 < text.length() && Character.isLowSurrogate(text.charAt(i + 1))) {
+                i++;
+            } else if (Character.isSurrogate(c)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private static void textOk(String text) {
         if (text == null) {
             return;
         }
-        if (text.indexOf('\u0000') >= 0) {
+        if (text.indexOf('\u0000') >= 0 || hasLoneSurrogate(text)) {
             throw invalid("호출 기록에 쓸 수 없는 문자가 있다");
         }
         if (text.getBytes(StandardCharsets.UTF_8).length > MAX_TEXT_BYTES) {

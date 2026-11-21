@@ -6,6 +6,8 @@ import antlab.account.RecentTradeRow;
 import antlab.common.error.DomainException;
 import antlab.common.error.ErrorCode;
 import antlab.common.money.MoneyMath;
+import antlab.agent.memory.AgentMemoryDto;
+import antlab.agent.memory.MemoryReadService;
 import antlab.asset.PoolService;
 import antlab.member.CurrentMember;
 import antlab.season.SeasonDto;
@@ -50,12 +52,14 @@ public class AgentTurnViewService {
     private final PoolService pools;
     private final OrderRepository orders;
     private final AgentCallRepository calls;
+    private final SeasonAgentConfigRepository configs;
+    private final MemoryReadService memories;
     private final int recentTurns;
 
     public AgentTurnViewService(CurrentMember currentMember, SeasonQueryService seasonQueries,
             TurnQueryService turnQueries, HoldingsQueryService holdingsQueries, PoolService pools,
-            OrderRepository orders, AgentCallRepository calls,
-            @Value("${antlab.agent-runner.recent-turns:3}") int recentTurns) {
+            OrderRepository orders, AgentCallRepository calls, SeasonAgentConfigRepository configs,
+            MemoryReadService memories, @Value("${antlab.agent-runner.recent-turns:3}") int recentTurns) {
         if (recentTurns < 1) {
             throw new IllegalArgumentException("antlab.agent-runner.recent-turns must be at least 1");
         }
@@ -66,6 +70,8 @@ public class AgentTurnViewService {
         this.pools = pools;
         this.orders = orders;
         this.calls = calls;
+        this.configs = configs;
+        this.memories = memories;
         this.recentTurns = recentTurns;
     }
 
@@ -80,7 +86,20 @@ public class AgentTurnViewService {
         TurnResultDto lastTurn = turn >= 1 ? turnQueries.get(seasonId, turn) : null;
         return new AgentTurnViewDto(season, lastTurn, holdingsQueries.get(seasonId), seasonQueries.prices(seasonId, null),
                 pools.pool().assets(), new AgentPartDto(AgentPartDto.SCHEMA, recentTrades(seasonId, turn),
-                        lastRejects(seasonId, turn), null));
+                        lastRejects(seasonId, turn), pinnedMemory(agentId, seasonId)));
+    }
+
+    /**
+     * The memory of the version this season pinned at its start, read from that version only (its note and the reflections
+     * that made it and the two before), never from the latest one. Null when the season pinned none.
+     */
+    private AgentMemoryDto pinnedMemory(long agentId, long seasonId) {
+        Integer pinned = configs.findById(seasonId).map(SeasonAgentConfig::getMemoryVersion).orElse(null);
+        if (pinned == null) {
+            return null;
+        }
+        return memories.memory(agentId, pinned).orElseThrow(
+                () -> new IllegalStateException("season pins a memory version the agent does not have: seasonId=" + seasonId));
     }
 
     /** Fills of the turns {@code turn - k .. turn - 1}; the current turn and later ones are never read. */
