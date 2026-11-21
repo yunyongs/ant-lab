@@ -19,6 +19,8 @@ import antlab.agent.decision.DecisionRequest;
 import antlab.agent.decision.DecisionResultDto;
 import antlab.agent.memory.AgentMemoryStateDto;
 import antlab.agent.memory.AgentMemoryVersionDto;
+import antlab.agent.memory.MemoryComparisonDto;
+import antlab.agent.memory.MemoryComparisonService;
 import antlab.agent.memory.MemoryReadService;
 import antlab.agent.memory.MemorySubmitService;
 import antlab.agent.memory.ReflectionViewDto;
@@ -44,6 +46,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -66,6 +69,7 @@ public class AgentRunnerController {
     private final AgentSeasonConfigQueryService configQueries;
     private final LeagueService leagues;
     private final MemoryReadService memories;
+    private final MemoryComparisonService comparisons;
     private final ReflectionViewService reflectionViews;
     private final MemorySubmitService memorySubmits;
 
@@ -73,7 +77,8 @@ public class AgentRunnerController {
             AgentSeasonLifecycleService lifecycle, SeasonAbandonService abandons, AgentTurnViewService turnViews,
             AgentDecisionService decisions, AgentTurnAdvanceService advances,
             AgentSeasonConfigQueryService configQueries, LeagueService leagues, MemoryReadService memories,
-            ReflectionViewService reflectionViews, MemorySubmitService memorySubmits) {
+            ReflectionViewService reflectionViews, MemorySubmitService memorySubmits,
+            MemoryComparisonService comparisons) {
         this.registrations = registrations;
         this.seasons = seasons;
         this.lifecycle = lifecycle;
@@ -86,6 +91,7 @@ public class AgentRunnerController {
         this.memories = memories;
         this.reflectionViews = reflectionViews;
         this.memorySubmits = memorySubmits;
+        this.comparisons = comparisons;
     }
 
     @PostMapping(value = BASE + "/agents", consumes = MediaType.APPLICATION_JSON_VALUE,
@@ -172,6 +178,12 @@ public class AgentRunnerController {
     @GetMapping(value = BASE + "/agents/{agentId}/memory", produces = MediaType.APPLICATION_JSON_VALUE)
     public AgentMemoryStateDto getMemory(@PathVariable long agentId) {
         return memories.state(agentId);
+    }
+
+    @GetMapping(value = BASE + "/agents/{agentId}/memory/comparison", produces = MediaType.APPLICATION_JSON_VALUE)
+    public MemoryComparisonDto getMemoryComparison(@PathVariable long agentId, @RequestParam @Min(0) int versionA,
+            @RequestParam @Min(0) int versionB) {
+        return comparisons.compare(agentId, versionA, versionB);
     }
 
     @GetMapping(value = BASE + "/agents/{agentId}/memory/{version}", produces = MediaType.APPLICATION_JSON_VALUE)

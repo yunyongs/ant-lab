@@ -6,6 +6,7 @@ import antlab.common.exposure.ExposedFrom;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 /** 검사기 자체 시험: 위반 사례를 각각 실패로 보고하고, 올바른 record 는 통과시킨다(DB 없이 합성 태그로). */
@@ -43,6 +44,9 @@ class ExposureRulesTest {
             tags.put(column, ExposureCatalog.EXPOSED);
         }
         tags.put("agent_call.request_text", ExposureCatalog.INTERNAL);
+        for (String column : new String[] {"agent_memory.version", "agent_memory.playbook", "agent_reflection.body"}) {
+            tags.put(column, ExposureCatalog.EXPOSED);
+        }
         return new ExposureCatalog(tags);
     }
 
@@ -366,15 +370,65 @@ class ExposureRulesTest {
                 .containsExactly("asset.listed_on", "season_path.month_block_id");
     }
 
+    record PlaybookCarriedElsewhere(@ExposedFrom("agent_memory.playbook_carried") Boolean carried) {
+    }
+
+    record CreatedAtElsewhere(@ExposedFrom("agent_memory.created_at") String createdAt) {
+    }
+
+    record ParsedElsewhere(@ExposedFrom("agent_call.parsed") String parsed) {
+    }
+
+    record OutcomeElsewhere(@ExposedFrom("agent_reflection.outcome") String outcome) {
+    }
+
+    record PersonaVersionElsewhere(@ExposedFrom("season_agent_config.persona_version") Integer personaVersion) {
+    }
+
+    record CallOutcomeElsewhere(@ExposedFrom("agent_call.outcome") Integer failed) {
+    }
+
+    record MemoryVersionElsewhere(@ExposedFrom("season_agent_config.memory_version") Integer memoryVersion) {
+    }
+
+    private static ExposureCatalog memoryCatalog() {
+        Map<String, String> tags = new LinkedHashMap<>(catalog().tags());
+        for (String source : new String[] {"agent_memory.playbook_carried", "agent_memory.created_at", "agent_call.parsed",
+                "agent_reflection.outcome", "season_agent_config.memory_version", "season_agent_config.persona_version", "agent_call.outcome"}) {
+            tags.put(source, ExposureCatalog.INTERNAL);
+        }
+        return new ExposureCatalog(tags);
+    }
+
     @Test
-    void the_memory_agent_sources_pass_only_in_the_three_memory_records() {
-        assertThat(ExposureRules.MEMORY_AGENT_RECORDS).containsExactlyInAnyOrder(antlab.agent.memory.AgentMemoryVersionDto.class,
-                antlab.agent.memory.ReflectionViewDto.Turn.class, antlab.agent.memory.SubmitSeasonMemoryResultDto.class);
-        assertThat(ExposureRules.MEMORY_AGENT_SOURCES).containsExactlyInAnyOrder("agent_memory.playbook_carried",
-                "agent_memory.created_at", "agent_call.parsed", "agent_reflection.outcome");
+    void each_memory_agent_source_passes_only_in_its_own_record() {
+        assertThat(ExposureRules.MEMORY_AGENT_ALLOWED.keySet()).containsExactlyInAnyOrder(
+                antlab.agent.memory.AgentMemoryVersionDto.class, antlab.agent.memory.ReflectionViewDto.Turn.class,
+                antlab.agent.memory.SubmitSeasonMemoryResultDto.class, antlab.agent.memory.MemoryComparisonDto.Side.class);
+        assertThat(ExposureRules.MEMORY_AGENT_ALLOWED.get(antlab.agent.memory.MemoryComparisonDto.Side.class))
+                .containsExactlyInAnyOrder("season_agent_config.memory_version", "season_agent_config.persona_version",
+                        "agent_call.outcome");
+        assertThat(ExposureRules.MEMORY_AGENT_ALLOWED.get(antlab.agent.memory.AgentMemoryVersionDto.class))
+                .containsExactlyInAnyOrder("agent_memory.playbook_carried", "agent_memory.created_at");
+        assertThat(ExposureRules.MEMORY_AGENT_ALLOWED.get(antlab.agent.memory.ReflectionViewDto.Turn.class))
+                .containsExactly("agent_call.parsed");
+        assertThat(ExposureRules.MEMORY_AGENT_ALLOWED.get(antlab.agent.memory.SubmitSeasonMemoryResultDto.class))
+                .containsExactly("agent_reflection.outcome");
+        // no source is shared between two records, so none can be read in a record that does not own it
+        long all = ExposureRules.MEMORY_AGENT_ALLOWED.values().stream().mapToLong(Set::size).sum();
+        long distinct = ExposureRules.MEMORY_AGENT_ALLOWED.values().stream().flatMap(Set::stream).distinct().count();
+        assertThat(distinct).isEqualTo(all).isEqualTo(7);
+        ExposureCatalog memory = memoryCatalog();
+        assertThat(ExposureRules.check(antlab.agent.memory.AgentMemoryVersionDto.class, memory)).isEmpty();
+        assertThat(ExposureRules.check(antlab.agent.memory.SubmitSeasonMemoryResultDto.class, memory)).isEmpty();
+        for (Class<?> other : new Class<?>[] {PlaybookCarriedElsewhere.class, CreatedAtElsewhere.class, ParsedElsewhere.class,
+                OutcomeElsewhere.class, MemoryVersionElsewhere.class, PersonaVersionElsewhere.class,
+                CallOutcomeElsewhere.class}) {
+            assertThat(ExposureRules.check(other, memory)).as(other.getSimpleName()).hasSize(1);
+        }
+        assertThat(ExposureRules.OWNER_AGENT_SOURCES).doesNotContain("agent_memory.playbook_carried", "agent_call.parsed",
+                "agent_reflection.outcome", "agent_memory.created_at");
         assertThat(ExposureRules.check(antlab.agent.memory.ReflectionViewDto.Fill.class, catalog())).isEmpty();
         assertThat(ExposureRules.check(OtherAgentRecord.class, catalog())).isNotEmpty();
-        assertThat(ExposureRules.OWNER_AGENT_SOURCES).doesNotContain("agent_memory.playbook_carried", "agent_call.parsed",
-                "agent_reflection.outcome");
     }
 }

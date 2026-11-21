@@ -424,6 +424,15 @@ public final class MoneyMath {
         return value.setScale(2, RoundingMode.HALF_UP);
     }
 
+    /** Mean of the values at {@code scale} decimal places, HALF_UP, one rounding; null for an empty list. */
+    public static BigDecimal mean(List<BigDecimal> values, int scale) {
+        if (values.isEmpty()) {
+            return null;
+        }
+        BigDecimal sum = values.stream().reduce(BigDecimal.ZERO, BigDecimal::add);
+        return sum.divide(BigDecimal.valueOf(values.size()), scale, RoundingMode.HALF_UP);
+    }
+
     /** Whole percentage points of a ratio: {@code round(ratio * 100, 0)}, HALF_UP (away from zero on ties, like SQL {@code round}). */
     public static BigDecimal percentPoints(BigDecimal ratio) {
         require(ratio, "비율");

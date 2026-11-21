@@ -122,6 +122,14 @@ _OPERATIONS: Final[dict[str, tuple[str, str, frozenset[int], str | None, bool]]]
         "AgentMemoryStateDto",
         True,
     ),
+    # AG-05 D: two memory versions on the same seeds; the query (versionA, versionB) is added by the compare command (AG-05 E).
+    "getMemoryComparison": (
+        "GET",
+        f"{BASE_PATH}/agents/{{agentId}}/memory/comparison",
+        frozenset({200}),
+        "MemoryComparisonDto",
+        True,
+    ),
     "getAgentMemoryVersion": (
         "GET",
         f"{BASE_PATH}/agents/{{agentId}}/memory/{{version}}",

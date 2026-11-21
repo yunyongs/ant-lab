@@ -143,6 +143,16 @@ class AgentRunnerContractTest {
         assertListed(doc, memoryVersion, get(memoryUri + "/0", TOKEN));
         assertListed(doc, memoryVersion, get(memoryUri + "/abc", TOKEN));
         assertListed(doc, memoryVersion, get(memoryUri + "/1", TOKEN));
+        String comparison = "GET " + AGENTS + "/{agentId}/memory/comparison";
+        assertListed(doc, comparison, get(memoryUri + "/comparison?versionA=0&versionB=0", "wrong"));
+        assertListed(doc, comparison, get(AGENTS + "/987654321/memory/comparison?versionA=0&versionB=0", TOKEN));
+        assertListed(doc, comparison, get(memoryUri + "/comparison?versionA=-1&versionB=0", TOKEN));
+        assertListed(doc, comparison, get(memoryUri + "/comparison?versionA=0", TOKEN));
+        assertListed(doc, comparison, get(memoryUri + "/comparison?versionA=abc&versionB=0", TOKEN));
+        assertListed(doc, comparison, get(memoryUri + "/comparison?versionA=0&versionB=5", TOKEN));
+        MockHttpServletResponse empty = get(memoryUri + "/comparison?versionA=0&versionB=0", TOKEN);
+        assertThat(empty.getStatus()).isEqualTo(200);
+        assertThat(json(empty).get("groups")).isEmpty();
         assertListed(doc, reflectionView, get(seasonUri + "/reflection-view", "wrong"));
         assertListed(doc, reflectionView, get(startUri + "/987654321/reflection-view", TOKEN));
         assertListed(doc, reflectionView, get(startUri + "/abc/reflection-view", TOKEN));
@@ -226,7 +236,8 @@ class AgentRunnerContractTest {
         assertThat(types).containsExactlyInAnyOrder(AgentDto.class, SeasonDto.class, antlab.agent.AgentSeasonConfigDto.class, AgentTurnViewDto.class,
                 DecisionResultDto.class, TurnResultDto.class, AbandonResultDto.class, antlab.league.LeagueDto.class, Void.class,
                 antlab.agent.memory.AgentMemoryStateDto.class, antlab.agent.memory.AgentMemoryVersionDto.class,
-                antlab.agent.memory.ReflectionViewDto.class, antlab.agent.memory.SubmitSeasonMemoryResultDto.class);
+                antlab.agent.memory.ReflectionViewDto.class, antlab.agent.memory.SubmitSeasonMemoryResultDto.class,
+                antlab.agent.memory.MemoryComparisonDto.class);
         assertThat(ExposureRules.check(SeasonDto.class, catalog, false, false)).isEmpty();
         assertThat(ExposureRules.check(AgentTurnViewDto.class, catalog, false, false)).isEmpty();
         assertThat(Arrays.stream(antlab.agent.AgentSeasonConfigDto.class.getRecordComponents()).map(RecordComponent::getName).toList())
@@ -239,6 +250,7 @@ class AgentRunnerContractTest {
         assertThat(ExposureRules.check(antlab.agent.memory.AgentMemoryStateDto.class, catalog, false, false)).isEmpty();
         assertThat(ExposureRules.check(antlab.agent.memory.AgentMemoryVersionDto.class, catalog, false, false)).isEmpty();
         assertThat(ExposureRules.check(antlab.agent.memory.SubmitSeasonMemoryResultDto.class, catalog, false, false)).isEmpty();
+        assertThat(ExposureRules.check(antlab.agent.memory.MemoryComparisonDto.class, catalog, false, false)).isEmpty();
         // the reflection view shows feed kinds and the report card of a finished season, like the review handlers do
         assertThat(ExposureRules.check(antlab.agent.memory.ReflectionViewDto.class, catalog, true, true)).isEmpty();
         // reviewReveal accepts every review-only column, so the view is pinned to the two it needs: the feed kind and the

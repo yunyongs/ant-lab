@@ -77,7 +77,7 @@ class LeagueEntryCommitTest {
     }
 
     private long league() {
-        return leagues.create(new CreateLeagueRequest("Commit league", null, null)).id();
+        return leagues.create(new CreateLeagueRequest("Commit league", null, null, null)).id();
     }
 
     private long enter(long agent, String model, long league) {

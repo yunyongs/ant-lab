@@ -124,6 +124,11 @@ class AgentRunnerSchemaParityTest {
         assertSchemaMatches("ReflectionCitedDto", antlab.agent.memory.ReflectionViewDto.Cited.class);
         assertSchemaMatches("SubmitSeasonMemoryRequest", antlab.agent.memory.SubmitSeasonMemoryRequest.class);
         assertSchemaMatches("SubmitSeasonMemoryResultDto", antlab.agent.memory.SubmitSeasonMemoryResultDto.class);
+        assertSchemaMatches("MemoryComparisonDto", antlab.agent.memory.MemoryComparisonDto.class);
+        assertSchemaMatches("MemoryComparisonGroupDto", antlab.agent.memory.MemoryComparisonDto.Group.class);
+        assertSchemaMatches("MemoryComparisonSideDto", antlab.agent.memory.MemoryComparisonDto.Side.class);
+        assertSchemaMatches("MemoryComparisonSummaryDto", antlab.agent.memory.MemoryComparisonDto.Summary.class);
+        assertSchemaMatches("MemoryComparisonMeanDiffDto", antlab.agent.memory.MemoryComparisonDto.MeanDiff.class);
         assertSchemaMatches("CreateLeagueRequest", antlab.league.CreateLeagueRequest.class);
         assertSchemaMatches("LeagueDto", antlab.league.LeagueDto.class);
         assertSchemaMatches("LeagueEntryDto", antlab.league.LeagueEntryDto.class);
@@ -193,7 +198,8 @@ class AgentRunnerSchemaParityTest {
         JsonNode s = schemas(RUNNER);
         assertThat(s.path("AgentTurnViewDto").path("properties").path("lastTurn").path("oneOf"))
                 .isEqualTo(OpenApiNormalizer.fromYaml("t: [{$ref: '#/components/schemas/TurnResultDto'}, {type: 'null'}]").path("t"));
-        assertThat(s.path("AgentPartDto").path("properties").path("memory").path("type").asString()).isEqualTo("null");
+        assertThat(s.path("AgentPartDto").path("properties").path("memory").path("oneOf")).isEqualTo(
+                OpenApiNormalizer.fromYaml("t: [{$ref: '#/components/schemas/AgentMemoryDto'}, {type: 'null'}]").path("t"));
         assertThat(s.path("RejectDto").path("properties").path("index").path("type"))
                 .isEqualTo(OpenApiNormalizer.fromYaml("t: [integer, 'null']").path("t"));
         JsonNode doc = OpenApiNormalizer.fromYaml(Files.readString(RUNNER));

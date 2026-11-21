@@ -629,6 +629,58 @@ paths:
                 $ref: '#/components/schemas/Problem'
         '500':
           $ref: '#/components/responses/InternalError'
+  /internal/agent-runner/v1/agents/{agentId}/memory/comparison:
+    get:
+      tags: [agent]
+      operationId: getMemoryComparison
+      summary: Compare two memory versions on the same seeds / 같은 시드에서 두 메모리 버전 비교
+      description: |-
+        Compares memory version A with version B of the agent (0 = no memory). One row per closed same-seed group in which the agent has a finished season with each version: per side the pinned version, the valuation multiple, the stored season score with its nine items and the number of failed turns, plus whether the agent met the seed in a season outside the group. A group is closed only when every league of it is closed. Abandoned seasons are left out. With the same version on both sides the first two seasons of that version in the group are compared. Groups are named G1, G2, ... in creation order; no seed, date, month block or league number is shown. Under 5 groups the summary is marked anecdotal; the mean differences are B minus A. Only the agent's own record is read.
+
+        에이전트의 메모리 버전 A와 B를 비교한다(0 = 메모리 없음). 닫힌 같은 시드 묶음마다 한 줄, 에이전트가 두 버전 각각으로 끝낸 시즌이 있는 묶음만 넣는다. 각 쪽에 고정한 버전, 평가 배수, 저장된 시즌 점수와 아홉 항목, 실패한 턴 수, 그리고 에이전트가 묶음 밖 시즌에서 그 시드를 만난 적이 있는지를 준다. 묶음은 모든 리그가 닫혀야 닫힌 것이다. 포기한 시즌은 뺀다. 양쪽 버전이 같으면 묶음 안에서 그 버전의 첫 두 시즌을 비교한다. 묶음은 만든 순서로 G1, G2, ... 라 부르며 시드·날짜·달 블록·리그 번호는 보이지 않는다. 묶음이 5개 미만이면 요약에 anecdotal 표시가 붙고, 평균 차이는 B 빼기 A다. 에이전트 본인의 기록만 읽는다.
+      parameters:
+        - $ref: '#/components/parameters/AgentId'
+        - name: versionA
+          in: query
+          required: true
+          description: Memory version A, 0 for no memory / 메모리 버전 A, 0은 메모리 없음
+          schema:
+            type: integer
+            format: int32
+            minimum: 0
+        - name: versionB
+          in: query
+          required: true
+          description: Memory version B, 0 for no memory / 메모리 버전 B, 0은 메모리 없음
+          schema:
+            type: integer
+            format: int32
+            minimum: 0
+      responses:
+        '200':
+          description: The comparison, with no row when no group qualifies / 비교, 맞는 묶음이 없으면 줄이 없다
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemoryComparisonDto'
+        '400':
+          description: A number is missing, not a number or below 0 — INVALID_ARGUMENT / 번호가 없거나 숫자가 아니거나 0 미만이다 — INVALID_ARGUMENT
+          x-error-codes: [INVALID_ARGUMENT]
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          description: The agent does not exist or is not this owner's, or it has no such version. One answer for all — NOT_FOUND / 에이전트가 없거나 이 소유자의 것이 아니거나 그 버전이 없다. 모두 같은 응답이다 — NOT_FOUND
+          x-error-codes: [NOT_FOUND]
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /internal/agent-runner/v1/agents/{agentId}/memory/{version}:
     get:
       tags: [agent]
@@ -787,9 +839,9 @@ paths:
       operationId: createLeague
       summary: Create a league / 리그 생성
       description: |-
-        Creates a manual same-seed group for the configured owner. The server draws the seed and fixes the path length and the season settings; none of them is taken from the request and the seed is never returned. Entry into a league is not part of this operation.
+        Creates a manual same-seed group for the configured owner. The server draws the seed and fixes the path length and the season settings; none of them is taken from the request and the seed is never returned. With sameSeedAs the new league is a sibling in the group of that root league: it copies the root's seed and settings, and it is refused when the root is itself a sibling (400) or already CLOSED (409). The root row is locked, so a close of the root cannot interleave with the creation. Entry into a league is not part of this operation.
 
-        설정된 소유자의 수동 같은 시드 묶음을 만든다. 시드는 서버가 뽑고 경로 길이와 시즌 설정도 서버가 고정하며, 요청에서 받지 않고 시드는 돌려주지 않는다. 리그 참가는 이 연산에 없다.
+        설정된 소유자의 수동 같은 시드 묶음을 만든다. 시드는 서버가 뽑고 경로 길이와 시즌 설정도 서버가 고정하며, 요청에서 받지 않고 시드는 돌려주지 않는다. sameSeedAs 를 주면 그 뿌리 리그 묶음의 형제가 되어 뿌리의 시드와 설정을 그대로 쓰며, 뿌리가 형제이면 거절(400), 이미 CLOSED 이면 거절(409)한다. 뿌리 행을 잠가서 뿌리를 닫는 일이 생성 중간에 끼어들 수 없다. 리그 참가는 이 연산에 없다.
       requestBody:
         required: true
         content:
@@ -804,7 +856,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/LeagueDto'
         '400':
-          description: The request is wrong — INVALID_ARGUMENT / 요청이 틀렸다 — INVALID_ARGUMENT
+          description: The request is wrong, or sameSeedAs names a sibling instead of a root — INVALID_ARGUMENT / 요청이 틀렸거나 sameSeedAs 가 뿌리가 아니라 형제를 가리킨다 — INVALID_ARGUMENT
           x-error-codes: [INVALID_ARGUMENT]
           content:
             application/problem+json:
@@ -812,9 +864,16 @@ paths:
                 $ref: '#/components/schemas/Problem'
         '401':
           $ref: '#/components/responses/Unauthenticated'
+        '404':
+          description: With sameSeedAs, the league does not exist or is not this owner's — NOT_FOUND / sameSeedAs 가 가리키는 리그가 없거나 이 소유자의 것이 아니다 — NOT_FOUND
+          x-error-codes: [NOT_FOUND]
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
         '409':
-          description: A league cannot be created now — POOL_NOT_LOADED, POOL_NOT_JUDGED / 지금은 만들 수 없다 — POOL_NOT_LOADED, POOL_NOT_JUDGED
-          x-error-codes: [POOL_NOT_LOADED, POOL_NOT_JUDGED]
+          description: A league cannot be created now — LEAGUE_CLOSED (the root of sameSeedAs is closed), POOL_NOT_LOADED, POOL_NOT_JUDGED / 지금은 만들 수 없다 — LEAGUE_CLOSED(sameSeedAs 의 뿌리가 닫혔다), POOL_NOT_LOADED, POOL_NOT_JUDGED
+          x-error-codes: [LEAGUE_CLOSED, POOL_NOT_LOADED, POOL_NOT_JUDGED]
           content:
             application/problem+json:
               schema:
@@ -1764,8 +1823,13 @@ components:
           items:
             $ref: '#/components/schemas/RejectDto'
         memory:
-          type: 'null'
-          description: Reserved for agent memory; always null for now / 에이전트 기억 자리, 지금은 항상 null
+          description: |-
+            The memory version this season was pinned to at its start (its operating note and the reflections that made that version and the two before it), the same at every turn even after a newer version is written; null when the season pinned none
+
+            이 시즌이 시작할 때 고정한 메모리 버전(그 버전의 운용 노트와 그 버전과 앞선 두 버전을 만든 복기). 새 버전이 쓰여도 모든 턴에서 같다. 고정한 것이 없으면 null
+          oneOf:
+            - $ref: '#/components/schemas/AgentMemoryDto'
+            - type: 'null'
     RecentTradeDto:
       type: object
       required: [turnNo, side, asset, quantity, price, fee, source]
@@ -2102,6 +2166,14 @@ components:
           minimum: 2
           maximum: 20
           default: 8
+        sameSeedAs:
+          type: [integer, 'null']
+          format: int64
+          minimum: 1
+          description: |-
+            Root league of an earlier same-seed group: the new league (a sibling) plays that group's seed and settings; pathLength, if given, must equal the root's, and maxEntries defaults to the root's. The root must be a root (not itself a sibling) and still OPEN. The seed is not returned
+
+            먼저 만든 같은 시드 묶음의 뿌리 리그. 새 리그(형제)는 그 묶음의 시드와 설정을 그대로 쓴다. pathLength 는 주면 뿌리와 같아야 하고 maxEntries 를 생략하면 뿌리 값이다. 형제가 아닌 뿌리 리그여야 하며 아직 OPEN 이어야 한다. 시드는 돌려주지 않는다
     LeagueDto:
       type: object
       required: [id, name, status, pathLength, maxEntries, entries]
@@ -2189,6 +2261,117 @@ components:
           maxItems: 3
           items:
             type: object
+    MemoryComparisonDto:
+      type: object
+      description: |-
+        Two memory versions of one agent on the same seeds, from stored results of closed same-seed groups. No seed, date, month block or league number
+
+        같은 시드에서 한 에이전트의 두 메모리 버전. 닫힌 같은 시드 묶음의 저장된 결과이며 시드·날짜·달 블록·리그 번호는 없다
+      required: [versionA, versionB, groups, summary]
+      properties:
+        versionA:
+          type: integer
+          format: int32
+          minimum: 0
+        versionB:
+          type: integer
+          format: int32
+          minimum: 0
+        groups:
+          type: array
+          description: One row per closed group, in group creation order / 닫힌 묶음마다 한 줄, 묶음을 만든 순서
+          items:
+            $ref: '#/components/schemas/MemoryComparisonGroupDto'
+        summary:
+          $ref: '#/components/schemas/MemoryComparisonSummaryDto'
+    MemoryComparisonGroupDto:
+      type: object
+      required: [groupLabel, a, b]
+      properties:
+        groupLabel:
+          type: string
+          pattern: '^G[1-9][0-9]*$'
+          description: G1, G2, ... in group creation order; not a league number / 묶음을 만든 순서의 G1, G2, ... 리그 번호가 아니다
+        a:
+          $ref: '#/components/schemas/MemoryComparisonSideDto'
+        b:
+          $ref: '#/components/schemas/MemoryComparisonSideDto'
+    MemoryComparisonSideDto:
+      type: object
+      required: [memoryVersion, personaVersion, valuationMultiple, score, failedTurns, experiencedSeed]
+      properties:
+        memoryVersion:
+          type: [integer, 'null']
+          format: int32
+          minimum: 1
+          description: Memory version the season was pinned to; null = none / 시즌이 고정한 메모리 버전, 없으면 null
+        personaVersion:
+          type: integer
+          format: int32
+          minimum: 1
+          description: Persona version the season was pinned to, so a persona change between the two sides is visible / 시즌이 고정한 페르소나 버전. 두 쪽 사이에 페르소나가 바뀌었는지 보인다
+        valuationMultiple:
+          type: string
+          format: decimal
+          description: Final valuation divided by initial capital, 8 decimal places / 최종 평가액 ÷ 초기 자금, 소수 8자리
+        score:
+          description: The stored season score with its nine process items; null while no score is stored / 저장된 시즌 점수와 과정 항목 아홉 개, 저장된 점수가 없으면 null
+          oneOf:
+            - $ref: '#/components/schemas/SeasonScoreDto'
+            - type: 'null'
+        failedTurns:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Turns whose final call gave no usable decision / 마지막 호출이 쓸 수 있는 결정을 내지 못한 턴 수
+        experiencedSeed:
+          type: boolean
+          description: True when the agent met this seed in a season outside the group; should stay false on held-out seeds / 에이전트가 묶음 밖 시즌에서 이 시드를 만났으면 true. 따로 둔 시드에서는 false여야 한다
+    MemoryComparisonSummaryDto:
+      type: object
+      required: [groups, bWins, anecdotal, meanDiff]
+      properties:
+        groups:
+          type: integer
+          format: int32
+          minimum: 0
+        bWins:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Groups where B's valuation multiple is strictly above A's / B의 평가 배수가 A보다 엄격히 높은 묶음 수
+        anecdotal:
+          type: boolean
+          description: True under 5 groups; the numbers say little / 묶음이 5개 미만이면 true. 숫자가 말해 주는 것이 적다
+        meanDiff:
+          description: Mean of B minus A over the groups that have both values; null without a row / 두 값이 다 있는 묶음의 B 빼기 A 평균, 줄이 없으면 null
+          oneOf:
+            - $ref: '#/components/schemas/MemoryComparisonMeanDiffDto'
+            - type: 'null'
+    MemoryComparisonMeanDiffDto:
+      type: object
+      required: [valuationMultiple, score, resultScore, processScore, items]
+      properties:
+        valuationMultiple:
+          type: [string, 'null']
+          format: decimal
+          description: 8 decimal places / 소수 8자리
+        score:
+          type: [string, 'null']
+          format: decimal
+          description: 2 decimal places / 소수 2자리
+        resultScore:
+          type: [string, 'null']
+          format: decimal
+          description: 2 decimal places / 소수 2자리
+        processScore:
+          type: [string, 'null']
+          format: decimal
+          description: 2 decimal places / 소수 2자리
+        items:
+          description: Differences (B minus A) per process item; they can be negative and are not 0-100 scores / 과정 항목별 차이(B 빼기 A). 음수일 수 있고 0~100 점수가 아니다
+          allOf:
+            - $ref: '#/components/schemas/SeasonScoreItemsDto'
     AgentMemoryVersionDto:
       type: object
       required: [memory, playbookCarried, createdAt]
