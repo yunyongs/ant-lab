@@ -80,7 +80,8 @@ cd web && npm run verify             # lint, types, tests, build
 | One-season API, JWT auth, web app, Grafana monitoring | Done |
 | Observability (Grafana: service, AI usage, agents) | In progress |
 | Python engine (history reader, paths, projections, regime scoring) | In progress |
-| Agent runner (server side, personas, manual same-seed leagues; Python client in review) | In progress |
+| Agent runner (server side, personas, manual same-seed leagues, Python client) | Done |
+| Agent knowledge accumulation (season reflections, operating notes, leak filter, memory version comparison) | Done |
 | Data collection (KIS prices), full history load, scoring and ratings | In progress / planned |
 | Desktop and mobile apps, real-money operation | Planned |
 
