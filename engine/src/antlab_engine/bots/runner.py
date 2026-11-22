@@ -14,7 +14,7 @@ from typing import Any, Protocol
 
 from antlab_engine.sim import money
 from antlab_engine.sim.behaviour import TurnSignals
-from antlab_engine.sim.counts import CountsSource
+from antlab_engine.sim.counts import CountsSource, PercentileCounts, RankCounts
 from antlab_engine.sim.decisions import Unit, apply_unit
 from antlab_engine.sim.model import SimError, SimInputError
 from antlab_engine.sim.report import plain
@@ -103,6 +103,7 @@ def run_bot(
     *,
     feed_source: FeedSource | None = None,
     counts_source: CountsSource | None = None,
+    path_count: int = 2000,
     require_accepted: bool = True,
 ) -> BotRun:
     inputs = world.inputs
@@ -152,6 +153,7 @@ def run_bot(
         counts_source,
         season_seed=world.seed,
         base_date=world.base_date,
+        path_count=path_count,
         signals=signals if feed_source is not None else None,
     )
     decisions = io.decisions_doc(units_by_turn)
@@ -201,14 +203,28 @@ def _record(
         "percentileRequest": None
         if scored.percentile_request is None
         else scored.percentile_request.to_wire(),
-        "counts": None,
+        "counts": None if scored.counts is None else _counts_doc(scored.counts),
         "decisionsSha256": io.decisions_sha256(decisions),
     }
 
 
-def _run_spec(args: tuple[BotWorld, str, int, int, bool]) -> dict[str, Any]:
-    world, kind, index, master_seed, keep = args
-    run = run_bot(world, make_bot(kind, index, master_seed, world.seed))
+def _counts_doc(counts: PercentileCounts) -> dict[str, Any]:
+    def one(c: RankCounts) -> dict[str, int]:
+        return {"below": c.below, "equal": c.equal, "n": c.n}
+
+    return {"sharpeDiff": one(counts.sharpe_diff), "endMultiple": one(counts.end_multiple)}
+
+
+def _run_spec(
+    args: tuple[BotWorld, str, int, int, bool, CountsSource | None, int],
+) -> dict[str, Any]:
+    world, kind, index, master_seed, keep, counts_source, path_count = args
+    run = run_bot(
+        world,
+        make_bot(kind, index, master_seed, world.seed),
+        counts_source=counts_source,
+        path_count=path_count,
+    )
     record = dict(run.record)
     if keep:
         record["decisions"] = run.decisions
@@ -222,10 +238,15 @@ def run_batch(
     *,
     workers: int = 1,
     keep_decisions: bool = False,
+    counts_source: CountsSource | None = None,
+    path_count: int = 2000,
     progress: Callable[[int], None] | None = None,
 ) -> list[dict[str, Any]]:
     """One record per (kind, index) in the order of `specs`, whatever the worker count."""
-    jobs = [(world, kind, index, master_seed, keep_decisions) for kind, index in specs]
+    jobs = [
+        (world, kind, index, master_seed, keep_decisions, counts_source, path_count)
+        for kind, index in specs
+    ]
     if workers <= 1:
         records = []
         for i, job in enumerate(jobs):

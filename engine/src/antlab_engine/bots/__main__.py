@@ -1,6 +1,8 @@
 """Batch CLI: `python -m antlab_engine.bots --world synthetic:7 --random 200 --static 1`.
 
 Offline only: no database, no network. Output goes to `out/bots/<run>/` (git-ignored).
+`--world panel:INDEX[:ASSETS[:LENGTH[:GENERATOR]]]` draws a synthetic panel world from
+`--master-seed`; `--counts [N]` then fills the rank counts and the result score from N engine paths.
 """
 
 import argparse
@@ -10,6 +12,9 @@ import sys
 from pathlib import Path
 
 from antlab_engine import __version__ as engine_version
+from antlab_engine.projection import ReturnPanel
+from antlab_engine.sim.counts import MAX_PATHS, MIN_PATHS
+from antlab_engine.validation.counts_cache import CachedEngineCounts
 
 from . import io
 from .disciplined_bot import VERSION as DISCIPLINED_VERSION
@@ -19,6 +24,26 @@ from .runner import run_batch
 from .static_bot import VERSION as STATIC_VERSION
 from .world import BotWorld, synthetic_world, world_from_doc
 from .world_feed import default_catalog
+from .world_panel import GENERATORS, panel_world
+
+
+def load_world_with_panel(spec: str, master_seed: int = 1) -> tuple[BotWorld, ReturnPanel | None]:
+    if spec.startswith("panel:"):
+        fields = spec.split(":")[1:]
+        generator = "simple"
+        if fields and fields[-1] in GENERATORS:
+            generator = fields.pop()
+        try:
+            parts = [int(p) for p in fields]
+        except ValueError:
+            parts = []
+        if not 1 <= len(parts) <= 3:
+            raise SystemExit("panel:INDEX[:ASSETS[:LENGTH[:simple|stationary]]]")
+        index = parts[0]
+        assets = parts[1] if len(parts) > 1 else 30
+        length = parts[2] if len(parts) > 2 else 60
+        return panel_world(master_seed, index, length=length, assets=assets, generator=generator)
+    return load_world(spec), None
 
 
 def load_world(spec: str) -> BotWorld:
@@ -46,13 +71,29 @@ def main(argv: list[str] | None = None) -> int:
         help="also run the disciplined bot without the 8 percent guard",
     )
     parser.add_argument("--news", type=int, default=1, choices=(0, 1), dest="news")
+    parser.add_argument(
+        "--counts",
+        type=int,
+        nargs="?",
+        const=2000,
+        default=None,
+        metavar="N",
+        help="rank counts from N engine paths over the panel of a panel: world (default 2000)",
+    )
     parser.add_argument("--workers", type=int, default=1)
     parser.add_argument("--keep-decisions", action="store_true")
     parser.add_argument("--git-commit", default=None)
     parser.add_argument("--out", type=Path, default=None)
     args = parser.parse_args(argv)
+    if args.counts is not None and not MIN_PATHS <= args.counts <= MAX_PATHS:
+        parser.error(f"--counts must be between {MIN_PATHS} and {MAX_PATHS}")
 
-    world = load_world(args.world)
+    world, panel = load_world_with_panel(args.world, args.master_seed)
+    counts_source = None
+    if args.counts is not None:
+        if panel is None:
+            raise SystemExit("--counts needs a panel: world")
+        counts_source = CachedEngineCounts(panel)
     specs = [("random", i) for i in range(args.randoms)] + [
         ("static", i) for i in range(args.statics)
     ]
@@ -65,11 +106,15 @@ def main(argv: list[str] | None = None) -> int:
         args.master_seed,
         workers=args.workers,
         keep_decisions=args.keep_decisions,
+        counts_source=counts_source,
+        path_count=2000 if args.counts is None else args.counts,
     )
     key = (
         f"{world.world_id}:{args.master_seed}:{args.randoms}:{args.statics}"
         f":{args.disciplined}:{int(args.no_guard)}:{args.news}"
     )
+    if args.counts is not None:
+        key += f":counts{args.counts}"
     run = hashlib.sha256(key.encode()).hexdigest()[:12]
     out = args.out or Path("out/bots") / run
     manifest = {
@@ -87,6 +132,8 @@ def main(argv: list[str] | None = None) -> int:
         "gitCommit": args.git_commit,
         "runs": len(records),
     }
+    if args.counts is not None:
+        manifest["counts"] = {"paths": args.counts, "source": "CachedEngineCounts"}
     runs, manifest_path = io.write_batch(out, records, manifest)
     print(f"{len(records)} runs -> {runs}; manifest {manifest_path}")  # noqa: T201
     return 0

@@ -275,3 +275,76 @@ def test_sells_are_applied_before_buys_in_the_order_a_bot_sends_them():
     assert sides == ["SELL", "BUY"]
     with pytest.raises(BotRejection, match="INSUFFICIENT_CASH"):
         run_bot(world, _Scripted(buys_first=True))
+
+
+def _panel_world():
+    from antlab_engine.bots.world_panel import panel_world
+
+    return panel_world(1, 0, length=12, assets=12, generator="simple")
+
+
+def test_a_counts_source_fills_counts_request_and_scores():
+    from antlab_engine.validation.counts_cache import CachedEngineCounts
+
+    world, panel = _panel_world()
+    record = run_bot(
+        world,
+        make_bot("random", 0, 1, world.seed),
+        counts_source=CachedEngineCounts(panel),
+        path_count=100,
+    ).record
+    counts = record["counts"]
+    assert set(counts) == {"sharpeDiff", "endMultiple"}
+    for part in counts.values():
+        assert set(part) == {"below", "equal", "n"}
+        assert part["n"] == 100 and part["below"] + part["equal"] <= 100
+    assert record["percentileRequest"]["n"] == 100
+    assert record["score"]["resultScore"] is not None
+    assert record["score"]["score"] is not None
+    assert record["exclusion"] is None
+
+
+def test_without_a_counts_source_the_counts_and_request_stay_null():
+    world, _ = _panel_world()
+    record = run_bot(world, make_bot("random", 0, 1, world.seed)).record
+    assert record["counts"] is None
+    assert record["percentileRequest"] is None
+    assert record["score"]["resultScore"] is None and record["score"]["score"] is None
+
+
+def test_counts_do_not_change_the_decisions_or_the_pinned_hashes():
+    from antlab_engine.validation.counts_cache import CachedEngineCounts
+
+    world, panel = _panel_world()
+    bot = make_bot("random", 2, 1, world.seed)
+    plain = run_bot(world, bot).record
+    counted = run_bot(
+        world, make_bot("random", 2, 1, world.seed), counts_source=CachedEngineCounts(panel)
+    ).record
+    assert counted["decisionsSha256"] == plain["decisionsSha256"]
+    assert counted["totals"] == plain["totals"]
+
+
+def test_a_history_that_cannot_carry_the_horizon_keeps_counts_null_and_the_request():
+    from antlab_engine.sim.counts import FixedCounts
+
+    world, _ = _panel_world()
+    record = run_bot(
+        world, make_bot("random", 0, 1, world.seed), counts_source=FixedCounts(None)
+    ).record
+    assert record["counts"] is None
+    assert record["percentileRequest"] is not None
+    assert record["exclusion"] == "NO_SCORE"
+
+
+def test_batch_with_counts_writes_the_same_bytes_for_one_and_two_workers():
+    from antlab_engine.validation.counts_cache import CachedEngineCounts
+
+    world, panel = _panel_world()
+    specs = [("random", i) for i in range(4)] + [("static", 0), ("news", 0)]
+    one = run_batch(world, specs, 3, counts_source=CachedEngineCounts(panel), path_count=100)
+    two = run_batch(
+        world, specs, 3, workers=2, counts_source=CachedEngineCounts(panel), path_count=100
+    )
+    assert [io.record_line(r) for r in one] == [io.record_line(r) for r in two]
+    assert all(r["counts"] is not None for r in one)
