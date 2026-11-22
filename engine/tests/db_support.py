@@ -49,6 +49,9 @@ GRANTED_TABLES = (
     "fx_month",
     "series",
     "series_observation",
+    "asset_group",
+    "asset_month_attention",
+    "month_event",
 )
 DENIED_TABLES = ("member", "refresh_token", "season_path", "turn_price", "cash_ledger")
 WRITE_VERBS = ("INSERT", "UPDATE", "DELETE", "TRUNCATE")

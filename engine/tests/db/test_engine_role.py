@@ -35,7 +35,7 @@ def table_privileges(admin: psycopg.Connection) -> set[tuple[str, str]]:
     return granted
 
 
-def test_r1_grants_are_select_on_seven_tables_only(scratch_db):
+def test_r1_grants_are_select_on_ten_tables_only(scratch_db):
     with scratch_db.admin() as admin:
         assert table_privileges(admin) == {(t, "SELECT") for t in GRANTED_TABLES}
         rows = admin.execute(
