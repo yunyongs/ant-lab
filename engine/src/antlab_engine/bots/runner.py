@@ -22,11 +22,14 @@ from antlab_engine.sim.score import ScoredSeason, score_season, team_returns
 from antlab_engine.sim.season import Season
 
 from . import io
+from .disciplined_bot import DisciplinedBot
+from .news_bot import NewsBot
 from .random_bot import RandomBot
-from .rng import KIND_RANDOM, mix
+from .rng import KIND_DISCIPLINED, KIND_RANDOM, mix
 from .static_bot import StaticBot
 from .view import BotView, FeedSource, TurnFeed, ViewAsset
 from .world import BotWorld
+from .world_feed import feed_source_for
 
 
 class Bot(Protocol):
@@ -46,10 +49,18 @@ class BotRejection(SimError):
 def make_bot(kind: str, index: int, master_seed: int, world_seed: int) -> Bot:
     # The static bot reuses the random bot's seed of the same index (same start team).
     seed = mix(master_seed, world_seed, KIND_RANDOM, index)
+    team_seed = mix(master_seed, world_seed, KIND_DISCIPLINED, index)
     if kind == "random":
         return RandomBot(index, seed)
     if kind == "static":
         return StaticBot(index, seed)
+    # The news bot reuses the disciplined bot's seed of its index (same start team).
+    if kind == "disciplined":
+        return DisciplinedBot(index, team_seed)
+    if kind == "disciplined-noguard":
+        return DisciplinedBot(index, team_seed, guard=False)
+    if kind == "news":
+        return NewsBot(index, team_seed)
     raise ValueError(f"unknown bot kind {kind!r}")
 
 
@@ -80,6 +91,9 @@ def _view(
         rates=MappingProxyType(rates),
         feed=feed.items,
         signals=feed.signals,
+        gainers=feed.gainers,
+        losers=feed.losers,
+        attention=feed.attention,
     )
 
 
@@ -95,6 +109,8 @@ def run_bot(
     s = inputs.settings
     if s.single_asset_limit is not None:
         raise SimInputError("the reference bots assume a world without a single-asset limit")
+    if feed_source is None:
+        feed_source = feed_source_for(world)
     season = Season(inputs)
     pool_view = tuple(ViewAsset(a.asset, a.market, a.system_position) for a in inputs.pool)
     rates = {

@@ -1,8 +1,9 @@
 """What a bot may see at a decision turn: facts as of that turn and nothing later.
 
 The view has no path, block, month or date field. Prices are the turn's own and the previous
-turn's; the feed (when a source is plugged in) is the turn's rows built from price history up to
-the turn. A feed source gets the turn and the prices so far, so it cannot see ahead either.
+turn's; the feed (when a source is plugged in) is the turn's rows and ranking board (assets in rank
+order) built from price history up to the turn. A feed source gets the turn and the prices so
+far, so it cannot see ahead either.
 """
 
 from collections.abc import Mapping, Sequence
@@ -33,6 +34,9 @@ class FeedItem:
 class TurnFeed:
     items: tuple[FeedItem, ...] = ()
     signals: TurnSignals | None = None
+    gainers: tuple[str, ...] = ()
+    losers: tuple[str, ...] = ()
+    attention: tuple[str, ...] = ()
 
 
 class FeedSource(Protocol):
@@ -55,3 +59,6 @@ class BotView:
     rates: Mapping[str, Decimal]
     feed: tuple[FeedItem, ...] = ()
     signals: TurnSignals | None = None
+    gainers: tuple[str, ...] = ()
+    losers: tuple[str, ...] = ()
+    attention: tuple[str, ...] = ()

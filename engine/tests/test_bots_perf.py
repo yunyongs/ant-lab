@@ -18,9 +18,13 @@ def test_twenty_random_bots_on_a_twelve_turn_world_stay_cheap():
 
 
 @pytest.mark.slow
-def test_two_hundred_random_bots_and_a_static_bot_on_a_sixty_turn_world():
-    world = synthetic_world(7, assets=30, length=60)
-    specs = [("random", i) for i in range(200)] + [("static", 0)]
+def test_all_two_hundred_and_three_bots_on_a_sixty_turn_world_with_a_feed():
+    world = synthetic_world(7, assets=30, length=60, feed=True)
+    specs = [("random", i) for i in range(200)] + [
+        ("static", 0),
+        ("disciplined", 0),
+        ("news", 0),
+    ]
     started = time.perf_counter()
     one = run_batch(world, specs, 1)
     single = time.perf_counter() - started

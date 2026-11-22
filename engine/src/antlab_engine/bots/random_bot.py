@@ -31,7 +31,9 @@ def declared_position(asset: ViewAsset) -> Position:
     return asset.system_position or Position.MIDFIELDER
 
 
-def buy_unit(view: BotView, asset: ViewAsset, budget: int) -> tuple[OrderUnit, Decimal] | None:
+def buy_unit(
+    view: BotView, asset: ViewAsset, budget: int, source: OrderSource | None = None
+) -> tuple[OrderUnit, Decimal] | None:
     """The largest buy that fits `budget` (notional plus fee); None when not even one unit fits."""
     price = view.prices[asset.asset]
     rate = view.rates[asset.asset]
@@ -39,14 +41,18 @@ def buy_unit(view: BotView, asset: ViewAsset, budget: int) -> tuple[OrderUnit, D
     if quantity < 1:
         return None
     cost = money.valuation(price, quantity) + money.fee(price, quantity, rate)
-    order = Order(asset.asset, Side.BUY, quantity, declared_position(asset), OrderSource())
+    order = Order(
+        asset.asset, Side.BUY, quantity, declared_position(asset), source or OrderSource()
+    )
     return OrderUnit(order), cost
 
 
-def sell_unit(view: BotView, asset: str, quantity: int) -> tuple[OrderUnit, Decimal]:
+def sell_unit(
+    view: BotView, asset: str, quantity: int, source: OrderSource | None = None
+) -> tuple[OrderUnit, Decimal]:
     price = view.prices[asset]
     proceeds = money.valuation(price, quantity) - money.fee(price, quantity, view.rates[asset])
-    return OrderUnit(Order(asset, Side.SELL, quantity)), proceeds
+    return OrderUnit(Order(asset, Side.SELL, quantity, None, source or OrderSource())), proceeds
 
 
 def build_team(view: BotView, rng: BotRng) -> tuple[Unit, ...]:
