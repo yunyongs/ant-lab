@@ -11,6 +11,7 @@ from enum import StrEnum
 from .rules import INT_MAX, INT_MIN
 
 PATH_LENGTHS = (12, 24, 60)
+RISK_LIMITS = tuple(Decimal(f"-0.{n}0") for n in (1, 2, 3, 4))
 KRW = "KRW"
 DEFAULT_INITIAL_CASH = Decimal(100_000_000)
 
@@ -29,6 +30,10 @@ class SimInputError(SimError):
 
 class SimStateError(SimError):
     """A call that the season state does not allow (an order after the season ended)."""
+
+
+class SimReportError(SimError):
+    """The facts a report or score reads contradict each other (Java `IllegalStateException`)."""
 
 
 class SimInvariantError(SimError):
@@ -133,7 +138,7 @@ class Settings:
     fee_rate_kr: Decimal = Decimal("0.00015000")
     fee_rate_us: Decimal = Decimal("0.00250000")
     fx_spread_rate: Decimal = Decimal("0.00400000")
-    risk_limit: Decimal = Decimal("0.20000000")
+    risk_limit: Decimal = Decimal("-0.20000000")
     start_formation: Formation = Formation(10, 30, 30, 30)
     path_length: int = 12
     member_kind: str = "HUMAN"
@@ -144,6 +149,8 @@ class Settings:
             raise SimShapeError(f"path length must be one of {PATH_LENGTHS}")
         if self.member_kind not in ("HUMAN", "AGENT"):
             raise SimShapeError("member kind must be HUMAN or AGENT")
+        if self.risk_limit not in RISK_LIMITS:
+            raise SimShapeError("risk limit must be one of -0.10, -0.20, -0.30, -0.40")
         limit = self.single_asset_limit
         if limit is not None and not Decimal(0) < limit <= Decimal(1):
             raise SimShapeError("single asset limit must be in (0, 1]")
@@ -155,6 +162,7 @@ class PoolAsset:
     currency: str
     base_price: Decimal
     base_fx_rate: Decimal
+    system_position: Position | None = None
 
     @property
     def market(self) -> str:
