@@ -19,6 +19,7 @@ from .experiment import (
     PROFILES,
     ExperimentError,
     ProfileSkipped,
+    analyze_overlap_run,
     analyze_run,
     run_profile,
 )
@@ -41,9 +42,20 @@ def main(argv: list[str] | None = None) -> int:
     )
     analyze = commands.add_parser("analyze", help="analyse the files of a finished run")
     analyze.add_argument("directory", type=Path)
+    overlap = commands.add_parser("overlap", help="process-item overlap analysis of a run")
+    overlap_commands = overlap.add_subparsers(dest="overlap_command", required=True)
+    overlap_analyze = overlap_commands.add_parser(
+        "analyze", help="write overlap/overlap.json and overlap_summary.md from the cell files"
+    )
+    overlap_analyze.add_argument("directory", type=Path)
+    overlap_analyze.add_argument(
+        "--partial", action="store_true", help="analyse the finished worlds of an unfinished run"
+    )
     args = parser.parse_args(argv)
     try:
-        if args.command == "analyze":
+        if args.command == "overlap":
+            result, summary = analyze_overlap_run(args.directory, partial=args.partial)
+        elif args.command == "analyze":
             result, summary = analyze_run(args.directory)
         else:
             out = args.out or Path("out/validation") / f"{args.profile}-{args.master_seed}"

@@ -6,10 +6,13 @@ The summary is a fixed template over `result.json`, with no number that is not i
 """
 
 import json
+import os
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 from .checks import INTERVAL_RULE
+from .overlap import render_summary as render_overlap_summary
+from .overlap import validate_overlap
 
 SCHEMA = "validation-run/1"
 STATUS_PROVISIONAL = "provisional"
@@ -31,6 +34,8 @@ MAX_SUMMARY_LINES = 60
 MAX_SUMMARY_CELLS = 5
 RESULT_FILE = "result.json"
 SUMMARY_FILE = "summary.md"
+OVERLAP_FILE = "overlap.json"
+OVERLAP_SUMMARY_FILE = "overlap_summary.md"
 
 
 class OutputError(ValueError):
@@ -231,4 +236,22 @@ def write_run(directory: Path, result: Mapping[str, object]) -> tuple[Path, Path
         json.dumps(result, indent=2, ensure_ascii=False) + "\n", encoding="utf-8", newline="\n"
     )
     summary_path.write_text(summary, encoding="utf-8", newline="\n")
+    return result_path, summary_path
+
+
+def _replace_text(path: Path, text: str) -> None:
+    temporary = path.with_name(path.name + ".tmp")
+    temporary.write_text(text, encoding="utf-8", newline="\n")
+    os.replace(temporary, path)
+
+
+def write_overlap(directory: Path, doc: Mapping[str, object]) -> tuple[Path, Path]:
+    """Write `overlap.json` and `overlap_summary.md` under `directory`, each replaced atomically."""
+    validate_overlap(doc)
+    summary = render_overlap_summary(doc)
+    directory.mkdir(parents=True, exist_ok=True)
+    result_path = directory / OVERLAP_FILE
+    summary_path = directory / OVERLAP_SUMMARY_FILE
+    _replace_text(result_path, json.dumps(doc, indent=2, ensure_ascii=False) + "\n")
+    _replace_text(summary_path, summary)
     return result_path, summary_path
