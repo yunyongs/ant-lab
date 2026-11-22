@@ -28,8 +28,9 @@ from .newsmix_bot import KIND_PREFIX as NEWSMIX_PREFIX
 from .newsmix_bot import NewsMixBot
 from .random_bot import RandomBot
 from .redeclare_bot import RedeclareBot
-from .rng import KIND_DISCIPLINED, KIND_NEWSMIX_COIN, KIND_RANDOM, mix
+from .rng import KIND_DISCIPLINED, KIND_NEWSMIX_COIN, KIND_RANDOM, KIND_TRAIT, mix
 from .static_bot import StaticBot
+from .trait_bot import TraitBot
 from .view import BotView, FeedSource, TurnFeed, ViewAsset
 from .world import BotWorld
 from .world_feed import feed_source_for
@@ -66,6 +67,9 @@ def make_bot(kind: str, index: int, master_seed: int, world_seed: int) -> Bot:
         return NewsBot(index, team_seed)
     if kind == "redeclare":
         return RedeclareBot(index, seed)
+    if kind == "trait":
+        # The start team is the random bot's team of the same index; the traits have own streams.
+        return TraitBot(index, mix(master_seed, world_seed, KIND_TRAIT, index), seed)
     if kind.startswith(NEWSMIX_PREFIX):
         digits = kind[len(NEWSMIX_PREFIX) :]
         if (
@@ -84,6 +88,9 @@ class BotRun:
     record: dict[str, Any]
     units_by_turn: tuple[tuple[int, tuple[Unit, ...]], ...]
     decisions: dict[str, Any]
+    # Not serialised: the finished season and the turn signals the score used, for trade flags.
+    season: Season | None = None
+    signals: tuple[TurnSignals, ...] | None = None
 
 
 def _view(
@@ -173,7 +180,13 @@ def run_bot(
     )
     decisions = io.decisions_doc(units_by_turn)
     record = _record(world, bot, season, scored, totals, accepted, verdicts, decisions)
-    return BotRun(record, tuple(units_by_turn), decisions)
+    return BotRun(
+        record,
+        tuple(units_by_turn),
+        decisions,
+        season,
+        tuple(signals) if feed_source is not None else None,
+    )
 
 
 def _record(

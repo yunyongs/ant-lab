@@ -51,12 +51,35 @@ def test_units_and_views_up_to_turn_t_do_not_depend_on_later_steps():
         t = BotRng(mix(seed, 5)).below(11)
         altered = _changed_after(world, other, t)
         assert altered.inputs.path != world.inputs.path
-        for kind in ("random", "static", "disciplined", "redeclare", "newsmix-50"):
+        for kind in ("random", "static", "disciplined", "redeclare", "newsmix-50", "trait"):
             before = run_bot(world, make_bot(kind, seed, 3, world.seed))
             after = run_bot(altered, make_bot(kind, seed, 3, world.seed))
             first = [(turn, units) for turn, units in before.units_by_turn if turn <= t]
             second = [(turn, units) for turn, units in after.units_by_turn if turn <= t]
             assert first == second, (seed, kind, t)
+
+
+def test_trait_bots_with_a_feed_do_not_depend_on_later_steps():
+    for seed in range(50):
+        world = synthetic_world(seed, assets=10, length=12, feed=True)
+        other = synthetic_world(seed + 1000, assets=10, length=12, feed=True)
+        t = BotRng(mix(seed, 6)).below(11)
+        altered = _changed_after(world, other, t)
+        feed = dict(world.feed)
+        feed["events"] = [e for e in world.feed["events"] if e["turn"] <= t] + [
+            e for e in other.feed["events"] if e["turn"] > t
+        ]
+        feed["attention"] = [
+            a if a["turn"] <= t else b
+            for a, b in zip(world.feed["attention"], other.feed["attention"], strict=True)
+        ]
+        altered = replace(altered, feed=feed)
+        for index in (seed, seed + 50):
+            before = run_bot(world, make_bot("trait", index, 3, world.seed))
+            after = run_bot(altered, make_bot("trait", index, 3, world.seed))
+            first = [(turn, units) for turn, units in before.units_by_turn if turn <= t]
+            second = [(turn, units) for turn, units in after.units_by_turn if turn <= t]
+            assert first == second, (seed, index, t)
 
 
 def test_the_view_at_turn_t_is_the_same_whatever_follows():

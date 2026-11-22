@@ -52,6 +52,29 @@ MERGE_PARTNERS = {
     "noise": ("discipline", "turnover", "nudge"),
     "nudge": ("discipline", "turnover", "noise"),
 }
+TRADING_TRAITS = ("follow", "panic", "chase", "activity", "event")
+FLAG_KEYS = (
+    "traded",
+    "noise",
+    "discipline",
+    "nudge",
+    "both",
+    "nudgeNoise",
+    "nudgeDiscipline",
+    "eventDirection",
+    "eventCaught",
+)
+TRAIT_LEVELS = frozenset(Decimal(v) for v in ("0", "0.25", "0.5", "0.75", "1"))
+# (x name, where x is read, key, traits summed as the explanatory trait)
+DIAGNOSTICS = (
+    ("panicShare", "raw", "panicShare", ("panic",)),
+    ("chaseShare", "raw", "chaseShare", ("chase",)),
+    ("turnoverAnnual", "raw", "turnoverAnnual", ("activity",)),
+    ("noiseShare", "raw", "noiseShare", ("follow",)),
+    ("nudgeShare", "raw", "nudgeShare", ("route",)),
+    ("discipline", "item", "discipline", ("panic", "chase")),
+    ("turnover", "item", "turnover", TRADING_TRAITS),
+)
 PAIRS = tuple((a, b) for i, a in enumerate(ITEMS) for b in ITEMS[i + 1 :])
 
 POP_RANDOM = "random"
@@ -310,6 +333,7 @@ class Row:
     items: Mapping[str, Decimal | None]
     traits: Mapping[str, Decimal]
     flags: Mapping[str, int]
+    raw: Mapping[str, Decimal | None]
 
 
 @dataclass(frozen=True)
@@ -355,16 +379,28 @@ def _row(line: Mapping[str, object]) -> tuple[int, str, str, Row]:
         value = raw[name]
         items[name] = None if value is None else _decimal(value, f"items.{name}")
     traits: dict[str, Decimal] = {}
-    if line.get("schema") == TRAIT_SCHEMA:
+    if line.get("schema") == TRAIT_SCHEMA and kind == KIND_TRAIT:
         given = _mapping(line, "traits", "a trait line")
         traits = {t: _decimal(given.get(t), f"traits.{t}") for t in TRAITS}
+        if any(v not in TRAIT_LEVELS for v in traits.values()):
+            raise OverlapError("a trait level is not one of 0, 0.25, 0.5, 0.75, 1")
+    raw: dict[str, Decimal | None] = {}
+    if line.get("schema") == TRAIT_SCHEMA:
+        given_raw = _mapping(line, "raw", "a probe line")
+        for name in ("panicShare", "chaseShare", "turnoverAnnual", "noiseShare", "nudgeShare"):
+            if name not in given_raw:
+                raise OverlapError(f"raw lacks {name}")
+            value = given_raw[name]
+            raw[name] = None if value is None else _decimal(value, f"raw.{name}")
+        if set(_mapping(line, "flags", "a probe line")) != set(FLAG_KEYS):
+            raise OverlapError("a probe line's flags are not exactly the known flag names")
     flags: dict[str, int] = {}
     if isinstance(line.get("flags"), Mapping):
         for name, value in line["flags"].items():  # type: ignore[union-attr]
             if not isinstance(value, str) or not (value.isascii() and value.isdigit()):
                 raise OverlapError(f"flags.{name} must be an integer string")
             flags[name] = int(value)
-    return world, kind, role, Row(kind, index, items, traits, flags)
+    return world, kind, role, Row(kind, index, items, traits, flags, raw)
 
 
 def _freeze(grouped: Mapping[int, list[Row]]) -> dict[int, tuple[Row, ...]]:
@@ -460,6 +496,41 @@ def trait_correlations(
                         rhos.append(rho)
             ok = assessable(len(rhos), total_worlds)
             out[item][trait] = (mean_of(rhos) if ok else None, len(rhos), ok)
+    return out
+
+
+def tracking_diagnostics(pop: Population, total_worlds: int) -> list[dict[str, object]]:
+    """Context, never a verdict: raw shares and composite items against their traits.
+
+    Mean per-world Spearman of the x value against the sum of the listed traits, on the worlds
+    that can carry it (the same usability and assessability rules as the item pairs).
+    """
+    out: list[dict[str, object]] = []
+    for name, where, key, traits in DIAGNOSTICS:
+        rhos = []
+        for rows in pop.worlds.values():
+            xs: list[Decimal] = []
+            ys: list[Decimal] = []
+            for row in rows:
+                x = row.raw.get(key) if where == "raw" else row.items.get(key)
+                if x is not None:
+                    xs.append(x)
+                    ys.append(sum((row.traits[t] for t in traits), _ZERO))
+            if unusable_reason(xs, ys) is None:
+                rho = spearman(xs, ys)
+                if rho is not None:
+                    rhos.append(rho)
+        ok = assessable(len(rhos), total_worlds)
+        out.append(
+            {
+                "x": name,
+                "source": where,
+                "traits": list(traits),
+                "rho": _text(mean_of(rhos)) if ok else None,
+                "usableWorlds": len(rhos),
+                "assessable": ok,
+            }
+        )
     return out
 
 
@@ -653,6 +724,35 @@ def _flag_coverage(pop: Population | None) -> tuple[Decimal | None, int, int]:
     return (None if direction == 0 else _share(caught, direction)), caught, direction
 
 
+def _ratio(part: int, whole: int) -> str | None:
+    return None if whole == 0 else num(_share(part, whole))
+
+
+def _trade_shares(pop: Population | None) -> dict[str, dict[str, object]]:
+    """Per bot kind, the amounts flagged per item and how much of one flagged amount the other
+    item also flags (definitional overlap of the trades, not of the item scores)."""
+    sums: dict[str, Counter[str]] = {}
+    if pop is not None:
+        for rows in pop.worlds.values():
+            for row in rows:
+                sums.setdefault(row.kind, Counter()).update(row.flags)
+    out: dict[str, dict[str, object]] = {}
+    for kind, f in sorted(sums.items()):
+        union = f["noise"] + f["discipline"] - f["both"]
+        out[kind] = {
+            "tradedWon": str(f["traded"]),
+            "noiseWon": str(f["noise"]),
+            "disciplineWon": str(f["discipline"]),
+            "nudgeWon": str(f["nudge"]),
+            "noiseCaughtByDiscipline": _ratio(f["both"], f["noise"]),
+            "disciplineCaughtByNoise": _ratio(f["both"], f["discipline"]),
+            "noiseDisciplineJaccard": _ratio(f["both"], union),
+            "nudgeCaughtByNoise": _ratio(f["nudgeNoise"], f["nudge"]),
+            "nudgeCaughtByDiscipline": _ratio(f["nudgeDiscipline"], f["nudge"]),
+        }
+    return out
+
+
 def analyze_cell(
     descriptor: Mapping[str, object],
     lines: Iterable[Mapping[str, object]],
@@ -692,6 +792,7 @@ def analyze_cell(
                 }
                 for item, row in correlations.items()
             }
+            entry["diagnostics"] = tracking_diagnostics(pop, total)
             entry["tracking"] = {
                 item: None
                 if info is None
@@ -731,6 +832,7 @@ def analyze_cell(
             "eventDirectionWon": str(direction),
             "maxTracking": _text(event_track),
         },
+        "tradeShares": _trade_shares(pops.get("flagged")),
     }
 
 
@@ -754,32 +856,43 @@ def assemble_overlap(
     analysed: Sequence[dict[str, object]],
     *,
     status: str,
+    probe: Mapping[str, object] | None = None,
 ) -> dict[str, object]:
-    """The `process-overlap/1` document; decided on the first cell (the primary one)."""
+    """The `process-overlap/1` document; decided on the first cell (the primary one).
+
+    Cell sensitivity compares the primary verdict with the other cells that were judged the same
+    way: when the primary cell has a trait population, only cells that have one (a cell without a
+    probe judges nothing, so a difference there says nothing about robustness).
+    """
     if not analysed:
         raise OverlapError("an overlap analysis needs at least one cell")
     primary = analysed[0]
+    probed = POP_TRAIT in primary["populations"]  # type: ignore[operator]
+    compared = [
+        c
+        for c in analysed[1:]
+        if not probed or POP_TRAIT in c["populations"]  # type: ignore[operator]
+    ]
     items: dict[str, dict[str, object]] = {}
     for item, verdict in primary["items"].items():  # type: ignore[attr-defined]
-        others = [c["items"][item]["verdict"] for c in analysed[1:]]  # type: ignore[index]
+        others = [c["items"][item]["verdict"] for c in compared]  # type: ignore[index]
         items[item] = {
             **verdict,
             "cellSensitive": any(v != verdict["verdict"] for v in others),
+            "cellsCompared": [c["cell"]["id"] for c in compared],  # type: ignore[index]
         }
     items[CONSISTENCY] = {
         "verdict": NOT_ASSESSABLE,
         "partner": None,
         "reasons": ["no input"],
         "cellSensitive": False,
+        "cellsCompared": [],
     }
     doc: dict[str, object] = {
         "schema": SCHEMA,
         "status": status,
         "profile": profile,
-        "source": {
-            key: manifest.get(key)
-            for key in ("masterSeed", "gitCommit", "scoreVersion", "engineVersion", "botVersions")
-        },
+        "source": _source(manifest, probe),
         "rules": _rules(),
         "primaryCell": primary["cell"]["id"],  # type: ignore[index]
         "cells": analysed,
@@ -793,6 +906,21 @@ def assemble_overlap(
     }
     validate_overlap(doc)
     return doc
+
+
+def _source(
+    manifest: Mapping[str, object], probe: Mapping[str, object] | None
+) -> dict[str, object]:
+    source: dict[str, object] = {
+        key: manifest.get(key)
+        for key in ("masterSeed", "gitCommit", "scoreVersion", "engineVersion", "botVersions")
+    }
+    if probe is not None:
+        versions = dict(source["botVersions"])  # type: ignore[call-overload]
+        versions.update(probe["botVersions"])  # type: ignore[call-overload]
+        source["botVersions"] = versions
+        source["probe"] = {k: probe[k] for k in ("botVersions", "gitCommit", "engineVersion")}
+    return source
 
 
 def _rules() -> dict[str, object]:
@@ -900,6 +1028,13 @@ def render_summary(doc: Mapping[str, object]) -> str:
     tracking = decide.get("tracking", {})
     for item in (*ITEMS, CONSISTENCY):
         lines.append(_verdict_line(item, doc["items"][item], tracking.get(item)))  # type: ignore[index]
+    if "diagnostics" in decide:
+        lines += ["", "## Tracking diagnostics (context, not verdicts)"]
+        for d in decide["diagnostics"]:
+            lines.append(
+                f"- {d['x']} vs {'+'.join(d['traits'])}: rho {d['rho'] or 'n/a'}"
+                f" ({d['usableWorlds']} worlds)"
+            )
     lines += ["", f"## Strongest pairs ({name})"]
     shown = [p for p in decide["pairs"] if p["rho"] is not None and p["assessable"]]
     shown.sort(key=lambda p: (-abs(Decimal(p["rho"])), p["x"], p["y"]))

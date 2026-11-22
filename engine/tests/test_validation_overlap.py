@@ -14,12 +14,15 @@ from antlab_engine.validation import overlap
 from antlab_engine.validation.checks import Bootstrap, mean_of
 from antlab_engine.validation.overlap import (
     CONSISTENCY,
+    FLAG_KEYS,
     ITEMS,
     PAIRS,
     TRAITS,
     Boots,
     OverlapError,
     PairStat,
+    analyze_cell,
+    assemble_overlap,
     assessable,
     build_overlap,
     event_verdict,
@@ -34,6 +37,7 @@ from antlab_engine.validation.overlap import (
     unusable_reason,
     validate_overlap,
 )
+from antlab_engine.validation.trade_flags import FLAG_NAMES
 
 D = Decimal
 MANIFEST = {
@@ -472,6 +476,7 @@ def line(
     schema="validation-component/1",
     traits=None,
     flags=None,
+    raw=None,
 ):
     values = {name: None for name in (*ITEMS, CONSISTENCY)}
     values.update({k: str(v) for k, v in (items or {}).items()})
@@ -486,8 +491,12 @@ def line(
     }
     if traits is not None:
         doc["traits"] = {t: str(v) for t, v in traits.items()}
+    if schema == "process-overlap-trait/1":
+        names = ("panicShare", "chaseShare", "turnoverAnnual", "noiseShare", "nudgeShare")
+        doc["raw"] = {n: str((raw or {}).get(n, "0.5")) for n in names}
+        doc["flags"] = {k: "0" for k in FLAG_KEYS}
     if flags is not None:
-        doc["flags"] = {k: str(v) for k, v in flags.items()}
+        doc["flags"] = {**doc.get("flags", {}), **{k: str(v) for k, v in flags.items()}}
     return doc
 
 
@@ -571,6 +580,13 @@ def trait_lines(worlds: int = 3, bots: int = 50, *, source: str = "trait") -> li
                     schema="process-overlap-trait/1",
                     traits={t: D(v) / 4 for t, v in level.items()},
                     flags={"eventDirection": 10, "eventCaught": 9},
+                    raw={
+                        "panicShare": D(level["panic"]) / 4,
+                        "chaseShare": D(level["chase"]) / 4,
+                        "turnoverAnnual": D(level["activity"]) / 4,
+                        "noiseShare": D(level["follow"]) / 4,
+                        "nudgeShare": D(level["route"]) / 4,
+                    },
                 )
             )
     return lines
@@ -608,6 +624,7 @@ def test_the_document_has_every_pair_for_both_populations_and_string_numbers():
         "partner": None,
         "reasons": ["no input"],
         "cellSensitive": False,
+        "cellsCompared": [],
     }
     assert doc["styleAdherence"]["verdict"] == "NOT_ASSESSABLE" and doc["styleAdherence"]["missing"]
     assert [k["kind"] for k in cell["named"]] == ["news"]
@@ -718,17 +735,101 @@ def test_the_validator_refuses_floats_and_unknown_status():
         validate_overlap({k: v for k, v in doc.items() if k != "items"})
 
 
-def test_cell_sensitivity_flags_verdicts_that_differ_between_cells():
+def test_cell_sensitivity_compares_only_cells_that_have_a_probe():
     lines = [*random_lines(), *trait_lines()]
-    other = [{**row, "cell": "t2"} for row in lines if row["kind"] != "trait"]
+    unprobed = [{**row, "cell": "t2"} for row in lines if row["kind"] != "trait"]
+    twin = [{**row, "cell": "t3"} for row in lines]
+    doc = build_overlap(
+        MANIFEST,
+        "ci",
+        [
+            (DESCRIPTOR, lines),
+            ({**DESCRIPTOR, "id": "t2"}, unprobed),
+            ({**DESCRIPTOR, "id": "t3"}, twin),
+        ],
+        status="provisional",
+    )
+    assert doc["primaryCell"] == "t1"
+    noise = doc["items"]["noise"]
+    assert noise["verdict"] == "KEEP" and not noise["cellSensitive"]
+    assert noise["cellsCompared"] == ["t3"]
+
+
+def test_a_probed_cell_with_another_verdict_flags_the_item():
+    lines = [*random_lines(), *trait_lines()]
+    other = [json.loads(json.dumps({**row, "cell": "t2"})) for row in lines]
+    for row in other:
+        if row["kind"] == "trait":
+            row["components"]["items"]["noise"] = str((int(row["index"]) * 5) % 97)
     doc = build_overlap(
         MANIFEST,
         "ci",
         [(DESCRIPTOR, lines), ({**DESCRIPTOR, "id": "t2"}, other)],
         status="provisional",
     )
-    assert doc["primaryCell"] == "t1"
-    assert doc["items"]["noise"]["verdict"] == "KEEP" and doc["items"]["noise"]["cellSensitive"]
+    noise = doc["items"]["noise"]
+    assert noise["verdict"] == "KEEP" and noise["cellSensitive"]
+    assert noise["cellsCompared"] == ["t2"]
+
+
+def test_without_a_probe_in_the_primary_cell_every_other_cell_is_compared():
+    lines = random_lines()
+    other = [{**row, "cell": "t2"} for row in lines]
+    doc = build_overlap(
+        MANIFEST,
+        "ci",
+        [(DESCRIPTOR, lines), ({**DESCRIPTOR, "id": "t2"}, other)],
+        status="provisional",
+    )
+    assert doc["items"]["noise"]["cellsCompared"] == ["t2"]
+
+
+def test_the_source_names_the_probe_and_its_bot_versions():
+    lines = [*random_lines(), *trait_lines()]
+    probe = {"botVersions": {"random": 1, "trait": 1}, "gitCommit": "abc1234", "engineVersion": "x"}
+    analysed = [analyze_cell(DESCRIPTOR, lines, Boots(303))]
+    doc = assemble_overlap(MANIFEST, "ci", analysed, status="provisional", probe=probe)
+    assert doc["source"]["botVersions"]["trait"] == 1
+    assert doc["source"]["probe"] == probe
+    bare = assemble_overlap(MANIFEST, "ci", analysed, status="provisional")
+    assert "probe" not in bare["source"] and "trait" not in bare["source"]["botVersions"]
+
+
+def test_tracking_diagnostics_report_raw_shares_and_composites_against_their_traits():
+    doc = built()
+    diag = {d["x"]: d for d in doc["cells"][0]["populations"]["trait"]["diagnostics"]}
+    assert set(diag) == {
+        "panicShare",
+        "chaseShare",
+        "turnoverAnnual",
+        "noiseShare",
+        "nudgeShare",
+        "discipline",
+        "turnover",
+    }
+    for name in ("panicShare", "chaseShare", "turnoverAnnual", "noiseShare", "nudgeShare"):
+        assert D(diag[name]["rho"]) > D("0.99") and diag[name]["assessable"]
+    assert diag["discipline"]["traits"] == ["panic", "chase"]
+    assert D(diag["discipline"]["rho"]) < D("-0.5")
+    assert diag["turnover"]["traits"] == ["follow", "panic", "chase", "activity", "event"]
+    assert "Tracking diagnostics" in render_summary(doc)
+
+
+def test_probe_lines_need_the_exact_flag_names_levels_and_raw_shares():
+    base = trait_lines(1, 1)[0]
+    populations([base])
+    for broken in (
+        {**base, "flags": {**base["flags"], "extra": "1"}},
+        {**base, "flags": {k: v for k, v in base["flags"].items() if k != "traded"}},
+        {**base, "traits": {**base["traits"], "follow": "0.3"}},
+        {**base, "raw": {k: v for k, v in base["raw"].items() if k != "noiseShare"}},
+    ):
+        with pytest.raises(OverlapError):
+            populations([broken])
+
+
+def test_the_flag_names_match_the_trade_flags_module():
+    assert FLAG_KEYS == FLAG_NAMES
 
 
 # ---------------------------------------------------------------------------- source rules

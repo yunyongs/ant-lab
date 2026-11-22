@@ -481,8 +481,8 @@ def build_request(
     )
 
 
-def discipline_of(season: Season) -> DisciplineRatios | None:
-    """Panic-sell and chase-buy shares of turns 1..T-1; None when both are unmeasurable."""
+def discipline_facts_of(season: Season) -> behaviour.DisciplineFacts:
+    """The orders, changes and turn values of turns 1..T-1 as `behaviour.discipline` takes them."""
     t = season.current_turn
     changes = tuple(
         behaviour.DisciplineChange(i, c.turn, c.before.forward, c.after.forward)
@@ -501,15 +501,18 @@ def discipline_of(season: Season) -> DisciplineRatios | None:
         for e in season.executions
         if e.turn < t
     )
-    result = behaviour.discipline(
-        behaviour.DisciplineFacts(
-            t,
-            money.exact_won(season.settings.initial_cash),
-            tuple(behaviour.TurnValue(x.turn, x.total) for x in season.turns),
-            changes,
-            orders,
-        )
+    return behaviour.DisciplineFacts(
+        t,
+        money.exact_won(season.settings.initial_cash),
+        tuple(behaviour.TurnValue(x.turn, x.total) for x in season.turns),
+        changes,
+        orders,
     )
+
+
+def discipline_of(season: Season) -> DisciplineRatios | None:
+    """Panic-sell and chase-buy shares of turns 1..T-1; None when both are unmeasurable."""
+    result = behaviour.discipline(discipline_facts_of(season))
     if result.panic_sell_share is None and result.chase_buy_share is None:
         return None
     return DisciplineRatios(result.panic_sell_share, result.chase_buy_share)

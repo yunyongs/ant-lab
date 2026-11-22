@@ -147,10 +147,15 @@ class WorldFeedSource:
         def refs(ids: frozenset[int]) -> frozenset[str]:
             return frozenset(ref[i] for i in ids)
 
+        reaction_of = {e.month_event_id: e.reaction for e in events}
         feed = TurnFeed(
             tuple(
                 FeedItem(
-                    r.seq, r.kind, None if r.asset_id is None else ref[r.asset_id], r.direction
+                    r.seq,
+                    r.kind,
+                    None if r.asset_id is None else ref[r.asset_id],
+                    r.direction,
+                    reaction_of.get(r.month_event_id) if r.kind == "EVENT" else None,
                 )
                 for r in rows
             ),
