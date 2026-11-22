@@ -666,6 +666,7 @@ The subscription-route mapping of AG-03 (Claude Code CLI and Codex CLI) is a **d
 
 - 금액은 `NUMERIC(19,4)`(SQL, PostgreSQL), `BigDecimal`(Java), `Decimal`(Python). `DOUBLE`/`FLOAT` 금지.
 - **금지의 범위:** 위 규칙은 **금액**(현금, 체결 대금, 평가액, 원장, 점수에 쓰는 금액)에 적용한다. 시뮬레이션 엔진이 다루는 **수익률·분위·확률**은 비율이지 금액이 아니므로 `float64`(numpy)를 쓴다 — 2,000경로 × 120턴을 `Decimal`로 돌리면 분 단위가 걸려 동기 API로 쓸 수 없다. 경계는 하나다: 엔진은 수익률만 내보내고, 금액으로 바꾸는 계산(가격 × 수익률 → 그 달 가격, 평가액)은 Java가 `BigDecimal`로 하며 반올림은 그 한 곳에서 한다. 병행 대사(§10)는 Java 엔진과 Python 엔진이 **같은 수익률 입력**에서 같은 가격·평가액을 내는지를 금액 단위로 비교하고, 수익률 자체의 비교는 상대 오차 1e-9 이내로 한다.
+- Offline exception (owner 2026-11-22): the Python season simulator may compute won amounts for backtests with `Decimal` only; it has no API route, never writes the database, and its numbers are never stored or shown to a user. / 예외(소유자 2026-11-22): Python 시즌 시뮬레이터는 백테스트를 위해 `Decimal`만 써서 원 단위 금액을 오프라인으로 계산할 수 있다. API 엔드포인트가 없고 데이터베이스에 쓰지 않으며, 그 숫자는 저장하지도 사용자에게 보여 주지도 않는다.
 - 원장은 추가 전용. 정정은 반대 부호의 `ADJUSTMENT` 행으로.
 - 시즌 안에서는 항상 다음 관계가 성립한다: 현금 잔액 = Σ 원장 금액, 보유 수량 = Σ 매수 − Σ 매도, 평가액 = Σ 보유 × 그 턴 가격.
 - 원 단위: 현금·가격은 원 단위 정수 값, 평균단가·실현 손익은 소수 4자리. 반올림은 코드 한 곳에서.

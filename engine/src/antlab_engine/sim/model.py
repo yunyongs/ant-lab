@@ -241,6 +241,7 @@ class FormationChange:
     turn: int
     before: Formation
     after: Formation
+    reason: str | None = None
 
 
 @dataclass(frozen=True)

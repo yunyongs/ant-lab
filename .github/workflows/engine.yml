@@ -2,10 +2,10 @@ name: engine
 
 on:
   pull_request:
-    paths: ['engine/**', 'docs/api/engine.yaml', 'src/test/resources/engine/p0-boot6-v1_vectors.csv', 'src/test/resources/engine/contract/**', 'src/test/resources/engine/parity/**', 'src/test/resources/sim/**', 'src/main/java/antlab/common/money/**', 'db/roles/**', 'src/main/resources/db/migration/**', 'src/main/java/antlab/common/error/ErrorCode.java', 'src/main/java/antlab/api/error/ErrorHttpMapping.java', '.github/workflows/engine.yml']
+    paths: ['engine/**', 'docs/api/engine.yaml', 'src/test/resources/engine/p0-boot6-v1_vectors.csv', 'src/test/resources/engine/contract/**', 'src/test/resources/engine/parity/**', 'src/test/resources/sim/**', 'docs/api/sim-decisions-1.schema.json', 'docs/api/turn-decision-1.schema.json', 'src/test/resources/agent/turn-decision/**', 'src/main/java/antlab/common/money/**', 'db/roles/**', 'src/main/resources/db/migration/**', 'src/main/java/antlab/common/error/ErrorCode.java', 'src/main/java/antlab/api/error/ErrorHttpMapping.java', '.github/workflows/engine.yml']
   push:
     branches: [main]
-    paths: ['engine/**', 'docs/api/engine.yaml', 'src/test/resources/engine/p0-boot6-v1_vectors.csv', 'src/test/resources/engine/contract/**', 'src/test/resources/engine/parity/**', 'src/test/resources/sim/**', 'src/main/java/antlab/common/money/**', 'db/roles/**', 'src/main/resources/db/migration/**', 'src/main/java/antlab/common/error/ErrorCode.java', 'src/main/java/antlab/api/error/ErrorHttpMapping.java', '.github/workflows/engine.yml']
+    paths: ['engine/**', 'docs/api/engine.yaml', 'src/test/resources/engine/p0-boot6-v1_vectors.csv', 'src/test/resources/engine/contract/**', 'src/test/resources/engine/parity/**', 'src/test/resources/sim/**', 'docs/api/sim-decisions-1.schema.json', 'docs/api/turn-decision-1.schema.json', 'src/test/resources/agent/turn-decision/**', 'src/main/java/antlab/common/money/**', 'db/roles/**', 'src/main/resources/db/migration/**', 'src/main/java/antlab/common/error/ErrorCode.java', 'src/main/java/antlab/api/error/ErrorHttpMapping.java', '.github/workflows/engine.yml']
   workflow_dispatch:
 
 permissions:
