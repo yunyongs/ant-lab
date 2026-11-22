@@ -113,3 +113,46 @@ def test_the_generator_is_part_of_the_panel_spec():
 def test_counts_outside_the_engine_range_are_refused_up_front(n):
     with pytest.raises(SystemExit):
         main(["--world", "panel:0:12:12", "--counts", n])
+
+
+def test_newsmix_and_redeclare_flags_add_runs_and_manifest_versions(tmp_path):
+    base = ["--world", "synthetic:3:10:12", "--random", "2", "--static", "0"]
+    main([*base, "--newsmix", "25,50,75", "--redeclare", "2", "--out", str(tmp_path)])
+    kinds = [
+        (rec["bot"]["kind"], rec["bot"]["index"])
+        for rec in map(json.loads, (tmp_path / "runs.jsonl").read_text().splitlines())
+    ]
+    assert kinds == [
+        ("random", 0),
+        ("random", 1),
+        ("disciplined", 0),
+        ("news", 0),
+        ("newsmix-25", 0),
+        ("newsmix-50", 0),
+        ("newsmix-75", 0),
+        ("redeclare", 0),
+        ("redeclare", 1),
+    ]
+    versions = json.loads((tmp_path / "manifest.json").read_text())["botVersions"]
+    assert versions["newsmix"] == 1 and versions["redeclare"] == 1
+
+
+def test_the_default_run_is_unchanged_without_the_new_flags(tmp_path):
+    main(["--world", "synthetic:3:10:12", "--random", "1", "--static", "0", "--out", str(tmp_path)])
+    versions = json.loads((tmp_path / "manifest.json").read_text())["botVersions"]
+    assert set(versions) == {"random", "static", "disciplined", "news"}
+
+
+@pytest.mark.parametrize(
+    "flag",
+    [
+        ["--newsmix", "101"],
+        ["--newsmix", "x"],
+        ["--newsmix", "5,5"],
+        ["--newsmix", "25,,50"],
+        ["--redeclare", "-1"],
+    ],
+)
+def test_bad_new_flags_are_refused(flag):
+    with pytest.raises(SystemExit):
+        main(["--world", "synthetic:3:10:12", *flag])
