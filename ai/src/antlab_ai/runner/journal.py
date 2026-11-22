@@ -37,6 +37,7 @@ KINDS: Final = (
 )
 MEMORY_STEPS: Final = ("REFLECTION", "PLAYBOOK")
 MEMORY_OUTCOMES: Final = ("ACCEPTED", "DISCARDED", "UNKNOWN")
+_SHA256 = re.compile(r"[0-9a-f]{64}")
 _FIXED_WORD = re.compile(r"[A-Z][A-Z_]{0,39}")
 _FIXED_POINTER = re.compile(r"(?:/[A-Za-z0-9_]{1,40}){0,6}(?:#s[1-9][0-9]{0,3})?|/")
 PAUSE_REASONS: Final = (
@@ -164,6 +165,11 @@ def _apply_memory(state: JournalState, row: dict[str, Any]) -> None:
     if kind == "mbase":
         base = row.get("base")
         if base is not None and (type(base) is not int or base < 1):
+            raise JournalCorrupt("a memory base row is malformed")
+        version, sha = row.get("personaVersion"), row.get("personaSha256")
+        if (version is not None and (type(version) is not int or version < 1)) or (
+            sha is not None and not (isinstance(sha, str) and _SHA256.fullmatch(sha))
+        ):
             raise JournalCorrupt("a memory base row is malformed")
         if memory.based and memory.base != base:
             # The playbook was written on an older note; the reflection does not depend on it.
@@ -401,8 +407,17 @@ class Journal:
 
     # ---- memory step rows ------------------------------------------------------------------
 
-    def append_memory_base(self, base: int | None) -> None:
-        self._append({"kind": "mbase", "base": base})
+    def append_memory_base(
+        self,
+        base: int | None,
+        persona_version: int | None = None,
+        persona_sha256: str | None = None,
+    ) -> None:
+        row: dict[str, Any] = {"kind": "mbase", "base": base}
+        if persona_version is not None and persona_sha256 is not None:
+            row["personaVersion"] = persona_version
+            row["personaSha256"] = persona_sha256
+        self._append(row)
 
     def append_memory_attempt(
         self,

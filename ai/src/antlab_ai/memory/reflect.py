@@ -153,7 +153,8 @@ class MemoryStep:
         except ApiProblem as problem:
             return self._refused_view(problem)
         if not memory.based or memory.base != view["baseVersion"]:
-            self._journal.append_memory_base(view["baseVersion"])
+            persona = self._cfg.persona
+            self._journal.append_memory_base(view["baseVersion"], persona.version, persona.sha256)
         if any(turn["reason"] and _YEAR_MONTH.search(turn["reason"]) for turn in view["turns"]):
             # The agent's own reason holds a year-month: stored history nobody can edit, so no safe reflection exists.
             return self._submit_discard(["YEAR_MONTH"])

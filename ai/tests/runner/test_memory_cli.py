@@ -357,3 +357,35 @@ def test_reflect_uses_the_recorded_budget(tmp_path, spring, env, capsys):
     assert "state=PENDING reason=BUDGET sends=1" in capsys.readouterr().out
     assert call(spring, env, *reflect_argv(script, "--season-id", "7", "--discard-on-budget")) == 0
     assert spring.memory_outcomes[7] == {"outcome": "DISCARDED", "codes": ["BUDGET"]}
+
+
+def test_reflect_proceeds_when_the_persona_text_changed_since_the_season(
+    tmp_path, spring, env, capsys
+):
+    spring.memory_seasons = {7: "pending"}
+    spring.config_override = {"personaVersion": 99, "personaSha256": "0" * 64}
+    script = script_file(tmp_path, [{"reply": reflection()}, {"reply": note()}])
+    assert call(spring, env, *reflect_argv(script, "--season-id", "7")) == 0
+    assert "state=ACCEPTED" in capsys.readouterr().out
+    journal = next((tmp_path / "state").glob("*-season-7.jsonl")).read_text(encoding="utf-8")
+    base = next(json.loads(x) for x in journal.splitlines() if '"mbase"' in x)
+    assert base["personaVersion"] == 1 and len(base["personaSha256"]) == 64
+
+
+@pytest.mark.parametrize(
+    "override",
+    [
+        {"personaKey": "trend-rider"},
+        {"modelRoute": "OPENROUTER"},
+        {"modelRequested": "other/model"},
+    ],
+)
+def test_reflect_refuses_a_changed_persona_key_route_or_model(
+    tmp_path, spring, env, capsys, override
+):
+    spring.memory_seasons = {7: "pending"}
+    spring.config_override = override
+    script = script_file(tmp_path, [{"reply": reflection()}])
+    assert call(spring, env, *reflect_argv(script, "--season-id", "7")) == 2
+    assert "differ" in capsys.readouterr().err
+    assert spring.requests["getReflectionView"] == 0
