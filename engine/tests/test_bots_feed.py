@@ -115,7 +115,9 @@ def _changed_after(world: BotWorld, other: BotWorld, turn: int) -> BotWorld:
     return replace(world, inputs=SimInputs(world.inputs.settings, world.inputs.pool, steps))
 
 
-@pytest.mark.parametrize("kind", ["disciplined", "disciplined-noguard", "news"])
+@pytest.mark.parametrize(
+    "kind", ["disciplined", "disciplined-noguard", "news", "newsmix-50", "redeclare"]
+)
 def test_decisions_and_feed_up_to_turn_t_do_not_depend_on_later_steps(kind):
     for seed in range(50):
         world = synthetic_world(seed, assets=10, length=12, feed=True)

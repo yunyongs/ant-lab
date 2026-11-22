@@ -51,7 +51,7 @@ def test_units_and_views_up_to_turn_t_do_not_depend_on_later_steps():
         t = BotRng(mix(seed, 5)).below(11)
         altered = _changed_after(world, other, t)
         assert altered.inputs.path != world.inputs.path
-        for kind in ("random", "static"):
+        for kind in ("random", "static", "disciplined", "redeclare", "newsmix-50"):
             before = run_bot(world, make_bot(kind, seed, 3, world.seed))
             after = run_bot(altered, make_bot(kind, seed, 3, world.seed))
             first = [(turn, units) for turn, units in before.units_by_turn if turn <= t]
