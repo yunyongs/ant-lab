@@ -2,3 +2,4 @@
 *.bat text eol=crlf
 *.jar binary
 /src/main/resources/agent/leak-terms.txt text eol=lf
+/src/test/resources/feed/vectors-v1.jsonl linguist-generated=true
