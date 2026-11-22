@@ -32,6 +32,62 @@ WHERE m.month_start < %(upper)s
 ORDER BY m.month_start, f.currency
 """
 
+# Offline bot worlds (bots/world_pg.py): the same snapshot, narrowed to a pool and a path.
+WORLD_MONTHS_SQL = """
+SELECT id, month_start, events_reviewed
+FROM month_block
+WHERE month_start < %(upper)s
+ORDER BY month_start, id
+"""
+
+WORLD_POOL_SQL = """
+SELECT a.id, a.market, a.ticker, a.currency, a.name, g.code, g.name,
+       p.base_price, p.base_fx_rate, p.system_position
+FROM asset_position p
+JOIN asset a ON a.id = p.asset_id
+JOIN asset_group g ON g.id = a.asset_group_id
+WHERE p.base_date = %(base_date)s
+ORDER BY a.market COLLATE "C", a.ticker COLLATE "C"
+"""
+
+WORLD_RETURNS_SQL = """
+SELECT r.asset_id, r.month_block_id, r.local_return
+FROM asset_month_return r
+WHERE r.month_block_id = ANY(%(blocks)s::bigint[])
+  AND r.asset_id = ANY(%(assets)s::bigint[])
+"""
+
+WORLD_FX_SQL = """
+SELECT f.month_block_id, f.currency, f.fx_change
+FROM fx_month f
+WHERE f.month_block_id = ANY(%(blocks)s::bigint[])
+"""
+
+# Only pool assets: the stored attention covers every asset of a block; the feed port refuses
+# the ones outside the pool.
+WORLD_ATTENTION_SQL = """
+SELECT m.month_block_id, m.asset_id, m.attention_index
+FROM asset_month_attention m
+WHERE m.month_block_id = ANY(%(blocks)s::bigint[])
+  AND m.asset_id = ANY(%(assets)s::bigint[])
+  AND m.attention_index IS NOT NULL
+"""
+
+# hidden: a type seen in fewer than `limit` distinct key families inside [replay_start, upper)
+# is too rare to name its category (Java FeedInputReader.EVENTS). Events of a block come ordered
+# by key in byte order, as Java orders them within a turn.
+WORLD_EVENTS_SQL = """
+SELECT e.month_block_id, e.event_key, e.category, e.reaction_change, e.strength,
+       (SELECT count(DISTINCT left(y.event_key, %(prefix)s))
+        FROM month_event y JOIN month_block yb ON yb.id = y.month_block_id
+        WHERE y.event_type = e.event_type
+          AND yb.month_start >= %(replay_start)s
+          AND yb.month_start < %(upper)s) < %(limit)s AS hidden
+FROM month_event e
+WHERE e.month_block_id = ANY(%(blocks)s::bigint[])
+ORDER BY e.month_block_id, e.event_key COLLATE "C"
+"""
+
 SESSION_SQL = """
 SELECT current_user,
        current_setting('transaction_read_only'),

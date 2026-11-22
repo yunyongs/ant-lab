@@ -67,6 +67,11 @@ def _replay_start(values: Mapping[str, str]) -> date:
         ) from None
 
 
+def replay_start_from_env(environ: Mapping[str, str] | None = None) -> date:
+    """The replay start the api reads from the same variable (default 2007-01-01)."""
+    return _replay_start(os.environ if environ is None else environ)
+
+
 def _first_of_month(value: date) -> date:
     if value.day != 1:
         raise ValueError

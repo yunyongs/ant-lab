@@ -85,3 +85,22 @@ def history_db():
         with db.admin() as admin:
             admin.execute(HISTORY_FIXTURE.read_text(encoding="utf-8"))  # type: ignore[arg-type]
         yield db
+
+
+PARITY_DIR = Path(__file__).resolve().parents[2] / "src" / "test" / "resources" / "sim" / "parity"
+
+
+@pytest.fixture(scope="session")
+def world_db():
+    """A scratch database with the role script, the parity history and the parity events."""
+    try:
+        dsn = resolve_admin_dsn(os.environ)
+    except HarnessError as exc:
+        pytest.fail(str(exc), pytrace=False)
+    if dsn is None:
+        pytest.skip("ANTLAB_ENGINE_TEST_ADMIN_DSN is not set")
+    with scratch_database(dsn, os.environ[SERVER_ID_VAR].strip()) as db:
+        with db.admin() as admin:
+            for name in ("history-v1.sql", "events-v1.sql"):
+                admin.execute((PARITY_DIR / name).read_text(encoding="utf-8"))  # type: ignore[arg-type]
+        yield db
