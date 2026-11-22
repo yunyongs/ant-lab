@@ -541,13 +541,20 @@ def _check_bound(path: Path, wanted: dict[str, str]) -> None:
 
 
 def _check_recorded(
-    api: ApiClient, agent_id: int, season_id: int, args: argparse.Namespace, persona: Persona
+    api: ApiClient,
+    agent_id: int,
+    season_id: int,
+    args: argparse.Namespace,
+    persona: Persona,
+    *,
+    identity_only: bool = False,
 ) -> dict:
     """Compare the season's recorded config with the local values before any model call.
 
     The runner version may differ, and so may the prompt template as long as it is a known one: a
     season keeps the template it was started with. A difference ends the run (exit 2) and prints
-    no value. Returns the recorded config.
+    no value. Returns the recorded config. With ``identity_only`` (the memory reflection) the persona
+    text may have been edited since the season: only persona key, route and model are compared.
     """
     recorded = api.get_season_config(agent_id, season_id)
     local = {
@@ -557,6 +564,9 @@ def _check_recorded(
         "modelRoute": args.route,
         "modelRequested": args.model_id,
     }
+    if identity_only:
+        for name in ("personaVersion", "personaSha256"):
+            del local[name]
     if (
         any(recorded.get(name) != value for name, value in local.items())
         or recorded.get("promptTemplateVersion") not in TEMPLATES
@@ -758,7 +768,9 @@ def _memory_reflect(
             seasons = api.get_memory(args.agent_id)["pendingSeasonIds"][: args.max_seasons]
         waiting = False
         for season_id in seasons:
-            recorded = _check_recorded(api, args.agent_id, season_id, args, persona)
+            recorded = _check_recorded(
+                api, args.agent_id, season_id, args, persona, identity_only=True
+            )
             config = replace(
                 base,
                 budget_calls=recorded["budgetCalls"],
