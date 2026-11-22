@@ -11,6 +11,7 @@ in-memory values, so both give the same `result.json`. Nothing here touches a da
 through `bots.world_pg` (DB profiles), and nothing is written to a database.
 """
 
+import itertools
 import json
 import os
 import re
@@ -47,7 +48,15 @@ from antlab_engine.sim.rules import SCORE_VERSION
 from .checks import ROLE_EVAL, ROLE_NAMED, ROLE_REF, BotRow
 from .components import ComponentError, Components, components_from_wire, components_of
 from .counts_cache import CachedEngineCounts
-from .output import STATUS_FINAL, STATUS_PROVISIONAL, build_result, write_run
+from .output import STATUS_FINAL, STATUS_PROVISIONAL, build_result, write_overlap, write_run
+from .overlap import (
+    STATUS_PARTIAL,
+    TRAIT_SCHEMA,
+    Boots,
+    OverlapError,
+    assemble_overlap,
+)
+from .overlap import analyze_cell as analyze_overlap_cell
 from .search import analyze_cell
 
 PROFILES = ("ci", "offline", "sample-db", "post-rl")
@@ -60,6 +69,7 @@ LINE_SCHEMA = "validation-component/1"
 DRIVER_SCHEMA = "validation-driver/1"
 MANIFEST_FILE = "manifest.json"
 CELLS_DIR = "cells"
+OVERLAP_DIR = "overlap"
 SOURCE_PANEL = "panel"
 SOURCE_DB = "db"
 _ID = re.compile(r"[a-z][a-z0-9]{0,15}")
@@ -648,3 +658,74 @@ def analyze_run(out: Path) -> tuple[Path, Path]:
     status = STATUS_FINAL if meta["profile"] == "post-rl" else STATUS_PROVISIONAL
     result = build_result(meta["manifest"], pairs, status=status, profile=meta["profile"])
     return write_run(out, result)
+
+
+# ---------------------------------------------------------------------------- overlap
+
+
+def _trait_lines(path: Path, cell: Cell) -> Iterator[dict[str, object]]:
+    if not path.exists():
+        return
+    for text in path.read_text(encoding="utf-8").split("\n"):
+        if not text:
+            continue
+        try:
+            doc = json.loads(text)
+            valid = doc["schema"] == TRAIT_SCHEMA and doc["cell"] == cell.id
+        except (ValueError, KeyError, TypeError):
+            valid = False
+        if not valid:
+            raise ExperimentError(f"{path} holds a line that is not a {TRAIT_SCHEMA} line")
+        yield doc
+
+
+def analyze_overlap_run(out: Path, *, partial: bool = False) -> tuple[Path, Path]:
+    """Read the cell files of a run and write `overlap/overlap.json` and `overlap_summary.md`.
+
+    An unfinished cell is refused unless `partial`; then only its finished worlds are analysed and
+    the status is `partial`.
+    """
+    manifest_path = out / MANIFEST_FILE
+    if not manifest_path.exists():
+        raise ExperimentError(f"{out} has no {MANIFEST_FILE}: not a validation run directory")
+    meta = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if meta.get("schema") != DRIVER_SCHEMA:
+        raise ExperimentError(f"{MANIFEST_FILE} is not {DRIVER_SCHEMA}")
+    boots = Boots(int(meta["masterSeed"]))
+    analysed = []
+    incomplete = False
+    for descriptor in meta["cells"]:
+        cell = Cell.from_descriptor(descriptor)
+        validate_cell(cell)
+        scan = scan_cell_file(out / CELLS_DIR / f"{cell.id}.jsonl", cell)
+        missing = [w for w in range(cell.worlds) if w not in scan.complete]
+        if missing or scan.bad_lines:
+            if not partial:
+                raise ExperimentError(
+                    f"cell {cell.id} is unfinished: {len(missing)} of {cell.worlds} worlds lack a "
+                    f"full roster, {scan.bad_lines} unreadable lines; run it again to resume, "
+                    "or pass --partial"
+                )
+            incomplete = True
+        lines = itertools.chain(
+            (json.loads(text) for world in sorted(scan.complete) for text in scan.complete[world]),
+            _trait_lines(out / OVERLAP_DIR / CELLS_DIR / f"{cell.id}.jsonl", cell),
+        )
+        try:
+            analysed.append(
+                analyze_overlap_cell(
+                    cell.descriptor(), lines, boots, partial=bool(missing or scan.bad_lines)
+                )
+            )
+        except OverlapError as error:
+            raise ExperimentError(f"overlap analysis failed: {error}") from None
+        del scan, lines
+    if incomplete:
+        status = STATUS_PARTIAL
+    else:
+        status = STATUS_FINAL if meta["profile"] == "post-rl" else STATUS_PROVISIONAL
+    try:
+        doc = assemble_overlap(meta["manifest"], meta["profile"], analysed, status=status)
+    except OverlapError as error:
+        raise ExperimentError(f"overlap analysis failed: {error}") from None
+    return write_overlap(out / OVERLAP_DIR, doc)
