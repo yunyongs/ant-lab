@@ -74,8 +74,12 @@ public class FeedInputReader {
             WHERE f.season_id = :seasonId AND f.turn_no = :previousTurn AND f.asset_id IS NOT NULL
             ORDER BY f.seq""";
 
-    private record AssetRow(long assetId, String market, String ticker, String name, long groupId, String groupCode,
-            String groupName) {
+    /** A pool asset as the statement reads it. */
+    record AssetRow(long assetId, String market, String ticker, String name, long groupId, String groupCode, String groupName) {
+    }
+
+    /** A row of the previous turn's feed that names an asset. */
+    record PreviousRow(long assetId, FeedKind kind, String direction, int repeatCount) {
     }
 
     private final JdbcClient jdbc;
@@ -118,21 +122,12 @@ public class FeedInputReader {
     public List<AssetFacts> readAssets(long seasonId, int turnNo, Map<Long, BigDecimal> currentPrices, boolean withPreviousFeed) {
         Map<Long, List<BigDecimal>> history = new HashMap<>();
         jdbc.sql(PRICES).param("seasonId", seasonId).param("turnNo", turnNo).query(rs -> {
-            history.computeIfAbsent(rs.getLong("asset_id"), k -> new ArrayList<>())
-                    .add(MoneyMath.exactStoredPrice(rs.getBigDecimal("price")));
+            history.computeIfAbsent(rs.getLong("asset_id"), k -> new ArrayList<>()).add(rs.getBigDecimal("price"));
         });
         List<AssetRow> pool = jdbc.sql(ASSETS).param("seasonId", seasonId)
                 .query((rs, n) -> new AssetRow(rs.getLong("asset_id"), rs.getString("market"), rs.getString("ticker"),
                         rs.getString("name"), rs.getLong("group_id"), rs.getString("group_code"), rs.getString("group_name")))
                 .list();
-        for (AssetRow a : pool) {
-            List<BigDecimal> seen = history.get(a.assetId());
-            if (!currentPrices.containsKey(a.assetId()) || seen == null || seen.size() != turnNo) {
-                // A pool asset without a complete price history is damaged data; dropping it would hide the damage.
-                throw new FeedGenerationException(FeedFailure.FEED_INPUT, "a pool asset has an incomplete price history");
-            }
-        }
-
         Map<Long, BigDecimal> attention = new HashMap<>();
         Map<Long, BigDecimal> previousAttention = new HashMap<>();
         jdbc.sql(ATTENTION).param("seasonId", seasonId).param("previousTurn", turnNo - 1).param("turnNo", turnNo)
@@ -142,8 +137,29 @@ public class FeedInputReader {
                         (rs.getInt("turn_no") == turnNo ? attention : previousAttention).put(rs.getLong("asset_id"), value);
                     }
                 });
+        List<PreviousRow> previousRows = withPreviousFeed && turnNo >= 2 ? previousRows(seasonId, turnNo) : List.of();
+        return assemble(turnNo, pool, history, currentPrices, attention, previousAttention, previousRows);
+    }
 
-        Map<Long, Story> stories = withPreviousFeed ? previousStories(seasonId, turnNo) : Map.of();
+    /**
+     * Everything after the statements: refusal of an incomplete history, attention ranks among pool assets, the focus asset, price
+     * changes, streaks and the previous turn's stories. Pure, so the vector test runs the production rules. The attention maps may hold
+     * assets outside the pool (the statement reads a whole block); ranks and counts use pool assets only.
+     */
+    static List<AssetFacts> assemble(int turnNo, List<AssetRow> pool, Map<Long, List<BigDecimal>> history,
+            Map<Long, BigDecimal> currentPrices, Map<Long, BigDecimal> attention, Map<Long, BigDecimal> previousAttention,
+            List<PreviousRow> previousRows) {
+        Map<Long, List<BigDecimal>> exact = new HashMap<>();
+        history.forEach((id, prices) -> exact.put(id, prices.stream().map(MoneyMath::exactStoredPrice).toList()));
+        for (AssetRow a : pool) {
+            List<BigDecimal> seen = exact.get(a.assetId());
+            if (!currentPrices.containsKey(a.assetId()) || seen == null || seen.size() != turnNo) {
+                // A pool asset without a complete price history is damaged data; dropping it would hide the damage.
+                throw new FeedGenerationException(FeedFailure.FEED_INPUT, "a pool asset has an incomplete price history");
+            }
+        }
+
+        Map<Long, Story> stories = previousStories(previousRows, turnNo);
         int ranked = (int) pool.stream().filter(a -> attention.containsKey(a.assetId())).count();
         String focus = pool.stream().filter(a -> attention.containsKey(a.assetId()))
                 .min(Comparator.<AssetRow, BigDecimal>comparing(a -> attention.get(a.assetId()), Comparator.reverseOrder())
@@ -153,7 +169,7 @@ public class FeedInputReader {
 
         List<AssetFacts> facts = new ArrayList<>();
         for (AssetRow a : pool) {
-            List<BigDecimal> prices = new ArrayList<>(history.get(a.assetId()));
+            List<BigDecimal> prices = new ArrayList<>(exact.get(a.assetId()));
             prices.add(MoneyMath.exactStoredPrice(currentPrices.get(a.assetId())));
             BigDecimal own = attention.get(a.assetId());
             BigDecimal ownPrevious = previousAttention.get(a.assetId());
@@ -174,26 +190,31 @@ public class FeedInputReader {
     private record Story(MoveDirection direction, int echoRepeat) {
     }
 
-    private Map<Long, Story> previousStories(long seasonId, int turnNo) {
+    private List<PreviousRow> previousRows(long seasonId, int turnNo) {
+        return jdbc.sql(PREVIOUS_FEED).param("seasonId", seasonId).param("previousTurn", turnNo - 1)
+                .query((rs, n) -> new PreviousRow(rs.getLong("asset_id"), FeedKind.valueOf(rs.getString("kind")),
+                        rs.getString("direction"), rs.getInt("repeat_count")))
+                .list();
+    }
+
+    private static Map<Long, Story> previousStories(List<PreviousRow> rows, int turnNo) {
         Map<Long, Story> stories = new HashMap<>();
         if (turnNo < 2) {
             return stories;
         }
-        jdbc.sql(PREVIOUS_FEED).param("seasonId", seasonId).param("previousTurn", turnNo - 1).query(rs -> {
-            long assetId = rs.getLong("asset_id");
-            FeedKind kind = FeedKind.valueOf(rs.getString("kind"));
-            String stored = rs.getString("direction");
-            Story old = stories.get(assetId);
+        for (PreviousRow row : rows) {
+            Story old = stories.get(row.assetId());
             MoveDirection direction = old == null ? null : old.direction();
             int repeat = old == null ? 0 : old.echoRepeat();
-            if ((kind == FeedKind.RISE || kind == FeedKind.FALL || kind == FeedKind.ECHO) && stored != null) {
-                direction = MoveDirection.valueOf(stored);
+            FeedKind kind = row.kind();
+            if ((kind == FeedKind.RISE || kind == FeedKind.FALL || kind == FeedKind.ECHO) && row.direction() != null) {
+                direction = MoveDirection.valueOf(row.direction());
             }
             if (kind == FeedKind.ECHO) {
-                repeat = Math.max(repeat, rs.getInt("repeat_count"));
+                repeat = Math.max(repeat, row.repeatCount());
             }
-            stories.put(assetId, new Story(direction, repeat));
-        });
+            stories.put(row.assetId(), new Story(direction, repeat));
+        }
         return stories;
     }
 
