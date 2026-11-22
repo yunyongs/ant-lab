@@ -10,6 +10,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
+from functools import cached_property
 from typing import Any
 
 from antlab_engine.sim.model import (
@@ -49,7 +50,7 @@ class BotWorld:
     inputs: SimInputs
     feed: Mapping[str, Any] | None = None
 
-    @property
+    @cached_property
     def world_id(self) -> str:
         return hashlib.sha256(canonical(self._body()).encode()).hexdigest()
 
@@ -186,7 +187,51 @@ def world_from_doc(doc: Mapping[str, Any]) -> BotWorld:
     return world
 
 
-def synthetic_world(seed: int, assets: int = 12, length: int = 12) -> BotWorld:
+def synthetic_feed(seed: int, pool: tuple[PoolAsset, ...], length: int) -> dict[str, Any]:
+    """Feed facts for a synthetic pool: three groups, attention with gaps, a few events."""
+    from .rng import BotRng, mix
+
+    rng = BotRng(mix(seed, 0xFEED))
+    assets = [
+        {
+            "asset": a.asset,
+            "name": f"Asset {a.asset}",
+            "groupCode": f"G{i % 3}",
+            "groupName": f"Group {i % 3}",
+        }
+        for i, a in enumerate(pool)
+    ]
+    attention = []
+    for turn in range(length + 1):
+        values: dict[str, str | None] = {}
+        for a in pool:
+            values[a.asset] = None if rng.chance(1, 5) else f"{rng.below(10_000) / 100:.2f}"
+        attention.append({"turn": turn, "values": values})
+    events = []
+    for turn in range(1, length + 1):
+        if rng.chance(1, 5):
+            hidden = rng.chance(1, 2)
+            events.append(
+                {
+                    "turn": turn,
+                    "key": f"synthetic-{turn:03d}",
+                    "category": None if hidden else "TRADE",
+                    "hidden": hidden,
+                    "reaction": f"{rng.between(-300, 300) / 10000:.8f}",
+                    "strength": rng.between(1, 3),
+                }
+            )
+    return {
+        "assets": assets,
+        "attention": attention,
+        "events": events,
+        "reviewed": list(range(1, length + 1)),
+    }
+
+
+def synthetic_world(
+    seed: int, assets: int = 12, length: int = 12, *, feed: bool = False
+) -> BotWorld:
     """A reproducible world for tests and throughput runs; includes the two benchmark proxies."""
     from .rng import BotRng, mix
 
@@ -219,4 +264,5 @@ def synthetic_world(seed: int, assets: int = 12, length: int = 12) -> BotWorld:
         fx = {"USD": Decimal(rng.between(-100, 100)) / 10000}
         path.append(PathStep(turn, returns, fx))
     inputs = SimInputs(Settings(path_length=length), tuple(pool), tuple(path))
-    return BotWorld(seed, date(2010, 1, 1), inputs)
+    facts = synthetic_feed(seed, tuple(pool), length) if feed else None
+    return BotWorld(seed, date(2010, 1, 1), inputs, facts)
