@@ -2,6 +2,11 @@ package antlab.sim;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import antlab.feed.FeedInput;
+import antlab.feed.FeedInputReader;
+import antlab.ranking.RankingBoard;
+import antlab.ranking.RankingBoardCalculator;
+import antlab.ranking.RankingInputReader;
 import antlab.scoring.SeasonSignalReader;
 import antlab.scoring.TurnSignals;
 import antlab.season.SeedGenerator;
@@ -119,11 +124,15 @@ class SimulatorParityFixtureTest {
     SeasonSignalReader signals;
     @Autowired
     Seeds seeds;
+    @Autowired
+    FeedInputReader feedReader;
+    @Autowired
+    RankingInputReader rankingReader;
 
     @Test
     @Timeout(value = 20, unit = java.util.concurrent.TimeUnit.MINUTES)
     void thirtyMillionSeasonsMatchTheFixture() throws IOException {
-        new Harness(mvc, jdbc, signals, seeds).run(false);
+        new Harness(mvc, jdbc, signals, seeds, feedReader, rankingReader).run(false);
     }
 
     @Nested
@@ -138,11 +147,15 @@ class SimulatorParityFixtureTest {
         SeasonSignalReader signals;
         @Autowired
         Seeds seeds;
+        @Autowired
+        FeedInputReader feedReader;
+        @Autowired
+        RankingInputReader rankingReader;
 
         @Test
         @Timeout(value = 20, unit = java.util.concurrent.TimeUnit.MINUTES)
         void hundredMillionSeasonsMatchTheFixture() throws IOException {
-            new Harness(mvc, jdbc, signals, seeds).run(true);
+            new Harness(mvc, jdbc, signals, seeds, feedReader, rankingReader).run(true);
         }
     }
 
@@ -154,12 +167,17 @@ class SimulatorParityFixtureTest {
         private final JdbcTemplate jdbc;
         private final SeasonSignalReader signalReader;
         private final Seeds seeds;
+        private final FeedInputReader feedReader;
+        private final RankingInputReader rankingReader;
         private final JsonMapper mapper = JsonMapper.shared();
         private final Map<Long, String> keyById = new HashMap<>();
         private final Map<String, Long> idByKey = new HashMap<>();
         private final int pathCount = 2000;
 
-        Harness(MockMvcTester mvc, JdbcTemplate jdbc, SeasonSignalReader signals, Seeds seeds) {
+        Harness(MockMvcTester mvc, JdbcTemplate jdbc, SeasonSignalReader signals, Seeds seeds, FeedInputReader feedReader,
+                RankingInputReader rankingReader) {
+            this.feedReader = feedReader;
+            this.rankingReader = rankingReader;
             this.mvc = mvc;
             this.jdbc = jdbc;
             this.signalReader = signals;
@@ -175,6 +193,7 @@ class SimulatorParityFixtureTest {
             });
             SplitMix64 master = new SplitMix64(MASTER_SEED);
             Map<Integer, ObjectNode> mine = new TreeMap<>();
+            Map<Integer, ObjectNode> worlds = new TreeMap<>();
             for (int[] row : PLAN) {
                 int index = row[0];
                 long seed = nextLong(master);
@@ -182,9 +201,10 @@ class SimulatorParityFixtureTest {
                 if (HUNDRED_MILLION.contains(index) != hundredMillion) {
                     continue;
                 }
-                mine.put(index, season(new Spec(index, row[1], row[2], scriptSeed), seed));
+                mine.put(index, season(new Spec(index, row[1], row[2], scriptSeed), seed, worlds));
             }
             SimFixtureWriter.writeOrCompare(SimFixtureWriter.header(MASTER_SEED, pathCount, BASE_DATE), mine);
+            SimFixtureWriter.writeOrCompareWorlds(SimFixtureWriter.worldsHeader(MASTER_SEED, BASE_DATE), worlds);
             assertThat(mine).hasSize(hundredMillion ? HUNDRED_MILLION.size() : SimFixtureWriter.SEASONS - HUNDRED_MILLION.size());
         }
 
@@ -194,7 +214,7 @@ class SimulatorParityFixtureTest {
 
         // ---- one season ---------------------------------------------------------------------------------------
 
-        private ObjectNode season(Spec spec, long seed) {
+        private ObjectNode season(Spec spec, long seed, Map<Integer, ObjectNode> worlds) {
             seeds.next.set(seed);
             int[] start = START_FORMATIONS[spec.index() % START_FORMATIONS.length];
             String risk = RISK_LIMITS[spec.index() % RISK_LIMITS.length];
@@ -218,7 +238,146 @@ class SimulatorParityFixtureTest {
             ObjectNode counts = counts(spec);
             out.set("counts", counts);
             out.set("java", java(seasonId, spec, arena, counts));
+            worlds.put(spec.index(), world(seasonId, spec, seed));
             return out;
+        }
+
+
+        // ---- the feed world (inputs the feed port needs, and what Java stored) -----------------------------------
+
+        private ObjectNode world(long seasonId, Spec spec, long seed) {
+            int turns = spec.pathLength();
+            ObjectNode out = mapper.createObjectNode();
+            out.put("index", spec.index());
+            ArrayNode pool = out.putArray("pool");
+            jdbc.query("""
+                    SELECT a.market || ':' || a.ticker AS k, a.name, g.code AS group_code, g.name AS group_name
+                    FROM turn_price tp
+                    JOIN asset a ON a.id = tp.asset_id
+                    JOIN asset_group g ON g.id = a.asset_group_id
+                    WHERE tp.season_id = ? AND tp.turn_no = 0
+                    ORDER BY a.market COLLATE "C", a.ticker COLLATE "C\"""", rs -> {
+                ObjectNode a = pool.addObject();
+                a.put("asset", rs.getString("k"));
+                a.put("name", rs.getString("name"));
+                a.put("groupCode", rs.getString("group_code"));
+                a.put("groupName", rs.getString("group_name"));
+            }, seasonId);
+
+            // Attention of every asset the block holds (pool or not), turn 0 being the block before turn 1 (absent in this history).
+            Map<Integer, ObjectNode> attention = new TreeMap<>();
+            ArrayNode attentionOut = out.putArray("attention");
+            for (int t = 0; t <= turns; t++) {
+                ObjectNode entry = attentionOut.addObject();
+                entry.put("turn", t);
+                attention.put(t, entry.putObject("values"));
+            }
+            jdbc.query("""
+                    SELECT sp.turn_no, ama.asset_id, ama.attention_index
+                    FROM season_path sp
+                    JOIN asset_month_attention ama ON ama.month_block_id = sp.month_block_id
+                    WHERE sp.season_id = ? AND ama.attention_index IS NOT NULL
+                    ORDER BY sp.turn_no, ama.asset_id""", rs -> {
+                attention.get(rs.getInt("turn_no")).put(keyById.get(rs.getLong("asset_id")),
+                        SimFixtureWriter.plain(rs.getBigDecimal("attention_index")));
+            }, seasonId);
+
+            ArrayNode events = out.putArray("events");
+            ArrayNode reviewed = out.putArray("reviewed");
+            ArrayNode boards = out.putArray("boards");
+            for (int t = 1; t <= turns; t++) {
+                Map<Long, BigDecimal> prices = new HashMap<>();
+                jdbc.query("SELECT asset_id, price FROM turn_price WHERE season_id = ? AND turn_no = ?", rs -> {
+                    prices.put(rs.getLong("asset_id"), rs.getBigDecimal("price"));
+                }, seasonId, t);
+                FeedInput input = feedReader.read(seasonId, seed, t, prices);
+                reviewed.add(t);
+                for (antlab.feed.EventFacts e : input.events()) {
+                    ObjectNode n = events.addObject();
+                    n.put("turn", t);
+                    n.put("key", e.eventKey());
+                    n.put("category", e.category());
+                    n.put("hidden", e.hidden());
+                    n.put("reaction", SimFixtureWriter.plain(e.reaction()));
+                    if (e.strength() == null) {
+                        n.putNull("strength");
+                    } else {
+                        n.put("strength", e.strength());
+                    }
+                }
+                boards.add(board(t, RankingBoardCalculator.board(rankingReader.read(seasonId, t))));
+            }
+
+            Map<Long, String> groupCode = new HashMap<>();
+            jdbc.query("SELECT id, code FROM asset_group", rs -> {
+                groupCode.put(rs.getLong("id"), rs.getString("code"));
+            });
+            Map<Long, String> eventKey = new HashMap<>();
+            jdbc.query("SELECT id, event_key FROM month_event", rs -> {
+                eventKey.put(rs.getLong("id"), rs.getString("event_key"));
+            });
+            ArrayNode rows = out.putArray("rows");
+            jdbc.query("""
+                    SELECT turn_no, seq, kind, asset_id, asset_group_id, month_event_id, category_hidden, direction, strength,
+                           repeat_count, template_id, template_vars::text AS vars
+                    FROM turn_feed WHERE season_id = ? AND kind <> 'NUDGE' ORDER BY turn_no, seq""", rs -> {
+                ObjectNode r = rows.addObject();
+                r.put("turn", rs.getInt("turn_no"));
+                r.put("seq", rs.getInt("seq"));
+                r.put("kind", rs.getString("kind"));
+                Long asset = (Long) rs.getObject("asset_id");
+                r.put("asset", asset == null ? null : keyById.get(asset));
+                Long group = (Long) rs.getObject("asset_group_id");
+                r.put("group", group == null ? null : groupCode.get(group));
+                Long event = (Long) rs.getObject("month_event_id");
+                r.put("event", event == null ? null : eventKey.get(event));
+                r.put("hidden", rs.getBoolean("category_hidden"));
+                r.put("direction", rs.getString("direction"));
+                int strength = rs.getInt("strength");
+                if (rs.wasNull()) {
+                    r.putNull("strength");
+                } else {
+                    r.put("strength", strength);
+                }
+                r.put("repeat", rs.getInt("repeat_count"));
+                r.put("template", rs.getString("template_id"));
+                r.put("vars", rs.getString("vars"));
+            }, seasonId);
+            return out;
+        }
+
+        private ObjectNode board(int turn, RankingBoard b) {
+            ObjectNode out = mapper.createObjectNode();
+            out.put("turn", turn);
+            ArrayNode gainers = out.putArray("gainers");
+            b.gainers().forEach(r -> assetRow(gainers.addObject(), r.rank(), r.assetId()).put("rate", SimFixtureWriter.plain(r.changeRate())));
+            ArrayNode losers = out.putArray("losers");
+            b.losers().forEach(r -> assetRow(losers.addObject(), r.rank(), r.assetId()).put("rate", SimFixtureWriter.plain(r.changeRate())));
+            ArrayNode attention = out.putArray("attention");
+            b.attention().forEach(r -> assetRow(attention.addObject(), r.rank(), r.assetId()).put("grade", r.grade()));
+            ArrayNode rising = out.putArray("risingStreaks");
+            b.risingStreaks().forEach(r -> assetRow(rising.addObject(), r.rank(), r.assetId()).put("streak", r.streak())
+                    .put("rate", SimFixtureWriter.plain(r.changeRate())));
+            ArrayNode falling = out.putArray("fallingStreaks");
+            b.fallingStreaks().forEach(r -> assetRow(falling.addObject(), r.rank(), r.assetId()).put("streak", r.streak())
+                    .put("rate", SimFixtureWriter.plain(r.changeRate())));
+            ArrayNode groupGainers = out.putArray("groupGainers");
+            b.groupGainers().forEach(r -> groupRow(groupGainers.addObject(), r.rank(), r.groupId(), r.changeRate()));
+            ArrayNode groupLosers = out.putArray("groupLosers");
+            b.groupLosers().forEach(r -> groupRow(groupLosers.addObject(), r.rank(), r.groupId(), r.changeRate()));
+            return out;
+        }
+
+        private ObjectNode assetRow(ObjectNode node, int rank, long assetId) {
+            node.put("rank", rank);
+            node.put("asset", keyById.get(assetId));
+            return node;
+        }
+
+        private void groupRow(ObjectNode node, int rank, long groupId, BigDecimal rate) {
+            node.put("rank", rank);
+            node.put("group", jdbc.queryForObject("SELECT code FROM asset_group WHERE id = ?", String.class, groupId));
+            node.put("rate", SimFixtureWriter.plain(rate));
         }
 
         // ---- reads (inputs) -----------------------------------------------------------------------------------
