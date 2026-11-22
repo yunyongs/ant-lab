@@ -1,7 +1,7 @@
 """The only SQL the engine runs: SELECT statements with bound parameters."""
 
 MONTHS_SQL = """
-SELECT id, month_start
+SELECT id, month_start, regime_label
 FROM month_block
 WHERE month_start < %(upper)s
 ORDER BY month_start, id

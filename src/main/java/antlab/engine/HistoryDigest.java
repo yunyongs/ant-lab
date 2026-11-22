@@ -1,5 +1,6 @@
 package antlab.engine;
 
+import antlab.history.ReplayMonth;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -10,6 +11,7 @@ import java.util.Collection;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Objects;
+import java.util.TreeMap;
 import java.util.TreeSet;
 
 /**
@@ -41,6 +43,29 @@ public final class HistoryDigest {
         List<String> lines = new ArrayList<>(replayable.size() + 1);
         lines.add(engineVersion);
         replayable.forEach(month -> lines.add(month.toString()));
+        return sha256Hex(String.join("\n", lines));
+    }
+
+    /**
+     * Labelled variant for {@code m2-sbc6-v1}: the same window, but every line is {@code YYYY-MM:P3} or
+     * {@code YYYY-MM:-} for an unlabelled month. Labels of months outside the window are not part of it.
+     */
+    public static String ofLabelled(String engineVersion, Collection<ReplayMonth> months, LocalDate baseDate,
+            LocalDate replayStart) {
+        Objects.requireNonNull(replayStart, "replayStart");
+        Objects.requireNonNull(engineVersion, "engineVersion");
+        Objects.requireNonNull(months, "months");
+        LocalDate upper = SimpleBootstrap.replayUpperBound(baseDate);
+        TreeMap<YearMonth, String> replayable = new TreeMap<>();
+        for (ReplayMonth month : months) {
+            LocalDate start = month.monthStart();
+            if (!start.isBefore(replayStart) && start.isBefore(upper)) {
+                replayable.put(YearMonth.from(start), month.regimeLabel() == null ? "-" : month.regimeLabel().name());
+            }
+        }
+        List<String> lines = new ArrayList<>(replayable.size() + 1);
+        lines.add(engineVersion);
+        replayable.forEach((month, label) -> lines.add(month + ":" + label));
         return sha256Hex(String.join("\n", lines));
     }
 

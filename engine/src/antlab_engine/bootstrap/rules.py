@@ -1,6 +1,7 @@
 """Path rule checker for both engine versions; it returns rule names only, never months.
 
-`p0-boot6-v1` mirrors the Java PathRules. `m2-sb6-v1` checks the layout recorded in its blocks.
+`p0-boot6-v1` mirrors the Java PathRules. `m2-sb6-v1` and `m2-sbc6-v1` check the layout
+recorded in their blocks.
 """
 
 from collections.abc import Sequence
@@ -32,7 +33,7 @@ def violations(
     """Rule names broken by `months`; `blocks` is needed for the `m2-sb6-v1` block rules."""
     if engine_version == simple.ENGINE_VERSION:
         return _p0(months, base_date, length, replay_start, block_length)
-    if engine_version == stationary.ENGINE_VERSION:
+    if engine_version in (stationary.ENGINE_VERSION, stationary.CONDITIONAL_VERSION):
         return _m2(months, base_date, length, replay_start, blocks)
     raise ValueError("unknown engine version")
 

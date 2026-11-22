@@ -2,6 +2,7 @@ package antlab.engine;
 
 import static antlab.support.EnginePathAnswers.body;
 import static antlab.support.EnginePathAnswers.digestOf;
+import static antlab.support.EnginePathAnswers.labelledDigestOf;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -11,6 +12,7 @@ import antlab.engine.client.EngineClient;
 import antlab.engine.client.EngineProperties;
 import antlab.engine.client.EngineUnavailableException;
 import antlab.history.MonthBlockRepository;
+import antlab.history.RegimePool;
 import antlab.history.ReplayMonth;
 import antlab.support.FakeEngineServer;
 import antlab.support.IntegrationTest;
@@ -29,6 +31,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -51,6 +54,7 @@ class EnginePathSourceTest {
     private static final LocalDate BASE = SyntheticMonths.BASE_DATE;
     private static final String P0 = "p0-boot6-v1";
     private static final String M2 = "m2-sb6-v1";
+    private static final String M2C = "m2-sbc6-v1";
     private static final String PATHS = "/v1/paths";
     private static final FakeEngineServer ENGINE = FakeEngineServer.start();
 
@@ -73,6 +77,9 @@ class EnginePathSourceTest {
 
     @Autowired
     BootstrapPathSource bootstrap;
+
+    @Autowired
+    JdbcTemplate jdbc;
 
     private List<ReplayMonth> replayable;
     private Map<LocalDate, Long> idByMonth;
@@ -291,5 +298,84 @@ class EnginePathSourceTest {
         assertThatThrownBy(() -> source(M2).generate(new PathRequest(BASE, 10, 5L)))
                 .isInstanceOfSatisfying(DomainException.class, e -> assertThat(e.getCode()).isEqualTo(ErrorCode.INVALID_ARGUMENT));
         assertThat(ENGINE.requests()).isEmpty();
+    }
+
+    /** Labels are stored together with the four probabilities (ck_month_block_label_with_prob). */
+    private void label(LocalDate month, String label) {
+        jdbc.update("UPDATE month_block SET regime_label = ?, prob_p1 = 0.4, prob_p2 = 0.3, prob_p3 = 0.2, prob_p4 = 0.1 "
+                + "WHERE month_start = ?", label, month);
+    }
+
+    private List<ReplayMonth> reload() {
+        return repository.findReplayMonths(SimpleBootstrap.REPLAY_START, SimpleBootstrap.replayUpperBound(BASE));
+    }
+
+    @Test
+    void 월_블록_읽기는_라벨이_있는_달과_없는_달을_구분한다() {
+        label(LocalDate.of(2007, 1, 1), "P3");
+        label(LocalDate.of(2007, 2, 1), "P1");
+
+        Map<LocalDate, RegimePool> labels = new HashMap<>();
+        reload().forEach(m -> labels.put(m.monthStart(), m.regimeLabel()));
+
+        assertThat(labels.get(LocalDate.of(2007, 1, 1))).isEqualTo(RegimePool.P3);
+        assertThat(labels.get(LocalDate.of(2007, 2, 1))).isEqualTo(RegimePool.P1);
+        assertThat(labels.get(LocalDate.of(2007, 3, 1))).isNull();
+        assertThat(reload().get(0).toString()).isEqualTo("ReplayMonth[...]");
+    }
+
+    @Test
+    void 조건부_판은_conditional_true를_보내고_라벨까지_맞는_요약값을_받아들인다() {
+        label(LocalDate.of(2007, 1, 1), "P2");
+        label(LocalDate.of(2007, 2, 1), "P2");
+        replayable = reload();
+        List<LocalDate> months = run("2007-01", 12);
+        answer(M2C, months, labelledDigestOf(M2C, replayable, BASE));
+
+        GeneratedPath path = source(M2C).generate(new PathRequest(BASE, 12, 5L));
+
+        assertThat(path.engineVersion()).isEqualTo(M2C);
+        assertThat(path.monthBlockIds()).isEqualTo(months.stream().map(idByMonth::get).toList());
+        assertThat(ENGINE.requests().get(0).body()).contains("\"engineVersion\":\"m2-sbc6-v1\"", "\"conditional\":true");
+    }
+
+    @Test
+    void 라벨_없는_달만의_요약값이나_라벨이_한_개_다른_요약값은_500이고_달은_기록되지_않는다(CapturedOutput output) {
+        label(LocalDate.of(2007, 1, 1), "P2");
+        replayable = reload();
+        String monthsOnly = digestOf(M2C, replayable, BASE);
+        List<ReplayMonth> otherLabel = new ArrayList<>(replayable);
+        otherLabel.set(otherLabel.indexOf(otherLabel.stream().filter(m -> m.monthStart().equals(LocalDate.of(2007, 1, 1))).findFirst().get()),
+                new ReplayMonth(idByMonth.get(LocalDate.of(2007, 1, 1)), LocalDate.of(2007, 1, 1), RegimePool.P4));
+
+        for (String wrong : new String[] { monthsOnly, labelledDigestOf(M2C, otherLabel, BASE) }) {
+            ENGINE.reset();
+            answer(M2C, run("2007-01", 12), wrong);
+
+            assertThatThrownBy(() -> source(M2C).generate(new PathRequest(BASE, 12, 5L)))
+                    .isInstanceOf(IllegalStateException.class).hasMessageNotContaining("2007");
+        }
+        assertThat(output.getAll()).contains("engine.view_mismatch").doesNotContain("2007-01").doesNotContain("P4");
+    }
+
+    @Test
+    void 조건부_판도_개수_범위_재사용_규칙은_지키고_달력_규칙은_보지_않는다() {
+        replayable = reload();
+        answer(M2C, scatteredYear(), labelledDigestOf(M2C, replayable, BASE));
+        assertThat(source(M2C).generate(new PathRequest(BASE, 12, 5L)).monthBlockIds()).hasSize(12);
+
+        answer(M2C, run("2007-01", 11), labelledDigestOf(M2C, replayable, BASE));
+        assertThatThrownBy(() -> source(M2C).generate(new PathRequest(BASE, 12, 5L)))
+                .isInstanceOf(IllegalStateException.class).hasMessageContaining("S1_COUNT");
+    }
+
+    @Test
+    void 라벨_부족_422는_ENGINE_UNAVAILABLE이고_엔진_문장이_나가지_않는다() {
+        ENGINE.respondFixture(PATHS, 422, "problem-regime-labels-missing.json");
+
+        assertThatThrownBy(() -> source(M2C).generate(new PathRequest(BASE, 12, 5L)))
+                .isInstanceOf(EngineUnavailableException.class)
+                .hasMessageNotContaining("labelled")
+                .isInstanceOfSatisfying(DomainException.class, e -> assertThat(e.getCode()).isEqualTo(ErrorCode.ENGINE_UNAVAILABLE));
     }
 }

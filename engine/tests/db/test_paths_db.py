@@ -60,3 +60,13 @@ def test_p8_an_unreachable_database_is_503(history_db):
     settings = DatabaseSettings(host="127.0.0.1", port=1, name="antlab_api", user="antlab_engine")
     response = client_for(settings).post("/v1/paths", json=request(), headers=HEADERS)
     problem(response, 503, "HISTORY_UNAVAILABLE")
+
+
+def test_p8_the_conditional_version_without_stored_labels_is_422(history_db):
+    client = client_for(engine_settings(history_db))
+    response = client.post(
+        "/v1/paths",
+        json=request(engineVersion="m2-sbc6-v1", conditional=True),
+        headers=HEADERS,
+    )
+    problem(response, 422, "REGIME_LABELS_MISSING")

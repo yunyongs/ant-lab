@@ -31,7 +31,7 @@ public record EngineProperties(
     public enum PathSourceMode { JAVA, ENGINE }
 
     public static final int MIN_TOKEN_LENGTH = 32;
-    static final Set<String> PATH_VERSIONS = Set.of("m2-sb6-v1", "p0-boot6-v1");
+    static final Set<String> PATH_VERSIONS = Set.of("m2-sb6-v1", EnginePathRequest.CONDITIONAL_VERSION, "p0-boot6-v1");
     private static final Duration MAX_TIMEOUT = Duration.ofSeconds(120);
 
     public EngineProperties {

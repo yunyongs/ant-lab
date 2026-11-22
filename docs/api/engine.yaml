@@ -172,7 +172,7 @@ components:
           schema:
             $ref: '#/components/schemas/Problem'
     PathTooLong:
-      description: The replayable history cannot build a path of this length (code PATH_TOO_LONG, same status as the public API) / 재생 가능한 이력으로 이 길이의 경로를 만들 수 없다(코드 PATH_TOO_LONG, 공개 API와 같은 상태)
+      description: The replayable history cannot build a path of this length (code PATH_TOO_LONG, same status as the public API), or, for createPath with `m2-sbc6-v1` only, too few stored regime labels (code REGIME_LABELS_MISSING) / 재생 가능한 이력으로 이 길이의 경로를 만들 수 없다(코드 PATH_TOO_LONG, 공개 API와 같은 상태), 또는 createPath의 `m2-sbc6-v1`에서만 저장된 국면 라벨이 모자란다(코드 REGIME_LABELS_MISSING)
       content:
         application/problem+json:
           schema:
@@ -237,15 +237,17 @@ components:
       type: object
       description: >-
         Draws one path. `seed` is a decimal string (signed 64-bit). `recentMonths` and `maxOverlap` apply to
-        `m2-sb6-v1` only; `p0-boot6-v1` rejects them. `conditional` must be false until regime-conditional
-        paths exist. / 경로 하나를 뽑는다. `seed`는 부호 있는 64비트 십진 문자열이다. `recentMonths`·`maxOverlap`은
-        `m2-sb6-v1`에만 쓰이고 `p0-boot6-v1`은 거부한다. `conditional`은 국면 조건 경로가 생기기 전까지 false여야 한다.
+        `m2-sb6-v1` and `m2-sbc6-v1`; `p0-boot6-v1` rejects them. `conditional` is true exactly for `m2-sbc6-v1`
+        (blocks follow the stored regime transitions) and false for the other versions; any other combination
+        is 400. / 경로 하나를 뽑는다. `seed`는 부호 있는 64비트 십진 문자열이다. `recentMonths`·`maxOverlap`은
+        `m2-sb6-v1`과 `m2-sbc6-v1`에만 쓰이고 `p0-boot6-v1`은 거부한다. `conditional`은 `m2-sbc6-v1`일 때만
+        true(블록이 저장된 국면 전이를 따른다)이고 다른 판은 false이며, 그 밖의 조합은 400이다.
       additionalProperties: false
       required: [engineVersion, seed, length, baseDate]
       properties:
         engineVersion:
           type: string
-          enum: [p0-boot6-v1, m2-sb6-v1]
+          enum: [p0-boot6-v1, m2-sb6-v1, m2-sbc6-v1]
         seed:
           type: string
           pattern: '^-?[0-9]{1,19}$'
@@ -267,7 +269,12 @@ components:
           pattern: '^(0(\.[0-9]{1,4})?|1(\.0{1,4})?)$'
     PathBlock:
       type: object
-      required: [startTurn, drawnLength, length, tier]
+      description: >-
+        `conditioned` is true when a target regime was drawn for the block, `matched` when its first month has
+        that regime. Both are false for `p0-boot6-v1` and `m2-sb6-v1`. The regime itself is never returned. /
+        `conditioned`는 블록의 목표 국면을 뽑았을 때, `matched`는 블록 첫 달이 그 국면일 때 true다.
+        `p0-boot6-v1`과 `m2-sb6-v1`에서는 둘 다 false다. 국면 자체는 돌려주지 않는다.
+      required: [startTurn, drawnLength, length, tier, conditioned, matched]
       properties:
         startTurn: {type: integer}
         drawnLength: {type: integer}
@@ -275,13 +282,16 @@ components:
         tier:
           type: string
           enum: [ALIGNED, NEAR, FREE, JOIN]
+        conditioned: {type: boolean}
+        matched: {type: boolean}
     PathResult:
       type: object
       description: >-
         Months (`YYYY-MM`, turn order) are replay-only data for the internal backend route; they must not
         reach a public or agent response before review. `historyDigest` is the SHA-256 (hex) of
-        `engineVersion` and the sorted replayable `YYYY-MM` months of the snapshot, each on its own line. /
-        달(`YYYY-MM`, 턴 순서)은 내부 backend 경로 전용 복기 데이터이며 복기 전에는 공개·에이전트 응답에 나가면 안 된다. `historyDigest`는 `engineVersion`과 스냅샷의 재생 가능한 `YYYY-MM` 달을 정렬해 한 줄에 하나씩 이은 문자열의 SHA-256(16진)이다.
+        `engineVersion` and the sorted replayable `YYYY-MM` months of the snapshot, each on its own line; for
+        `m2-sbc6-v1` each line is `YYYY-MM:P1`..`YYYY-MM:P4`, or `YYYY-MM:-` for an unlabelled month. /
+        달(`YYYY-MM`, 턴 순서)은 내부 backend 경로 전용 복기 데이터이며 복기 전에는 공개·에이전트 응답에 나가면 안 된다. `historyDigest`는 `engineVersion`과 스냅샷의 재생 가능한 `YYYY-MM` 달을 정렬해 한 줄에 하나씩 이은 문자열의 SHA-256(16진)이다. `m2-sbc6-v1`은 각 줄이 `YYYY-MM:P1`~`YYYY-MM:P4`, 라벨이 없는 달은 `YYYY-MM:-`다.
       required: [engineVersion, months, blocks, overlapMonths, overlapMet, attempt, historyDigest]
       properties:
         engineVersion: {type: string}
@@ -702,6 +712,7 @@ components:
     ErrorCode:
       type: string
       enum: [INVALID_ARGUMENT, NOT_FOUND, METHOD_NOT_ALLOWED, UNAUTHENTICATED, INTERNAL_ERROR,
-           PATH_TOO_LONG, POOL_NOT_FOUND, HISTORY_UNAVAILABLE, ENGINE_BUSY, REGIME_DATA_INVALID]
+           PATH_TOO_LONG, POOL_NOT_FOUND, HISTORY_UNAVAILABLE, ENGINE_BUSY, REGIME_DATA_INVALID,
+           REGIME_LABELS_MISSING]
 security:
   - EngineToken: []

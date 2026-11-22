@@ -17,7 +17,10 @@ public record EnginePathRequest(
         @JsonProperty(required = true) LocalDate baseDate,
         @JsonProperty(required = true) boolean conditional) {
 
-    static final Set<String> VERSIONS = Set.of("p0-boot6-v1", "m2-sb6-v1");
+    /** The only version that draws block starts by regime transition counts; conditional is true exactly for it. */
+    public static final String CONDITIONAL_VERSION = "m2-sbc6-v1";
+
+    static final Set<String> VERSIONS = Set.of("p0-boot6-v1", "m2-sb6-v1", CONDITIONAL_VERSION);
     static final Set<Integer> LENGTHS = Set.of(12, 24, 60, 120);
 
     public EnginePathRequest {
@@ -30,13 +33,14 @@ public record EnginePathRequest(
             throw new IllegalArgumentException("length must be 12, 24, 60 or 120");
         }
         EngineWire.required(baseDate, "baseDate");
-        if (conditional) {
-            throw new IllegalArgumentException("conditional paths are not available yet");
+        if (conditional != CONDITIONAL_VERSION.equals(engineVersion)) {
+            throw new IllegalArgumentException("conditional must be true exactly for " + CONDITIONAL_VERSION);
         }
     }
 
     public static EnginePathRequest of(String engineVersion, long seed, int length, LocalDate baseDate) {
-        return new EnginePathRequest(engineVersion, Long.toString(seed), length, baseDate, false);
+        return new EnginePathRequest(engineVersion, Long.toString(seed), length, baseDate,
+                CONDITIONAL_VERSION.equals(engineVersion));
     }
 
     @Override

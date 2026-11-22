@@ -32,6 +32,12 @@ class EngineRequestRulesTest {
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> new EnginePathRequest("m2-sb6-v1", "1", 12, BASE, true))
                 .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new EnginePathRequest("m2-sbc6-v1", "1", 12, BASE, false))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new EnginePathRequest("p0-boot6-v1", "1", 12, BASE, true))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThat(EnginePathRequest.of("m2-sbc6-v1", 1, 12, BASE).conditional()).isTrue();
+        assertThat(EnginePathRequest.of("m2-sb6-v1", 1, 12, BASE).conditional()).isFalse();
         assertThatThrownBy(() -> EnginePathRequest.of("m2-sb6-v1", 1, 12, null)).isInstanceOf(NullPointerException.class);
     }
 

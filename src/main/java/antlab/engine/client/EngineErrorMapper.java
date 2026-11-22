@@ -28,7 +28,7 @@ final class EngineErrorMapper {
     private static final Pattern SAFE_FIELD = Pattern.compile("[A-Za-z0-9_.\\[\\]-]{1,80}");
     private static final int MAX_LOGGED_FIELDS = 10;
 
-    private enum Outcome { INTERNAL, PATH_TOO_LONG, HISTORY_UNAVAILABLE, BUSY }
+    private enum Outcome { INTERNAL, PATH_TOO_LONG, HISTORY_UNAVAILABLE, BUSY, LABELS_MISSING }
 
     private record Rule(int status, String logKey, Outcome outcome) {
     }
@@ -47,6 +47,8 @@ final class EngineErrorMapper {
         RULES.put(EngineErrorCode.HISTORY_UNAVAILABLE, new Rule(503, "engine.history_unavailable", Outcome.HISTORY_UNAVAILABLE));
         RULES.put(EngineErrorCode.ENGINE_BUSY, new Rule(503, "engine.busy", Outcome.BUSY));
         RULES.put(EngineErrorCode.REGIME_DATA_INVALID, new Rule(422, "engine.regime_data_invalid", Outcome.INTERNAL));
+        // A data state (too few stored regime labels for m2-sbc6-v1), not the player's fault; the engine's counts stay unlogged.
+        RULES.put(EngineErrorCode.REGIME_LABELS_MISSING, new Rule(422, "engine.labels_missing", Outcome.LABELS_MISSING));
         RULES.put(EngineErrorCode.INTERNAL_ERROR, new Rule(500, "engine.bad_response", Outcome.INTERNAL));
     }
 
@@ -71,6 +73,7 @@ final class EngineErrorMapper {
             case PATH_TOO_LONG -> new DomainException(ErrorCode.PATH_TOO_LONG, PATH_TOO_LONG_MESSAGE);
             case HISTORY_UNAVAILABLE -> unavailable(rule.logKey(), operation, EngineUnavailableException.Reason.HISTORY_UNAVAILABLE);
             case BUSY -> unavailable(rule.logKey(), operation, EngineUnavailableException.Reason.BUSY);
+            case LABELS_MISSING -> unavailable(rule.logKey(), operation, EngineUnavailableException.Reason.LABELS_MISSING);
         };
     }
 

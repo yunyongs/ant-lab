@@ -112,6 +112,16 @@ class EnginePropertiesTest {
     }
 
     @Test
+    void 조건부_경로_판도_받는다() {
+        for (String version : new String[] { "m2-sb6-v1", "m2-sbc6-v1", "p0-boot6-v1" }) {
+            runner.withPropertyValues("antlab.engine.path-version=" + version).run(context -> {
+                assertThat(context).as(version).hasNotFailed();
+                assertThat(context.getBean(EngineProperties.class).pathVersion()).isEqualTo(version);
+            });
+        }
+    }
+
+    @Test
     void 잘못된_값은_기동을_막는다() {
         for (String bad : new String[] { "antlab.engine.path-version=m9", "antlab.engine.connect-timeout=0s",
                 "antlab.engine.paths-timeout=-1s", "antlab.engine.projections-timeout=5m", "antlab.engine.regime-timeout=0s",

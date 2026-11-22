@@ -60,6 +60,27 @@ class EngineErrorMapperTest {
     }
 
     @Test
+    void 국면_라벨_부족은_422일_때만_불가용이_되고_엔진_문장은_기록하지_않는다(CapturedOutput output) {
+        EngineProblem problem = EngineWire.read(EngineProblem.class,
+                antlab.support.FakeEngineServer.fixture("problem-regime-labels-missing.json").getBytes());
+
+        RuntimeException mapped = EngineErrorMapper.fromProblem("createPath", 422, problem);
+        assertThat(mapped).isInstanceOfSatisfying(EngineUnavailableException.class, e -> {
+            assertThat(e.reason()).isEqualTo(EngineUnavailableException.Reason.LABELS_MISSING);
+            assertThat(e.getCode()).isEqualTo(ErrorCode.ENGINE_UNAVAILABLE);
+            assertThat(e.getMessage()).doesNotContain("labelled");
+        });
+        assertThat(output.getAll()).contains("engine.labels_missing").doesNotContain("labelled").doesNotContain("pairs");
+
+        // the same code with any other HTTP status is contract drift
+        for (int status : new int[] { 400, 500, 503 }) {
+            RuntimeException drift = EngineErrorMapper.fromProblem("createPath", status, problem);
+            assertThat(drift).isInstanceOfSatisfying(DomainException.class, e -> assertThat(e.getCode()).isEqualTo(ErrorCode.INTERNAL_ERROR));
+        }
+        assertThat(output.getAll().split("engine.bad_response", -1).length - 1).isEqualTo(3);
+    }
+
+    @Test
     void 쓸_수_없는_수집_관측값_코드는_422일_때만_이_이름으로_기록되고_내부_오류가_된다(CapturedOutput output) {
         EngineProblem problem = EngineWire.read(EngineProblem.class,
                 antlab.support.FakeEngineServer.fixture("problem-regime-data-invalid.json").getBytes());

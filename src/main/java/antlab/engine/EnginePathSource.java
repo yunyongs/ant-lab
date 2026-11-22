@@ -22,7 +22,8 @@ import org.slf4j.LoggerFactory;
  * Season paths from the Python engine (antlab.engine.path-source=engine). The engine answers with months; this class
  * turns them into {@code month_block} ids of the same database and checks the answer before anything is stored: the
  * engine version, the history digest (both sides must have read the same months), that every month exists, and the
- * path rules. The months stay in this method: only ids and the version leave it. A failed check is a bug or a view
+ * path rules. For m2-sbc6-v1 the digest also covers the stored regime labels, so a path made on different labels is
+ * refused; Java never regenerates such a path, it only checks it. The months stay in this method: only ids and the version leave it. A failed check is a bug or a view
  * mismatch, answered as 500 with the rule name in the log and never a month.
  */
 public final class EnginePathSource implements PathSource {
@@ -58,8 +59,10 @@ public final class EnginePathSource implements PathSource {
         if (!engineVersion.equals(result.engineVersion())) {
             throw mismatch("engine.version_mismatch", "engine version differs from the requested one");
         }
-        String expectedDigest = HistoryDigest.of(engineVersion,
-                replayable.stream().map(ReplayMonth::monthStart).toList(), request.baseDate(), replayStart);
+        String expectedDigest = EnginePathRequest.CONDITIONAL_VERSION.equals(engineVersion)
+                ? HistoryDigest.ofLabelled(engineVersion, replayable, request.baseDate(), replayStart)
+                : HistoryDigest.of(engineVersion, replayable.stream().map(ReplayMonth::monthStart).toList(),
+                        request.baseDate(), replayStart);
         if (!expectedDigest.equals(result.historyDigest())) {
             throw mismatch("engine.view_mismatch", "engine history differs from the database history");
         }

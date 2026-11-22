@@ -211,6 +211,7 @@ class EngineContractTest {
         Map<String, Object> built = Map.of(
                 "paths-request-p0.json", EnginePathRequest.of("p0-boot6-v1", 14, 12, LocalDate.of(2026, 1, 2)),
                 "paths-request-m2.json", EnginePathRequest.of("m2-sb6-v1", Long.MIN_VALUE, 12, LocalDate.of(2026, 1, 2)),
+                "paths-request-m2c.json", EnginePathRequest.of("m2-sbc6-v1", 20261123, 12, LocalDate.of(2026, 1, 2)),
                 "projection-request.json", EngineHarness.projectionRequest(),
                 "regime-request.json", EngineHarness.regimeRequest());
         for (Entry e : manifest().stream().filter(x -> x.kind().equals("request")).toList()) {

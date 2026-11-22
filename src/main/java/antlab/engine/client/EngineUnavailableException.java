@@ -10,7 +10,7 @@ import antlab.common.error.ErrorCode;
  */
 public final class EngineUnavailableException extends DomainException {
 
-    public enum Reason { NOT_CONFIGURED, UNREACHABLE, TIMEOUT, HISTORY_UNAVAILABLE, BUSY }
+    public enum Reason { NOT_CONFIGURED, UNREACHABLE, TIMEOUT, HISTORY_UNAVAILABLE, BUSY, LABELS_MISSING }
 
     static final String MESSAGE = "The engine is unavailable.";
 
