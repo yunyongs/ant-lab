@@ -11,6 +11,7 @@ KIND_STATIC = 2  # reserved: the static bot reuses the random bot seed of its in
 KIND_DISCIPLINED = 3
 KIND_NEWS = 4
 KIND_NEWSMIX_COIN = 5  # sub-stream tag mixed into the disciplined seed, not a top-level kind
+KIND_TRAIT = 6
 
 _SIGN = 1 << 63
 

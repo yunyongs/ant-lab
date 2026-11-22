@@ -28,6 +28,7 @@ class FeedItem:
     kind: str
     asset: str | None
     direction: str | None
+    reaction: Decimal | None = None  # EVENT rows only: the reaction the row's text states
 
 
 @dataclass(frozen=True)

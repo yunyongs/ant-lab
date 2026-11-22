@@ -129,6 +129,16 @@ def discipline(facts: DisciplineFacts) -> DisciplineResult:
     )
 
 
+def panic_turns_of(facts: DisciplineFacts) -> set[int]:
+    """The turns `discipline` judges as panic; a sell bound to a change of such a turn is panic."""
+    _validate_discipline(facts)
+    team_value = {v.turn: v.total_value for v in facts.turn_values}
+    changes = sorted(
+        (c for c in facts.changes if 1 <= c.turn < facts.report_turn), key=lambda c: c.id
+    )
+    return _panic_turns(facts.initial_cash, team_value, changes, facts.report_turn)
+
+
 def _panic_turns(
     initial_cash: Decimal,
     team_value: dict[int, Decimal],
