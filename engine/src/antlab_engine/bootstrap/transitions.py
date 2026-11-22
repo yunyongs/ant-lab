@@ -103,6 +103,25 @@ def count_pairs(avail: Sequence[int], label_of: Mapping[int, int]) -> Transition
     return TransitionCounts(tuple((r[0], r[1], r[2], r[3]) for r in rows), labelled, pairs)
 
 
+def run_stats(avail: Sequence[int], label_of: Mapping[int, int]) -> tuple[tuple[int, int], ...]:
+    """Per pool `(runs, months)`: a run is consecutive labelled months with one label."""
+    runs = [0] * 4
+    months = [0] * 4
+    previous: int | None = None
+    previous_label = -1
+    for index in avail:
+        label = label_of.get(index)
+        if label is None:
+            previous = None
+            continue
+        if previous is None or index != previous + 1 or label != previous_label:
+            runs[label] += 1
+        months[label] += 1
+        previous = index
+        previous_label = label
+    return tuple((runs[i], months[i]) for i in range(4))
+
+
 def require_enough_labels(counts: TransitionCounts) -> None:
     if counts.labelled_months < MIN_LABELLED_MONTHS or counts.pairs < 1:
         raise RegimeLabelsMissing(
