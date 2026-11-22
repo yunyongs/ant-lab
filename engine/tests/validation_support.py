@@ -58,6 +58,7 @@ def comp(
     risk: str = "100",
     mdd: str = "0",
     process: str = "50",
+    result: str | None = None,
 ) -> Components:
     """A hand-built `Components` for composite maths; other fields are inert."""
     zero = Decimal(0)
@@ -82,5 +83,5 @@ def comp(
         zero,
         {"risk": Decimal(risk)},
         Decimal(process),
-        None,
+        None if result is None else Decimal(result),
     )
