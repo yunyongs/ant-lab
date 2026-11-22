@@ -14,6 +14,7 @@ from typing import Literal, Protocol
 class HistoryMonth:
     month_block_id: int
     month_start: date = field(repr=False)  # internal replay month: never in logs or reprs
+    regime_label: str | None = field(default=None, repr=False)  # "P1".."P4"; NULL = not labelled
 
 
 @dataclass(frozen=True, slots=True)

@@ -1,0 +1,1 @@
+{"title":"Regime Labels Missing","status":422,"detail":"Regime labels are not usable: 12 labelled months and 11 transition pairs in the replay range, at least 24 months and 1 pair are needed","instance":"/v1/paths","code":"REGIME_LABELS_MISSING"}

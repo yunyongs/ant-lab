@@ -14,10 +14,15 @@ JAVA_MAPPING = JAVA_ROOT / "api" / "error" / "ErrorHttpMapping.java"
 
 # Engine problem codes that the public Java ErrorCode does not have: Spring's EngineClient (M2-06)
 # turns them into its own codes, so they must stay out of the public enum until it is decided.
-ENGINE_ONLY = {"POOL_NOT_FOUND", "HISTORY_UNAVAILABLE", "ENGINE_BUSY", "REGIME_DATA_INVALID"}
+ENGINE_ONLY = {
+    "POOL_NOT_FOUND",
+    "HISTORY_UNAVAILABLE",
+    "ENGINE_BUSY",
+    "REGIME_DATA_INVALID",
+    "REGIME_LABELS_MISSING",
+}
 # A domain failure that is answered as INTERNAL_ERROR so that no role fact reaches the caller.
-# REGIME_LABELS_MISSING has no route yet: its contract code and status arrive with the route.
-HIDDEN = {"UNSAFE_DB_ROLE", "REGIME_LABELS_MISSING"}
+HIDDEN = {"UNSAFE_DB_ROLE"}
 STATUS_NUMBERS = {
     "BAD_REQUEST": 400,
     "NOT_FOUND": 404,
