@@ -8,7 +8,7 @@ AG-06 finalises.
 
 from bisect import bisect_left, bisect_right
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from decimal import ROUND_HALF_EVEN, Context, Decimal, DivisionByZero, InvalidOperation, Overflow
 from typing import Self
 
@@ -360,6 +360,36 @@ class Components:
             for name, value in self.items.items()
         }
         return doc
+
+
+_WIRE_SCALARS = tuple(
+    f.name
+    for f in fields(Components)
+    if f.name not in ("world_id", "path_length", "kind", "index", "items", "result")
+)
+
+
+def components_from_wire(identity: Mapping[str, object], wire: Mapping[str, object]) -> Components:
+    """Rebuild `Components` from `to_wire` strings; values are the 12-place rounded ones."""
+    world_id, kind = identity.get("worldId"), identity.get("kind")
+    path_length, index = identity.get("pathLength"), identity.get("index")
+    if not isinstance(world_id, str) or not isinstance(kind, str):
+        raise ComponentError("identity needs a worldId and a kind")
+    if type(path_length) is not int or type(index) is not int:
+        raise ComponentError("identity needs an integer pathLength and index")
+    items = wire.get("items")
+    if not isinstance(items, Mapping):
+        raise ComponentError("components wire needs items")
+    values = {name: _decimal(wire.get(_camel(name)), _camel(name)) for name in _WIRE_SCALARS}
+    return Components(
+        world_id,
+        path_length,
+        kind,
+        index,
+        items={name: _optional(value, f"items.{name}") for name, value in items.items()},
+        result=_optional(wire.get("result"), "result"),
+        **values,
+    )
 
 
 def components_of(record: Mapping[str, object]) -> Components:

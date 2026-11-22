@@ -26,7 +26,7 @@ MANIFEST_KEYS = (
 )
 CELL_KEYS = ("cell", "worlds", "formulas", "search", "calibration", "correlation")
 CHECK_IDS = ("C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8")
-FORMULA_KEYS = ("name", "formula", "role", "weights", "checks", "careers")
+FORMULA_KEYS = ("name", "formula", "role", "worlds", "weights", "checks", "careers")
 MAX_SUMMARY_LINES = 60
 MAX_SUMMARY_CELLS = 5
 RESULT_FILE = "result.json"
@@ -42,11 +42,13 @@ def build_result(
     cells: Sequence[tuple[Mapping[str, object], Mapping[str, object]]],
     *,
     status: str,
+    profile: str | None = None,
 ) -> dict[str, object]:
     """Assemble and validate a result from (cell descriptor, `analyze_cell` output) pairs."""
     result: dict[str, object] = {
         "schema": SCHEMA,
         "status": status,
+        "profile": profile,
         "manifest": dict(manifest),
         "intervalRule": dict(INTERVAL_RULE),
         "cells": [{"cell": dict(descriptor), **analysis} for descriptor, analysis in cells],
@@ -131,7 +133,8 @@ def _formula_line(entry: Mapping[str, object]) -> str:
         notes += "; C7 flagged: the news bot fails the result-only rule"
     if checks["C8"].get("flagged"):
         notes += "; C8 flagged: recommend a minimum interval between formation changes"
-    return f"- {entry['name']} ({_weights(entry['weights'])}): {flags}{notes}"
+    scope = " [in-sample: all worlds]" if entry["role"] == "proposal" else ""
+    return f"- {entry['name']}{scope} ({_weights(entry['weights'])}): {flags}{notes}"
 
 
 def _search_line(name: str, search: Mapping[str, object]) -> str:
@@ -140,12 +143,21 @@ def _search_line(name: str, search: Mapping[str, object]) -> str:
     chosen = "none" if proposal is None else _weights(proposal["weights"])
     held = search["heldOut"]
     failed = ""
-    if held is not None and held["failed"]:
-        failed = f"; held-out failed {', '.join(held['failed'])}"
+    if held is not None:
+        failed = (
+            f"; held-out failed {', '.join(held['failed'])}"
+            if held["failed"]
+            else "; held-out all passed"
+        )
     return (
         f"- {name} search: {search['outcome']}; screened grid points "
         f"train {passing['train']}, test {passing['test']}; proposal {chosen}{failed}"
     )
+
+
+def _profile_text(result: Mapping[str, object]) -> str:
+    profile = result.get("profile")
+    return "" if profile is None else f" (profile {profile})"
 
 
 def render_summary(result: Mapping[str, object]) -> str:
@@ -158,7 +170,8 @@ def render_summary(result: Mapping[str, object]) -> str:
     lines = [
         "# Score-weight validation",
         "",
-        f"Status: {result['status']}. Score version {manifest['scoreVersion']}, "
+        f"Status: {result['status']}{_profile_text(result)}. "
+        f"Score version {manifest['scoreVersion']}, "
         f"engine {manifest['engineVersion']}, commit {manifest['gitCommit']}, "
         f"master seed {manifest['masterSeed']}.",
         "Weights are proposals only until the real-history rerun; nothing here changes the score.",

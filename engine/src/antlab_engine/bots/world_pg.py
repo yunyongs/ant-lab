@@ -25,6 +25,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
+from antlab_engine.api.projection_panel import panel_from_snapshot
 from antlab_engine.bootstrap.simple import (
     ALLOWED_LENGTHS,
     generate_months,
@@ -37,7 +38,8 @@ from antlab_engine.engine_errors import (
     UnsafeDatabaseRole,
 )
 from antlab_engine.history import queries
-from antlab_engine.history.reader import Snapshot, read_snapshot
+from antlab_engine.history.reader import PostgresHistoryReader, Snapshot, read_snapshot
+from antlab_engine.projection import ReturnPanel
 from antlab_engine.settings import (
     DatabaseSettings,
     SettingsError,
@@ -261,6 +263,11 @@ def read_world(
             conn, base_date, replay_start, months=months, length=length, path_seed=path_seed
         )
     return assemble(rows, seed)
+
+
+def read_panel(settings: DatabaseSettings, base_date: date) -> ReturnPanel:
+    """The return panel of the stored history up to `base_date`: what the rank counts draw from."""
+    return panel_from_snapshot(PostgresHistoryReader(settings).read(base_date))
 
 
 def main(argv: list[str] | None = None) -> int:
