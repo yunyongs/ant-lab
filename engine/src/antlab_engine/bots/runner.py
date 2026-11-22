@@ -24,8 +24,11 @@ from antlab_engine.sim.season import Season
 from . import io
 from .disciplined_bot import DisciplinedBot
 from .news_bot import NewsBot
+from .newsmix_bot import KIND_PREFIX as NEWSMIX_PREFIX
+from .newsmix_bot import NewsMixBot
 from .random_bot import RandomBot
-from .rng import KIND_DISCIPLINED, KIND_RANDOM, mix
+from .redeclare_bot import RedeclareBot
+from .rng import KIND_DISCIPLINED, KIND_NEWSMIX_COIN, KIND_RANDOM, mix
 from .static_bot import StaticBot
 from .view import BotView, FeedSource, TurnFeed, ViewAsset
 from .world import BotWorld
@@ -61,6 +64,18 @@ def make_bot(kind: str, index: int, master_seed: int, world_seed: int) -> Bot:
         return DisciplinedBot(index, team_seed, guard=False)
     if kind == "news":
         return NewsBot(index, team_seed)
+    if kind == "redeclare":
+        return RedeclareBot(index, seed)
+    if kind.startswith(NEWSMIX_PREFIX):
+        digits = kind[len(NEWSMIX_PREFIX) :]
+        if (
+            digits.isascii()
+            and digits.isdigit()
+            and int(digits) <= 100
+            and str(int(digits)) == digits
+        ):
+            coin_seed = mix(team_seed, KIND_NEWSMIX_COIN)
+            return NewsMixBot(index, team_seed, coin_seed, int(digits))
     raise ValueError(f"unknown bot kind {kind!r}")
 
 

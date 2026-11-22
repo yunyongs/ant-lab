@@ -19,7 +19,9 @@ from antlab_engine.validation.counts_cache import CachedEngineCounts
 from . import io
 from .disciplined_bot import VERSION as DISCIPLINED_VERSION
 from .news_bot import VERSION as NEWS_VERSION
+from .newsmix_bot import VERSION as NEWSMIX_VERSION
 from .random_bot import VERSION as RANDOM_VERSION
+from .redeclare_bot import VERSION as REDECLARE_VERSION
 from .runner import run_batch
 from .static_bot import VERSION as STATIC_VERSION
 from .world import BotWorld, synthetic_world, world_from_doc
@@ -58,6 +60,16 @@ def load_world(spec: str) -> BotWorld:
     return world_from_doc(json.loads(Path(spec).read_text(encoding="utf-8")))
 
 
+def parse_newsmix(text: str) -> list[int]:
+    try:
+        values = [int(p) for p in text.split(",")]
+    except ValueError:
+        values = []
+    if not values or any(not 0 <= v <= 100 for v in values) or len(set(values)) != len(values):
+        raise argparse.ArgumentTypeError("--newsmix takes distinct whole percents, e.g. 25,50,75")
+    return values
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="antlab_engine.bots", description=__doc__)
     parser.add_argument("--world", required=True, help="synthetic:SEED[:ASSETS[:LENGTH]] or a file")
@@ -72,6 +84,20 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--news", type=int, default=1, choices=(0, 1), dest="news")
     parser.add_argument(
+        "--newsmix",
+        type=parse_newsmix,
+        default=[],
+        metavar="Q,Q",
+        help="also run one newsmix-Q bot per Q (news on Q percent of turns), e.g. 25,50,75",
+    )
+    parser.add_argument(
+        "--redeclare",
+        type=int,
+        default=0,
+        metavar="N",
+        help="also run N redeclare bots (random bots 0..N-1 that redeclare the formation)",
+    )
+    parser.add_argument(
         "--counts",
         type=int,
         nargs="?",
@@ -85,6 +111,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--git-commit", default=None)
     parser.add_argument("--out", type=Path, default=None)
     args = parser.parse_args(argv)
+    if args.redeclare < 0:
+        parser.error("--redeclare must not be negative")
     if args.counts is not None and not MIN_PATHS <= args.counts <= MAX_PATHS:
         parser.error(f"--counts must be between {MIN_PATHS} and {MAX_PATHS}")
 
@@ -100,6 +128,8 @@ def main(argv: list[str] | None = None) -> int:
     specs += [("disciplined", 0)] * args.disciplined
     specs += [("disciplined-noguard", 0)] * (args.disciplined and args.no_guard)
     specs += [("news", 0)] * args.news
+    specs += [(f"newsmix-{q}", 0) for q in args.newsmix]
+    specs += [("redeclare", i) for i in range(args.redeclare)]
     records = run_batch(
         world,
         specs,
@@ -113,6 +143,10 @@ def main(argv: list[str] | None = None) -> int:
         f"{world.world_id}:{args.master_seed}:{args.randoms}:{args.statics}"
         f":{args.disciplined}:{int(args.no_guard)}:{args.news}"
     )
+    if args.newsmix:
+        key += ":newsmix" + ",".join(str(q) for q in args.newsmix)
+    if args.redeclare:
+        key += f":redeclare{args.redeclare}"
     if args.counts is not None:
         key += f":counts{args.counts}"
     run = hashlib.sha256(key.encode()).hexdigest()[:12]
@@ -126,6 +160,8 @@ def main(argv: list[str] | None = None) -> int:
             "static": STATIC_VERSION,
             "disciplined": DISCIPLINED_VERSION,
             "news": NEWS_VERSION,
+            **({"newsmix": NEWSMIX_VERSION} if args.newsmix else {}),
+            **({"redeclare": REDECLARE_VERSION} if args.redeclare else {}),
         },
         "catalogSha256": None if world.feed is None else default_catalog().sha256,
         "engineVersion": engine_version,
