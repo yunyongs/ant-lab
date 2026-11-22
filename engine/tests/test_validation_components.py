@@ -359,7 +359,7 @@ ALLOWED_FIRST_PARTY = {
     "antlab_engine.sim.report",
 }
 ALLOWED_RELATIVE = {".components"}
-ANALYSIS_MODULES = ("checks.py", "search.py")
+ANALYSIS_MODULES = ("checks.py", "search.py", "overlap.py")
 ANALYSIS_ROOTS = ALLOWED_ROOTS | {"numpy", "re"}
 ANALYSIS_FIRST_PARTY = ALLOWED_FIRST_PARTY | {"antlab_engine.bots.rng"}
 ANALYSIS_RELATIVE = {".components", ".composite", ".checks"}
