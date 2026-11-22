@@ -1,4 +1,4 @@
-"""`panel-v1` worlds: a synthetic return panel plus a season drawn along it from real-shaped months.
+"""`panel-v2` worlds: a synthetic return panel plus a season drawn along it from real-shaped months.
 
 The season path and the rank-count paths come from the same panel, so a team's percentile among
 engine paths is comparable with its simulated season. Everything is integer-seeded and fixed-point:
@@ -14,6 +14,7 @@ from decimal import Decimal
 
 from antlab_engine.bootstrap import simple, stationary
 from antlab_engine.projection import ReturnPanel, ReturnRow
+from antlab_engine.sim import measure
 from antlab_engine.sim.model import (
     PathStep,
     PoolAsset,
@@ -32,14 +33,12 @@ BASE_DATE = date(2026, 1, 1)
 GENERATORS = ("simple", "stationary")
 MIN_ASSETS = 4
 
+PANEL_VERSION = 2
 KIND_PANEL_WORLD = 0x9A_4E_01
 KIND_PANEL_PATH = 0x9A_4E_02
-_SYSTEM = (
-    Position.DEFENDER,
-    Position.MIDFIELDER,
-    Position.FORWARD_TARGET,
-    Position.GOALKEEPER,
-)
+BASE_WINDOW = 36
+BASE_MIN_MONTHS = 24
+BASE_MIN_SIDE = 5
 _CALM, _STRESS = 0, 1
 _VOL_BP = {_CALM: 300, _STRESS: 700}
 _STAY = {_CALM: (95, 100), _STRESS: (85, 100)}
@@ -56,7 +55,7 @@ def panel_months() -> list[date]:
 
 
 def world_seed(master_seed: int, index: int) -> int:
-    return mix(master_seed, index, KIND_PANEL_WORLD)
+    return mix(master_seed, index, KIND_PANEL_WORLD, PANEL_VERSION)
 
 
 def path_seed(season_seed: int) -> int:
@@ -155,6 +154,39 @@ def _attention(
     return rows
 
 
+def base_positions(
+    names: list[tuple[str, str]],
+    cells: dict[str, dict[date, tuple[Decimal, Decimal]]],
+) -> dict[str, Position]:
+    """System positions by the base-date rule: the 36 panel months before BASE_DATE, pool-relative.
+
+    Only months strictly before BASE_DATE are read, the same window the real judgement uses
+    (PLAN section 4.10, erd D35: 36 calendar months, at least 24 usable, 5 up and 5 down).
+    An asset the window cannot judge is a midfielder.
+    """
+    months = [m for m in panel_months() if m < BASE_DATE][-BASE_WINDOW:]
+    returns = {
+        asset: [
+            measure.krw_return(currency == "KRW", cells[asset][m][0], cells[asset][m][1])
+            for m in months
+        ]
+        for asset, currency in names
+    }
+    market = [
+        measure.market_return(returns["KR:069500"][i], returns["US:SPY"][i])
+        for i in range(len(months))
+    ]
+    metrics = {
+        asset: measure.measure(series, market, BASE_MIN_MONTHS, BASE_MIN_SIDE, BASE_MIN_SIDE)
+        for asset, series in returns.items()
+    }
+    market_dd = measure.max_drawdown(market)
+    if market_dd is None:
+        raise SimShapeError("the base window has no market months")
+    judged = measure.classify_pool(metrics, market_dd)
+    return {asset: judged.get(asset, Position.MIDFIELDER) for asset, _ in names}
+
+
 def panel_world(
     master_seed: int, index: int, *, length: int, assets: int, generator: str
 ) -> tuple[BotWorld, ReturnPanel]:
@@ -168,34 +200,20 @@ def panel_world(
     panel, cells = _build_panel(seed, names)
     path = path_months(panel, seed, length, generator)
     rng = BotRng(mix(seed, 0xB00C))
+    system = base_positions(names, cells)
     pool = []
     for asset, currency in names:
+        position = system[asset]
         if asset == "KR:069500":
-            pool.append(PoolAsset(asset, "KRW", Decimal(30000), Decimal(1), Position.MIDFIELDER))
+            pool.append(PoolAsset(asset, "KRW", Decimal(30000), Decimal(1), position))
         elif asset == "US:SPY":
-            pool.append(
-                PoolAsset(asset, "USD", Decimal(50), Decimal(1400), Position.FORWARD_TARGET)
-            )
+            pool.append(PoolAsset(asset, "USD", Decimal(50), Decimal(1400), position))
         elif currency == "KRW":
-            pool.append(
-                PoolAsset(
-                    asset,
-                    "KRW",
-                    Decimal(5000 + 100 * rng.below(300)),
-                    Decimal(1),
-                    _SYSTEM[rng.below(len(_SYSTEM))],
-                )
-            )
+            price = Decimal(5000 + 100 * rng.below(300))
+            pool.append(PoolAsset(asset, "KRW", price, Decimal(1), position))
         else:
-            pool.append(
-                PoolAsset(
-                    asset,
-                    "USD",
-                    Decimal(10 + rng.below(190)),
-                    Decimal(1400),
-                    _SYSTEM[rng.below(len(_SYSTEM))],
-                )
-            )
+            price = Decimal(10 + rng.below(190))
+            pool.append(PoolAsset(asset, "USD", price, Decimal(1400), position))
     steps = tuple(
         PathStep(
             turn,
