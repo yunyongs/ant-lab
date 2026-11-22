@@ -28,6 +28,8 @@ _EXACT = Context(
     prec=decimal.MAX_PREC, Emax=decimal.MAX_EMAX, Emin=decimal.MIN_EMIN, traps=[decimal.Inexact]
 )
 
+EXACT = _EXACT
+
 HALF_UP = "HALF_UP"
 DOWN = "DOWN"
 CEILING = "CEILING"
