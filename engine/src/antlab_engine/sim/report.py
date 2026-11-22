@@ -401,12 +401,32 @@ def _exact_integer(value: Decimal) -> int:
 def season_measured(src: ReportSources) -> dict[str, Position]:
     """Positions measured on this season's path over the whole pool; short samples are absent."""
     t = src.season.current_turn
-    kr = src.pool_returns[BENCH_KR]
-    us = src.pool_returns[BENCH_US]
+    # str() keeps 0.1 and 0.10 apart: the division scale follows the input scale
+    key = (
+        t,
+        tuple((asset, tuple(map(str, returns))) for asset, returns in src.pool_returns.items()),
+    )
+    cached = _MEASURED_CACHE.get(key)
+    if cached is None:
+        # A pure function of the path, so many bots on one world share one measurement.
+        cached = _measure_pool(t, src.pool_returns)
+        if len(_MEASURED_CACHE) >= _MEASURED_CACHE_MAX:
+            del _MEASURED_CACHE[next(iter(_MEASURED_CACHE))]
+        _MEASURED_CACHE[key] = cached
+    return dict(cached)
+
+
+_MEASURED_CACHE_MAX = 32
+_MEASURED_CACHE: dict[tuple, dict[str, Position]] = {}
+
+
+def _measure_pool(t: int, returns_by_asset: dict[str, list[Decimal | None]]) -> dict[str, Position]:
+    kr = returns_by_asset[BENCH_KR]
+    us = returns_by_asset[BENCH_US]
     market = [measure.market_return(kr[i], us[i]) for i in range(t)]
     metrics = {
         asset: measure.measure(returns, market, SEASON_MIN_MONTHS, SEASON_MIN_UP, SEASON_MIN_DOWN)
-        for asset, returns in src.pool_returns.items()
+        for asset, returns in returns_by_asset.items()
     }
     market_max_drawdown = measure.max_drawdown(market)
     if market_max_drawdown is None:

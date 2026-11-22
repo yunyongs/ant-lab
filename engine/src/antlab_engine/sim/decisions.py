@@ -325,7 +325,7 @@ def play(inputs: SimInputs, decisions: Decisions, *, strict: bool = False) -> Pl
         plan = by_turn.get(turn)
         if plan is not None:
             for index, unit in enumerate(plan.units):
-                results.append(UnitResult(turn, index, unit, _apply(season, unit)))
+                results.append(UnitResult(turn, index, unit, apply_unit(season, unit)))
             if plan.abandon:
                 season.abandon()
                 season.run_abandoned()
@@ -334,7 +334,7 @@ def play(inputs: SimInputs, decisions: Decisions, *, strict: bool = False) -> Pl
     return Played(season, tuple(results))
 
 
-def _apply(season: Season, unit: Unit) -> Verdict:
+def apply_unit(season: Season, unit: Unit) -> Verdict:
     if isinstance(unit, OrderUnit):
         return season.place_order(unit.order, position_on_sell=unit.position_on_sell)
     if isinstance(unit, FormationUnit):
