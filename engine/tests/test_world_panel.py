@@ -1,6 +1,7 @@
 """`panel-v1` worlds: determinism, path cells equal panel cells, generator honoured, no dates."""
 
 import re
+from datetime import date
 from decimal import Decimal
 
 import pytest
@@ -17,7 +18,10 @@ from antlab_engine.bots.world_panel import (
     path_seed,
 )
 from antlab_engine.projection import ReturnRow
-from antlab_engine.sim.model import SimShapeError
+from antlab_engine.sim import measure, report
+from antlab_engine.sim.decisions import apply_unit
+from antlab_engine.sim.model import Position, SimShapeError
+from antlab_engine.sim.season import Season
 from antlab_engine.validation.counts_cache import CachedEngineCounts
 
 
@@ -138,3 +142,93 @@ def test_bad_arguments_are_refused():
         _world(generator="other")
     with pytest.raises(SimShapeError):
         _world(assets=2)
+
+
+def _season_returns(world):
+    return {
+        a.asset: [
+            measure.krw_return(
+                a.currency == "KRW", s.local_returns[a.asset], s.fx_change.get(a.currency)
+            )
+            for s in world.inputs.path
+        ]
+        for a in world.inputs.pool
+    }
+
+
+def _agreement(world, master_seed):
+    """Value share of the disciplined bot whose system position is the season-measured one."""
+    run = run_bot(world, make_bot("disciplined", 0, master_seed, world.seed))
+    by_turn = dict(run.units_by_turn)
+    season = Season(world.inputs)
+    measured = report._measure_pool(len(world.inputs.path), _season_returns(world))
+    system = {a.asset: a.system_position for a in world.inputs.pool}
+    same = total = Decimal(0)
+    for turn in range(world.inputs.settings.path_length):
+        for unit in by_turn.get(turn, ()):
+            apply_unit(season, unit)
+        for asset, (quantity, _) in season.holdings.items():
+            if quantity:
+                value = season.turn_prices[turn][asset] * quantity
+                total += value
+                if measured[asset] == system[asset]:
+                    same += value
+        season.advance()
+    return same / total
+
+
+def test_system_positions_follow_the_season_measurement_far_more_than_chance():
+    # Measured on 20 worlds: mean 0.50 (asset count 0.59); positions drawn at random gave 0.33.
+    shares = [_agreement(_world(i, length=60, assets=30, master=303)[0], 303) for i in range(20)]
+    assert sum(shares) / len(shares) >= Decimal("0.42")
+    world, _ = _world(0, length=60, assets=30, master=303)
+    measured = report._measure_pool(60, _season_returns(world))
+    agree = sum(1 for a in world.inputs.pool if measured[a.asset] == a.system_position)
+    assert agree >= 15
+
+
+def test_every_pool_position_is_the_measured_one_benchmarks_included():
+    from antlab_engine.bots.world_panel import _asset_names, _build_panel, base_positions
+
+    for index in range(4):
+        world, _ = _world(index, length=12, assets=20)
+        names = _asset_names(20)
+        _, cells = _build_panel(world.seed, names)
+        expected = base_positions(names, cells)
+        assert {a.asset: a.system_position for a in world.inputs.pool} == expected
+
+
+def test_system_positions_read_only_the_36_months_before_the_base_date():
+    from antlab_engine.bots.world_panel import (
+        BASE_WINDOW,
+        _asset_names,
+        _build_panel,
+        base_positions,
+        world_seed,
+    )
+
+    names = _asset_names(20)
+    for index in range(4):
+        _, cells = _build_panel(world_seed(1, index), names)
+        window = [m for m in panel_months() if m < BASE_DATE][-BASE_WINDOW:]
+        before = base_positions(names, cells)
+        assert set(before.values()) - {Position.MIDFIELDER}
+        changed = {a: dict(months) for a, months in cells.items()}
+        for months in changed.values():
+            for month in months:
+                if month not in window:
+                    months[month] = (Decimal("0.9"), Decimal("0.3"))
+            months[BASE_DATE] = (Decimal("-0.5"), Decimal("0.2"))
+            months[date(2026, 6, 1)] = (Decimal("0.7"), Decimal("0"))
+        assert base_positions(names, changed) == before
+
+
+def test_panel_v2_world_ids_are_pinned():
+    # panel-v2: system positions are measured on the pre-base window; v1 ids must not come back.
+    assert (
+        _world(0)[0].world_id == "2589fa7d2fe179308f2dd4566bfbff9d0287a083d509a2ca043a4727bab392d5"
+    )
+    assert (
+        _world(0, generator="stationary")[0].world_id
+        == "4ba4e8421e25068ce3537c5a87d80f002cd7d64aa16be453fa935d18b8b70bda"
+    )
