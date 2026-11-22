@@ -88,6 +88,7 @@ antlab:
     # one regime labelling call evaluates every month of month_block (about 3 s on the owner Mac; room for a slower VM)
     regime-timeout: 60s
     path-source: ${ANTLAB_ENGINE_PATH_SOURCE:java}
+    # m2-sb6-v1 | m2-sbc6-v1 (needs stored regime labels; 503 without them) | p0-boot6-v1
     path-version: m2-sb6-v1
     projection-paths: 2000
   # KIS quote client (M1-06): quote lookup only, off by default. Keys come from the environment, never from this file.

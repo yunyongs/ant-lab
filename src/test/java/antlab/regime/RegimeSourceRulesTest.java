@@ -58,9 +58,11 @@ class RegimeSourceRulesTest {
     }
 
     @Test
-    void theRegimeLabelColumnIsNamedOnlyByTheEntityAndTheWriterPackage() throws IOException {
+    void theRegimeLabelColumnIsNamedOnlyByTheEntityTheWriterPackageAndTheDigestPath() throws IOException {
         Set<String> allowed = Set.of("antlab/history/MonthBlock.java", "antlab/history/RegimePool.java", "antlab/regime/MonthRegimeWriter.java",
-                "antlab/regime/MonthRegime.java", "antlab/regime/RegimeAnswerCheck.java");
+                "antlab/regime/MonthRegime.java", "antlab/regime/RegimeAnswerCheck.java",
+                // the engine path source reads the label only to hash it into the history digest (never to answer)
+                "antlab/history/ReplayMonth.java", "antlab/history/MonthBlockRepository.java", "antlab/engine/HistoryDigest.java");
         Set<String> found = new TreeSet<>();
         for (Path file : javaIn(MAIN)) {
             String source = Files.readString(file);

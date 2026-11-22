@@ -22,7 +22,9 @@ public record EnginePathResult(
             @JsonProperty(required = true) int startTurn,
             @JsonProperty(required = true) int drawnLength,
             @JsonProperty(required = true) int length,
-            @JsonProperty(required = true) Tier tier) {
+            @JsonProperty(required = true) Tier tier,
+            @JsonProperty(required = true) boolean conditioned,
+            @JsonProperty(required = true) boolean matched) {
 
         public Block {
             EngineWire.required(tier, "tier");
