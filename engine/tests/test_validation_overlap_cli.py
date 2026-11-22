@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from antlab_engine.validation import overlap as overlap_module
 from antlab_engine.validation.__main__ import main
 from antlab_engine.validation.experiment import (
     ExperimentError,
@@ -14,7 +15,7 @@ from antlab_engine.validation.experiment import (
     profile_cells,
     run_profile,
 )
-from antlab_engine.validation.overlap import ITEMS, PAIRS, TRAITS, validate_overlap
+from antlab_engine.validation.overlap import FLAG_KEYS, ITEMS, PAIRS, TRAITS, validate_overlap
 
 COMMIT = "abc1234"
 CELL = profile_cells("ci")[0]
@@ -124,10 +125,15 @@ def test_a_directory_that_is_not_a_run_is_an_error(tmp_path, capsys):
     assert "not a validation run directory" in capsys.readouterr().err
 
 
-def trait_cell_lines() -> list[str]:
+def trait_cell_lines(run: Path) -> list[str]:
+    ids = {}
+    for text in cell_lines(run):
+        doc = json.loads(text)
+        ids.setdefault(doc["worldIndex"], doc["worldId"])
     lines = []
     for world in range(CELL.worlds):
-        for i in range(40):
+        for i in range(2 * CELL.reference):
+            is_trait = i < CELL.reference
             level = {t: (i * (k + 2) + i // (k + 2) + world) % 5 for k, t in enumerate(TRAITS)}
             items = {name: (i * (j + 5) + world) % 100 for j, name in enumerate(ITEMS)}
             items["noise"] = 100 - 20 * level["follow"] + i % 7
@@ -136,29 +142,49 @@ def trait_cell_lines() -> list[str]:
                     "schema": "process-overlap-trait/1",
                     "cell": CELL.id,
                     "worldIndex": world,
-                    "kind": "trait",
+                    "worldId": ids[world],
+                    "kind": "trait" if is_trait else "random",
                     "index": i,
                     "role": "eval",
                     "components": {
                         "items": {**{k: str(v) for k, v in items.items()}, "consistency": None}
                     },
-                    "traits": {t: str(v / 4) for t, v in level.items()},
+                    "traits": {t: str(v / 4) for t, v in level.items()} if is_trait else {},
+                    "raw": {
+                        n: "0.5"
+                        for n in (
+                            "panicShare",
+                            "chaseShare",
+                            "turnoverAnnual",
+                            "noiseShare",
+                            "nudgeShare",
+                        )
+                    },
+                    "flags": {
+                        **{k: "0" for k in FLAG_KEYS},
+                        "traded": "100",
+                        "eventDirection": "10",
+                        "eventCaught": "4",
+                    },
                 }
             )
     return [json.dumps(doc) for doc in lines]
 
 
-def test_trait_cell_lines_in_the_overlap_folder_form_a_trait_population(ci_run, tmp_path):
+def test_trait_cell_lines_in_the_overlap_folder_form_a_trait_population(
+    ci_run, tmp_path, monkeypatch
+):
+    monkeypatch.setattr(overlap_module, "MIN_BOTS", 10)  # the ci probe has 20 trait bots a world
     run = copy_of(ci_run, tmp_path / "traits")
     cells = run / OVERLAP_DIR / "cells"
     cells.mkdir(parents=True, exist_ok=True)
     (cells / f"{CELL.id}.jsonl").write_text(
-        "".join(t + "\n" for t in trait_cell_lines()), encoding="utf-8"
+        "".join(t + "\n" for t in trait_cell_lines(run)), encoding="utf-8"
     )
     assert main(["overlap", "analyze", str(run)]) == 0
     doc = json.loads((run / OVERLAP_DIR / "overlap.json").read_text(encoding="utf-8"))
     trait = doc["cells"][0]["populations"]["trait"]
-    assert trait["bots"] == 3 * 40
+    assert trait["bots"] == 3 * CELL.reference
     assert trait["tracking"]["noise"]["tracks"] is True
     assert doc["items"]["noise"]["verdict"] == "KEEP"
 
@@ -169,4 +195,4 @@ def test_a_foreign_line_in_the_trait_file_is_refused(ci_run, tmp_path, capsys):
     cells.mkdir(parents=True, exist_ok=True)
     (cells / f"{CELL.id}.jsonl").write_text(cell_lines(run)[0] + "\n", encoding="utf-8")
     assert main(["overlap", "analyze", str(run)]) == 2
-    assert "process-overlap-trait/1" in capsys.readouterr().err
+    assert "probe lines" in capsys.readouterr().err

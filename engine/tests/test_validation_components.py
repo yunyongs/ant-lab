@@ -363,7 +363,13 @@ ANALYSIS_MODULES = ("checks.py", "search.py", "overlap.py")
 ANALYSIS_ROOTS = ALLOWED_ROOTS | {"numpy", "re"}
 ANALYSIS_FIRST_PARTY = ALLOWED_FIRST_PARTY | {"antlab_engine.bots.rng"}
 ANALYSIS_RELATIVE = {".components", ".composite", ".checks"}
-FILE_WRITERS = ("output.py", "experiment.py")
+FLAG_FIRST_PARTY = ANALYSIS_FIRST_PARTY | {
+    "antlab_engine.sim.behaviour",
+    "antlab_engine.sim.rules",
+    "antlab_engine.sim.score",
+    "antlab_engine.sim.season",
+}
+FILE_WRITERS = ("output.py", "experiment.py", "overlap_run.py")
 IO_NAMES = {"open", "print", "input", "Path", "exec", "eval", "compile", "__import__"}
 
 
@@ -441,6 +447,11 @@ def test_analysis_modules_do_no_io_and_import_only_pure_siblings():
         tree = ast.parse((VALIDATION_DIR / name).read_text(encoding="utf-8"))
         found = violations(tree, ANALYSIS_ROOTS, ANALYSIS_FIRST_PARTY, ANALYSIS_RELATIVE)
         assert found == [], name
+
+
+def test_trade_flags_do_no_io_and_import_only_the_simulator_and_pure_siblings():
+    tree = ast.parse((VALIDATION_DIR / "trade_flags.py").read_text(encoding="utf-8"))
+    assert violations(tree, ANALYSIS_ROOTS, FLAG_FIRST_PARTY, ANALYSIS_RELATIVE) == []
 
 
 def test_analysis_scanner_flags_io_and_impure_siblings():
