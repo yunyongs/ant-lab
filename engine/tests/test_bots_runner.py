@@ -241,3 +241,37 @@ def test_a_single_asset_limit_is_refused_up_front():
     limited = replace(world, inputs=replace(world.inputs, settings=settings))
     with pytest.raises(SimInputError, match="single-asset"):
         run_bot(limited, make_bot("random", 0, 1, world.seed))
+
+
+class _Scripted:
+    kind = "scripted"
+    version = 1
+    index = 0
+    seed = 0
+    params: dict[str, object] = {}
+
+    def __init__(self, buys_first: bool):
+        self.buys_first = buys_first
+
+    def decide(self, view):
+        pool = {a.asset: a for a in view.pool}
+        x, y = pool["KR:069500"], pool["US:SPY"]
+        if view.turn == 0:
+            built = buy_unit(view, x, int(view.cash))
+            return (built[0],)
+        if view.turn != 1 or not view.holdings.get(x.asset):
+            return ()
+        sell, proceeds = sell_unit(view, x.asset, view.holdings[x.asset])
+        buy = buy_unit(view, y, int(view.cash + proceeds))
+        assert buy is not None
+        return (buy[0], sell) if self.buys_first else (sell, buy[0])
+
+
+def test_sells_are_applied_before_buys_in_the_order_a_bot_sends_them():
+    world = synthetic_world(2, assets=6, length=12)
+    run = run_bot(world, _Scripted(buys_first=False))
+    assert run.record["verdicts"]["rejected"] == {}
+    sides = [u.order.side.value for u in run.units_by_turn[1][1]]
+    assert sides == ["SELL", "BUY"]
+    with pytest.raises(BotRejection, match="INSUFFICIENT_CASH"):
+        run_bot(world, _Scripted(buys_first=True))

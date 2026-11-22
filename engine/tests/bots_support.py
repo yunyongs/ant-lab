@@ -3,7 +3,7 @@
 from collections import deque
 from decimal import Decimal
 
-from antlab_engine.bots.view import BotView, ViewAsset
+from antlab_engine.bots.view import BotView, FeedItem, ViewAsset
 from antlab_engine.sim.model import Formation, Position
 
 KR = ViewAsset("KR:AAA", "KR", Position.DEFENDER)
@@ -27,6 +27,11 @@ def view(
     prices: dict[str, int] | None = None,
     formation: Formation = START,
     pool: tuple[ViewAsset, ...] = (KR, KR2, US),
+    prev_prices: dict[str, int] | None = None,
+    feed: tuple[FeedItem, ...] = (),
+    gainers: tuple[str, ...] = (),
+    losers: tuple[str, ...] = (),
+    attention: tuple[str, ...] = (),
 ) -> BotView:
     p = {a.asset: Decimal(10_000) for a in pool}
     p.update({k: Decimal(v) for k, v in (prices or {}).items()})
@@ -37,10 +42,20 @@ def view(
         total=None if total is None else Decimal(total),
         holdings=holdings or {},
         prices=p,
-        prev_prices=None if turn == 0 else p,
+        prev_prices=(
+            None
+            if turn == 0
+            else {a.asset: Decimal((prev_prices or {}).get(a.asset, 10_000)) for a in pool}
+            if prev_prices is not None
+            else p
+        ),
         formation=formation,
         pool=pool,
         rates={a.asset: RATE_KR if a.market == "KR" else RATE_US for a in pool},
+        feed=feed,
+        gainers=gainers,
+        losers=losers,
+        attention=attention,
     )
 
 
