@@ -359,6 +359,10 @@ ALLOWED_FIRST_PARTY = {
     "antlab_engine.sim.report",
 }
 ALLOWED_RELATIVE = {".components"}
+ANALYSIS_MODULES = ("checks.py", "search.py")
+ANALYSIS_ROOTS = ALLOWED_ROOTS | {"numpy", "re"}
+ANALYSIS_FIRST_PARTY = ALLOWED_FIRST_PARTY | {"antlab_engine.bots.rng"}
+ANALYSIS_RELATIVE = {".components", ".composite", ".checks"}
 IO_NAMES = {"open", "print", "input", "Path", "exec", "eval", "compile", "__import__"}
 
 
@@ -372,12 +376,17 @@ def import_names(tree: ast.AST) -> list[str]:
     return names
 
 
-def violations(tree: ast.AST) -> list[str]:
+def violations(
+    tree: ast.AST,
+    roots: set[str] = ALLOWED_ROOTS,
+    first_party: set[str] = ALLOWED_FIRST_PARTY,
+    relative: set[str] = ALLOWED_RELATIVE,
+) -> list[str]:
     found = []
     for name in import_names(tree):
-        if name in ALLOWED_RELATIVE or name in ALLOWED_FIRST_PARTY:
+        if name in relative or name in first_party:
             continue
-        if not name.startswith(".") and name.split(".")[0] in ALLOWED_ROOTS:
+        if not name.startswith(".") and name.split(".")[0] in roots:
             continue
         found.append(name)
     found += [n.id for n in ast.walk(tree) if isinstance(n, ast.Name) and n.id in IO_NAMES]
@@ -424,3 +433,35 @@ def test_validation_components_are_pure_and_float_free():
 
 def test_the_local_schema_name_matches_the_runner():
     assert components_module.RUN_SCHEMA == RUN_SCHEMA
+
+
+def test_analysis_modules_do_no_io_and_import_only_pure_siblings():
+    for name in ANALYSIS_MODULES:
+        tree = ast.parse((VALIDATION_DIR / name).read_text(encoding="utf-8"))
+        found = violations(tree, ANALYSIS_ROOTS, ANALYSIS_FIRST_PARTY, ANALYSIS_RELATIVE)
+        assert found == [], name
+
+
+def test_analysis_scanner_flags_io_and_impure_siblings():
+    bad = ast.parse("import json\nfrom .output import write_run\nfrom ..bots import io\nopen('f')")
+    assert violations(bad, ANALYSIS_ROOTS, ANALYSIS_FIRST_PARTY, ANALYSIS_RELATIVE) == [
+        "json",
+        ".output",
+        "..bots",
+        "open",
+    ]
+    ok = ast.parse(
+        "import numpy as np\nfrom .checks import x\nfrom antlab_engine.bots.rng import mix"
+    )
+    assert violations(ok, ANALYSIS_ROOTS, ANALYSIS_FIRST_PARTY, ANALYSIS_RELATIVE) == []
+
+
+def test_only_the_output_module_writes_files():
+    io_calls = {"write_text", "write_bytes", "mkdir", "open"}
+    for path in sorted(VALIDATION_DIR.glob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        used = {n.attr for n in ast.walk(tree) if isinstance(n, ast.Attribute)} | {
+            n.id for n in ast.walk(tree) if isinstance(n, ast.Name)
+        }
+        if path.name != "output.py":
+            assert not used & io_calls, path.name
