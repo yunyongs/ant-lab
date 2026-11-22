@@ -34,5 +34,11 @@ class RegimeDataInvalid(EngineError):  # noqa: N818
     code = "REGIME_DATA_INVALID"
 
 
+class RegimeLabelsMissing(EngineError):  # noqa: N818
+    """Too few stored regime labels to condition a path; the text carries counts only."""
+
+    code = "REGIME_LABELS_MISSING"
+
+
 class UnsafeDatabaseRole(EngineError):  # noqa: N818
     code = "UNSAFE_DB_ROLE"
