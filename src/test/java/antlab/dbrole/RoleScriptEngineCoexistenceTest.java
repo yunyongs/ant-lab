@@ -9,13 +9,14 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/** R9: db/roles/antlab_engine.sql (M2-03) and this script in both orders; the engine's effective rights stay the seven SELECTs. */
+/** R9: db/roles/antlab_engine.sql (M2-03) and this script in both orders; the engine's effective rights stay the ten SELECTs. */
 class RoleScriptEngineCoexistenceTest {
 
     private static final RoleTestServer SERVER = RoleTestServer.scripts();
 
-    private static final List<String> SEVEN_SELECTS = List.of("asset:SELECT", "asset_position:SELECT", "month_block:SELECT",
-            "asset_month_return:SELECT", "fx_month:SELECT", "series:SELECT", "series_observation:SELECT");
+    private static final List<String> TEN_SELECTS = List.of("asset:SELECT", "asset_position:SELECT", "month_block:SELECT",
+            "asset_month_return:SELECT", "fx_month:SELECT", "series:SELECT", "series_observation:SELECT",
+            "asset_group:SELECT", "asset_month_attention:SELECT", "month_event:SELECT");
 
     private static List<String> engineRights(JdbcTemplate jdbc) {
         List<String> rights = new ArrayList<>();
@@ -32,7 +33,7 @@ class RoleScriptEngineCoexistenceTest {
     }
 
     private static void assertEngineUnchanged(JdbcTemplate jdbc) {
-        assertThat(engineRights(jdbc)).containsExactlyInAnyOrderElementsOf(SEVEN_SELECTS);
+        assertThat(engineRights(jdbc)).containsExactlyInAnyOrderElementsOf(TEN_SELECTS);
         assertThat(jdbc.queryForList("SELECT array_to_string(setconfig, ',') FROM pg_db_role_setting "
                 + "WHERE setrole = 'antlab_engine'::regrole", String.class))
                 .singleElement().asString().contains("default_transaction_read_only=on");

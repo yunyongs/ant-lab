@@ -21,6 +21,8 @@ from .model import (
     SessionFacts,
 )
 
+Snapshot = psycopg.Connection  # what `read_snapshot` yields: a read-only repeatable-read connection
+
 WRITE_PRIVILEGES = ("INSERT", "UPDATE", "DELETE", "TRUNCATE")
 
 UNAVAILABLE = "The history database is not available."

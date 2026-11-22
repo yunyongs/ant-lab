@@ -9,7 +9,7 @@
 --
 -- The whole script is ONE statement, so it is atomic: any refusal or error rolls back every change, including
 -- a role created by this run. The role is converged to: CONNECT on this database, USAGE on schema public,
--- SELECT on seven history tables, no role memberships, no owned objects. Anything that cannot be converged
+-- SELECT on ten history tables, no role memberships, no owned objects. Anything that cannot be converged
 -- safely (the role owns objects; PUBLIC or a default privilege hands out table/schema rights; an extension or
 -- a SECURITY DEFINER function is reachable) is refused with a message instead of being rewritten.
 
@@ -17,7 +17,7 @@ DO $role$
 DECLARE
     history_tables constant text[] :=
         ARRAY['asset', 'asset_position', 'month_block', 'asset_month_return', 'fx_month',
-                'series', 'series_observation'];
+                'series', 'series_observation', 'asset_group', 'asset_month_attention', 'month_event'];
     expected text := current_setting('antlab.expected_database', true);
     role_oid oid;
     problems text[] := '{}';
@@ -110,7 +110,7 @@ BEGIN
     EXECUTE format('REVOKE TEMPORARY ON DATABASE %I FROM PUBLIC', current_database());
     GRANT USAGE ON SCHEMA public TO antlab_engine;
     GRANT SELECT ON asset, asset_position, month_block, asset_month_return, fx_month,
-        series, series_observation TO antlab_engine;
+        series, series_observation, asset_group, asset_month_attention, month_event TO antlab_engine;
 
     -- 8. Verify the effective result (direct, PUBLIC and inherited grants together). Anything that cannot be
     -- converged safely is reported and the whole run is rolled back.
