@@ -279,6 +279,35 @@ def test_measured_positions_of_the_eight_turn_season():
     assert C_ASSET not in got and set(got) >= {A, B}
 
 
+def test_measurement_cache_hit_equals_a_fresh_measurement_and_keys_on_the_path():
+    src = eight_turns(Position.GOALKEEPER, Position.DEFENDER, ())
+    t = src.season.current_turn
+    fresh = report._measure_pool(t, src.pool_returns)
+    assert report.season_measured(src) == fresh
+    assert report.season_measured(src) == fresh  # second call is the cache hit
+    flipped = dict(src.pool_returns)
+    flipped[A] = [None if r is None else -r for r in src.pool_returns[A]]
+    other = with_(src, pool_returns=flipped)
+    assert report.season_measured(other) == report._measure_pool(t, flipped)
+    assert report.season_measured(src) == fresh
+    result = report.season_measured(src)
+    result.clear()
+    assert report.season_measured(src) == fresh
+
+
+def test_measurement_cache_keeps_equal_values_of_different_scale_apart():
+    src = eight_turns(Position.GOALKEEPER, Position.DEFENDER, ())
+    rescaled = {
+        k: [None if r is None else r.quantize(Decimal(1).scaleb(-12)) for r in v]
+        for k, v in src.pool_returns.items()
+    }
+    assert rescaled[A] == src.pool_returns[A]
+    report._MEASURED_CACHE.clear()
+    report.season_measured(src)
+    report.season_measured(with_(src, pool_returns=rescaled))
+    assert len(report._MEASURED_CACHE) == 2
+
+
 # ---------------------------------------------------------------- refusals, in Java's order
 
 
