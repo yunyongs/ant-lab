@@ -2,3 +2,4 @@
 *.bat text eol=crlf
 *.jar binary
 /src/main/resources/agent/leak-terms.txt text eol=lf
+/src/test/resources/sim/parity/seasons-v1.json linguist-generated=true
