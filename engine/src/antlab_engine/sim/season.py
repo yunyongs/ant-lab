@@ -5,10 +5,15 @@ order), `TurnPriceCalculator` and `TurnSnapshotCalculator` are mirrored step by 
 arithmetic goes through `money` only. A refusal is a `Verdict` value that changes nothing; shape
 errors raise before the season is touched, and a broken identity raises `SimInvariantError`.
 
+Formation changes, lineup changes and abandon with auto turns follow `FormationChangeService`,
+`LineupChangeService`, `SeasonAbandonMarker` and `TurnService.advanceAbandoned`.
+
 Verdict codes are the `OrderRejection` names (the `check` / agent path). The REST route maps
 several of them to INVALID_ARGUMENT (SOURCE_NOT_ALLOWED, QUANTITY_INVALID, SINGLE_ASSET_LIMIT);
 parity compares through `OrderRejection`, not the HTTP code. Feed visibility beyond the turn and
-sequence ranges needs the feed and is not checked.
+sequence ranges needs the feed and is not checked. RANKING board membership is not checked either:
+Java answers SOURCE_NOT_VISIBLE for an off-board asset; the simulator accepts it or
+answers the pool code.
 """
 
 import decimal
@@ -30,11 +35,13 @@ from .model import (
     SimInputError,
     SimInputs,
     SimInvariantError,
+    SimShapeError,
     SimStateError,
     SourceKind,
     TurnSnapshot,
     Verdict,
 )
+from .rules import FORMATION_REASON_MAX, INT_MAX, INT_MIN, NOT_STARTED_BELOW_TURN
 
 ACCEPTED = "ACCEPTED"
 SHORT_MAX = 32767
@@ -56,7 +63,7 @@ def _step_factor(local_return: Decimal, fx_change: Decimal) -> Decimal:
 
 
 class Season:
-    """A season in progress; `place_order` and `advance` are the only mutators."""
+    """A season in progress; orders, changes, abandon and turn advances are the only mutators."""
 
     def __init__(self, inputs: SimInputs, *, strict: bool = False) -> None:
         self.inputs = inputs
@@ -97,7 +104,8 @@ class Season:
     def path_length(self) -> int:
         return self.settings.path_length
 
-    def place_order(self, order: Order) -> Verdict:
+    def place_order(self, order: Order, *, position_on_sell: bool = False) -> Verdict:
+        """`position_on_sell`: the agent path refuses a sell with a position."""
         if self.status is not SeasonStatus.IN_PROGRESS:
             raise SimStateError("the season is not accepting orders")
         # Java OrderService.check: source, pool, quantity, then the sell or buy branch.
@@ -117,6 +125,8 @@ class Season:
         if order.quantity < 1:
             return self._refuse("QUANTITY_INVALID")
         if order.side is Side.SELL:
+            if position_on_sell:
+                return self._refuse("POSITION_ON_SELL")
             verdict = self._sell(order, price, rate)
         else:
             verdict = self._buy(order, price, rate)
@@ -128,8 +138,124 @@ class Season:
 
     def advance(self) -> TurnSnapshot:
         """Move to the next turn: prices, snapshot, then the turn counter (FINISHED on the last)."""
+        return self._advance(SeasonStatus.IN_PROGRESS)
+
+    @property
+    def not_started(self) -> bool:
+        """Java `AbandonRules.notStarted`: a human season abandoned before turn 3."""
+        return (
+            self.settings.member_kind == "HUMAN"
+            and self.abandoned_turn is not None
+            and self.abandoned_turn < NOT_STARTED_BELOW_TURN
+        )
+
+    def abandon(self) -> None:
+        """Mark the season abandoned at the current turn (Java `SeasonAbandonMarker.mark`).
+
+        A repeat on an abandoning or already abandoned season changes nothing. The simulator has no
+        pause, so the paused-season branch of Java does not exist here.
+        """
+        if self.status is SeasonStatus.ABANDONING:
+            return
+        if self.status is SeasonStatus.FINISHED:
+            if self.abandoned_turn is None:
+                raise SimStateError("the season already finished")
+            return
+        self.abandoned_turn = self.current_turn
+        self.status = SeasonStatus.ABANDONING
+
+    def advance_abandoned(self) -> TurnSnapshot:
+        """One auto turn of an abandoning season: the normal turn path with no trades."""
+        return self._advance(SeasonStatus.ABANDONING)
+
+    def run_abandoned(self) -> list[TurnSnapshot]:
+        """Auto turns to the end: nothing is sold, so every holding rides the remaining path."""
+        snapshots = []
+        while self.status is SeasonStatus.ABANDONING:
+            snapshots.append(self.advance_abandoned())
+        return snapshots
+
+    def change_formation(
+        self,
+        goalkeeper: int,
+        defender: int,
+        midfielder: int,
+        forward: int,
+        reason: str | None = None,
+    ) -> Verdict:
+        """Java `FormationChangeService.check` from raw shares (the agent overload).
+
+        Order: turn 0, shares that break the formation rules, reason, same as the current
+        formation, then the chain (a broken chain is an invariant error, not a refusal).
+        """
         if self.status is not SeasonStatus.IN_PROGRESS:
-            raise SimStateError("the season is not in progress")
+            raise SimStateError("the season is not accepting formation changes")
+        shares = (goalkeeper, defender, midfielder, forward)
+        for share in shares:
+            if (
+                not isinstance(share, int)
+                or isinstance(share, bool)
+                or not INT_MIN <= share <= INT_MAX
+            ):
+                raise SimShapeError("formation shares must be 32-bit integers")
+        if reason is not None and not isinstance(reason, str):
+            raise SimShapeError("a formation reason must be text")
+        if self.current_turn == 0:
+            return self._refuse("TURN_ZERO_FORMATION")
+        try:
+            after = Formation(*shares)
+        except SimShapeError:
+            return self._refuse("FORMATION_INVALID")
+        if reason is not None and (len(reason) > FORMATION_REASON_MAX or "\x00" in reason):
+            return self._refuse("FORMATION_INVALID")
+        before = self.formation
+        if before == after:
+            return self._refuse("FORMATION_UNCHANGED")
+        expected = (
+            self.formation_changes[-1].after
+            if self.formation_changes
+            else self.settings.start_formation
+        )
+        if expected != before:
+            raise SimInvariantError("the current formation does not match the change history")
+        self.formation_changes.append(FormationChange(self.current_turn, before, after, reason))
+        self.formation = after
+        if self.strict:
+            self.check_invariants()
+        return Verdict(True, ACCEPTED)
+
+    def change_lineup(self, asset: str, position: Position) -> Verdict:
+        """Java `LineupChangeService.change`: a position change of a held asset, no trade.
+
+        Refusals use the human route's error names (TURN_MISMATCH at turn 0, INSUFFICIENT_HOLDING
+        for an asset that is not held or not in the pool). The same position is an accepted no-op.
+        """
+        if self.status is not SeasonStatus.IN_PROGRESS:
+            raise SimStateError("the season is not accepting lineup changes")
+        if not isinstance(position, Position):
+            raise SimShapeError("a lineup change needs a position")
+        if self.current_turn == 0:
+            return self._refuse("TURN_MISMATCH")
+        held = self.holdings.get(asset, (0, _ZERO_AVG))[0]
+        if held <= 0:
+            return self._refuse("INSUFFICIENT_HOLDING")
+        open_span = self._open.get(asset)
+        if open_span is None:
+            raise SimInvariantError("holding and lineup span disagree")
+        if open_span.position == position:
+            return Verdict(True, ACCEPTED)
+        # A span opened and closed in the same turn stays as a zero-length row, as in Java.
+        open_span.end_turn = self.current_turn
+        span = LineupSpan(asset, position, self.current_turn, None)
+        self.spans.append(span)
+        self._open[asset] = span
+        if self.strict:
+            self.check_invariants()
+        return Verdict(True, ACCEPTED)
+
+    def _advance(self, required: SeasonStatus) -> TurnSnapshot:
+        if self.status is not required:
+            raise SimStateError(f"the season is not {required.value.replace('_', ' ').lower()}")
         nxt = self.current_turn + 1
         step = self.inputs.path[nxt - 1]
         prices: dict[str, Decimal] = {}
