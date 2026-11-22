@@ -18,17 +18,26 @@ worst inputs (120 turns, threshold 0 with every month recent, so all attempts ru
 callers that expose it must fix or bound it, and the HTTP service keeps the default 32.
 """
 
-from collections.abc import Collection, Sequence
-from dataclasses import dataclass
+from collections.abc import Collection, Mapping, Sequence
+from dataclasses import dataclass, field
 from datetime import date, datetime
 from enum import StrEnum
 from fractions import Fraction
 
-from antlab_engine.bootstrap.simple import REPLAY_START, replay_upper_bound
+from antlab_engine.bootstrap.simple import REPLAY_START
 from antlab_engine.bootstrap.splitmix64 import SplitMix64
+from antlab_engine.bootstrap.transitions import (
+    POOLS,
+    TransitionCounts,
+    count_pairs,
+    label_indexes,
+    replayable_indexes,
+    require_enough_labels,
+)
 from antlab_engine.engine_errors import InvalidArgument, PathTooLong
 
 ENGINE_VERSION = "m2-sb6-v1"
+CONDITIONAL_VERSION = "m2-sbc6-v1"
 ALLOWED_LENGTHS = (12, 24, 60, 120)
 SEED_MIN = -(1 << 63)
 SEED_MAX = (1 << 63) - 1
@@ -69,6 +78,8 @@ class Block:
     drawn_length: int
     length: int
     tier: Tier
+    target: str | None = field(default=None, repr=False)
+    matched: bool = False
 
 
 @dataclass(frozen=True)
@@ -79,6 +90,12 @@ class StationaryPath:
     overlap_months: int
     overlap_met: bool
     attempt: int
+
+
+@dataclass(frozen=True)
+class _Cond:
+    labels: dict[int, int]
+    counts: TransitionCounts
 
 
 @dataclass(frozen=True)
@@ -109,24 +126,6 @@ def _require_int(value: object, name: str) -> int:
     if isinstance(value, bool) or not isinstance(value, int):
         raise TypeError(f"{name} must be an int")
     return value
-
-
-def _replayable(months: Sequence[date], base_date: date, replay_start: date) -> list[int]:
-    """Month indexes inside the replay range, ascending; input order does not matter."""
-    upper = replay_upper_bound(base_date)
-    seen: set[int] = set()
-    for start in months:
-        if not _is_date(start):
-            raise TypeError("months must contain date values")
-        if start.day != 1:
-            raise InvalidArgument("invalid month list: a month does not start on day 1")
-        if start < replay_start or start >= upper:
-            continue
-        index = _index(start)
-        if index in seen:
-            raise InvalidArgument("invalid month list: the same month appears twice")
-        seen.add(index)
-    return sorted(seen)
 
 
 def _recent_indexes(recent_months: Collection[date]) -> set[int]:
@@ -210,6 +209,57 @@ def _choose_tier(
     return fallback
 
 
+def _draw_target(cond: _Cond, previous_end: int, rng: SplitMix64) -> int | None:
+    """Pool position drawn from the previous block's last-month row; no draw without a row."""
+    label = cond.labels.get(previous_end)
+    if label is None:
+        return None
+    total = cond.counts.row_total(label)
+    if total == 0:
+        return None
+    r = rng.next_int(total)
+    running = 0
+    for j, count in enumerate(cond.counts.counts[label]):
+        running += count
+        if r < running:
+            return j
+    raise AssertionError("cumulative counts exhausted")
+
+
+def _choose_matched(
+    pool: _Pool,
+    cond: _Cond,
+    target: int,
+    ell: int,
+    turn_month: int,
+    used: bytearray,
+    cont: int,
+    params: BootstrapParams,
+    counts: list[int],
+) -> tuple[Tier, list[int], bool] | None:
+    levels = (
+        (Tier.ALIGNED, pool.aligned[turn_month]),
+        (Tier.NEAR, pool.near[turn_month]),
+        (Tier.FREE, pool.avail),
+    )
+    labels = cond.labels
+    fallback: tuple[Tier, list[int], bool] | None = None
+    for tier, starts in levels:
+        candidates = _eligible(pool, starts, ell, used, cont)
+        hits = [s for s in candidates if labels.get(s) == target]
+        counts.append(len(hits))
+        if len(hits) >= params.min_candidates:
+            return tier, hits, True
+        if fallback is None and hits:
+            fallback = (tier, hits, True)
+        counts.append(len(candidates))
+        if len(candidates) >= params.min_candidates:
+            return tier, candidates, False
+        if fallback is None and candidates:
+            fallback = (tier, candidates, False)
+    return fallback
+
+
 def _pick(pool: _Pool, candidates: list[int], ell: int, rng: SplitMix64) -> int:
     kept = candidates
     prefix = pool.recent_prefix
@@ -227,6 +277,7 @@ def _attempt(
     rng: SplitMix64,
     params: BootstrapParams,
     trace: list[tuple[int, int, tuple[int, ...]]] | None,
+    cond: _Cond | None = None,
 ) -> tuple[list[int], list[Block]]:
     base = pool.base
     used = bytearray(len(pool.run) - 1)
@@ -237,11 +288,22 @@ def _attempt(
     while turn < length:
         drawn = _draw_length(rng, params, length - turn)
         cont = -1 if previous_end is None else previous_end + 1
+        target = None
+        if cond is not None and previous_end is not None:
+            target = _draw_target(cond, previous_end, rng)
         ell = drawn
+        matched = False
         chosen: tuple[Tier, list[int]] | None = None
         while ell >= 1:
             counts: list[int] = []
-            chosen = _choose_tier(pool, ell, turn % 12, used, cont, params, counts)
+            if target is None or cond is None:
+                chosen = _choose_tier(pool, ell, turn % 12, used, cont, params, counts)
+            else:
+                found = _choose_matched(
+                    pool, cond, target, ell, turn % 12, used, cont, params, counts
+                )
+                chosen = None if found is None else (found[0], found[1])
+                matched = found is not None and found[2]
             if trace is not None:
                 trace.append((turn, ell, tuple(counts)))
             if chosen is not None:
@@ -251,6 +313,7 @@ def _attempt(
             tier, candidates = chosen
             start = _pick(pool, candidates, ell, rng)
         else:
+            matched = False
             tier = Tier.JOIN
             ell = 1
             start = cont
@@ -261,7 +324,9 @@ def _attempt(
                 raise PathTooLong(f"The replay range cannot build a path of {length} turns")
         path.extend(range(start, start + ell))
         used[start - base : start - base + ell] = b"\x01" * ell
-        blocks.append(Block(turn, drawn, ell, tier))
+        blocks.append(
+            Block(turn, drawn, ell, tier, None if target is None else POOLS[target], matched)
+        )
         previous_end = start + ell - 1
         turn += ell
     return path, blocks
@@ -296,19 +361,28 @@ def _generate(
     replay_start: date,
     params: BootstrapParams,
     trace: list[tuple[int, int, int, tuple[int, ...]]] | None,
+    labels: Mapping[date, str] | None = None,
 ) -> StationaryPath:
     length, seed, max_overlap, replay_start = _validate(length, seed, max_overlap, replay_start)
-    avail = _replayable(months, base_date, replay_start)
+    avail = replayable_indexes(months, base_date, replay_start)
     recent = _recent_indexes(recent_months)
     if len(avail) < length:
         raise PathTooLong(f"The replay range cannot build a path of {length} turns")
+    cond: _Cond | None = None
+    if labels is not None:
+        by_index = {
+            i: label for i, label in label_indexes(labels, months).items() if i in set(avail)
+        }
+        counts = count_pairs(avail, by_index)
+        require_enough_labels(counts)
+        cond = _Cond(by_index, counts)
     pool = _pool(avail, recent)
     limit = (max_overlap.numerator * length) // max_overlap.denominator
     rng = SplitMix64(seed)
     best: tuple[int, int, list[int], list[Block]] | None = None
     for attempt in range(params.attempts):
         attempt_trace: list[tuple[int, int, tuple[int, ...]]] | None = None if trace is None else []
-        path, blocks = _attempt(pool, length, rng, params, attempt_trace)
+        path, blocks = _attempt(pool, length, rng, params, attempt_trace, cond)
         if trace is not None and attempt_trace is not None:
             trace.extend((attempt, t, ell, counts) for t, ell, counts in attempt_trace)
         flags = pool.recent_flags
@@ -321,7 +395,7 @@ def _generate(
         raise InvalidArgument("attempts must be at least 1")
     overlap, attempt, path, blocks = best
     return StationaryPath(
-        engine_version=ENGINE_VERSION,
+        engine_version=ENGINE_VERSION if cond is None else CONDITIONAL_VERSION,
         months=tuple(_first_of_month(i) for i in path),
         blocks=tuple(blocks),
         overlap_months=overlap,
@@ -340,8 +414,25 @@ def generate(
     max_overlap: Fraction = Fraction(1),
     replay_start: date = REPLAY_START,
     params: BootstrapParams = DEFAULT_PARAMS,
+    labels: Mapping[date, str] | None = None,
 ) -> StationaryPath:
-    """One path of `length` turns; raises PathTooLong only when fewer than `length` months exist."""
+    """One path of `length` turns; raises PathTooLong only when fewer than `length` months exist.
+
+    `labels=None` is `m2-sb6-v1`. A mapping (even an empty one) selects `m2-sbc6-v1`: at each block
+    boundary a target regime is drawn from the transition counts of the previous block's last
+    month, and candidate starts of that regime are preferred inside each calendar tier. The mapping
+    holds every labelled month of the history (a NULL label is an absent key); an empty mapping is
+    refused, never answered with the unconditional rule.
+    """
     return _generate(
-        months, base_date, length, seed, recent_months, max_overlap, replay_start, params, None
+        months,
+        base_date,
+        length,
+        seed,
+        recent_months,
+        max_overlap,
+        replay_start,
+        params,
+        None,
+        labels,
     )

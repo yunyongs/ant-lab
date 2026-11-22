@@ -128,6 +128,7 @@ def test_pure_modules_import_only_the_standard_library():
         "bootstrap/simple.py",
         "bootstrap/splitmix64.py",
         "bootstrap/stationary.py",
+        "bootstrap/transitions.py",
         "bootstrap/rules.py",
         "engine_errors.py",
         "history/model.py",
@@ -148,6 +149,7 @@ def test_bootstrap_imports_without_the_web_stack():
         "    sys.modules[name] = None\n"
         "import antlab_engine.bootstrap.simple\n"
         "import antlab_engine.bootstrap.stationary\n"
+        "import antlab_engine.bootstrap.transitions\n"
         "import antlab_engine.bootstrap.rules\n"
     )
     result = subprocess.run(  # noqa: S603
@@ -156,7 +158,12 @@ def test_bootstrap_imports_without_the_web_stack():
     assert result.returncode == 0, result.stderr
 
 
-PATH_MODULES = ("bootstrap/stationary.py", "bootstrap/rules.py", "api/paths.py")
+PATH_MODULES = (
+    "bootstrap/stationary.py",
+    "bootstrap/transitions.py",
+    "bootstrap/rules.py",
+    "api/paths.py",
+)
 
 
 def float_uses(text: str) -> list[str]:
