@@ -363,6 +363,7 @@ ANALYSIS_MODULES = ("checks.py", "search.py")
 ANALYSIS_ROOTS = ALLOWED_ROOTS | {"numpy", "re"}
 ANALYSIS_FIRST_PARTY = ALLOWED_FIRST_PARTY | {"antlab_engine.bots.rng"}
 ANALYSIS_RELATIVE = {".components", ".composite", ".checks"}
+FILE_WRITERS = ("output.py", "experiment.py")
 IO_NAMES = {"open", "print", "input", "Path", "exec", "eval", "compile", "__import__"}
 
 
@@ -463,5 +464,5 @@ def test_only_the_output_module_writes_files():
         used = {n.attr for n in ast.walk(tree) if isinstance(n, ast.Attribute)} | {
             n.id for n in ast.walk(tree) if isinstance(n, ast.Name)
         }
-        if path.name != "output.py":
+        if path.name not in FILE_WRITERS:
             assert not used & io_calls, path.name

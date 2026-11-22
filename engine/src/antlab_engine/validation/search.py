@@ -307,6 +307,7 @@ def analyze_cell(
                     "name": f"{formula.name}-{role}",
                     "formula": formula.name,
                     "role": role,
+                    "worlds": "all",
                     "weights": wire_weights(formula, weights),
                     "checks": evaluate_checks(tables, formula, weights, boot),
                     "careers": career_checks(train, weights, master_seed),

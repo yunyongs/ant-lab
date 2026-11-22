@@ -1,7 +1,6 @@
 """`bot-run/1` records with engine counts for the score-validation tests.
 
-The simulator fills `counts` once the validation runner wires a counts source; until then the
-records get the same field here, from a fixed answer per bot.
+The runner fills `counts` from the counts source; here it is a fixed answer per bot.
 """
 
 from decimal import Decimal
@@ -20,15 +19,9 @@ def counted_record(world, kind: str, index: int, *, with_counts: bool = True) ->
     equal = index % 4
     answer = PercentileCounts(RankCounts(below, equal, PATHS), RankCounts(below // 2, 0, PATHS))
     source = FixedCounts(answer) if with_counts else None
-    record = dict(
+    return dict(
         run_bot(world, make_bot(kind, index, MASTER, world.seed), counts_source=source).record
     )
-    if with_counts:
-        record["counts"] = {
-            "sharpeDiff": {"below": below, "equal": equal, "n": PATHS},
-            "endMultiple": {"below": below // 2, "equal": 0, "n": PATHS},
-        }
-    return record
 
 
 def roster(world) -> list[dict]:

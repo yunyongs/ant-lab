@@ -87,6 +87,7 @@ class DisciplinedBot:
         self.seed = seed
         self.version = VERSION
         self.guard = guard
+        self.kind = "disciplined" if guard else "disciplined-noguard"
         self.params: dict[str, object] = {"bandPercent": BAND_PERCENT, "guard": guard}
         self._rng = BotRng(seed)
         self._slots: dict[Position, tuple[ViewAsset, ...]] = {}
