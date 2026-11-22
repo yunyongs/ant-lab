@@ -1,0 +1,110 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "sim-decisions/1",
+  "description": "The decision list the offline season simulator plays (engine/src/antlab_engine/sim). One list is one season: for each listed turn the units run in the order given, then the turn advances; a turn that is not listed advances with no units; `abandon` marks the season at that turn and the simulator runs the remaining turns with no trades. A turn number at or after the path length is a shape error, units after an abandon are a shape error, and turns strictly increase. This file fixes the shape only (types, required keys, enums, patterns, integer ranges). Value rules (a quantity of zero, shares that do not add up to 100, an asset outside the pool, a turn-0 formation change) are not shape rules: the simulator answers each unit with a verdict and the other units still run. A sell that carries a position is a shape error here (the human REST route answers 400 before any lock); the turn-decision/1 adapter turns it into the agent-path verdict POSITION_ON_SELL instead. A number written with a fraction or exponent (3.0, 1e2) is not an integer, and a trailing newline never matches the asset pattern. `expect` is for the parity test only: the simulator never reads it. A formation reason over 200 characters or with a NUL character is also a value rule (a FORMATION_INVALID verdict), which is why `reason` allows 500 here. / 오프라인 시즌 시뮬레이터(engine/src/antlab_engine/sim)가 한 시즌에 돌리는 결정 목록이다. 적힌 턴마다 단위를 적힌 순서대로 처리한 뒤 턴을 넘기고, 적히지 않은 턴은 단위 없이 넘어가며, `abandon`은 그 턴에 시즌을 포기로 표시해 남은 턴을 거래 없이 진행한다. 마지막 턴 이상의 턴 번호, 포기 뒤의 단위, 증가하지 않는 턴 번호는 모양 오류다. 이 파일은 모양(형, 필수 키, 열거값, 패턴, 정수 범위)만 정한다. 값 규칙(수량 0, 합이 100이 아닌 포메이션, 풀에 없는 종목, 0턴의 전술 변경, 200자를 넘거나 NUL이 든 전술 사유)은 모양 규칙이 아니며, 시뮬레이터가 단위마다 판정을 돌려주고 나머지 단위는 계속 처리한다. 포지션을 단 매도는 여기서는 모양 오류다(사람용 REST 경로가 잠금 전에 400으로 답한다). turn-decision/1 어댑터는 이를 에이전트 경로 판정 POSITION_ON_SELL로 바꾼다. 소수부나 지수로 쓴 수(3.0, 1e2)는 정수가 아니며 끝의 줄바꿈은 종목 패턴에 맞지 않는다. `expect`는 대조 시험 전용이며 시뮬레이터는 읽지 않는다.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "turns"],
+  "properties": {
+    "schema": { "const": "sim-decisions/1" },
+    "turns": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/turn" }
+    }
+  },
+  "$defs": {
+    "int32": {
+      "type": "integer",
+      "minimum": -2147483648,
+      "maximum": 2147483647
+    },
+    "expect": {
+      "description": "The Java verdict the parity test expects: ACCEPTED or a code name from one of three namespaces: OrderRejection names for orders, FormationRejection names for formation changes, and the ErrorCode names TURN_MISMATCH and INSUFFICIENT_HOLDING for lineup changes.",
+      "type": "string",
+      "pattern": "^[A-Z_]{1,40}(?![\\s\\S])"
+    },
+    "asset": {
+      "description": "MARKET:TICKER as in the pool.",
+      "type": "string",
+      "pattern": "^(KR|US):[A-Z0-9.]{1,12}(?![\\s\\S])"
+    },
+    "position": {
+      "enum": ["GOALKEEPER", "DEFENDER", "MIDFIELDER", "FORWARD_TARGET", "FORWARD_BREAKOUT", "FORWARD_DEFENSIVE"]
+    },
+    "turn": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["turn"],
+      "properties": {
+        "turn": { "type": "integer", "minimum": 0, "maximum": 2147483647 },
+        "units": {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              { "$ref": "#/$defs/order" },
+              { "$ref": "#/$defs/formation" },
+              { "$ref": "#/$defs/lineup" }
+            ]
+          }
+        },
+        "abandon": { "type": "boolean" }
+      }
+    },
+    "order": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "asset", "side", "quantity"],
+      "properties": {
+        "kind": { "const": "ORDER" },
+        "asset": { "$ref": "#/$defs/asset" },
+        "side": { "enum": ["BUY", "SELL"] },
+        "quantity": {
+          "description": "Whole shares. Zero or negative passes the shape check and is refused as QUANTITY_INVALID.",
+          "$ref": "#/$defs/int32"
+        },
+        "position": {
+          "description": "Declared position; a buy of an asset with no open span needs it. A sell must not carry it.",
+          "$ref": "#/$defs/position"
+        },
+        "source": { "$ref": "#/$defs/source" },
+        "expect": { "$ref": "#/$defs/expect" }
+      }
+    },
+    "source": {
+      "description": "Where the order started. FEED and ALERT carry both feedTurn and feedSeq (each at least 1); every other kind carries neither. Visibility of the item is not checked (the simulator has no feed) beyond the turn and sequence ranges. Default: DIRECT.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "properties": {
+        "kind": { "enum": ["DIRECT", "RANKING", "FEED", "ALERT", "BENCH"] },
+        "feedTurn": { "type": "integer", "minimum": 1, "maximum": 2147483647 },
+        "feedSeq": { "type": "integer", "minimum": 1, "maximum": 2147483647 }
+      }
+    },
+    "formation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "goalkeeper", "defender", "midfielder", "forward"],
+      "properties": {
+        "kind": { "const": "FORMATION" },
+        "goalkeeper": { "$ref": "#/$defs/int32" },
+        "defender": { "$ref": "#/$defs/int32" },
+        "midfielder": { "$ref": "#/$defs/int32" },
+        "forward": { "$ref": "#/$defs/int32" },
+        "reason": { "type": "string", "maxLength": 500 },
+        "expect": { "$ref": "#/$defs/expect" }
+      }
+    },
+    "lineup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "asset", "position"],
+      "properties": {
+        "kind": { "const": "LINEUP" },
+        "asset": { "$ref": "#/$defs/asset" },
+        "position": { "$ref": "#/$defs/position" },
+        "expect": { "$ref": "#/$defs/expect" }
+      }
+    }
+  }
+}
