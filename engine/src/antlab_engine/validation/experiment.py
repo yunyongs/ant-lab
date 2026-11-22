@@ -24,6 +24,7 @@ from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
+from typing import Any
 
 from antlab_engine import __version__ as engine_version
 from antlab_engine.bots import io
@@ -220,6 +221,18 @@ def roster(cell: Cell) -> tuple[Spec, ...]:
     return tuple(specs)
 
 
+def trait_roster(cell: Cell) -> tuple[Spec, ...]:
+    """The probe roster of one world: trait bots 0..R-1 and the evaluation random bots R..2R-1.
+
+    The random bots are re-run without rank counts for their trade flags only; their items equal
+    the component lines of the same bots.
+    """
+    r = cell.reference
+    return tuple(Spec("trait", i, ROLE_EVAL) for i in range(r)) + tuple(
+        Spec("random", r + i, ROLE_EVAL) for i in range(r)
+    )
+
+
 def bot_versions(cell_list: Sequence[Cell]) -> dict[str, int]:
     versions = {
         "random": RANDOM_VERSION,
@@ -327,8 +340,18 @@ class Scan:
     bad_lines: int
 
 
-def scan_cell_file(path: Path, cell: Cell) -> Scan:
-    """Group the lines of a cell file by world; a world is finished when its roster is exact."""
+def scan_cell_file(
+    path: Path,
+    cell: Cell,
+    *,
+    schema: str = LINE_SCHEMA,
+    expected: Counter[tuple[str, int, str]] | None = None,
+    world_ids: Mapping[int, str] | None = None,
+) -> Scan:
+    """Group the lines of a cell file by world; a world is finished when its roster is exact.
+
+    `world_ids` (world index -> world id of the main cell) makes a line with another id bad.
+    """
     by_world: dict[int, list[tuple[str, tuple[str, int, str]]]] = {}
     bad = 0
     if path.exists():
@@ -343,10 +366,15 @@ def scan_cell_file(path: Path, cell: Cell) -> Scan:
                     type(doc["kind"]) is str
                     and type(doc["index"]) is int
                     and doc["role"] in (ROLE_REF, ROLE_EVAL, ROLE_NAMED)
-                    and doc["schema"] == LINE_SCHEMA
+                    and doc["schema"] == schema
                     and doc["cell"] == cell.id
                     and type(world) is int
                     and 0 <= world < cell.worlds
+                    and (
+                        world_ids is None
+                        or world not in world_ids
+                        or doc["worldId"] == world_ids[world]
+                    )
                 )
             except (ValueError, KeyError, TypeError):
                 valid = False
@@ -354,11 +382,11 @@ def scan_cell_file(path: Path, cell: Cell) -> Scan:
                 bad += 1
                 continue
             by_world.setdefault(world, []).append((text, key))
-    expected = _expected(cell)
+    wanted = _expected(cell) if expected is None else expected
     complete: dict[int, list[str]] = {}
     unfinished = []
     for world, entries in sorted(by_world.items()):
-        if Counter(key for _, key in entries) == expected:
+        if Counter(key for _, key in entries) == wanted:
             complete[world] = [text for text, _ in entries]
         else:
             unfinished.append(world)
@@ -663,34 +691,67 @@ def analyze_run(out: Path) -> tuple[Path, Path]:
 # ---------------------------------------------------------------------------- overlap
 
 
-def _trait_lines(path: Path, cell: Cell) -> Iterator[dict[str, object]]:
-    if not path.exists():
-        return
-    for text in path.read_text(encoding="utf-8").split("\n"):
-        if not text:
-            continue
-        try:
-            doc = json.loads(text)
-            valid = doc["schema"] == TRAIT_SCHEMA and doc["cell"] == cell.id
-        except (ValueError, KeyError, TypeError):
-            valid = False
-        if not valid:
-            raise ExperimentError(f"{path} holds a line that is not a {TRAIT_SCHEMA} line")
-        yield doc
-
-
-def analyze_overlap_run(out: Path, *, partial: bool = False) -> tuple[Path, Path]:
-    """Read the cell files of a run and write `overlap/overlap.json` and `overlap_summary.md`.
-
-    An unfinished cell is refused unless `partial`; then only its finished worlds are analysed and
-    the status is `partial`.
-    """
+def read_manifest(out: Path) -> dict[str, Any]:
     manifest_path = out / MANIFEST_FILE
     if not manifest_path.exists():
         raise ExperimentError(f"{out} has no {MANIFEST_FILE}: not a validation run directory")
     meta = json.loads(manifest_path.read_text(encoding="utf-8"))
     if meta.get("schema") != DRIVER_SCHEMA:
         raise ExperimentError(f"{MANIFEST_FILE} is not {DRIVER_SCHEMA}")
+    return meta
+
+
+def main_world_ids(scan: Scan) -> dict[int, str]:
+    """World index -> world id of the finished worlds of a main cell scan."""
+    return {world: json.loads(texts[0])["worldId"] for world, texts in scan.complete.items()}
+
+
+PROBE_FILE = "probe.json"
+
+
+def probe_path(out: Path) -> Path:
+    return out / OVERLAP_DIR / CELLS_DIR / PROBE_FILE
+
+
+def read_probe(out: Path) -> dict[str, Any] | None:
+    """The provenance of the probe lines (`overlap run` writes it); None when there is none."""
+    path = probe_path(out)
+    if not path.exists():
+        return None
+    try:
+        doc = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(doc["botVersions"], dict) or not isinstance(doc["gitCommit"], str):
+            raise TypeError
+        str(doc["engineVersion"])
+    except (ValueError, KeyError, TypeError):
+        raise ExperimentError(f"{path} is not a probe provenance file") from None
+    return doc
+
+
+def trait_file(out: Path, cell: Cell) -> Path:
+    return out / OVERLAP_DIR / CELLS_DIR / f"{cell.id}.jsonl"
+
+
+def scan_trait_file(out: Path, cell: Cell, main: Scan) -> Scan:
+    """The probe lines of a cell: a world is finished when its probe roster is exact and every
+    line carries the world id of the same world in the main cell."""
+    return scan_cell_file(
+        trait_file(out, cell),
+        cell,
+        schema=TRAIT_SCHEMA,
+        expected=Counter((s.kind, s.index, s.role) for s in trait_roster(cell)),
+        world_ids=main_world_ids(main),
+    )
+
+
+def analyze_overlap_run(out: Path, *, partial: bool = False) -> tuple[Path, Path]:
+    """Read the cell files of a run and write `overlap/overlap.json` and `overlap_summary.md`.
+
+    An unfinished cell, or a probe file with an unfinished world, is refused unless `partial`;
+    then only the finished worlds are analysed and the status is `partial`. A cell without a
+    probe file is analysed on its random bots alone.
+    """
+    meta = read_manifest(out)
     boots = Boots(int(meta["masterSeed"]))
     analysed = []
     incomplete = False
@@ -699,33 +760,50 @@ def analyze_overlap_run(out: Path, *, partial: bool = False) -> tuple[Path, Path
         validate_cell(cell)
         scan = scan_cell_file(out / CELLS_DIR / f"{cell.id}.jsonl", cell)
         missing = [w for w in range(cell.worlds) if w not in scan.complete]
-        if missing or scan.bad_lines:
-            if not partial:
+        short = bool(missing or scan.bad_lines)
+        if short and not partial:
+            raise ExperimentError(
+                f"cell {cell.id} is unfinished: {len(missing)} of {cell.worlds} worlds lack a "
+                f"full roster, {scan.bad_lines} unreadable lines; run it again to resume, "
+                "or pass --partial"
+            )
+        probe = None
+        if trait_file(out, cell).exists():
+            probe = scan_trait_file(out, cell, scan)
+            probe_missing = [w for w in scan.complete if w not in probe.complete]
+            if (probe_missing or probe.bad_lines) and not partial:
                 raise ExperimentError(
-                    f"cell {cell.id} is unfinished: {len(missing)} of {cell.worlds} worlds lack a "
-                    f"full roster, {scan.bad_lines} unreadable lines; run it again to resume, "
-                    "or pass --partial"
+                    f"the probe lines of cell {cell.id} are unfinished: {len(probe_missing)} of "
+                    f"{len(scan.complete)} worlds lack a full probe roster, {probe.bad_lines} "
+                    "unreadable or foreign lines; run `overlap run` again to resume, or pass "
+                    "--partial"
                 )
-            incomplete = True
+            short = short or bool(probe_missing or probe.bad_lines)
+        incomplete = incomplete or short
         lines = itertools.chain(
             (json.loads(text) for world in sorted(scan.complete) for text in scan.complete[world]),
-            _trait_lines(out / OVERLAP_DIR / CELLS_DIR / f"{cell.id}.jsonl", cell),
+            ()
+            if probe is None
+            else (
+                json.loads(text)
+                for world in sorted(probe.complete)
+                if world in scan.complete
+                for text in probe.complete[world]
+            ),
         )
         try:
-            analysed.append(
-                analyze_overlap_cell(
-                    cell.descriptor(), lines, boots, partial=bool(missing or scan.bad_lines)
-                )
-            )
+            analysed.append(analyze_overlap_cell(cell.descriptor(), lines, boots, partial=short))
         except OverlapError as error:
             raise ExperimentError(f"overlap analysis failed: {error}") from None
-        del scan, lines
+        del scan, probe, lines
     if incomplete:
         status = STATUS_PARTIAL
     else:
         status = STATUS_FINAL if meta["profile"] == "post-rl" else STATUS_PROVISIONAL
     try:
-        doc = assemble_overlap(meta["manifest"], meta["profile"], analysed, status=status)
+        doc = assemble_overlap(
+            meta["manifest"], meta["profile"], analysed, status=status, probe=read_probe(out)
+        )
     except OverlapError as error:
         raise ExperimentError(f"overlap analysis failed: {error}") from None
     return write_overlap(out / OVERLAP_DIR, doc)

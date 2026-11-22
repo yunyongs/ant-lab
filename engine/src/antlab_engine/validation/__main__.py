@@ -2,6 +2,7 @@
 
     python -m antlab_engine.validation run --profile ci
     python -m antlab_engine.validation analyze out/validation/ci-303
+    python -m antlab_engine.validation overlap run out/validation/offline-303 --workers 2
 
 `run` writes the per-cell component files, then analyses them; `analyze` reads the same files, so
 both give the same `result.json`. Offline only: no network, and the database is read-only.
@@ -23,6 +24,7 @@ from .experiment import (
     analyze_run,
     run_profile,
 )
+from .overlap_run import run_overlap
 
 
 def _say(message: str) -> None:
@@ -51,9 +53,29 @@ def main(argv: list[str] | None = None) -> int:
     overlap_analyze.add_argument(
         "--partial", action="store_true", help="analyse the finished worlds of an unfinished run"
     )
+    overlap_run = overlap_commands.add_parser(
+        "run", help="run the probe bots (resumable) on the worlds of a finished run, then analyse"
+    )
+    overlap_run.add_argument("directory", type=Path)
+    overlap_run.add_argument("--workers", type=int, default=1, choices=range(1, MAX_WORKERS + 1))
+    overlap_run.add_argument(
+        "--cells", default=None, help="comma-separated cell ids (default: p60s,p24s if present)"
+    )
     args = parser.parse_args(argv)
     try:
-        if args.command == "overlap":
+        if args.command == "overlap" and args.overlap_command == "run":
+            ran = run_overlap(
+                args.directory,
+                workers=args.workers,
+                cells=None if args.cells is None else args.cells.split(","),
+                say=_say,
+            )
+            result, summary = ran.result_path, ran.summary_path
+            _say(
+                f"wall {ran.wall_seconds:.1f} s, cpu {ran.cpu_seconds:.1f} s, "
+                f"peak rss {ran.peak_rss_mb} MB"
+            )
+        elif args.command == "overlap":
             result, summary = analyze_overlap_run(args.directory, partial=args.partial)
         elif args.command == "analyze":
             result, summary = analyze_run(args.directory)
