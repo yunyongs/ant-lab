@@ -304,3 +304,27 @@ def test_the_engine_role_cannot_write_through_the_readers_own_connection(history
         rows = admin.execute("SELECT count(*) FROM fx_month").fetchone()[0]
         months = admin.execute("SELECT count(*) FROM month_block").fetchone()[0]
         assert rows == months == MONTHS_BEFORE_2026 + 1
+
+
+def test_tb6_the_stored_label_reaches_the_month_and_null_stays_none(history_db):
+    marked = {date(2010, 3, 1): "P2", date(2010, 4, 1): "P3"}
+    with history_db.admin() as admin:
+        for month, label in marked.items():
+            admin.execute(
+                "UPDATE month_block SET regime_label = %s, prob_p1 = 0.1, prob_p2 = 0.2,"
+                " prob_p3 = 0.3, prob_p4 = 0.4 WHERE month_start = %s",
+                (label, month),
+            )
+    try:
+        snapshot = read(history_db)
+        labels = {m.month_start: m.regime_label for m in snapshot.months}
+        assert {m: labels[m] for m in marked} == marked
+        assert sum(label is not None for label in labels.values()) == len(marked)
+        assert "P2" not in repr(snapshot.months)
+    finally:
+        with history_db.admin() as admin:
+            admin.execute(
+                "UPDATE month_block SET regime_label = NULL, prob_p1 = NULL, prob_p2 = NULL,"
+                " prob_p3 = NULL, prob_p4 = NULL WHERE month_start = ANY(%s)",
+                (list(marked),),
+            )

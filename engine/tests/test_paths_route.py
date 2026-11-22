@@ -24,11 +24,14 @@ REQUIRED_KEYS = {"title", "status", "detail", "instance", "code"}
 LETTERS = {"A": "ALIGNED", "N": "NEAR", "F": "FREE", "J": "JOIN"}
 
 
-def snapshot_of(months: list[date], base_date: date) -> HistorySnapshot:
+def snapshot_of(
+    months: list[date], base_date: date, labels: dict[date, str] | None = None
+) -> HistorySnapshot:
+    labels = labels or {}
     return HistorySnapshot(
         base_date=base_date,
         upper_bound=date(base_date.year, 1, 1),
-        months=tuple(HistoryMonth(i + 1, m) for i, m in enumerate(months)),
+        months=tuple(HistoryMonth(i + 1, m, labels.get(m)) for i, m in enumerate(months)),
         pool=(),
         returns=(),
         fx=(),
@@ -39,20 +42,31 @@ def snapshot_of(months: list[date], base_date: date) -> HistorySnapshot:
 class FakeReader:
     """Returns the given months as they are (no range filter), so the route's own filter shows."""
 
-    def __init__(self, months: list[date] | None = None, error: Exception | None = None):
+    def __init__(
+        self,
+        months: list[date] | None = None,
+        error: Exception | None = None,
+        labels: dict[date, str] | None = None,
+    ):
         self.months = sample_shape() if months is None else months
         self.error = error
+        self.labels = labels
         self.calls: list[date] = []
 
     def read(self, base_date: date) -> HistorySnapshot:
         self.calls.append(base_date)
         if self.error is not None:
             raise self.error
-        return snapshot_of(self.months, base_date)
+        return snapshot_of(self.months, base_date, self.labels)
 
 
-def make_client(token: str, reader: FakeReader | None) -> TestClient:
-    app = create_app(Settings(token), history_reader=reader)
+def make_client(
+    token: str, reader: FakeReader | None, replay_start: date | None = None
+) -> TestClient:
+    settings = (
+        Settings(token) if replay_start is None else Settings(token, replay_start=replay_start)
+    )
+    app = create_app(settings, history_reader=reader)
     return TestClient(app, raise_server_exceptions=False)
 
 
@@ -103,7 +117,14 @@ def test_p2_p0_boot6_v1_reproduces_every_java_vector_row_over_http(paths):
         assert " ".join(body["months"]) == expected, f"seed={seed} length={length}"
         assert body["engineVersion"] == "p0-boot6-v1"
         assert body["blocks"] == [
-            {"startTurn": t, "drawnLength": 6, "length": 6, "tier": "ALIGNED"}
+            {
+                "startTurn": t,
+                "drawnLength": 6,
+                "length": 6,
+                "tier": "ALIGNED",
+                "conditioned": False,
+                "matched": False,
+            }
             for t in range(0, length, 6)
         ]
         assert (body["overlapMonths"], body["overlapMet"], body["attempt"]) == (0, True, 0)
@@ -168,6 +189,8 @@ def test_p3_m2_sb6_v1_reproduces_vector_rows_over_http(token):
                 "drawnLength": b.drawn_length,
                 "length": b.length,
                 "tier": b.tier.value,
+                "conditioned": False,
+                "matched": False,
             }
             for b in direct.blocks
         ], where
@@ -223,6 +246,9 @@ INVALID = {
     "seed not a string": request(seed=14),
     "seed empty": request(seed=""),
     "conditional": request(conditional=True),
+    "conditional p0": request(engineVersion="p0-boot6-v1", conditional=True),
+    "conditional version without the switch": request(engineVersion="m2-sbc6-v1"),
+    "conditional version switched off": request(engineVersion="m2-sbc6-v1", conditional=False),
     "p0 with overlap": request(engineVersion="p0-boot6-v1", maxOverlap="0.5"),
     "p0 with recent months": request(engineVersion="p0-boot6-v1", recentMonths=["2020-01"]),
     "duplicate recent month": request(recentMonths=["2020-01", "2020-01"]),
