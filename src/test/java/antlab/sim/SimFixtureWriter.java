@@ -2,6 +2,7 @@ package antlab.sim;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import antlab.feed.FeedRules;
 import antlab.scoring.DisciplineRules;
 import antlab.scoring.ReportRules;
 import antlab.scoring.SeasonScoreCalculator;
@@ -11,7 +12,10 @@ import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -33,6 +37,8 @@ final class SimFixtureWriter {
 
     static final Path FILE = Path.of("src/test/resources/sim/parity/seasons-v1.json");
     static final String SCHEMA = "sim-parity/1";
+    static final Path WORLDS_FILE = Path.of("src/test/resources/sim/parity/worlds-v1.json");
+    static final String WORLDS_SCHEMA = "sim-world-parity/1";
     static final int SEASONS = 20;
     static final JsonMapper MAPPER = JsonMapper.shared();
 
@@ -85,6 +91,25 @@ final class SimFixtureWriter {
         return h;
     }
 
+    /** Pins the feed rule version and the catalog the stored rows were generated with. */
+    static ObjectNode worldsHeader(long masterSeed, String baseDate) {
+        ObjectNode h = MAPPER.createObjectNode();
+        h.put("schema", WORLDS_SCHEMA);
+        h.put("masterSeed", Long.toString(masterSeed));
+        h.put("baseDate", baseDate);
+        h.put("rule", FeedRules.RULE_VERSION);
+        ObjectNode sha = h.putObject("catalogSha256");
+        for (String name : List.of("denylist.csv", "kinds.csv", "notices.csv", "templates.csv", "variables.csv")) {
+            try {
+                byte[] bytes = Files.readAllBytes(Path.of("feed", name));
+                sha.put(name, HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes)));
+            } catch (IOException | NoSuchAlgorithmException e) {
+                throw new IllegalStateException("feed/" + name + " is not readable", e);
+            }
+        }
+        return h;
+    }
+
     private static ArrayNode sorted(Set<String> values) {
         ArrayNode out = MAPPER.createArrayNode();
         new TreeSet<>(values).forEach(out::add);
@@ -104,6 +129,15 @@ final class SimFixtureWriter {
 
     /** Writes (merging by season index into what the file holds) or compares, depending on the write switch. */
     static void writeOrCompare(ObjectNode builtHeader, Map<Integer, ObjectNode> built) throws IOException {
+        writeOrCompare(FILE, SCHEMA, builtHeader, built);
+    }
+
+    /** The feed-world companion file; same layout, one line per season, merged by index. */
+    static void writeOrCompareWorlds(ObjectNode builtHeader, Map<Integer, ObjectNode> built) throws IOException {
+        writeOrCompare(WORLDS_FILE, WORLDS_SCHEMA, builtHeader, built);
+    }
+
+    static void writeOrCompare(Path file, String schema, ObjectNode builtHeader, Map<Integer, ObjectNode> built) throws IOException {
         // Round trip through text so integer widths and key order are exactly what the file will hold.
         JsonNode header = MAPPER.readTree(MAPPER.writeValueAsString(builtHeader));
         Map<Integer, JsonNode> mine = new TreeMap<>();
@@ -112,16 +146,16 @@ final class SimFixtureWriter {
         }
         if (writeMode()) {
             Map<Integer, JsonNode> merged = new TreeMap<>();
-            if (Files.exists(FILE)) {
-                JsonNode existing = MAPPER.readTree(Files.readString(FILE, StandardCharsets.UTF_8));
+            if (Files.exists(file)) {
+                JsonNode existing = MAPPER.readTree(Files.readString(file, StandardCharsets.UTF_8));
                 if (existing.get("header").equals(header)) {
                     existing.get("seasons").forEach(s -> merged.put(s.get("index").asInt(), s));
                 }
             }
             merged.putAll(mine);
-            write(header, merged);
+            write(file, schema, header, merged);
         }
-        JsonNode tracked = MAPPER.readTree(Files.readString(FILE, StandardCharsets.UTF_8));
+        JsonNode tracked = MAPPER.readTree(Files.readString(file, StandardCharsets.UTF_8));
         assertThat(firstDifference(header, tracked.get("header"), "header")).as("fixture header").isNull();
         Map<Integer, JsonNode> bySeason = new TreeMap<>();
         tracked.get("seasons").forEach(s -> bySeason.put(s.get("index").asInt(), s));
@@ -133,15 +167,15 @@ final class SimFixtureWriter {
         }
     }
 
-    private static void write(JsonNode header, Map<Integer, JsonNode> seasons) throws IOException {
+    private static void write(Path file, String schema, JsonNode header, Map<Integer, JsonNode> seasons) throws IOException {
         List<String> lines = new ArrayList<>();
         for (JsonNode season : seasons.values()) {
             lines.add(MAPPER.writeValueAsString(season));
         }
-        String text = "{\"schema\":\"" + SCHEMA + "\",\n\"header\":" + MAPPER.writeValueAsString(header)
+        String text = "{\"schema\":\"" + schema + "\",\n\"header\":" + MAPPER.writeValueAsString(header)
                 + ",\n\"seasons\":[\n" + String.join(",\n", lines) + "\n]}\n";
-        Files.createDirectories(FILE.getParent());
-        Files.writeString(FILE, text, StandardCharsets.UTF_8);
+        Files.createDirectories(file.getParent());
+        Files.writeString(file, text, StandardCharsets.UTF_8);
     }
 
     /** The path of the first difference between two trees (values are not printed), or null when they are equal. */

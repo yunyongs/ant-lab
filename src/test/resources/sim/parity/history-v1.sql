@@ -1,7 +1,7 @@
 -- Fake data, not real quotes: the synthetic history of the simulator parity harness (SimulatorParityFixtureTest).
 -- Every name starts with the fake marker so the shared cleanup scripts can find it. Nothing here is a real price or return.
 --
--- Shape: 14 pool assets (the two fixed benchmarks 069500 and SPY among them) plus one asset outside the pool, 228 months
+-- Shape: 14 pool assets (the two fixed benchmarks 069500 and SPY among them) plus one asset outside the pool (no returns, but attention in every month), 228 months
 -- (2007-01 to 2025-12, all reviewed, no events) so 12-, 24- and 60-turn paths exist. A US asset has a lower id than the KR
 -- ones, so the id order differs from the key order. Crafted rows: half-won base prices (rounding ties), a -99 % month,
 -- a block of zero returns, a USD month with no change, and an asset that never falls (cannot be measured by the season).
@@ -94,3 +94,9 @@ SELECT r.asset_id, r.month_block_id, 12, z.value, 1 + (r.month_block_id % 4),
        ROUND(ABS(z.value) * 10 + (r.month_block_id % 4) * 0.25, 8)
 FROM asset_month_return r
 CROSS JOIN LATERAL (SELECT ROUND(LEAST(3, GREATEST(-3, r.local_return * 12)), 8) AS value) z;
+
+-- The asset outside the pool has the largest attention of every block: the block statement reads it, ranks must not count it.
+INSERT INTO asset_month_attention (asset_id, month_block_id, window_months, attention_z, streak, attention_index)
+SELECT a.id, m.id, 12, 3.00000000, 1, 99.00000000
+FROM asset a CROSS JOIN month_block m
+WHERE a.market = 'KR' AND a.ticker = '999999';
