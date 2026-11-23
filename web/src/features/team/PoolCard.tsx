@@ -31,7 +31,10 @@ export function PoolCard({
   return (
     <li className={styles.card}>
       <div className={styles.cardTitle}>
-        <h3 className={styles.cardHeading}>{asset.name}</h3>
+        <h3 className={styles.cardHeading}>
+          {asset.name}
+          <span className={styles.ticker}>{` · ${asset.ticker}`}</span>
+        </h3>
         <span className={styles.pills}>
           <span className={styles.pill}>{asset.market}</span>
           <span className={pillClass(asset.systemPosition)}>
