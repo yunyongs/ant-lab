@@ -24,7 +24,7 @@ public record EngineProperties(
         @DefaultValue("3s") Duration pathsTimeout,
         @DefaultValue("15s") Duration projectionsTimeout,
         @DefaultValue("60s") Duration regimeTimeout,
-        @DefaultValue("java") PathSourceMode pathSource,
+        @DefaultValue("engine") PathSourceMode pathSource,
         @DefaultValue("m2-sb6-v1") String pathVersion,
         @Min(100) @Max(5000) @DefaultValue("2000") int projectionPaths) {
 

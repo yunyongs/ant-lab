@@ -30,8 +30,28 @@ class EnginePropertiesTest {
     }
 
     @Test
-    void 기본값은_자바_경로이고_URL이_비어도_뜨며_호출은_불가용이다() {
+    void 기본값은_엔진_경로이고_URL과_토큰이_없으면_기동이_실패한다() {
         runner.run(context -> {
+            assertThat(context).hasFailed();
+            assertThat(failureText(context)).contains("ANTLAB_ENGINE_URL");
+        });
+    }
+
+    @Test
+    void application_yml_기본은_엔진_경로이고_판은_m2_sb6_v1이다() {
+        runner.withInitializer(new ConfigDataApplicationContextInitializer())
+                .withPropertyValues("antlab.engine.url=http://engine:8000", "antlab.engine.token=" + LONG_TOKEN)
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    EngineProperties properties = context.getBean(EngineProperties.class);
+                    assertThat(properties.pathSource()).isEqualTo(EngineProperties.PathSourceMode.ENGINE);
+                    assertThat(properties.pathVersion()).isEqualTo("m2-sb6-v1");
+                });
+    }
+
+    @Test
+    void 자바_경로로_바꾸면_URL이_비어도_뜨며_호출은_불가용이다() {
+        runner.withPropertyValues("antlab.engine.path-source=java").run(context -> {
             assertThat(context).hasNotFailed().hasSingleBean(EngineClient.class);
             EngineProperties properties = context.getBean(EngineProperties.class);
             assertThat(properties.pathSource()).isEqualTo(EngineProperties.PathSourceMode.JAVA);
@@ -114,7 +134,7 @@ class EnginePropertiesTest {
     @Test
     void 조건부_경로_판도_받는다() {
         for (String version : new String[] { "m2-sb6-v1", "m2-sbc6-v1", "p0-boot6-v1" }) {
-            runner.withPropertyValues("antlab.engine.path-version=" + version).run(context -> {
+            runner.withPropertyValues("antlab.engine.path-source=java", "antlab.engine.path-version=" + version).run(context -> {
                 assertThat(context).as(version).hasNotFailed();
                 assertThat(context.getBean(EngineProperties.class).pathVersion()).isEqualTo(version);
             });
@@ -145,7 +165,7 @@ class EnginePropertiesTest {
     @Test
     void http와_https_URL은_포트와_경로가_있어도_뜬다() {
         for (String good : new String[] { "http://engine:8000", "https://engine.example.test", "http://127.0.0.1:18000/base" }) {
-            runner.withPropertyValues("antlab.engine.url=" + good).run(context -> assertThat(context).as(good).hasNotFailed());
+            runner.withPropertyValues("antlab.engine.path-source=java", "antlab.engine.url=" + good).run(context -> assertThat(context).as(good).hasNotFailed());
         }
     }
 
