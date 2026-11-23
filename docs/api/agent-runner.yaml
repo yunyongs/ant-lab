@@ -1252,7 +1252,8 @@ components:
       type: object
       description: Same body as the human season start / 사람의 시즌 시작과 같은 본문
       required: [id, status, currentTurnNo, pathLength, riskLimit, startFormation, currentFormation,
-                 initialCash, cashBalance, feeRateKr, feeRateUs, fxSpreadRate, abandonedTurnNo, notStarted, leagueId]
+                 initialCash, cashBalance, latestTotalValue, totalReturn, feeRateKr, feeRateUs, fxSpreadRate,
+                 abandonedTurnNo, notStarted, leagueId]
       properties:
         id:
           type: integer
@@ -1279,6 +1280,14 @@ components:
         cashBalance:
           type: string
           format: decimal
+        latestTotalValue:
+          type: [string, 'null']
+          format: decimal
+          description: Total valuation of the latest stored turn (the current turn), whole KRW. null at turn 0 / 마지막으로 저장된 턴(현재 턴)의 총 평가액, 원 단위 정수. 0턴이면 null
+        totalReturn:
+          type: [string, 'null']
+          format: decimal
+          description: Total return to the latest stored turn = (latest total valuation − initial) ÷ initial, 8 decimal places. null at turn 0 / 마지막 저장 턴까지의 총 수익률 = (마지막 총 평가액 − 초기) ÷ 초기, 소수 8자리. 0턴이면 null
         feeRateKr:
           type: string
           format: decimal

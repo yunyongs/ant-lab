@@ -43,6 +43,16 @@ public record SeasonDto(
         @ExposedFrom("cash_account.balance")
         @Schema(requiredMode = RequiredMode.REQUIRED, description = "Cash balance, whole KRW / 현금 잔액, 원 단위 정수")
         BigDecimal cashBalance,
+        @ExposedFrom("turn.total_value")
+        @Schema(requiredMode = RequiredMode.REQUIRED, nullable = true, description = "Total valuation of the latest "
+                + "stored turn (the current turn), whole KRW. null at turn 0 / 마지막으로 저장된 턴(현재 턴)의 총 평가액, 원 "
+                + "단위 정수. 0턴이면 null")
+        BigDecimal latestTotalValue,
+        @ExposedFrom({"turn.total_value", "season.initial_cash"})
+        @Schema(requiredMode = RequiredMode.REQUIRED, nullable = true, description = "Total return to the latest "
+                + "stored turn = (latest total valuation − initial) ÷ initial, 8 decimal places. null at turn 0 / 마지막 "
+                + "저장 턴까지의 총 수익률 = (마지막 총 평가액 − 초기) ÷ 초기, 소수 8자리. 0턴이면 null")
+        BigDecimal totalReturn,
         @ExposedFrom("season.fee_rate_kr")
         @Schema(requiredMode = RequiredMode.REQUIRED, description = "Domestic fee rate, 8 decimal places / 국내 "
                 + "수수료율, 소수 8자리")
@@ -69,27 +79,40 @@ public record SeasonDto(
                 + "season entered. null for a season outside any league / 이 시즌이 참가한 리그. 리그 밖의 시즌이면 null")
         Long leagueId) {
 
-    /** A season that was just started: nothing is abandoned yet, so the member kind does not matter. */
+    /** A season that was just started: turn 0, nothing is abandoned yet, so the member kind does not matter. */
     public static SeasonDto forNewSeason(Season s, BigDecimal cashBalance, Long leagueId) {
-        return from(s, cashBalance, MemberKind.HUMAN, leagueId);
+        return from(s, cashBalance, MemberKind.HUMAN, leagueId, null);
     }
 
     /** The stored state, for a season the caller has just changed. Reads use the overload with a clock. */
-    public static SeasonDto from(Season s, BigDecimal cashBalance, MemberKind memberKind, Long leagueId) {
-        return from(s, cashBalance, memberKind, s.getStatus(), s.getAbandonedTurnNo(), leagueId);
+    public static SeasonDto from(Season s, BigDecimal cashBalance, MemberKind memberKind, Long leagueId,
+            BigDecimal latestTotalValue) {
+        return from(s, cashBalance, memberKind, s.getStatus(), s.getAbandonedTurnNo(), leagueId, latestTotalValue);
     }
 
     /** The state a read shows: an overdue pause is already an abandon (O-2). */
-    public static SeasonDto from(Season s, BigDecimal cashBalance, MemberKind memberKind, Instant now, Long leagueId) {
-        return from(s, cashBalance, memberKind, s.effectiveStatus(now), s.effectiveAbandonedTurnNo(now), leagueId);
+    public static SeasonDto from(Season s, BigDecimal cashBalance, MemberKind memberKind, Instant now, Long leagueId,
+            BigDecimal latestTotalValue) {
+        return from(s, cashBalance, memberKind, s.effectiveStatus(now), s.effectiveAbandonedTurnNo(now), leagueId,
+                latestTotalValue);
     }
 
+    /**
+     * {@code latestTotalValue} is the stored total of the turn row at the current turn: required from turn 1, absent at
+     * turn 0 (no turn row exists yet).
+     */
     private static SeasonDto from(Season s, BigDecimal cashBalance, MemberKind memberKind, SeasonStatus status,
-            Integer abandonedTurnNo, Long leagueId) {
+            Integer abandonedTurnNo, Long leagueId, BigDecimal latestTotalValue) {
+        if ((s.getCurrentTurnNo() == 0) != (latestTotalValue == null)) {
+            throw new IllegalStateException("현재 턴의 총 평가액은 1턴부터 있고 0턴에는 없다");
+        }
+        BigDecimal latest = latestTotalValue == null ? null : MoneyMath.exactWon(latestTotalValue);
+        BigDecimal totalReturn = latest == null ? null
+                : MoneyMath.exactRate(MoneyMath.ratio(latest.subtract(s.getInitialCash()), s.getInitialCash()));
         return new SeasonDto(s.getId(), status, s.getCurrentTurnNo(), s.getPathLength(),
                 MoneyMath.exactRate(s.getRiskLimit()),
                 FormationDto.from(s.getStartFormation()), FormationDto.from(s.getCurrentFormation()),
-                MoneyMath.exactWon(s.getInitialCash()), MoneyMath.exactWon(cashBalance),
+                MoneyMath.exactWon(s.getInitialCash()), MoneyMath.exactWon(cashBalance), latest, totalReturn,
                 MoneyMath.exactRate(s.getFeeRateKr()), MoneyMath.exactRate(s.getFeeRateUs()),
                 MoneyMath.exactRate(s.getFxSpreadRate()), abandonedTurnNo,
                 AbandonRules.notStarted(memberKind, abandonedTurnNo), leagueId);

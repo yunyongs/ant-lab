@@ -11,6 +11,7 @@ import antlab.season.Season;
 import antlab.season.SeasonDto;
 import antlab.season.SeasonRepository;
 import antlab.season.SeasonStatus;
+import antlab.season.TurnRepository;
 import java.time.Clock;
 import java.time.Instant;
 import org.slf4j.Logger;
@@ -37,14 +38,16 @@ public class AgentSeasonLifecycleService {
     private final SeasonRepository seasons;
     private final CashAccountRepository accounts;
     private final LeagueEntryRepository leagueEntries;
+    private final TurnRepository turns;
     private final Clock clock;
 
     public AgentSeasonLifecycleService(CurrentMember currentMember, SeasonRepository seasons,
-            CashAccountRepository accounts, LeagueEntryRepository leagueEntries, Clock clock) {
+            CashAccountRepository accounts, LeagueEntryRepository leagueEntries, TurnRepository turns, Clock clock) {
         this.currentMember = currentMember;
         this.seasons = seasons;
         this.accounts = accounts;
         this.leagueEntries = leagueEntries;
+        this.turns = turns;
         this.clock = clock;
     }
 
@@ -130,7 +133,8 @@ public class AgentSeasonLifecycleService {
     private SeasonDto dto(Season season) {
         return SeasonDto.from(season, accounts.findById(season.getId())
                 .orElseThrow(() -> new IllegalStateException("시즌에 현금 계좌가 없다")).getBalance(), MemberKind.AGENT,
-                leagueEntries.findBySeasonId(season.getId()).map(LeagueEntry::getLeagueId).orElse(null));
+                leagueEntries.findBySeasonId(season.getId()).map(LeagueEntry::getLeagueId).orElse(null),
+                turns.findCurrentTotalValue(season));
     }
 
     private static DomainException notActive(Season season) {
