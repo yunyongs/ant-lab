@@ -66,6 +66,14 @@ GET {{base}}/api/v1/pool
 GET {{base}}/api/v1/seasons/{{season}}/prices?turnNo=0
 Authorization: Bearer {{token}}
 
+### 3b. Optional: preview the first buy (fill price, amount, fee, cash after, largest quantity); nothing is written
+# 선택: 첫 매수 미리보기(체결가, 대금, 수수료, 체결 뒤 현금, 최대 수량). 아무것도 쓰지 않는다
+POST {{base}}/api/v1/seasons/{{season}}/orders/quote
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "expectedTurnNo": 0, "side": "BUY", "assetId": {{pool.response.body.$.assets[0].assetId}}, "quantity": {{qty}}, "declaredPosition": "{{pool.response.body.$.assets[0].systemPosition}}" }
+
 ### 4. Buy the team at turn 0: the first eight pool assets, each declared as its system position
 # 0턴 팀 매수: 풀의 앞 여덟 종목, 선언 포지션은 시스템 포지션
 # @name buy1
