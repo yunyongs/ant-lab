@@ -73,7 +73,7 @@ describe('report analysis blocks', () => {
     const change = block('전술 변경 뒤 6턴 효과');
     const items = within(change).getAllByRole('listitem');
     expect(items.map((li) => li.textContent)).toEqual([
-      '3턴 변경 · 6턴 뒤 · 151,000원 (0.15%)',
+      '3턴 변경 · 6턴 뒤 · +151,000원 (+0.15%)',
       '8턴 변경 · 4턴 뒤 · -262,000원 (-0.26%)',
     ]);
   });
@@ -149,7 +149,7 @@ describe('report analysis blocks', () => {
     );
     expect(items.map((li) => li.textContent)).toEqual([
       '4턴 변경 · 6턴 뒤 · -5,000원 (-0.01%)',
-      '4턴 변경 · 2턴 뒤 · 7,000원 (0.01%)',
+      '4턴 변경 · 2턴 뒤 · +7,000원 (+0.01%)',
     ]);
     expect(block('전술 변경 뒤 6턴 효과')).not.toHaveTextContent(/손실|이익/);
   });

@@ -352,7 +352,7 @@ describe('sell sheet', () => {
       '20',
     );
     await user.click(within(dialog).getByRole('button', { name: '20주 매도' }));
-    expect(await within(dialog).findByText('137,000원')).toBeVisible();
+    expect(await within(dialog).findByText('+137,000원')).toBeVisible();
     expect(within(dialog).getByText('71,350원')).toBeVisible();
     expect(
       within(dialog).getByText(

@@ -8,8 +8,9 @@ import { server } from '../../test/server.ts';
 
 const TOKENS = ['test-access-1', 'test-access-2', 'test-access-3'];
 
-// This is the only file allowed to touch storage and cookies: it asserts the
-// app wrote nothing there.
+// Besides the colour preference in features/format/convention.ts, this is the
+// only file that touches storage and cookies: it asserts the app wrote nothing
+// else there.
 function snapshot(): string {
   return [
     // eslint-disable-next-line no-restricted-properties -- test asserts the app wrote nothing here

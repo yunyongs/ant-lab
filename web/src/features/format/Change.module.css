@@ -1,0 +1,21 @@
+.change {
+  font-variant-numeric: tabular-nums;
+}
+
+.up {
+  color: var(--color-up);
+}
+
+.down {
+  color: var(--color-down);
+}
+
+.up::before {
+  content: '▲ ' / '';
+  font-size: 0.75em;
+}
+
+.down::before {
+  content: '▼ ' / '';
+  font-size: 0.75em;
+}

@@ -1,3 +1,4 @@
+import { SignedValue } from '../format/Change.tsx';
 import type { Report } from './queries.ts';
 import type { GroupDef } from './reportRows.ts';
 import { RECON_HINT, BENCHMARK_NOTE } from './reportMessages.ts';
@@ -15,7 +16,11 @@ function Rows({ group, report }: { group: GroupDef; report: Report }) {
             )}
           </dt>
           <dd className={row.big === true ? styles.big : undefined}>
-            {row.value(report)}
+            {row.change === undefined ? (
+              row.value(report)
+            ) : (
+              <SignedValue change={row.change(report)} />
+            )}
           </dd>
         </div>
       ))}

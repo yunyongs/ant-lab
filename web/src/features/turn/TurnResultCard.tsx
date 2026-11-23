@@ -1,3 +1,4 @@
+import { Change } from '../format/Change.tsx';
 import { formatWon } from '../format/money.ts';
 import {
   ratioToPoints,
@@ -39,11 +40,15 @@ export function TurnResultCard({ turn }: { turn: TurnResult }) {
         <dl className={styles.rows}>
           <div className={styles.row}>
             <dt>직전 턴 대비</dt>
-            <dd>{formatWon(turn.valueChange)}</dd>
+            <dd>
+              <Change value={turn.valueChange} kind="won" />
+            </dd>
           </div>
           <div className={styles.row}>
             <dt>턴 수익률</dt>
-            <dd>{ratioWithPercent(turn.periodReturn)}</dd>
+            <dd>
+              <Change value={turn.periodReturn} kind="percent" />
+            </dd>
           </div>
           <div className={styles.row}>
             <dt>현금</dt>

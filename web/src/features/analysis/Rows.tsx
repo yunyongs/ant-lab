@@ -1,8 +1,11 @@
+import { SignedValue } from '../format/Change.tsx';
+import type { SignedText } from '../format/signedChange.ts';
 import styles from './Analysis.module.css';
 
 export interface RowDef {
   label: string;
-  value: string;
+  // A SignedText is a gain or loss: sign, arrow and up/down colour.
+  value: string | SignedText;
 }
 
 export function Rows({ rows }: { rows: RowDef[] }) {
@@ -11,7 +14,13 @@ export function Rows({ rows }: { rows: RowDef[] }) {
       {rows.map((row) => (
         <div key={row.label} className={styles.row}>
           <dt>{row.label}</dt>
-          <dd>{row.value}</dd>
+          <dd>
+            {typeof row.value === 'string' ? (
+              row.value
+            ) : (
+              <SignedValue change={row.value} />
+            )}
+          </dd>
         </div>
       ))}
     </dl>

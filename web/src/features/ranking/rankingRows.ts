@@ -1,4 +1,4 @@
-import { ratioToPercent } from '../format/ratio.ts';
+import { signedChange, type SignedText } from '../format/signedChange.ts';
 import type { PoolAsset } from '../team/queries.ts';
 import { UNKNOWN_ASSET_NAME } from '../trade/HoldingCard.tsx';
 import { gradeLabel, UNKNOWN_GROUP_NAME } from './rankingLabels.ts';
@@ -9,8 +9,8 @@ export interface RankingRow {
   name: string;
   // False when the pool has no such asset; the name is then a placeholder.
   known: boolean;
-  // Server value as percent text, when the list carries one.
-  change: string | null;
+  // Server value as signed percent text, when the list carries one.
+  change: SignedText | null;
   streak: number | null;
   grade: string | null;
 }
@@ -45,14 +45,14 @@ export function rankingRows(
     gainers: board.gainers.map((r) => ({
       rank: r.rank,
       ...asset(r.assetId),
-      change: ratioToPercent(r.changeRate),
+      change: signedChange(r.changeRate, 'percent'),
       streak: null,
       grade: null,
     })),
     losers: board.losers.map((r) => ({
       rank: r.rank,
       ...asset(r.assetId),
-      change: ratioToPercent(r.changeRate),
+      change: signedChange(r.changeRate, 'percent'),
       streak: null,
       grade: null,
     })),
@@ -66,28 +66,28 @@ export function rankingRows(
     risingStreaks: board.risingStreaks.map((r) => ({
       rank: r.rank,
       ...asset(r.assetId),
-      change: ratioToPercent(r.changeRate),
+      change: signedChange(r.changeRate, 'percent'),
       streak: r.streak,
       grade: null,
     })),
     fallingStreaks: board.fallingStreaks.map((r) => ({
       rank: r.rank,
       ...asset(r.assetId),
-      change: ratioToPercent(r.changeRate),
+      change: signedChange(r.changeRate, 'percent'),
       streak: r.streak,
       grade: null,
     })),
     groupGainers: board.groupGainers.map((r) => ({
       rank: r.rank,
       ...group(r.groupId),
-      change: ratioToPercent(r.changeRate),
+      change: signedChange(r.changeRate, 'percent'),
       streak: null,
       grade: null,
     })),
     groupLosers: board.groupLosers.map((r) => ({
       rank: r.rank,
       ...group(r.groupId),
-      change: ratioToPercent(r.changeRate),
+      change: signedChange(r.changeRate, 'percent'),
       streak: null,
       grade: null,
     })),

@@ -20,6 +20,14 @@
   --color-primary-strong: #1e3a8a;
   --color-primary-soft: #bfdbfe;
 
+  /* Up/down convention: Korean (red up, blue down) is the default. */
+  --color-up-korean: #c62828;
+  --color-down-korean: #1d4ed8;
+  --color-up-western: #1a6b3a;
+  --color-down-western: #c62828;
+  --color-up: var(--color-up-korean);
+  --color-down: var(--color-down-korean);
+
   --space-1: 0.25rem;
   --space-2: 0.5rem;
   --space-3: 0.75rem;
@@ -35,4 +43,9 @@
   --font-family:
     system-ui, -apple-system, 'Apple SD Gothic Neo', 'Noto Sans KR',
     'Malgun Gothic', sans-serif;
+}
+
+:root[data-updown='western'] {
+  --color-up: var(--color-up-western);
+  --color-down: var(--color-down-western);
 }
