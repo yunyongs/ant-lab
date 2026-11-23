@@ -140,6 +140,36 @@ paths:
           $ref: '#/components/responses/InternalError'
         '503':
           $ref: '#/components/responses/RegimeUnavailable'
+  /v1/manager-parts:
+    post:
+      operationId: createManagerParts
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ManagerPartsRequest'
+      responses:
+        '200':
+          description: Return and risk parts of one finished season / 끝난 시즌 하나의 수익·위험 부품
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ManagerPartsResult'
+        '400':
+          $ref: '#/components/responses/InvalidArgument'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/PoolNotFound'
+        '409':
+          $ref: '#/components/responses/ReferenceMismatch'
+        '422':
+          $ref: '#/components/responses/SeasonWorldUnusable'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/PartsUnavailable'
 components:
   securitySchemes:
     EngineToken:
@@ -205,6 +235,28 @@ components:
           description: Seconds to wait before retrying, sent with ENGINE_BUSY / ENGINE_BUSY일 때 다시 호출하기까지 기다릴 초
           schema: {type: string}
       description: No regime data source is configured or it cannot be read (HISTORY_UNAVAILABLE), or another evaluation is running and the call may be retried later (ENGINE_BUSY) / 국면 데이터 출처가 설정되지 않았거나 읽을 수 없다(HISTORY_UNAVAILABLE), 또는 다른 평가가 실행 중이라 나중에 다시 호출하면 된다(ENGINE_BUSY)
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    ReferenceMismatch:
+      description: The engine's own benchmark returns or Sharpe values for the sent season differ from the sent ones (code REFERENCE_MISMATCH); the detail names no month, asset or value, and a retry gives the same answer / 보낸 시즌에 대해 엔진이 계산한 벤치마크 수익률이나 샤프가 보낸 값과 다르다(코드 REFERENCE_MISMATCH). 설명에는 달·종목·값이 없고, 다시 호출해도 답이 같다
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    SeasonWorldUnusable:
+      description: The stored history of a path month cannot build the season's world, for example a pool asset without a return in a path month (code FEED_INPUT), or the reference bots cannot play that world, for example a unit the simulator refuses (code NO_REFERENCE); both are deterministic, so a retry gives the same answer / 경로 달의 저장된 이력으로 시즌 세계를 만들 수 없거나(예를 들어 경로 달에 수익률이 없는 풀 종목, 코드 FEED_INPUT), 기준 봇이 그 세계를 진행하지 못한다(예를 들어 시뮬레이터가 거부한 주문, 코드 NO_REFERENCE). 둘 다 결정적이므로 다시 호출해도 답이 같다
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    PartsUnavailable:
+      headers:
+        Retry-After:
+          description: Seconds to wait before retrying, sent with ENGINE_BUSY / ENGINE_BUSY일 때 다시 호출하기까지 기다릴 초
+          schema: {type: string}
+      description: The history database is not configured or not reachable (HISTORY_UNAVAILABLE), or another reference set is being built and the call may be retried later (ENGINE_BUSY) / 이력 DB가 설정되지 않았거나 닿지 않는다(HISTORY_UNAVAILABLE), 또는 다른 기준 집합을 만드는 중이라 나중에 다시 호출하면 된다(ENGINE_BUSY)
       content:
         application/problem+json:
           schema:
@@ -691,6 +743,202 @@ components:
                    KR_EXPORTS, KR_USDKRW, US_DTWEXBGS, US_VIX, US_BAA10Y, KR_CORP_AA]
           additionalProperties: {type: integer}
         dtwexLinked: {type: boolean}
+    ManagerPartsRequest:
+      type: object
+      description: >-
+        One finished season as Java stored it. `months` are the season's path months in turn order (first of
+        month, `season_path` to `month_block.month_start`), and their number is `settings.pathLength`. The
+        reference is 200 `random` bots (master seed 69, world seed = the first 8 bytes of `referenceKey`, no feed)
+        playing these months from the pool of `baseDate` with these settings. An unknown `referenceVersion`,
+        a path length other than 12, 24 or 60, settings the simulator refuses, or returns that do not follow
+        from the totals are 400. / Java가 저장한 끝난 시즌 하나. `months`는 턴 순서의 시즌 경로 달(달 첫날,
+        `season_path` → `month_block.month_start`)이고 개수는 `settings.pathLength`다. 기준 집합은 `random`
+        봇 200개(마스터 시드 69, 세계 시드 = `referenceKey`의 앞 8바이트, 피드 없음)가 `baseDate`의 풀로 이
+        달들을 이 설정으로 진행한 결과다. 모르는 `referenceVersion`, 12·24·60이 아닌 경로 길이, 시뮬레이터가
+        거부하는 설정, 총액에서 나오지 않는 수익률은 400이다.
+      additionalProperties: false
+      required: [referenceVersion, baseDate, months, settings, team]
+      properties:
+        referenceVersion: {type: string, const: ref69-v1}
+        baseDate: {type: string, format: date}
+        months:
+          type: array
+          minItems: 12
+          maxItems: 60
+          uniqueItems: true
+          items:
+            type: string
+            pattern: '^[0-9]{4}-(0[1-9]|1[0-2])-01$'
+        settings: {$ref: '#/components/schemas/PartsSettings'}
+        team: {$ref: '#/components/schemas/PartsTeam'}
+    PartsSettings:
+      type: object
+      description: >-
+        The season's own settings (`season` row). `initialCash` is whole won; `riskLimit` is one of -0.10,
+        -0.20, -0.30, -0.40 at any scale. / 시즌 자체의 설정(`season` 행). `initialCash`는 원 단위 정수이고
+        `riskLimit`은 자릿수와 상관없이 -0.10·-0.20·-0.30·-0.40 중 하나다.
+      additionalProperties: false
+      required: [pathLength, initialCash, feeRateKr, feeRateUs, fxSpreadRate, riskLimit, startFormation, memberKind]
+      properties:
+        pathLength: {type: integer, enum: [12, 24, 60]}
+        initialCash:
+          type: string
+          pattern: '^[0-9]{1,15}(\.0{1,4})?$'
+        feeRateKr:
+          type: string
+          pattern: '^0(\.[0-9]{1,8})?$'
+        feeRateUs:
+          type: string
+          pattern: '^0(\.[0-9]{1,8})?$'
+        fxSpreadRate:
+          type: string
+          pattern: '^0(\.[0-9]{1,8})?$'
+        riskLimit:
+          type: string
+          pattern: '^-0\.[0-9]{1,8}$'
+        startFormation: {$ref: '#/components/schemas/StartFormation'}
+        memberKind: {type: string, enum: [HUMAN, AGENT]}
+    StartFormation:
+      type: object
+      description: Shares in whole percent that add up to 100 / 합이 100인 정수 퍼센트 비중
+      additionalProperties: false
+      required: [goalkeeper, defender, midfielder, forward]
+      properties:
+        goalkeeper: {type: integer, minimum: 1, maximum: 100}
+        defender: {type: integer, minimum: 0, maximum: 100}
+        midfielder: {type: integer, minimum: 0, maximum: 100}
+        forward: {type: integer, minimum: 0, maximum: 100}
+    PartsTeam:
+      type: object
+      description: >-
+        `totals` are the T end values of turns 1..T in whole won (the `turn` rows; the drawdown peak starts at
+        the initial cash, so there is no turn 0 value); `returns` and `benchmarkReturns` are the T monthly
+        returns at Java's score scale (30 places, `MoneyMath.SCORE_WORK_SCALE`), the first one against the
+        initial cash. `sharpe` and `benchSharpe` are the stored `season_score` values (8 places) and
+        `riskScore` the stored risk item (2 places, null when the season has none). The engine recomputes the
+        Sharpe values from the returns and the benchmark returns from its own world: any difference is 409
+        `REFERENCE_MISMATCH`. / `totals`는 1..T턴의 원 단위 기말 평가액 T개이고(`turn` 행; 낙폭의 고점은 초기
+        자금에서 시작하므로 0턴 값은 없다), `returns`와 `benchmarkReturns`는
+        Java 점수 자릿수(소수 30자리, `MoneyMath.SCORE_WORK_SCALE`)의 월 수익률 T개이며 첫 값은 초기 자금
+        대비다. `sharpe`·`benchSharpe`는 저장된 `season_score` 값(8자리), `riskScore`는 저장된 위험 항목(2자리,
+        없으면 null)이다. 엔진은 수익률로 샤프를 다시 계산하고 자기 세계에서 벤치마크 수익률을 다시 만든다.
+        하나라도 다르면 409 `REFERENCE_MISMATCH`다.
+      additionalProperties: false
+      required: [totals, returns, benchmarkReturns, sharpe, benchSharpe, riskScore]
+      properties:
+        totals:
+          type: array
+          minItems: 12
+          maxItems: 60
+          items:
+            type: string
+            pattern: '^[0-9]{1,15}(\.0{1,4})?$'
+        returns:
+          type: array
+          minItems: 12
+          maxItems: 60
+          items:
+            type: string
+            pattern: '^-?[0-9]{1,6}(\.[0-9]{1,30})?$'
+        benchmarkReturns:
+          type: array
+          minItems: 12
+          maxItems: 60
+          items:
+            type: string
+            pattern: '^-?[0-9]{1,6}(\.[0-9]{1,30})?$'
+        sharpe:
+          type: string
+          pattern: '^-?[0-9]{1,6}\.[0-9]{8}$'
+        benchSharpe:
+          type: string
+          pattern: '^-?[0-9]{1,6}\.[0-9]{8}$'
+        riskScore:
+          anyOf:
+            - {type: string, pattern: '^(100\.00|[0-9]{1,2}\.[0-9]{2})$'}
+            - {type: 'null'}
+    ManagerPartsResult:
+      type: object
+      description: >-
+        No months, no assets and no won amounts. `referenceKey` is the SHA-256 of the canonical season identity
+        (reference version, base date, months, settings with normalised decimals, bot version, size); equal
+        keys share one cached reference set. Java stores the answer as sent and applies the weights. /
+        달·종목·원화 금액은 없다. `referenceKey`는 정규화한 시즌 식별 정보(기준 판, 기준일, 달, 소수를 정규화한
+        설정, 봇 판, 크기)의 SHA-256이며 키가 같으면 캐시된 기준 집합 하나를 함께 쓴다. Java는 받은 값을 그대로
+        저장하고 가중치를 적용한다.
+      required: [referenceVersion, referenceKey, referenceSize, botVersion, engineVersion, components, percentiles, parts]
+      properties:
+        referenceVersion: {type: string, const: ref69-v1}
+        referenceKey:
+          type: string
+          pattern: '^[0-9a-f]{64}$'
+        referenceSize: {type: integer, minimum: 1, maximum: 200}
+        botVersion:
+          type: string
+          pattern: '^[a-z]+/[0-9]{1,4}$'
+        engineVersion: {type: string}
+        components: {$ref: '#/components/schemas/PartsComponents'}
+        percentiles: {$ref: '#/components/schemas/PartsPercentiles'}
+        parts: {$ref: '#/components/schemas/PartsValues'}
+    PartsComponents:
+      type: object
+      description: >-
+        The season's components (M3-03 definitions), rounded half up to 12 places: CAGR `(final / initial) ^
+        (12 / T) - 1`, Sharpe difference, Sortino (risk-free 0, downside deviation over n - 1), Calmar (CAGR over
+        |max drawdown|) and max drawdown, each with its benchmark value and the team-minus-benchmark
+        difference. A zero denominator gives ±999999.99999999 with the numerator's sign (0 when it is 0),
+        applied before the difference. / 시즌의 성분(M3-03 정의)이며 소수 12자리로 반올림(HALF_UP)한다: CAGR
+        `(최종 / 초기) ^ (12 / T) - 1`, 샤프 차이, 소르티노(무위험 0, 하방 편차는 n - 1), 칼마(CAGR ÷ |최대
+        낙폭|), 최대 낙폭과 각각의 벤치마크 값, 팀 − 벤치마크 차이. 분모가 0이면 분자의 부호로
+        ±999999.99999999(분자가 0이면 0)이며 차이를 내기 전에 적용한다.
+      required: [cagr, benchCagr, excessCagr, sharpeDiff, sortino, benchSortino, sortinoDiff, calmar, benchCalmar,
+                 calmarDiff, mdd, benchMdd]
+      properties:
+        cagr: {type: string, pattern: '^-?[0-9]{1,8}\.[0-9]{12}$'}
+        benchCagr: {type: string, pattern: '^-?[0-9]{1,8}\.[0-9]{12}$'}
+        excessCagr: {type: string, pattern: '^-?[0-9]{1,8}\.[0-9]{12}$'}
+        sharpeDiff: {type: string, pattern: '^-?[0-9]{1,8}\.[0-9]{12}$'}
+        sortino: {type: string, pattern: '^-?[0-9]{1,8}\.[0-9]{12}$'}
+        benchSortino: {type: string, pattern: '^-?[0-9]{1,8}\.[0-9]{12}$'}
+        sortinoDiff: {type: string, pattern: '^-?[0-9]{1,8}\.[0-9]{12}$'}
+        calmar: {type: string, pattern: '^-?[0-9]{1,8}\.[0-9]{12}$'}
+        benchCalmar: {type: string, pattern: '^-?[0-9]{1,8}\.[0-9]{12}$'}
+        calmarDiff: {type: string, pattern: '^-?[0-9]{1,8}\.[0-9]{12}$'}
+        mdd: {type: string, pattern: '^-?[0-9]{1,8}\.[0-9]{12}$'}
+        benchMdd: {type: string, pattern: '^-?[0-9]{1,8}\.[0-9]{12}$'}
+    PartsPercentiles:
+      type: object
+      description: >-
+        Mid-rank percentiles `100 x (below + equal / 2) / 200` against the reference, higher is better, rounded
+        half up to 8 places. `riskItem` compares the sent `riskScore` with each bot's risk item rounded half
+        up to 2 places, and is null when `riskScore` is null. / 기준 집합 안의 중간 순위 백분위
+        `100 × (아래 + 같음 / 2) / 200`이며 클수록 좋고 소수 8자리로 반올림(HALF_UP)한다. `riskItem`은 보낸
+        `riskScore`를 봇마다 2자리로 반올림한 위험 항목과 비교하며, `riskScore`가 null이면 null이다.
+      required: [excessCagr, sharpeDiff, sortinoDiff, calmarDiff, riskItem, mdd]
+      properties:
+        excessCagr: {type: string, pattern: '^(100\.0{8}|[0-9]{1,2}\.[0-9]{8})$'}
+        sharpeDiff: {type: string, pattern: '^(100\.0{8}|[0-9]{1,2}\.[0-9]{8})$'}
+        sortinoDiff: {type: string, pattern: '^(100\.0{8}|[0-9]{1,2}\.[0-9]{8})$'}
+        calmarDiff: {type: string, pattern: '^(100\.0{8}|[0-9]{1,2}\.[0-9]{8})$'}
+        riskItem:
+          anyOf:
+            - {type: string, pattern: '^(100\.0{8}|[0-9]{1,2}\.[0-9]{8})$'}
+            - {type: 'null'}
+        mdd: {type: string, pattern: '^(100\.0{8}|[0-9]{1,2}\.[0-9]{8})$'}
+    PartsValues:
+      type: object
+      description: >-
+        `return` is the excess-CAGR percentile, `riskAdjusted` the mean of the Sharpe, Sortino and Calmar
+        difference percentiles, `risk` the mean of the risk-item and drawdown percentiles (the drawdown
+        percentile alone when `riskItem` is null); each is the unrounded mean rounded half up to 8 places
+        once. / `return`은 초과 CAGR 백분위, `riskAdjusted`는 샤프·소르티노·칼마 차이 백분위의 평균, `risk`는
+        위험 항목과 낙폭 백분위의 평균(`riskItem`이 null이면 낙폭 백분위만)이며 반올림하지 않은 평균을 한 번만
+        소수 8자리로 반올림(HALF_UP)한다.
+      required: [return, riskAdjusted, risk]
+      properties:
+        return: {type: string, pattern: '^(100\.0{8}|[0-9]{1,2}\.[0-9]{8})$'}
+        riskAdjusted: {type: string, pattern: '^(100\.0{8}|[0-9]{1,2}\.[0-9]{8})$'}
+        risk: {type: string, pattern: '^(100\.0{8}|[0-9]{1,2}\.[0-9]{8})$'}
     FieldViolation:
       type: object
       required: [field, reason]
@@ -713,6 +961,6 @@ components:
       type: string
       enum: [INVALID_ARGUMENT, NOT_FOUND, METHOD_NOT_ALLOWED, UNAUTHENTICATED, INTERNAL_ERROR,
            PATH_TOO_LONG, POOL_NOT_FOUND, HISTORY_UNAVAILABLE, ENGINE_BUSY, REGIME_DATA_INVALID,
-           REGIME_LABELS_MISSING]
+           REGIME_LABELS_MISSING, REFERENCE_MISMATCH, FEED_INPUT, NO_REFERENCE]
 security:
   - EngineToken: []

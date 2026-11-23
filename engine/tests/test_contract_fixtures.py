@@ -30,6 +30,9 @@ STATUS_OF_CODE = {
     ErrorCode.ENGINE_BUSY: 503,
     ErrorCode.REGIME_DATA_INVALID: 422,
     ErrorCode.REGIME_LABELS_MISSING: 422,
+    ErrorCode.REFERENCE_MISMATCH: 409,
+    ErrorCode.FEED_INPUT: 422,
+    ErrorCode.NO_REFERENCE: 422,
 }
 
 CONTRACT_DIR = ENGINE_DIR.parent / "src" / "test" / "resources" / "engine" / "contract"

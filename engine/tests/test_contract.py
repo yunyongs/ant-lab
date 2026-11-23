@@ -319,6 +319,92 @@ def _paths_not_secured(spec):
     spec["paths"]["/v1/paths"]["post"]["security"] = []
 
 
+def _parts_loses_a_status(spec):
+    del spec["paths"]["/v1/manager-parts"]["post"]["responses"]["409"]
+
+
+def _parts_not_secured(spec):
+    spec["paths"]["/v1/manager-parts"]["post"]["security"] = []
+
+
+def _parts_request_allows_extra_fields(spec):
+    del spec["components"]["schemas"]["ManagerPartsRequest"]["additionalProperties"]
+
+
+def _parts_reference_version_changes(spec):
+    props = spec["components"]["schemas"]["ManagerPartsRequest"]["properties"]
+    props["referenceVersion"]["const"] = "ref69-v2"
+
+
+def _parts_length_gains_a_value(spec):
+    spec["components"]["schemas"]["PartsSettings"]["properties"]["pathLength"]["enum"].append(120)
+
+
+def _parts_months_may_repeat(spec):
+    del spec["components"]["schemas"]["ManagerPartsRequest"]["properties"]["months"]["uniqueItems"]
+
+
+def _parts_total_may_hold_fractions(spec):
+    spec["components"]["schemas"]["PartsTeam"]["properties"]["totals"]["items"]["pattern"] = ".*"
+
+
+def _parts_return_becomes_number(spec):
+    spec["components"]["schemas"]["PartsTeam"]["properties"]["returns"]["items"] = {
+        "type": "number"
+    }
+
+
+def _parts_risk_score_becomes_optional(spec):
+    spec["components"]["schemas"]["PartsTeam"]["required"].remove("riskScore")
+
+
+def _parts_result_gains_a_month(spec):
+    spec["components"]["schemas"]["ManagerPartsResult"]["properties"]["months"] = {"type": "array"}
+
+
+def _parts_percentile_gains_digits(spec):
+    spec["components"]["schemas"]["PartsPercentiles"]["properties"]["mdd"]["pattern"] = (
+        "^(100\\.0{12}|[0-9]{1,2}\\.[0-9]{12})$"
+    )
+
+
+def _parts_component_becomes_number(spec):
+    spec["components"]["schemas"]["PartsComponents"]["properties"]["cagr"] = {"type": "number"}
+
+
+def _parts_risk_item_not_nullable(spec):
+    spec["components"]["schemas"]["PartsPercentiles"]["properties"]["riskItem"] = {"type": "string"}
+
+
+def _parts_return_part_renamed(spec):
+    props = spec["components"]["schemas"]["PartsValues"]["properties"]
+    props["ret"] = props.pop("return")
+
+
+def _parts_key_becomes_optional(spec):
+    spec["components"]["schemas"]["ManagerPartsResult"]["required"].remove("referenceKey")
+
+
+def _parts_retry_after_header_dropped(spec):
+    del spec["components"]["responses"]["PartsUnavailable"]["headers"]
+
+
+def _reference_mismatch_code_dropped(spec):
+    spec["components"]["schemas"]["ErrorCode"]["enum"].remove("REFERENCE_MISMATCH")
+
+
+def _feed_input_code_dropped(spec):
+    spec["components"]["schemas"]["ErrorCode"]["enum"].remove("FEED_INPUT")
+
+
+def _no_reference_code_dropped(spec):
+    spec["components"]["schemas"]["ErrorCode"]["enum"].remove("NO_REFERENCE")
+
+
+def _parts_totals_gain_turn_zero(spec):
+    spec["components"]["schemas"]["PartsTeam"]["properties"]["totals"]["maxItems"] = 61
+
+
 MUTATIONS = [
     _paths_loses_a_status,
     _paths_seed_becomes_integer,
@@ -387,6 +473,26 @@ MUTATIONS = [
     _token_header_renamed,
     _error_media_type_changes,
     _error_code_dropped,
+    _parts_loses_a_status,
+    _parts_not_secured,
+    _parts_request_allows_extra_fields,
+    _parts_reference_version_changes,
+    _parts_length_gains_a_value,
+    _parts_months_may_repeat,
+    _parts_total_may_hold_fractions,
+    _parts_return_becomes_number,
+    _parts_risk_score_becomes_optional,
+    _parts_result_gains_a_month,
+    _parts_percentile_gains_digits,
+    _parts_component_becomes_number,
+    _parts_risk_item_not_nullable,
+    _parts_return_part_renamed,
+    _parts_key_becomes_optional,
+    _parts_retry_after_header_dropped,
+    _reference_mismatch_code_dropped,
+    _feed_input_code_dropped,
+    _no_reference_code_dropped,
+    _parts_totals_gain_turn_zero,
 ]
 
 
@@ -410,6 +516,7 @@ DOMAIN_POSTS = {
     "POST /v1/projections",
     "POST /v1/percentiles",
     "POST /v1/regime/evaluate",
+    "POST /v1/manager-parts",
 }
 
 
@@ -432,6 +539,7 @@ def test_invariants(which, contract, generated):
         "POST /v1/projections",
         "POST /v1/percentiles",
         "POST /v1/regime/evaluate",
+        "POST /v1/manager-parts",
     }
     for key, operation in normalized.items():
         # 422 is a domain status only (PATH_TOO_LONG), never FastAPI's validation response

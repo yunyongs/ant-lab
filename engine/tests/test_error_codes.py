@@ -20,6 +20,9 @@ ENGINE_ONLY = {
     "ENGINE_BUSY",
     "REGIME_DATA_INVALID",
     "REGIME_LABELS_MISSING",
+    "REFERENCE_MISMATCH",
+    "FEED_INPUT",
+    "NO_REFERENCE",
 }
 # A domain failure that is answered as INTERNAL_ERROR so that no role fact reaches the caller.
 HIDDEN = {"UNSAFE_DB_ROLE"}

@@ -186,8 +186,11 @@ class EngineContractTest {
         }
     }
 
-    /** Yaml operations the Java client never calls (the health probe and the percentile route belong to other callers). */
-    private static final Set<String> NOT_CALLED_BY_JAVA = Set.of("healthz", "createPercentile");
+    /**
+     * Yaml operations the Java client never calls (the health probe and the percentile route belong to other callers);
+     * createManagerParts has no client yet and leaves this set when it gets one.
+     */
+    private static final Set<String> NOT_CALLED_BY_JAVA = Set.of("healthz", "createPercentile", "createManagerParts");
 
     private static Set<String> clientOperations() {
         Set<String> operations = new TreeSet<>();
