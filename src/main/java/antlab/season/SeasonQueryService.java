@@ -24,17 +24,19 @@ public class SeasonQueryService {
     private final SeasonRepository seasons;
     private final CashAccountRepository accounts;
     private final TurnPriceRepository turnPrices;
+    private final TurnRepository turns;
     private final MemberRepository members;
     private final LeagueEntryRepository leagueEntries;
     private final Clock clock;
 
     public SeasonQueryService(CurrentMember currentMember, SeasonRepository seasons, CashAccountRepository accounts,
-            TurnPriceRepository turnPrices, MemberRepository members, LeagueEntryRepository leagueEntries,
-            Clock clock) {
+            TurnPriceRepository turnPrices, TurnRepository turns, MemberRepository members,
+            LeagueEntryRepository leagueEntries, Clock clock) {
         this.currentMember = currentMember;
         this.seasons = seasons;
         this.accounts = accounts;
         this.turnPrices = turnPrices;
+        this.turns = turns;
         this.members = members;
         this.leagueEntries = leagueEntries;
         this.clock = clock;
@@ -49,7 +51,7 @@ public class SeasonQueryService {
         MemberKind kind = kindOf(memberId.get());
         Instant now = clock.instant();
         return new SeasonListDto(seasons.findWithBalanceByMemberId(memberId.get()).stream()
-                .map(r -> SeasonDto.from(r.season(), r.balance(), kind, now, r.leagueId()))
+                .map(r -> SeasonDto.from(r.season(), r.balance(), kind, now, r.leagueId(), r.latestTotalValue()))
                 .toList());
     }
 
@@ -59,7 +61,8 @@ public class SeasonQueryService {
         CashAccount account = accounts.findById(season.getId())
                 .orElseThrow(() -> new IllegalStateException("시즌에 현금 계좌가 없다"));
         return SeasonDto.from(season, account.getBalance(), kindOf(season.getMemberId()), clock.instant(),
-                leagueEntries.findBySeasonId(season.getId()).map(LeagueEntry::getLeagueId).orElse(null));
+                leagueEntries.findBySeasonId(season.getId()).map(LeagueEntry::getLeagueId).orElse(null),
+                turns.findCurrentTotalValue(season));
     }
 
     /** One read per request, never per row: the kind decides the derived notStarted flag. */

@@ -18,6 +18,26 @@ export function turnText(
   return `${String(season.currentTurnNo)} / ${String(season.pathLength)}턴`;
 }
 
+// Integers only (turns, not money); clamped so a bad pair never overflows the bar.
+export function turnProgressWidth(
+  season: Pick<Season, 'currentTurnNo' | 'pathLength'>,
+): string {
+  if (season.pathLength <= 0) return '0%';
+  const share = Math.min(
+    100,
+    Math.max(0, (season.currentTurnNo * 100) / season.pathLength),
+  );
+  return `${String(share)}%`;
+}
+
+export function valueLabel(season: Pick<Season, 'status'>): string {
+  return season.status === 'FINISHED' ? '최종 평가액' : '평가액';
+}
+
+export function leagueText(season: Pick<Season, 'leagueId'>): string | null {
+  return season.leagueId === null ? null : `리그 ${String(season.leagueId)}`;
+}
+
 export function headerSeasonLine(season: Season): string {
   return `시즌 ${String(season.id)} · ${String(season.currentTurnNo)}/${String(season.pathLength)}턴 · ${statusLabel(season)}`;
 }

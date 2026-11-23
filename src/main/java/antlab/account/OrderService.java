@@ -21,8 +21,10 @@ import antlab.season.TurnPriceRepository;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.Optional;
+import java.util.function.LongFunction;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -95,19 +97,45 @@ public class OrderService {
 
     @Transactional
     public OrderResultDto place(long seasonId, PlaceOrderRequest request) {
-        // S0 — 잠금 전 입력 검사. 구간 선언 변경은 라인업 변경의 일이라 매도에 선언이 오면 거절한다.
-        if (request.side() == OrderSide.SELL && request.declaredPosition() != null) {
-            throw new DomainException(ErrorCode.INVALID_ARGUMENT, "매도에는 선언 포지션을 보내지 않는다");
-        }
-        if (request.source() != null && !request.source().shapeValid()) {
-            throw new DomainException(ErrorCode.INVALID_ARGUMENT, "출발점의 참조 형식이 맞지 않는다");
-        }
+        precheck(request);
         OrderScope scope = lock(seasonId, request.expectedTurnNo());
         OrderCheck checked = check(scope, request);
         if (checked.rejection() != null) {
             throw checked.rejection().toException();
         }
         return apply(checked.plan());
+    }
+
+    /**
+     * Preview of {@link #place} with the same body: the same checks in the same order and the same amounts from
+     * {@link #check}, but no lock and no write (a read-only snapshot; nothing reaches {@link #apply}). A request that
+     * {@link #place} would refuse is refused here with the same error.
+     */
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+    public OrderQuoteDto quote(long seasonId, PlaceOrderRequest request) {
+        precheck(request);
+        OrderScope scope = peek(seasonId, request.expectedTurnNo());
+        OrderCheck checked = check(scope, request);
+        if (checked.rejection() != null) {
+            throw checked.rejection().toException();
+        }
+        OrderPlan plan = checked.plan();
+        BigDecimal balance = scope.account().getBalance();
+        boolean sell = request.side() == OrderSide.SELL;
+        BigDecimal cashAfter = (sell ? balance.add(plan.notional()) : balance.subtract(plan.notional()))
+                .subtract(plan.fee());
+        Integer maxBuy = sell ? null : maxBuyQuantity(scope, plan);
+        return OrderQuoteDto.of(plan.price(), plan.notional(), plan.fee(), plan.fxCost(), cashAfter, maxBuy);
+    }
+
+    /** S0 — 잠금 전 입력 검사. 구간 선언 변경은 라인업 변경의 일이라 매도에 선언이 오면 거절한다. */
+    private static void precheck(PlaceOrderRequest request) {
+        if (request.side() == OrderSide.SELL && request.declaredPosition() != null) {
+            throw new DomainException(ErrorCode.INVALID_ARGUMENT, "매도에는 선언 포지션을 보내지 않는다");
+        }
+        if (request.source() != null && !request.source().shapeValid()) {
+            throw new DomainException(ErrorCode.INVALID_ARGUMENT, "출발점의 참조 형식이 맞지 않는다");
+        }
     }
 
     /**
@@ -119,6 +147,18 @@ public class OrderService {
         long memberId = currentMember.existingId().orElseThrow(OrderService::seasonNotFound);
         Season season = seasons.findByIdAndMemberIdForUpdate(seasonId, memberId)
                 .orElseThrow(OrderService::seasonNotFound);
+        return scope(season, turnNo, accounts::findBySeasonIdForUpdate);
+    }
+
+    /** The same owner, status, turn and ledger checks as {@link #lock}, without locking; for {@link #quote} only. */
+    private OrderScope peek(long seasonId, int turnNo) {
+        long memberId = currentMember.existingId().orElseThrow(OrderService::seasonNotFound);
+        Season season = seasons.findByIdAndMemberId(seasonId, memberId).orElseThrow(OrderService::seasonNotFound);
+        return scope(season, turnNo, accounts::findById);
+    }
+
+    private OrderScope scope(Season season, int turnNo, LongFunction<Optional<CashAccount>> accountOf) {
+        long seasonId = season.getId();
         if (season.getStatus() != SeasonStatus.IN_PROGRESS) {
             throw new DomainException(ErrorCode.SEASON_NOT_ACTIVE, "진행 중인 시즌이 아니다");
         }
@@ -127,7 +167,7 @@ public class OrderService {
         }
 
         // 2~3. 계좌 잠금과 원장 확인 — 최신 원장의 거래 후 잔액이 계좌 잔액과 같아야 한다.
-        CashAccount account = accounts.findBySeasonIdForUpdate(seasonId)
+        CashAccount account = accountOf.apply(seasonId)
                 .orElseThrow(() -> new DomainException(ErrorCode.LEDGER_MISMATCH, "현금 계좌를 확인할 수 없다"));
         CashLedger latest = ledgers.findLatestBySeasonId(seasonId)
                 .orElseThrow(() -> new DomainException(ErrorCode.LEDGER_MISMATCH, "원장과 계좌 잔액이 맞지 않는다"));
@@ -164,17 +204,19 @@ public class OrderService {
                 .orElseThrow(() -> new IllegalStateException("가격이 있는 종목이 종목 표에 없다")).getMarket().name();
         BigDecimal rate = MoneyMath.feeRate(market, season.getFeeRateKr(), season.getFeeRateUs(),
                 season.getFxSpreadRate());
+        // The FX part of the combined US rate, rounded on its own with the fee function (display only, never written).
+        BigDecimal fxRate = "US".equals(market) ? season.getFxSpreadRate() : BigDecimal.ZERO;
         if (request.quantity() < 1) {
             return OrderCheck.rejected(OrderRejection.QUANTITY_INVALID);
         }
         if (request.side() == OrderSide.SELL) {
-            return checkSell(scope, request, price, rate, origin);
+            return checkSell(scope, request, price, rate, fxRate, origin);
         }
-        return checkBuy(scope, request, price, rate, origin);
+        return checkBuy(scope, request, price, rate, fxRate, origin);
     }
 
     private OrderCheck checkBuy(OrderScope scope, PlaceOrderRequest request, BigDecimal price, BigDecimal rate,
-            SourceCheck origin) {
+            BigDecimal fxRate, SourceCheck origin) {
         Season season = scope.season();
         CashAccount account = scope.account();
         long seasonId = season.getId();
@@ -210,12 +252,12 @@ public class OrderService {
             return OrderCheck.rejected(OrderRejection.SINGLE_ASSET_LIMIT);
         }
         return OrderCheck.passed(new OrderPlan(scope, request, price, changeId(seasonId, scope.turnNo()), holding, open.orElse(null),
-                notional, fee, null, origin.source(), origin.turnFeedId()));
+                notional, fee, rate, MoneyMath.fee(price, quantity, fxRate), null, origin.source(), origin.turnFeedId()));
     }
 
     /** 매도 — SQL trade_sell 과 같은 순서(S1–S10). 매도 쪽 잔액 검사는 없다(SQL 과 같다). 합산 요율 < 1 이면 대금 ≥ 수수료이고, 미국 합산 요율(미국 + 환전)이 1 이상인 설정이면 계좌가 음수 잔액을 거부해 전부 되돌아간다. */
     private OrderCheck checkSell(OrderScope scope, PlaceOrderRequest request, BigDecimal price, BigDecimal rate,
-            SourceCheck origin) {
+            BigDecimal fxRate, SourceCheck origin) {
         long seasonId = scope.season().getId();
         int quantity = request.quantity();
         Long assetId = request.assetId();
@@ -238,7 +280,7 @@ public class OrderService {
         BigDecimal fee = MoneyMath.fee(price, quantity, rate);
         BigDecimal pnl = MoneyMath.realizedPnl(price, holding.get().getAvgPrice(), quantity);
         return OrderCheck.passed(new OrderPlan(scope, request, price, changeId(seasonId, scope.turnNo()), holding.get(), open,
-                notional, fee, pnl, origin.source(), origin.turnFeedId()));
+                notional, fee, rate, MoneyMath.fee(price, quantity, fxRate), pnl, origin.source(), origin.turnFeedId()));
     }
 
     /** Outcome of the origin check: a refusal, or the origin to store (and the internal id of the feed item it points at). */
@@ -314,14 +356,71 @@ public class OrderService {
         if (singleAssetLimit == null) {
             return false;
         }
-        BigDecimal assetValue = price.multiply(BigDecimal.valueOf(holding.getQuantity() + (long) quantity));
-        BigDecimal total = scope.account().getBalance().subtract(notional).subtract(fee).add(assetValue);
+        return exceedsAfterBuy(scope.account().getBalance(), holding.getQuantity(), price, quantity, notional, fee,
+                otherHoldingsValue(scope, holding.getAssetId()), singleAssetLimit);
+    }
+
+    /** Value of every holding but {@code assetId} at the scope's turn price. */
+    private BigDecimal otherHoldingsValue(OrderScope scope, Long assetId) {
+        BigDecimal total = BigDecimal.ZERO;
         for (HoldingViewRow row : holdings.findViewRows(scope.season().getId(), scope.turnNo())) {
-            if (!row.assetId().equals(holding.getAssetId())) {
+            if (!row.assetId().equals(assetId)) {
                 total = total.add(row.price().multiply(BigDecimal.valueOf(row.quantity())));
             }
         }
-        return exceeds(assetValue, total, singleAssetLimit);
+        return total;
+    }
+
+    /** Whether the asset's value after the buy exceeds the limit share of the total value (cash after + all holdings). */
+    static boolean exceedsAfterBuy(BigDecimal balance, int heldQuantity, BigDecimal price, int quantity,
+            BigDecimal notional, BigDecimal fee, BigDecimal otherHoldingsValue, BigDecimal limit) {
+        BigDecimal assetValue = price.multiply(BigDecimal.valueOf(heldQuantity + (long) quantity));
+        BigDecimal total = balance.subtract(notional).subtract(fee).add(assetValue).add(otherHoldingsValue);
+        return exceeds(assetValue, total, limit);
+    }
+
+    private int maxBuyQuantity(OrderScope scope, OrderPlan plan) {
+        CashAccount account = scope.account();
+        BigDecimal others = singleAssetLimit == null ? BigDecimal.ZERO
+                : otherHoldingsValue(scope, plan.holding().getAssetId());
+        return maxBuyQuantity(account.getBalance(), account.getReserved(), plan.price(), plan.rate(),
+                plan.holding().getQuantity(), others, singleAssetLimit);
+    }
+
+    /**
+     * Largest whole quantity a buy could fill: the cash check and the single-asset limit (when set) of
+     * {@link #checkBuy}, with the same fee function. Both checks only get stricter as the quantity grows, so a binary
+     * search finds the edge exactly; 0 when not even one share fits.
+     */
+    static int maxBuyQuantity(BigDecimal balance, BigDecimal reserved, BigDecimal price, BigDecimal rate,
+            int heldQuantity, BigDecimal otherHoldingsValue, BigDecimal limit) {
+        BigDecimal available = balance.subtract(reserved);
+        if (available.signum() <= 0) {
+            return 0;
+        }
+        long low = 0;
+        long high = Math.min(Integer.MAX_VALUE - (long) heldQuantity,
+                available.divideToIntegralValue(price).longValue());
+        while (low < high) {
+            long mid = low + (high - low + 1) / 2;
+            if (buyable(balance, available, price, rate, heldQuantity, (int) mid, otherHoldingsValue, limit)) {
+                low = mid;
+            } else {
+                high = mid - 1;
+            }
+        }
+        return (int) low;
+    }
+
+    private static boolean buyable(BigDecimal balance, BigDecimal available, BigDecimal price, BigDecimal rate,
+            int heldQuantity, int quantity, BigDecimal otherHoldingsValue, BigDecimal limit) {
+        BigDecimal notional = MoneyMath.valuation(price, quantity);
+        BigDecimal fee = MoneyMath.fee(price, quantity, rate);
+        if (!MoneyMath.affordable(available, notional, fee)) {
+            return false;
+        }
+        return limit == null
+                || !exceedsAfterBuy(balance, heldQuantity, price, quantity, notional, fee, otherHoldingsValue, limit);
     }
 
     /** Strictly above the limit rejects; a value exactly on it is allowed. */

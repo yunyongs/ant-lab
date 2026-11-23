@@ -15,6 +15,7 @@ import antlab.season.Season;
 import antlab.season.SeasonDto;
 import antlab.season.SeasonRepository;
 import antlab.season.SeasonStatus;
+import antlab.season.TurnRepository;
 import antlab.season.VoidReason;
 import antlab.support.ScriptedClock;
 import java.math.BigDecimal;
@@ -35,9 +36,10 @@ class AgentSeasonLifecycleServiceTest {
     private final CurrentMember currentMember = mock(CurrentMember.class);
     private final SeasonRepository seasons = mock(SeasonRepository.class);
     private final CashAccountRepository accounts = mock(CashAccountRepository.class);
+    private final TurnRepository turns = mock(TurnRepository.class);
     private final ScriptedClock clock = new ScriptedClock();
     private final AgentSeasonLifecycleService service = new AgentSeasonLifecycleService(currentMember, seasons,
-            accounts, mock(antlab.league.LeagueEntryRepository.class), clock);
+            accounts, mock(antlab.league.LeagueEntryRepository.class), turns, clock);
     private final Season season = new Season(AGENT, 12, 7L, "test", LocalDate.of(2026, 1, 2),
             LocalDate.of(2026, 1, 2), new BigDecimal("10000000"), new BigDecimal("0.00015000"),
             new BigDecimal("0.00025000"), new BigDecimal("0.00400000"), new BigDecimal("-0.20000000"),
@@ -50,6 +52,8 @@ class AgentSeasonLifecycleServiceTest {
         CashAccount account = new CashAccount(SEASON);
         account.applyLedgerAmount(new BigDecimal("10000000"));
         when(accounts.findById(SEASON)).thenReturn(Optional.of(account));
+        when(turns.findCurrentTotalValue(season))
+                .thenAnswer(i -> season.getCurrentTurnNo() == 0 ? null : new BigDecimal("10500000.0000"));
     }
 
     private static void code(Runnable call, ErrorCode expected) {
@@ -97,6 +101,8 @@ class AgentSeasonLifecycleServiceTest {
         assertThat(resumed.status()).isEqualTo(SeasonStatus.IN_PROGRESS);
         assertThat(resumed.currentTurnNo()).isEqualTo(1);
         assertThat(season.getPausedAt()).isNull();
+        assertThat(resumed.latestTotalValue()).hasToString("10500000");
+        assertThat(resumed.totalReturn()).hasToString("0.05000000");
     }
 
     @Test

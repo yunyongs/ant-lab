@@ -1,5 +1,7 @@
 package antlab.api.season;
 
+import static antlab.api.turn.TurnApiSupport.advance;
+import static antlab.api.turn.TurnApiSupport.buyTeam;
 import static antlab.api.turn.TurnApiSupport.startSeason;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -8,6 +10,7 @@ import antlab.support.SqlRecorder;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.jdbc.Sql;
 import org.springframework.test.context.jdbc.Sql.ExecutionPhase;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
@@ -24,6 +27,9 @@ class SeasonReadQueryCountTest {
 
     @Autowired
     MockMvcTester mvc;
+
+    @Autowired
+    JdbcTemplate jdbc;
 
     private int statements(String uri) {
         SqlRecorder.start();
@@ -44,5 +50,16 @@ class SeasonReadQueryCountTest {
         assertThat(statements("/api/v1/seasons/" + first)).isEqualTo(detail);
         assertThat(one).as("list: member check, member kind, seasons with balance").isEqualTo(3);
         assertThat(detail).as("detail: member check, season, cash account, member kind, league entry").isEqualTo(5);
+    }
+
+    /** WEB-16: the current turn's total rides on the list query; the detail reads it once, only from turn 1. */
+    @Test
+    void theLatestValueAddsNoStatementToTheListAndOneToTheDetail() throws Exception {
+        long played = startSeason(mvc);
+        buyTeam(mvc, jdbc, played);
+        advance(mvc, played, 0);
+        startSeason(mvc);
+        assertThat(statements("/api/v1/seasons")).as("list with a played season").isEqualTo(3);
+        assertThat(statements("/api/v1/seasons/" + played)).as("detail from turn 1: + current turn total").isEqualTo(6);
     }
 }
