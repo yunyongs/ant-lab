@@ -1,3 +1,4 @@
+import { Change } from '../format/Change.tsx';
 import { formatWon } from '../format/money.ts';
 import { ratioToPercent } from '../format/ratio.ts';
 import { positionLabel } from '../seasons/labels.ts';
@@ -49,6 +50,18 @@ export function HoldingCard({
         <div>
           <dt>평가액</dt>
           <dd>{formatWon(holding.value)}</dd>
+        </div>
+        <div>
+          <dt>평가손익</dt>
+          <dd>
+            <Change value={holding.unrealizedPnl} kind="won" />
+          </dd>
+        </div>
+        <div>
+          <dt>수익률</dt>
+          <dd>
+            <Change value={holding.unrealizedReturn} kind="percent" />
+          </dd>
         </div>
         <div>
           <dt>비중</dt>
