@@ -26,9 +26,11 @@ export interface ContributionLists {
   hasMore: boolean;
 }
 
-// The server sends holdings largest contribution first; the top lists are cut
-// from both ends of that order without re-sorting. A zero contribution is in
-// neither top list. Signs come from an exact decimal comparison.
+// The server sends holdings largest contribution first (ties by assetId). The
+// up list is cut from the front of that order; the down list is the losses
+// sorted largest loss first with a stable exact comparison, so ties keep the
+// server's assetId order as in the other lists. A zero contribution is in
+// neither top list. Nothing is converted to a number.
 export function contributionLists(
   holdings: readonly HoldingContribution[],
   pool: readonly PoolAsset[],
@@ -47,7 +49,7 @@ export function contributionLists(
     .slice(0, TOP_MOVERS);
   const down = all
     .filter((row) => compareDecimal(row.contribution, '0') < 0)
-    .reverse()
+    .sort((a, b) => compareDecimal(a.contribution, b.contribution))
     .slice(0, TOP_MOVERS);
   return { up, down, all, hasMore: all.length > up.length + down.length };
 }

@@ -286,7 +286,9 @@ describe('HALTED now page', () => {
       await screen.findByRole('heading', { name: '5턴 결과' }),
     ).toBeInTheDocument();
     expect(
-      screen.queryByRole('button', { name: /다음 턴|턴 넘기|턴을 넘기|매수|매도/ }),
+      screen.queryByRole('button', {
+        name: /다음 턴|턴 넘기|턴을 넘기|매수|매도/,
+      }),
     ).toBeNull();
   });
 });
