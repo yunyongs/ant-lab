@@ -49,6 +49,10 @@ final class EngineErrorMapper {
         RULES.put(EngineErrorCode.REGIME_DATA_INVALID, new Rule(422, "engine.regime_data_invalid", Outcome.INTERNAL));
         // A data state (too few stored regime labels for m2-sbc6-v1), not the player's fault; the engine's counts stay unlogged.
         RULES.put(EngineErrorCode.REGIME_LABELS_MISSING, new Rule(422, "engine.labels_missing", Outcome.LABELS_MISSING));
+        // Only POST /v1/manager-parts answers these three; its client maps them itself once it exists.
+        RULES.put(EngineErrorCode.REFERENCE_MISMATCH, new Rule(409, "engine.reference_mismatch", Outcome.INTERNAL));
+        RULES.put(EngineErrorCode.FEED_INPUT, new Rule(422, "engine.feed_input", Outcome.INTERNAL));
+        RULES.put(EngineErrorCode.NO_REFERENCE, new Rule(422, "engine.no_reference", Outcome.INTERNAL));
         RULES.put(EngineErrorCode.INTERNAL_ERROR, new Rule(500, "engine.bad_response", Outcome.INTERNAL));
     }
 

@@ -40,5 +40,23 @@ class RegimeLabelsMissing(EngineError):  # noqa: N818
     code = "REGIME_LABELS_MISSING"
 
 
+class ReferenceMismatch(EngineError):  # noqa: N818
+    """The engine's own benchmark or Sharpe for the sent season differs from the Java values."""
+
+    code = "REFERENCE_MISMATCH"
+
+
+class FeedInputUnusable(EngineError):  # noqa: N818
+    """The stored history of a path month cannot build the season's world."""
+
+    code = "FEED_INPUT"
+
+
+class NoReference(EngineError):  # noqa: N818
+    """The reference bots cannot play the season's world; the same request fails the same way."""
+
+    code = "NO_REFERENCE"
+
+
 class UnsafeDatabaseRole(EngineError):  # noqa: N818
     code = "UNSAFE_DB_ROLE"

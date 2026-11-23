@@ -1,0 +1,1 @@
+{"title":"Reference Mismatch","status":409,"detail":"The engine's benchmark or Sharpe for this season differs from the sent values.","instance":"/v1/manager-parts","code":"REFERENCE_MISMATCH"}

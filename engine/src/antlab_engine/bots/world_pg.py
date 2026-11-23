@@ -64,6 +64,7 @@ NOT_SNAPSHOT = "The world was not read in a repeatable-read read-only snapshot."
 MISSING_DATA = "A pool asset has no return (or an FX change is missing) in a path month."
 UNREVIEWED = "The events of a path month are not reviewed."
 REACTION_MISSING = "An event of a path month has no reaction."
+LENGTH_MISMATCH = "The settings path length must equal the number of path months."
 
 
 @dataclass(frozen=True)
@@ -169,8 +170,14 @@ def _plain(value: Decimal) -> str:
     return format(value, "f")
 
 
-def assemble(rows: WorldRows, seed: int) -> BotWorld:
-    """The pure part: refusals, shaping and ordering. No I/O."""
+def assemble(rows: WorldRows, seed: int, settings: Settings | None = None) -> BotWorld:
+    """The pure part: refusals, shaping and ordering. No I/O.
+
+    `settings` replaces the simulator defaults (a season's own cash, costs and limits); its path
+    length must be the number of path months.
+    """
+    if settings is not None and settings.path_length != len(rows.path_blocks):
+        raise InvalidArgument(LENGTH_MISMATCH)
     if not all(rows.reviewed):
         raise FeedGenerationError(Failure.FEED_EVENTS_UNREVIEWED, UNREVIEWED)
     if any(e[3] is None for e in rows.events):
@@ -239,7 +246,8 @@ def assemble(rows: WorldRows, seed: int) -> BotWorld:
         "events": events,
         "reviewed": list(range(1, len(rows.path_blocks) + 1)),
     }
-    inputs = SimInputs(Settings(path_length=len(path)), tuple(sim_pool), tuple(path))
+    chosen = Settings(path_length=len(path)) if settings is None else settings
+    inputs = SimInputs(chosen, tuple(sim_pool), tuple(path))
     return BotWorld(seed, rows.base_date, inputs, feed)
 
 
@@ -252,8 +260,11 @@ def read_world(
     length: int | None = None,
     path_seed: int | None = None,
     replay_start: date,
+    sim_settings: Settings | None = None,
 ) -> BotWorld:
     """One snapshot, one world. `seed` is the world seed the bots and the feed use.
+
+    `sim_settings` replaces the simulator defaults of the world (see `assemble`).
 
     A drawn path is the one `generate_months` (`p0-boot6-v1`, the Java bootstrap) gives for
     the seed; the api default path source is `m2-sb6-v1` since M2-09. `replay_start` has no
@@ -263,7 +274,7 @@ def read_world(
         rows = _read_rows(
             conn, base_date, replay_start, months=months, length=length, path_seed=path_seed
         )
-    return assemble(rows, seed)
+    return assemble(rows, seed, sim_settings)
 
 
 def read_panel(settings: DatabaseSettings, base_date: date) -> ReturnPanel:

@@ -392,39 +392,75 @@ def components_from_wire(identity: Mapping[str, object], wire: Mapping[str, obje
     )
 
 
+@dataclass(frozen=True)
+class SeriesMetrics:
+    """The return and risk metrics of a team series and its benchmark, unrounded."""
+
+    cagr: Decimal
+    bench_cagr: Decimal
+    sharpe: Decimal
+    bench_sharpe: Decimal
+    sortino: Decimal
+    bench_sortino: Decimal
+    calmar: Decimal
+    bench_calmar: Decimal
+    mdd: Decimal
+    bench_mdd: Decimal
+
+
+def series_metrics(
+    initial: Decimal,
+    totals: Sequence[Decimal],
+    returns: Sequence[Decimal],
+    benchmark_returns: Sequence[Decimal],
+    turns: int,
+) -> SeriesMetrics:
+    """`totals` are the turn 0..T values; the drawdown starts its peak at `initial`."""
+    growth = cagr(initial, totals[-1], turns)
+    bench_multiples = compound(benchmark_returns)
+    bench_growth = cagr(_ONE, bench_multiples[-1], turns)
+    drawdown = max_drawdown(initial, totals[1:])
+    bench_drawdown = max_drawdown(_ONE, bench_multiples)
+    return SeriesMetrics(
+        growth,
+        bench_growth,
+        s63.sharpe_exact(returns),
+        s63.sharpe_exact(benchmark_returns),
+        sortino(returns),
+        sortino(benchmark_returns),
+        calmar(growth, drawdown),
+        calmar(bench_growth, bench_drawdown),
+        drawdown,
+        bench_drawdown,
+    )
+
+
 def components_of(record: Mapping[str, object]) -> Components:
     series = series_of(record)
     inputs = score_inputs(record)
-    initial, final = series.initial_cash, series.totals[-1]
-    growth = cagr(initial, final, series.turns)
-    bench_multiples = compound(series.benchmark_returns)
-    bench_growth = cagr(_ONE, bench_multiples[-1], series.turns)
-    drawdown = max_drawdown(initial, series.totals[1:])
-    bench_drawdown = max_drawdown(_ONE, bench_multiples)
-    sharpe = s63.sharpe_exact(series.returns)
-    bench_sharpe = s63.sharpe_exact(series.benchmark_returns)
-    sort, bench_sort = sortino(series.returns), sortino(series.benchmark_returns)
-    calm, bench_calm = calmar(growth, drawdown), calmar(bench_growth, bench_drawdown)
+    m = series_metrics(
+        series.initial_cash, series.totals, series.returns, series.benchmark_returns, series.turns
+    )
     items = item_scores(inputs)
     return Components(
         series.world_id,
         series.turns,
         series.kind,
         series.index,
-        growth,
-        bench_growth,
-        _X.subtract(growth, bench_growth),
-        sharpe,
-        bench_sharpe,
-        _X.subtract(sharpe, bench_sharpe),
-        sort,
-        bench_sort,
-        _X.subtract(sort, bench_sort),
-        calm,
-        bench_calm,
-        _X.subtract(calm, bench_calm),
-        drawdown,
-        bench_drawdown,
+        m.cagr,
+        m.bench_cagr,
+        _X.subtract(m.cagr, m.bench_cagr),
+        m.sharpe,
+        m.bench_sharpe,
+        _X.subtract(m.sharpe, m.bench_sharpe),
+        m.sortino,
+        m.bench_sortino,
+        _X.subtract(m.sortino, m.bench_sortino),
+        m.calmar,
+        m.bench_calmar,
+        _X.subtract(m.calmar, m.bench_calmar),
+        m.mdd,
+        m.bench_mdd,
         items,
         process_exact(items),
         result_exact(inputs),

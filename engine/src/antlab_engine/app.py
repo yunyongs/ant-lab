@@ -4,10 +4,11 @@ from threading import BoundedSemaphore
 
 from fastapi import FastAPI
 
-from .api import health, info, paths, percentiles, projections, regime
+from .api import health, info, manager_parts, paths, percentiles, projections, regime
 from .errors import register_handlers
 from .history.model import HistoryReader
 from .history.reader import PostgresHistoryReader
+from .leaderboard.reference import PostgresWorldReader, ReferenceService
 from .metrics import EngineMetrics, MetricsMiddleware, SlotPool, serve_metrics
 from .openapi import build_openapi
 from .regime.pg_source import PostgresRegimeSource
@@ -23,6 +24,7 @@ def create_app(
     *,
     history_reader: HistoryReader | None = None,
     regime_source: RegimeSource | None = None,
+    reference_service: ReferenceService | None = None,
     max_projections: int = MAX_PROJECTIONS,
 ) -> FastAPI:
     projection_slots = SlotPool(max_projections)
@@ -42,6 +44,12 @@ def create_app(
         regime_source = PostgresRegimeSource(settings.database)
     app.state.regime_source = regime_source
     app.state.regime_slot = BoundedSemaphore(1)  # one evaluation at a time
+    if reference_service is None:
+        reader = None
+        if settings.database is not None:
+            reader = PostgresWorldReader(settings.database, settings.replay_start)
+        reference_service = ReferenceService(reader)
+    app.state.reference_service = reference_service
     app.state.projection_slots = projection_slots
     app.state.metrics = metrics
     app.add_middleware(EngineTokenMiddleware, settings=settings)
@@ -52,6 +60,7 @@ def create_app(
     app.include_router(projections.router)
     app.include_router(percentiles.router)
     app.include_router(regime.router)
+    app.include_router(manager_parts.router)
     register_handlers(app)
     app.openapi = lambda: build_openapi(app)  # type: ignore[method-assign]
     return app

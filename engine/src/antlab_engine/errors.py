@@ -28,6 +28,9 @@ class ErrorCode(StrEnum):
     ENGINE_BUSY = "ENGINE_BUSY"
     REGIME_DATA_INVALID = "REGIME_DATA_INVALID"
     REGIME_LABELS_MISSING = "REGIME_LABELS_MISSING"
+    REFERENCE_MISMATCH = "REFERENCE_MISMATCH"
+    FEED_INPUT = "FEED_INPUT"
+    NO_REFERENCE = "NO_REFERENCE"
 
 
 class FieldViolation(BaseModel):
@@ -88,6 +91,7 @@ _HTTP_CODES = {
 
 # Domain failures that reach the caller. PATH_TOO_LONG uses the status Java gives the same code;
 # REGIME_DATA_INVALID and REGIME_LABELS_MISSING are 422: stored data is not usable, not transient.
+# REFERENCE_MISMATCH is 409: the stored season and the engine's world disagree, retrying is useless.
 # UNSAFE_DB_ROLE is deliberately absent: it answers as INTERNAL_ERROR without role facts.
 _DOMAIN_STATUS = {
     "INVALID_ARGUMENT": 400,
@@ -97,6 +101,9 @@ _DOMAIN_STATUS = {
     "ENGINE_BUSY": 503,
     "REGIME_DATA_INVALID": 422,
     "REGIME_LABELS_MISSING": 422,
+    "REFERENCE_MISMATCH": 409,
+    "FEED_INPUT": 422,
+    "NO_REFERENCE": 422,
 }
 RETRY_AFTER_SECONDS = "1"
 _INTERNAL_DETAIL = "The engine could not process the request."
