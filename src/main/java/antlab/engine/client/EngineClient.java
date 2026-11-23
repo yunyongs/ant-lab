@@ -23,6 +23,7 @@ public final class EngineClient {
     static final String PROJECTIONS_URI = "/v1/projections";
     static final String PERCENTILES_URI = "/v1/percentiles";
     static final String REGIME_URI = "/v1/regime/evaluate";
+    static final String MANAGER_PARTS_URI = "/v1/manager-parts";
     static final String INFO_URI = "/v1/info";
     /** A projection answer is about 15-100 KB and a regime answer about 0.7 KB per month; anything beyond this is not an engine answer. */
     static final int MAX_BODY_BYTES = 4 * 1024 * 1024;
@@ -44,8 +45,8 @@ public final class EngineClient {
     }
 
     /**
-     * @param expectedReplayStart the api's {@code antlab.history.replay-start}; when set, every path, projection or
-     *        percentile call first asks {@code /v1/info} and fails if the engine reports another start. Nothing is cached, so an
+     * @param expectedReplayStart the api's {@code antlab.history.replay-start}; when set, every path, projection,
+     *        percentile or manager-parts call first asks {@code /v1/info} and fails if the engine reports another start. Nothing is cached, so an
      *        engine recreated with another start is caught on the next call; there is no check at startup, so an engine that
      *        is down does not block the api
      */
@@ -92,6 +93,17 @@ public final class EngineClient {
 
     public EngineRegimeResult evaluateRegime(EngineRegimeRequest request) {
         return call("evaluateRegime", regime, true, REGIME_URI, EngineWire.write(request), EngineRegimeResult.class);
+    }
+
+    /**
+     * The return, risk-adjusted and risk parts of one finished season. Same timeout family as the regime call (60 s by
+     * default): a cold reference build is a few seconds of engine CPU plus one history read. A deterministic refusal is an
+     * {@link EngineRefusedException}; an outage is an {@link EngineUnavailableException}.
+     */
+    public EngineManagerPartsResult createManagerParts(EngineManagerPartsRequest request) {
+        verifyReplayStart("createManagerParts");
+        return call("createManagerParts", regime, true, MANAGER_PARTS_URI, EngineWire.write(request),
+                EngineManagerPartsResult.class);
     }
 
     public EngineInfo info() {

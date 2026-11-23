@@ -28,7 +28,7 @@ final class EngineErrorMapper {
     private static final Pattern SAFE_FIELD = Pattern.compile("[A-Za-z0-9_.\\[\\]-]{1,80}");
     private static final int MAX_LOGGED_FIELDS = 10;
 
-    private enum Outcome { INTERNAL, PATH_TOO_LONG, HISTORY_UNAVAILABLE, BUSY, LABELS_MISSING }
+    private enum Outcome { INTERNAL, PATH_TOO_LONG, HISTORY_UNAVAILABLE, BUSY, LABELS_MISSING, REFUSED }
 
     private record Rule(int status, String logKey, Outcome outcome) {
     }
@@ -49,10 +49,10 @@ final class EngineErrorMapper {
         RULES.put(EngineErrorCode.REGIME_DATA_INVALID, new Rule(422, "engine.regime_data_invalid", Outcome.INTERNAL));
         // A data state (too few stored regime labels for m2-sbc6-v1), not the player's fault; the engine's counts stay unlogged.
         RULES.put(EngineErrorCode.REGIME_LABELS_MISSING, new Rule(422, "engine.labels_missing", Outcome.LABELS_MISSING));
-        // Only POST /v1/manager-parts answers these three; its client maps them itself once it exists.
-        RULES.put(EngineErrorCode.REFERENCE_MISMATCH, new Rule(409, "engine.reference_mismatch", Outcome.INTERNAL));
-        RULES.put(EngineErrorCode.FEED_INPUT, new Rule(422, "engine.feed_input", Outcome.INTERNAL));
-        RULES.put(EngineErrorCode.NO_REFERENCE, new Rule(422, "engine.no_reference", Outcome.INTERNAL));
+        // Only POST /v1/manager-parts answers these three: deterministic refusals of one season that the caller records.
+        RULES.put(EngineErrorCode.REFERENCE_MISMATCH, new Rule(409, "engine.reference_mismatch", Outcome.REFUSED));
+        RULES.put(EngineErrorCode.FEED_INPUT, new Rule(422, "engine.feed_input", Outcome.REFUSED));
+        RULES.put(EngineErrorCode.NO_REFERENCE, new Rule(422, "engine.no_reference", Outcome.REFUSED));
         RULES.put(EngineErrorCode.INTERNAL_ERROR, new Rule(500, "engine.bad_response", Outcome.INTERNAL));
     }
 
@@ -78,6 +78,10 @@ final class EngineErrorMapper {
             case HISTORY_UNAVAILABLE -> unavailable(rule.logKey(), operation, EngineUnavailableException.Reason.HISTORY_UNAVAILABLE);
             case BUSY -> unavailable(rule.logKey(), operation, EngineUnavailableException.Reason.BUSY);
             case LABELS_MISSING -> unavailable(rule.logKey(), operation, EngineUnavailableException.Reason.LABELS_MISSING);
+            case REFUSED -> {
+                LOG.warn("{} operation={}", rule.logKey(), operation);
+                yield new EngineRefusedException(EngineRefusedException.Reason.valueOf(problem.code().name()));
+            }
         };
     }
 
