@@ -228,6 +228,12 @@ Authorization: Bearer {{token}}
 GET {{base}}/api/v1/seasons/{{season}}/turns/5/ranking
 Authorization: Bearer {{token}}
 
+###
+# Contribution of turn 5: price effect per holding and position, trading cost, and the benchmark to date.
+# 5턴의 기여: 종목·포지션별 가격 효과, 매매 비용, 이 턴까지의 기준선.
+GET {{base}}/api/v1/seasons/{{season}}/turns/5/contribution
+Authorization: Bearer {{token}}
+
 ### 9. Keep advancing to turn 8 / 8턴까지 넘기기
 POST {{base}}/api/v1/seasons/{{season}}/turns
 Authorization: Bearer {{token}}
