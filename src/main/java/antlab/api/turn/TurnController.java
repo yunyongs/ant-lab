@@ -7,6 +7,7 @@ import antlab.season.AdvanceTurnRequest;
 import antlab.season.TurnResultDto;
 import antlab.season.TurnFacade;
 import antlab.season.TurnQueryService;
+import antlab.season.TurnSummaryListDto;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -64,6 +65,25 @@ public class TurnController {
     public ResponseEntity<TurnResultDto> advance(@PathVariable Long seasonId,
             @Valid @RequestBody AdvanceTurnRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(turns.advance(seasonId, request.expectedTurnNo()));
+    }
+
+    @GetMapping(value = "/api/v1/seasons/{seasonId}/turns", produces = MediaType.APPLICATION_JSON_VALUE)
+    @Operation(operationId = "listTurnSummaries", summary = "Value line of the season / 시즌의 가치 곡선",
+            description = "Returns one row per turn from 0 up to the current turn (turn number, total valuation, "
+                    + "cumulative drawdown, period return), ascending. Turn 0 is the initial capital with drawdown and "
+                    + "return 0. A turn above the current one is never included, and no date or month block is shown. "
+                    + "It is the same for a season in progress and a finished one.\n"
+                    + "\n"
+                    + "0턴부터 현재 턴까지 턴마다 한 행(턴 번호·총 평가액·누적 낙폭·기간 수익률)을 오름차순으로 준다. 0턴은 초기 자금이고 낙폭과 "
+                    + "수익률은 0이다. 현재 턴보다 큰 턴은 담지 않고 날짜·월 블록도 보이지 않는다. 진행 중이든 끝난 시즌이든 같다.")
+    @ApiResponse(responseCode = "200", description = "Value line / 가치 곡선")
+    @ApiResponse(responseCode = "400", description = "The season number is not a number — INVALID_ARGUMENT / 시즌 번호가 "
+            + "숫자가 아니다 — INVALID_ARGUMENT",
+            content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ApiProblem.class)))
+    @ApiResponse(responseCode = "404", description = "The season does not exist — NOT_FOUND / 시즌이 없다 — NOT_FOUND",
+            content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ApiProblem.class)))
+    public TurnSummaryListDto list(@PathVariable Long seasonId) {
+        return queries.summaries(seasonId);
     }
 
     @GetMapping(value = "/api/v1/seasons/{seasonId}/turns/{turnNo}", produces = MediaType.APPLICATION_JSON_VALUE)

@@ -296,7 +296,13 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * Value line of the season / 시즌의 가치 곡선
+         * @description Returns one row per turn from 0 up to the current turn (turn number, total valuation, cumulative drawdown, period return), ascending. Turn 0 is the initial capital with drawdown and return 0. A turn above the current one is never included, and no date or month block is shown. It is the same for a season in progress and a finished one.
+         *
+         *     0턴부터 현재 턴까지 턴마다 한 행(턴 번호·총 평가액·누적 낙폭·기간 수익률)을 오름차순으로 준다. 0턴은 초기 자금이고 낙폭과 수익률은 0이다. 현재 턴보다 큰 턴은 담지 않고 날짜·월 블록도 보이지 않는다. 진행 중이든 끝난 시즌이든 같다.
+         */
+        get: operations["listTurnSummaries"];
         put?: never;
         /**
          * Advance the turn (next month) / 턴 전환(다음 달)
@@ -837,6 +843,33 @@ export interface components {
         /** @description All seasons of the current member (newest season number first). No paging / 현재 회원의 시즌 전부(시즌 번호 내림차순). 쪽 나누기 없음 */
         SeasonListDto: {
             items: components["schemas"]["SeasonDto"][];
+        };
+        /** @description Value line of a season, turns 0 up to the current turn, ascending. Never a future turn / 시즌의 가치 곡선, 0턴부터 현재 턴까지 오름차순. 미래 턴은 없다 */
+        TurnSummaryListDto: {
+            items: components["schemas"]["TurnSummaryDto"][];
+        };
+        /** @description One turn of the value line, turn number, total valuation, cumulative drawdown and period return. No date or month block / 가치 곡선의 한 턴, 턴 번호, 총 평가액, 누적 낙폭, 기간 수익률. 날짜·월 블록 없음 */
+        TurnSummaryDto: {
+            /**
+             * Format: int32
+             * @description Turn number (0 = the start) / 턴 번호(0 = 시작)
+             */
+            turnNo: number;
+            /**
+             * Format: decimal
+             * @description Total valuation, whole KRW (turn 0 = initial capital) / 총 평가액, 원 단위 정수(0턴 = 초기 자금)
+             */
+            totalValue: string;
+            /**
+             * Format: decimal
+             * @description Cumulative drawdown (0 or less), 8 decimal places; 0 at turn 0 / 누적 낙폭(0 이하), 소수 8자리. 0턴은 0
+             */
+            drawdown: string;
+            /**
+             * Format: decimal
+             * @description Period return = change ÷ previous total valuation, 8 decimal places; 0 at turn 0 / 기간 수익률 = 변화 ÷ 직전 총 평가액, 소수 8자리. 0턴은 0
+             */
+            periodReturn: string;
         };
         /** @description Prices of the whole pool for one turn (ascending asset number) / 한 턴의 풀 전체 가격(종목 번호 오름차순) */
         TurnPricesDto: {
@@ -3463,6 +3496,48 @@ export interface operations {
              *     보유 중인 종목이 아니다(산 적 없음, 전량 매도, 풀에 없음) — INSUFFICIENT_HOLDING
              */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listTurnSummaries: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                seasonId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Value line / 가치 곡선 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TurnSummaryListDto"];
+                };
+            };
+            /** @description The season number is not a number — INVALID_ARGUMENT / 시즌 번호가 숫자가 아니다 — INVALID_ARGUMENT */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description The season does not exist — NOT_FOUND / 시즌이 없다 — NOT_FOUND */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
