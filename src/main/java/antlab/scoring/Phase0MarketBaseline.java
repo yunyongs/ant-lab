@@ -6,6 +6,7 @@ import antlab.scoring.SeasonReportSources.SeasonFacts;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import org.springframework.stereotype.Component;
 
 /**
@@ -17,8 +18,8 @@ import org.springframework.stereotype.Component;
 @Component
 public final class Phase0MarketBaseline implements MarketBaselineSeries {
 
-    private static final AssetKey BENCH_KR = new AssetKey(ReportRules.BENCH_KR_MARKET, ReportRules.BENCH_KR_TICKER);
-    private static final AssetKey BENCH_US = new AssetKey(ReportRules.BENCH_US_MARKET, ReportRules.BENCH_US_TICKER);
+    static final AssetKey BENCH_KR = new AssetKey(ReportRules.BENCH_KR_MARKET, ReportRules.BENCH_KR_TICKER);
+    static final AssetKey BENCH_US = new AssetKey(ReportRules.BENCH_US_MARKET, ReportRules.BENCH_US_TICKER);
 
     /** One leg of the benchmark: the proxy asset and its share of the initial cash. */
     private record Leg(AssetKey key, BigDecimal weight) {
@@ -40,14 +41,24 @@ public final class Phase0MarketBaseline implements MarketBaselineSeries {
     /** The benchmark value at one turn, in won. */
     static BigDecimal valueAt(SeasonReportSources src, int turnNo) {
         SeasonFacts season = src.season();
-        BigDecimal cash = season.initialCash();
+        return valueAt(season.initialCash(), season.feeRateKr(), season.feeRateUs(), season.fxSpreadRate(),
+                src.benchmarkPrices(), turnNo);
+    }
+
+    /**
+     * The same benchmark value from its raw inputs, so a reader that has no full report source (the in-season turn
+     * contribution) cannot drift from the report. {@code benchmarkPrices} holds turn 0..at least {@code turnNo} per leg.
+     */
+    static BigDecimal valueAt(BigDecimal initialCash, BigDecimal feeRateKr, BigDecimal feeRateUs, BigDecimal fxSpreadRate,
+            Map<AssetKey, List<BigDecimal>> benchmarkPrices, int turnNo) {
+        BigDecimal cash = initialCash;
         BigDecimal held = BigDecimal.ZERO;
         for (Leg leg : LEGS) {
             AssetKey key = leg.key();
-            List<BigDecimal> prices = src.benchmarkPrices().get(key);
-            BigDecimal rate = MoneyMath.feeRate(key.market(), season.feeRateKr(), season.feeRateUs(), season.fxSpreadRate());
+            List<BigDecimal> prices = benchmarkPrices.get(key);
+            BigDecimal rate = MoneyMath.feeRate(key.market(), feeRateKr, feeRateUs, fxSpreadRate);
             BigDecimal firstPrice = prices.get(0);
-            int quantity = MoneyMath.teamQty(season.initialCash().multiply(leg.weight()), firstPrice, rate);
+            int quantity = MoneyMath.teamQty(initialCash.multiply(leg.weight()), firstPrice, rate);
             BigDecimal fee = quantity == 0 ? BigDecimal.ZERO : MoneyMath.fee(firstPrice, quantity, rate);
             BigDecimal count = BigDecimal.valueOf(quantity);
             cash = cash.subtract(count.multiply(firstPrice).add(fee));

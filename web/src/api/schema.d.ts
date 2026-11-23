@@ -383,6 +383,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/seasons/{seasonId}/turns/{turnNo}/contribution": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Contribution and benchmark of a turn / 턴의 기여와 기준 대비
+         * @description Returns, for one played turn, what the price change of each holding and each position added (quantity held through the move × price change), the trading cost paid at the previous turn, and the season report's benchmark up to this turn with the excess return to date. valueChange = holdingsContribution − tradingCost. Only stored facts up to this turn are read, so a turn gives the same answer whenever it is asked, in a season in progress or a finished one; no date or month block is shown.
+         *
+         *     진행한 턴 하나에 대해 종목별·포지션별 가격 변화가 더한 금액(넘어오는 동안의 보유 수량 × 가격 변화), 직전 턴에 낸 매매 비용, 이 턴까지의 성적표 기준선과 누적 초과 수익률을 준다. valueChange = holdingsContribution − tradingCost. 이 턴까지 저장된 사실만 읽으므로 언제 물어도 같은 답이고 진행 중인 시즌과 끝난 시즌이 같다. 날짜·월 블록은 보이지 않는다.
+         */
+        get: operations["getTurnContribution"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/seasons/{seasonId}/holdings": {
         parameters: {
             query?: never;
@@ -875,6 +897,186 @@ export interface components {
         /** @description All seasons of the current member (newest season number first). No paging / 현재 회원의 시즌 전부(시즌 번호 내림차순). 쪽 나누기 없음 */
         SeasonListDto: {
             items: components["schemas"]["SeasonDto"][];
+        };
+        /**
+         * @description Where the change of one played turn came from: what the price change of each holding and each position added, the trading cost paid at the previous turn, and the season report's benchmark up to this turn. valueChange = holdingsContribution − tradingCost. No date, month block or future turn
+         *
+         *     진행한 턴 하나의 변화가 어디서 왔는지: 종목별·포지션별 가격 변화가 더한 금액, 직전 턴에 낸 매매 비용, 이 턴까지의 성적표 기준선. valueChange = holdingsContribution − tradingCost. 날짜·월 블록·미래 턴은 없다
+         */
+        TurnContributionDto: {
+            /**
+             * Format: int64
+             * @description Season identifier / 시즌 식별자
+             */
+            seasonId: number;
+            /**
+             * Format: int32
+             * @description The turn of this result / 이 결과의 턴
+             */
+            turnNo: number;
+            /**
+             * Format: decimal
+             * @description Total valuation of the previous turn (initial capital at turn 1), whole KRW / 직전 턴의 총 평가액(1턴이면 초기 자금), 원 단위 정수
+             */
+            previousTotalValue: string;
+            /**
+             * Format: decimal
+             * @description Total valuation, whole KRW / 총 평가액, 원 단위 정수
+             */
+            totalValue: string;
+            /**
+             * Format: decimal
+             * @description Total valuation − previous total valuation, whole KRW (can be negative) / 총 평가액 − 직전 총 평가액, 원 단위 정수(음수 가능)
+             */
+            valueChange: string;
+            /**
+             * Format: decimal
+             * @description Sum of the holding contributions (price effect), whole KRW / 종목 기여(가격 효과)의 합, 원 단위 정수
+             */
+            holdingsContribution: string;
+            /**
+             * Format: decimal
+             * @description Fees, FX costs and taxes of the orders placed at the previous turn (the trades that set the holdings of this turn), whole KRW, 0 or more / 직전 턴에 낸 주문(이 턴의 보유를 만든 매매)의 수수료·환전 비용·세금, 원 단위 정수, 0 이상
+             */
+            tradingCost: string;
+            /**
+             * Format: decimal
+             * @description Team return to date = (total valuation − initial capital) ÷ initial capital, 8 decimal places / 팀 누적 수익률 = (총 평가액 − 초기 자금) ÷ 초기 자금, 소수 8자리
+             */
+            totalReturn: string;
+            positions: components["schemas"]["PositionContributionsDto"];
+            /** @description Holdings through the move into this turn, largest contribution first (ties by assetId); empty when nothing was held / 이 턴으로 넘어오는 동안의 보유, 기여가 큰 순(같으면 assetId 순). 보유가 없었으면 빈 목록 */
+            holdings: components["schemas"]["HoldingContributionDto"][];
+            benchmark: components["schemas"]["BenchmarkToDateDto"];
+        };
+        /** @description The four positions. Attacker covers the three attacker kinds; goalkeeper includes cash / 네 포지션. 공격수는 공격수 세 종류를 합한 것이고 골키퍼는 현금을 포함한다 */
+        PositionContributionsDto: {
+            /** @description Goalkeeper (cash included) / 골키퍼(현금 포함) */
+            goalkeeper: components["schemas"]["PositionContributionDto"];
+            /** @description Defender / 수비수 */
+            defender: components["schemas"]["PositionContributionDto"];
+            /** @description Midfielder / 미드필더 */
+            midfielder: components["schemas"]["PositionContributionDto"];
+            /** @description Attacker / 공격수 */
+            forward: components["schemas"]["PositionContributionDto"];
+        };
+        /**
+         * @description One position of this turn: its stored valuation now and at the previous turn, and what the price change of its holdings added. valueChange also moves with trades between positions and cash; contribution is the price effect only
+         *
+         *     이 턴의 포지션 하나: 지금과 직전 턴의 저장된 평가액, 그 포지션 보유 종목의 가격 변화가 더한 금액. valueChange 는 포지션과 현금 사이의 매매로도 움직이고, contribution 은 가격 효과만이다
+         */
+        PositionContributionDto: {
+            /**
+             * Format: decimal
+             * @description Valuation at this turn, whole KRW / 이 턴의 평가액, 원 단위 정수
+             */
+            value: string;
+            /**
+             * Format: decimal
+             * @description Valuation at the previous turn (at turn 1, the initial capital for the goalkeeper, 0 for the others), whole KRW / 직전 턴의 평가액(1턴이면 골키퍼는 초기 자금, 나머지는 0), 원 단위 정수
+             */
+            previousValue: string;
+            /**
+             * Format: decimal
+             * @description Valuation − previous valuation, whole KRW (can be negative) / 평가액 − 직전 평가액, 원 단위 정수(음수 가능)
+             */
+            valueChange: string;
+            /**
+             * Format: decimal
+             * @description Sum of the holding contributions declared in this position, whole KRW (cash adds 0) / 이 포지션으로 선언한 보유 기여의 합, 원 단위 정수(현금은 0)
+             */
+            contribution: string;
+            /**
+             * Format: decimal
+             * @description Contribution ÷ previous total valuation, 8 decimal places / 기여 ÷ 직전 총 평가액, 소수 8자리
+             */
+            contributionReturn: string;
+        };
+        /**
+         * @description One asset held through the move into this turn (bought before this turn) and what its price change added. The asset name is not included — link it by assetId from the pool response
+         *
+         *     이 턴으로 넘어오는 동안 보유한 한 종목(이 턴 전에 산 것)과 가격 변화가 더한 금액. 종목 이름은 싣지 않는다 — 풀 응답의 assetId 로 잇는다
+         */
+        HoldingContributionDto: {
+            /**
+             * Format: int64
+             * @description Asset identifier (the same as assetId in the pool response) / 종목 식별자(풀 응답의 assetId 와 같다)
+             */
+            assetId: number;
+            /** @description Declared position during this turn / 이 턴 동안의 선언 포지션 */
+            declaredPosition: components["schemas"]["Position"];
+            /**
+             * Format: int32
+             * @description Quantity held through the move (fills before this turn), 1 or more / 넘어오는 동안의 보유 수량(이 턴 전의 체결), 1 이상
+             */
+            quantity: number;
+            /**
+             * Format: decimal
+             * @description Price of the previous turn, whole KRW / 직전 턴 가격, 원 단위 정수
+             */
+            previousPrice: string;
+            /**
+             * Format: decimal
+             * @description Price of this turn, whole KRW / 이 턴 가격, 원 단위 정수
+             */
+            price: string;
+            /**
+             * Format: decimal
+             * @description Valuation = quantity × this turn's price, whole KRW / 평가액 = 수량 × 이 턴 가격, 원 단위 정수
+             */
+            value: string;
+            /**
+             * Format: decimal
+             * @description Contribution = quantity × (price − previous price), whole KRW (can be negative) / 기여 = 수량 × (가격 − 직전 가격), 원 단위 정수(음수 가능)
+             */
+            contribution: string;
+            /**
+             * Format: decimal
+             * @description Price return = (price − previous price) ÷ previous price, 8 decimal places / 가격 수익률 = (가격 − 직전 가격) ÷ 직전 가격, 소수 8자리
+             */
+            priceReturn: string;
+            /**
+             * Format: decimal
+             * @description Contribution ÷ previous total valuation, 8 decimal places — this asset's part of the period return / 기여 ÷ 직전 총 평가액, 소수 8자리 — 기간 수익률 중 이 종목의 몫
+             */
+            contributionReturn: string;
+        };
+        /**
+         * @description The season report's benchmark (the market index proxies bought at turn 0 and held, same initial capital and fees) up to this turn. At the last turn of a finished season the values equal the report's baselineFinalValue, baselineReturn and excessReturn
+         *
+         *     성적표의 기준선(시장 지수 대용 종목을 0턴에 사서 보유, 같은 초기 자금과 수수료)을 이 턴까지 계산한 값. 끝난 시즌의 마지막 턴에서는 성적표의 baselineFinalValue·baselineReturn·excessReturn 과 같다
+         */
+        BenchmarkToDateDto: {
+            /**
+             * Format: decimal
+             * @description Benchmark valuation at this turn, whole KRW / 이 턴의 기준선 평가액, 원 단위 정수
+             */
+            value: string;
+            /**
+             * Format: decimal
+             * @description Benchmark valuation at the previous turn (initial capital at turn 1, as for the team), whole KRW / 직전 턴의 기준선 평가액(1턴이면 팀과 같게 초기 자금), 원 단위 정수
+             */
+            previousValue: string;
+            /**
+             * Format: decimal
+             * @description Valuation − previous valuation, whole KRW (can be negative) / 평가액 − 직전 평가액, 원 단위 정수(음수 가능)
+             */
+            valueChange: string;
+            /**
+             * Format: decimal
+             * @description Period return = change ÷ previous valuation, 8 decimal places / 기간 수익률 = 변화 ÷ 직전 평가액, 소수 8자리
+             */
+            periodReturn: string;
+            /**
+             * Format: decimal
+             * @description Return to date = (valuation − initial capital) ÷ initial capital, 8 decimal places / 누적 수익률 = (평가액 − 초기 자금) ÷ 초기 자금, 소수 8자리
+             */
+            totalReturn: string;
+            /**
+             * Format: decimal
+             * @description Excess return to date = (team total valuation − benchmark valuation) ÷ initial capital, divided once — not the difference of two returns. 8 decimal places / 누적 초과 수익률 = (팀 총 평가액 − 기준선 평가액) ÷ 초기 자금, 한 번 나눔 — 두 수익률의 차가 아니다. 소수 8자리
+             */
+            excessReturn: string;
         };
         /** @description Value line of a season, turns 0 up to the current turn, ascending. Never a future turn / 시즌의 가치 곡선, 0턴부터 현재 턴까지 오름차순. 미래 턴은 없다 */
         TurnSummaryListDto: {
@@ -3838,6 +4040,58 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RankingBoardDto"];
+                };
+            };
+            /** @description turnNo is below 1, or the season or turn number is not a number — INVALID_ARGUMENT / turnNo 가 1 미만이거나 시즌·턴 번호가 숫자가 아니다 — INVALID_ARGUMENT */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description The season does not exist — NOT_FOUND / 시즌이 없다 — NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description That turn has not been played yet — TURN_NOT_REACHED / 아직 진행하지 않은 턴이다 — TURN_NOT_REACHED */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getTurnContribution: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                seasonId: number;
+                turnNo: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Turn contribution / 턴 기여 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TurnContributionDto"];
                 };
             };
             /** @description turnNo is below 1, or the season or turn number is not a number — INVALID_ARGUMENT / turnNo 가 1 미만이거나 시즌·턴 번호가 숫자가 아니다 — INVALID_ARGUMENT */
