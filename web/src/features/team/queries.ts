@@ -1,4 +1,9 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  skipToken,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
 import { apiClient } from '../../api/client.ts';
 import { ProblemError, UnreachableError } from '../../api/problem.ts';
 import type { components } from '../../api/schema';
@@ -9,11 +14,17 @@ export type Holdings = components['schemas']['HoldingsDto'];
 export type Holding = components['schemas']['HoldingDto'];
 export type OrderRequest = components['schemas']['PlaceOrderRequest'];
 export type OrderResult = components['schemas']['OrderResultDto'];
+export type OrderQuote = components['schemas']['OrderQuoteDto'];
 
 export const poolKey = ['pool'] as const;
 export const pricesKey = (id: number, turnNo: number) =>
   ['prices', id, turnNo] as const;
 export const holdingsKey = (id: number) => ['holdings', id] as const;
+export const orderQuoteKey = (
+  id: number,
+  body: OrderRequest | null,
+  cashSeen: string,
+) => ['orderQuote', id, body, cashSeen] as const;
 
 // The pool is fixed for the reference date, so it is fetched once.
 export function usePool() {
@@ -96,5 +107,38 @@ export function usePlaceOrder(id: number) {
         void queryClient.invalidateQueries({ queryKey: holdingsKey(id) });
       }
     },
+  });
+}
+
+export const QUOTE_DELAY_MS = 300;
+
+// The quote is advisory and writes nothing. It is never retried, and it is
+// dropped as soon as no sheet shows it, so every re-quote asks the server.
+// `cashSeen` is not sent: it only makes a new answer due when the cash on
+// screen changes.
+export function useOrderQuote(
+  id: number,
+  body: OrderRequest | null,
+  cashSeen: string,
+) {
+  return useQuery({
+    queryKey: orderQuoteKey(id, body, cashSeen),
+    retry: false,
+    gcTime: 0,
+    queryFn:
+      body === null
+        ? skipToken
+        : async ({ signal }): Promise<OrderQuote> => {
+            const { data } = await apiClient.POST(
+              '/api/v1/seasons/{seasonId}/orders/quote',
+              {
+                params: { path: { seasonId: id } },
+                body,
+                signal,
+              },
+            );
+            if (data === undefined) throw new UnreachableError();
+            return data;
+          },
   });
 }
