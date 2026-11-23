@@ -11,6 +11,7 @@ import { projectionFixture } from './fixtures/projection.ts';
 import { poolFixture } from './fixtures/pool.ts';
 import { emptyBoard } from './fixtures/ranking.ts';
 import { seasonList } from './fixtures/seasons.ts';
+import { turnSummariesFixture } from './fixtures/turnSummaries.ts';
 import { turnResultFixture } from './fixtures/turns.ts';
 
 // POST handlers that write are never defaults: each test installs its own.
@@ -27,6 +28,9 @@ export const handlers = [
   }),
   http.get('*/api/v1/seasons/:seasonId/holdings', () =>
     HttpResponse.json(holdingsFixture()),
+  ),
+  http.get('*/api/v1/seasons/:seasonId/turns', () =>
+    HttpResponse.json(turnSummariesFixture(2)),
   ),
   http.get('*/api/v1/seasons/:seasonId/turns/:turnNo', ({ params }) =>
     HttpResponse.json(

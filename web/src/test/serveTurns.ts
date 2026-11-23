@@ -4,6 +4,7 @@ import { problem } from './authHandlers.ts';
 import type { components } from '../api/schema';
 import { seasonFixture } from './fixtures/seasons.ts';
 import { emptyBoard } from './fixtures/ranking.ts';
+import { turnSummariesFixture } from './fixtures/turnSummaries.ts';
 import { turnResultFixture } from './fixtures/turns.ts';
 import { server } from './server.ts';
 
@@ -26,6 +27,7 @@ export interface TurnWorld {
   posts: unknown[];
   seasonGets: number;
   turnGets: number[];
+  summaryGets: number;
   // When set, the next advance answers with it instead of applying the turn.
   failWith: (() => Response) | null;
   // Awaited by the advance handler / the season handler when set.
@@ -50,6 +52,7 @@ export function serveTurnWorld(
     posts: [],
     seasonGets: 0,
     turnGets: [],
+    summaryGets: 0,
     failWith: null,
     postGate: null,
     seasonGate: null,
@@ -66,6 +69,10 @@ export function serveTurnWorld(
           status: world.status,
         }),
       );
+    }),
+    http.get('*/api/v1/seasons/7/turns', () => {
+      world.summaryGets += 1;
+      return HttpResponse.json(turnSummariesFixture(world.current));
     }),
     http.get('*/api/v1/seasons/7/turns/:turnNo', ({ params }) => {
       const turnNo = parseWholeNumber(String(params.turnNo), 1000) ?? 0;
