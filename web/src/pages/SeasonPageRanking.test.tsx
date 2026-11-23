@@ -8,6 +8,7 @@ import { feedOfTurn } from '../test/fixtures/feed.ts';
 import { rankingFixture } from '../test/fixtures/ranking.ts';
 import { renderRoute } from '../test/renderWithProviders.tsx';
 import { server } from '../test/server.ts';
+import { expandRanking } from '../test/expandRanking.ts';
 import { serveTurnWorld } from '../test/serveTurns.ts';
 import { settle } from '../test/settle.ts';
 
@@ -17,7 +18,7 @@ describe('ranking on the now page', () => {
     world.ranking = (turnNo) => rankingFixture(turnNo);
     world.feed = (turnNo) => [feedOfTurn(turnNo)[1]!];
     const { container } = renderRoute('/seasons/7');
-    const region = await screen.findByRole('region', { name: '순위' });
+    const region = await expandRanking();
     await within(region).findByText('종목 나');
     const feed = screen.getByRole('region', { name: '소식' });
     // The board comes after the feed in the page.
@@ -42,13 +43,13 @@ describe('ranking on the now page', () => {
       }),
     );
     renderRoute('/seasons/7');
-    const region = await screen.findByRole('region', { name: '순위' });
+    const region = await expandRanking();
     const alert = await within(region).findByRole('alert');
     expect(alert).toBeInTheDocument();
     // Only the ranking section holds the error.
     expect(screen.getAllByRole('alert')).toHaveLength(1);
     expect(screen.getByRole('region', { name: '소식' })).toBeInTheDocument();
-    expect(screen.getByText('104,820,000원')).toBeInTheDocument();
+    expect(screen.getAllByText('104,820,000원')).not.toHaveLength(0);
     answerOk = true;
     const before = gets;
     await userEvent
@@ -102,6 +103,7 @@ describe('ranking on the now page', () => {
       await act(async () => {
         await router.navigate(path);
       });
+      if (path === '/seasons/7') await expandRanking();
       await screen.findByRole('tablist');
     }
     expect(world.rankingGets.filter((n) => n === 3)).toHaveLength(1);
@@ -114,6 +116,7 @@ describe('ranking on the now page', () => {
     world.ranking = (turnNo) => rankingFixture(turnNo);
     renderRoute('/seasons/7');
     const user = userEvent.setup();
+    await expandRanking();
     await screen.findByRole('tablist');
     await user.click(screen.getByRole('button', { name: '다음 턴 (6턴으로)' }));
     await screen.findByRole('heading', { name: '6턴 결과' });
@@ -130,7 +133,7 @@ describe('ranking on the now page', () => {
       world.status = status;
       world.ranking = (turnNo) => rankingFixture(turnNo);
       renderRoute('/seasons/7');
-      const region = await screen.findByRole('region', { name: '순위' });
+      const region = await expandRanking();
       await within(region).findByText('종목 나');
       expect(
         screen.queryByRole('button', { name: /매수|매도|다음 턴/ }),

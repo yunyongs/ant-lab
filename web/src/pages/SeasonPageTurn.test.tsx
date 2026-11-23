@@ -243,7 +243,7 @@ describe('turn advance on the now page', () => {
     );
     const { container } = renderRoute('/seasons/7');
     await screen.findByRole('heading', { name: '4턴 결과' });
-    await screen.findByText('104,820,000원');
+    await screen.findAllByText('104,820,000원');
     expectNoDatePattern(container);
     for (const leaked of ['2008-09', '987654', 'SEED-XYZ']) {
       expect(container.innerHTML).not.toContain(leaked);
@@ -275,7 +275,9 @@ describe('restoring the now page', () => {
       '서버에 문제가 생겼습니다.',
     );
     await user.click(screen.getByRole('button', { name: '다시 불러오기' }));
-    expect(await screen.findByText('104,820,000원')).toBeInTheDocument();
+    expect(
+      (await screen.findAllByText('104,820,000원')).length,
+    ).toBeGreaterThan(0);
     expect(calls).toBe(2);
   });
 

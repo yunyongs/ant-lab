@@ -1,0 +1,22 @@
+.toggle {
+  display: flex;
+  width: 100%;
+  min-height: 44px;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  text-align: left;
+}
+
+.chevron {
+  color: var(--color-primary);
+  font-size: 0.875rem;
+  font-weight: 400;
+}

@@ -25,6 +25,23 @@ describe('AppShell', () => {
     await screen.findByText(/API 연결됨/);
   });
 
+  it('says why the menu items are disabled outside a season', () => {
+    renderRoute('/');
+    const nav = screen.getByRole('navigation', { name: '주 메뉴' });
+    expect(within(nav).getByText('시즌을 열면 쓸 수 있습니다')).toBeVisible();
+    expect(within(nav).getByText('매매')).toHaveAttribute(
+      'aria-describedby',
+      'nav-disabled-reason',
+    );
+  });
+
+  it('shows no disabled reason inside a season', async () => {
+    serveTurnWorld({ current: 4 });
+    renderRoute('/seasons/7');
+    await screen.findByRole('heading', { name: '4턴 결과' });
+    expect(screen.queryByText('시즌을 열면 쓸 수 있습니다')).toBeNull();
+  });
+
   it('shows five menu items: season active, the rest disabled outside a season', () => {
     renderRoute('/');
     const nav = screen.getByRole('navigation', { name: '주 메뉴' });
