@@ -13,8 +13,10 @@
 
 .sectionTitle,
 .cardHeading {
+  min-width: 0;
   margin: 0;
   font-size: var(--font-base);
+  overflow-wrap: anywhere;
 }
 
 .noMargin {
@@ -281,4 +283,10 @@
   display: grid;
   grid-template-columns: 1fr 2fr;
   gap: var(--space-2);
+}
+
+.ticker {
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+  font-weight: 400;
 }
