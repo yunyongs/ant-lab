@@ -37,5 +37,17 @@ public record HoldingDto(
         @ExposedFrom({"holding.quantity", "turn_price.price", "cash_account.balance"})
         @Schema(requiredMode = RequiredMode.REQUIRED, description = "Asset share = valuation ÷ total valuation "
                 + "(cash included), 8 decimal places / 종목 비중 = 평가액 ÷ 총 평가액(현금 포함), 소수 8자리")
-        BigDecimal weight) {
+        BigDecimal weight,
+        @ExposedFrom({"holding.quantity", "holding.avg_price", "turn_price.price"})
+        @Schema(requiredMode = RequiredMode.REQUIRED, description = "Unrealised P&L = valuation − quantity × average "
+                + "cost (fees and FX cost excluded; future sell fee and tax not deducted), rounded once, whole KRW "
+                + "(negative = loss). Display only. The per-holding values can differ from the total by a few won / "
+                + "평가손익 = 평가액 − 수량 × 평균단가(수수료·환전 비용 제외, 앞으로의 매도 수수료·세금은 빼지 않음), 한 번 반올림, "
+                + "원 단위 정수(음수 = 손실). 표시용. 종목별 값의 합이 전체 값과 몇 원 다를 수 있다")
+        BigDecimal unrealizedPnl,
+        @ExposedFrom({"holding.quantity", "holding.avg_price", "turn_price.price"})
+        @Schema(requiredMode = RequiredMode.REQUIRED, description = "Unrealised return = unrealised P&L ÷ (quantity × "
+                + "average cost), 8 decimal places (−0.1 = −10%). Display only / 평가수익률 = 평가손익 ÷ (수량 × 평균단가), "
+                + "소수 8자리(−0.1 = −10%). 표시용")
+        BigDecimal unrealizedReturn) {
 }
