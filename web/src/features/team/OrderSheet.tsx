@@ -5,15 +5,19 @@ import { ProblemError } from '../../api/problem.ts';
 import { formatWon } from '../format/money.ts';
 import { UNKNOWN_OUTCOME_TEXT } from '../turn/turnMessages.ts';
 import type { OrderSource } from '../feed/orderSource.ts';
-import { parseWholeNumber } from '../format/integer.ts';
+import { groupDigits, parseWholeNumber } from '../format/integer.ts';
 import { POSITIONS, positionLabel, type Position } from '../seasons/labels.ts';
+import { OrderQuotePanel, type QuoteView } from './OrderQuotePanel.tsx';
 import {
+  QUOTE_DELAY_MS,
+  useOrderQuote,
   usePlaceOrder,
   type Holding,
   type OrderRequest,
   type OrderResult,
   type PoolAsset,
 } from './queries.ts';
+import { useDebounced } from './useDebounced.ts';
 import styles from './Team.module.css';
 
 const MAX_QUANTITY = 999_999_999;
@@ -48,6 +52,10 @@ function failureOf(error: unknown): Failure {
     return { alert: unmapped ? messageFor('INVALID_ARGUMENT') : null, fields };
   }
   return { alert: messageFor(error.code), fields: {} };
+}
+
+function isCashRefusal(error: unknown): boolean {
+  return error instanceof ProblemError && error.code === 'INSUFFICIENT_CASH';
 }
 
 function ResultRows({ result }: { result: OrderResult }) {
@@ -155,12 +163,83 @@ export function OrderSheet({
   // The held quantity is a server integer; the server judges a stale one.
   const limit = selling ? (holding?.quantity ?? 0) : MAX_QUANTITY;
   const quantityHint = selling
-    ? `보유 수량(${String(limit)}주) 이하의 정수로 적어 주세요`
+    ? `보유 수량(${groupDigits(limit)}주) 이하의 정수로 적어 주세요`
     : QUANTITY_TEXT;
   const quantity = parseWholeNumber(quantityText, limit);
   const quantityOk = quantity !== null && quantity >= 1;
+  // The quote is asked only while the form is on screen.
+  const quoting = result === null;
+  const quoteQuantity = quoting && quantityOk ? quantity : null;
   const failure = error === null ? null : failureOf(error);
   const alertText = failure?.alert ?? null;
+
+  function bodyFor(count: number, declared: Position = position): OrderRequest {
+    return {
+      expectedTurnNo: turnNo,
+      side,
+      assetId: asset.assetId,
+      quantity: count,
+      // An asset already held keeps its declared position: it is not sent.
+      ...(!selling && holding === undefined
+        ? { declaredPosition: declared }
+        : {}),
+      ...(source === undefined ? {} : { source }),
+    };
+  }
+
+  // The quote follows the input after a pause; a quote for any other input
+  // than the one on screen is never shown.
+  const settledQuantity = useDebounced(quoteQuantity, QUOTE_DELAY_MS);
+  const settledPosition = useDebounced(position, QUOTE_DELAY_MS);
+  const settled =
+    settledQuantity === quoteQuantity && settledPosition === position;
+  // The cash on screen is part of the quote key: when it moves (a fill,
+  // a refresh), the quote and the max are asked again.
+  const quote = useOrderQuote(
+    seasonId,
+    quoting && settledQuantity !== null
+      ? bodyFor(settledQuantity, settledPosition)
+      : null,
+    cashBalance,
+  );
+  const refusedForCash = isCashRefusal(quote.error);
+
+  // A quote above the max is refused without the max, so the last max seen
+  // is kept for the turn and cash it was learned at; without one, a
+  // one-share quote asks for it.
+  const maxBasis = `${String(turnNo)}|${cashBalance}`;
+  const [learnedMax, setLearnedMax] = useState<{
+    max: number;
+    basis: string;
+  } | null>(null);
+  const knownMax = learnedMax?.basis === maxBasis ? learnedMax.max : null;
+  const probe = useOrderQuote(
+    seasonId,
+    quoting &&
+      !selling &&
+      knownMax === null &&
+      refusedForCash &&
+      settledQuantity !== 1
+      ? bodyFor(1, settledPosition)
+      : null,
+    cashBalance,
+  );
+  const seenMax =
+    quote.data?.maxBuyQuantity ??
+    probe.data?.maxBuyQuantity ??
+    ((refusedForCash && settledQuantity === 1) || isCashRefusal(probe.error)
+      ? 0
+      : null);
+  if (!selling && seenMax !== null && seenMax !== knownMax) {
+    setLearnedMax({ max: seenMax, basis: maxBasis });
+  }
+  const buyMax = knownMax === null ? null : Math.min(knownMax, MAX_QUANTITY);
+
+  let quoteView: QuoteView;
+  if (quoteQuantity === null) quoteView = { kind: 'idle' };
+  else if (!settled || quote.isPending) quoteView = { kind: 'pending' };
+  else if (quote.isError) quoteView = { kind: 'failed', error: quote.error };
+  else quoteView = { kind: 'ready', quote: quote.data };
 
   useEffect(() => {
     if (alertText !== null) alertBox.current?.focus();
@@ -183,17 +262,7 @@ export function OrderSheet({
   function submit(event: FormEvent) {
     event.preventDefault();
     if (!quantityOk || order.isPending) return;
-    const body: OrderRequest = {
-      expectedTurnNo: turnNo,
-      side,
-      assetId: asset.assetId,
-      quantity,
-      // An asset already held keeps its declared position: it is not sent.
-      ...(!selling && holding === undefined
-        ? { declaredPosition: position }
-        : {}),
-      ...(source === undefined ? {} : { source }),
-    };
+    const body = bodyFor(quantity);
     setError(null);
     order.mutate(body, {
       onSuccess: (filled) => {
@@ -245,7 +314,7 @@ export function OrderSheet({
             {selling && (
               <div className={styles.rowBetween}>
                 <span className={styles.muted}>보유</span>
-                <span>{`보유 ${String(limit)}주`}</span>
+                <span>{`보유 ${groupDigits(limit)}주`}</span>
               </div>
             )}
             <div className={styles.rowBetween}>
@@ -349,7 +418,7 @@ export function OrderSheet({
                   +
                 </button>
               </div>
-              {selling && (
+              {selling ? (
                 <button
                   type="button"
                   className={styles.secondary}
@@ -357,7 +426,18 @@ export function OrderSheet({
                     setQuantityText(String(limit));
                   }}
                 >
-                  {`전량 (${String(limit)}주)`}
+                  {`전량 (${groupDigits(limit)}주)`}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className={styles.secondary}
+                  disabled={buyMax === null || buyMax === 0}
+                  onClick={() => {
+                    if (buyMax !== null) setQuantityText(String(buyMax));
+                  }}
+                >
+                  {buyMax === null ? '최대' : `최대 (${groupDigits(buyMax)}주)`}
                 </button>
               )}
               {!quantityOk && (
@@ -371,6 +451,17 @@ export function OrderSheet({
                 </span>
               )}
             </div>
+
+            <OrderQuotePanel
+              view={quoteView}
+              maxHint={
+                buyMax === null || selling
+                  ? null
+                  : buyMax === 0
+                    ? '지금 현금으로는 1주도 살 수 없습니다.'
+                    : `지금은 최대 ${groupDigits(buyMax)}주까지 살 수 있습니다.`
+              }
+            />
 
             <div className={styles.actions}>
               <button
@@ -410,6 +501,8 @@ export function OrderSheet({
                   onClick={() => {
                     setResult(null);
                     setQuantityText('1');
+                    // Cash moved with the fill: the next quote gives the max.
+                    setLearnedMax(null);
                     order.reset();
                   }}
                 >

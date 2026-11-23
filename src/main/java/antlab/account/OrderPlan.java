@@ -17,12 +17,15 @@ public final class OrderPlan {
     private final Lineup open;
     private final BigDecimal notional;
     private final BigDecimal fee;
+    private final BigDecimal rate;
+    private final BigDecimal fxCost;
     private final BigDecimal pnl;
     private final OrderSource source;
     private final Long turnFeedId;
 
     OrderPlan(OrderScope scope, PlaceOrderRequest request, BigDecimal price, Long changeId, Holding holding,
-            Lineup open, BigDecimal notional, BigDecimal fee, BigDecimal pnl, OrderSource source, Long turnFeedId) {
+            Lineup open, BigDecimal notional, BigDecimal fee, BigDecimal rate, BigDecimal fxCost, BigDecimal pnl,
+            OrderSource source, Long turnFeedId) {
         this.scope = scope;
         this.request = request;
         this.price = price;
@@ -31,6 +34,8 @@ public final class OrderPlan {
         this.open = open;
         this.notional = notional;
         this.fee = fee;
+        this.rate = rate;
+        this.fxCost = fxCost;
         this.pnl = pnl;
         this.source = source;
         this.turnFeedId = turnFeedId;
@@ -66,6 +71,16 @@ public final class OrderPlan {
 
     BigDecimal fee() {
         return fee;
+    }
+
+    /** The combined rate the fee was computed with (KR rate, or US rate + FX rate). */
+    BigDecimal rate() {
+        return rate;
+    }
+
+    /** The FX part of the fee for a US asset (0 for KR), for display only; the fill writes {@link #fee} alone. */
+    BigDecimal fxCost() {
+        return fxCost;
     }
 
     BigDecimal pnl() {
