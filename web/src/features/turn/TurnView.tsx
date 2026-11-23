@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { ContributionSection } from '../contribution/ContributionSection.tsx';
 import { MacroPanel } from '../macro/MacroPanel.tsx';
 import { AlertList } from '../feed/AlertList.tsx';
 import { FeedSection } from '../feed/FeedSection.tsx';
@@ -65,6 +66,15 @@ export function TurnView({
         />
       )}
       {turn.data && <TurnResultCard turn={turn.data} />}
+      {turn.data && (
+        <ContributionSection
+          seasonId={season.id}
+          turnNo={season.currentTurnNo}
+          currentTurnNo={season.currentTurnNo}
+          title="이번 턴 기여"
+          collapse={{ defaultOpen: true }}
+        />
+      )}
       {turn.data && (
         <ValueSection season={season} collapse={{ defaultOpen: true }} />
       )}
