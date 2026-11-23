@@ -25,8 +25,9 @@ public record ApiProblem(
         String instance,
         @Schema(requiredMode = RequiredMode.REQUIRED)
         ErrorCode code,
-        @Schema(requiredMode = RequiredMode.NOT_REQUIRED, description = "Only for @Valid violations / @Valid 위반일 "
-                + "때만")
+        @Schema(requiredMode = RequiredMode.NOT_REQUIRED, description = "For @Valid violations, and for an imported "
+                + "document that breaks its rules (field is then a JSON pointer and reason the rule keyword) / @Valid 위반일 "
+                + "때, 그리고 들여온 문서가 규칙을 어겼을 때(이때 field는 JSON 포인터, reason은 규칙 키워드)")
         List<FieldViolation> errors) {
 
     /** 검증 위반 한 건: 필드 경로와 제약 애너테이션 단순 이름. 거부된 값은 싣지 않는다. */
@@ -34,7 +35,8 @@ public record ApiProblem(
             @Schema(requiredMode = RequiredMode.REQUIRED)
             String field,
             @Schema(requiredMode = RequiredMode.REQUIRED, description = "Simple name of the constraint "
-                    + "annotation (for example Min) / 제약 애너테이션 단순 이름(예 Min)")
+                    + "annotation (for example Min), or the rule keyword of an imported document (for example pattern) / "
+                    + "제약 애너테이션 단순 이름(예 Min), 또는 들여온 문서의 규칙 키워드(예 pattern)")
             String reason) {
     }
 }

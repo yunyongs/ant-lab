@@ -372,3 +372,30 @@ Authorization: Bearer {{token}}
 @leagueId = 1
 GET {{base}}/api/v1/leagues/{{leagueId}}
 Authorization: Bearer {{token}}
+
+### 16. Optional, administrators only: import a detection summary (detection-summary/1). The token must carry the ADMIN role: run the SEC-04 SQL `UPDATE member SET role = 'ADMIN' WHERE lower(email) = lower('player@example.test')` in local, then send block 0b again. 201 stores it, the same body again answers 200, and a USER token answers 403.
+# 선택, 관리자 전용: 탐지 요약(detection-summary/1)을 들여온다. 토큰에 ADMIN 역할이 있어야 한다: local에서 SEC-04 SQL `UPDATE member SET role = 'ADMIN' WHERE lower(email) = lower('player@example.test')`를 실행한 뒤 0b 블록을 다시 보낸다. 201이면 저장했고, 같은 본문을 다시 보내면 200, USER 토큰이면 403이다.
+POST {{base}}/api/v1/admin/detection-summaries
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "schema": "detection-summary/1",
+  "modelId": "example/model-1",
+  "testVersion": "detection-month/1",
+  "sampleLayer": "P0-08",
+  "runAt": "2026-11-23T09:00:00Z",
+  "sourceSha256": "0000000000000000000000000000000000000000000000000000000000000001",
+  "windows": {
+    "1": {
+      "units": 98,
+      "metrics": {
+        "YM_EXACT": { "hits": 1, "units": 98, "baseRate": "0.01000000" },
+        "YM_WITHIN_3": { "hits": 4, "units": 98, "baseRate": "0.07000000" },
+        "YEAR": { "hits": 10, "units": 98, "baseRate": "0.11000000" },
+        "KR_NEXT": { "hits": 50, "units": 98, "baseRate": "0.52000000" },
+        "US_NEXT": { "hits": 55, "units": 98, "baseRate": "0.58000000" }
+      }
+    }
+  }
+}

@@ -22,7 +22,7 @@ import tools.jackson.databind.JsonNode;
  */
 public final class ContractErrorCodes {
 
-    /** FORBIDDEN is answered only by the local dev endpoint, which is outside the contract. */
+    /** FORBIDDEN may stay unlisted: the local dev endpoint outside the contract answers it too (the admin operations list it). */
     public static final Set<ErrorCode> UNLISTED_ALLOWED = EnumSet.of(ErrorCode.FORBIDDEN);
 
     private static final String RESPONSE_REF_PREFIX = "#/components/responses/";

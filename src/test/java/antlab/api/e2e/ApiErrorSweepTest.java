@@ -55,7 +55,8 @@ import tools.jackson.databind.json.JsonMapper;
  * {@code docs/api/openapi.yaml}. Statuses the yaml documents per operation (400, 404) must be listed for the probed
  * operation. 405, 406 and 415 come from the framework for every path and are listed once, in {@code x-framework-errors}.
  * Every observed (operation, status, code) must be listed by the contract's {@code x-error-codes}. The dev endpoint is
- * outside the contract and not probed. Calls carry a valid user token; the 401 probes (no token, a token signed by
+ * outside the contract and not probed. Calls carry a valid user token (an admin token on an admin path, which a user token
+ * gets 403 on); the 401 probes (no token, a token signed by
  * another key, a token of a member who does not exist) run on every operation that is not public.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
@@ -77,6 +78,10 @@ class ApiErrorSweepTest {
 
         boolean hasTurnNo() {
             return template.contains("{turnNo}");
+        }
+
+        boolean adminOnly() {
+            return template.startsWith("/api/v1/admin/");
         }
 
         /** A concrete path: {@code seasonId} and {@code turnNo} filled in. */
@@ -183,6 +188,9 @@ class ApiErrorSweepTest {
         if (op.hasTurnNo()) {
             probes.add(new Probe("non-numeric turn number", 400, ErrorCode.INVALID_ARGUMENT));
         }
+        if (op.adminOnly()) {
+            probes.add(new Probe("user token on an admin path", 403, ErrorCode.FORBIDDEN));
+        }
         if (op.template.endsWith("/prices")) {
             probes.add(new Probe("non-numeric query turnNo", 400, ErrorCode.INVALID_ARGUMENT));
         }
@@ -192,8 +200,11 @@ class ApiErrorSweepTest {
         return probes;
     }
 
-    private Reply send(E2eHttp http, E2eHttp anonymous, E2eHttp forged, E2eHttp strangers, Operation op, Probe probe) {
+    private Reply send(E2eHttp user, E2eHttp admin, E2eHttp anonymous, E2eHttp forged, E2eHttp strangers, Operation op,
+            Probe probe) {
         HttpMethod method = HttpMethod.valueOf(op.method());
+        // an admin path answers 403 to a user token before anything else, so its other probes carry an admin token
+        E2eHttp http = op.adminOnly() ? admin : user;
         String json = "application/json";
         switch (probe.name()) {
             case "wrong method":
@@ -229,6 +240,8 @@ class ApiErrorSweepTest {
             case "unknown member token":
                 return strangers.send(method, op.path("1"), op.hasBody() ? op.validBody() : null,
                         op.hasBody() ? json : null, json);
+            case "user token on an admin path":
+                return user.send(method, op.path("1"), op.hasBody() ? op.validBody() : null, op.hasBody() ? json : null, json);
             default:
                 throw new IllegalStateException(probe.name());
         }
@@ -285,6 +298,7 @@ class ApiErrorSweepTest {
         JsonNode contract = contract();
         Set<String> documented = ContractErrorCodes.perOperation(contract).keySet();
         E2eHttp http = new E2eHttp(port, Map.of("Authorization", "Bearer " + tokens.user(members.defaultId())));
+        E2eHttp admin = new E2eHttp(port, Map.of("Authorization", "Bearer " + tokens.admin(members.defaultId())));
         E2eHttp anonymous = new E2eHttp(port);
         E2eHttp forged = new E2eHttp(port, Map.of("Authorization",
                 "Bearer " + tokens.signedByOtherKey(tokens.header(), tokens.claims(1, "USER"))));
@@ -301,7 +315,7 @@ class ApiErrorSweepTest {
             for (Probe probe : probesFor(op)) {
                 exercised.add(probe.name());
                 tests.add(dynamicTest(op.key() + " — " + probe.name(), () -> {
-                    Reply reply = send(http, anonymous, forged, strangers, op, probe);
+                    Reply reply = send(http, admin, anonymous, forged, strangers, op, probe);
                     assertThat(reply.status()).as(reply + " " + reply.body()).isEqualTo(probe.status());
                     assertThat(reply.isProblem()).as(reply + " content type " + reply.contentType()).isTrue();
                     ErrorCode code = ErrorCode.valueOf(reply.code());
@@ -320,7 +334,7 @@ class ApiErrorSweepTest {
                 Arrays.asList("wrong method", "Accept: application/xml", "text/plain body", "malformed JSON",
                         "empty object body", "non-numeric season id", "non-numeric turn number", "non-numeric query turnNo",
                         "unknown season", "unknown member token", "unknown credentials", "no refresh cookie", "no bearer token",
-                        "forged bearer token"));
+                        "forged bearer token", "user token on an admin path"));
         return tests.stream();
     }
 }

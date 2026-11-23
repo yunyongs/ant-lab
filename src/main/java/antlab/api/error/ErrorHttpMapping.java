@@ -56,6 +56,7 @@ public final class ErrorHttpMapping {
                     MEMORY_VERSION_UNKNOWN, MEMORY_DONE, MEMORY_ORDER, MEMORY_NOT_ELIGIBLE, MEMORY_BASE_STALE -> HttpStatus.CONFLICT;
             case MEMORY_LEAK, MEMORY_SCHEMA_INVALID -> HttpStatus.UNPROCESSABLE_ENTITY;
             case SCORE_PENDING -> HttpStatus.SERVICE_UNAVAILABLE;
+            case DETECTION_CONFLICT -> HttpStatus.CONFLICT;
         };
     }
 
