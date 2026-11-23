@@ -9,6 +9,8 @@ import { APP_NAME } from './appName.ts';
 import { NAV_CONFIG, type NavConfig } from './navItems.ts';
 import styles from './AppShell.module.css';
 
+const NAV_DISABLED_REASON = '시즌을 열면 쓸 수 있습니다';
+
 function useRouteSeasonId(): number | null {
   const match = useMatch('/seasons/:seasonId/*');
   const text = match?.params.seasonId;
@@ -65,6 +67,9 @@ export function AppShell() {
   const { logout } = useAuth();
   const seasonId = useRouteSeasonId();
   const { pathname } = useLocation();
+  const anyDisabled = NAV_CONFIG.some(
+    (item) => navTarget(item, seasonId, pathname) === null,
+  );
   return (
     <div className={styles.shell}>
       <header className={styles.header}>
@@ -92,6 +97,11 @@ export function AppShell() {
         </div>
       </main>
       <nav className={styles.nav} aria-label="주 메뉴">
+        {anyDisabled && (
+          <p id="nav-disabled-reason" className={styles.navHint}>
+            {NAV_DISABLED_REASON}
+          </p>
+        )}
         <ul className={styles.navList}>
           {NAV_CONFIG.map((item) => {
             const target = navTarget(item, seasonId, pathname);
@@ -108,6 +118,7 @@ export function AppShell() {
                 ) : (
                   <span
                     aria-disabled="true"
+                    aria-describedby="nav-disabled-reason"
                     className={`${styles.navLink} ${styles.disabled}`}
                   >
                     {item.label}
