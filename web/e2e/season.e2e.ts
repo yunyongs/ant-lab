@@ -60,6 +60,54 @@ test('plays one 12-turn season from signup to review', async ({
   await expect(page.getByText(`0/${String(TURNS)}턴`)).toBeVisible();
   await checkpoint(run, 'team-build', { axe: 'team-build' });
 
+  // 04b pool browser: filter and sort live in the address; clearing restores the list
+  const poolRegion = page.getByRole('region', { name: '종목 풀' });
+  await page.getByLabel('시장').selectOption('US');
+  await expect(page).toHaveURL(/[?&]market=US/);
+  await expect(poolRegion.getByRole('status')).toHaveText(
+    /^전체 \d+개 중 \d+개$/,
+  );
+  await page.getByLabel('정렬').selectOption('vol-asc');
+  await expect(page).toHaveURL(/[?&]sort=vol-asc/);
+  await checkpoint(run, 'pool-filtered', { axe: 'pool-filtered' });
+  await page.getByRole('button', { name: '조건 지우기' }).click();
+  await expect(page).not.toHaveURL(/[?&](market|sort)=/);
+  await expectNoOverflow(page, 'pool-cleared');
+
+  // 04c a 180-asset pool with long names must not widen the page (pool is
+  // cached per session, so reload to refetch, then restore the real pool)
+  const big = Array.from({ length: 180 }, (_, i) => ({
+    assetId: 900000 + i,
+    market: i < 50 ? 'KR' : 'US',
+    ticker: `LONGTICKER${String(i)}`,
+    name: `아주 긴 이름의 종목 ${String(i)} ${'Verylongunbrokenname'.repeat(3)}`,
+    assetType: i >= 150 ? 'ETF' : 'STOCK',
+    returnBasis: 'PRICE',
+    proxyIndexName: null,
+    groupId: (i % 12) + 1,
+    groupName: `아주 긴 이름의 묶음 ${String(i % 12)} ${'Group'.repeat(12)}`,
+    groupKind: 'SECTOR',
+    systemPosition: 'MIDFIELDER',
+    upParticipation: '1.12345678',
+    downParticipation: '0.87654321',
+    volatility: '0.06200000',
+    maxDrawdown: '-0.31000000',
+  }));
+  await page.route('**/api/v1/pool', (route) =>
+    route.fulfill({ json: { assets: big } }),
+  );
+  await page.reload();
+  await expect(page.getByRole('region', { name: '종목 풀' })).toBeVisible();
+  await expect(
+    page.getByRole('region', { name: '종목 풀' }).getByRole('status'),
+  ).toHaveText('180개');
+  await checkpoint(run, 'pool-180', { axe: 'pool-180' });
+  await page.unroute('**/api/v1/pool');
+  await page.reload();
+  await expect(
+    page.getByRole('heading', { name: '0턴 팀 구성' }),
+  ).toBeVisible();
+
   // 05 first buy: two shares of the first pool row
   const picks = page.getByRole('button', { name: /선택$/ });
   await picks.first().click();
