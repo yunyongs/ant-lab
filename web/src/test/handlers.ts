@@ -3,6 +3,7 @@ import { parseWholeNumber } from '../features/format/integer.ts';
 import { authHandlers } from './authHandlers.ts';
 import { analysisFixture } from './fixtures/analysis.ts';
 import { holdingsFixture } from './fixtures/holdings.ts';
+import { orderQuoteFixture } from './fixtures/orders.ts';
 import { pricesFixture } from './fixtures/prices.ts';
 import { ratingFixture } from './fixtures/rating.ts';
 import { scoreFixture } from './fixtures/score.ts';
@@ -12,8 +13,12 @@ import { emptyBoard } from './fixtures/ranking.ts';
 import { seasonList } from './fixtures/seasons.ts';
 import { turnResultFixture } from './fixtures/turns.ts';
 
-// POST handlers are never defaults: each test installs its own.
+// POST handlers that write are never defaults: each test installs its own.
+// The order quote writes nothing, and every order sheet asks for one.
 export const handlers = [
+  http.post('*/api/v1/seasons/:seasonId/orders/quote', () =>
+    HttpResponse.json(orderQuoteFixture()),
+  ),
   http.get('*/api/v1/pool', () => HttpResponse.json(poolFixture)),
   http.get('*/api/v1/seasons', () => HttpResponse.json({ items: seasonList })),
   http.get('*/api/v1/seasons/:seasonId/prices', ({ request }) => {

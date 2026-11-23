@@ -17,7 +17,10 @@ import {
   holdingsFixture,
   holdingsWithMidfielder,
 } from '../test/fixtures/holdings.ts';
-import { orderResultFixture } from '../test/fixtures/orders.ts';
+import {
+  orderQuoteFixture,
+  orderResultFixture,
+} from '../test/fixtures/orders.ts';
 import { pricesFixture } from '../test/fixtures/prices.ts';
 import { invalidateSeasonState } from '../features/seasons/queries.ts';
 import { renderRoute } from '../test/renderWithProviders.tsx';
@@ -84,6 +87,36 @@ async function openSell() {
 }
 
 describe('TradePage', () => {
+  it('quotes a sell without a max button', async () => {
+    serveSeason({ currentTurnNo: 1 });
+    serveTrade();
+    const quotes: unknown[] = [];
+    server.use(
+      http.post('*/api/v1/seasons/7/orders/quote', async ({ request }) => {
+        quotes.push(await request.json());
+        return HttpResponse.json(
+          orderQuoteFixture({
+            fillPrice: '74200',
+            notional: '74200',
+            fee: '11',
+            cashAfter: '8774189',
+            maxBuyQuantity: null,
+          }),
+        );
+      }),
+    );
+    const { dialog } = await openSell();
+    const panel = within(dialog).getByRole('region', { name: '주문 미리보기' });
+    expect(await within(panel).findByText('8,774,189원')).toBeInTheDocument();
+    expect(within(dialog).queryByRole('button', { name: /^최대/ })).toBeNull();
+    expect(
+      within(dialog).getByRole('button', { name: /^전량/ }),
+    ).toBeInTheDocument();
+    expect(quotes).toEqual([
+      { expectedTurnNo: 1, side: 'SELL', assetId: 101, quantity: 1 },
+    ]);
+  });
+
   it('shows the live summary and the holding cards from server values', async () => {
     serveSeason({ currentTurnNo: 1 });
     serveTrade();
