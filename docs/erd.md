@@ -21,12 +21,13 @@
 | AG-04 C2 | League entry, review hold and the column-level UPDATE of `league`: no migration; rules L4–L7 in 14.5. / 리그 참가, 복기 보류, `league`의 열 단위 UPDATE: 마이그레이션 없음, 14.5절 규칙 L4–L7. | 규칙 완료 |
 | AG-05 B | Agent memory: `agent_reflection` and `agent_memory` (Flyway V18, the number is final at merge), the memory pin on `season_agent_config`, two `agent_call` kinds and `league.seed_league_id` in 15. / 에이전트 기억: `agent_reflection`과 `agent_memory`(Flyway V18, 번호는 머지 때 확정), `season_agent_config`의 메모리 고정, `agent_call` 종류 둘, `league.seed_league_id`, 15절. | 스키마 완료 |
 | M2-06 | Projection: `projection` (Flyway V9, the number is final at merge) in 12. / 예상 분포: `projection`(Flyway V9, 번호는 머지 때 확정), 12절. | 스키마 완료 |
+| AG-06 G3 | Detection test: `detection_test` and `detection_metric` (Flyway V20, the number is final at merge) in 16. / 탐지 시험: `detection_test`와 `detection_metric`(Flyway V20, 번호는 머지 때 확정), 16절. | 스키마 완료 |
 
 **정본 규칙:** 타입·키·제약 이름·구분값은 이 문서가 정본이다. [PLAN.md](PLAN.md)나 [SPRING_JPA.md](SPRING_JPA.md)와 어긋나면 이 문서를 따르고, 어긋난 문서를 같은 PR에서 고친다(PLAN §12).
 
 **표기(D10):** 소유자의 ERDCloud 노트 형식을 따른다. 약어: PK(Primary Key, 기본 키), FK(Foreign Key, 외래 키), UK(Unique Key, 유일 키), NN(NOT NULL, 빈 값 불가). 엔티티는 `논리명 (물리명)`, 컬럼은 `타입 물리명 키 "논리명 | NN | 기본값"`. 선에 붙은 기호는 최소(`o` 선택, `|` 필수), 엔티티 쪽 기호는 최대(`|` 1, `{` N)이고, `--`은 식별 관계, `..`은 비식별 관계이다. Mermaid는 선 모양이 키 구성과 맞는지 검사하지 않으므로 표로 따로 확인한다.
 
-**문서 구성:** 2 공통 규칙 → 3 전체 관계도 → 4 설계 질문 답 → 5 역사 데이터와 종목 풀 → 6 회원·시즌·피드·대사 → 7 시즌 계좌 → 8 설계 결정 → 9 하류 기능 약속 → 10 수집 데이터(M1) → 11 시즌 점수와 레이팅(MVP-18) → 12 예상 분포(M2-06) → 13 페르소나 버전(AG-04 B) → 14 리그(AG-04 C) → 15 에이전트 기억(AG-05 B). 부록은 없다 — v1 계좌 정의는 7절로 옮겨 v2로 바꿨고 v1과의 대응은 7.6에 있다.
+**문서 구성:** 2 공통 규칙 → 3 전체 관계도 → 4 설계 질문 답 → 5 역사 데이터와 종목 풀 → 6 회원·시즌·피드·대사 → 7 시즌 계좌 → 8 설계 결정 → 9 하류 기능 약속 → 10 수집 데이터(M1) → 11 시즌 점수와 레이팅(MVP-18) → 12 예상 분포(M2-06) → 13 페르소나 버전(AG-04 B) → 14 리그(AG-04 C) → 15 에이전트 기억(AG-05 B) → 16 탐지 시험(AG-06 G3). 부록은 없다 — v1 계좌 정의는 7절로 옮겨 v2로 바꿨고 v1과의 대응은 7.6에 있다.
 
 ## 2. 공통 규칙 (PostgreSQL 17)
 
@@ -213,7 +214,7 @@ erDiagram
 | `season_agent_config` | `season_id` PK·FK | `season` 1 : 0..1 — 시즌 시작 때 한 번 남기는 불변 설정(페르소나 버전·해시, 모델, 온도, 시드, 프롬프트·러너 버전, 메모리 버전) | AG-02 |
 | `agent_call` | `id`, UNIQUE (`season_id`, 턴 번호, 시도 번호, 호출 종류) | `season` 1 : 0..N — 요청·응답 원문, 파싱 결과, 거부 목록, 실제 모델, 토큰, 비용(`NUMERIC`), 지연. 불변·추가 전용(기록 재생의 재료) | AG-02 |
 | `agent_memory` | PK (`member_id`, `version`) | `member` 1 : 0..N — 운용 노트의 불변 버전, 출처 복기 — **확정: 15절(AG-05 PR B, Flyway V18)**. 시즌 복기는 `agent_reflection`(15절)에 따로 둔다 | AG-05 (확정) |
-| `detection_test`·`detection_result` | `id` | 시험 묶음(모델 × 입력 조건) 1 : 0..N 표본 달 결과(정답 여부·추정값). 보고 전용, AG-01은 파일 출력으로 시작 | AG-01 |
+| `detection_test`·`detection_metric` | `id`; PK (`test_id`, `metric`) | 시험(모델 × 판 × 표본 층 × 창) 1 : 1..N 지표 — **확정: 16절(AG-06 G3, Flyway V20)**. 보고 전용. 스케치의 달별 결과 `detection_result`는 두지 않는다(AG-01의 git 무시 파일에만 남는다) | AG-01 (파일), AG-06 (확정) |
 
 에이전트 펀드 매니저(PLAN v3, §4.16)의 스케치는 따로 그린다. 앵커는 `member`와 `season` 둘이다. **초안 — AG-02 이후 확정 단계에 해당 기능이 컬럼을 정한다.**
 
@@ -225,17 +226,16 @@ erDiagram
     SEASON_AGENT_CONFIG["시즌 에이전트 설정 (season_agent_config) (스케치)"]
     AGENT_CALL["에이전트 호출 (agent_call) (스케치)"]
     AGENT_MEMORY["에이전트 메모리 (agent_memory) (15절에서 확정)"]
-    DETECTION_TEST["탐지 시험 (detection_test) (스케치)"]
-    DETECTION_RESULT["탐지 결과 (detection_result) (스케치)"]
+    DETECTION_TEST["탐지 시험 (detection_test) (16절에서 확정)"]
+    DETECTION_METRIC["탐지 시험 지표 (detection_metric) (16절에서 확정)"]
     MEMBER ||..o| AGENT_PROFILE : "에이전트이면 프로필을 갖는다 (kind = AGENT)"
     SEASON ||..o| SEASON_AGENT_CONFIG : "에이전트 시즌이면 설정을 남긴다"
     SEASON ||..o{ AGENT_CALL : "호출을 기록한다"
     MEMBER ||..o{ AGENT_MEMORY : "메모리를 쌓는다"
-    DETECTION_TEST ||..o{ DETECTION_RESULT : "표본 달별 결과를 갖는다"
-    DETECTION_TEST ||..o{ SEASON_AGENT_CONFIG : "참조된다 (선택)"
+    DETECTION_TEST ||--|{ DETECTION_METRIC : "지표 다섯을 갖는다"
 ```
 
-위 표의 에이전트 6개 행(`agent_profile` ~ `detection_test`·`detection_result`)이 이 그림의 정의다. 종목 가명 매핑 테이블은 두지 않는다 — 에이전트도 감독 모드에서 사람과 같은 실명을 본다(PLAN §4.16).
+위 표의 에이전트 6개 행(`agent_profile` ~ `detection_test`·`detection_metric`)이 이 그림의 정의다. 탐지 시험은 모델 id로 값을 맞춰 읽으므로 `season_agent_config`와 선을 긋지 않는다(16.2). 종목 가명 매핑 테이블은 두지 않는다 — 에이전트도 감독 모드에서 사람과 같은 실명을 본다(PLAN §4.16).
 
 테이블이 아닌 컬럼 스케치 셋: `season.mode`(감독/전망, M4), `season.style_master_id`(선택, FK → `master.id`, EXT), `member.kind`(`HUMAN`/`AGENT`, AG-02 — 에이전트 펀드 매니저도 `member`의 한 종류라 `season.member_id` 이하 하류 테이블이 그대로다; 사람만 `email`·`password`를 가지므로 두 컬럼이 NULL 허용으로 바뀌고 CHECK 둘이 붙는다: `kind IN ('HUMAN','AGENT')`, `(kind = 'HUMAN' AND email IS NOT NULL AND password IS NOT NULL) OR (kind = 'AGENT' AND email IS NULL AND password IS NULL)`. 이름은 AG-02에서 6.4 규칙(`ck_member_…`)으로 정한다. PLAN v3). 셋 다 `season`·`member`의 정의서(6.3)에는 넣지 않고 해당 단계가 `ALTER TABLE`로 더한다. `orders.source`에 `AGENT`를 넣지 않는다 — 주문의 출발점과 주체는 다른 축이다(8절 "MVP에서 다시 볼 것").
 
@@ -2475,3 +2475,88 @@ Notation follows 6.4 (표기는 6.4와 같다). `FlywayV18UpgradeTest` breaks ea
 | M3 | Every string of `body` and `playbook` passed `MemoryLeakFilter` (the Java side of `memory-filter/1`) in the same transaction as its insert, after NFC normalisation; `filter_version` names the terms file that was used. A text that breaks the filter is `MEMORY_LEAK` (422) with pointers and codes only and leaves no row. Before the filter the document must have the shape of its JSON schema (`docs/api/season-reflection-1.schema.json`, `operating-note-1.schema.json`; a NUL or an unpaired surrogate is a shape error), because the filter skips what is not a string: a shape error is `MEMORY_SCHEMA_INVALID` (422) with pointers and keywords only. The stored text is the NFC text that was measured. / `body`와 `playbook`의 모든 문자열은 삽입과 같은 트랜잭션에서 NFC 정규화 뒤 `MemoryLeakFilter`(자바 쪽 `memory-filter/1`)를 지난다. 어긴 글은 포인터와 코드만 담은 `MEMORY_LEAK`(422)이고 행이 남지 않는다. 필터 앞에서 문서가 JSON 스키마(`docs/api/season-reflection-1.schema.json`, `operating-note-1.schema.json`)의 모양이어야 한다(NUL이나 짝 없는 서로게이트는 모양 오류). 필터가 문자열이 아닌 것을 건너뛰기 때문이며, 모양 오류는 포인터와 keyword만 담은 `MEMORY_SCHEMA_INVALID`(422)다. 저장하는 글은 잰 NFC 글이다. | AG-05 PR C (filter: PR B) |
 | M4 | A season start may name `memoryVersion` only as NULL or a version the agent has (older ones are allowed); otherwise `MEMORY_VERSION_UNKNOWN` (409) and no season is left. / 시즌 시작의 `memoryVersion`은 NULL이거나 에이전트가 가진 버전이어야 한다(이전 버전도 허용). 아니면 `MEMORY_VERSION_UNKNOWN`(409)이고 시즌이 남지 않는다. | AG-05 PR B (`AgentSeasonService`) |
 | M5 | `agent.memory` in a turn view is built from the pinned version only, never the latest. No response shows the source season, the seed or `discard_codes` to the agent. / 턴 화면의 `agent.memory`는 고정한 버전으로만 만들고 최신 버전을 읽지 않는다. 어떤 응답도 출처 시즌·시드·`discard_codes`를 에이전트에게 보이지 않는다. | AG-05 PR D |
+
+## 16. Detection test / 탐지 시험
+
+AG-06 PR G3 (Flyway V20; the number is final at merge) adds two append-only tables to the `public` schema for the model detection test of PLAN §4.16: whether a model, shown only a cross-section of returns, names the year and month and next month's market direction. The test is report only: an agent row of the leaderboard shows the result of its model (`NOT_TESTED` until a summary is imported) and the result never filters or reorders a row. An administrator imports one `detection-summary/1` document (`docs/api/detection-summary-1.schema.json`, `POST /api/v1/admin/detection-summaries`) per test run; AG-01 PR B produces it. One `detection_test` row is one window of the run (1, 3 or 6 months shown) and holds its five metrics as `detection_metric` rows. This finalises the 3.2 sketch with a difference on purpose: the sketch's per-month `detection_result` rows are not stored. Per-month model answers are raw output that stays in the producer's git-ignored files (SPRING_JPA §9); only the hash of that file (`source_sha256`) links a summary to it. / AG-06 PR G3(Flyway V20, 번호는 머지 때 확정)는 PLAN §4.16의 모델 탐지 시험을 위해 `public` 스키마에 추가 전용 테이블 둘을 더한다: 수익률 단면만 본 모델이 연월과 다음 달 시장 방향을 맞히는지를 잰다. 시험은 보고 전용이다: 리더보드의 에이전트 행은 그 모델의 결과를 보여 주고(요약을 들여오기 전에는 `NOT_TESTED`) 결과는 행을 거르거나 순서를 바꾸지 않는다. 관리자가 시험 실행마다 `detection-summary/1` 문서 하나(`docs/api/detection-summary-1.schema.json`, `POST /api/v1/admin/detection-summaries`)를 들여오며, AG-01 PR B가 그 문서를 만든다. `detection_test` 한 행은 실행의 창 하나(보여 준 달 1·3·6)이고 지표 다섯을 `detection_metric` 행으로 갖는다. 3.2 스케치를 확정하되 일부러 다른 점이 있다: 스케치의 달별 `detection_result` 행은 저장하지 않는다. 달마다의 모델 답은 만든 쪽의 git 무시 파일에만 남는 원출력이고(SPRING_JPA §9), 그 파일의 해시(`source_sha256`)만 요약과 파일을 잇는다.
+
+### 16.1 Relationship diagram / 관계도
+
+```mermaid
+erDiagram
+    DETECTION_TEST ||--|{ DETECTION_METRIC : "R53"
+```
+
+### 16.2 Relationship summary / 관계 요약
+
+| # | 부모 → 자식 | 카디널리티 | 선 | 근거 |
+|---|---|---|---|---|
+| R53 | `detection_test` → `detection_metric` | 1 : 1..N | 식별 `--` | `fk_detection_metric_test`; the test is part of the key (`test_id`, `metric`). The import writes all five metrics of every window (a service rule, D1), so a test row never has fewer. / 시험이 키의 일부다. 들여오기는 창마다 지표 다섯을 모두 쓴다(서비스 규칙 D1). |
+
+`detection_test.model_id` has no FK: a model is tested once and read by every agent on it, so the leaderboard joins `agent_profile.model_id` to it by value. / `detection_test.model_id`에는 FK가 없다: 모델은 한 번 시험하고 그 모델의 모든 에이전트가 읽으므로 리더보드가 `agent_profile.model_id`와 값으로 잇는다.
+
+### 16.3 Entity definitions / 엔티티 정의서
+
+All FKs are `ON DELETE RESTRICT ON UPDATE RESTRICT` (2). Both tables are append-only: the application role may only SELECT and INSERT (`db/callback/afterMigrate.sql`, class APPEND) and the code reads and inserts with plain SQL (`DetectionWriter`, `DetectionReader`), with no UPDATE or DELETE statement. Ratios are `NUMERIC`, never floating point. / FK는 모두 `ON DELETE RESTRICT ON UPDATE RESTRICT`(2절)다. 두 테이블은 추가 전용이다: 앱 역할은 SELECT·INSERT만 갖고(`db/callback/afterMigrate.sql`, APPEND 등급) 코드는 평범한 SQL로 읽고 넣을 뿐 UPDATE·DELETE 문이 없다(`DetectionWriter`, `DetectionReader`). 비율은 `NUMERIC`이고 부동소수점을 쓰지 않는다.
+
+#### Detection test / 탐지 시험 (detection_test)
+
+| 키 | 논리명 | 물리명 | 타입 | NULL | 기본값 | 코멘트 |
+| --- | --- | --- | --- | --- | --- | --- |
+| PK | 탐지 시험번호 | id | BIGINT | NN | IDENTITY | `[내부]` `pk_detection_test`; the target of `fk_detection_metric_test`. |
+| UQ | 모델 id | model_id | VARCHAR(200) | NN |  | `[내부]` The model as `agent_profile.model_id` names it (join by value). `ck_detection_test_model_id`: not empty and trimmed. First column of `uq_detection_test_source` (`model_id`, `test_version`, `sample_layer`, `window_months`, `source_sha256`). |
+| UQ | 시험 판 | test_version | VARCHAR(32) | NN |  | `[노출]` For example `detection-month/1`. `ck_detection_test_test_version`: `^[a-z][a-z0-9-]*/[1-9][0-9]*$`. |
+| UQ | 표본 층 | sample_layer | VARCHAR(16) | NN |  | `[노출]` For example `P0-08`. `ck_detection_test_sample_layer`: `^[A-Z0-9][A-Z0-9-]*$`. |
+| UQ | 보여 준 달 수 | window_months | SMALLINT | NN |  | `[노출]` `ck_detection_test_window_months`: 1, 3, 6. |
+|  | 시험 단위 수 | units | INTEGER | NN |  | `[노출]` Units of the window (target month × window inside one sample segment). `ck_detection_test_units`: `> 0`. |
+| UQ | 원본 결과 파일 해시 | source_sha256 | CHAR(64) | NN |  | `[내부]` SHA-256 of the raw result file the summary came from. `ck_detection_test_source_sha256`: 64 lowercase hex. `idx_detection_test_source`: the import looks a summary up by it. |
+|  | 시험 실행 시각 | run_at | TIMESTAMPTZ | NN |  | `[노출]` When the producer ran the test; not after the import time (service rule D2). |
+|  | 기록일시 | created_at | TIMESTAMPTZ | NN | now() | `[내부]` |
+
+#### Detection metric / 탐지 시험 지표 (detection_metric)
+
+| 키 | 논리명 | 물리명 | 타입 | NULL | 기본값 | 코멘트 |
+| --- | --- | --- | --- | --- | --- | --- |
+| PK, FK | 탐지 시험번호 | test_id | BIGINT | NN |  | `[내부]` `pk_detection_metric` with `metric`; `fk_detection_metric_test`. The primary key also serves the FK. |
+| PK | 지표 | metric | VARCHAR(16) | NN |  | `[노출]` `ck_detection_metric_metric`: `YM_EXACT` (year and month exactly), `YM_WITHIN_3` (within three months), `YEAR`, `KR_NEXT`, `US_NEXT` (sign of next month's Korean and US market). |
+|  | 맞힌 수 | hits | INTEGER | NN |  | `[노출]` `ck_detection_metric_hits`: `0 <= hits <= units`. |
+|  | 채점한 단위 수 | units | INTEGER | NN |  | `[노출]` `ck_detection_metric_units`: `> 0`; at most the window's `units` (service rule D2). |
+|  | 우연 기준 적중률 | base_rate | NUMERIC(9,8) | NN |  | `[노출]` The hit rate of chance over the same units. `ck_detection_metric_base_rate`: `0..1`, not NaN. The shown accuracy is `hits / units` rounded once HALF_UP to 8 places, computed when read, never stored. |
+
+### 16.4 Constraints and indexes / 제약과 인덱스
+
+Notation follows 6.4 (표기는 6.4와 같다). `FlywayV20UpgradeTest` checks that V20 adds exactly these names and breaks each rule once by name, NaN included. / `FlywayV20UpgradeTest`가 V20이 정확히 이 이름들을 더하는지 보고 규칙마다 이름으로 한 번씩 깬다(NaN 포함).
+
+| 이름 | 종류 | 테이블 | 정의 |
+|---|---|---|---|
+| pk_detection_test | PK | detection_test | (id) |
+| uq_detection_test_source | UQ | detection_test | (model_id, test_version, sample_layer, window_months, source_sha256) |
+| ck_detection_test_model_id | CK | detection_test | model_id <> '' AND model_id = btrim(model_id) |
+| ck_detection_test_test_version | CK | detection_test | test_version ~ '^[a-z][a-z0-9-]*/[1-9][0-9]*$' |
+| ck_detection_test_sample_layer | CK | detection_test | sample_layer ~ '^[A-Z0-9][A-Z0-9-]*$' |
+| ck_detection_test_window_months | CK | detection_test | window_months IN (1, 3, 6) |
+| ck_detection_test_units | CK | detection_test | units > 0 |
+| ck_detection_test_source_sha256 | CK | detection_test | source_sha256 ~ '^[0-9a-f]{64}$' |
+| idx_detection_test_source | IDX | detection_test | (source_sha256) |
+| pk_detection_metric | PK | detection_metric | (test_id, metric) |
+| fk_detection_metric_test | FK | detection_metric | (test_id) → detection_test (id) (R53) |
+| ck_detection_metric_metric | CK | detection_metric | metric IN ('YM_EXACT','YM_WITHIN_3','YEAR','KR_NEXT','US_NEXT') |
+| ck_detection_metric_units | CK | detection_metric | units > 0 |
+| ck_detection_metric_hits | CK | detection_metric | hits >= 0 AND hits <= units |
+| ck_detection_metric_base_rate | CK | detection_metric | base_rate >= 0 AND base_rate <= 1 AND base_rate <> 'NaN'::numeric |
+
+**Counts / 개수:**
+
+| 테이블 | PK | UNIQUE(제약) | UNIQUE 인덱스(`uq_`) | FK | CHECK | INDEX(`idx_`) |
+|---|---|---|---|---|---|---|
+| detection_test | 1 | 1 | 0 | 0 | 6 | 1 |
+| detection_metric | 1 | 0 | 0 | 1 | 4 | 0 |
+| **§16 소계** | **2** | **1** | **0** | **1** | **10** | **1** |
+
+### 16.5 Rules DDL cannot enforce / DDL로 막지 못해 검사할 규칙
+
+| # | 규칙 | 검사하는 기능 |
+|---|---|---|
+| D1 | One import is one document: every window it names gets one `detection_test` row and exactly the five metrics, and all rows of a source hash share the model, test version, sample layer and `run_at`. The import runs in one transaction under an advisory lock on the source hash. A summary equal to the one stored under the hash writes nothing (200); a different one is `DETECTION_CONFLICT` (409) and leaves nothing. / 들여오기 한 번은 문서 하나다: 문서의 창마다 `detection_test` 한 행과 정확히 지표 다섯을 쓰고, 한 원본 해시의 행은 모델·시험 판·표본 층·`run_at`이 같다. 원본 해시에 대한 advisory 잠금 아래 한 트랜잭션에서 한다. 해시 아래 저장된 요약과 같으면 아무것도 쓰지 않고(200), 다르면 `DETECTION_CONFLICT`(409)이고 아무것도 남지 않는다. | AG-06 G3 (`DetectionImportService`) |
+| D2 | The document has the shape of `detection-summary/1` and then: `run_at` is a real instant not after the import time, a metric's `units` is at most its window's `units`, and a pattern must match the whole string (no trailing line break). A refusal is `INVALID_ARGUMENT` (400) with JSON pointers and keywords in `errors`, never a value. / 문서는 `detection-summary/1` 모양이고, 이어서 `run_at`은 들여오는 시각보다 늦지 않은 실제 시각, 지표의 `units`는 창의 `units` 이하, 패턴은 문자열 전체와 맞아야 한다(끝 줄바꿈 없음). 거절은 `errors`에 JSON 포인터와 키워드만 담은 `INVALID_ARGUMENT`(400)이고 값은 싣지 않는다. | AG-06 G3 (`DetectionSummaryDocument`) |
+| D3 | An agent row shows its model's newest run: the newest row of the model (by `run_at`, then `id`) fixes the test version and sample layer, and each window shows the newest row of that version and layer. No row means `NOT_TESTED`. The result never changes a rank, a filter or the membership of a leaderboard. / 에이전트 행은 그 모델의 최신 실행을 보인다: 모델의 최신 행(`run_at`, 다음 `id`)이 시험 판과 표본 층을 정하고, 창마다 그 판·층의 최신 행을 보인다. 행이 없으면 `NOT_TESTED`다. 결과는 리더보드의 순위·거르기·포함 여부를 바꾸지 않는다. | AG-06 G3 (`DetectionReader`), G2 |

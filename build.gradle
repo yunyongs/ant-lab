@@ -65,6 +65,7 @@ tasks.named('test') {
     inputs.file('docs/api/engine.yaml').withPropertyName('engineContract').withPathSensitivity(PathSensitivity.RELATIVE)
     inputs.file('docs/api/agent-runner.yaml').withPropertyName('agentRunnerContract').withPathSensitivity(PathSensitivity.RELATIVE)
     inputs.file('docs/api/turn-decision-1.schema.json').withPropertyName('turnDecisionSchema').withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.file('docs/api/detection-summary-1.schema.json').withPropertyName('detectionSummarySchema').withPathSensitivity(PathSensitivity.RELATIVE)
     inputs.file('compose.yaml').withPropertyName('composeFile').withPathSensitivity(PathSensitivity.RELATIVE)
     inputs.dir('monitoring').withPropertyName('monitoringFiles').withPathSensitivity(PathSensitivity.RELATIVE)
     inputs.file('.env.example').withPropertyName('envExample').withPathSensitivity(PathSensitivity.RELATIVE)
