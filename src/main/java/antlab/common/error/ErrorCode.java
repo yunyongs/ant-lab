@@ -101,5 +101,7 @@ public enum ErrorCode {
     /** The reflection or operating note breaks the leak filter; the answer names pointers and codes only (agent runner, AG-05). */
     MEMORY_LEAK,
     /** The reflection or operating note does not have the shape of its JSON schema (agent runner, AG-05). */
-    MEMORY_SCHEMA_INVALID
+    MEMORY_SCHEMA_INVALID,
+    /** Another detection summary is already recorded under the same source file hash (admin import, AG-06). */
+    DETECTION_CONFLICT
 }

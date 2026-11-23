@@ -50,6 +50,7 @@ public class SecurityConfig {
                     a.requestMatchers("/api/v1/seasons", "/api/v1/seasons/**").authenticated();
                     // The controller keeps its own dev-header gate and exists only in the local profile.
                     a.requestMatchers("/api/v1/dev/**").hasRole("ADMIN");
+                    a.requestMatchers("/api/v1/admin/**").hasRole("ADMIN");
                     if (apiDocs) {
                         a.requestMatchers(PublicPaths.API_DOCS.toArray(String[]::new)).permitAll();
                     }

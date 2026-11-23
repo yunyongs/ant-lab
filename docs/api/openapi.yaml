@@ -1307,6 +1307,62 @@ paths:
           $ref: '#/components/responses/Unauthenticated'
         '500':
           $ref: '#/components/responses/InternalError'
+  /api/v1/admin/detection-summaries:
+    post:
+      tags: [admin]
+      operationId: importDetectionSummary
+      summary: Import a detection summary / 탐지 요약 들여오기
+      description: |-
+        Stores one detection-summary/1 document (docs/api/detection-summary-1.schema.json): one model's detection test results per window length, written as one detection_test row per window with its five detection_metric rows. Administrators only. The document is checked against the schema and then the rules the schema cannot say (runAt a real instant and not in the future, hits at most the metric's units, a metric's units at most the window's units); a refusal lists JSON pointers and keywords in errors and never echoes a value. A summary equal to the one already stored under the same sourceSha256 answers 200 and writes nothing; a different one answers 409. Detection is report only and changes no score, rank or season.
+
+        detection-summary/1 문서 하나(docs/api/detection-summary-1.schema.json)를 저장한다: 모델 하나의 창 길이별 탐지 시험 결과를 창마다 detection_test 행 하나와 그 아래 detection_metric 행 다섯으로 쓴다. 관리자만 쓴다. 문서는 스키마로 검사한 뒤 스키마가 말하지 못하는 규칙(runAt은 실제 시각이고 미래가 아님, hits는 지표의 단위 수 이하, 지표의 단위 수는 창의 단위 수 이하)으로 검사하며, 거절하면 errors에 JSON 포인터와 키워드만 싣고 값은 되풀이하지 않는다. 같은 sourceSha256으로 이미 저장된 요약과 같으면 200으로 답하고 아무것도 쓰지 않으며, 다르면 409다. 탐지는 보고 전용이라 점수·순위·시즌을 바꾸지 않는다.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        description: A detection-summary/1 document / detection-summary/1 문서
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: The same summary was already stored; nothing was written / 같은 요약이 이미 저장되어 있어 아무것도 쓰지 않았다
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DetectionImportDto'
+        '201':
+          description: The summary was stored / 요약을 저장했다
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DetectionImportDto'
+        '400':
+          description: The document breaks the schema or a rule after it (errors lists pointers and keywords) — INVALID_ARGUMENT / 문서가 스키마나 그 뒤의 규칙을 어겼다(errors에 포인터와 키워드) — INVALID_ARGUMENT
+          x-error-codes: [INVALID_ARGUMENT]
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          description: The caller is not an administrator — FORBIDDEN / 호출자가 관리자가 아니다 — FORBIDDEN
+          x-error-codes: [FORBIDDEN]
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: Another summary is already stored under the same sourceSha256 — DETECTION_CONFLICT / 같은 sourceSha256으로 다른 요약이 이미 저장되어 있다 — DETECTION_CONFLICT
+          x-error-codes: [DETECTION_CONFLICT]
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '500':
+          $ref: '#/components/responses/InternalError'
 components:
   securitySchemes:
     bearerAuth:
@@ -3323,7 +3379,7 @@ components:
           $ref: '#/components/schemas/ErrorCode'
         errors:
           type: array
-          description: Only for @Valid violations / @Valid 위반일 때만
+          description: For @Valid violations, and for an imported document that breaks its rules (field is then a JSON pointer and reason the rule keyword) / @Valid 위반일 때, 그리고 들여온 문서가 규칙을 어겼을 때(이때 field는 JSON 포인터, reason은 규칙 키워드)
           items:
             $ref: '#/components/schemas/FieldViolation'
     FieldViolation:
@@ -3334,7 +3390,7 @@ components:
           type: string
         reason:
           type: string
-          description: Simple name of the constraint annotation (for example Min) / 제약 애너테이션 단순 이름(예 Min)
+          description: Simple name of the constraint annotation (for example Min), or the rule keyword of an imported document (for example pattern) / 제약 애너테이션 단순 이름(예 Min), 또는 들여온 문서의 규칙 키워드(예 pattern)
     ErrorCode:
       type: string
       enum: [INVALID_ARGUMENT, NOT_FOUND, METHOD_NOT_ALLOWED, NOT_ACCEPTABLE,
@@ -3342,7 +3398,8 @@ components:
              ENGINE_UNAVAILABLE, SEASON_LIMIT, TURN_NOT_REACHED, SEASON_NOT_FINISHED, SEASON_NOT_ACTIVE, TURN_MISMATCH, LEDGER_MISMATCH,
              LINEUP_MISMATCH, ASSET_NOT_IN_POOL, SOURCE_NOT_VISIBLE, INSUFFICIENT_CASH, INSUFFICIENT_HOLDING, POSITION_CONFLICT, POSITION_REQUIRED,
              INVALID_FORMATION, EVENT_TIME_CONFLICT, RECONCILIATION_FAILED, SEASON_HALTED, FORBIDDEN, EMAIL_TAKEN,
-             UNAUTHENTICATED, INVALID_CREDENTIALS, LEAGUE_CLOSED, LEAGUE_SEAT_TAKEN, LEAGUE_FULL, LEAGUE_STALE, LEAGUE_OPEN]
+             UNAUTHENTICATED, INVALID_CREDENTIALS, LEAGUE_CLOSED, LEAGUE_SEAT_TAKEN, LEAGUE_FULL, LEAGUE_STALE, LEAGUE_OPEN,
+             DETECTION_CONFLICT]
 
     SeasonScoreDto:
       type: object
@@ -3673,3 +3730,17 @@ components:
           type: integer
           format: int32
           description: Turns whose final model call ended NO_RESPONSE or INVALID / 최종 모델 호출이 NO_RESPONSE 또는 INVALID 로 끝난 턴 수
+    DetectionImportDto:
+      type: object
+      description: What a detection summary import did / 탐지 요약 들여오기의 결과
+      required: [created, windows]
+      properties:
+        created:
+          type: boolean
+          description: True when the rows were written now; false when the same summary was already stored under this source hash and nothing was written / 지금 행을 썼으면 true, 같은 원본 해시로 같은 요약이 이미 있어 아무것도 쓰지 않았으면 false
+        windows:
+          type: integer
+          format: int32
+          minimum: 1
+          maximum: 3
+          description: Number of windows in the summary (one test row each) / 요약의 창 수(창마다 시험 행 하나)

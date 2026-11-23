@@ -579,6 +579,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/detection-summaries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Import a detection summary / 탐지 요약 들여오기
+         * @description Stores one detection-summary/1 document (docs/api/detection-summary-1.schema.json): one model's detection test results per window length, written as one detection_test row per window with its five detection_metric rows. Administrators only. The document is checked against the schema and then the rules the schema cannot say (runAt a real instant and not in the future, hits at most the metric's units, a metric's units at most the window's units); a refusal lists JSON pointers and keywords in errors and never echoes a value. A summary equal to the one already stored under the same sourceSha256 answers 200 and writes nothing; a different one answers 409. Detection is report only and changes no score, rank or season.
+         *
+         *     detection-summary/1 문서 하나(docs/api/detection-summary-1.schema.json)를 저장한다: 모델 하나의 창 길이별 탐지 시험 결과를 창마다 detection_test 행 하나와 그 아래 detection_metric 행 다섯으로 쓴다. 관리자만 쓴다. 문서는 스키마로 검사한 뒤 스키마가 말하지 못하는 규칙(runAt은 실제 시각이고 미래가 아님, hits는 지표의 단위 수 이하, 지표의 단위 수는 창의 단위 수 이하)으로 검사하며, 거절하면 errors에 JSON 포인터와 키워드만 싣고 값은 되풀이하지 않는다. 같은 sourceSha256으로 이미 저장된 요약과 같으면 200으로 답하고 아무것도 쓰지 않으며, 다르면 409다. 탐지는 보고 전용이라 점수·순위·시즌을 바꾸지 않는다.
+         */
+        post: operations["importDetectionSummary"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2474,16 +2496,16 @@ export interface components {
             detail: string;
             instance: string;
             code: components["schemas"]["ErrorCode"];
-            /** @description Only for @Valid violations / @Valid 위반일 때만 */
+            /** @description For @Valid violations, and for an imported document that breaks its rules (field is then a JSON pointer and reason the rule keyword) / @Valid 위반일 때, 그리고 들여온 문서가 규칙을 어겼을 때(이때 field는 JSON 포인터, reason은 규칙 키워드) */
             errors?: components["schemas"]["FieldViolation"][];
         };
         FieldViolation: {
             field: string;
-            /** @description Simple name of the constraint annotation (for example Min) / 제약 애너테이션 단순 이름(예 Min) */
+            /** @description Simple name of the constraint annotation (for example Min), or the rule keyword of an imported document (for example pattern) / 제약 애너테이션 단순 이름(예 Min), 또는 들여온 문서의 규칙 키워드(예 pattern) */
             reason: string;
         };
         /** @enum {string} */
-        ErrorCode: "INVALID_ARGUMENT" | "NOT_FOUND" | "METHOD_NOT_ALLOWED" | "NOT_ACCEPTABLE" | "UNSUPPORTED_MEDIA_TYPE" | "MALFORMED_REQUEST" | "INTERNAL_ERROR" | "POOL_NOT_LOADED" | "POOL_NOT_JUDGED" | "PATH_TOO_LONG" | "ENGINE_UNAVAILABLE" | "SEASON_LIMIT" | "TURN_NOT_REACHED" | "SEASON_NOT_FINISHED" | "SEASON_NOT_ACTIVE" | "TURN_MISMATCH" | "LEDGER_MISMATCH" | "LINEUP_MISMATCH" | "ASSET_NOT_IN_POOL" | "SOURCE_NOT_VISIBLE" | "INSUFFICIENT_CASH" | "INSUFFICIENT_HOLDING" | "POSITION_CONFLICT" | "POSITION_REQUIRED" | "INVALID_FORMATION" | "EVENT_TIME_CONFLICT" | "RECONCILIATION_FAILED" | "SEASON_HALTED" | "FORBIDDEN" | "EMAIL_TAKEN" | "UNAUTHENTICATED" | "INVALID_CREDENTIALS" | "LEAGUE_CLOSED" | "LEAGUE_SEAT_TAKEN" | "LEAGUE_FULL" | "LEAGUE_STALE" | "LEAGUE_OPEN";
+        ErrorCode: "INVALID_ARGUMENT" | "NOT_FOUND" | "METHOD_NOT_ALLOWED" | "NOT_ACCEPTABLE" | "UNSUPPORTED_MEDIA_TYPE" | "MALFORMED_REQUEST" | "INTERNAL_ERROR" | "POOL_NOT_LOADED" | "POOL_NOT_JUDGED" | "PATH_TOO_LONG" | "ENGINE_UNAVAILABLE" | "SEASON_LIMIT" | "TURN_NOT_REACHED" | "SEASON_NOT_FINISHED" | "SEASON_NOT_ACTIVE" | "TURN_MISMATCH" | "LEDGER_MISMATCH" | "LINEUP_MISMATCH" | "ASSET_NOT_IN_POOL" | "SOURCE_NOT_VISIBLE" | "INSUFFICIENT_CASH" | "INSUFFICIENT_HOLDING" | "POSITION_CONFLICT" | "POSITION_REQUIRED" | "INVALID_FORMATION" | "EVENT_TIME_CONFLICT" | "RECONCILIATION_FAILED" | "SEASON_HALTED" | "FORBIDDEN" | "EMAIL_TAKEN" | "UNAUTHENTICATED" | "INVALID_CREDENTIALS" | "LEAGUE_CLOSED" | "LEAGUE_SEAT_TAKEN" | "LEAGUE_FULL" | "LEAGUE_STALE" | "LEAGUE_OPEN" | "DETECTION_CONFLICT";
         /** @description Season score / 시즌 점수 */
         SeasonScoreDto: {
             /** @description Formula version the score was computed with / 점수를 계산한 공식 버전 */
@@ -2774,6 +2796,16 @@ export interface components {
              * @description Turns whose final model call ended NO_RESPONSE or INVALID / 최종 모델 호출이 NO_RESPONSE 또는 INVALID 로 끝난 턴 수
              */
             failedTurnCount: number;
+        };
+        /** @description What a detection summary import did / 탐지 요약 들여오기의 결과 */
+        DetectionImportDto: {
+            /** @description True when the rows were written now; false when the same summary was already stored under this source hash and nothing was written / 지금 행을 썼으면 true, 같은 원본 해시로 같은 요약이 이미 있어 아무것도 쓰지 않았으면 false */
+            created: boolean;
+            /**
+             * Format: int32
+             * @description Number of windows in the summary (one test row each) / 요약의 창 수(창마다 시험 행 하나)
+             */
+            windows: number;
         };
     };
     responses: {
@@ -4074,6 +4106,69 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthenticated"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    importDetectionSummary: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description A detection-summary/1 document / detection-summary/1 문서 */
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            /** @description The same summary was already stored; nothing was written / 같은 요약이 이미 저장되어 있어 아무것도 쓰지 않았다 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DetectionImportDto"];
+                };
+            };
+            /** @description The summary was stored / 요약을 저장했다 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DetectionImportDto"];
+                };
+            };
+            /** @description The document breaks the schema or a rule after it (errors lists pointers and keywords) — INVALID_ARGUMENT / 문서가 스키마나 그 뒤의 규칙을 어겼다(errors에 포인터와 키워드) — INVALID_ARGUMENT */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description The caller is not an administrator — FORBIDDEN / 호출자가 관리자가 아니다 — FORBIDDEN */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Another summary is already stored under the same sourceSha256 — DETECTION_CONFLICT / 같은 sourceSha256으로 다른 요약이 이미 저장되어 있다 — DETECTION_CONFLICT */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
             500: components["responses"]["InternalError"];
         };
     };
