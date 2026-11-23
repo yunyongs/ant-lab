@@ -1,3 +1,4 @@
+import { SignedValue } from '../format/Change.tsx';
 import type { RankingRow } from './rankingRows.ts';
 import styles from './Ranking.module.css';
 
@@ -29,7 +30,9 @@ export function RankingList({
                 >{`${String(row.streak)}턴 연속`}</span>
               )}
               {row.change !== null && (
-                <span className={styles.meta}>{row.change}</span>
+                <span className={styles.meta}>
+                  <SignedValue change={row.change} />
+                </span>
               )}
               {row.grade !== null && (
                 <span className={styles.meta}>{row.grade}</span>

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { messageFor } from '../../api/errorMessages.ts';
+import { Change } from '../format/Change.tsx';
 import { ProblemError } from '../../api/problem.ts';
 import { formatWon } from '../format/money.ts';
 import { UNKNOWN_OUTCOME_TEXT } from '../turn/turnMessages.ts';
@@ -76,7 +77,9 @@ function ResultRows({ result }: { result: OrderResult }) {
         {result.realizedPnl !== null && (
           <div className={styles.rowBetween}>
             <dt>실현 손익</dt>
-            <dd>{formatWon(result.realizedPnl)}</dd>
+            <dd>
+              <Change value={result.realizedPnl} kind="won" />
+            </dd>
           </div>
         )}
         <div className={styles.rowBetween}>

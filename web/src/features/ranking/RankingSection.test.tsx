@@ -33,8 +33,8 @@ describe('RankingSection', () => {
     const region = await screen.findByRole('region', { name: '순위' });
     const rows = await within(region).findAllByRole('listitem');
     expect(rows.map((r) => r.textContent)).toEqual([
-      '1위종목 나12.34%',
-      '2위종목 가5.00%',
+      '1위종목 나+12.34%',
+      '2위종목 가+5.00%',
       '1위채권 ETF 다-7.25%',
     ]);
   });
@@ -49,7 +49,7 @@ describe('RankingSection', () => {
       within(panel)
         .getAllByRole('listitem')
         .map((r) => r.textContent),
-    ).toEqual(['1위종목 가4턴 연속5.00%']);
+    ).toEqual(['1위종목 가4턴 연속+5.00%']);
     expect(within(panel).getByText('해당하는 종목이 없습니다')).toBeVisible();
   });
 
@@ -105,7 +105,7 @@ describe('RankingSection', () => {
     await screen.findByText('이름을 찾지 못한 종목');
     expect(container.innerHTML).not.toContain('987654');
     expect(container.innerHTML).not.toContain('987655');
-    expect(container.innerHTML).not.toMatch(/data-/);
+    expect(container.innerHTML).not.toMatch(/data-(?!direction)/);
     await userEvent.setup().click(screen.getByRole('tab', { name: '그룹' }));
     expect(screen.getByText('이름을 찾지 못한 그룹')).toBeInTheDocument();
     expect(container.innerHTML).not.toContain('987655');

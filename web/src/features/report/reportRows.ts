@@ -1,3 +1,4 @@
+import { signedChange, type SignedText } from '../format/signedChange.ts';
 import { formatWon } from '../format/money.ts';
 import { ratioWithPercent, ratioWithPoints } from '../format/ratio.ts';
 import { NOT_APPLICABLE, NULL_REASON } from './reportMessages.ts';
@@ -10,6 +11,8 @@ export interface RowDef {
   hint?: string;
   keys: (keyof Report)[];
   value: (r: Report) => string;
+  // Gain or loss figure: shown with a sign, an arrow and the up/down colour.
+  change?: (r: Report) => SignedText;
   big?: boolean;
 }
 
@@ -49,7 +52,8 @@ export const GROUPS: GroupDef[] = [
       {
         label: '총 수익률',
         keys: ['totalReturn'],
-        value: (r) => ratioWithPercent(r.totalReturn),
+        value: (r) => signedChange(r.totalReturn, 'percent').text,
+        change: (r) => signedChange(r.totalReturn, 'percent'),
         big: true,
       },
       {
@@ -70,13 +74,15 @@ export const GROUPS: GroupDef[] = [
       {
         label: '기준선 수익률',
         keys: ['baselineReturn'],
-        value: (r) => ratioWithPercent(r.baselineReturn),
+        value: (r) => signedChange(r.baselineReturn, 'percent').text,
+        change: (r) => signedChange(r.baselineReturn, 'percent'),
       },
       {
         label: '초과 수익률',
         hint: '(최종 − 기준선 최종) ÷ 초기 자금',
         keys: ['excessReturn'],
-        value: (r) => ratioWithPercent(r.excessReturn),
+        value: (r) => signedChange(r.excessReturn, 'percent').text,
+        change: (r) => signedChange(r.excessReturn, 'percent'),
       },
       {
         label: '월 변동성',

@@ -12,8 +12,8 @@ describe('TurnResultCard', () => {
   it('prints every server string verbatim', () => {
     render(<TurnResultCard turn={turnResultFixture()} />);
     expect(screen.getByText('104,820,000원')).toBeInTheDocument();
-    expect(screen.getByText('1,520,000원')).toBeInTheDocument();
-    expect(screen.getByText('1.47%')).toBeInTheDocument();
+    expect(screen.getByText('+1,520,000원')).toBeInTheDocument();
+    expect(screen.getByText('+1.47%')).toBeInTheDocument();
     expect(screen.getByText('12,000,000원')).toBeInTheDocument();
     expect(screen.getByText('92,820,000원')).toBeInTheDocument();
     const risk = screen.getByRole('region', { name: '위험 한도' });
@@ -77,7 +77,7 @@ describe('TurnResultCard', () => {
         })}
       />,
     );
-    expect(screen.getByText('12.35%')).toBeInTheDocument();
+    expect(screen.getByText('+12.35%')).toBeInTheDocument();
     expect(screen.getByText('-31.00%')).toBeInTheDocument();
     expect(screen.getByText('7.65%p')).toBeInTheDocument();
     expect(screen.queryByText(/1\.471442/)).toBeNull();

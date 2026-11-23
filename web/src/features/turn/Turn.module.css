@@ -51,6 +51,7 @@
 }
 
 .totalValue {
+  font-variant-numeric: tabular-nums;
   font-size: var(--font-xl);
   overflow-wrap: anywhere;
 }
