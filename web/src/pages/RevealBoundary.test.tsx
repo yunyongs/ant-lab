@@ -17,6 +17,7 @@ import { seasonFixture } from '../test/fixtures/seasons.ts';
 import { parseWholeNumber } from '../features/format/integer.ts';
 import { problem } from '../test/authHandlers.ts';
 import { alertsOfTurn, feedOfTurn } from '../test/fixtures/feed.ts';
+import { expandRanking } from '../test/expandRanking.ts';
 import { renderRoute } from '../test/renderWithProviders.tsx';
 import { rankingFixture } from '../test/fixtures/ranking.ts';
 import { serveFeedWorld } from '../test/serveFeed.ts';
@@ -148,7 +149,7 @@ describe('reveal boundary', () => {
     const world = serveTurnWorld({ current: 3 });
     world.ranking = (turnNo) => rankingFixture(turnNo);
     const { router, container, queryClient } = renderRoute('/seasons/7');
-    await screen.findByRole('region', { name: '순위' });
+    await expandRanking();
     await screen.findByText('종목 나');
     expectNoDatePattern(container);
     for (const path of ['/seasons/7/turns/2', '/seasons/7/turns/4']) {
