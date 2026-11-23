@@ -42,6 +42,7 @@
     var(--nav-item-height) + 1px + env(safe-area-inset-bottom)
   );
 
+  --font-sm: 0.875rem;
   --font-base: 1rem;
   --font-lg: 1.125rem;
   --font-xl: 1.375rem;
