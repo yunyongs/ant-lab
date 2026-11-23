@@ -36,7 +36,7 @@ class FlywayMigrationTest {
     TestMembers testMembers;
 
     @Test
-    void V1부터_V20까지_업무_테이블과_성공_이력이_생긴다() {
+    void V1부터_V21까지_업무_테이블과_성공_이력이_생긴다() {
         Integer tableCount = jdbc.queryForObject("""
                 SELECT count(*)
                 FROM information_schema.tables
@@ -45,15 +45,15 @@ class FlywayMigrationTest {
                   AND table_name <> 'flyway_schema_history'
                 """, Integer.class);
 
-        assertThat(tableCount).isEqualTo(40);
+        assertThat(tableCount).isEqualTo(42);
         assertThat(jdbc.queryForObject("""
                 SELECT count(*) FROM public.flyway_schema_history
-                WHERE success AND version IN ('1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '20')
-                """, Integer.class)).isEqualTo(20);
+                WHERE success AND version IN ('1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '20', '21')
+                """, Integer.class)).isEqualTo(21);
         assertThat(jdbc.queryForObject("""
                 SELECT count(*) FROM public.flyway_schema_history
-                WHERE version IN ('1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '20') AND checksum IS NOT NULL
-                """, Integer.class)).isEqualTo(20);
+                WHERE version IN ('1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '20', '21') AND checksum IS NOT NULL
+                """, Integer.class)).isEqualTo(21);
     }
 
     @Test
@@ -67,7 +67,7 @@ class FlywayMigrationTest {
     }
 
     @Test
-    void 업무_테이블은_비어_있고_이력은_스무_건이다() {
+    void 업무_테이블은_비어_있고_이력은_스물한_건이다() {
         // the committed default test member (TestMembers) is the only business row
         assertThat(jdbc.queryForObject(
                 "SELECT count(*) FROM public.member WHERE id <> ?", Integer.class, testMembers.defaultId())).isZero();
@@ -75,7 +75,7 @@ class FlywayMigrationTest {
                 "SELECT count(*) FROM public.cash_account", Integer.class)).isZero();
         assertThat(jdbc.queryForObject(
                 "SELECT count(*) FROM public.flyway_schema_history WHERE installed_by IS NOT NULL", Integer.class))
-                .isEqualTo(20);
+                .isEqualTo(21);
     }
 
     @Test

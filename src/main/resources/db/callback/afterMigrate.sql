@@ -3,7 +3,7 @@
 -- It does nothing when the role antlab_app does not exist (tests and tools that migrate as a superuser, the engine test
 -- harness). A table in public that is not listed below stops the start: a new table is added to one class in the same
 -- change that creates it. The roles themselves come from db/roles/antlab_owner_app.sql.
---   READ    SELECT                  history and pool
+--   READ    SELECT                  history and pool, and the manager score formula (a new row only by migration)
 --   APPEND  SELECT, INSERT          ledger and every other append-only table: never UPDATE, DELETE or TRUNCATE
 --   MUTABLE SELECT, INSERT, UPDATE  state rows the services change (SELECT ... FOR UPDATE needs UPDATE)
 -- One exception to the class of a table: month_block stays READ and gets a column-level UPDATE on its regime columns
@@ -18,11 +18,11 @@
 DO $grants$
 DECLARE
     read_tables constant text[] := ARRAY['asset_group', 'asset', 'asset_position', 'month_block', 'asset_month_return',
-        'fx_month', 'month_event', 'asset_month_attention'];
+        'fx_month', 'month_event', 'asset_month_attention', 'manager_score_formula'];
     append_tables constant text[] := ARRAY['season_path', 'turn', 'turn_price', 'formation_change', 'turn_feed',
         'reconciliation_log', 'orders', 'execution', 'cash_ledger', 'asset_daily_price', 'season_agent_config',
         'persona_version', 'league', 'league_entry', 'agent_call', 'agent_reflection', 'agent_memory', 'season_score', 'rating_history', 'projection', 'series', 'series_observation',
-        'detection_test', 'detection_metric'];
+        'detection_test', 'detection_metric', 'season_manager_parts'];
     mutable_tables constant text[] := ARRAY['member', 'season', 'cash_account', 'holding', 'lineup', 'refresh_token',
         'agent_profile', 'job_run'];
     regime_table constant text := 'month_block';
