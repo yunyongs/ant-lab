@@ -34,6 +34,7 @@
     "src/test/e2eScript.test.ts",
     "src/test/feedNotice.test.ts",
     "src/test/lintRestrictions.test.ts",
-    "src/test/packagePins.test.ts"
+    "src/test/packagePins.test.ts",
+    "src/test/tokenContrast.test.ts"
   ]
 }

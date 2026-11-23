@@ -1,5 +1,6 @@
 import { Link, Outlet, useLocation, useMatch } from 'react-router';
 import { useAuth } from '../features/auth/useAuth.ts';
+import { ConventionToggle } from '../features/format/ConventionToggle.tsx';
 import { ApiStatus } from '../features/health/ApiStatus.tsx';
 import { MAX_ROUTE_ID, parseWholeNumber } from '../features/format/integer.ts';
 import { headerSeasonLine } from '../features/seasons/labels.ts';
@@ -82,6 +83,7 @@ export function AppShell() {
         <div className={`${styles.inner} ${styles.statusRow}`}>
           <SeasonLine id={seasonId} />
           <ApiStatus />
+          <ConventionToggle />
         </div>
       </header>
       <main className={styles.main}>
