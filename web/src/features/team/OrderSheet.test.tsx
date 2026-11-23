@@ -9,22 +9,31 @@ import {
 import userEvent from '@testing-library/user-event';
 import { delay, http, HttpResponse } from 'msw';
 import type { ReactNode } from 'react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { problem } from '../../test/authHandlers.ts';
 import {
   heldDefender,
   holdingsAfterBuy,
   holdingsFixture,
 } from '../../test/fixtures/holdings.ts';
-import { orderResultFixture } from '../../test/fixtures/orders.ts';
+import {
+  orderQuoteFixture,
+  orderResultFixture,
+} from '../../test/fixtures/orders.ts';
 import { pricesFixture } from '../../test/fixtures/prices.ts';
 import { seasonFixture } from '../../test/fixtures/seasons.ts';
 import { renderRoute } from '../../test/renderWithProviders.tsx';
 import { serveSeason } from '../../test/serve.ts';
 import { server } from '../../test/server.ts';
-import { holdingsKey, usePlaceOrder } from './queries.ts';
+import {
+  QUOTE_DELAY_MS,
+  holdingsKey,
+  usePlaceOrder,
+  type OrderRequest,
+} from './queries.ts';
 
 const ORDERS = '*/api/v1/seasons/7/orders';
+const QUOTE = '*/api/v1/seasons/7/orders/quote';
 
 interface Spy {
   bodies: unknown[];
@@ -89,7 +98,9 @@ describe('OrderSheet', () => {
     expect(
       within(dialog).getByText('시스템 판정: 미드필더'),
     ).toBeInTheDocument();
-    expect(await within(dialog).findByText('187,400원')).toBeInTheDocument();
+    expect(
+      (await within(dialog).findAllByText('187,400원')).length,
+    ).toBeGreaterThan(0);
     expect(
       within(dialog).getByRole('combobox', { name: /선언 포지션/ }),
     ).toHaveValue('MIDFIELDER');
@@ -533,5 +544,509 @@ describe('usePlaceOrder', () => {
         true,
       );
     });
+  });
+});
+
+// Records every quote body; `answer` picks the reply for each.
+function serveQuotes(
+  answer: (body: OrderRequest, call: number) => Response | Promise<Response>,
+) {
+  const bodies: OrderRequest[] = [];
+  server.use(
+    http.post(QUOTE, async ({ request }) => {
+      const body = (await request.json()) as OrderRequest;
+      bodies.push(body);
+      return answer(body, bodies.length);
+    }),
+  );
+  return bodies;
+}
+
+function quotePanel(dialog: HTMLElement) {
+  return within(dialog).getByRole('region', { name: '주문 미리보기' });
+}
+
+async function quoteSettles() {
+  await new Promise((resolve) => setTimeout(resolve, QUOTE_DELAY_MS + 100));
+}
+
+describe('OrderSheet quote', () => {
+  it('shows the server quote in a live region before the order', async () => {
+    serveSeason({});
+    const spy = serveTeam();
+    const quotes = serveQuotes(() => HttpResponse.json(orderQuoteFixture()));
+    const { dialog } = await openSheet();
+    const panel = quotePanel(dialog);
+    const status = within(panel).getByRole('status');
+    expect(await within(status).findByText('99,812,572원')).toBeInTheDocument();
+    expect(within(status).getByText('예상 체결가')).toBeInTheDocument();
+    expect(within(status).getByText('예상 대금')).toBeInTheDocument();
+    // One share: the fill price and the amount are the same text.
+    expect(within(status).getAllByText('187,400원')).toHaveLength(2);
+    expect(within(status).getByText('28원')).toBeInTheDocument();
+    expect(within(status).queryByText('그중 환전 비용')).toBeNull();
+    expect(
+      within(dialog).getByRole('button', { name: '최대 (533주)' }),
+    ).toBeEnabled();
+    expect(quotes).toEqual([
+      {
+        expectedTurnNo: 0,
+        side: 'BUY',
+        assetId: 101,
+        quantity: 1,
+        declaredPosition: 'MIDFIELDER',
+      },
+    ]);
+    expect(spy.bodies).toHaveLength(0);
+  });
+
+  it('shows the FX part of the fee when the server sends one', async () => {
+    serveSeason({});
+    serveTeam();
+    serveQuotes(() =>
+      HttpResponse.json(
+        orderQuoteFixture({
+          fillPrice: '648000',
+          notional: '1296000',
+          fee: '8424',
+          fxCost: '5184',
+          cashAfter: '98695576',
+          maxBuyQuantity: 45,
+        }),
+      ),
+    );
+    const { dialog } = await openSheet();
+    const status = within(quotePanel(dialog)).getByRole('status');
+    expect(await within(status).findByText('8,424원')).toBeInTheDocument();
+    expect(within(status).getByText('그중 환전 비용')).toBeInTheDocument();
+    expect(within(status).getByText('5,184원')).toBeInTheDocument();
+  });
+
+  it('waits for typing to pause and asks once for the final quantity', async () => {
+    serveSeason({});
+    serveTeam();
+    const quotes = serveQuotes(({ quantity }) =>
+      HttpResponse.json(
+        orderQuoteFixture({ cashAfter: `9${String(quantity)}` }),
+      ),
+    );
+    const { user, dialog } = await openSheet();
+    const status = within(quotePanel(dialog)).getByRole('status');
+    await within(status).findByText('91원');
+    await setQuantity(user, dialog, '123');
+    expect(
+      within(status).getByText('미리보기를 계산하는 중…'),
+    ).toBeInTheDocument();
+    expect(await within(status).findByText('9,123원')).toBeInTheDocument();
+    await quoteSettles();
+    expect(quotes.map((body) => body.quantity)).toEqual([1, 123]);
+  });
+
+  it('ignores a slow answer for a quantity that is no longer on screen', async () => {
+    serveSeason({});
+    serveTeam();
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    serveQuotes(async ({ quantity }) => {
+      if (quantity === 2) await gate;
+      return HttpResponse.json(
+        orderQuoteFixture({ cashAfter: `7${String(quantity)}` }),
+      );
+    });
+    const { user, dialog } = await openSheet();
+    const status = within(quotePanel(dialog)).getByRole('status');
+    await within(status).findByText('71원');
+    await setQuantity(user, dialog, '2');
+    await quoteSettles();
+    await setQuantity(user, dialog, '3');
+    expect(await within(status).findByText('73원')).toBeInTheDocument();
+    release();
+    await quoteSettles();
+    expect(within(status).getByText('73원')).toBeInTheDocument();
+    expect(within(status).queryByText('72원')).toBeNull();
+  });
+
+  it('shows a cash refusal inline with the last max and keeps the order button', async () => {
+    serveSeason({});
+    const spy = serveTeam();
+    serveOrder(spy, () =>
+      HttpResponse.json(orderResultFixture(), { status: 201 }),
+    );
+    const quotes = serveQuotes(({ quantity }) =>
+      quantity > 533
+        ? problem(422, {
+            code: 'INSUFFICIENT_CASH',
+            status: 422,
+            detail: '12,345원',
+          })
+        : HttpResponse.json(orderQuoteFixture()),
+    );
+    const { user, dialog } = await openSheet();
+    await within(dialog).findByRole('button', { name: '최대 (533주)' });
+    await setQuantity(user, dialog, '999');
+    const status = within(quotePanel(dialog)).getByRole('status');
+    expect(
+      await within(status).findByText(
+        '현금이 모자랍니다(대금과 수수료). 지금은 최대 533주까지 살 수 있습니다.',
+      ),
+    ).toBeInTheDocument();
+    expect(status).not.toHaveTextContent('12,345');
+    expect(within(dialog).queryByRole('alert')).toBeNull();
+    expect(
+      within(dialog).getByRole('button', { name: '999주 매수' }),
+    ).toBeEnabled();
+    await quoteSettles();
+    // No retry and no probe: the max was already known.
+    expect(quotes.map((body) => body.quantity)).toEqual([1, 999]);
+    expect(spy.bodies).toHaveLength(0);
+  });
+
+  it('asks a one-share quote for the max when none is known yet', async () => {
+    serveSeason({});
+    serveTeam();
+    const quotes = serveQuotes(({ quantity }, call) => {
+      if (call === 1) return HttpResponse.error();
+      return quantity > 533
+        ? problem(422, { code: 'INSUFFICIENT_CASH', status: 422 })
+        : HttpResponse.json(orderQuoteFixture());
+    });
+    const { user, dialog } = await openSheet();
+    const status = within(quotePanel(dialog)).getByRole('status');
+    expect(
+      await within(status).findByText(
+        '미리보기를 불러오지 못했습니다. 주문은 그대로 할 수 있습니다.',
+      ),
+    ).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: '최대' })).toBeDisabled();
+    await setQuantity(user, dialog, '999');
+    expect(
+      await within(dialog).findByRole('button', { name: '최대 (533주)' }),
+    ).toBeEnabled();
+    await quoteSettles();
+    expect(quotes.map((body) => body.quantity)).toEqual([1, 999, 1]);
+  });
+
+  it('reads a refused one-share quote as a max of zero', async () => {
+    serveSeason({});
+    serveTeam();
+    const quotes = serveQuotes(() =>
+      problem(422, { code: 'INSUFFICIENT_CASH', status: 422 }),
+    );
+    const { dialog } = await openSheet();
+    expect(
+      await within(dialog).findByRole('button', { name: '최대 (0주)' }),
+    ).toBeDisabled();
+    expect(
+      within(quotePanel(dialog)).getByText(
+        '현금이 모자랍니다(대금과 수수료). 지금 현금으로는 1주도 살 수 없습니다.',
+      ),
+    ).toBeInTheDocument();
+    await quoteSettles();
+    expect(quotes).toHaveLength(1);
+  });
+
+  it('sets the quantity to the max and quotes it', async () => {
+    serveSeason({});
+    serveTeam();
+    const quotes = serveQuotes(({ quantity }) =>
+      HttpResponse.json(
+        orderQuoteFixture({ cashAfter: `5${String(quantity)}` }),
+      ),
+    );
+    const { user, dialog } = await openSheet();
+    await user.click(
+      await within(dialog).findByRole('button', { name: '최대 (533주)' }),
+    );
+    expect(within(dialog).getByRole('textbox', { name: '수량' })).toHaveValue(
+      '533',
+    );
+    const status = within(quotePanel(dialog)).getByRole('status');
+    expect(await within(status).findByText('5,533원')).toBeInTheDocument();
+    expect(
+      within(dialog).getByRole('button', { name: '533주 매수' }),
+    ).toBeEnabled();
+    expect(quotes.map((body) => body.quantity)).toEqual([1, 533]);
+  });
+
+  it('sends the order exactly as before and shows the fill, not the quote', async () => {
+    serveSeason({});
+    const spy = serveTeam();
+    serveOrder(spy, () =>
+      HttpResponse.json(orderResultFixture(), { status: 201 }),
+    );
+    const quotes = serveQuotes(() =>
+      HttpResponse.json(orderQuoteFixture({ cashAfter: '11111111' })),
+    );
+    const { user, dialog } = await openSheet();
+    await setQuantity(user, dialog, '13');
+    await within(quotePanel(dialog)).findByText('11,111,111원');
+    await user.click(within(dialog).getByRole('button', { name: '13주 매수' }));
+    expect(await within(dialog).findByText('97,563,435원')).toBeInTheDocument();
+    expect(within(dialog).queryByText('11,111,111원')).toBeNull();
+    expect(
+      within(dialog).queryByRole('region', { name: '주문 미리보기' }),
+    ).toBeNull();
+    expect(spy.bodies).toEqual([
+      {
+        expectedTurnNo: 0,
+        side: 'BUY',
+        assetId: 101,
+        quantity: 13,
+        declaredPosition: 'MIDFIELDER',
+      },
+    ]);
+    expect(quotes.map((body) => body.quantity)).toEqual([1, 13]);
+  });
+
+  it('lets the order go out while the quote is refused', async () => {
+    serveSeason({});
+    const spy = serveTeam();
+    serveOrder(spy, () =>
+      HttpResponse.json(orderResultFixture(), { status: 201 }),
+    );
+    serveQuotes(() => problem(409, { code: 'LEDGER_MISMATCH', status: 409 }));
+    const { user, dialog } = await openSheet();
+    await within(quotePanel(dialog)).findByText(
+      '계좌 기록이 맞지 않아 주문을 멈췄습니다.',
+    );
+    await user.click(within(dialog).getByRole('button', { name: '1주 매수' }));
+    await within(dialog).findByText('체결가');
+    expect(spy.bodies).toHaveLength(1);
+  });
+
+  it('asks a fresh quote after buying the same asset again', async () => {
+    serveSeason({});
+    const spy = serveTeam();
+    serveOrder(spy, () =>
+      HttpResponse.json(orderResultFixture(), { status: 201 }),
+    );
+    const quotes = serveQuotes((_body, call) =>
+      HttpResponse.json(
+        orderQuoteFixture(
+          call === 1 ? {} : { cashAfter: '97376007', maxBuyQuantity: 519 },
+        ),
+      ),
+    );
+    const { user, dialog } = await openSheet();
+    await within(dialog).findByRole('button', { name: '최대 (533주)' });
+    await user.click(within(dialog).getByRole('button', { name: '1주 매수' }));
+    await within(dialog).findByText('체결가');
+    await user.click(
+      within(dialog).getByRole('button', { name: '이 종목 더 사기' }),
+    );
+    expect(
+      await within(quotePanel(dialog)).findByText('97,376,007원'),
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).getByRole('button', { name: '최대 (519주)' }),
+    ).toBeEnabled();
+    expect(quotes.length).toBeGreaterThanOrEqual(2);
+    // The held asset keeps its position: the new quote sends none.
+    expect(quotes[quotes.length - 1]).toEqual({
+      expectedTurnNo: 0,
+      side: 'BUY',
+      assetId: 101,
+      quantity: 1,
+    });
+  });
+
+  it('asks no quote while the fill is being shown', async () => {
+    serveSeason({});
+    const spy = serveTeam();
+    serveOrder(spy, () =>
+      HttpResponse.json(orderResultFixture(), { status: 201 }),
+    );
+    const quotes = serveQuotes(() => HttpResponse.json(orderQuoteFixture()));
+    const { user, dialog } = await openSheet();
+    await within(quotePanel(dialog)).findByText('99,812,572원');
+    await user.click(within(dialog).getByRole('button', { name: '1주 매수' }));
+    await within(dialog).findByText('체결가');
+    await waitFor(() => {
+      expect(spy.holdingsCalls).toBe(2);
+    });
+    await quoteSettles();
+    expect(quotes).toHaveLength(1);
+  });
+
+  it('marks the live region busy while a quote is computed', async () => {
+    serveSeason({});
+    serveTeam();
+    serveQuotes(() => HttpResponse.json(orderQuoteFixture()));
+    const { user, dialog } = await openSheet();
+    const status = within(quotePanel(dialog)).getByRole('status');
+    await within(status).findByText('99,812,572원');
+    expect(status).toHaveAttribute('aria-busy', 'false');
+    await setQuantity(user, dialog, '2');
+    expect(status).toHaveAttribute('aria-busy', 'true');
+    expect(within(status).getByText('미리보기를 계산하는 중…')).toHaveAttribute(
+      'aria-hidden',
+      'true',
+    );
+    await waitFor(() => {
+      expect(status).toHaveAttribute('aria-busy', 'false');
+    });
+    expect(within(status).getByText('99,812,572원')).toBeInTheDocument();
+  });
+
+  it('groups the digits of a large max', async () => {
+    serveSeason({});
+    serveTeam();
+    serveQuotes(({ quantity }) =>
+      quantity > 99_985
+        ? problem(422, { code: 'INSUFFICIENT_CASH', status: 422 })
+        : HttpResponse.json(orderQuoteFixture({ maxBuyQuantity: 99_985 })),
+    );
+    const { user, dialog } = await openSheet();
+    await within(dialog).findByRole('button', { name: '최대 (99,985주)' });
+    await setQuantity(user, dialog, '100000');
+    expect(
+      await within(quotePanel(dialog)).findByText(
+        '현금이 모자랍니다(대금과 수수료). 지금은 최대 99,985주까지 살 수 있습니다.',
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('forgets the max and quotes again when the cash on screen changes', async () => {
+    serveSeason({});
+    let holdingsCalls = 0;
+    server.use(
+      http.get('*/api/v1/seasons/7/holdings', () => {
+        holdingsCalls += 1;
+        return HttpResponse.json(
+          holdingsCalls === 1
+            ? holdingsFixture()
+            : holdingsFixture({ cashBalance: '50000000' }),
+        );
+      }),
+    );
+    const orders: unknown[] = [];
+    server.use(
+      http.post(ORDERS, async ({ request }) => {
+        orders.push(await request.json());
+        return HttpResponse.error();
+      }),
+    );
+    const quotes = serveQuotes((_body, call) =>
+      HttpResponse.json(
+        orderQuoteFixture(
+          call === 1 ? {} : { cashAfter: '49812572', maxBuyQuantity: 266 },
+        ),
+      ),
+    );
+    const { user, dialog } = await openSheet();
+    await within(dialog).findByRole('button', { name: '최대 (533주)' });
+    // An unreadable answer refreshes the season state; the sheet stays open.
+    await user.click(within(dialog).getByRole('button', { name: '1주 매수' }));
+    await within(dialog).findByRole('alert');
+    expect(
+      await within(dialog).findByRole('button', { name: '최대 (266주)' }),
+    ).toBeEnabled();
+    expect(
+      within(quotePanel(dialog)).getByText('49,812,572원'),
+    ).toBeInTheDocument();
+    expect(quotes).toHaveLength(2);
+    expect(quotes[0]).toEqual(quotes[1]);
+    expect(orders).toHaveLength(1);
+  });
+
+  it('hides an older answer that lands while the next quantity waits', async () => {
+    serveSeason({});
+    serveTeam();
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    serveQuotes(async ({ quantity }) => {
+      if (quantity === 2) await gate;
+      return HttpResponse.json(
+        orderQuoteFixture({ cashAfter: `7${String(quantity)}` }),
+      );
+    });
+    const { user, dialog } = await openSheet();
+    const status = within(quotePanel(dialog)).getByRole('status');
+    await within(status).findByText('71원');
+    await setQuantity(user, dialog, '2');
+    await quoteSettles();
+    await setQuantity(user, dialog, '3');
+    release();
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(within(status).queryByText('72원')).toBeNull();
+    expect(
+      within(status).getByText('미리보기를 계산하는 중…'),
+    ).toBeInTheDocument();
+    expect(await within(status).findByText('73원')).toBeInTheDocument();
+    expect(within(status).queryByText('72원')).toBeNull();
+  });
+
+  it('re-quotes a new asset with the changed position after the pause', async () => {
+    serveSeason({});
+    serveTeam();
+    const quotes = serveQuotes(() => HttpResponse.json(orderQuoteFixture()));
+    const { user, dialog } = await openSheet();
+    const status = within(quotePanel(dialog)).getByRole('status');
+    await within(status).findByText('99,812,572원');
+    await user.selectOptions(
+      within(dialog).getByRole('combobox', { name: /선언 포지션/ }),
+      'FORWARD_TARGET',
+    );
+    expect(
+      within(status).getByText('미리보기를 계산하는 중…'),
+    ).toBeInTheDocument();
+    expect(quotes).toHaveLength(1);
+    await within(status).findByText('99,812,572원');
+    expect(quotes.map((body) => body.declaredPosition)).toEqual([
+      'MIDFIELDER',
+      'FORWARD_TARGET',
+    ]);
+  });
+
+  it('sends nothing more and warns nothing when closed during a quote', async () => {
+    serveSeason({});
+    serveTeam();
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {
+      // Collected below.
+    });
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const quotes = serveQuotes(async () => {
+      await gate;
+      return HttpResponse.json(orderQuoteFixture());
+    });
+    try {
+      const { user, dialog } = await openSheet();
+      await waitFor(() => {
+        expect(quotes).toHaveLength(1);
+      });
+      await user.click(within(dialog).getByRole('button', { name: '취소' }));
+      await waitFor(() => {
+        expect(screen.queryByRole('dialog')).toBeNull();
+      });
+      release();
+      await quoteSettles();
+      expect(quotes).toHaveLength(1);
+      expect(errors).not.toHaveBeenCalled();
+    } finally {
+      errors.mockRestore();
+    }
+  });
+
+  it('asks no quote for an invalid quantity', async () => {
+    serveSeason({});
+    serveTeam();
+    const quotes = serveQuotes(() => HttpResponse.json(orderQuoteFixture()));
+    const { user, dialog } = await openSheet();
+    await within(quotePanel(dialog)).findByText('99,812,572원');
+    await setQuantity(user, dialog, '0');
+    expect(
+      within(quotePanel(dialog)).getByText(
+        '수량을 정하면 미리보기가 나옵니다.',
+      ),
+    ).toBeInTheDocument();
+    await quoteSettles();
+    expect(quotes).toHaveLength(1);
   });
 });
