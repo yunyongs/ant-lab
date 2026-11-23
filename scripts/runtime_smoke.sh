@@ -93,6 +93,8 @@ jwt_key="$(python3 -c 'import base64, secrets; print(base64.b64encode(secrets.to
 printf 'ANTLAB_DB_PORT=%s\n' "$db_port" > "$env_file"
 printf 'ANTLAB_API_PORT=%s\n' "$api_port" >> "$env_file"
 printf 'ANTLAB_JWT_SECRET=%s\n' "$jwt_key" >> "$env_file"
+# The smoke checks the api image alone; the default path source (engine) would need the engine token and service.
+printf 'ANTLAB_ENGINE_PATH_SOURCE=java\n' >> "$env_file"
 
 dc version >/dev/null 2>&1 || die "Docker Compose is not available"
 command -v python3 >/dev/null 2>&1 || die "python3 is not installed"
@@ -173,7 +175,7 @@ startup_fail() {
   local started_at rc
   started_at="$(date +%s)"
   # Plain docker run: compose.yaml always sets ANTLAB_DB_URL, and an empty value would test a different failure.
-  docker run --name "$project-startfail" -e SPRING_PROFILES_ACTIVE=prod -e ANTLAB_JWT_SECRET="$jwt_key" \
+  docker run --name "$project-startfail" -e SPRING_PROFILES_ACTIVE=prod -e ANTLAB_JWT_SECRET="$jwt_key" -e ANTLAB_ENGINE_PATH_SOURCE=java \
     "$api_image" > "$work/startfail.log" 2>&1 &
   local pid=$!
   local waited=0

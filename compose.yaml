@@ -80,11 +80,13 @@ services:
       # Agent runner service token and owner id (AG-02); empty means every runner request answers 401.
       ANTLAB_AGENT_RUNNER_TOKEN: ${ANTLAB_AGENT_RUNNER_TOKEN:-}
       ANTLAB_AGENT_RUNNER_OWNER_ID: ${ANTLAB_AGENT_RUNNER_OWNER_ID:-}
-      # Python engine (M2-06). The url is the compose service name; with the default path source java the api never calls it
-      # for season paths. path-source engine needs the same ANTLAB_ENGINE_TOKEN the engine service reads. No depends_on: the api starts without the engine.
+      # Python engine (M2-06, default path source since M2-09). The url is the compose service name; the engine service is in profile api
+      # too, so `--profile api` starts both and needs ANTLAB_ENGINE_TOKEN (the api refuses to start without it). No depends_on: the api
+      # starts without the engine and there is no fallback to the Java bootstrap; season start answers 503 ENGINE_UNAVAILABLE until the
+      # engine is up. Opt out of the engine with ANTLAB_ENGINE_PATH_SOURCE=java.
       ANTLAB_ENGINE_URL: http://engine:8000
       ANTLAB_ENGINE_TOKEN: ${ANTLAB_ENGINE_TOKEN:-}
-      ANTLAB_ENGINE_PATH_SOURCE: ${ANTLAB_ENGINE_PATH_SOURCE:-java}
+      ANTLAB_ENGINE_PATH_SOURCE: ${ANTLAB_ENGINE_PATH_SOURCE:-engine}
       # The engine reads the same variable; the api checks the two against each other before each engine path, projection or percentile call.
       ANTLAB_HISTORY_REPLAY_START: ${ANTLAB_HISTORY_REPLAY_START:-2007-01-01}
       # 로컬 trust 에서는 비밀번호가 필요 없다. 운영 비밀번호는 secrets(/run/secrets) 로 준다 — env_file 로 .env 전체를 넘기지 않는다.
