@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 // analysis features; screens of a running season must not import them.
 const sources = import.meta.glob<string>(
   [
-    '../features/{feed,turn,ranking,team,trade,projection,abandon}/**/*.{ts,tsx}',
+    '../features/{feed,turn,ranking,team,trade,projection,abandon,valueline,chart}/**/*.{ts,tsx}',
     '../pages/{Season,Turn,Trade,FormationChange,Projection,NewSeason}Page.tsx',
   ],
   { query: '?raw', import: 'default', eager: true },
