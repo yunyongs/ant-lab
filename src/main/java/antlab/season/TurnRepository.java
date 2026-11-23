@@ -18,6 +18,19 @@ public interface TurnRepository extends AppendOnlyRepository<Turn, Long> {
     @Query("select t.totalValue from Turn t where t.season.id = :seasonId and t.turnNo = :turnNo")
     Optional<BigDecimal> findTotalValueBySeasonIdAndTurnNo(@Param("seasonId") Long seasonId, @Param("turnNo") int turnNo);
 
+    /** The stored total of the season's current turn; null at turn 0, which has no turn row. A missing row is corrupt data. */
+    default BigDecimal findCurrentTotalValue(Season season) {
+        if (season.getCurrentTurnNo() == 0) {
+            return null;
+        }
+        // No lambda here: RepositoryShapeTest reads declared methods, and a lambda adds a synthetic one.
+        Optional<BigDecimal> total = findTotalValueBySeasonIdAndTurnNo(season.getId(), season.getCurrentTurnNo());
+        if (total.isEmpty()) {
+            throw new IllegalStateException("현재 턴의 스냅샷이 없다");
+        }
+        return total.get();
+    }
+
     /** 턴 번호 범위의 스냅샷(번호 오름차순) — 턴 조회는 그 턴과 직전 턴 둘, 성적표는 1..T 전부를 1문장으로 읽는다. */
     @Query("select t from Turn t where t.season.id = :seasonId and t.turnNo between :from and :to order by t.turnNo")
     List<Turn> findBySeasonIdAndTurnNoBetween(@Param("seasonId") Long seasonId, @Param("from") int from,

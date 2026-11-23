@@ -61,11 +61,15 @@ public class HoldingsQueryService {
                 values.forward(), values.total(), season.getCurrentFormation());
 
         List<HoldingDto> items = new ArrayList<>();
+        BigDecimal totalCost = BigDecimal.ZERO;
         for (HoldingViewRow row : rows) {
             BigDecimal value = MoneyMath.valuation(row.price(), row.quantity());
+            BigDecimal cost = MoneyMath.holdingCost(row.quantity(), row.avgPrice());
+            totalCost = totalCost.add(cost);
             items.add(new HoldingDto(row.assetId(), row.quantity(), MoneyMath.exactAvgPrice(row.avgPrice()),
                     row.declaredPosition(), MoneyMath.exactWon(row.price()), MoneyMath.exactWon(value),
-                    MoneyMath.ratio(value, values.total())));
+                    MoneyMath.ratio(value, values.total()), MoneyMath.unrealizedPnl(value, cost),
+                    MoneyMath.unrealizedReturn(value, cost)));
         }
         return new HoldingsDto(season.getId(), season.getCurrentTurnNo(), MoneyMath.exactWon(account.getBalance()),
                 MoneyMath.exactWon(values.holdingsValue()), MoneyMath.exactWon(values.total()),
@@ -74,6 +78,7 @@ public class HoldingsQueryService {
                 ratios.goalkeeperWeight(), ratios.defenderWeight(), ratios.midfielderWeight(), ratios.forwardWeight(),
                 FormationDto.from(season.getCurrentFormation()),
                 ratios.goalkeeperGap(), ratios.defenderGap(), ratios.midfielderGap(), ratios.forwardGap(),
-                ratios.formationDeviation(), List.copyOf(items));
+                ratios.formationDeviation(), MoneyMath.unrealizedPnl(values.holdingsValue(), totalCost),
+                List.copyOf(items));
     }
 }

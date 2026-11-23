@@ -3,7 +3,9 @@ package antlab.season;
 import antlab.common.error.DomainException;
 import antlab.common.error.ErrorCode;
 import antlab.member.CurrentMember;
+import antlab.common.money.MoneyMath;
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -59,5 +61,35 @@ public class TurnQueryService {
                 .orElseThrow(() -> new IllegalStateException("턴의 경로 행이 없다"));
         return TurnResultAssembler.assemble(season, turn, previousTotal, target,
                 feeds.findBySeasonIdAndTurnNoOrderBySeq(season.getId(), turnNo), macro);
+    }
+
+    /**
+     * Value line for turns 0..current: one season read and one turn-range read. Turn 0 has no stored row, so it is the
+     * initial capital with drawdown and return 0. Nothing above the current turn is ever read.
+     */
+    @Transactional(readOnly = true)
+    public TurnSummaryListDto summaries(Long seasonId) {
+        Long memberId = currentMember.existingId()
+                .orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND, "시즌을 찾을 수 없다"));
+        Season season = seasons.findByIdAndMemberId(seasonId, memberId)
+                .orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND, "시즌을 찾을 수 없다"));
+        int current = season.getCurrentTurnNo();
+        BigDecimal zero = MoneyMath.exactRate(BigDecimal.ZERO);
+        List<TurnSummaryDto> items = new ArrayList<>();
+        items.add(new TurnSummaryDto(0, MoneyMath.exactWon(season.getInitialCash()), zero, zero));
+        BigDecimal previous = season.getInitialCash();
+        if (current >= 1) {
+            for (Turn turn : turns.findBySeasonIdAndTurnNoBetween(season.getId(), 1, current)) {
+                BigDecimal total = turn.getTotalValue();
+                items.add(new TurnSummaryDto(turn.getTurnNo(), MoneyMath.exactWon(total),
+                        MoneyMath.exactRate(turn.getDrawdown()),
+                        MoneyMath.ratio(total.subtract(previous), previous)));
+                previous = total;
+            }
+        }
+        if (items.size() != current + 1) {
+            throw new IllegalStateException("턴 스냅샷이 모자란다");
+        }
+        return new TurnSummaryListDto(List.copyOf(items));
     }
 }

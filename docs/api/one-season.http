@@ -227,6 +227,12 @@ Content-Type: application/json
 { "expectedTurnNo": 5, "side": "BUY", "assetId": {{pool.response.body.$.assets[8].assetId}}, "quantity": {{qty}}, "declaredPosition": "{{pool.response.body.$.assets[8].systemPosition}}" }
 
 ###
+# Value line: turns 0 up to the current turn, no dates.
+# 가치 곡선: 0턴부터 현재 턴까지, 날짜 없음.
+GET {{base}}/api/v1/seasons/{{season}}/turns
+Authorization: Bearer {{token}}
+
+###
 GET {{base}}/api/v1/seasons/{{season}}/turns/5
 Authorization: Bearer {{token}}
 
