@@ -8,9 +8,10 @@ import { QueryError } from '../seasons/QueryError.tsx';
 import type { Season } from '../seasons/labels.ts';
 import { canTrade } from '../seasons/seasonGate.ts';
 import { Link } from 'react-router';
-import { AdvanceTurnButton } from './AdvanceTurnButton.tsx';
+import { TurnActionBar } from './TurnActionBar.tsx';
 import { useTurn } from './queries.ts';
 import { TurnResultCard } from './TurnResultCard.tsx';
+import { TurnSummary } from './TurnSummary.tsx';
 import styles from './Turn.module.css';
 
 // The now page for turn 1 or later: the stored result of the current turn.
@@ -53,6 +54,7 @@ export function TurnView({
           }}
         />
       )}
+      {turn.data && <TurnSummary turn={turn.data} />}
       {turn.data && (
         <AlertList
           items={turn.data.alerts}
@@ -68,6 +70,7 @@ export function TurnView({
           items={turn.data.feed}
           season={season}
           onNotice={onNotice}
+          collapse={{ defaultOpen: true }}
         />
       )}
       {turn.data && (
@@ -75,6 +78,7 @@ export function TurnView({
           seasonId={season.id}
           turnNo={season.currentTurnNo}
           currentTurnNo={season.currentTurnNo}
+          collapse={{ defaultOpen: false }}
         />
       )}
       {season.currentTurnNo >= 2 && (
@@ -89,7 +93,7 @@ export function TurnView({
       )}
       <ProjectionLink seasonId={season.id} />
       {canTrade(season) && (
-        <AdvanceTurnButton
+        <TurnActionBar
           season={season}
           onNotice={onNotice}
           onAdvanced={onAdvanced}

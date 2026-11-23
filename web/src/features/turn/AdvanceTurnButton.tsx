@@ -1,9 +1,10 @@
-import { useEffect, useRef } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useEffect, useRef, useState } from 'react';
 import { messageFor } from '../../api/errorMessages.ts';
 import { ProblemError } from '../../api/problem.ts';
 import type { Season } from '../seasons/labels.ts';
 import { advanceLabel } from './advanceLabel.ts';
-import { useAdvanceTurn } from './queries.ts';
+import { advanceGuardLeft, useAdvanceTurn } from './queries.ts';
 import { ADVANCING_TEXT } from './turnMessages.ts';
 import styles from './Turn.module.css';
 
@@ -25,6 +26,20 @@ export function AdvanceTurnButton({
   // Two taps before the first re-render must send one request.
   const inFlight = useRef(false);
   const alertBox = useRef<HTMLDivElement>(null);
+  const queryClient = useQueryClient();
+  // Right after an advance the next turn's button sits under the same finger.
+  const [, rerender] = useState(0);
+  const guardLeft = advanceGuardLeft(queryClient, season.id);
+  useEffect(() => {
+    if (guardLeft <= 0) return undefined;
+    const timer = setTimeout(() => {
+      rerender((count) => count + 1);
+    }, guardLeft);
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [guardLeft]);
+  const guarded = guardLeft > 0;
 
   const error: unknown = advance.error;
   const problem =
@@ -41,6 +56,7 @@ export function AdvanceTurnButton({
 
   function submit() {
     if (inFlight.current || advance.isPending) return;
+    if (advanceGuardLeft(queryClient, season.id) > 0) return;
     inFlight.current = true;
     onNotice(null);
     // The turn the screen shows: the server rejects it if it is out of date.
@@ -76,7 +92,7 @@ export function AdvanceTurnButton({
       <button
         type="button"
         className={styles.primary}
-        disabled={advance.isPending}
+        disabled={advance.isPending || guarded}
         aria-busy={advance.isPending ? 'true' : undefined}
         onClick={submit}
       >

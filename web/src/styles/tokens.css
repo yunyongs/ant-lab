@@ -36,6 +36,11 @@
 
   --radius: 0.5rem;
   --content-max: 40rem;
+  --nav-item-height: 44px;
+  /* menu item, its 1px border and the bottom safe area */
+  --bottom-nav-height: calc(
+    var(--nav-item-height) + 1px + env(safe-area-inset-bottom)
+  );
 
   --font-base: 1rem;
   --font-lg: 1.125rem;
