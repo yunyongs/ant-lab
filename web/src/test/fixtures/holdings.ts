@@ -32,6 +32,7 @@ export function holdingsFixture(
     midfielderGap: '-0.20000000',
     forwardGap: '-0.10000000',
     formationDeviation: '1.20000000',
+    unrealizedPnl: '0',
     holdings: [],
     ...overrides,
   };
@@ -45,6 +46,8 @@ export const heldDefender: HoldingDto = {
   price: '10450',
   value: '313500',
   weight: '0.00313500',
+  unrealizedPnl: '0',
+  unrealizedReturn: '0.00000000',
 };
 
 // Numbers on purpose unrelated to anything a browser could derive from one
@@ -62,6 +65,7 @@ export const holdingsAfterBuy: HoldingsDto = holdingsFixture({
   goalkeeperGap: '0.56812345',
   defenderGap: '-0.29686500',
   midfielderGap: '-0.17425845',
+  unrealizedPnl: '137955',
   holdings: [
     heldDefender,
     {
@@ -72,6 +76,8 @@ export const holdingsAfterBuy: HoldingsDto = holdingsFixture({
       price: '187400',
       value: '2574155',
       weight: '0.02574155',
+      unrealizedPnl: '137955',
+      unrealizedReturn: '0.05662713',
     },
   ],
 });
@@ -85,6 +91,8 @@ export const heldMidfielder: HoldingDto = {
   price: '74200',
   value: '8904000',
   weight: '0.08904000',
+  unrealizedPnl: '342000',
+  unrealizedReturn: '0.03994394',
 };
 
 export const holdingsWithMidfielder: HoldingsDto = holdingsFixture({
@@ -98,6 +106,7 @@ export const holdingsWithMidfielder: HoldingsDto = holdingsFixture({
   midfielderWeight: '0.08904000',
   goalkeeperGap: '0.51096000',
   midfielderGap: '-0.11096000',
+  unrealizedPnl: '342000',
   holdings: [heldMidfielder],
 });
 
@@ -110,12 +119,15 @@ export const holdingsAfterPartSell: HoldingsDto = holdingsFixture({
   totalValue: '100000000',
   goalkeeperWeight: '0.92557777',
   midfielderWeight: '0.07442223',
+  unrealizedPnl: '307223',
   holdings: [
     {
       ...heldMidfielder,
       quantity: 100,
       value: '7442223',
       weight: '0.07442223',
+      unrealizedPnl: '307223',
+      unrealizedReturn: '0.04305858',
     },
   ],
 });

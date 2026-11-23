@@ -148,6 +148,33 @@ public final class MoneyMath {
         return numerator.divide(denominator, 8, RoundingMode.HALF_UP);
     }
 
+    /** Exact cost of a holding: quantity × average cost (scale 4, no rounding). Display-only; the ledger never reads it. */
+    public static BigDecimal holdingCost(int quantity, BigDecimal avgPrice) {
+        positive(quantity, "수량");
+        require(avgPrice, "평균단가");
+        if (avgPrice.signum() <= 0) {
+            throw invalid("평균단가는 0보다 커야 한다");
+        }
+        return avgPrice.multiply(BigDecimal.valueOf(quantity));
+    }
+
+    /** Unrealised P&L in whole won: valuation − exact cost, rounded once (HALF_UP). */
+    public static BigDecimal unrealizedPnl(BigDecimal valuation, BigDecimal cost) {
+        require(valuation, "평가액");
+        require(cost, "원가");
+        return valuation.subtract(cost).setScale(0, RoundingMode.HALF_UP);
+    }
+
+    /** Unrealised return = (valuation − exact cost) ÷ exact cost, 8 decimal places, rounded once (HALF_UP). */
+    public static BigDecimal unrealizedReturn(BigDecimal valuation, BigDecimal cost) {
+        require(valuation, "평가액");
+        require(cost, "원가");
+        if (cost.signum() <= 0) {
+            throw invalid("원가는 0보다 커야 한다");
+        }
+        return valuation.subtract(cost).divide(cost, 8, RoundingMode.HALF_UP);
+    }
+
     /** 저장 가격과 보유 수량으로 평가액을 계산한다. */
     public static BigDecimal valuation(BigDecimal price, int quantity) {
         positiveInteger(price, "가격");

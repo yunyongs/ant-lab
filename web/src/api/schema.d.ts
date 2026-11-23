@@ -296,7 +296,13 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * Value line of the season / 시즌의 가치 곡선
+         * @description Returns one row per turn from 0 up to the current turn (turn number, total valuation, cumulative drawdown, period return), ascending. Turn 0 is the initial capital with drawdown and return 0. A turn above the current one is never included, and no date or month block is shown. It is the same for a season in progress and a finished one.
+         *
+         *     0턴부터 현재 턴까지 턴마다 한 행(턴 번호·총 평가액·누적 낙폭·기간 수익률)을 오름차순으로 준다. 0턴은 초기 자금이고 낙폭과 수익률은 0이다. 현재 턴보다 큰 턴은 담지 않고 날짜·월 블록도 보이지 않는다. 진행 중이든 끝난 시즌이든 같다.
+         */
+        get: operations["listTurnSummaries"];
         put?: never;
         /**
          * Advance the turn (next month) / 턴 전환(다음 달)
@@ -830,6 +836,16 @@ export interface components {
             cashBalance: string;
             /**
              * Format: decimal
+             * @description Total valuation of the latest stored turn (the current turn), whole KRW. null at turn 0 / 마지막으로 저장된 턴(현재 턴)의 총 평가액, 원 단위 정수. 0턴이면 null
+             */
+            latestTotalValue: string | null;
+            /**
+             * Format: decimal
+             * @description Total return to the latest stored turn = (latest total valuation − initial) ÷ initial, 8 decimal places. null at turn 0 / 마지막 저장 턴까지의 총 수익률 = (마지막 총 평가액 − 초기) ÷ 초기, 소수 8자리. 0턴이면 null
+             */
+            totalReturn: string | null;
+            /**
+             * Format: decimal
              * @description Domestic fee rate, 8 decimal places / 국내 수수료율, 소수 8자리
              */
             feeRateKr: string;
@@ -1039,6 +1055,33 @@ export interface components {
              * @description Excess return to date = (team total valuation − benchmark valuation) ÷ initial capital, divided once — not the difference of two returns. 8 decimal places / 누적 초과 수익률 = (팀 총 평가액 − 기준선 평가액) ÷ 초기 자금, 한 번 나눔 — 두 수익률의 차가 아니다. 소수 8자리
              */
             excessReturn: string;
+        };
+        /** @description Value line of a season, turns 0 up to the current turn, ascending. Never a future turn / 시즌의 가치 곡선, 0턴부터 현재 턴까지 오름차순. 미래 턴은 없다 */
+        TurnSummaryListDto: {
+            items: components["schemas"]["TurnSummaryDto"][];
+        };
+        /** @description One turn of the value line, turn number, total valuation, cumulative drawdown and period return. No date or month block / 가치 곡선의 한 턴, 턴 번호, 총 평가액, 누적 낙폭, 기간 수익률. 날짜·월 블록 없음 */
+        TurnSummaryDto: {
+            /**
+             * Format: int32
+             * @description Turn number (0 = the start) / 턴 번호(0 = 시작)
+             */
+            turnNo: number;
+            /**
+             * Format: decimal
+             * @description Total valuation, whole KRW (turn 0 = initial capital) / 총 평가액, 원 단위 정수(0턴 = 초기 자금)
+             */
+            totalValue: string;
+            /**
+             * Format: decimal
+             * @description Cumulative drawdown (0 or less), 8 decimal places; 0 at turn 0 / 누적 낙폭(0 이하), 소수 8자리. 0턴은 0
+             */
+            drawdown: string;
+            /**
+             * Format: decimal
+             * @description Period return = change ÷ previous total valuation, 8 decimal places; 0 at turn 0 / 기간 수익률 = 변화 ÷ 직전 총 평가액, 소수 8자리. 0턴은 0
+             */
+            periodReturn: string;
         };
         /** @description Prices of the whole pool for one turn (ascending asset number) / 한 턴의 풀 전체 가격(종목 번호 오름차순) */
         TurnPricesDto: {
@@ -2542,6 +2585,11 @@ export interface components {
              *     포메이션 이탈 = 포지션별 |비중 − 현재 포메이션|의 합, 소수 8자리
              */
             formationDeviation: string;
+            /**
+             * Format: decimal
+             * @description Total unrealised P&L of all holdings = holdings valuation − Σ quantity × average cost (fees and FX cost excluded; future sell fee and tax not deducted), rounded once, whole KRW. Cash is not part of it. Display only. The per-holding values can differ from this total by a few won / 전체 평가손익 = 보유 평가액 − Σ 수량 × 평균단가(수수료·환전 비용 제외, 앞으로의 매도 수수료·세금은 빼지 않음), 한 번 반올림, 원 단위 정수. 현금은 포함하지 않는다. 표시용. 종목별 값의 합과 몇 원 다를 수 있다
+             */
+            unrealizedPnl: string;
             /** @description Holdings with quantity 1 or more (ascending asset number) / 수량 1 이상인 보유(종목 번호 오름차순) */
             holdings: components["schemas"]["HoldingDto"][];
         };
@@ -2583,6 +2631,16 @@ export interface components {
              * @description Asset share = valuation ÷ total valuation (cash included), 8 decimal places / 종목 비중 = 평가액 ÷ 총 평가액(현금 포함), 소수 8자리
              */
             weight: string;
+            /**
+             * Format: decimal
+             * @description Unrealised P&L = valuation − quantity × average cost (fees and FX cost excluded; future sell fee and tax not deducted), rounded once, whole KRW (negative = loss). Display only. The per-holding values can differ from the total by a few won / 평가손익 = 평가액 − 수량 × 평균단가(수수료·환전 비용 제외, 앞으로의 매도 수수료·세금은 빼지 않음), 한 번 반올림, 원 단위 정수(음수 = 손실). 표시용. 종목별 값의 합이 전체 값과 몇 원 다를 수 있다
+             */
+            unrealizedPnl: string;
+            /**
+             * Format: decimal
+             * @description Unrealised return = unrealised P&L ÷ (quantity × average cost), 8 decimal places (−0.1 = −10%). Display only / 평가수익률 = 평가손익 ÷ (수량 × 평균단가), 소수 8자리(−0.1 = −10%). 표시용
+             */
+            unrealizedReturn: string;
         };
         /** @enum {string} */
         OrderSide: "BUY" | "SELL";
@@ -3665,6 +3723,48 @@ export interface operations {
              *     보유 중인 종목이 아니다(산 적 없음, 전량 매도, 풀에 없음) — INSUFFICIENT_HOLDING
              */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listTurnSummaries: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                seasonId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Value line / 가치 곡선 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TurnSummaryListDto"];
+                };
+            };
+            /** @description The season number is not a number — INVALID_ARGUMENT / 시즌 번호가 숫자가 아니다 — INVALID_ARGUMENT */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description The season does not exist — NOT_FOUND / 시즌이 없다 — NOT_FOUND */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
