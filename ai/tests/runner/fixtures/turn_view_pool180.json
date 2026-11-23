@@ -3945,6 +3945,8 @@
   "abandonedTurnNo": null,
   "notStarted": false,
   "leagueId": null,
+  "latestTotalValue": "30000000",
+  "totalReturn": "0.00000000",
   "id": 7,
   "initialCash": "30000000",
   "pathLength": 12,

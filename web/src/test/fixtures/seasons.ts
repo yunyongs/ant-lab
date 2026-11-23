@@ -24,6 +24,8 @@ export function seasonFixture(overrides: Partial<SeasonDto> = {}): SeasonDto {
     },
     initialCash: '100000000',
     cashBalance: '100000000',
+    latestTotalValue: null,
+    totalReturn: null,
     feeRateKr: '0.00015000',
     feeRateUs: '0.00025000',
     fxSpreadRate: '0.00400000',
@@ -41,6 +43,8 @@ export const seasonList: SeasonDto[] = [
     pathLength: 24,
     riskLimit: '-0.30000000',
     cashBalance: '62300000',
+    latestTotalValue: '98750000',
+    totalReturn: '-0.01250000',
   }),
   seasonFixture({ id: 7 }),
   seasonFixture({
@@ -48,5 +52,7 @@ export const seasonList: SeasonDto[] = [
     status: 'FINISHED',
     currentTurnNo: 12,
     cashBalance: '104500000',
+    latestTotalValue: '104500000',
+    totalReturn: '0.04500000',
   }),
 ];
