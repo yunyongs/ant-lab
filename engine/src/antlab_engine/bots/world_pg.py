@@ -255,8 +255,9 @@ def read_world(
 ) -> BotWorld:
     """One snapshot, one world. `seed` is the world seed the bots and the feed use.
 
-    A drawn path is the one `generate_months` (`p0-boot6-v1`, the Java bootstrap; the api default path source is `m2-sb6-v1` since M2-09) gives
-    for the seed. `replay_start` has no default: callers pass the api's setting.
+    A drawn path is the one `generate_months` (`p0-boot6-v1`, the Java bootstrap) gives for
+    the seed; the api default path source is `m2-sb6-v1` since M2-09. `replay_start` has no
+    default: callers pass the api's setting.
     """
     with read_snapshot(settings) as conn:
         rows = _read_rows(
