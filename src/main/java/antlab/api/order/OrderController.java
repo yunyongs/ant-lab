@@ -1,5 +1,6 @@
 package antlab.api.order;
 
+import antlab.account.OrderQuoteDto;
 import antlab.account.OrderResultDto;
 import antlab.account.OrderService;
 import antlab.account.PlaceOrderRequest;
@@ -71,5 +72,39 @@ public class OrderController {
             metrics.orderRejected(rejected.getCode());
             throw rejected;
         }
+    }
+
+    @PostMapping(value = "/api/v1/seasons/{seasonId}/orders/quote", consumes = MediaType.APPLICATION_JSON_VALUE,
+            produces = MediaType.APPLICATION_JSON_VALUE)
+    @Operation(operationId = "quoteOrder", summary = "Order preview (quote) / 주문 미리보기(견적)",
+            description = "Takes the same body as placeOrder and answers what that order would fill now: fill price, "
+                    + "amount, fee, its FX part, cash after the fill and, for a buy, the largest quantity that fits. "
+                    + "It runs the same checks in the same order and refuses with the same errors, but writes nothing "
+                    + "and is not counted as a rejected order.\n"
+                    + "\n"
+                    + "placeOrder 와 같은 본문을 받아 그 주문이 지금 어떻게 체결될지 답한다: 체결가, 대금, 수수료와 그중 환전 비용, 체결 뒤 현금, "
+                    + "매수면 들어갈 수 있는 최대 수량. 같은 검사를 같은 순서로 하고 같은 오류로 거절하지만 아무것도 쓰지 않으며 거절된 주문으로 "
+                    + "세지 않는다.")
+    @ApiResponse(responseCode = "200", description = "Quote / 견적")
+    @ApiResponse(responseCode = "400", description = "The input is invalid (quantity 0 or less, declared "
+            + "position on a sell, a malformed or BENCH source) — INVALID_ARGUMENT / 입력이 틀렸다(수량 0 이하, 매도에 선언 포지션, 모양이 틀렸거나 BENCH인 source) — INVALID_ARGUMENT",
+            content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ApiProblem.class)))
+    @ApiResponse(responseCode = "404", description = "The season does not exist — NOT_FOUND / 시즌이 없다 — NOT_FOUND",
+            content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ApiProblem.class)))
+    @ApiResponse(responseCode = "409",
+            description = "An order cannot be placed now — SEASON_NOT_ACTIVE, TURN_MISMATCH, LEDGER_MISMATCH, "
+                    + "LINEUP_MISMATCH\n"
+                    + "\n"
+                    + "지금은 주문할 수 없다 — SEASON_NOT_ACTIVE, TURN_MISMATCH, LEDGER_MISMATCH, LINEUP_MISMATCH",
+            content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ApiProblem.class)))
+    @ApiResponse(responseCode = "422",
+            description = "The order content is not acceptable — SOURCE_NOT_VISIBLE, ASSET_NOT_IN_POOL, "
+                    + "INSUFFICIENT_CASH, INSUFFICIENT_HOLDING, POSITION_CONFLICT, POSITION_REQUIRED\n"
+                    + "\n"
+                    + "주문 내용을 받을 수 없다 — SOURCE_NOT_VISIBLE, ASSET_NOT_IN_POOL, INSUFFICIENT_CASH, "
+                    + "INSUFFICIENT_HOLDING, POSITION_CONFLICT, POSITION_REQUIRED",
+            content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ApiProblem.class)))
+    public OrderQuoteDto quote(@PathVariable Long seasonId, @Valid @RequestBody PlaceOrderRequest request) {
+        return orders.quote(seasonId, request);
     }
 }

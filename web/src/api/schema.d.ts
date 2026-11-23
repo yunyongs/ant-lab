@@ -245,6 +245,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/seasons/{seasonId}/orders/quote": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Order preview (quote) / 주문 미리보기(견적)
+         * @description Takes the same body as placeOrder and answers what that order would fill now: fill price, amount, fee, its FX part, cash after the fill and, for a buy, the largest quantity that fits. It runs the same checks in the same order and refuses with the same errors, but writes nothing and is not counted as a rejected order.
+         *
+         *     placeOrder 와 같은 본문을 받아 그 주문이 지금 어떻게 체결될지 답한다: 체결가, 대금, 수수료와 그중 환전 비용, 체결 뒤 현금, 매수면 들어갈 수 있는 최대 수량. 같은 검사를 같은 순서로 하고 같은 오류로 거절하지만 아무것도 쓰지 않으며 거절된 주문으로 세지 않는다.
+         */
+        post: operations["quoteOrder"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/seasons/{seasonId}/formation-changes": {
         parameters: {
             query?: never;
@@ -1123,6 +1145,47 @@ export interface components {
              * @description Identifier of the last formation change of that turn. null if there was no change / 그 턴의 마지막 전술 변경 식별자. 변경이 없으면 null
              */
             formationChangeId: number | null;
+        };
+        /**
+         * @description Preview of one market order at the current turn price. Nothing is written; the amounts are what an order with the same body would fill now. Turn, date, seed and path are not included
+         *
+         *     현재 턴 가격으로 본 시장가 주문 한 건의 미리보기. 아무것도 쓰지 않으며, 금액은 같은 본문으로 지금 주문하면 체결될 값이다. 턴·날짜·시드·경로는 싣지 않는다
+         */
+        OrderQuoteDto: {
+            /**
+             * Format: decimal
+             * @description Fill price (the current turn's price), whole KRW / 체결가(현재 턴 가격), 원 단위 정수
+             */
+            fillPrice: string;
+            /**
+             * Format: decimal
+             * @description Amount (fill price × quantity), whole KRW / 대금(체결가 × 수량), 원 단위 정수
+             */
+            notional: string;
+            /**
+             * Format: decimal
+             * @description Fee the fill would charge, FX cost included, whole KRW / 체결 때 매길 수수료(환전 비용 포함), 원 단위 정수
+             */
+            fee: string;
+            /**
+             * Format: decimal
+             * @description FX cost part of the fee for a US asset, round(fill price × quantity × FX cost rate); 0 for a KR asset. Display only: it is already inside fee and is not added to it
+             *
+             *     미국 종목 수수료 중 환전 비용 몫, round(체결가 × 수량 × 환전 비용률). 국내 종목은 0. 표시용이며 fee 에 이미 들어 있어 더하지 않는다
+             */
+            fxCost: string;
+            /**
+             * Format: decimal
+             * @description Cash balance after the fill, whole KRW / 체결 뒤 현금 잔액, 원 단위 정수
+             */
+            cashAfter: string;
+            /**
+             * Format: int32
+             * @description Largest quantity a buy of this asset could fill now (cash with the fee, and the single-asset limit when it is set). null for a sell
+             *
+             *     이 종목을 지금 살 수 있는 최대 수량(수수료를 포함한 현금, 단일 종목 한도가 있으면 그 한도까지). 매도는 null
+             */
+            maxBuyQuantity: number | null;
         };
         /** @description The current turn before the advance is the idempotency key / 전환 전의 현재 턴이 멱등성 열쇠다 */
         AdvanceTurnRequest: {
@@ -3309,6 +3372,78 @@ export interface operations {
              * @description An order cannot be placed now — SEASON_NOT_ACTIVE, TURN_MISMATCH, LEDGER_MISMATCH, LINEUP_MISMATCH, EVENT_TIME_CONFLICT
              *
              *     지금은 주문할 수 없다 — SEASON_NOT_ACTIVE, TURN_MISMATCH, LEDGER_MISMATCH, LINEUP_MISMATCH, EVENT_TIME_CONFLICT
+             */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /**
+             * @description The order content is not acceptable — SOURCE_NOT_VISIBLE, ASSET_NOT_IN_POOL, INSUFFICIENT_CASH, INSUFFICIENT_HOLDING, POSITION_CONFLICT, POSITION_REQUIRED
+             *
+             *     주문 내용을 받을 수 없다 — SOURCE_NOT_VISIBLE, ASSET_NOT_IN_POOL, INSUFFICIENT_CASH, INSUFFICIENT_HOLDING, POSITION_CONFLICT, POSITION_REQUIRED
+             */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    quoteOrder: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                seasonId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlaceOrderRequest"];
+            };
+        };
+        responses: {
+            /** @description Quote / 견적 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderQuoteDto"];
+                };
+            };
+            /** @description The input is invalid (quantity 0 or less, declared position on a sell, a malformed or BENCH source) — INVALID_ARGUMENT / 입력이 틀렸다(수량 0 이하, 매도에 선언 포지션, 모양이 틀렸거나 BENCH인 source) — INVALID_ARGUMENT */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description The season does not exist — NOT_FOUND / 시즌이 없다 — NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /**
+             * @description An order cannot be placed now — SEASON_NOT_ACTIVE, TURN_MISMATCH, LEDGER_MISMATCH, LINEUP_MISMATCH
+             *
+             *     지금은 주문할 수 없다 — SEASON_NOT_ACTIVE, TURN_MISMATCH, LEDGER_MISMATCH, LINEUP_MISMATCH
              */
             409: {
                 headers: {
