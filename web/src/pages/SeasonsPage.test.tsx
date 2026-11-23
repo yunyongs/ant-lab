@@ -22,6 +22,8 @@ describe('SeasonsPage', () => {
     expect(within(first).getByText('3 / 24턴')).toBeInTheDocument();
     expect(within(first).getByText('-30.00%')).toBeInTheDocument();
     expect(within(first).getByText('62,300,000원')).toBeInTheDocument();
+    expect(within(first).getByText('98,750,000원')).toBeInTheDocument();
+    expect(within(first).getByText('-1.25%')).toBeInTheDocument();
     expect(
       within(first).getByRole('link', { name: '이어하기' }),
     ).toHaveAttribute('href', '/seasons/9');
@@ -31,6 +33,7 @@ describe('SeasonsPage', () => {
     expect(within(second).getByText('진행 중 · 팀 구성')).toBeInTheDocument();
     expect(within(second).getByText('-20.00%')).toBeInTheDocument();
     expect(within(second).getByText('100,000,000원')).toBeInTheDocument();
+    expect(within(second).getByText('시작 전')).toBeInTheDocument();
     expect(
       within(second).getByRole('link', { name: '팀 구성하러 가기' }),
     ).toHaveAttribute('href', '/seasons/7');
@@ -73,9 +76,14 @@ describe('SeasonsPage', () => {
               },
               initialCash: '100000000',
               cashBalance: '1000',
+              latestTotalValue: '99001000',
+              totalReturn: '-0.00999000',
               feeRateKr: '0.00015000',
               feeRateUs: '0.00025000',
               fxSpreadRate: '0.00400000',
+              abandonedTurnNo: 2,
+              notStarted: false,
+              leagueId: null,
             },
           ],
         }),
@@ -83,6 +91,8 @@ describe('SeasonsPage', () => {
     );
     renderRoute('/');
     expect(await screen.findByText('정리 중')).toBeInTheDocument();
+    expect(screen.getByText('99,001,000원')).toBeInTheDocument();
+    expect(screen.getByText('-1.00%')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: '시즌 보기' })).toBeInTheDocument();
   });
 
