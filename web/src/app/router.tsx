@@ -6,8 +6,6 @@ import { FormationChangePage } from '../pages/FormationChangePage.tsx';
 import { LoginPage } from '../pages/LoginPage.tsx';
 import { NewSeasonPage } from '../pages/NewSeasonPage.tsx';
 import { ProjectionPage } from '../pages/ProjectionPage.tsx';
-import { ReportPage } from '../pages/ReportPage.tsx';
-import { ReviewPage } from '../pages/ReviewPage.tsx';
 import { NotFoundPage } from '../pages/NotFoundPage.tsx';
 import { SeasonPage } from '../pages/SeasonPage.tsx';
 import { TradePage } from '../pages/TradePage.tsx';
@@ -18,6 +16,7 @@ import { AppShell } from './AppShell.tsx';
 import { PublicLayout } from './PublicLayout.tsx';
 import { KeyedBySeason } from './KeyedBySeason.tsx';
 import { RouteError } from './RouteError.tsx';
+import { DeferredReportPage, DeferredReviewPage } from './deferredPages.tsx';
 
 export const routes: RouteObject[] = [
   {
@@ -87,7 +86,7 @@ export const routes: RouteObject[] = [
             path: 'seasons/:seasonId/report',
             element: (
               <KeyedBySeason>
-                <ReportPage />
+                <DeferredReportPage />
               </KeyedBySeason>
             ),
           },
@@ -95,7 +94,7 @@ export const routes: RouteObject[] = [
             path: 'seasons/:seasonId/review',
             element: (
               <KeyedBySeason>
-                <ReviewPage />
+                <DeferredReviewPage />
               </KeyedBySeason>
             ),
           },

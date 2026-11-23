@@ -8,6 +8,7 @@ import { ProjectionLink } from '../projection/ProjectionLink.tsx';
 import { QueryError } from '../seasons/QueryError.tsx';
 import type { Season } from '../seasons/labels.ts';
 import { canTrade } from '../seasons/seasonGate.ts';
+import { ValueSection } from '../valueline/ValueSection.tsx';
 import { Link } from 'react-router';
 import { TurnActionBar } from './TurnActionBar.tsx';
 import { useTurn } from './queries.ts';
@@ -73,6 +74,9 @@ export function TurnView({
           title="이번 턴 기여"
           collapse={{ defaultOpen: true }}
         />
+      )}
+      {turn.data && (
+        <ValueSection season={season} collapse={{ defaultOpen: true }} />
       )}
       {turn.data && <MacroPanel macro={turn.data.macro} />}
       {turn.data && (
