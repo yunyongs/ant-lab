@@ -1,5 +1,4 @@
-import { formatWon } from '../format/money.ts';
-import { ratioToPercent } from '../format/ratio.ts';
+import { Change } from '../format/Change.tsx';
 import type { Analysis } from './queries.ts';
 import {
   CHANGE_EFFECTS_EMPTY,
@@ -31,7 +30,11 @@ export function ChangeEffectBlock({
         <ul className={styles.list}>
           {effects.map((effect, index) => (
             <li key={index}>
-              {`${String(effect.turnNo)}턴 변경 · ${String(effect.windowTurns)}턴 뒤 · ${formatWon(effect.effectWon)} (${ratioToPercent(effect.effectReturn)})`}
+              {`${String(effect.turnNo)}턴 변경 · ${String(effect.windowTurns)}턴 뒤 · `}
+              <Change value={effect.effectWon} kind="won" />
+              {' ('}
+              <Change value={effect.effectReturn} kind="percent" />
+              {')'}
             </li>
           ))}
         </ul>

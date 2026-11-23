@@ -1,5 +1,4 @@
-import { formatWon } from '../format/money.ts';
-import { ratioWithPercent } from '../format/ratio.ts';
+import { signedChange } from '../format/signedChange.ts';
 import type { Analysis } from './queries.ts';
 import { NOT_SCORED_NOTE } from './analysisMessages.ts';
 import { Rows } from './Rows.tsx';
@@ -25,10 +24,10 @@ export function DefenderBlock({
             value: `${String(defender.downMarketTurns)}턴`,
           },
           { label: '득점', value: `${String(defender.goals)}회` },
-          { label: '득점 금액', value: formatWon(defender.goalWon) },
+          { label: '득점 금액', value: signedChange(defender.goalWon, 'won') },
           {
             label: '득점 수익률',
-            value: ratioWithPercent(defender.goalReturn),
+            value: signedChange(defender.goalReturn, 'percent'),
           },
         ]}
       />

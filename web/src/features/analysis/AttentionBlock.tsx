@@ -1,5 +1,5 @@
 import { formatWon } from '../format/money.ts';
-import { ratioWithPercent } from '../format/ratio.ts';
+import { signedChange } from '../format/signedChange.ts';
 import type { Analysis } from './queries.ts';
 import { ATTENTION_RETURN_NONE, NOT_SCORED_NOTE } from './analysisMessages.ts';
 import { Rows } from './Rows.tsx';
@@ -30,7 +30,7 @@ export function AttentionBlock({
             value:
               attention.attentionReturn === null
                 ? ATTENTION_RETURN_NONE
-                : ratioWithPercent(attention.attentionReturn),
+                : signedChange(attention.attentionReturn, 'percent'),
           },
           {
             label: '그 밖의 매수',
@@ -41,7 +41,7 @@ export function AttentionBlock({
             value:
               attention.otherReturn === null
                 ? ATTENTION_RETURN_NONE
-                : ratioWithPercent(attention.otherReturn),
+                : signedChange(attention.otherReturn, 'percent'),
           },
           {
             label: '창이 끝나지 않아 어느 쪽에도 넣지 않은 매수',
