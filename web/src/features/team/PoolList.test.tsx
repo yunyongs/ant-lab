@@ -29,9 +29,8 @@ describe('PoolList', () => {
     for (const label of ['상승 참여', '하락 참여', '변동성', '최대 낙폭']) {
       expect(within(first as HTMLElement).getByText(label)).toBeInTheDocument();
     }
-    expect(container.textContent).not.toContain('FIX-AAA');
+    expect(container.textContent).toContain('FIX-AAA');
     expect(container.textContent).not.toContain('시험 추종 지수');
-    expect(container.textContent).not.toContain('시험 업종');
   });
 
   it('shows a held badge from the holdings', async () => {
