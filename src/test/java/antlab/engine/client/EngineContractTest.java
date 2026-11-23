@@ -129,6 +129,7 @@ class EngineContractTest {
                 case "createPath" -> EnginePathRequest.class;
                 case "createProjection" -> EngineProjectionRequest.class;
                 case "evaluateRegime" -> EngineRegimeRequest.class;
+                case "createManagerParts" -> EngineManagerPartsRequest.class;
                 default -> throw new AssertionError("no Java request type for " + e.operation());
             };
         }
@@ -139,6 +140,7 @@ class EngineContractTest {
             case "createPath" -> EnginePathResult.class;
             case "createProjection" -> EngineProjectionResult.class;
             case "evaluateRegime" -> EngineRegimeResult.class;
+            case "createManagerParts" -> EngineManagerPartsResult.class;
             default -> EngineInfo.class;
         };
     }
@@ -186,11 +188,8 @@ class EngineContractTest {
         }
     }
 
-    /**
-     * Yaml operations the Java client never calls (the health probe and the percentile route belong to other callers);
-     * createManagerParts has no client yet and leaves this set when it gets one.
-     */
-    private static final Set<String> NOT_CALLED_BY_JAVA = Set.of("healthz", "createPercentile", "createManagerParts");
+    /** Yaml operations the Java client never calls (the health probe and the percentile route belong to other callers). */
+    private static final Set<String> NOT_CALLED_BY_JAVA = Set.of("healthz", "createPercentile");
 
     private static Set<String> clientOperations() {
         Set<String> operations = new TreeSet<>();
@@ -216,7 +215,8 @@ class EngineContractTest {
                 "paths-request-m2.json", EnginePathRequest.of("m2-sb6-v1", Long.MIN_VALUE, 12, LocalDate.of(2026, 1, 2)),
                 "paths-request-m2c.json", EnginePathRequest.of("m2-sbc6-v1", 20261123, 12, LocalDate.of(2026, 1, 2)),
                 "projection-request.json", EngineHarness.projectionRequest(),
-                "regime-request.json", EngineHarness.regimeRequest());
+                "regime-request.json", EngineHarness.regimeRequest(),
+                "manager-parts-request.json", EngineHarness.managerPartsRequest());
         for (Entry e : manifest().stream().filter(x -> x.kind().equals("request")).toList()) {
             JsonNode sent = MAPPER.readTree(EngineWire.write(built.get(e.file())));
 
@@ -272,12 +272,22 @@ class EngineContractTest {
             Map.entry(EngineRegimeResult.Probabilities.class, "Probabilities"),
             Map.entry(EngineRegimeResult.Quality.class, "Quality"),
             Map.entry(EngineRegimeResult.Coverage.class, "RegimeCoverage"),
+            Map.entry(EngineManagerPartsRequest.class, "ManagerPartsRequest"),
+            Map.entry(EngineManagerPartsRequest.Settings.class, "PartsSettings"),
+            Map.entry(EngineManagerPartsRequest.StartFormation.class, "StartFormation"),
+            Map.entry(EngineManagerPartsRequest.Team.class, "PartsTeam"),
+            Map.entry(EngineManagerPartsResult.class, "ManagerPartsResult"),
+            Map.entry(EngineManagerPartsResult.Components.class, "PartsComponents"),
+            Map.entry(EngineManagerPartsResult.Percentiles.class, "PartsPercentiles"),
+            Map.entry(EngineManagerPartsResult.Parts.class, "PartsValues"),
             Map.entry(EngineInfo.class, "EngineInfo"),
             Map.entry(EngineProblem.class, "Problem"),
             Map.entry(EngineProblem.FieldViolation.class, "FieldViolation"));
 
     private static final Set<Class<?>> REQUESTS = Set.of(EnginePathRequest.class, EngineProjectionRequest.class,
-            EngineProjectionRequest.Portfolio.class, EngineProjectionRequest.Holding.class, EngineRegimeRequest.class);
+            EngineProjectionRequest.Portfolio.class, EngineProjectionRequest.Holding.class, EngineRegimeRequest.class,
+            EngineManagerPartsRequest.class, EngineManagerPartsRequest.Settings.class,
+            EngineManagerPartsRequest.StartFormation.class, EngineManagerPartsRequest.Team.class);
 
     /** Optional yaml properties the client deliberately does not send (overlap avoidance, plan O-4). */
     private static final Map<Class<?>, Set<String>> NOT_SENT = Map.of(EnginePathRequest.class, Set.of("recentMonths", "maxOverlap"));
@@ -289,10 +299,17 @@ class EngineContractTest {
         for (int i = 0; i < components.length; i++) {
             JsonProperty annotation = canonical.getParameters()[i].getAnnotation(JsonProperty.class);
             if (annotation != null && annotation.required()) {
-                required.add(components[i].getName());
+                required.add(wireName(record, i));
             }
         }
         return required;
+    }
+
+    /** The JSON name of a record component: its {@code @JsonProperty} value when set (a Java keyword such as return). */
+    private static String wireName(Class<?> record, int index) {
+        JsonProperty annotation = canonical(record).getParameters()[index].getAnnotation(JsonProperty.class);
+        return annotation != null && !annotation.value().isEmpty() ? annotation.value()
+                : record.getRecordComponents()[index].getName();
     }
 
     private static Constructor<?> canonical(Class<?> record) {
@@ -378,8 +395,10 @@ class EngineContractTest {
             schema.get("properties").propertyNames().forEach(yamlProperties::add);
             Set<String> yamlRequired = new TreeSet<>();
             schema.path("required").forEach(r -> yamlRequired.add(r.asString()));
-            Set<String> javaFields = Stream.of(record.getRecordComponents()).map(RecordComponent::getName)
-                    .collect(Collectors.toCollection(TreeSet::new));
+            Set<String> javaFields = new TreeSet<>();
+            for (int i = 0; i < record.getRecordComponents().length; i++) {
+                javaFields.add(wireName(record, i));
+            }
             String name = record.getSimpleName() + "/" + entry.getValue();
 
             Set<String> skipped = NOT_SENT.getOrDefault(record, Set.of());
@@ -393,9 +412,10 @@ class EngineContractTest {
             } else {
                 assertThat(javaRequired).as(name + " required").isEqualTo(yamlRequired);
             }
-            for (RecordComponent component : record.getRecordComponents()) {
-                assertKind(name + "." + component.getName(), component.getGenericType(),
-                        schema.get("properties").get(component.getName()));
+            RecordComponent[] components = record.getRecordComponents();
+            for (int i = 0; i < components.length; i++) {
+                String wire = wireName(record, i);
+                assertKind(name + "." + wire, components[i].getGenericType(), schema.get("properties").get(wire));
             }
         }
     }
@@ -457,6 +477,47 @@ class EngineContractTest {
         JsonNode coverage = COMPONENTS.at("/schemas/RegimeCoverage/properties");
         assertThat(enumOf(coverage.at("/indicators/propertyNames"))).isEqualTo(new TreeSet<>(EngineRegimeResult.INDICATOR_KEYS));
         assertThat(enumOf(coverage.at("/ruleDatedRows/propertyNames"))).isEqualTo(new TreeSet<>(EngineRegimeResult.RULE_DATED_SERIES));
+    }
+
+    @Test
+    void 매니저_부품_요청_응답의_한도와_정규식은_yaml_과_글자_단위로_같다() {
+        JsonNode request = COMPONENTS.at("/schemas/ManagerPartsRequest/properties");
+        assertThat(request.at("/referenceVersion/const").asString()).isEqualTo(EngineManagerPartsRequest.REFERENCE_VERSION);
+        assertThat(COMPONENTS.at("/schemas/ManagerPartsResult/properties/referenceVersion/const").asString())
+                .isEqualTo(EngineManagerPartsRequest.REFERENCE_VERSION);
+        Set<Integer> lengths = new TreeSet<>();
+        COMPONENTS.at("/schemas/PartsSettings/properties/pathLength/enum").forEach(v -> lengths.add(v.asInt()));
+        assertThat(lengths).isEqualTo(new TreeSet<>(EngineManagerPartsRequest.PATH_LENGTHS));
+        JsonNode settings = COMPONENTS.at("/schemas/PartsSettings/properties");
+        assertThat(settings.at("/initialCash/pattern").asString()).isEqualTo(EngineManagerPartsRequest.WON.pattern());
+        for (String rate : List.of("feeRateKr", "feeRateUs", "fxSpreadRate")) {
+            assertThat(settings.at("/" + rate + "/pattern").asString()).isEqualTo(EngineManagerPartsRequest.RATE.pattern());
+        }
+        assertThat(settings.at("/riskLimit/pattern").asString()).isEqualTo(EngineWire.RISK_LIMIT.pattern());
+        JsonNode team = COMPONENTS.at("/schemas/PartsTeam/properties");
+        assertThat(team.at("/totals/items/pattern").asString()).isEqualTo(EngineManagerPartsRequest.WON.pattern());
+        assertThat(team.at("/returns/items/pattern").asString()).isEqualTo(EngineManagerPartsRequest.RETURN.pattern());
+        assertThat(team.at("/benchmarkReturns/items/pattern").asString()).isEqualTo(EngineManagerPartsRequest.RETURN.pattern());
+        assertThat(team.at("/sharpe/pattern").asString()).isEqualTo(EngineManagerPartsRequest.SHARPE.pattern());
+        assertThat(team.at("/benchSharpe/pattern").asString()).isEqualTo(EngineManagerPartsRequest.SHARPE.pattern());
+        assertThat(withoutNull(team.get("riskScore")).get("pattern").asString())
+                .isEqualTo(EngineManagerPartsRequest.RISK_SCORE.pattern());
+        assertThat(request.at("/months/items/pattern").asString()).isEqualTo("^[0-9]{4}-(0[1-9]|1[0-2])-01$");
+
+        JsonNode result = COMPONENTS.at("/schemas/ManagerPartsResult/properties");
+        assertThat(result.at("/referenceKey/pattern").asString()).isEqualTo(EngineWire.DIGEST.pattern());
+        assertThat(result.at("/botVersion/pattern").asString()).isEqualTo(EngineManagerPartsResult.BOT_VERSION.pattern());
+        assertThat(result.at("/referenceSize/minimum").asInt()).isEqualTo(1);
+        assertThat(result.at("/referenceSize/maximum").asInt()).isEqualTo(200);
+        COMPONENTS.at("/schemas/PartsComponents/properties").properties().forEach(p -> assertThat(p.getValue().get("pattern")
+                .asString()).as(p.getKey()).isEqualTo(EngineManagerPartsResult.COMPONENT.pattern()));
+        for (String schema : List.of("PartsPercentiles", "PartsValues")) {
+            COMPONENTS.at("/schemas/" + schema + "/properties").properties().forEach(p -> assertThat(
+                    withoutNull(p.getValue()).get("pattern").asString()).as(p.getKey())
+                    .isEqualTo(EngineManagerPartsResult.PERCENTILE.pattern()));
+        }
+        assertThat(YAML.at("/paths/~1v1~1manager-parts/post/operationId").asString()).isEqualTo("createManagerParts");
+        assertThat(EngineClient.MANAGER_PARTS_URI).isEqualTo("/v1/manager-parts");
     }
 
     @Test

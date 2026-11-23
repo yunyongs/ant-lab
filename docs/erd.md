@@ -22,12 +22,13 @@
 | AG-05 B | Agent memory: `agent_reflection` and `agent_memory` (Flyway V18, the number is final at merge), the memory pin on `season_agent_config`, two `agent_call` kinds and `league.seed_league_id` in 15. / 에이전트 기억: `agent_reflection`과 `agent_memory`(Flyway V18, 번호는 머지 때 확정), `season_agent_config`의 메모리 고정, `agent_call` 종류 둘, `league.seed_league_id`, 15절. | 스키마 완료 |
 | M2-06 | Projection: `projection` (Flyway V9, the number is final at merge) in 12. / 예상 분포: `projection`(Flyway V9, 번호는 머지 때 확정), 12절. | 스키마 완료 |
 | AG-06 G3 | Detection test: `detection_test` and `detection_metric` (Flyway V20, the number is final at merge) in 16. / 탐지 시험: `detection_test`와 `detection_metric`(Flyway V20, 번호는 머지 때 확정), 16절. | 스키마 완료 |
+| AG-06 G1 | Manager score: `manager_score_formula` (seed `s69-v1`, provisional) and `season_manager_parts` (Flyway V21, the number is final at merge) in 17. / 종합 매니저 점수: `manager_score_formula`(씨앗 `s69-v1`, 잠정)와 `season_manager_parts`(Flyway V21, 번호는 머지 때 확정), 17절. | 스키마 완료 |
 
 **정본 규칙:** 타입·키·제약 이름·구분값은 이 문서가 정본이다. [PLAN.md](PLAN.md)나 [SPRING_JPA.md](SPRING_JPA.md)와 어긋나면 이 문서를 따르고, 어긋난 문서를 같은 PR에서 고친다(PLAN §12).
 
 **표기(D10):** 소유자의 ERDCloud 노트 형식을 따른다. 약어: PK(Primary Key, 기본 키), FK(Foreign Key, 외래 키), UK(Unique Key, 유일 키), NN(NOT NULL, 빈 값 불가). 엔티티는 `논리명 (물리명)`, 컬럼은 `타입 물리명 키 "논리명 | NN | 기본값"`. 선에 붙은 기호는 최소(`o` 선택, `|` 필수), 엔티티 쪽 기호는 최대(`|` 1, `{` N)이고, `--`은 식별 관계, `..`은 비식별 관계이다. Mermaid는 선 모양이 키 구성과 맞는지 검사하지 않으므로 표로 따로 확인한다.
 
-**문서 구성:** 2 공통 규칙 → 3 전체 관계도 → 4 설계 질문 답 → 5 역사 데이터와 종목 풀 → 6 회원·시즌·피드·대사 → 7 시즌 계좌 → 8 설계 결정 → 9 하류 기능 약속 → 10 수집 데이터(M1) → 11 시즌 점수와 레이팅(MVP-18) → 12 예상 분포(M2-06) → 13 페르소나 버전(AG-04 B) → 14 리그(AG-04 C) → 15 에이전트 기억(AG-05 B) → 16 탐지 시험(AG-06 G3). 부록은 없다 — v1 계좌 정의는 7절로 옮겨 v2로 바꿨고 v1과의 대응은 7.6에 있다.
+**문서 구성:** 2 공통 규칙 → 3 전체 관계도 → 4 설계 질문 답 → 5 역사 데이터와 종목 풀 → 6 회원·시즌·피드·대사 → 7 시즌 계좌 → 8 설계 결정 → 9 하류 기능 약속 → 10 수집 데이터(M1) → 11 시즌 점수와 레이팅(MVP-18) → 12 예상 분포(M2-06) → 13 페르소나 버전(AG-04 B) → 14 리그(AG-04 C) → 15 에이전트 기억(AG-05 B) → 16 탐지 시험(AG-06 G3) → 17 종합 매니저 점수(AG-06 G1). 부록은 없다 — v1 계좌 정의는 7절로 옮겨 v2로 바꿨고 v1과의 대응은 7.6에 있다.
 
 ## 2. 공통 규칙 (PostgreSQL 17)
 
@@ -2560,3 +2561,124 @@ Notation follows 6.4 (표기는 6.4와 같다). `FlywayV20UpgradeTest` checks th
 | D1 | One import is one document: every window it names gets one `detection_test` row and exactly the five metrics, and all rows of a source hash share the model, test version, sample layer and `run_at`. The import runs in one transaction under an advisory lock on the source hash. A summary equal to the one stored under the hash writes nothing (200); a different one is `DETECTION_CONFLICT` (409) and leaves nothing. / 들여오기 한 번은 문서 하나다: 문서의 창마다 `detection_test` 한 행과 정확히 지표 다섯을 쓰고, 한 원본 해시의 행은 모델·시험 판·표본 층·`run_at`이 같다. 원본 해시에 대한 advisory 잠금 아래 한 트랜잭션에서 한다. 해시 아래 저장된 요약과 같으면 아무것도 쓰지 않고(200), 다르면 `DETECTION_CONFLICT`(409)이고 아무것도 남지 않는다. | AG-06 G3 (`DetectionImportService`) |
 | D2 | The document has the shape of `detection-summary/1` and then: `run_at` is a real instant not after the import time, a metric's `units` is at most its window's `units`, and a pattern must match the whole string (no trailing line break). A refusal is `INVALID_ARGUMENT` (400) with JSON pointers and keywords in `errors`, never a value. / 문서는 `detection-summary/1` 모양이고, 이어서 `run_at`은 들여오는 시각보다 늦지 않은 실제 시각, 지표의 `units`는 창의 `units` 이하, 패턴은 문자열 전체와 맞아야 한다(끝 줄바꿈 없음). 거절은 `errors`에 JSON 포인터와 키워드만 담은 `INVALID_ARGUMENT`(400)이고 값은 싣지 않는다. | AG-06 G3 (`DetectionSummaryDocument`) |
 | D3 | An agent row shows its model's newest run: the newest row of the model (by `run_at`, then `id`) fixes the test version and sample layer, and each window shows the newest row of that version and layer. No row means `NOT_TESTED`. The result never changes a rank, a filter or the membership of a leaderboard. / 에이전트 행은 그 모델의 최신 실행을 보인다: 모델의 최신 행(`run_at`, 다음 `id`)이 시험 판과 표본 층을 정하고, 창마다 그 판·층의 최신 행을 보인다. 행이 없으면 `NOT_TESTED`다. 결과는 리더보드의 순위·거르기·포함 여부를 바꾸지 않는다. | AG-06 G3 (`DetectionReader`), G2 |
+
+## 17. Manager score / 종합 매니저 점수
+
+AG-06 PR G1 (Flyway V21; the number is final at merge) adds two append-only tables to the `public` schema for the composite manager score S and the career score L of PLAN §6.9. `manager_score_formula` keeps the four weights of S as versioned data: the current formula is the row with the newest `adopted_at`, and a new row comes only through a migration (no runtime endpoint). The seed row `s69-v1` (0.30 return, 0.30 risk-adjusted, 0.15 risk, 0.25 process) is `PROVISIONAL` until M3-08/M3-09 adopt a formula. `season_manager_parts` keeps, per finished season and reference version (`ref69-v1`), the parts the engine ranked against 200 `random` bots played on the season's own months with its own costs (`POST /v1/manager-parts`), or the reason the season has none. S and L are not stored: they are computed when read from the parts and the current weights, so a new formula row re-scores every season without touching a parts row. / AG-06 PR G1(Flyway V21, 번호는 머지 때 확정)은 PLAN §6.9의 종합 매니저 점수 S와 경력 점수 L을 위해 `public` 스키마에 추가 전용 테이블 둘을 더한다. `manager_score_formula`는 S의 가중치 넷을 판이 있는 데이터로 둔다: 현재 공식은 `adopted_at`이 가장 늦은 행이고, 새 행은 마이그레이션으로만 들어온다(실행 중 API 없음). 씨앗 행 `s69-v1`(수익 0.30, 위험 조정 0.30, 위험 0.15, 과정 0.25)은 M3-08/M3-09가 공식을 채택할 때까지 `PROVISIONAL`이다. `season_manager_parts`는 끝난 시즌과 기준 집합 판(`ref69-v1`)마다, 그 시즌의 달과 비용으로 진행한 `random` 봇 200개에 대해 엔진이 매긴 부품(`POST /v1/manager-parts`)이나 부품이 없는 이유를 둔다. S와 L은 저장하지 않는다: 읽을 때 부품과 현재 가중치로 계산하므로, 새 공식 행은 부품 행을 건드리지 않고 모든 시즌의 점수를 바꾼다.
+
+### 17.1 Relationship diagram / 관계도
+
+```mermaid
+erDiagram
+    SEASON_SCORE ||--o{ SEASON_MANAGER_PARTS : "R54"
+    SEASON ||--o{ SEASON_MANAGER_PARTS : "R55"
+```
+
+### 17.2 Relationship summary / 관계 요약
+
+| # | 부모 → 자식 | 카디널리티 | 선 | 근거 |
+|---|---|---|---|---|
+| R54 | `season_score` → `season_manager_parts` | 1 : 0..N | 식별 `--` | `fk_season_manager_parts_score`; the season is part of the key (`season_id`, `reference_version`), one row per reference version. A parts row needs the season's score row: the process part and the risk item come from it, and a human not-started season copies its `rating_exclusion`. / 시즌이 키의 일부이고 기준 판마다 한 행이다. 과정 부품과 위험 항목이 점수 행에서 오므로 점수 행이 먼저 있어야 한다. |
+| R55 | `season` → `season_manager_parts` | 1 : 0..N | 식별 `--` | `fk_season_manager_parts_season` on (`season_id`, `member_id`) → `season` (`id`, `member_id`), so `member_id` is the season's member (the `season_score` pattern, R37). / `member_id`는 시즌의 회원이다(`season_score`와 같은 방식, R37). |
+
+`manager_score_formula` has no FK: the weights are applied when the leaderboard is read, never stored on a parts row. / `manager_score_formula`에는 FK가 없다: 가중치는 리더보드를 읽을 때 적용하고 부품 행에 저장하지 않는다.
+
+### 17.3 Entity definitions / 엔티티 정의서
+
+All FKs are `ON DELETE RESTRICT ON UPDATE RESTRICT` (2). Both tables are append-only. The application role may only SELECT `manager_score_formula` (`db/callback/afterMigrate.sql`, class READ: a new formula comes by migration) and SELECT and INSERT `season_manager_parts` (class APPEND); the code inserts with plain SQL (`ManagerPartsWriter`, `ON CONFLICT DO NOTHING`, no UPDATE or DELETE statement). Weights, components, percentiles and parts are `NUMERIC`, never floating point. / FK는 모두 `ON DELETE RESTRICT ON UPDATE RESTRICT`(2절)다. 두 테이블은 추가 전용이다. 앱 역할은 `manager_score_formula`를 SELECT만 하고(READ 등급: 새 공식은 마이그레이션으로 온다) `season_manager_parts`는 SELECT·INSERT만 한다(APPEND 등급). 코드는 평범한 SQL로 넣을 뿐이다(`ManagerPartsWriter`, `ON CONFLICT DO NOTHING`, UPDATE·DELETE 문 없음). 가중치·성분·백분위·부품은 `NUMERIC`이고 부동소수점을 쓰지 않는다.
+
+#### Manager score formula / 종합 매니저 점수 공식 (manager_score_formula)
+
+| 키 | 논리명 | 물리명 | 타입 | NULL | 기본값 | 코멘트 |
+| --- | --- | --- | --- | --- | --- | --- |
+| PK | 공식 판 | version | VARCHAR(20) | NN |  | `[노출]` For example `s69-v1`. `ck_manager_score_formula_version`: `^s[0-9]+-v[1-9][0-9]*$`. |
+|  | 수익 부품 가중치 | w_return | NUMERIC(3,2) | NN |  | `[노출]` `ck_manager_score_formula_weights`: each weight `0..1`, not NaN. |
+|  | 위험 조정 부품 가중치 | w_risk_adjusted | NUMERIC(3,2) | NN |  | `[노출]` |
+|  | 위험 부품 가중치 | w_risk | NUMERIC(3,2) | NN |  | `[노출]` |
+|  | 과정 부품 가중치 | w_process | NUMERIC(3,2) | NN |  | `[노출]` `ck_manager_score_formula_sum`: the four weights add up to exactly 1. |
+|  | 공식 상태 | status | VARCHAR(11) | NN |  | `[노출]` `ck_manager_score_formula_status`: `PROVISIONAL`, `FINAL`. The page shows "잠정" for `PROVISIONAL`. |
+|  | 근거 | basis | VARCHAR(200) | NN |  | `[내부]` Where the weights come from. `ck_manager_score_formula_basis`: not empty and trimmed. |
+| UQ | 채택 시각 | adopted_at | TIMESTAMPTZ | NN |  | `[내부]` `uq_manager_score_formula_adopted`; the newest is the current formula (F1). The seed row has the fixed time 2026-11-24 00:00 KST, so every database agrees on it. |
+|  | 기록일시 | created_at | TIMESTAMPTZ | NN | now() | `[내부]` |
+
+#### Season manager parts / 시즌 매니저 점수 부품 (season_manager_parts)
+
+| 키 | 논리명 | 물리명 | 타입 | NULL | 기본값 | 코멘트 |
+| --- | --- | --- | --- | --- | --- | --- |
+| PK, FK | 시즌번호 | season_id | BIGINT | NN |  | `[내부]` `pk_season_manager_parts` with `reference_version`; `fk_season_manager_parts_score` (R54) and, with `member_id`, `fk_season_manager_parts_season` (R55). A `FINISHED` season only (F2). |
+| FK | 회원번호 | member_id | BIGINT | NN |  | `[내부]` `idx_season_manager_parts_member` (`member_id`, `reference_version`) serves the leaderboard's per-member read. |
+| PK | 기준 집합 판 | reference_version | VARCHAR(20) | NN |  | `[노출]` For example `ref69-v1`. `ck_season_manager_parts_reference_version`: `^ref[0-9]+-v[1-9][0-9]*$`. |
+|  | 제외 사유 | exclusion | VARCHAR(18) | NULL |  | `[노출]` NULL for a counted row. `ck_season_manager_parts_exclusion`: `NOT_STARTED` (a human season abandoned before turn 3, copied from `season_score.rating_exclusion`), `REFERENCE_MISMATCH` (engine 409), `NO_REFERENCE` (engine 422, or a path length without a reference). `ck_season_manager_parts_counted`: a counted row has every engine column below except `pct_risk_item`; `ck_season_manager_parts_excluded`: an excluded row has none of them. |
+|  | 기준 집합 키 | reference_key | CHAR(64) | NULL |  | `[내부]` SHA-256 of the season identity the engine ranked against. `ck_season_manager_parts_reference_key`: 64 lowercase hex. Seats of one same-seed league share it. |
+|  | 기준 봇 수 | reference_size | SMALLINT | NULL |  | `[내부]` `ck_season_manager_parts_reference_size`: `> 0`; the service stores 200 only (F3). |
+|  | 기준 봇 판 | bot_version | VARCHAR(20) | NULL |  | `[내부]` For example `random/1`. `ck_season_manager_parts_bot_version`: `^[a-z]+/[0-9]{1,4}$`. |
+|  | 엔진 판 | engine_version | VARCHAR(20) | NULL |  | `[내부]` `ck_season_manager_parts_engine_version`: not empty and trimmed. |
+|  | 초과 CAGR | excess_cagr | NUMERIC(20,12) | NULL |  | `[노출]` Team CAGR minus benchmark CAGR, as the engine sent it (12 places). `ck_season_manager_parts_components`: this and the next three are not NaN. |
+|  | 샤프 차이 | sharpe_diff | NUMERIC(20,12) | NULL |  | `[노출]` |
+|  | 소르티노 차이 | sortino_diff | NUMERIC(20,12) | NULL |  | `[노출]` A zero denominator gives ±999999.99999999 before the difference (engine rule). |
+|  | 칼마 차이 | calmar_diff | NUMERIC(20,12) | NULL |  | `[노출]` Same cap as Sortino. |
+|  | 최대 낙폭 | mdd | NUMERIC(20,12) | NULL |  | `[노출]` `ck_season_manager_parts_mdd`: this and `bench_mdd` are `-1..0` (0 or negative depth). |
+|  | 기준선 최대 낙폭 | bench_mdd | NUMERIC(20,12) | NULL |  | `[노출]` |
+|  | 초과 CAGR 백분위 | pct_excess_cagr | NUMERIC(11,8) | NULL |  | `[노출]` Mid-rank percentile against the 200 bots, higher is better, 8 places as sent. `ck_season_manager_parts_percentiles`: this, the next two and `pct_mdd` are `0..100`, not NaN. |
+|  | 샤프 차이 백분위 | pct_sharpe_diff | NUMERIC(11,8) | NULL |  | `[노출]` |
+|  | 소르티노 차이 백분위 | pct_sortino_diff | NUMERIC(11,8) | NULL |  | `[노출]` |
+|  | 칼마 차이 백분위 | pct_calmar_diff | NUMERIC(11,8) | NULL |  | `[노출]` |
+|  | 위험 항목 백분위 | pct_risk_item | NUMERIC(11,8) | NULL |  | `[노출]` NULL also on a counted row when the season has no `risk_score`; then the risk part is the drawdown percentile alone. `ck_season_manager_parts_risk_item`: `0..100`, not NaN. |
+|  | 최대 낙폭 백분위 | pct_mdd | NUMERIC(11,8) | NULL |  | `[노출]` Shallower is higher. |
+|  | 수익 부품 | part_return | NUMERIC(11,8) | NULL |  | `[노출]` `ck_season_manager_parts_parts`: the three parts are `0..100`, not NaN. |
+|  | 위험 조정 부품 | part_risk_adjusted | NUMERIC(11,8) | NULL |  | `[노출]` Mean of the Sharpe, Sortino and Calmar difference percentiles, rounded once by the engine. |
+|  | 위험 부품 | part_risk | NUMERIC(11,8) | NULL |  | `[노출]` Mean of the risk item and drawdown percentiles. |
+|  | 과정 부품 | part_process | NUMERIC(5,2) | NN |  | `[노출]` `season_score.process_score` of the season, not normalised. `ck_season_manager_parts_process`: `0..100`, not NaN. |
+|  | 과정 점수 공식 버전 | process_score_version | VARCHAR(20) | NN |  | `[노출]` `season_score.score_version` (for example `s63-v3`); old seasons are not re-scored. `ck_season_manager_parts_process_version`: not empty. |
+|  | 최종 평가 배수 | final_multiple | NUMERIC(20,8) | NN |  | `[노출]` Last turn's total value ÷ initial cash, 8 places HALF_UP (`MoneyMath.ratio`, the AG-04 rule). Display only: it never ranks (PLAN §6.9). `ck_season_manager_parts_final_multiple`: `>= 0`, not NaN. |
+|  | 기록일시 | created_at | TIMESTAMPTZ | NN | now() | `[내부]` |
+
+### 17.4 Constraints and indexes / 제약과 인덱스
+
+Notation follows 6.4 (표기는 6.4와 같다). `FlywayV21UpgradeTest` checks that V21 adds exactly these names and breaks each rule once by name, NaN included. / `FlywayV21UpgradeTest`가 V21이 정확히 이 이름들을 더하는지 보고 규칙마다 이름으로 한 번씩 깬다(NaN 포함).
+
+| 이름 | 종류 | 테이블 | 정의 |
+|---|---|---|---|
+| pk_manager_score_formula | PK | manager_score_formula | (version) |
+| uq_manager_score_formula_adopted | UQ | manager_score_formula | (adopted_at) |
+| ck_manager_score_formula_version | CK | manager_score_formula | version ~ '^s[0-9]+-v[1-9][0-9]*$' |
+| ck_manager_score_formula_weights | CK | manager_score_formula | each of w_return, w_risk_adjusted, w_risk, w_process BETWEEN 0 AND 1 AND <> 'NaN'::numeric |
+| ck_manager_score_formula_sum | CK | manager_score_formula | w_return + w_risk_adjusted + w_risk + w_process = 1 |
+| ck_manager_score_formula_status | CK | manager_score_formula | status IN ('PROVISIONAL','FINAL') |
+| ck_manager_score_formula_basis | CK | manager_score_formula | basis <> '' AND basis = btrim(basis) |
+| pk_season_manager_parts | PK | season_manager_parts | (season_id, reference_version) |
+| fk_season_manager_parts_score | FK | season_manager_parts | (season_id) → season_score (season_id) (R54) |
+| fk_season_manager_parts_season | FK | season_manager_parts | (season_id, member_id) → season (id, member_id) (R55) |
+| ck_season_manager_parts_reference_version | CK | season_manager_parts | reference_version ~ '^ref[0-9]+-v[1-9][0-9]*$' |
+| ck_season_manager_parts_exclusion | CK | season_manager_parts | exclusion IN ('NOT_STARTED','REFERENCE_MISMATCH','NO_REFERENCE') |
+| ck_season_manager_parts_counted | CK | season_manager_parts | exclusion IS NOT NULL OR num_nonnulls(the 18 engine columns except pct_risk_item) = 18 |
+| ck_season_manager_parts_excluded | CK | season_manager_parts | exclusion IS NULL OR num_nonnulls(the 19 engine columns) = 0 |
+| ck_season_manager_parts_reference_key | CK | season_manager_parts | reference_key ~ '^[0-9a-f]{64}$' |
+| ck_season_manager_parts_reference_size | CK | season_manager_parts | reference_size > 0 |
+| ck_season_manager_parts_bot_version | CK | season_manager_parts | bot_version ~ '^[a-z]+/[0-9]{1,4}$' |
+| ck_season_manager_parts_engine_version | CK | season_manager_parts | engine_version <> '' AND engine_version = btrim(engine_version) |
+| ck_season_manager_parts_components | CK | season_manager_parts | excess_cagr, sharpe_diff, sortino_diff, calmar_diff <> 'NaN'::numeric |
+| ck_season_manager_parts_mdd | CK | season_manager_parts | mdd BETWEEN -1 AND 0 AND bench_mdd BETWEEN -1 AND 0 |
+| ck_season_manager_parts_percentiles | CK | season_manager_parts | pct_excess_cagr, pct_sharpe_diff, pct_sortino_diff, pct_calmar_diff, pct_mdd BETWEEN 0 AND 100, not NaN |
+| ck_season_manager_parts_risk_item | CK | season_manager_parts | pct_risk_item BETWEEN 0 AND 100 AND <> 'NaN'::numeric |
+| ck_season_manager_parts_parts | CK | season_manager_parts | part_return, part_risk_adjusted, part_risk BETWEEN 0 AND 100, not NaN |
+| ck_season_manager_parts_process | CK | season_manager_parts | part_process BETWEEN 0 AND 100 AND <> 'NaN'::numeric |
+| ck_season_manager_parts_process_version | CK | season_manager_parts | process_score_version <> '' |
+| ck_season_manager_parts_final_multiple | CK | season_manager_parts | final_multiple >= 0 AND <> 'NaN'::numeric |
+| idx_season_manager_parts_member | IDX | season_manager_parts | (member_id, reference_version) |
+
+**Counts / 개수:**
+
+| 테이블 | PK | UNIQUE(제약) | UNIQUE 인덱스(`uq_`) | FK | CHECK | INDEX(`idx_`) |
+|---|---|---|---|---|---|---|
+| manager_score_formula | 1 | 1 | 0 | 0 | 5 | 0 |
+| season_manager_parts | 1 | 0 | 0 | 2 | 16 | 1 |
+| **§17 소계** | **2** | **1** | **0** | **2** | **21** | **1** |
+
+### 17.5 Rules DDL cannot enforce / DDL로 막지 못해 검사할 규칙
+
+| # | 규칙 | 검사하는 기능 |
+|---|---|---|
+| F1 | The current formula is the row with the newest `adopted_at`; S and L of every response use it, and a new row changes them without touching `season_manager_parts`. A new formula row comes only through a migration. / 현재 공식은 `adopted_at`이 가장 늦은 행이고 모든 응답의 S와 L이 이를 쓴다. 새 행은 부품 행을 건드리지 않고 점수를 바꾸며, 마이그레이션으로만 들어온다. | AG-06 G2 (leaderboard read) |
+| F2 | A parts row exists only for a `FINISHED` season (a finished season can never be voided), at most one per reference version; a second writer inserts nothing. A human not-started season gets a `NOT_STARTED` row without an engine call; a 409 gets `REFERENCE_MISMATCH` and a 422 (`FEED_INPUT` or `NO_REFERENCE`) gets `NO_REFERENCE`, so the queue never stalls on a deterministic refusal; an outage stores nothing. / 부품 행은 `FINISHED` 시즌에만 있고(끝난 시즌은 무효가 될 수 없다) 기준 판마다 하나이며, 두 번째 쓰기는 아무것도 넣지 않는다. 사람의 미시작 시즌은 엔진을 부르지 않고 `NOT_STARTED` 행을 받는다. 409는 `REFERENCE_MISMATCH`, 422(`FEED_INPUT`·`NO_REFERENCE`)는 `NO_REFERENCE` 행이라 결정적 거부로 대기열이 멈추지 않는다. 엔진을 못 쓰면 아무것도 저장하지 않는다. | AG-06 G1 (`ManagerPartsWriter`, the parts service) |
+| F3 | A counted row stores the engine's answer as sent (no Java rounding) only after the answer passed the checks: the reference version is the one requested, `reference_size = 200`, the key is 64 hex and both version strings fit 20 characters. `pct_risk_item` is NULL exactly when the season's `season_score.risk_score` is NULL. / 집계 행은 엔진 답을 받은 그대로(Java 반올림 없음) 저장하되, 요청한 기준 판, `reference_size = 200`, 64자리 16진 키, 20자 안의 두 판 문자열을 확인한 뒤에만 저장한다. `pct_risk_item`은 시즌의 `season_score.risk_score`가 NULL일 때만 NULL이다. | AG-06 G1 (the parts service) |

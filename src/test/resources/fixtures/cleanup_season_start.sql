@@ -1,6 +1,7 @@
 -- Fake data cleanup: committing season and order tests delete only the rows they made (children before parents).
 -- Targets: seasons of the default test member (player@example.invalid; the member row stays for the context) and the fake rows of history_pool.sql and replay_months.sql.
 DELETE FROM rating_history WHERE member_id IN (SELECT id FROM member WHERE lower(email) = 'player@example.invalid');
+DELETE FROM season_manager_parts WHERE member_id IN (SELECT id FROM member WHERE lower(email) = 'player@example.invalid');
 DELETE FROM season_score WHERE member_id IN (SELECT id FROM member WHERE lower(email) = 'player@example.invalid');
 DELETE FROM reconciliation_log WHERE season_id IN (SELECT s.id FROM season s JOIN member m ON m.id = s.member_id WHERE lower(m.email) = 'player@example.invalid');
 DELETE FROM turn        WHERE season_id IN (SELECT s.id FROM season s JOIN member m ON m.id = s.member_id WHERE lower(m.email) = 'player@example.invalid');
