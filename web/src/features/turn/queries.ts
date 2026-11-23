@@ -1,4 +1,9 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type QueryClient,
+} from '@tanstack/react-query';
 import { messageFor } from '../../api/errorMessages.ts';
 import { apiClient } from '../../api/client.ts';
 import { ProblemError, UnreachableError } from '../../api/problem.ts';
@@ -50,6 +55,27 @@ export interface AdvanceCallbacks {
   onNotice?: (text: string | null) => void;
 }
 
+export const ADVANCE_GUARD_MS = 800;
+
+// When the last advance of a season succeeded, per client. Kept outside the
+// button because the next turn's button is a new instance under the same finger.
+const advancedAt = new WeakMap<QueryClient, Map<number, number>>();
+
+export function advanceGuardLeft(client: QueryClient, id: number): number {
+  const at = advancedAt.get(client)?.get(id);
+  if (at === undefined) return 0;
+  return Math.max(0, at + ADVANCE_GUARD_MS - Date.now());
+}
+
+function markAdvanced(client: QueryClient, id: number) {
+  let byId = advancedAt.get(client);
+  if (byId === undefined) {
+    byId = new Map();
+    advancedAt.set(client, byId);
+  }
+  byId.set(id, Date.now());
+}
+
 export function useAdvanceTurn(id: number, callbacks: AdvanceCallbacks = {}) {
   const queryClient = useQueryClient();
   const { onAdvanced, onNotice } = callbacks;
@@ -69,10 +95,14 @@ export function useAdvanceTurn(id: number, callbacks: AdvanceCallbacks = {}) {
     },
     // Returning the promise keeps the mutation pending until the season has
     // been refetched, so the page switches branch once.
-    onSuccess: (body) => {
+    onSuccess: async (body) => {
+      // Stamped before the page switches to the new turn and again after the
+      // refetch, so the guard covers the new turn's first 800 ms on screen.
+      markAdvanced(queryClient, id);
       queryClient.setQueryData(turnKey(id, body.turnNo), body);
       onAdvanced?.(body.turnNo);
-      return invalidateSeasonState(queryClient, id);
+      await invalidateSeasonState(queryClient, id);
+      markAdvanced(queryClient, id);
     },
     // Page-level notices go through the page's callback: this screen may be
     // gone by the time the refetch has finished.

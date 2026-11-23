@@ -1,3 +1,8 @@
+html {
+  /* keep a focused element clear of the sticky action bar and the menu */
+  scroll-padding-bottom: calc(var(--bottom-nav-height) + 5rem);
+}
+
 body {
   background: var(--color-bg);
   color: var(--color-text);

@@ -107,6 +107,21 @@ test('plays one 12-turn season from signup to review', async ({
   await page.getByRole('button', { name: '다음 턴 (1턴으로)' }).click();
   await expect(page.getByRole('heading', { name: '1턴 결과' })).toBeVisible();
   await expect(turnCard).toBeVisible();
+  // The actions stay in reach without scrolling, summary first (WEB-14).
+  await expect(page.getByRole('region', { name: '요약' })).toBeInViewport();
+  const actions = page.getByRole('group', { name: '턴 행동' });
+  await expect(
+    actions.getByRole('button', { name: '다음 턴 (2턴으로)' }),
+  ).toBeInViewport();
+  await expect(actions.getByRole('link', { name: '매매' })).toBeInViewport();
+  // The bar must end at or above the menu's top edge.
+  const barBox = await actions.boundingBox();
+  const navBox = await page
+    .getByRole('navigation', { name: '주 메뉴' })
+    .boundingBox();
+  expect(barBox).not.toBeNull();
+  expect(navBox).not.toBeNull();
+  expect(barBox!.y + barBox!.height).toBeLessThanOrEqual(navBox!.y + 1);
   // The feed region is always there: items, or the no-news sentence.
   await expect(page.getByRole('region', { name: '소식' })).toBeVisible();
   await checkpoint(run, 'turn-1', { axe: 'turn-result' });
@@ -115,6 +130,11 @@ test('plays one 12-turn season from signup to review', async ({
   await expect(turnCard).toBeVisible();
   // The ranking board: first tab selected, the keyboard moves to the next.
   const ranking = page.getByRole('region', { name: '순위', exact: true });
+  await expect(page.getByRole('button', { name: /^순위/ })).toHaveAttribute(
+    'aria-expanded',
+    'false',
+  );
+  await page.getByRole('button', { name: /^순위/ }).click();
   await expect(ranking.getByRole('tab', { name: '등락' })).toHaveAttribute(
     'aria-selected',
     'true',
