@@ -3125,7 +3125,8 @@ components:
         현재 턴의 보유 × 그 턴 가격(이번 턴의 매매가 바로 반영되는 실시간 값). 매매가 없는 턴이면 총액·보유 평가액·포지션별 평가액이 그 턴의 턴 결과와 같다. currentFormation 은 지금 적용 중인 포메이션이다. 비중 4개의 합은 1과 최대 2e-8 다를 수 있다. 시드·경로·월 블록·연월·수익률 종류는 싣지 않는다
       required: [seasonId, turnNo, cashBalance, holdingsValue, totalValue, goalkeeperValue, defenderValue,
                  midfielderValue, forwardValue, goalkeeperWeight, defenderWeight, midfielderWeight, forwardWeight,
-                 currentFormation, goalkeeperGap, defenderGap, midfielderGap, forwardGap, formationDeviation, holdings]
+                 currentFormation, goalkeeperGap, defenderGap, midfielderGap, forwardGap, formationDeviation, unrealizedPnl,
+                 holdings]
       properties:
         seasonId:
           type: integer
@@ -3204,6 +3205,10 @@ components:
             Formation deviation = sum of |share − current formation| over the positions, 8 decimal places
 
             포메이션 이탈 = 포지션별 |비중 − 현재 포메이션|의 합, 소수 8자리
+        unrealizedPnl:
+          type: string
+          format: decimal
+          description: Total unrealised P&L of all holdings = holdings valuation − Σ quantity × average cost (fees and FX cost excluded; future sell fee and tax not deducted), rounded once, whole KRW. Cash is not part of it. Display only. The per-holding values can differ from this total by a few won / 전체 평가손익 = 보유 평가액 − Σ 수량 × 평균단가(수수료·환전 비용 제외, 앞으로의 매도 수수료·세금은 빼지 않음), 한 번 반올림, 원 단위 정수. 현금은 포함하지 않는다. 표시용. 종목별 값의 합과 몇 원 다를 수 있다
         holdings:
           type: array
           description: Holdings with quantity 1 or more (ascending asset number) / 수량 1 이상인 보유(종목 번호 오름차순)
@@ -3215,7 +3220,7 @@ components:
         One held asset. The asset name is not included — link it by assetId from the pool response
 
         보유 한 종목. 종목 이름은 싣지 않는다 — 풀 응답의 assetId 로 잇는다
-      required: [assetId, quantity, avgPrice, declaredPosition, price, value, weight]
+      required: [assetId, quantity, avgPrice, declaredPosition, price, value, weight, unrealizedPnl, unrealizedReturn]
       properties:
         assetId:
           type: integer
@@ -3244,6 +3249,14 @@ components:
           type: string
           format: decimal
           description: Asset share = valuation ÷ total valuation (cash included), 8 decimal places / 종목 비중 = 평가액 ÷ 총 평가액(현금 포함), 소수 8자리
+        unrealizedPnl:
+          type: string
+          format: decimal
+          description: Unrealised P&L = valuation − quantity × average cost (fees and FX cost excluded; future sell fee and tax not deducted), rounded once, whole KRW (negative = loss). Display only. The per-holding values can differ from the total by a few won / 평가손익 = 평가액 − 수량 × 평균단가(수수료·환전 비용 제외, 앞으로의 매도 수수료·세금은 빼지 않음), 한 번 반올림, 원 단위 정수(음수 = 손실). 표시용. 종목별 값의 합이 전체 값과 몇 원 다를 수 있다
+        unrealizedReturn:
+          type: string
+          format: decimal
+          description: Unrealised return = unrealised P&L ÷ (quantity × average cost), 8 decimal places (−0.1 = −10%). Display only / 평가수익률 = 평가손익 ÷ (수량 × 평균단가), 소수 8자리(−0.1 = −10%). 표시용
     OrderSide:
       type: string
       enum: [BUY, SELL]

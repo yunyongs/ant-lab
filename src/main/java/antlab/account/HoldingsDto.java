@@ -104,6 +104,14 @@ public record HoldingsDto(
                 + "\n"
                 + "포메이션 이탈 = 포지션별 |비중 − 현재 포메이션|의 합, 소수 8자리")
         BigDecimal formationDeviation,
+        @ExposedFrom({"holding.quantity", "holding.avg_price", "turn_price.price"})
+        @Schema(requiredMode = RequiredMode.REQUIRED, description = "Total unrealised P&L of all holdings = holdings "
+                + "valuation − Σ quantity × average cost (fees and FX cost excluded; future sell fee and tax not "
+                + "deducted), rounded once, whole KRW. Cash is not part of it. Display only. The per-holding values can "
+                + "differ from this total by a few won / 전체 평가손익 = 보유 평가액 − Σ 수량 × 평균단가(수수료·환전 비용 제외, "
+                + "앞으로의 매도 수수료·세금은 빼지 않음), 한 번 반올림, 원 단위 정수. 현금은 포함하지 않는다. 표시용. "
+                + "종목별 값의 합과 몇 원 다를 수 있다")
+        BigDecimal unrealizedPnl,
         @Schema(requiredMode = RequiredMode.REQUIRED, description = "Holdings with quantity 1 or more (ascending "
                 + "asset number) / 수량 1 이상인 보유(종목 번호 오름차순)")
         List<HoldingDto> holdings) {

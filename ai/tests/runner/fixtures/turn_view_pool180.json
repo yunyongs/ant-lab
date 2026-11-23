@@ -33,6 +33,7 @@
   "goalkeeperGap": "0",
   "goalkeeperValue": "3000000",
   "goalkeeperWeight": "0.1000",
+  "unrealizedPnl": "66000",
   "holdings": [
    {
     "assetId": 1000,
@@ -41,7 +42,9 @@
     "price": "52000",
     "quantity": 10,
     "value": "520000",
-    "weight": "0.0500"
+    "weight": "0.0500",
+    "unrealizedPnl": "20000",
+    "unrealizedReturn": "0.04000000"
    },
    {
     "assetId": 1001,
@@ -50,7 +53,9 @@
     "price": "52000",
     "quantity": 11,
     "value": "572000",
-    "weight": "0.0500"
+    "weight": "0.0500",
+    "unrealizedPnl": "22000",
+    "unrealizedReturn": "0.04000000"
    },
    {
     "assetId": 1002,
@@ -59,7 +64,9 @@
     "price": "52000",
     "quantity": 12,
     "value": "624000",
-    "weight": "0.0500"
+    "weight": "0.0500",
+    "unrealizedPnl": "24000",
+    "unrealizedReturn": "0.04000000"
    }
   ],
   "holdingsValue": "2000000",
