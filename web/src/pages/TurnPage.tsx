@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link, useParams } from 'react-router';
+import { ContributionSection } from '../features/contribution/ContributionSection.tsx';
 import { MAX_ROUTE_ID, parseWholeNumber } from '../features/format/integer.ts';
 import { MacroPanel } from '../features/macro/MacroPanel.tsx';
 import { AlertList } from '../features/feed/AlertList.tsx';
@@ -103,6 +104,14 @@ export function TurnPage() {
             />
           )}
           {turn.data && <TurnResultCard turn={turn.data} />}
+          {turn.data && (
+            <ContributionSection
+              seasonId={season.data.id}
+              turnNo={k}
+              currentTurnNo={season.data.currentTurnNo}
+              title="이 턴의 기여"
+            />
+          )}
           {turn.data && <MacroPanel macro={turn.data.macro} />}
           {turn.data && (
             <FeedSection

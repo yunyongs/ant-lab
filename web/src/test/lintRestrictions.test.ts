@@ -3,6 +3,8 @@ import { fileURLToPath } from 'node:url';
 import { ESLint } from 'eslint';
 import { describe, expect, it } from 'vitest';
 import {
+  chartAdapterFiles,
+  chartAdapterRestrictions,
   importRestrictions,
   restrictionRules,
 } from '../../eslint.restrictions.js';
@@ -31,6 +33,7 @@ const jsxEslint = new ESLint({
       },
       rules: restrictionRules,
     },
+    ...chartAdapterRestrictions,
     ...importRestrictions,
   ],
 });
@@ -201,5 +204,32 @@ describe('real eslint.config.js', () => {
     );
     expect(found).toHaveLength(1);
     expect(found[0]?.message).toMatch(/decimal strings/);
+  });
+});
+
+describe('chart adapter allow-list', () => {
+  const adapter = 'src/features/chart/adapter.ts';
+
+  it('names exactly one adapter file', () => {
+    expect(chartAdapterFiles).toEqual([adapter]);
+  });
+
+  it('allows Number(text) only in the adapter', async () => {
+    const code = 'export const n = Number("1");';
+    expect(await messagesAt(code, adapter)).toHaveLength(0);
+    const elsewhere = await messagesAt(code, 'src/features/chart/other.ts');
+    expect(elsewhere).toHaveLength(1);
+    expect(elsewhere[0]?.message).toMatch(/decimal strings/);
+  });
+
+  it.each([
+    'parseFloat("1")',
+    'new Number("1")',
+    'const s = "1"; +s',
+    '["1"].map(Number)',
+  ])('still rejects %s in the adapter', async (code) => {
+    const found = await messagesAt(code, adapter);
+    expect(found.length).toBeGreaterThan(0);
+    for (const message of found) expect(message.message).toMatch(/decimal/);
   });
 });

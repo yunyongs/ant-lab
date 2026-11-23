@@ -66,6 +66,14 @@ GET {{base}}/api/v1/pool
 GET {{base}}/api/v1/seasons/{{season}}/prices?turnNo=0
 Authorization: Bearer {{token}}
 
+### 3b. Optional: preview the first buy (fill price, amount, fee, cash after, largest quantity); nothing is written
+# 선택: 첫 매수 미리보기(체결가, 대금, 수수료, 체결 뒤 현금, 최대 수량). 아무것도 쓰지 않는다
+POST {{base}}/api/v1/seasons/{{season}}/orders/quote
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "expectedTurnNo": 0, "side": "BUY", "assetId": {{pool.response.body.$.assets[0].assetId}}, "quantity": {{qty}}, "declaredPosition": "{{pool.response.body.$.assets[0].systemPosition}}" }
+
 ### 4. Buy the team at turn 0: the first eight pool assets, each declared as its system position
 # 0턴 팀 매수: 풀의 앞 여덟 종목, 선언 포지션은 시스템 포지션
 # @name buy1
@@ -232,6 +240,12 @@ Authorization: Bearer {{token}}
 # Ranking board of turn 5: seven lists of at most 5 rows, from that turn's data only.
 # 5턴의 순위판: 그 턴의 자료만으로 만든 목록 일곱 개(각 5줄 이하).
 GET {{base}}/api/v1/seasons/{{season}}/turns/5/ranking
+Authorization: Bearer {{token}}
+
+###
+# Contribution of turn 5: price effect per holding and position, trading cost, and the benchmark to date.
+# 5턴의 기여: 종목·포지션별 가격 효과, 매매 비용, 이 턴까지의 기준선.
+GET {{base}}/api/v1/seasons/{{season}}/turns/5/contribution
 Authorization: Bearer {{token}}
 
 ### 9. Keep advancing to turn 8 / 8턴까지 넘기기

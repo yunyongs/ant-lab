@@ -266,7 +266,9 @@ describe.each([
     const region = await screen.findByRole('region', { name: '소식' });
     expect(within(region).getAllByRole('listitem')).toHaveLength(3);
     expect(screen.queryByRole('button', { name: /매수|매도/ })).toBeNull();
-    expect(screen.queryByRole('button', { name: /턴/ })).toBeNull();
+    expect(
+      screen.queryByRole('button', { name: /다음 턴|턴 넘기|턴을 넘기/ }),
+    ).toBeNull();
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(world.holdingsGets).toBe(0);
     expect(world.pricesGets).toEqual([]);
@@ -283,7 +285,11 @@ describe('HALTED now page', () => {
     expect(
       await screen.findByRole('heading', { name: '5턴 결과' }),
     ).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /턴|매수|매도/ })).toBeNull();
+    expect(
+      screen.queryByRole('button', {
+        name: /다음 턴|턴 넘기|턴을 넘기|매수|매도/,
+      }),
+    ).toBeNull();
   });
 });
 

@@ -94,7 +94,7 @@ class ApiErrorSweepTest {
         }
 
         String validBody() {
-            if (template.endsWith("/orders")) {
+            if (template.endsWith("/orders") || template.endsWith("/orders/quote")) {
                 return "{\"expectedTurnNo\": 0, \"side\": \"BUY\", \"assetId\": 1, \"quantity\": 1,"
                         + " \"declaredPosition\": \"MIDFIELDER\"}";
             }

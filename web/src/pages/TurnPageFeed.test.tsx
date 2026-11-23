@@ -18,7 +18,9 @@ describe('feed on a past-turn page', () => {
     );
     const dialog = await screen.findByRole('dialog', { name: '종목 가' });
     // The sheet shows this turn's price, not the earlier turn's.
-    expect(within(dialog).getByText('187,400원')).toBeInTheDocument();
+    expect(
+      within(dialog).getByText('이번 턴 가격').nextElementSibling,
+    ).toHaveTextContent('187,400원');
     await user.click(within(dialog).getByRole('button', { name: '1주 매수' }));
     await within(dialog).findByText('체결가');
     expect(world.orders[0]).toStrictEqual({

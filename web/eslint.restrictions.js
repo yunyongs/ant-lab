@@ -66,6 +66,25 @@ export const restrictionRules = {
   ],
 };
 
+// The chart library draws JavaScript numbers. This one adapter converts whole
+// won strings (exact up to 2^53) into chart positions; only the plain
+// `Number(text)` call is allowed there, every other money restriction stays.
+export const chartAdapterFiles = ['src/features/chart/adapter.ts'];
+
+const NUMBER_CALL = "CallExpression[callee.name='Number']";
+
+/** @type {import('eslint').Linter.Config[]} */
+export const chartAdapterRestrictions = [
+  {
+    files: chartAdapterFiles,
+    rules: {
+      'no-restricted-syntax': restrictionRules['no-restricted-syntax'].filter(
+        (entry) => typeof entry !== 'object' || entry.selector !== NUMBER_CALL,
+      ),
+    },
+  },
+];
+
 // In-season screens (feed, ranking) must not import the review folder.
 /** @type {import('eslint').Linter.Config[]} */
 export const importRestrictions = [

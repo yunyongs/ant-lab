@@ -1,4 +1,4 @@
-import { act, screen, waitFor } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { describe, expect, it } from 'vitest';
 import {
@@ -149,8 +149,8 @@ describe('reveal boundary', () => {
     const world = serveTurnWorld({ current: 3 });
     world.ranking = (turnNo) => rankingFixture(turnNo);
     const { router, container, queryClient } = renderRoute('/seasons/7');
-    await expandRanking();
-    await screen.findByText('종목 나');
+    const ranking = await expandRanking();
+    await within(ranking).findByText('종목 나');
     expectNoDatePattern(container);
     for (const path of ['/seasons/7/turns/2', '/seasons/7/turns/4']) {
       await act(async () => {

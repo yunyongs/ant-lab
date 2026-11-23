@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { ContributionSection } from '../contribution/ContributionSection.tsx';
 import { MacroPanel } from '../macro/MacroPanel.tsx';
 import { AlertList } from '../feed/AlertList.tsx';
 import { FeedSection } from '../feed/FeedSection.tsx';
@@ -7,6 +8,7 @@ import { ProjectionLink } from '../projection/ProjectionLink.tsx';
 import { QueryError } from '../seasons/QueryError.tsx';
 import type { Season } from '../seasons/labels.ts';
 import { canTrade } from '../seasons/seasonGate.ts';
+import { ValueSection } from '../valueline/ValueSection.tsx';
 import { Link } from 'react-router';
 import { TurnActionBar } from './TurnActionBar.tsx';
 import { useTurn } from './queries.ts';
@@ -64,6 +66,18 @@ export function TurnView({
         />
       )}
       {turn.data && <TurnResultCard turn={turn.data} />}
+      {turn.data && (
+        <ContributionSection
+          seasonId={season.id}
+          turnNo={season.currentTurnNo}
+          currentTurnNo={season.currentTurnNo}
+          title="이번 턴 기여"
+          collapse={{ defaultOpen: true }}
+        />
+      )}
+      {turn.data && (
+        <ValueSection season={season} collapse={{ defaultOpen: true }} />
+      )}
       {turn.data && <MacroPanel macro={turn.data.macro} />}
       {turn.data && (
         <FeedSection

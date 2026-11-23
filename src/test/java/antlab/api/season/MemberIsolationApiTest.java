@@ -136,7 +136,7 @@ class MemberIsolationApiTest {
             if (!hasBody) {
                 return null;
             }
-            if (template.endsWith("/orders")) {
+            if (template.endsWith("/orders") || template.endsWith("/orders/quote")) {
                 return orderBody;
             }
             if (template.endsWith("/formation-changes")) {
