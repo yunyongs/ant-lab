@@ -30,12 +30,12 @@ class EngineComposeSettingsTest {
     }
 
     @Test
-    void api는_엔진_주소와_토큰과_경로_출처를_받고_기본_경로_출처는_java다() throws IOException {
+    void api는_엔진_주소와_토큰과_경로_출처를_받고_기본_경로_출처는_engine이다() throws IOException {
         Map<String, Object> env = apiEnvironment();
 
         assertThat(env.get("ANTLAB_ENGINE_URL")).isEqualTo("http://engine:8000");
         assertThat(env.get("ANTLAB_ENGINE_TOKEN")).isEqualTo("${ANTLAB_ENGINE_TOKEN:-}");
-        assertThat(env.get("ANTLAB_ENGINE_PATH_SOURCE")).isEqualTo("${ANTLAB_ENGINE_PATH_SOURCE:-java}");
+        assertThat(env.get("ANTLAB_ENGINE_PATH_SOURCE")).isEqualTo("${ANTLAB_ENGINE_PATH_SOURCE:-engine}");
     }
 
     @Test
@@ -57,7 +57,7 @@ class EngineComposeSettingsTest {
     void env_example은_세_이름을_비워_두거나_주석으로_둔다() throws IOException {
         String example = Files.readString(Path.of(".env.example"));
 
-        assertThat(example).contains("ANTLAB_ENGINE_TOKEN=\n").contains("# ANTLAB_ENGINE_PATH_SOURCE=java\n")
+        assertThat(example).contains("ANTLAB_ENGINE_TOKEN=\n").contains("# ANTLAB_ENGINE_PATH_SOURCE=engine\n")
                 .contains("# ANTLAB_ENGINE_URL=http://127.0.0.1:8000\n");
     }
 }

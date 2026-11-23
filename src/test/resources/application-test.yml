@@ -28,6 +28,9 @@ antlab:
   agent-runner:
     token: fake-runner-token-for-tests-only-0123456789abcdef
     owner-member-id: 910001
+  # Tests keep the in-process bootstrap; a test that needs the engine path source opts in with its own properties (FakeEngineServer).
+  engine:
+    path-source: java
   # The fixtures load few or no month_event rows; the shipped default refuses to filter memory without event titles.
   agent:
     memory:

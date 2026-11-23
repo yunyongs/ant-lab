@@ -15,10 +15,10 @@ import org.springframework.stereotype.Component;
 /**
  * 운영 경로 출처 — 단순 부트스트랩. 재생 범위의 달을 읽어 {@link SimpleBootstrap} 로 경로를 만들고 규칙을 한 번 더 검사한다.
  * 트랜잭션은 호출하는 서비스가 연다(읽기만 한다).
- * antlab.engine.path-source=java (기본)일 때만 빈이 된다. {@code engine} 이면 {@link EnginePathSource} 가 대신한다.
+ * antlab.engine.path-source=java 일 때만 빈이 된다(기본은 engine, M2-09). {@code engine} 이면 {@link EnginePathSource} 가 대신한다.
  */
 @Component
-@ConditionalOnProperty(prefix = "antlab.engine", name = "path-source", havingValue = "java", matchIfMissing = true)
+@ConditionalOnProperty(prefix = "antlab.engine", name = "path-source", havingValue = "java")
 public class BootstrapPathSource implements PathSource {
 
     private final MonthBlockRepository monthBlocks;

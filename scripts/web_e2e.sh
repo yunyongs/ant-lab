@@ -118,6 +118,8 @@ printf 'ANTLAB_DB_PORT=%s\n' "$db_port" > "$env_file"
 printf 'ANTLAB_API_PORT=%s\n' "$api_port" >> "$env_file"
 printf 'ANTLAB_JWT_SECRET=%s\n' "$jwt_key" >> "$env_file"
 printf 'COMPOSE_PROFILES=api\n' >> "$env_file"
+# db and api only (no engine container): keep the in-process path source so the season start in the run needs no engine.
+printf 'ANTLAB_ENGINE_PATH_SOURCE=java\n' >> "$env_file"
 
 mkdir "$work/stage"
 cp -R "$api_dir/db" "$api_dir/events" "$work/stage/"

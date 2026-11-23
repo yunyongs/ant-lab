@@ -35,9 +35,10 @@ git clone https://github.com/yunyongs/ant-lab.git && cd ant-lab
 
 # 1. Secrets stay in a git-ignored .env (see .env.example for all names)
 echo "ANTLAB_JWT_SECRET=$(openssl rand -base64 32)" > .env
+echo "ANTLAB_ENGINE_TOKEN=$(openssl rand -hex 32)" >> .env      # season paths come from the engine (M2-09)
 
-# 2. Database + API
-docker compose --profile api up -d --build --wait db api
+# 2. Database + engine + API (the antlab_engine role script runs once: db/README.md)
+docker compose --profile api up -d --build --wait
 curl -fsS http://127.0.0.1:8080/readyz          # {"status":"UP"}
 
 # 3. Web app (another terminal)
@@ -46,7 +47,9 @@ cd web && npm ci && npm run dev                  # http://localhost:5173
 
 The API container uses an empty database created by Flyway. Sign up in the web app, start a season, and advance turns. No API key is needed; real market data and the agent runner are optional extras. 빈 DB는 Flyway가 만든다. 웹에서 가입하고 시즌을 시작해 턴을 넘기면 된다. API 키는 필요 없다.
 
-Optional: `docker compose --profile monitoring up -d --wait` starts Prometheus and Grafana (needs `GF_SECURITY_ADMIN_PASSWORD` in `.env`); `--profile engine` starts the Python engine (needs `ANTLAB_ENGINE_TOKEN`). 선택: 모니터링·엔진 프로필.
+Optional: `docker compose --profile monitoring up -d --wait` starts Prometheus and Grafana (needs `GF_SECURITY_ADMIN_PASSWORD` in `.env`); `--profile engine` starts the Python engine alone. 선택: 모니터링·엔진 프로필.
+
+Since M2-09 the API takes season paths from the Python engine by default: `ANTLAB_ENGINE_TOKEN` in `.env` and the `antlab_engine` role script (`db/README.md`, once) are required; `--profile api` starts the engine too. To run the API without an engine, set `ANTLAB_ENGINE_PATH_SOURCE=java`. M2-09부터 API는 시즌 경로를 기본으로 파이썬 엔진에서 받는다. `.env`의 `ANTLAB_ENGINE_TOKEN`과 `antlab_engine` 역할 스크립트(`db/README.md`, 한 번)가 필요하고, `--profile api`가 엔진도 함께 켠다. 엔진 없이 API만 띄우려면 `ANTLAB_ENGINE_PATH_SOURCE=java`를 준다.
 
 ## Tests / 시험
 
