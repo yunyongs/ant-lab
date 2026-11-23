@@ -135,6 +135,7 @@ class LeastPrivilegeFlowTest {
         runTheCollector();
         runTheFredCollector();
         runTheEcosCollector();
+        runTheDetectionImport();
 
         JdbcTemplate superuser = new JdbcTemplate(database.superuser());
         List<String> empty = new ArrayList<>();
@@ -213,6 +214,19 @@ class LeastPrivilegeFlowTest {
         Reply logout = new E2eHttp(port).send(HttpMethod.POST, "/api/v1/auth/logout", null, null, "application/json",
                 Map.of("Cookie", "antlab_refresh=" + rotated));
         assertThat(logout.status()).as("logout").isEqualTo(204);
+    }
+
+    /** An administrator's import is two inserts per window and a replay that only reads, both as the app role. */
+    private void runTheDetectionImport() {
+        new JdbcTemplate(database.superuser()).update("UPDATE member SET role = 'ADMIN' WHERE email = ?", EMAIL);
+        Reply login = new E2eHttp(port).post("/api/v1/auth/login", "{\"email\": \"" + EMAIL + "\", \"password\": \"" + PASSWORD + "\"}");
+        assertThat(login.status()).as("admin login " + login.body()).isEqualTo(200);
+        E2eHttp admin = new E2eHttp(port, Map.of("Authorization", "Bearer " + login.json().get("accessToken").asString()));
+        String summary = antlab.support.DetectionFixtures.summary("e".repeat(64));
+        Reply stored = admin.post("/api/v1/admin/detection-summaries", summary);
+        assertThat(stored.status()).as("detection import " + stored.body()).isEqualTo(201);
+        Reply replay = admin.post("/api/v1/admin/detection-summaries", summary);
+        assertThat(replay.status()).as("detection replay " + replay.body()).isEqualTo(200);
     }
 
     private void runTheAgent() {
