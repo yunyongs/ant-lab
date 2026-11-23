@@ -96,7 +96,7 @@ describe('macro panel on turn screens', () => {
     world.macro = macroOfTurn;
     renderRoute('/seasons/7');
     await screen.findByText('상승 · 강도 4');
-    await userEvent.click(screen.getByRole('button', { name: /턴/ }));
+    await userEvent.click(screen.getByRole('button', { name: /^다음 턴/ }));
     expect(await screen.findByText('상승 · 강도 5')).toBeVisible();
     expect(screen.queryByText('상승 · 강도 4')).toBeNull();
   });

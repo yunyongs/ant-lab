@@ -2,6 +2,7 @@ import { http, HttpResponse } from 'msw';
 import { parseWholeNumber } from '../features/format/integer.ts';
 import { authHandlers } from './authHandlers.ts';
 import { analysisFixture } from './fixtures/analysis.ts';
+import { contributionFixture } from './fixtures/contribution.ts';
 import { holdingsFixture } from './fixtures/holdings.ts';
 import { orderQuoteFixture } from './fixtures/orders.ts';
 import { pricesFixture } from './fixtures/prices.ts';
@@ -43,6 +44,15 @@ export const handlers = [
     HttpResponse.json(
       emptyBoard(parseWholeNumber(String(params.turnNo), 1000) ?? 0),
     ),
+  ),
+  http.get(
+    '*/api/v1/seasons/:seasonId/turns/:turnNo/contribution',
+    ({ params }) =>
+      HttpResponse.json(
+        contributionFixture({
+          turnNo: parseWholeNumber(String(params.turnNo), 1000) ?? 0,
+        }),
+      ),
   ),
   http.get('*/api/v1/seasons/:seasonId/report/analysis', () =>
     HttpResponse.json(analysisFixture()),
