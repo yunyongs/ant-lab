@@ -1,26 +1,43 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import {
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type FormEvent,
+} from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { messageFor } from '../../api/errorMessages.ts';
 import { Change } from '../format/Change.tsx';
 import { ProblemError } from '../../api/problem.ts';
 import { formatWon } from '../format/money.ts';
 import { UNKNOWN_OUTCOME_TEXT } from '../turn/turnMessages.ts';
 import type { OrderSource } from '../feed/orderSource.ts';
+import {
+  addDecimal,
+  quantityShare,
+  subtractDecimal,
+  weightAfterOrder,
+} from '../format/derive.ts';
 import { groupDigits, parseWholeNumber } from '../format/integer.ts';
 import { POSITIONS, positionLabel, type Position } from '../seasons/labels.ts';
 import { OrderQuotePanel, type QuoteView } from './OrderQuotePanel.tsx';
 import {
   QUOTE_DELAY_MS,
+  holdingsKey,
   useOrderQuote,
   usePlaceOrder,
   type Holding,
+  type Holdings,
   type OrderRequest,
   type OrderResult,
   type PoolAsset,
 } from './queries.ts';
 import { useDebounced } from './useDebounced.ts';
 import styles from './Team.module.css';
+import sheetStyles from './OrderSheet.module.css';
 
 const MAX_QUANTITY = 999_999_999;
+const RATIOS = [10, 25, 50] as const;
 const QUANTITY_TEXT = '수량은 1 이상의 정수로 적어 주세요';
 const PRICES_FAILED_TEXT =
   '가격을 불러오지 못했습니다. 체결가는 서버가 정합니다.';
@@ -143,6 +160,7 @@ export function OrderSheet({
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const alertBox = useRef<HTMLDivElement>(null);
+  const queryClient = useQueryClient();
   const order = usePlaceOrder(seasonId);
   // The system's judgement is preselected; the player may write otherwise.
   const [position, setPosition] = useState<Position>(
@@ -151,6 +169,8 @@ export function OrderSheet({
   const [quantityText, setQuantityText] = useState('1');
   const [result, setResult] = useState<OrderResult | null>(null);
   const [error, setError] = useState<unknown>(null);
+  // Holdings update count when the last fill came back; null before any fill.
+  const [filledAt, setFilledAt] = useState<number | null>(null);
 
   // No cleanup: closing here would fire `close` during a development
   // StrictMode re-run and dismiss the sheet. Unmounting removes a modal.
@@ -241,6 +261,52 @@ export function OrderSheet({
   else if (quote.isError) quoteView = { kind: 'failed', error: quote.error };
   else quoteView = { kind: 'ready', quote: quote.data };
 
+  // The base of the ratio buttons: the server's maximum, or the held shares.
+  const ratioBase = selling ? limit : buyMax;
+  function pickRatio(percent: number) {
+    if (ratioBase === null) return;
+    const share = quantityShare(String(ratioBase), percent);
+    if (share === null) return;
+    // A share below one still names one whole share.
+    setQuantityText(share === '0' ? '1' : share);
+  }
+
+  // Previews derived from the quote and the holdings, exact; hidden when any
+  // input is missing or malformed.
+  // Read from the cache only: the sheet adds no holdings request of its own.
+  const holdings = queryClient.getQueryData<Holdings>(holdingsKey(seasonId));
+  const holdingsState = useSyncExternalStore(
+    (notify) => queryClient.getQueryCache().subscribe(notify),
+    () => queryClient.getQueryState(holdingsKey(seasonId)),
+  );
+  // After a fill in this sheet the holdings and the cash on screen are the
+  // state before it until the refresh that follows has landed. Anything
+  // derived from them is hidden until then; the quote alone is still shown.
+  const stateCurrent =
+    filledAt === null ||
+    (holdingsState !== undefined &&
+      holdingsState.fetchStatus === 'idle' &&
+      holdingsState.dataUpdateCount > filledAt);
+  const readyQuote = quoteView.kind === 'ready' ? quoteView.quote : null;
+  const totalValue = holdings?.totalValue;
+  let weightAfter: string | null = null;
+  let total: string | null = null;
+  if (readyQuote !== null) {
+    if (!selling) total = addDecimal(readyQuote.notional, readyQuote.fee);
+    else if (stateCurrent) {
+      total = subtractDecimal(readyQuote.cashAfter, cashBalance);
+    }
+    if (stateCurrent && totalValue !== undefined) {
+      weightAfter = weightAfterOrder(
+        holding?.value ?? '0',
+        readyQuote.notional,
+        totalValue,
+        readyQuote.fee,
+        side,
+      );
+    }
+  }
+
   useEffect(() => {
     if (alertText !== null) alertBox.current?.focus();
   }, [alertText, error]);
@@ -266,6 +332,10 @@ export function OrderSheet({
     setError(null);
     order.mutate(body, {
       onSuccess: (filled) => {
+        setFilledAt(
+          queryClient.getQueryState(holdingsKey(seasonId))?.dataUpdateCount ??
+            0,
+        );
         setResult(filled);
       },
       onError: (caught) => {
@@ -304,10 +374,12 @@ export function OrderSheet({
                 {`시스템 판정: ${positionLabel[asset.systemPosition]}`}
               </p>
             )}
-            <div className={styles.rowBetween}>
-              <span className={styles.muted}>이번 턴 가격</span>
+            <p className={sheetStyles.subline}>
+              <span>이번 턴 가격</span>{' '}
               <span>{price === undefined ? '–' : formatWon(price)}</span>
-            </div>
+              {' · '}
+              <span>{`현금 ${formatWon(cashBalance)}`}</span>
+            </p>
             {pricesFailed && price === undefined && (
               <p className={styles.hint}>{PRICES_FAILED_TEXT}</p>
             )}
@@ -317,10 +389,6 @@ export function OrderSheet({
                 <span>{`보유 ${groupDigits(limit)}주`}</span>
               </div>
             )}
-            <div className={styles.rowBetween}>
-              <span className={styles.muted}>현금 잔액</span>
-              <span>{formatWon(cashBalance)}</span>
-            </div>
 
             {alertText !== null && (
               <div
@@ -418,28 +486,40 @@ export function OrderSheet({
                   +
                 </button>
               </div>
-              {selling ? (
+              <div
+                role="group"
+                aria-label="최대 수량 대비"
+                className={sheetStyles.ratios}
+              >
+                {RATIOS.map((percent) => (
+                  <button
+                    key={percent}
+                    type="button"
+                    className={`${styles.secondary} ${sheetStyles.ratio}`}
+                    disabled={ratioBase === null || ratioBase === 0}
+                    onClick={() => {
+                      pickRatio(percent);
+                    }}
+                  >
+                    {`${String(percent)}%`}
+                  </button>
+                ))}
                 <button
                   type="button"
-                  className={styles.secondary}
+                  className={`${styles.secondary} ${sheetStyles.ratio}`}
+                  disabled={ratioBase === null || ratioBase === 0}
                   onClick={() => {
-                    setQuantityText(String(limit));
+                    pickRatio(100);
                   }}
                 >
-                  {`전량 (${groupDigits(limit)}주)`}
+                  {selling ? '전량 ' : '최대 '}
+                  {ratioBase !== null && (
+                    <span className={sheetStyles.ratioCount}>
+                      {`(${groupDigits(ratioBase)}주)`}
+                    </span>
+                  )}
                 </button>
-              ) : (
-                <button
-                  type="button"
-                  className={styles.secondary}
-                  disabled={buyMax === null || buyMax === 0}
-                  onClick={() => {
-                    if (buyMax !== null) setQuantityText(String(buyMax));
-                  }}
-                >
-                  {buyMax === null ? '최대' : `최대 (${groupDigits(buyMax)}주)`}
-                </button>
-              )}
+              </div>
               {!quantityOk && (
                 <span id="order-quantity-error" className={styles.fieldError}>
                   {quantityHint}
@@ -454,6 +534,7 @@ export function OrderSheet({
 
             <OrderQuotePanel
               view={quoteView}
+              weightAfter={weightAfter}
               maxHint={
                 buyMax === null || selling
                   ? null
@@ -474,12 +555,24 @@ export function OrderSheet({
               </button>
               <button
                 type="submit"
-                className={selling ? styles.danger : styles.primary}
+                className={`${selling ? styles.danger : styles.primary} ${sheetStyles.submit}`}
                 disabled={!quantityOk || order.isPending}
               >
-                {order.isPending
-                  ? `${selling ? '매도' : '매수'} 중…`
-                  : `${quantityOk ? String(quantity) : '–'}주 ${selling ? '매도' : '매수'}`}
+                {order.isPending ? (
+                  `${selling ? '매도' : '매수'} 중…`
+                ) : (
+                  <>
+                    <span>{`${quantityOk ? String(quantity) : '–'}주 ${selling ? '매도' : '매수'}`}</span>
+                    {total !== null && (
+                      <span
+                        className={sheetStyles.submitTotal}
+                        aria-hidden="true"
+                      >
+                        {`${selling ? '받는 금액' : '합계'} ${formatWon(total)}`}
+                      </span>
+                    )}
+                  </>
+                )}
               </button>
             </div>
           </form>

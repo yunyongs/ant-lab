@@ -24,7 +24,13 @@ function failureText(error: unknown, maxHint: string | null): string | null {
     : text;
 }
 
-function QuoteRows({ quote }: { quote: OrderQuote }) {
+function QuoteRows({
+  quote,
+  weightAfter,
+}: {
+  quote: OrderQuote;
+  weightAfter: string | null;
+}) {
   return (
     <dl className={styles.rows}>
       <div className={styles.rowBetween}>
@@ -49,6 +55,12 @@ function QuoteRows({ quote }: { quote: OrderQuote }) {
         <dt>체결 뒤 현금</dt>
         <dd>{formatWon(quote.cashAfter)}</dd>
       </div>
+      {weightAfter !== null && (
+        <div className={styles.rowBetween}>
+          <dt>체결 뒤 이 종목 비중</dt>
+          <dd>{weightAfter}</dd>
+        </div>
+      )}
     </dl>
   );
 }
@@ -56,8 +68,11 @@ function QuoteRows({ quote }: { quote: OrderQuote }) {
 export function OrderQuotePanel({
   view,
   maxHint,
+  weightAfter,
 }: {
   view: QuoteView;
+  // Preview of this asset's share after the fill; null hides the row.
+  weightAfter: string | null;
   // Shown after a cash refusal when the largest buyable quantity is known.
   maxHint: string | null;
 }) {
@@ -72,7 +87,7 @@ export function OrderQuotePanel({
       </p>
     );
   } else if (view.kind === 'ready') {
-    body = <QuoteRows quote={view.quote} />;
+    body = <QuoteRows quote={view.quote} weightAfter={weightAfter} />;
   } else {
     const text = failureText(view.error, maxHint);
     body = text === null ? null : <p className={styles.fieldError}>{text}</p>;

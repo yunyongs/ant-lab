@@ -1,0 +1,41 @@
+.subline {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+}
+
+.ratios {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.ratio {
+  min-width: 0;
+  min-height: 44px;
+  flex-direction: column;
+  padding: 0 var(--space-2);
+  font-size: 0.9375rem;
+  line-height: 1.2;
+}
+
+.ratio:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.ratioCount {
+  font-size: 0.75rem;
+  font-weight: 400;
+}
+
+.submit {
+  flex-direction: column;
+  gap: 2px;
+  line-height: 1.2;
+}
+
+.submitTotal {
+  font-size: 0.8125rem;
+  font-weight: 400;
+}
