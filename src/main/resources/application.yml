@@ -88,12 +88,23 @@ antlab:
     paths-timeout: 3s
     projections-timeout: 15s
     # one regime labelling call evaluates every month of month_block (about 3 s on the owner Mac; room for a slower VM).
-    # The manager-parts call shares it: a cold reference build is 3-5 s plus one history read, so keep it at 30 s or more.
+    # The manager-parts call shares it: a cold reference build is 3-5 s plus one history read, so keep it at 30 s or more
+    # (below 30 s every parts run is refused, and startup fails while the parts job is on).
     regime-timeout: 60s
     path-source: ${ANTLAB_ENGINE_PATH_SOURCE:engine}
     # m2-sb6-v1 (default, conditional off) | m2-sbc6-v1 (needs stored regime labels; 503 without them) | p0-boot6-v1
     path-version: m2-sb6-v1
     projection-paths: 2000
+  # Manager parts job (AG-06): one finished season per tick, earliest finish first, asks the engine for its manager parts
+  # and stores them once (season_manager_parts). A failed season waits delay x 2^failures, at most max-backoff. An
+  # administrator can also run it now: POST /api/v1/admin/manager-parts/run?limit=1..20. Off by default until a real
+  # Java-played season has had a 200 from the engine's /v1/manager-parts on this deployment: before that, a 422 from a
+  # history that is not ready yet would be stored as a permanent NO_REFERENCE row. Turn it on with ANTLAB_PARTS_JOB_ENABLED=true.
+  leaderboard:
+    parts-job:
+      enabled: ${ANTLAB_PARTS_JOB_ENABLED:false}
+      delay: 60s
+      max-backoff: 1h
   # KIS quote client (M1-06): quote lookup only, off by default. Keys come from the environment, never from this file.
   # token-cache-dir shares the token file with tools/fetch (data/cache/kis); empty keeps the token in memory.
   collect:

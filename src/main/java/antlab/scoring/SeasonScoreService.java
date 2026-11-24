@@ -39,6 +39,12 @@ public class SeasonScoreService {
     public record Ensured(int pendingSeasons) {
     }
 
+    /**
+     * What {@link #ensureSeason} found: the season has a score row; an earlier season of the member has none, so this one
+     * waits; the engine was unavailable; or the attempt failed otherwise (a contract fault or a bad answer).
+     */
+    public enum Step { SCORED, BLOCKED, UNAVAILABLE, FAILED }
+
     private final CurrentMember currentMember;
     private final SeasonRepository seasons;
     private final SeasonScoreRepository scores;
@@ -88,15 +94,34 @@ public class SeasonScoreService {
             return new Ensured(0);
         }
         for (Long seasonId : unscored) {
-            if (!scoreOne(seasonId)) {
+            if (scoreOne(seasonId) != Step.SCORED) {
                 break;
             }
         }
         return new Ensured(query.unscoredFinished(memberId).size());
     }
 
-    /** @return false when the season could not be scored for now and the loop must stop */
-    private boolean scoreOne(long seasonId) {
+    /**
+     * Makes sure one finished season has a score row, with at most one engine call: the season is scored only when it is the
+     * member's earliest finished season without a score, so the finish order holds and an earlier season that failed is
+     * not tried again on this season's behalf. Never throws for an engine failure.
+     */
+    public Step ensureSeason(long memberId, long seasonId) {
+        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            throw new IllegalStateException("점수 서비스는 트랜잭션 밖에서만 부른다 — 엔진 호출 중에 연결을 잡고 있으면 안 된다");
+        }
+        List<Long> unscored = query.unscoredFinished(memberId);
+        if (!unscored.contains(seasonId)) {
+            return Step.SCORED;
+        }
+        if (unscored.get(0) != seasonId) {
+            return Step.BLOCKED;
+        }
+        return scoreOne(seasonId);
+    }
+
+    /** {@link Step#SCORED} when a row now exists; anything else stores nothing and stops a member's loop. */
+    private Step scoreOne(long seasonId) {
         ScoreBasis basis = reader.read(seasonId);
         SeasonReportDto report = SeasonReportCalculator.calculate(basis.sources());
         ScoreAssembler.Observation observation = ScoreAssembler.observe(basis, baseline.returns(basis.sources()));
@@ -116,14 +141,14 @@ public class SeasonScoreService {
                 } else if (refused.getCode() == ErrorCode.ENGINE_UNAVAILABLE || refused.getCode() == ErrorCode.INTERNAL_ERROR) {
                     // transient or a contract fault: nothing is stored, so an engine fix scores the season later
                     LOG.warn("score.pending seasonId={} code={}", seasonId, refused.getCode());
-                    return false;
+                    return refused.getCode() == ErrorCode.ENGINE_UNAVAILABLE ? Step.UNAVAILABLE : Step.FAILED;
                 } else {
                     throw refused;
                 }
             }
             if (result != null && (result.n() != request.n() || result.horizonTurns() != request.horizonTurns())) {
                 LOG.error("engine.bad_response seasonId={} rule=percentile_shape", seasonId);
-                return false;
+                return Step.FAILED;
             }
         }
 
@@ -145,6 +170,6 @@ public class SeasonScoreService {
                 throw duplicate;
             }
         }
-        return true;
+        return Step.SCORED;
     }
 }

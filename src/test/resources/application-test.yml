@@ -31,6 +31,10 @@ antlab:
   # Tests keep the in-process bootstrap; a test that needs the engine path source opts in with its own properties (FakeEngineServer).
   engine:
     path-source: java
+  # No scheduled engine calls in tests: a test runs the parts job by calling it.
+  leaderboard:
+    parts-job:
+      enabled: false
   # The fixtures load few or no month_event rows; the shipped default refuses to filter memory without event titles.
   agent:
     memory:
