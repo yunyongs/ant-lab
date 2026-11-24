@@ -1,7 +1,7 @@
 import { setConvention, useConvention } from './convention.ts';
 import styles from './ConventionToggle.module.css';
 
-export function ConventionToggle() {
+export function ConventionToggle({ className }: { className?: string }) {
   const convention = useConvention();
   const western = convention === 'western';
   const current = western ? '상승 초록 · 하락 빨강' : '상승 빨강 · 하락 파랑';
@@ -9,13 +9,13 @@ export function ConventionToggle() {
   return (
     <button
       type="button"
-      className={styles.toggle}
+      className={className ?? styles.toggle}
       aria-label={`등락 색: ${current}. 누르면 ${other}(으)로 바꿉니다`}
       onClick={() => {
         setConvention(western ? 'korean' : 'western');
       }}
     >
-      {current}
+      색: {current}
     </button>
   );
 }
