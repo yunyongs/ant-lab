@@ -1,12 +1,16 @@
 import { expect, test } from '@playwright/test';
 import { attachGuards } from './support/guards.ts';
 import { newMember } from './support/member.ts';
+import { startSeasonQuick } from './support/seasons.ts';
+import { signUpDirect } from './support/shell.ts';
 import {
   checkpoint,
   expectNoOverflow,
   startRun,
   writeAxeSummary,
 } from './support/steps.ts';
+import { buyFromPool } from './support/team.ts';
+import { advanceTo, openReport } from './support/turn.ts';
 
 const ABANDON_AT = 3;
 
@@ -17,39 +21,17 @@ test('abandons a 12-turn season at turn 3 and still gets the report', async ({
   const run = startRun(page, `${project}-abandon`);
   const guards = attachGuards(page);
   const member = newMember(project);
-  const sheet = page.getByRole('dialog');
 
   // sign up (the app logs in right after)
-  await page.goto('/signup');
-  await page.getByLabel('이메일').fill(member.email);
-  await page.getByLabel('표시 이름').fill(member.name);
-  await page.getByLabel('비밀번호', { exact: true }).fill(member.password);
-  await page.getByRole('button', { name: '가입하고 로그인' }).click();
-  await expect(page.getByRole('heading', { name: '내 시즌' })).toBeVisible();
-  guards.setLoggedIn(true);
+  await signUpDirect(page, guards, member);
 
   // a 12-turn season with a -20% risk limit, one share of the first pool row
-  await page.getByRole('link', { name: '첫 시즌 시작' }).click();
-  await page.getByRole('radio', { name: '-20%' }).check();
-  await page.getByRole('button', { name: '시즌 시작', exact: true }).click();
-  await expect(
-    page.getByRole('heading', { name: '0턴 팀 구성' }),
-  ).toBeVisible();
-  await page.getByRole('button', { name: /선택$/ }).first().click();
-  await expect(sheet).toBeVisible();
-  await sheet.getByRole('button', { name: '1주 매수' }).click();
-  await expect(sheet.getByText('체결가')).toBeVisible();
-  await sheet.getByRole('button', { name: '닫기' }).click();
-  await expect(sheet).toBeHidden();
+  await startSeasonQuick(page);
+  await buyFromPool(page, 0, 1);
 
   // advance to the abandon turn
   for (let turn = 1; turn <= ABANDON_AT; turn += 1) {
-    await page
-      .getByRole('button', { name: `다음 턴 (${String(turn)}턴으로)` })
-      .click();
-    await expect(
-      page.getByRole('heading', { name: `${String(turn)}턴 결과` }),
-    ).toBeVisible();
+    await advanceTo(page, turn);
   }
   await checkpoint(run, 'before-abandon', { axe: 'abandon-entry' });
 
@@ -81,11 +63,7 @@ test('abandons a 12-turn season at turn 3 and still gets the report', async ({
   await checkpoint(run, 'abandoned-finished', { axe: 'abandoned-finished' });
 
   // the report opens like for any finished season
-  await page.getByRole('link', { name: '성적표 보기' }).click();
-  await expect(
-    page.getByRole('heading', { name: /^시즌 \d+ 성적표/ }),
-  ).toBeVisible();
-  await expect(page.getByRole('alert')).toHaveCount(0);
+  await openReport(page);
   await expectNoOverflow(page, 'abandoned-report');
 
   writeAxeSummary(run);
