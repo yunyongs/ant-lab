@@ -115,12 +115,12 @@ describe('TeamBuild', () => {
     const user = userEvent.setup();
     renderRoute('/seasons/7');
     const card = await screen.findByRole('region', { name: '다음 단계' });
-    await screen.findByRole('button', { name: '종목 가 선택' });
+    await screen.findByRole('button', { name: '종목 가 사기' });
     await user.click(
       within(card).getByRole('button', { name: '다음 턴 (1턴으로)' }),
     );
     await waitFor(() => {
-      for (const button of screen.getAllByRole('button', { name: /선택$/ })) {
+      for (const button of screen.getAllByRole('button', { name: /사기$/ })) {
         expect(button).toBeDisabled();
       }
     });
@@ -132,7 +132,7 @@ describe('TeamBuild', () => {
     const user = userEvent.setup();
     const { container } = renderRoute('/seasons/7');
     await user.click(
-      await screen.findByRole('button', { name: '종목 가 선택' }),
+      await screen.findByRole('button', { name: '종목 가 사기' }),
     );
     await screen.findByRole('dialog', { name: '종목 가' });
     expectNoDatePattern(container);

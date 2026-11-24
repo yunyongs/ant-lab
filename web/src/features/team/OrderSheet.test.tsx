@@ -75,7 +75,7 @@ function serveOrder(spy: Spy, answer: () => Response | Promise<Response>) {
 async function openSheet(name = '종목 가') {
   const user = userEvent.setup();
   const rendered = renderRoute('/seasons/7');
-  await user.click(await screen.findByRole('button', { name: `${name} 선택` }));
+  await user.click(await screen.findByRole('button', { name: `${name} 사기` }));
   const dialog = await screen.findByRole('dialog', { name });
   return { user, dialog, ...rendered };
 }
@@ -113,7 +113,7 @@ describe('OrderSheet', () => {
     await waitFor(() => {
       expect(screen.queryByRole('dialog')).toBeNull();
     });
-    expect(screen.getByRole('button', { name: '종목 가 선택' })).toHaveFocus();
+    expect(screen.getByRole('button', { name: '종목 가 사기' })).toHaveFocus();
   });
 
   it('returns focus to the card after the sheet is closed with a button', async () => {
@@ -127,8 +127,8 @@ describe('OrderSheet', () => {
     await waitFor(() => {
       expect(screen.queryByRole('dialog')).toBeNull();
     });
-    expect(screen.getByRole('button', { name: '종목 가 선택' })).toHaveFocus();
-    await user.click(screen.getByRole('button', { name: '종목 가 선택' }));
+    expect(screen.getByRole('button', { name: '종목 가 사기' })).toHaveFocus();
+    await user.click(screen.getByRole('button', { name: '종목 가 사기' }));
     const again = await screen.findByRole('dialog', { name: '종목 가' });
     await user.click(within(again).getByRole('button', { name: '1주 매수' }));
     await within(again).findByText('체결가');
@@ -136,7 +136,7 @@ describe('OrderSheet', () => {
     await waitFor(() => {
       expect(screen.queryByRole('dialog')).toBeNull();
     });
-    expect(screen.getByRole('button', { name: '종목 가 선택' })).toHaveFocus();
+    expect(screen.getByRole('button', { name: '종목 가 사기' })).toHaveFocus();
   });
 
   it('cannot be closed while the order is pending and refreshes holdings after the fill', async () => {
@@ -196,7 +196,7 @@ describe('OrderSheet', () => {
     const user = userEvent.setup();
     renderRoute('/seasons/7', { strict: true });
     await user.click(
-      await screen.findByRole('button', { name: '종목 가 선택' }),
+      await screen.findByRole('button', { name: '종목 가 사기' }),
     );
     expect(
       await screen.findByRole('dialog', { name: '종목 가' }),

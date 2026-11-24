@@ -19,6 +19,7 @@ describe('PoolList', () => {
     const [first, second, third] = cards;
     expect(first).toHaveTextContent('종목 가');
     expect(first).toHaveTextContent('KR');
+    expect(first).toHaveTextContent('187,400원');
     expect(first).toHaveTextContent('미드필더');
     expect(first).toHaveTextContent('0.91');
     expect(first).toHaveTextContent('-31.00%');
@@ -85,13 +86,13 @@ describe('PoolList', () => {
       const alert = await screen.findByRole('alert');
       expect(alert).toHaveTextContent('종목 풀을 불러오지 못했습니다');
       expect(alert).toHaveTextContent(line);
-      expect(screen.queryByRole('button', { name: /선택$/ })).toBeNull();
+      expect(screen.queryByRole('button', { name: /사기$/ })).toBeNull();
       failing = false;
       await user.click(
         within(alert).getByRole('button', { name: '다시 불러오기' }),
       );
       expect(
-        await screen.findByRole('button', { name: '종목 가 선택' }),
+        await screen.findByRole('button', { name: '종목 가 사기' }),
       ).toBeInTheDocument();
       expect(screen.queryByText('종목 풀을 불러오지 못했습니다')).toBeNull();
     },

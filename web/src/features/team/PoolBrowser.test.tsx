@@ -17,6 +17,12 @@ async function count(): Promise<HTMLElement> {
   return within(list).getByRole('status');
 }
 
+async function openMore(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(
+    await screen.findByRole('button', { name: '정렬·필터 더보기' }),
+  );
+}
+
 async function cardNames(): Promise<string[]> {
   const list = await screen.findByRole('region', { name: '종목 풀' });
   return within(list)
@@ -26,20 +32,31 @@ async function cardNames(): Promise<string[]> {
 }
 
 describe('pool browser', () => {
-  it('shows the count and every control', async () => {
+  it('shows the search and chips, and the other controls on demand', async () => {
     servePool();
+    const user = userEvent.setup();
     renderRoute('/seasons/7');
     expect(await count()).toHaveTextContent('3개');
-    for (const label of [
-      '종목 검색',
-      '시장',
-      '종류',
-      '포지션',
-      '묶음',
-      '정렬',
-    ]) {
+    expect(screen.getByLabelText('종목 검색')).toBeInTheDocument();
+    const chips = screen.getByRole('group', { name: '포지션 거르기' });
+    expect(
+      within(chips)
+        .getAllByRole('button')
+        .map((b) => b.textContent),
+    ).toEqual(['전체', '수비수', '미드필더', '공격수']);
+    expect(within(chips).getByRole('button', { name: '전체' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    const more = screen.getByRole('button', { name: '정렬·필터 더보기' });
+    expect(more).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByRole('combobox', { name: '시장' })).toBeNull();
+    await user.click(more);
+    expect(more).toHaveAttribute('aria-expanded', 'true');
+    for (const label of ['시장', '종류', '묶음', '정렬']) {
       expect(screen.getByLabelText(label)).toBeInTheDocument();
     }
+    expect(screen.queryByLabelText('포지션')).toBeNull();
     expect(screen.queryByRole('button', { name: '조건 지우기' })).toBeNull();
   });
 
@@ -57,11 +74,12 @@ describe('pool browser', () => {
     servePool();
     const user = userEvent.setup();
     renderRoute('/seasons/7');
+    await openMore(user);
     await user.selectOptions(await screen.findByLabelText('시장'), 'KR');
     expect(await cardNames()).toEqual(['종목 가', '채권 ETF 다']);
     await user.selectOptions(screen.getByLabelText('종류'), 'ETF');
     expect(await cardNames()).toEqual(['채권 ETF 다']);
-    await user.selectOptions(screen.getByLabelText('포지션'), 'MIDFIELDER');
+    await user.click(screen.getByRole('button', { name: '미드필더' }));
     expect(await cardNames()).toEqual([]);
     expect(
       screen.getByText('조건에 맞는 종목이 없습니다.'),
@@ -72,6 +90,7 @@ describe('pool browser', () => {
     servePool();
     const user = userEvent.setup();
     renderRoute('/seasons/7');
+    await openMore(user);
     await user.selectOptions(await screen.findByLabelText('묶음'), '시험 채권');
     expect(await cardNames()).toEqual(['채권 ETF 다']);
   });
@@ -80,6 +99,7 @@ describe('pool browser', () => {
     servePool();
     const user = userEvent.setup();
     renderRoute('/seasons/7');
+    await openMore(user);
     await user.selectOptions(
       await screen.findByLabelText('정렬'),
       '변동성 낮은 순',
@@ -112,7 +132,7 @@ describe('pool browser', () => {
     const user = userEvent.setup();
     renderRoute('/seasons/7?market=US');
     await user.click(
-      await screen.findByRole('button', { name: '종목 나 선택' }),
+      await screen.findByRole('button', { name: '종목 나 사기' }),
     );
     expect(await screen.findByRole('dialog')).toBeInTheDocument();
   });
@@ -134,15 +154,74 @@ describe('pool browser', () => {
     const user = userEvent.setup();
     renderRoute('/seasons/7');
     expect(await count()).toHaveTextContent('180개');
+    await openMore(user);
     await user.selectOptions(screen.getByLabelText('시장'), 'KR');
     expect(await count()).toHaveTextContent('전체 180개 중 50개');
   });
 
-  it('shows the ticker next to the name', async () => {
+  it('shows one line per asset and the details on demand', async () => {
     servePool();
+    const user = userEvent.setup();
     renderRoute('/seasons/7');
-    const list = await screen.findByRole('region', { name: '종목 풀' });
-    expect(await within(list).findByText('· FIX-AAA')).toBeInTheDocument();
+    const toggle = await screen.findByRole('button', { name: '종목 가 지표' });
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.getByText('KR · FIX-AAA')).not.toBeVisible();
+    await user.click(toggle);
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByText('KR · FIX-AAA')).toBeVisible();
+  });
+
+  const forwardKinds = (
+    [
+      'FORWARD_TARGET',
+      'FORWARD_BREAKOUT',
+      'FORWARD_DEFENSIVE',
+      'DEFENDER',
+      'MIDFIELDER',
+    ] as const
+  ).map((systemPosition, i) =>
+    poolAssetFixture({
+      assetId: 300 + i,
+      name: `종목 ${String(i)}`,
+      ticker: `T${String(i)}`,
+      systemPosition,
+    }),
+  );
+
+  it('filters by the forward chip across the three forward kinds', async () => {
+    servePool(forwardKinds);
+    const user = userEvent.setup();
+    const { router } = renderRoute('/seasons/7?tab=x&pos=FORWARD_TARGET');
+    const forward = await screen.findByRole('button', { name: '공격수' });
+    expect(forward).toHaveAttribute('aria-pressed', 'false');
+    expect(await cardNames()).toEqual(['종목 0']);
+    expect(
+      screen.getByRole('button', { name: /공격수·타겟형.*해제/ }),
+    ).toHaveAttribute('aria-pressed', 'true');
+    await user.click(forward);
+    expect(router.state.location.search).toBe('?tab=x&pos=FORWARD');
+    expect(await cardNames()).toEqual(['종목 0', '종목 1', '종목 2']);
+    expect(forward).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.queryByRole('button', { name: /해제/ })).toBeNull();
+    await user.click(screen.getByRole('button', { name: '전체' }));
+    expect(await cardNames()).toHaveLength(5);
+    expect(router.state.location.search).toBe('?tab=x');
+  });
+
+  it('clears the single-kind sub-filter and resets only pool keys', async () => {
+    servePool(forwardKinds);
+    const user = userEvent.setup();
+    const { router } = renderRoute(
+      '/seasons/7?tab=x&pos=FORWARD_BREAKOUT&q=%EC%A2%85',
+    );
+    expect(await cardNames()).toEqual(['종목 1']);
+    await user.click(screen.getByRole('button', { name: /해제/ }));
+    expect(router.state.location.search).toBe('?tab=x&q=%EC%A2%85');
+    await user.click(screen.getByRole('button', { name: '수비수' }));
+    await openMore(user);
+    await user.click(screen.getByRole('button', { name: '조건 지우기' }));
+    expect(router.state.location.search).toBe('?tab=x');
+    expect(await cardNames()).toHaveLength(5);
   });
 
   it('keeps typed text, caret and order while the address catches up', async () => {
@@ -209,6 +288,7 @@ describe('pool browser', () => {
     renderRoute('/seasons/7');
     const input = await screen.findByLabelText('종목 검색');
     await user.type(input, '나');
+    await openMore(user);
     await user.click(screen.getByRole('button', { name: '조건 지우기' }));
     expect(input).toHaveValue('');
     expect(input).toHaveFocus();

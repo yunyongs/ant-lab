@@ -1,12 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { poolAssetFixture } from '../../test/fixtures/pool.ts';
 import {
+  POSITION_CHIPS,
   applyPoolView,
+  chipPressed,
   filterPool,
   groupOptions,
   isFiltered,
   parseFilters,
   sortPool,
+  subFilterPosition,
 } from './poolView.ts';
 
 const assets = [
@@ -78,6 +81,53 @@ describe('filterPool', () => {
     expect(
       filterPool(assets, { ...none, query: 'ccc' }).map((a) => a.assetId),
     ).toEqual([3]);
+  });
+
+  const mixed = [
+    poolAssetFixture({ assetId: 11, systemPosition: 'FORWARD_TARGET' }),
+    poolAssetFixture({ assetId: 12, systemPosition: 'FORWARD_BREAKOUT' }),
+    poolAssetFixture({ assetId: 13, systemPosition: 'FORWARD_DEFENSIVE' }),
+    poolAssetFixture({ assetId: 14, systemPosition: 'GOALKEEPER' }),
+    poolAssetFixture({ assetId: 15, systemPosition: 'DEFENDER' }),
+    poolAssetFixture({ assetId: 16, systemPosition: 'MIDFIELDER' }),
+  ];
+  const idsFor = (pos: string) =>
+    filterPool(mixed, parseFilters(new URLSearchParams(`pos=${pos}`))).map(
+      (a) => a.assetId,
+    );
+
+  it('filters FORWARD across exactly the three forward kinds', () => {
+    expect(idsFor('FORWARD')).toEqual([11, 12, 13]);
+  });
+
+  it('keeps every older pos value as an exact filter', () => {
+    expect(idsFor('FORWARD_TARGET')).toEqual([11]);
+    expect(idsFor('FORWARD_BREAKOUT')).toEqual([12]);
+    expect(idsFor('FORWARD_DEFENSIVE')).toEqual([13]);
+    expect(idsFor('GOALKEEPER')).toEqual([14]);
+    expect(idsFor('DEFENDER')).toEqual([15]);
+    expect(idsFor('MIDFIELDER')).toEqual([16]);
+    expect(idsFor('NOPE')).toEqual([11, 12, 13, 14, 15, 16]);
+  });
+
+  it('presses a chip only for its exact value', () => {
+    const pressed = (position: Parameters<typeof chipPressed>[1]) =>
+      POSITION_CHIPS.filter((c) => chipPressed(c, position)).map(
+        (c) => c.label,
+      );
+    expect(pressed(null)).toEqual(['전체']);
+    expect(pressed('DEFENDER')).toEqual(['수비수']);
+    expect(pressed('FORWARD')).toEqual(['공격수']);
+    expect(pressed('FORWARD_BREAKOUT')).toEqual([]);
+    expect(pressed('GOALKEEPER')).toEqual([]);
+  });
+
+  it('names a single position that no chip covers', () => {
+    expect(subFilterPosition(null)).toBeNull();
+    expect(subFilterPosition('FORWARD')).toBeNull();
+    expect(subFilterPosition('DEFENDER')).toBeNull();
+    expect(subFilterPosition('FORWARD_TARGET')).toBe('FORWARD_TARGET');
+    expect(subFilterPosition('GOALKEEPER')).toBe('GOALKEEPER');
   });
 
   it('combines market, type, position and group', () => {

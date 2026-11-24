@@ -10,6 +10,15 @@ const teamBuildHeading = (page: Page) =>
 
 // Filter and sort live in the address; clearing restores the list.
 export async function browsePool(page: Page, run: Run): Promise<void> {
+  const more = page.getByRole('button', { name: '정렬·필터 더보기' });
+  await more.click();
+  await expect(more).toHaveAttribute('aria-expanded', 'true');
+  const forward = page.getByRole('button', { name: '공격수', exact: true });
+  await forward.click();
+  await expect(forward).toHaveAttribute('aria-pressed', 'true');
+  await expect(page).toHaveURL(/[?&]pos=FORWARD/);
+  await page.getByRole('button', { name: '전체', exact: true }).click();
+  await expect(page).not.toHaveURL(/[?&]pos=/);
   await page.getByLabel('시장').selectOption('US');
   await expect(page).toHaveURL(/[?&]market=US/);
   await expect(poolRegion(page).getByRole('status')).toHaveText(
@@ -21,6 +30,21 @@ export async function browsePool(page: Page, run: Run): Promise<void> {
   await page.getByRole('button', { name: '조건 지우기' }).click();
   await expect(page).not.toHaveURL(/[?&](market|sort)=/);
   await expectNoOverflow(page, 'pool-cleared');
+  await expect(poolRegion(page).getByRole('status')).toHaveText(/^\d+개$/);
+  await openFirstDetail(page);
+  await checkpoint(run, 'pool-row-detail', { axe: 'pool-row-detail' });
+}
+
+// Open the indicators of the first pool row (button "{name} 지표").
+export async function openFirstDetail(page: Page): Promise<void> {
+  const toggle = poolRegion(page)
+    .getByRole('button', { name: / 지표$/ })
+    .first();
+  await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+  await expect(
+    poolRegion(page).getByText('상승 참여', { exact: true }).first(),
+  ).toBeVisible();
 }
 
 // A 180-asset pool with long names must not widen the page (the pool is
@@ -55,9 +79,9 @@ export async function checkBigPool(page: Page, run: Run): Promise<void> {
   await expect(teamBuildHeading(page)).toBeVisible();
 }
 
-// The pool's pick buttons, in pool order.
+// The pool's buy buttons, in pool order.
 export const picks = (page: Page) =>
-  page.getByRole('button', { name: /선택$/ });
+  page.getByRole('button', { name: /사기$/ });
 
 // Open the order sheet of the pool row at `index` and buy `shares`.
 export async function buyFromPool(
