@@ -11,8 +11,11 @@ export const NO_RATING_MARK = '—';
 export const ratingValueText = (rating: string) => `${formatDecimal(rating)}점`;
 export const countedText = (counted: number) =>
   `집계 시즌 ${String(counted)}개`;
-export const missingText = (missing: number, counted: number) =>
-  `집계 시즌이 3개가 되면 레이팅이 보입니다. ${String(missing)}개 더 필요합니다(지금 ${String(counted)}개).`;
+export const untilText = (missing: number) =>
+  `매니저 레이팅까지 ${String(missing)}시즌`;
+export const countedUntilText = (counted: number, missing: number) =>
+  `집계된 시즌 ${String(counted)}개 · 공개까지 ${String(missing)}시즌`;
+export const DETAILS_TITLE = '집계 내역과 이력';
 
 export const notStartedText = (n: number) =>
   `3턴 전에 포기해 뺀 시즌 ${String(n)}개`;

@@ -14,13 +14,7 @@ import { serveScore } from '../test/serveScore.ts';
 import { settle } from '../test/settle.ts';
 
 function card(): HTMLElement {
-  const heading = screen.getByRole('heading', {
-    level: 2,
-    name: '매니저 레이팅',
-  });
-  const section = heading.closest('section');
-  if (section === null) throw new Error('no rating section');
-  return section;
+  return screen.getByRole('region', { name: '매니저 레이팅' });
 }
 
 describe('SeasonsPage rating card', () => {
@@ -29,6 +23,7 @@ describe('SeasonsPage rating card', () => {
     const { container } = renderRoute('/');
     await screen.findByText('61.25점');
     expect(within(card()).getByText('집계 시즌 4개')).toBeInTheDocument();
+    expect(within(card()).getByText('매니저 레이팅')).toBeInTheDocument();
     const details = card().querySelector('details');
     expect(details?.open).toBe(false);
     const links = within(card()).getAllByRole('link');
@@ -60,9 +55,10 @@ describe('SeasonsPage rating card', () => {
     });
     renderRoute('/');
     expect(
-      await screen.findByText(
-        '집계 시즌이 3개가 되면 레이팅이 보입니다. 2개 더 필요합니다(지금 0개).',
-      ),
+      await screen.findByText('매니저 레이팅까지 2시즌'),
+    ).toBeInTheDocument();
+    expect(
+      within(card()).getByText('집계된 시즌 0개 · 공개까지 2시즌'),
     ).toBeInTheDocument();
     expect(
       within(card()).getByText('3턴 전에 포기해 뺀 시즌 1개'),
@@ -75,12 +71,36 @@ describe('SeasonsPage rating card', () => {
     ).toBeInTheDocument();
   });
 
+  it('S9: the two server numbers are drawn as filled and empty dots; a long row falls back to text', async () => {
+    serveScore({
+      rating: ratingFixture({ countedSeasons: 1, seasonsUntilPublic: 2 }),
+    });
+    const first = renderRoute('/');
+    await screen.findByText('집계된 시즌 1개 · 공개까지 2시즌');
+    const dots = card().querySelectorAll('[aria-hidden="true"] > span');
+    expect(dots).toHaveLength(3);
+    expect(
+      card().querySelectorAll(
+        '[aria-hidden="true"] > span[class*="dotFilled"]',
+      ),
+    ).toHaveLength(1);
+    first.unmount();
+    serveScore({
+      rating: ratingFixture({ countedSeasons: 2, seasonsUntilPublic: 5 }),
+    });
+    renderRoute('/');
+    await screen.findByText('집계된 시즌 2개 · 공개까지 5시즌');
+    expect(card().querySelectorAll('[aria-hidden="true"] > span')).toHaveLength(
+      0,
+    );
+  });
+
   it('S9: zero counts print nothing', async () => {
     serveScore({
       rating: ratingFixture({ countedSeasons: 0, seasonsUntilPublic: 3 }),
     });
     renderRoute('/');
-    await screen.findByText(/3개 더 필요합니다\(지금 0개\)/);
+    await screen.findByText('집계된 시즌 0개 · 공개까지 3시즌');
     expect(within(card()).queryByRole('list')).toBeNull();
   });
 
@@ -118,7 +138,7 @@ describe('SeasonsPage rating card', () => {
     const { queryClient } = renderRoute('/');
     await screen.findByText('아직 시즌이 없습니다');
     await settle(queryClient);
-    expect(screen.queryByRole('heading', { name: '매니저 레이팅' })).toBeNull();
+    expect(screen.queryByRole('region', { name: '매니저 레이팅' })).toBeNull();
     expect(ratingGets).toBe(0);
   });
 
@@ -136,7 +156,9 @@ describe('SeasonsPage rating card', () => {
     renderRoute('/');
     expect(
       await within(
-        await screen.findByRole('region', { name: '매니저 레이팅' }),
+        await screen.findByRole('region', {
+          name: '매니저 레이팅',
+        }),
       ).findByText('레이팅을 지금 불러오지 못했습니다.'),
     ).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: '시즌 9' })).toBeInTheDocument();
@@ -205,7 +227,7 @@ describe('SeasonsPage rating card', () => {
     await go(router, '/seasons/new');
     await waitFor(() => {
       expect(
-        screen.queryByRole('heading', { name: '매니저 레이팅' }),
+        screen.queryByRole('region', { name: '매니저 레이팅' }),
       ).toBeNull();
     });
     await settle(queryClient);
@@ -247,7 +269,7 @@ describe('SeasonsPage rating card', () => {
     await user.click(
       within(card()).getByRole('button', { name: '다시 불러오기' }),
     );
-    await screen.findByText(/2개 더 필요합니다\(지금 1개\)/);
+    await screen.findByText('집계된 시즌 1개 · 공개까지 2시즌');
     expect(world.ratingGets).toBe(2);
     expect(
       within(card()).queryByRole('button', { name: '다시 불러오기' }),

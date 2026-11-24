@@ -2,7 +2,11 @@ import { test } from '@playwright/test';
 import { attachGuards } from './support/guards.ts';
 import { newMember } from './support/member.ts';
 import { sellOneTied } from './support/order.ts';
-import { expectEmptyHome, startSeason } from './support/seasons.ts';
+import {
+  checkSeasonProgress,
+  expectEmptyHome,
+  startSeason,
+} from './support/seasons.ts';
 import {
   coldStartToLogin,
   expectTokensInMemoryOnly,
@@ -63,6 +67,7 @@ test('plays one 12-turn season from signup to review', async ({
 
   // 07 and 08 turns 1 and 2
   await playTurnOne(page, run);
+  await checkSeasonProgress(page, run, seasonId, 1);
   await playTurnTwo(page, run);
 
   // 09 formation change at turn 2, 10 one sell tied to it

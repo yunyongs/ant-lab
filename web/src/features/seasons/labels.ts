@@ -61,7 +61,9 @@ export function openButtonLabel(
   if (season.status === 'FINISHED') return '결과 보기';
   if (season.status === 'ABANDONING' || season.status === 'HALTED')
     return '시즌 보기';
-  return season.currentTurnNo === 0 ? '팀 구성하러 가기' : '이어하기';
+  return season.currentTurnNo === 0
+    ? '팀 구성 이어하기'
+    : `${String(season.currentTurnNo + 1)}턴으로 이어하기`;
 }
 
 export type Position = components['schemas']['Position'];
