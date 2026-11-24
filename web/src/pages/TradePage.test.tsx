@@ -285,7 +285,7 @@ describe('TradePage', () => {
     );
     await user.click(screen.getByText('종목 풀에서 새로 사기'));
     expect(
-      await screen.findByRole('button', { name: '종목 나 선택' }),
+      await screen.findByRole('button', { name: '종목 나 사기' }),
     ).toBeDisabled();
   });
 });

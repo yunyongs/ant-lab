@@ -1,4 +1,5 @@
 import { expect, type Page } from '@playwright/test';
+import { openFirstDetail } from './team.ts';
 import { mainNav } from './shell.ts';
 import { checkpoint, type Run } from './steps.ts';
 
@@ -15,6 +16,16 @@ export async function expectTradeHeading(
   ).toBeVisible();
 }
 
+// The trade screen's pool sits in a disclosure: open it and one row detail.
+export async function checkTradePool(page: Page, run: Run): Promise<void> {
+  await page.getByText('종목 풀에서 새로 사기').click();
+  await expect(
+    page.getByRole('region', { name: '종목 풀', exact: true }),
+  ).toBeVisible();
+  await openFirstDetail(page);
+  await checkpoint(run, 'trade-pool-detail', { axe: 'trade-pool' });
+}
+
 // Formation change at `turn`: 30/30/25/15 with a one-line reason.
 export async function changeFormation(
   page: Page,
@@ -23,6 +34,7 @@ export async function changeFormation(
 ): Promise<void> {
   await openTrade(page);
   await expectTradeHeading(page, turn);
+  await checkTradePool(page, run);
   await page.getByRole('link', { name: '전술 변경' }).click();
   await expect(
     page.getByRole('heading', { name: `${String(turn)}턴 전술 변경` }),

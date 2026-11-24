@@ -70,11 +70,49 @@ export const SORTS = {
 export type SortKey = keyof typeof SORTS;
 export const SORT_KEYS = Object.keys(SORTS) as SortKey[];
 
+// The chips filter by one position, or by the three forward kinds together.
+export const FORWARD_GROUP = 'FORWARD';
+export type PositionFilter = Position | typeof FORWARD_GROUP;
+const POSITION_FILTERS: readonly PositionFilter[] = [
+  ...POSITIONS,
+  FORWARD_GROUP,
+];
+
+export interface PositionChip {
+  label: string;
+  value: PositionFilter | null;
+}
+
+export const POSITION_CHIPS: readonly PositionChip[] = [
+  { label: '전체', value: null },
+  { label: '수비수', value: 'DEFENDER' },
+  { label: '미드필더', value: 'MIDFIELDER' },
+  { label: '공격수', value: FORWARD_GROUP },
+];
+
+// A chip is pressed only for its exact filter value. A single position the
+// chips do not cover (an older address such as pos=FORWARD_TARGET) keeps
+// filtering exactly that kind and is shown through subFilterPosition.
+export function chipPressed(
+  chip: PositionChip,
+  position: PositionFilter | null,
+): boolean {
+  return chip.value === position;
+}
+
+export function subFilterPosition(
+  position: PositionFilter | null,
+): Position | null {
+  if (position === null || position === FORWARD_GROUP) return null;
+  const covered = POSITION_CHIPS.some((chip) => chip.value === position);
+  return covered ? null : position;
+}
+
 export interface PoolFilters {
   query: string;
   market: Market | null;
   assetType: AssetType | null;
-  position: Position | null;
+  position: PositionFilter | null;
   groupId: string | null;
   sort: SortKey | null;
 }
@@ -102,7 +140,7 @@ export function parseFilters(params: URLSearchParams): PoolFilters {
     query: params.get(PARAM.query) ?? '',
     market: pick(params.get(PARAM.market), MARKETS),
     assetType: pick(params.get(PARAM.assetType), ASSET_TYPES),
-    position: pick(params.get(PARAM.position), POSITIONS),
+    position: pick(params.get(PARAM.position), POSITION_FILTERS),
     groupId: group !== null && /^\d+$/.test(group) ? group : null,
     sort: pick(params.get(PARAM.sort), SORT_KEYS),
   };
@@ -115,6 +153,16 @@ export function isFiltered(filters: PoolFilters): boolean {
     filters.assetType !== null ||
     filters.position !== null ||
     filters.groupId !== null
+  );
+}
+
+// Filters that live in the collapsed "더보기" panel (not the search or chips).
+export function hasMoreFilters(filters: PoolFilters): boolean {
+  return (
+    filters.market !== null ||
+    filters.assetType !== null ||
+    filters.groupId !== null ||
+    filters.sort !== null
   );
 }
 
@@ -160,6 +208,17 @@ function matchesQuery(asset: PoolAsset, query: string): boolean {
   );
 }
 
+function matchesPosition(
+  asset: PoolAsset,
+  position: PositionFilter | null,
+): boolean {
+  if (position === null) return true;
+  if (position === FORWARD_GROUP) {
+    return asset.systemPosition.startsWith('FORWARD');
+  }
+  return asset.systemPosition === position;
+}
+
 export function filterPool(
   assets: PoolAsset[],
   filters: PoolFilters,
@@ -169,8 +228,7 @@ export function filterPool(
       matchesQuery(asset, filters.query) &&
       (filters.market === null || asset.market === filters.market) &&
       (filters.assetType === null || asset.assetType === filters.assetType) &&
-      (filters.position === null ||
-        asset.systemPosition === filters.position) &&
+      matchesPosition(asset, filters.position) &&
       (filters.groupId === null || String(asset.groupId) === filters.groupId),
   );
 }

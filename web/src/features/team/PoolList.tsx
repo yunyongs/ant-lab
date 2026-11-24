@@ -3,7 +3,7 @@ import { useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { advanceKey } from '../turn/queries.ts';
 import { OrderSheet } from './OrderSheet.tsx';
-import { PoolCard } from './PoolCard.tsx';
+import { PoolRow } from './PoolRow.tsx';
 import controlStyles from './PoolControls.module.css';
 import { PoolControls } from './PoolControls.tsx';
 import {
@@ -72,9 +72,6 @@ export function PoolList({
   return (
     <section aria-label="종목 풀" className={styles.section}>
       <h3 className={styles.sectionTitle}>종목 풀</h3>
-      <p className={styles.hint}>
-        참여율은 시장 대비 배수, 변동성·최대 낙폭은 월 기준 비율입니다.
-      </p>
       <PoolControls
         filters={filters}
         groups={groups}
@@ -98,9 +95,10 @@ export function PoolList({
       )}
       <ul className={styles.list}>
         {shown.map((asset) => (
-          <PoolCard
+          <PoolRow
             key={asset.assetId}
             asset={asset}
+            price={prices?.get(asset.assetId)}
             holding={holdings.find((h) => h.assetId === asset.assetId)}
             disabled={advancing}
             onSelect={(picked, button) => {
