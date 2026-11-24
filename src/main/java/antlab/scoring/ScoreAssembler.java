@@ -14,8 +14,9 @@ import java.util.List;
 /**
  * Pure steps between the stored season facts and the score: the observed values the engine ranks, the engine request,
  * and the calculator input. Nothing here reads a database, a clock or the engine, so each step is tested by hand values.
+ * {@link #teamReturns} is public because the manager parts request sends the same series the season score ranked.
  */
-final class ScoreAssembler {
+public final class ScoreAssembler {
 
     /** What the season did, in the two numbers that are ranked, plus the raw Sharpe values kept for audits. */
     record Observation(List<BigDecimal> returns, List<BigDecimal> benchmarkReturns, BigDecimal sharpe, BigDecimal benchSharpe,
@@ -43,7 +44,8 @@ final class ScoreAssembler {
         return new Observation(returns, benchmarkReturns, sharpe, benchSharpe, sharpe.subtract(benchSharpe), staticMultiple);
     }
 
-    static List<BigDecimal> teamReturns(SeasonReportSources src) {
+    /** Monthly team returns for turns 1..T, the first against the initial cash; unrounded at the score working scale. */
+    public static List<BigDecimal> teamReturns(SeasonReportSources src) {
         List<BigDecimal> out = new ArrayList<>(src.turns().size());
         BigDecimal previous = src.season().initialCash();
         for (TurnFact turn : src.turns()) {

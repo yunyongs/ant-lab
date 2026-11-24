@@ -399,3 +399,8 @@ Content-Type: application/json
     }
   }
 }
+
+### 17. Optional, administrators only: run the manager parts queue now (AG-06). The scheduled job does the same, one finished season per minute, but it is off by default (ANTLAB_PARTS_JOB_ENABLED=false) until this request has stored a ranked row for a real season on the deployment, so run this first with limit=1 and turn the job on after the answer shows ranked=1; this is also the backfill. It scores each season first if needed and then asks the engine, so the engine must run; status ENGINE_UNAVAILABLE means it did not answer (nothing stored, run again later). The answer is counts only. A stored row is never replaced, and the app role cannot delete one: a wrong row (for example a REFERENCE_MISMATCH caused by a Java fault) is repaired by the owner role deleting it with SQL, or by a new reference version, never by the app.
+# 선택, 관리자 전용: 매니저 부품 대기열을 지금 실행한다(AG-06). 예약 잡이 1분에 끝난 시즌 하나씩 같은 일을 하지만 기본은 꺼져 있다(ANTLAB_PARTS_JOB_ENABLED=false). 배포에서 이 요청이 실제 시즌의 집계 행을 저장할 때까지 그렇다. 그러니 먼저 limit=1로 실행하고 답에 ranked=1이 보이면 잡을 켠다. 이 요청은 소급 채우기이기도 하다. 필요하면 시즌을 먼저 채점한 뒤 엔진에 묻으므로 엔진이 떠 있어야 하고, status가 ENGINE_UNAVAILABLE이면 엔진이 답하지 않은 것이다(저장 없음, 나중에 다시 실행). 답은 건수뿐이다. 저장된 행은 바꾸지 않으며 앱 역할은 지울 수도 없다: 잘못 저장된 행(예: Java 쪽 결함으로 생긴 REFERENCE_MISMATCH)은 소유자 역할이 SQL로 지우거나 새 기준 판으로 고치고, 앱으로 고치지 않는다.
+POST {{base}}/api/v1/admin/manager-parts/run?limit=1
+Authorization: Bearer {{token}}
