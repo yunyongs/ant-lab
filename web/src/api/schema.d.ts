@@ -645,6 +645,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/manager-parts/run": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Run the manager parts queue / 매니저 부품 대기열 실행
+         * @description Computes and stores the manager parts of up to limit finished seasons that have none yet, earliest finish first, the same work the scheduled job does one season at a time (backfill). Administrators only. Each season is scored first if needed, then sent to the engine; a deterministic refusal is stored as an exclusion, an engine outage stops the run. A stored row is never replaced. The answer is counts only, with no season, member, date or value. It waits for the engine, a few seconds per season.
+         *
+         *     아직 부품이 없는 끝난 시즌을 끝난 순서대로 limit개까지 계산해 저장한다. 예약 잡이 한 시즌씩 하는 일을 한 번에 한다(소급 채우기). 관리자만 쓴다. 필요하면 시즌을 먼저 채점한 뒤 엔진에 보내며, 결정적 거부는 제외로 저장하고 엔진 장애면 실행을 멈춘다. 저장된 행은 바꾸지 않는다. 답은 건수뿐이고 시즌·회원·날짜·값은 싣지 않는다. 엔진을 기다리므로 시즌마다 몇 초 걸린다.
+         */
+        post: operations["runManagerParts"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -3072,6 +3094,38 @@ export interface components {
              */
             windows: number;
         };
+        /** @enum {string} */
+        ManagerPartsRunStatus: "DONE" | "ALREADY_RUNNING" | "ENGINE_UNAVAILABLE" | "REFUSED";
+        /** @description What one manager parts run did, as counts / 매니저 부품 실행 한 번의 결과(건수) */
+        ManagerPartsRunDto: {
+            /** @description DONE: the run went through the queue up to the limit; ALREADY_RUNNING: another run held the lock and nothing was done; ENGINE_UNAVAILABLE: the engine could not answer, so the run stopped and stored nothing for that season; REFUSED: a setting (a single-asset limit, or an engine timeout below 30 s) forbids any run / DONE: 한도까지 대기열을 처리했다, ALREADY_RUNNING: 다른 실행이 잠금을 잡고 있어 아무것도 하지 않았다, ENGINE_UNAVAILABLE: 엔진이 답하지 못해 그 시즌에 아무것도 저장하지 않고 멈췄다, REFUSED: 설정(단일 종목 한도, 30초보다 짧은 엔진 시간 제한)이 실행을 막는다 */
+            status: components["schemas"]["ManagerPartsRunStatus"];
+            /**
+             * Format: int32
+             * @description Seasons stored with their parts now / 지금 부품과 함께 저장한 시즌 수
+             */
+            ranked: number;
+            /**
+             * Format: int32
+             * @description Seasons stored now with an exclusion reason instead of parts / 부품 대신 제외 사유로 지금 저장한 시즌 수
+             */
+            excluded: number;
+            /**
+             * Format: int32
+             * @description Seasons another run stored first / 다른 실행이 먼저 저장한 시즌 수
+             */
+            alreadyStored: number;
+            /**
+             * Format: int32
+             * @description Seasons that failed and stay pending (a bad engine answer, a season whose score cannot be made yet) / 실패해 대기로 남은 시즌 수(엔진 답이 잘못됨, 점수를 아직 만들 수 없음)
+             */
+            failed: number;
+            /**
+             * Format: int32
+             * @description Finished seasons still without a row after the run / 실행 뒤에도 행이 없는 끝난 시즌 수
+             */
+            pending: number;
+        };
     };
     responses: {
         /**
@@ -4551,6 +4605,48 @@ export interface operations {
             };
             /** @description Another summary is already stored under the same sourceSha256 — DETECTION_CONFLICT / 같은 sourceSha256으로 다른 요약이 이미 저장되어 있다 — DETECTION_CONFLICT */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    runManagerParts: {
+        parameters: {
+            query: {
+                limit: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description What the run did / 실행 결과 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagerPartsRunDto"];
+                };
+            };
+            /** @description limit is missing or outside 1..20 — INVALID_ARGUMENT / limit이 없거나 1..20 밖이다 — INVALID_ARGUMENT */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description The caller is not an administrator — FORBIDDEN / 호출자가 관리자가 아니다 — FORBIDDEN */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

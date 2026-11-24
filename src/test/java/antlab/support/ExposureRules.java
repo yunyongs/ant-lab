@@ -96,7 +96,10 @@ public final class ExposureRules {
             Map.entry(antlab.agent.memory.MemoryComparisonDto.Side.class, Set.of("experiencedSeed")),
             Map.entry(antlab.agent.memory.MemoryComparisonDto.Summary.class, Set.of("groups", "bWins", "anecdotal")),
             // the admin import answers what it did with the posted document; it reads no column back
-            Map.entry(antlab.agent.detection.DetectionImportDto.class, Set.of("created", "windows")));
+            Map.entry(antlab.agent.detection.DetectionImportDto.class, Set.of("created", "windows")),
+            // the admin parts run answers counts of what it did; no column value is read back
+            Map.entry(antlab.leaderboard.ManagerPartsRunDto.class,
+                    Set.of("status", "ranked", "excluded", "alreadyStored", "failed", "pending")));
 
     /**
      * The engine's own record of what it rejected in the previous decision: {@code [내부]} in the DB, but the agent is

@@ -1489,6 +1489,51 @@ paths:
                 $ref: '#/components/schemas/Problem'
         '500':
           $ref: '#/components/responses/InternalError'
+  /api/v1/admin/manager-parts/run:
+    post:
+      tags: [admin]
+      operationId: runManagerParts
+      summary: Run the manager parts queue / 매니저 부품 대기열 실행
+      description: |-
+        Computes and stores the manager parts of up to limit finished seasons that have none yet, earliest finish first, the same work the scheduled job does one season at a time (backfill). Administrators only. Each season is scored first if needed, then sent to the engine; a deterministic refusal is stored as an exclusion, an engine outage stops the run. A stored row is never replaced. The answer is counts only, with no season, member, date or value. It waits for the engine, a few seconds per season.
+
+        아직 부품이 없는 끝난 시즌을 끝난 순서대로 limit개까지 계산해 저장한다. 예약 잡이 한 시즌씩 하는 일을 한 번에 한다(소급 채우기). 관리자만 쓴다. 필요하면 시즌을 먼저 채점한 뒤 엔진에 보내며, 결정적 거부는 제외로 저장하고 엔진 장애면 실행을 멈춘다. 저장된 행은 바꾸지 않는다. 답은 건수뿐이고 시즌·회원·날짜·값은 싣지 않는다. 엔진을 기다리므로 시즌마다 몇 초 걸린다.
+      parameters:
+        - name: limit
+          in: query
+          required: true
+          schema:
+            type: integer
+            format: int32
+            minimum: 1
+            maximum: 20
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: What the run did / 실행 결과
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ManagerPartsRunDto'
+        '400':
+          description: limit is missing or outside 1..20 — INVALID_ARGUMENT / limit이 없거나 1..20 밖이다 — INVALID_ARGUMENT
+          x-error-codes: [INVALID_ARGUMENT]
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          description: The caller is not an administrator — FORBIDDEN / 호출자가 관리자가 아니다 — FORBIDDEN
+          x-error-codes: [FORBIDDEN]
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '500':
+          $ref: '#/components/responses/InternalError'
 components:
   securitySchemes:
     bearerAuth:
@@ -4077,3 +4122,39 @@ components:
           minimum: 1
           maximum: 3
           description: Number of windows in the summary (one test row each) / 요약의 창 수(창마다 시험 행 하나)
+    ManagerPartsRunStatus:
+      type: string
+      enum: [DONE, ALREADY_RUNNING, ENGINE_UNAVAILABLE, REFUSED]
+    ManagerPartsRunDto:
+      type: object
+      description: What one manager parts run did, as counts / 매니저 부품 실행 한 번의 결과(건수)
+      required: [status, ranked, excluded, alreadyStored, failed, pending]
+      properties:
+        status:
+          $ref: '#/components/schemas/ManagerPartsRunStatus'
+          description: 'DONE: the run went through the queue up to the limit; ALREADY_RUNNING: another run held the lock and nothing was done; ENGINE_UNAVAILABLE: the engine could not answer, so the run stopped and stored nothing for that season; REFUSED: a setting (a single-asset limit, or an engine timeout below 30 s) forbids any run / DONE: 한도까지 대기열을 처리했다, ALREADY_RUNNING: 다른 실행이 잠금을 잡고 있어 아무것도 하지 않았다, ENGINE_UNAVAILABLE: 엔진이 답하지 못해 그 시즌에 아무것도 저장하지 않고 멈췄다, REFUSED: 설정(단일 종목 한도, 30초보다 짧은 엔진 시간 제한)이 실행을 막는다'
+        ranked:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Seasons stored with their parts now / 지금 부품과 함께 저장한 시즌 수
+        excluded:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Seasons stored now with an exclusion reason instead of parts / 부품 대신 제외 사유로 지금 저장한 시즌 수
+        alreadyStored:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Seasons another run stored first / 다른 실행이 먼저 저장한 시즌 수
+        failed:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Seasons that failed and stay pending (a bad engine answer, a season whose score cannot be made yet) / 실패해 대기로 남은 시즌 수(엔진 답이 잘못됨, 점수를 아직 만들 수 없음)
+        pending:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Finished seasons still without a row after the run / 실행 뒤에도 행이 없는 끝난 시즌 수

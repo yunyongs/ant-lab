@@ -22,6 +22,8 @@ import antlab.collect.price.PriceJobProperties;
 import antlab.collect.price.TargetFilter;
 import antlab.support.E2eHttp;
 import antlab.support.E2eHttp.Reply;
+import antlab.support.EnginePercentileAnswers;
+import antlab.support.FakeEngineServer;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
@@ -75,15 +77,22 @@ class LeastPrivilegeFlowTest {
         {"ZZUS03", "40", "FORWARD_DEFENSIVE"},
     };
 
-    /** Tables nothing in the application writes yet: agent_reflection and agent_memory (AG-05 PR C writes them), agent_call (AG-02 part 3), season_score and rating_history (MVP-18 schema), projection (written only by a call to the engine, which this flow has none of), season_manager_parts (needs a season_score row). turn_feed is written by the turn advance since MVP-11. */
-    private static final List<String> WITHOUT_WRITER = List.of("agent_call", "agent_reflection", "agent_memory", "season_score", "rating_history", "projection",
-            "season_manager_parts");
+    /** Tables nothing in the application writes yet: agent_reflection and agent_memory (AG-05 PR C writes them), agent_call (AG-02 part 3), projection (written only by a projection call to the engine, which this flow does not make). turn_feed is written by the turn advance since MVP-11; season_score, rating_history and season_manager_parts by the manager parts run against a fake engine. */
+    private static final List<String> WITHOUT_WRITER = List.of("agent_call", "agent_reflection", "agent_memory", "projection");
+    private static final String ENGINE_TOKEN = "FAKE-ENGINE-TOKEN-0123456789-abcdefghijklmnop";
+    private static final FakeEngineServer ENGINE = FakeEngineServer.start();
+
+    static {
+        Runtime.getRuntime().addShutdownHook(new Thread(ENGINE::close));
+    }
 
     private static AppRoleDatabase database;
 
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
         database = AppRoleDatabase.register(registry, "flow");
+        registry.add("antlab.engine.url", ENGINE::url);
+        registry.add("antlab.engine.token", () -> ENGINE_TOKEN);
     }
 
     @LocalServerPort
@@ -136,7 +145,7 @@ class LeastPrivilegeFlowTest {
         runTheCollector();
         runTheFredCollector();
         runTheEcosCollector();
-        runTheDetectionImport();
+        runTheManagerParts(runTheDetectionImport());
 
         JdbcTemplate superuser = new JdbcTemplate(database.superuser());
         List<String> empty = new ArrayList<>();
@@ -218,7 +227,7 @@ class LeastPrivilegeFlowTest {
     }
 
     /** An administrator's import is two inserts per window and a replay that only reads, both as the app role. */
-    private void runTheDetectionImport() {
+    private E2eHttp runTheDetectionImport() {
         new JdbcTemplate(database.superuser()).update("UPDATE member SET role = 'ADMIN' WHERE email = ?", EMAIL);
         Reply login = new E2eHttp(port).post("/api/v1/auth/login", "{\"email\": \"" + EMAIL + "\", \"password\": \"" + PASSWORD + "\"}");
         assertThat(login.status()).as("admin login " + login.body()).isEqualTo(200);
@@ -228,6 +237,29 @@ class LeastPrivilegeFlowTest {
         assertThat(stored.status()).as("detection import " + stored.body()).isEqualTo(201);
         Reply replay = admin.post("/api/v1/admin/detection-summaries", summary);
         assertThat(replay.status()).as("detection replay " + replay.body()).isEqualTo(200);
+        return admin;
+    }
+
+    /**
+     * The administrator's parts run as the app role: the first run scores the finished season (season_score, rating_history)
+     * and meets an engine outage, so it stores no parts; the second stores the parts row. The advisory lock is a session of
+     * the app role too.
+     */
+    private void runTheManagerParts(E2eHttp admin) {
+        String run = "/api/v1/admin/manager-parts/run?limit=1";
+        ENGINE.respond("/v1/percentiles", 200, "application/json", EnginePercentileAnswers.middle(2000, TURNS));
+        ENGINE.respondFixture("/v1/manager-parts", 503, "problem-engine-busy.json");
+        Reply outage = admin.send(HttpMethod.POST, run, null, null, "application/json");
+        assertThat(outage.status()).as("parts run " + outage.body()).isEqualTo(200);
+        assertThat(outage.json().get("status").asString()).isEqualTo("ENGINE_UNAVAILABLE");
+
+        boolean riskItem = new JdbcTemplate(database.superuser())
+                .queryForObject("SELECT risk_score IS NOT NULL FROM season_score WHERE season_id = ?", Boolean.class, season);
+        ENGINE.respondFixture("/v1/manager-parts", 200,
+                riskItem ? "manager-parts-response.json" : "manager-parts-response-no-risk-item.json");
+        Reply stored = admin.send(HttpMethod.POST, run, null, null, "application/json");
+        assertThat(stored.status()).as("parts run " + stored.body()).isEqualTo(200);
+        assertThat(stored.json().get("ranked").asInt()).as(stored.body()).isOne();
     }
 
     private void runTheAgent() {
