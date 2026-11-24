@@ -1,33 +1,55 @@
 .card {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
-  padding: var(--space-4);
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
   background: var(--color-surface);
 }
 
-.heading {
-  margin: 0;
-  font-size: var(--font-lg);
+.strip {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
 }
 
-.value {
+.dots {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.dot {
+  display: block;
+  width: 0.875rem;
+  height: 0.875rem;
+  box-sizing: border-box;
+  border: 2px solid var(--color-input-border);
+  border-radius: 50%;
+}
+
+.dotFilled {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+}
+
+.lines {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.head {
   margin: 0;
-  font-size: var(--font-xl);
   font-weight: 700;
-}
-
-.text {
-  margin: 0;
   overflow-wrap: anywhere;
 }
 
-.muted {
+.sub {
   margin: 0;
   color: var(--color-text-muted);
-  font-size: 0.875rem;
+  font-size: var(--font-sm);
 }
 
 .facts {

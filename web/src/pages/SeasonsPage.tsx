@@ -2,12 +2,16 @@ import { Link } from 'react-router';
 import { RatingCard } from '../features/rating/RatingCard.tsx';
 import { QueryError } from '../features/seasons/QueryError.tsx';
 import { SeasonCard } from '../features/seasons/SeasonCard.tsx';
+import { SeasonCardFeatured } from '../features/seasons/SeasonCardFeatured.tsx';
 import { useSeasons } from '../features/seasons/queries.ts';
 import seasons from '../features/seasons/Seasons.module.css';
 import styles from './Page.module.css';
 
 export function SeasonsPage() {
   const query = useSeasons();
+  // In-progress seasons lead; each group keeps the server's order.
+  const active = (query.data ?? []).filter((s) => s.status === 'IN_PROGRESS');
+  const others = (query.data ?? []).filter((s) => s.status !== 'IN_PROGRESS');
   return (
     <div className={styles.page}>
       <h1 className={styles.heading}>내 시즌</h1>
@@ -38,15 +42,27 @@ export function SeasonsPage() {
       )}
       {query.data && query.data.length > 0 && (
         <>
+          {active.length > 0 && (
+            <ul className={seasons.list}>
+              {active.map((season) => (
+                <SeasonCardFeatured key={season.id} season={season} />
+              ))}
+            </ul>
+          )}
           <RatingCard />
-          <Link to="/seasons/new" className={seasons.primary}>
+          <Link
+            to="/seasons/new"
+            className={active.length > 0 ? seasons.secondary : seasons.primary}
+          >
             새 시즌 시작
           </Link>
-          <ul className={seasons.list}>
-            {query.data.map((season) => (
-              <SeasonCard key={season.id} season={season} />
-            ))}
-          </ul>
+          {others.length > 0 && (
+            <ul className={seasons.list}>
+              {others.map((season) => (
+                <SeasonCard key={season.id} season={season} />
+              ))}
+            </ul>
+          )}
         </>
       )}
     </div>
