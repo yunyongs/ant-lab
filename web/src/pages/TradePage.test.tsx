@@ -11,6 +11,7 @@ import { describe, expect, it } from 'vitest';
 import { problem } from '../test/authHandlers.ts';
 import { expectNoDatePattern } from '../test/expectNoDatePattern.ts';
 import {
+  heldDefender,
   heldMidfielder,
   holdingsAfterPartSell,
   holdingsAllSold,
@@ -23,10 +24,16 @@ import {
 } from '../test/fixtures/orders.ts';
 import { pricesFixture } from '../test/fixtures/prices.ts';
 import { invalidateSeasonState } from '../features/seasons/queries.ts';
+import { PNL_BASIS_NOTE } from '../features/trade/TradeSummary.tsx';
 import { renderRoute } from '../test/renderWithProviders.tsx';
 import { serveSeason } from '../test/serve.ts';
 import { server } from '../test/server.ts';
 import { failWithProblem, serveTurnWorld } from '../test/serveTurns.ts';
+
+const holdingsTwoHeld = {
+  ...holdingsWithMidfielder,
+  holdings: [heldMidfielder, heldDefender],
+};
 
 const ORDERS = '*/api/v1/seasons/7/orders';
 
@@ -126,9 +133,8 @@ describe('TradePage', () => {
     ).toBeInTheDocument();
     const summary = await screen.findByRole('region', { name: '매매 요약' });
     expect(within(summary).getByText('91,096,000원')).toBeInTheDocument();
-    expect(
-      within(summary).getByText('총 평가액 (1턴 가격 기준)'),
-    ).toBeInTheDocument();
+    expect(within(summary).getByText('총 평가액')).toBeInTheDocument();
+    expect(within(summary).getByText('살 수 있는 현금')).toBeInTheDocument();
     expect(
       within(summary).getByText(
         '골키퍼 40 · 수비수 30 · 미드필더 20 · 공격수 10',
@@ -139,7 +145,7 @@ describe('TradePage', () => {
     expect(within(list).getByText('보유 종목 (1)')).toBeInTheDocument();
     expect(within(list).getByText('종목 가')).toBeInTheDocument();
     expect(within(list).getByText('71,350원')).toBeInTheDocument();
-    expect(within(list).getByText('8.90%')).toBeInTheDocument();
+    expect(within(list).getByText('비중 8.90%')).toBeInTheDocument();
     expect(within(list).getByText('74,200원')).toBeInTheDocument();
     expect(within(list).getByText('8,904,000원')).toBeInTheDocument();
     expect(
@@ -284,6 +290,167 @@ describe('TradePage', () => {
   });
 });
 
+describe('compact holdings', () => {
+  it('keeps the formation detail collapsed and the two figures in view', async () => {
+    serveSeason({ currentTurnNo: 1 });
+    serveTrade();
+    renderRoute('/seasons/7/trade');
+    const summary = await screen.findByRole('region', { name: '매매 요약' });
+    const figures = within(summary).getAllByRole('definition');
+    expect(figures.map((f) => f.textContent)).toEqual([
+      '100,000,000원',
+      '91,096,000원',
+    ]);
+    expect(summary.querySelector('details')).not.toHaveAttribute('open');
+    expect(within(summary).getByText('포메이션·비중')).toBeInTheDocument();
+  });
+
+  it('opens exactly one row at a time and sends the toggle back to its row', async () => {
+    const user = userEvent.setup();
+    serveSeason({ currentTurnNo: 1 });
+    serveTrade(holdingsTwoHeld);
+    renderRoute('/seasons/7/trade');
+    const list = await screen.findByRole('region', { name: '보유 종목' });
+    const toggles = await within(list).findAllByRole('button', {
+      expanded: true,
+    });
+    expect(toggles).toHaveLength(1);
+    const [first, second] = within(list)
+      .getAllByRole('listitem')
+      .map((li) => within(li).getAllByRole('button')[0] as HTMLElement);
+    expect(first).toHaveAttribute('aria-expanded', 'true');
+    expect(second).toHaveAttribute('aria-expanded', 'false');
+    await user.click(second as HTMLElement);
+    expect(first).toHaveAttribute('aria-expanded', 'false');
+    expect(second).toHaveAttribute('aria-expanded', 'true');
+    expect(
+      within(list).getAllByRole('button', { expanded: true }),
+    ).toHaveLength(1);
+    await user.click(second as HTMLElement);
+    expect(
+      within(list).queryAllByRole('button', { expanded: true }),
+    ).toHaveLength(0);
+    expect(within(list).queryByText('평균단가')).toBeNull();
+  });
+
+  it('gives aria-controls only for ids that exist in the DOM', async () => {
+    const user = userEvent.setup();
+    serveSeason({ currentTurnNo: 1 });
+    serveTrade(holdingsTwoHeld);
+    renderRoute('/seasons/7/trade');
+    const list = await screen.findByRole('region', { name: '보유 종목' });
+    const toggles = await within(list).findAllByRole('button', {
+      name: /비중/,
+    });
+    const check = () => {
+      for (const toggle of toggles) {
+        const id = toggle.getAttribute('aria-controls');
+        if (toggle.getAttribute('aria-expanded') === 'true') {
+          expect(id).not.toBeNull();
+          expect(document.getElementById(id ?? '')).not.toBeNull();
+        } else {
+          expect(id).toBeNull();
+        }
+      }
+    };
+    check();
+    await user.click(toggles[1] as HTMLElement);
+    check();
+    await user.click(toggles[1] as HTMLElement);
+    check();
+  });
+
+  it('toggles a row with Enter and Space and keeps closed actions out of the tab order', async () => {
+    const user = userEvent.setup();
+    serveSeason({ currentTurnNo: 1 });
+    serveTrade(holdingsTwoHeld);
+    renderRoute('/seasons/7/trade');
+    const list = await screen.findByRole('region', { name: '보유 종목' });
+    const [first, second] = within(list)
+      .getAllByRole('listitem')
+      .map((li) => within(li).getAllByRole('button')[0] as HTMLElement);
+    // Only the open first row exposes its actions.
+    expect(
+      within(list).queryByRole('button', { name: '채권 ETF 다 매도' }),
+    ).toBeNull();
+    first?.focus();
+    await user.keyboard('{Enter}');
+    expect(first).toHaveAttribute('aria-expanded', 'false');
+    expect(
+      within(list).queryByRole('button', { name: '종목 가 매도' }),
+    ).toBeNull();
+    await user.tab();
+    expect(second).toHaveFocus();
+    await user.keyboard(' ');
+    expect(second).toHaveAttribute('aria-expanded', 'true');
+    await user.tab();
+    expect(
+      within(list).getByRole('button', { name: '채권 ETF 다 매수' }),
+    ).toHaveFocus();
+    await user.tab({ shift: true });
+    await user.keyboard('{Enter}');
+    expect(second).toHaveAttribute('aria-expanded', 'false');
+    expect(
+      within(list).queryByRole('button', { name: '채권 ETF 다 매수' }),
+    ).toBeNull();
+  });
+
+  it('returns focus inside the second row after its sheet closes', async () => {
+    const user = userEvent.setup();
+    serveSeason({ currentTurnNo: 1 });
+    serveTrade(holdingsTwoHeld);
+    renderRoute('/seasons/7/trade');
+    const list = await screen.findByRole('region', { name: '보유 종목' });
+    const [, secondItem] = within(list).getAllByRole('listitem');
+    const second = within(secondItem as HTMLElement).getAllByRole('button')[0];
+    await user.click(second as HTMLElement);
+    await user.click(
+      await within(list).findByRole('button', { name: '채권 ETF 다 매도' }),
+    );
+    const dialog = await screen.findByRole('dialog', {
+      name: '채권 ETF 다 매도',
+    });
+    await user.click(within(dialog).getByRole('button', { name: '취소' }));
+    await waitFor(() => {
+      expect(
+        within(secondItem as HTMLElement).getByRole('button', {
+          name: '채권 ETF 다 매도',
+        }),
+      ).toHaveFocus();
+    });
+  });
+
+  it('shows the kept formation facts once the summary is opened', async () => {
+    const user = userEvent.setup();
+    serveSeason({ currentTurnNo: 1 });
+    serveTrade();
+    renderRoute('/seasons/7/trade');
+    const summary = await screen.findByRole('region', { name: '매매 요약' });
+    await user.click(within(summary).getByText('포메이션·비중'));
+    expect(summary.querySelector('details')).toHaveAttribute('open');
+    for (const text of [
+      '평가손익 (보유 합계)',
+      PNL_BASIS_NOTE,
+      '현재 포메이션',
+      '포메이션 이탈',
+    ]) {
+      expect(within(summary).getByText(text)).toBeVisible();
+    }
+  });
+
+  it('returns focus to the sell button of the open row after the sheet closes', async () => {
+    serveSeason({ currentTurnNo: 1 });
+    serveTrade();
+    const { user, dialog } = await openSell();
+    await user.click(within(dialog).getByRole('button', { name: '취소' }));
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', { name: '종목 가 매도' }),
+      ).toHaveFocus();
+    });
+  });
+});
+
 describe('formation entry', () => {
   it('links to the formation page from turn 1 on', async () => {
     serveSeason({ currentTurnNo: 1 });
@@ -402,7 +569,7 @@ describe('sell sheet', () => {
       expect(spy.holdingsCalls).toBe(2);
     });
     await user.click(within(dialog).getByRole('button', { name: '닫기' }));
-    expect(await screen.findByText('7.44%')).toBeVisible();
+    expect(await screen.findByText('비중 7.44%')).toBeVisible();
     expect(screen.getByText('100주')).toBeVisible();
   });
 

@@ -198,7 +198,7 @@ describe('PositionSheet', () => {
     });
     await user.click(within(dialog).getByRole('button', { name: '닫기' }));
     const list = screen.getByRole('region', { name: '보유 종목' });
-    expect(await within(list).findByText('공격수·타겟형')).toBeVisible();
+    expect(await within(list).findByText(/공격수·타겟형/)).toBeVisible();
   });
 
   it('says the position was already that one when nothing changed', async () => {
