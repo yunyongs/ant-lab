@@ -170,5 +170,5 @@ ANTLAB_API_PORT="$api_port" ANTLAB_E2E_WEB_PORT="$web_port" ANTLAB_E2E_OUT_DIR="
   npm run e2e 2>&1 | tee "$work/e2e.log" || fail "browser play failed"
 
 passed="$(sed -n -E 's/^ *([0-9]+) passed.*/\1/p' "$work/e2e.log" | tail -n 1)"
-[ "$passed" = 2 ] || fail "expected 2 passing projects, saw '${passed:-none}'"
-printf '\nweb e2e: PASS (%s projects) in %ss\nscreenshots and report: %s\n' "$passed" "$SECONDS" "$out_dir"
+[ "$passed" = 4 ] || fail "expected 4 passing tests (2 specs at 2 widths), saw '${passed:-none}'"
+printf '\nweb e2e: PASS (%s tests) in %ss\nscreenshots and report: %s\n' "$passed" "$SECONDS" "$out_dir"

@@ -156,7 +156,9 @@ test('plays one 12-turn season from signup to review', async ({
   await expect(page.getByRole('heading', { name: '1턴 결과' })).toBeVisible();
   await expect(turnCard).toBeVisible();
   // The actions stay in reach without scrolling, summary first (WEB-14).
-  await expect(page.getByRole('region', { name: '요약' })).toBeInViewport();
+  await expect(
+    page.getByRole('region', { name: '요약', exact: true }),
+  ).toBeInViewport();
   const actions = page.getByRole('group', { name: '턴 행동' });
   await expect(
     actions.getByRole('button', { name: '다음 턴 (2턴으로)' }),
@@ -170,6 +172,30 @@ test('plays one 12-turn season from signup to review', async ({
   expect(barBox).not.toBeNull();
   expect(navBox).not.toBeNull();
   expect(barBox!.y + barBox!.height).toBeLessThanOrEqual(navBox!.y + 1);
+  // At the end of the page the last control is fully clear of the bar and the menu.
+  const abandon = page.getByRole('button', { name: '시즌 포기' });
+  await abandon.focus();
+  await page.evaluate(() => {
+    window.scrollTo(0, document.documentElement.scrollHeight);
+  });
+  const abandonBox = await abandon.boundingBox();
+  const barEnd = await actions.boundingBox();
+  const navEnd = await page
+    .getByRole('navigation', { name: '주 메뉴' })
+    .boundingBox();
+  expect(abandonBox).not.toBeNull();
+  expect(barEnd).not.toBeNull();
+  expect(navEnd).not.toBeNull();
+  const abandonBottom = abandonBox!.y + abandonBox!.height;
+  expect(abandonBottom).toBeLessThanOrEqual(navEnd!.y + 1);
+  expect(
+    abandonBottom <= barEnd!.y + 1 ||
+      abandonBox!.y >= barEnd!.y + barEnd!.height - 1,
+  ).toBe(true);
+  // Every link has an accessible name (the chart's logo link is off).
+  await expect(
+    page.locator('main a:not([aria-label])').filter({ hasText: /^$/ }),
+  ).toHaveCount(0);
   // The feed region is always there: items, or the no-news sentence.
   await expect(page.getByRole('region', { name: '소식' })).toBeVisible();
   await checkpoint(run, 'turn-1', { axe: 'turn-result' });

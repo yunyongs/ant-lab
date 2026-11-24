@@ -70,8 +70,9 @@ export default function ValueLineChart({
       layout: {
         background: { type: ColorType.Solid, color: token('--color-surface') },
         textColor: token('--color-text-muted'),
-        // Required by the library's licence: a link to its maker on the chart.
-        attributionLogo: true,
+        // The licence link to the maker is the text line under the chart; the
+        // logo link would be a second, unnamed link.
+        attributionLogo: false,
       },
       grid: {
         vertLines: { visible: false },
