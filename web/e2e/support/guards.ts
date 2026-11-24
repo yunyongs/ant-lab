@@ -16,6 +16,15 @@ export const ALLOWED_WHILE_LOGGED_OUT: readonly AllowedResponse[] = [
   { method: 'POST', path: REFRESH_PATH, status: 401 },
 ];
 
+// The one write the app cancels on purpose: the advisory order quote is aborted
+// (React Query `signal`) when the quantity changes or the sheet closes.
+const QUOTE_PATH = /^\/api\/v1\/seasons\/\d+\/orders\/quote$/;
+
+// The throwaway stack has no engine container, so the season score answers
+// 503 ENGINE_UNAVAILABLE and the card shows its pending state. Allowed for that
+// one read only.
+const SCORE_PATH = /^\/api\/v1\/seasons\/\d+\/score$/;
+
 export interface Guards {
   setLoggedIn: (loggedIn: boolean) => void;
   assertClean: () => void;
@@ -33,13 +42,14 @@ export function attachGuards(page: Page): Guards {
   let bearerRequests = 0;
 
   const allowed = (method: string, path: string, status: number): boolean =>
-    !loggedIn &&
-    ALLOWED_WHILE_LOGGED_OUT.some(
-      (entry) =>
-        entry.method === method &&
-        entry.path === path &&
-        entry.status === status,
-    );
+    (method === 'GET' && status === 503 && SCORE_PATH.test(path)) ||
+    (!loggedIn &&
+      ALLOWED_WHILE_LOGGED_OUT.some(
+        (entry) =>
+          entry.method === method &&
+          entry.path === path &&
+          entry.status === status,
+      ));
 
   page.on('response', (response) => {
     const status = response.status();
@@ -55,12 +65,20 @@ export function attachGuards(page: Page): Guards {
 
   page.on('requestfailed', (request) => {
     const errorText = request.failure()?.errorText ?? '';
+    const path = pathOf(request.url());
     // A read the app itself cancelled (query cancellation on unmount, StrictMode in
-    // development) is not a failure; an aborted write or any other error is.
+    // development) is not a failure; an aborted write or any other error is,
+    // except the cancelled quote.
     if (request.method() === 'GET' && errorText === 'net::ERR_ABORTED') return;
-    violations.push(
-      `requestfailed: ${request.method()} ${pathOf(request.url())} ${errorText}`,
-    );
+    if (
+      request.method() === 'POST' &&
+      errorText === 'net::ERR_ABORTED' &&
+      QUOTE_PATH.test(path)
+    ) {
+      observedAllowed.add(`${errorText} ${path}`);
+      return;
+    }
+    violations.push(`requestfailed: ${request.method()} ${path} ${errorText}`);
   });
 
   page.on('pageerror', (error) => {
