@@ -294,3 +294,6 @@ $RECYCLE.BIN/
 
 # Detailed local implementation notes (kept out of the public repo)
 impl.md
+
+# Local orchestration plan for the owner (kept out of the public repo)
+orchestration_plan.md
