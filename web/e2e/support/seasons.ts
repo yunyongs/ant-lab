@@ -1,4 +1,5 @@
 import { expect, type Page } from '@playwright/test';
+import { openMenu } from './shell.ts';
 import { checkpoint, type Run } from './steps.ts';
 
 // The empty home: no season yet, and the status line reached the API.
@@ -94,13 +95,18 @@ export async function checkSeasonProgress(
   const bar = card.getByRole('progressbar', { name: '현재 턴' });
   await expect(bar).toHaveAttribute('aria-valuenow', String(turn));
   await checkpoint(run, 'season-progress', { axe: 'season-progress' });
+  // The colour toggle lives in the header menu (WEB-28 B).
   const toggle = page.getByRole('button', { name: /^등락 색:/ });
+  await openMenu(page);
   await toggle.click();
+  await page.keyboard.press('Escape');
   await expect(card.locator('[data-direction]').first()).toBeVisible();
   await checkpoint(run, 'season-progress-alt-colors', {
     axe: 'season-progress-alt-colors',
   });
+  await openMenu(page);
   await toggle.click();
+  await page.keyboard.press('Escape');
   // The convention is a stored per-viewer choice; the storage check at the
   // end of the flow expects an empty store.
   await page.evaluate(() => {
