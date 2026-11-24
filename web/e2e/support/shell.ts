@@ -1,10 +1,19 @@
-import { expect, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import type { Guards } from './guards.ts';
 import type { Member } from './member.ts';
-import { checkpoint, expectNoOverflow, type Run } from './steps.ts';
+import {
+  checkpoint,
+  expectNoOverflow,
+  startRun,
+  writeAxeSummary,
+  type Run,
+} from './steps.ts';
 
 export const mainNav = (page: Page): Locator =>
   page.getByRole('navigation', { name: '주 메뉴' });
+
+export const menuButton = (page: Page): Locator =>
+  page.getByRole('button', { name: '메뉴' });
 
 export const sheetOf = (page: Page): Locator => page.getByRole('dialog');
 
@@ -74,12 +83,33 @@ export async function expectTokensInMemoryOnly(page: Page): Promise<void> {
   ).toBe(true);
 }
 
+// Open the header menu; its items are buttons inside the page.
+export async function openMenu(page: Page): Promise<void> {
+  const button = menuButton(page);
+  if ((await button.getAttribute('aria-expanded')) !== 'true')
+    await button.click();
+  await expect(button).toHaveAttribute('aria-expanded', 'true');
+}
+
+// The open menu has its own screenshot and axe scan (own folder, own counter).
+async function checkOpenMenu(page: Page): Promise<void> {
+  const run = startRun(page, `${test.info().project.name}-menu`);
+  await openMenu(page);
+  await expect(page.getByRole('button', { name: '로그아웃' })).toBeVisible();
+  // Logout runs after the review screen, where real dates are shown.
+  await checkpoint(run, 'menu-open', { axe: 'menu', dates: 'present' });
+  // Any violation fails here, not only critical ones.
+  expect(run.axeLines, 'axe violations in the open menu').toEqual([]);
+  writeAxeSummary(run);
+}
+
 // Logout, then the bearer probe and the guarded season address.
 export async function logoutAndProbe(
   page: Page,
   guards: Guards,
   seasonId: string,
 ): Promise<void> {
+  await checkOpenMenu(page);
   guards.setLoggedIn(false);
   await page.getByRole('button', { name: '로그아웃' }).click();
   await expect(page).toHaveURL(/\/login$/);

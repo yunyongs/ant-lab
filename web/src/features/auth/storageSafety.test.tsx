@@ -53,9 +53,9 @@ describe('storage safety', () => {
     snapshots.push(snapshot());
     expect(refreshes).toBe(2);
 
-    await userEvent
-      .setup()
-      .click(screen.getByRole('button', { name: '로그아웃' }));
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: '메뉴' }));
+    await user.click(screen.getByRole('button', { name: '로그아웃' }));
     await screen.findByRole('heading', { name: '로그인' });
     snapshots.push(snapshot());
 
