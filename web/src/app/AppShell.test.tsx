@@ -109,9 +109,9 @@ describe('AppShell', () => {
     const { queryClient } = renderRoute('/');
     await screen.findByText(/API 연결됨/);
     queryClient.setQueryData(['protected-data'], { balance: 'x' });
-    await userEvent
-      .setup()
-      .click(screen.getByRole('button', { name: '로그아웃' }));
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: '메뉴' }));
+    await user.click(screen.getByRole('button', { name: '로그아웃' }));
     expect(
       await screen.findByRole('heading', { name: '로그인' }),
     ).toBeInTheDocument();
@@ -124,18 +124,11 @@ describe('AppShell', () => {
   it('still logs out locally when the logout request fails', async () => {
     server.use(http.post('*/api/v1/auth/logout', () => HttpResponse.error()));
     renderRoute('/');
-    await userEvent
-      .setup()
-      .click(screen.getByRole('button', { name: '로그아웃' }));
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: '메뉴' }));
+    await user.click(screen.getByRole('button', { name: '로그아웃' }));
     expect(
       await screen.findByRole('heading', { name: '로그인' }),
-    ).toBeInTheDocument();
-  });
-
-  it('gives the logout button a 44 px tap target class and a name', () => {
-    renderRoute('/');
-    expect(
-      screen.getByRole('button', { name: '로그아웃' }),
     ).toBeInTheDocument();
   });
 

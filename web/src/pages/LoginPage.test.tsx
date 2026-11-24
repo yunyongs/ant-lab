@@ -43,6 +43,7 @@ describe('LoginPage', () => {
       await screen.findByRole('heading', { name: '페이지를 찾을 수 없습니다' }),
     ).toBeInTheDocument();
     expect(body).toEqual({ email: 'a@example.com', password: 'pw-123' });
+    await userEvent.setup().click(screen.getByRole('button', { name: '메뉴' }));
     expect(
       screen.getByRole('button', { name: '로그아웃' }),
     ).toBeInTheDocument();
