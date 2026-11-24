@@ -13,8 +13,10 @@ import { describe, expect, it, vi } from 'vitest';
 import { problem } from '../../test/authHandlers.ts';
 import {
   heldDefender,
+  heldMidfielder,
   holdingsAfterBuy,
   holdingsFixture,
+  holdingsWithMidfielder,
 } from '../../test/fixtures/holdings.ts';
 import {
   orderQuoteFixture,
@@ -22,9 +24,14 @@ import {
 } from '../../test/fixtures/orders.ts';
 import { pricesFixture } from '../../test/fixtures/prices.ts';
 import { seasonFixture } from '../../test/fixtures/seasons.ts';
-import { renderRoute } from '../../test/renderWithProviders.tsx';
+import { subtractDecimal } from '../format/derive.ts';
+import {
+  renderRoute,
+  renderWithProviders,
+} from '../../test/renderWithProviders.tsx';
 import { serveSeason } from '../../test/serve.ts';
 import { server } from '../../test/server.ts';
+import { OrderSheet } from './OrderSheet.tsx';
 import {
   QUOTE_DELAY_MS,
   holdingsKey,
@@ -1048,5 +1055,321 @@ describe('OrderSheet quote', () => {
     ).toBeInTheDocument();
     await quoteSettles();
     expect(quotes).toHaveLength(1);
+  });
+});
+
+describe('OrderSheet ratios and preview', () => {
+  async function openWithMax(max: number) {
+    serveSeason({});
+    serveTeam();
+    serveQuotes(() =>
+      HttpResponse.json(orderQuoteFixture({ maxBuyQuantity: max })),
+    );
+    const opened = await openSheet();
+    const group = within(opened.dialog).getByRole('group', {
+      name: '최대 수량 대비',
+    });
+    await within(opened.dialog).findByRole('button', {
+      name: `최대 (${String(max)}주)`,
+    });
+    return { ...opened, group };
+  }
+
+  const quantityOf = (dialog: HTMLElement) =>
+    within(dialog).getByRole('textbox', { name: '수량' });
+
+  it.each([
+    [59, ['5', '14', '29', '59']],
+    [533, ['53', '133', '266', '533']],
+    [1, ['1', '1', '1', '1']],
+  ])('sets the quantity from a max of %i', async (max, expected) => {
+    const { user, dialog, group } = await openWithMax(max);
+    const labels = ['10%', '25%', '50%', `최대 (${String(max)}주)`];
+    for (const [index, label] of labels.entries()) {
+      await user.click(within(group).getByRole('button', { name: label }));
+      expect(quantityOf(dialog)).toHaveValue(expected[index]);
+    }
+  });
+
+  it('disables every ratio button when nothing can be bought', async () => {
+    serveSeason({});
+    serveTeam();
+    serveQuotes(() => problem(422, { code: 'INSUFFICIENT_CASH', status: 422 }));
+    const { dialog } = await openSheet();
+    await within(dialog).findByRole('button', { name: '최대 (0주)' });
+    const group = within(dialog).getByRole('group', { name: '최대 수량 대비' });
+    for (const button of within(group).getAllByRole('button')) {
+      expect(button).toBeDisabled();
+    }
+  });
+
+  it('shows the price and cash in one line under the title', async () => {
+    serveSeason({});
+    serveTeam();
+    serveQuotes(() => HttpResponse.json(orderQuoteFixture()));
+    const { dialog } = await openSheet();
+    expect(within(dialog).getByText('이번 턴 가격')).toBeInTheDocument();
+    expect(within(dialog).getByText('현금 100,000,000원')).toBeInTheDocument();
+    expect(within(dialog).queryByText('현금 잔액')).toBeNull();
+  });
+
+  it('previews the weight and the total, equal to the server cash move', async () => {
+    serveSeason({});
+    serveTeam();
+    const quote = orderQuoteFixture();
+    serveQuotes(() => HttpResponse.json(quote));
+    const { dialog } = await openSheet();
+    const status = within(quotePanel(dialog)).getByRole('status');
+    // 187,400 / (100,000,000 - 28) = 0.19%
+    expect(
+      await within(status).findByText('체결 뒤 이 종목 비중'),
+    ).toBeInTheDocument();
+    expect(within(status).getByText('0.19%')).toBeInTheDocument();
+    // total = notional + fee = cash before - cashAfter
+    expect(subtractDecimal('100000000', quote.cashAfter)).toBe('187428');
+    expect(within(dialog).getByText('합계 187,428원')).toBeInTheDocument();
+    expect(
+      within(dialog).getByRole('button', { name: '1주 매수' }),
+    ).toBeInTheDocument();
+  });
+
+  it('hides the weight and the total when the quote fails', async () => {
+    serveSeason({});
+    serveTeam();
+    serveQuotes(() => HttpResponse.error());
+    const { dialog } = await openSheet();
+    const status = within(quotePanel(dialog)).getByRole('status');
+    await within(status).findByText(
+      '미리보기를 불러오지 못했습니다. 주문은 그대로 할 수 있습니다.',
+    );
+    expect(within(dialog).queryByText('체결 뒤 이 종목 비중')).toBeNull();
+    expect(within(dialog).queryByText(/^합계/)).toBeNull();
+    expect(
+      within(dialog).getByRole('button', { name: '1주 매수' }),
+    ).toBeEnabled();
+  });
+});
+
+// A sell of the held midfielder: 74,200 won a share, fee 11 a share, cash
+// 91,096,000 before. The quote answers by quantity.
+const SELL_CASH = '91096000';
+const sellQuote = (quantity: number) =>
+  orderQuoteFixture({
+    fillPrice: '74200',
+    notional: String(74200 * quantity),
+    fee: String(11 * quantity),
+    cashAfter: String(91096000 + 74189 * quantity),
+    maxBuyQuantity: null,
+  });
+
+function renderSell(held: number, cash = SELL_CASH) {
+  const view = renderWithProviders(
+    <OrderSheet
+      side="SELL"
+      asset={{ assetId: 101, name: '종목 가' }}
+      holding={{ ...heldMidfielder, quantity: held }}
+      price="74200"
+      pricesFailed={false}
+      seasonId={7}
+      turnNo={1}
+      cashBalance={cash}
+      onClose={() => undefined}
+      onStale={() => undefined}
+    />,
+  );
+  view.queryClient.setQueryData(holdingsKey(7), holdingsWithMidfielder);
+  return {
+    ...view,
+    dialog: screen.getByRole('dialog', { name: '종목 가 매도' }),
+  };
+}
+
+describe('OrderSheet sell preview', () => {
+  it.each([
+    [59, ['5', '14', '29', '59']],
+    [1, ['1', '1', '1', '1']],
+  ])('sets a sell quantity from %i held shares', async (held, expected) => {
+    serveQuotes(() => HttpResponse.json(sellQuote(1)));
+    const { dialog } = renderSell(held);
+    const user = userEvent.setup();
+    const group = within(dialog).getByRole('group', { name: '최대 수량 대비' });
+    const labels = ['10%', '25%', '50%', `전량 (${String(held)}주)`];
+    for (const [index, label] of labels.entries()) {
+      await user.click(within(group).getByRole('button', { name: label }));
+      expect(within(dialog).getByRole('textbox', { name: '수량' })).toHaveValue(
+        expected[index],
+      );
+    }
+  });
+
+  it('disables every sell ratio button when nothing is held', () => {
+    const { dialog } = renderSell(0);
+    const group = within(dialog).getByRole('group', { name: '최대 수량 대비' });
+    for (const button of within(group).getAllByRole('button')) {
+      expect(button).toBeDisabled();
+    }
+  });
+
+  it('shows the cash the server will credit, cash after minus cash before', async () => {
+    // 74,200 - 11 would be 74,189; the server credits 74,100.
+    serveQuotes(() =>
+      HttpResponse.json(
+        orderQuoteFixture({ ...sellQuote(1), cashAfter: '91170100' }),
+      ),
+    );
+    const { dialog } = renderSell(59);
+    expect(
+      await within(dialog).findByText('받는 금액 74,100원'),
+    ).toBeInTheDocument();
+  });
+
+  it('hides the weight and the total while a new quote is pending', async () => {
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    serveQuotes(async ({ quantity }) => {
+      if (quantity === 2) await gate;
+      return HttpResponse.json(sellQuote(quantity));
+    });
+    const { dialog } = renderSell(59);
+    const user = userEvent.setup();
+    expect(
+      await within(dialog).findByText('받는 금액 74,189원'),
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).getByText('체결 뒤 이 종목 비중'),
+    ).toBeInTheDocument();
+    await setQuantity(user, dialog, '2');
+    expect(within(dialog).queryByText(/^받는 금액/)).toBeNull();
+    expect(within(dialog).queryByText('체결 뒤 이 종목 비중')).toBeNull();
+    release();
+    expect(
+      await within(dialog).findByText('받는 금액 148,378원'),
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).getByText('체결 뒤 이 종목 비중'),
+    ).toBeInTheDocument();
+  });
+
+  it('ignores a late answer for an older quantity', async () => {
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    serveQuotes(async ({ quantity }) => {
+      if (quantity === 2) await gate;
+      return HttpResponse.json(sellQuote(quantity));
+    });
+    const { dialog } = renderSell(59);
+    const user = userEvent.setup();
+    await within(dialog).findByText('받는 금액 74,189원');
+    await setQuantity(user, dialog, '2');
+    await quoteSettles();
+    await setQuantity(user, dialog, '3');
+    release();
+    expect(
+      await within(dialog).findByText('받는 금액 222,567원'),
+    ).toBeInTheDocument();
+    expect(within(dialog).queryByText('받는 금액 148,378원')).toBeNull();
+  });
+});
+
+describe('OrderSheet after a fill', () => {
+  const afterFirstSell = holdingsFixture({
+    ...holdingsWithMidfielder,
+    cashBalance: '91170189',
+    holdings: [
+      { ...heldMidfielder, quantity: 119, value: '8829800', weight: '0.0883' },
+    ],
+  });
+
+  async function sellOneThenSellMore(
+    later: () => Response | Promise<Response>,
+  ) {
+    serveSeason({ currentTurnNo: 1 });
+    let calls = 0;
+    server.use(
+      http.get('*/api/v1/seasons/7/holdings', () => {
+        calls += 1;
+        return calls === 1
+          ? HttpResponse.json(holdingsWithMidfielder)
+          : later();
+      }),
+      http.get('*/api/v1/seasons/7/prices', () =>
+        HttpResponse.json(pricesFixture(1)),
+      ),
+      http.post(ORDERS, () =>
+        HttpResponse.json(
+          orderResultFixture({
+            turnNo: 1,
+            side: 'SELL',
+            quantity: 1,
+            holdingQuantity: 119,
+            cashBalance: '91170189',
+            realizedPnl: '1',
+          }),
+          { status: 201 },
+        ),
+      ),
+    );
+    serveQuotes((_body, call) =>
+      HttpResponse.json({
+        ...sellQuote(1),
+        // After the first fill the server cash is 91,170,189.
+        cashAfter: call === 1 ? '91170189' : '91244378',
+      }),
+    );
+    const user = userEvent.setup();
+    renderRoute('/seasons/7/trade');
+    await user.click(
+      await screen.findByRole('button', { name: '종목 가 매도' }),
+    );
+    const dialog = await screen.findByRole('dialog', { name: '종목 가 매도' });
+    await within(dialog).findByText('받는 금액 74,189원');
+    await user.click(within(dialog).getByRole('button', { name: '1주 매도' }));
+    await within(dialog).findByText('체결가');
+    await user.click(
+      within(dialog).getByRole('button', { name: '이 종목 더 팔기' }),
+    );
+    return { user, dialog };
+  }
+
+  it('hides the derived rows until the holdings refresh has landed', async () => {
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const { dialog } = await sellOneThenSellMore(async () => {
+      await gate;
+      return HttpResponse.json(afterFirstSell);
+    });
+    // The quote is on screen, built on the older cash and holdings.
+    expect(await within(dialog).findByText('체결 뒤 현금')).toBeInTheDocument();
+    expect(within(dialog).queryByText(/^받는 금액/)).toBeNull();
+    expect(within(dialog).queryByText('체결 뒤 이 종목 비중')).toBeNull();
+    expect(
+      within(dialog).getByRole('button', { name: '1주 매도' }),
+    ).toBeEnabled();
+    release();
+    // (8,904,000 - 74,200 - 74,200) / (100,000,000 - 11) is not asked of the
+    // old state; the refreshed one gives 8,829,800 - 74,200 over 99,999,989.
+    expect(
+      await within(dialog).findByText('받는 금액 74,189원'),
+    ).toBeInTheDocument();
+    expect(within(dialog).getByText('8.76%')).toBeInTheDocument();
+  });
+
+  it('keeps them hidden when the holdings refresh fails; ordering stays possible', async () => {
+    const { dialog } = await sellOneThenSellMore(() =>
+      problem(500, { code: 'INTERNAL', status: 500 }),
+    );
+    expect(await within(dialog).findByText('체결 뒤 현금')).toBeInTheDocument();
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    expect(within(dialog).queryByText(/^받는 금액/)).toBeNull();
+    expect(within(dialog).queryByText('체결 뒤 이 종목 비중')).toBeNull();
+    expect(
+      within(dialog).getByRole('button', { name: '1주 매도' }),
+    ).toBeEnabled();
   });
 });

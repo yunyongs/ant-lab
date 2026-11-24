@@ -10,6 +10,16 @@ export interface BuyReport {
   resultName?: string;
 }
 
+// A server weight such as "0.02574155" in the 2-place percent the sheet shows.
+function weightText(weight: string): string {
+  const [whole = '0', fraction = ''] = weight.split('.');
+  const units = BigInt(`${whole}${fraction.padEnd(8, '0').slice(0, 8)}`);
+  // 1e-8 units to 1e-2 percent places: x100, then drop 6 digits, rounding once.
+  const rounded = (units + 5_000n) / 10_000n;
+  const digits = rounded.toString().padStart(3, '0');
+  return `${digits.slice(0, -2)}.${digits.slice(-2)}%`;
+}
+
 // The order sheet is open: buy `shares` and close the result.
 export async function buyInSheet(
   page: Page,
@@ -23,9 +33,33 @@ export async function buyInSheet(
     await page.getByLabel('수량', { exact: true }).fill(String(shares));
   }
   if (report?.sheetAxe === true) {
+    // The preview and the ratio buttons are on screen before the scan.
+    await expect(sheet.getByText('체결 뒤 이 종목 비중')).toBeVisible();
+    await expect(
+      sheet.getByRole('group', { name: '최대 수량 대비' }),
+    ).toBeVisible();
     await checkpoint(report.run, 'order-sheet', { axe: 'order-sheet' });
   }
+  // The preview weight must equal the holdings answer after the fill.
+  const row = sheet.getByText('체결 뒤 이 종목 비중').locator('xpath=..');
+  await expect(row).toBeVisible();
+  const previewed = (await row.locator('dd').innerText()).trim();
+  const isHoldings = (url: string) => /\/seasons\/\d+\/holdings$/.test(url);
+  const filled = page.waitForResponse(
+    (r) => r.request().method() === 'POST' && /\/orders$/.test(r.url()),
+  );
+  const refreshed = page.waitForResponse(
+    (r) => r.request().method() === 'GET' && isHoldings(r.url()),
+  );
+  // The total on the button is hidden from the name, which stays "N주 매수".
   await sheet.getByRole('button', { name: `${String(shares)}주 매수` }).click();
+  const { assetId } = (await (await filled).json()) as { assetId: number };
+  const held = (await (await refreshed).json()) as {
+    holdings: { assetId: number; weight: string }[];
+  };
+  const after = held.holdings.find((h) => h.assetId === assetId);
+  expect(after).toBeDefined();
+  expect(previewed).toBe(weightText(after?.weight ?? ''));
   await expect(sheet.getByText('체결가')).toBeVisible();
   if (report?.resultName !== undefined) {
     await expect(sheet.getByText('수수료')).toBeVisible();
