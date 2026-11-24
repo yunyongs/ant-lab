@@ -89,6 +89,8 @@ services:
       ANTLAB_ENGINE_PATH_SOURCE: ${ANTLAB_ENGINE_PATH_SOURCE:-engine}
       # The engine reads the same variable; the api checks the two against each other before each engine path, projection or percentile call.
       ANTLAB_HISTORY_REPLAY_START: ${ANTLAB_HISTORY_REPLAY_START:-2007-01-01}
+      # Manager parts job (AG-06): off until an admin run with limit=1 has stored ranked=1 for a real season (docs/api/one-season.http block 17).
+      ANTLAB_PARTS_JOB_ENABLED: ${ANTLAB_PARTS_JOB_ENABLED:-false}
       # 로컬 trust 에서는 비밀번호가 필요 없다. 운영 비밀번호는 secrets(/run/secrets) 로 준다 — env_file 로 .env 전체를 넘기지 않는다.
     ports:
       - "127.0.0.1:${ANTLAB_API_PORT:-8080}:8080"
