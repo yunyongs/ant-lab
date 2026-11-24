@@ -191,7 +191,9 @@ public class ManagerPartsService {
      */
     private void discard(Connection connection) {
         try {
-            if (dataSource.isWrapperFor(HikariDataSource.class)) {
+            // Hikari ignores evictConnection for a handle it did not issue (a proxying DataSource), so check the class.
+            if (connection.getClass().getName().startsWith("com.zaxxer.hikari.")
+                    && dataSource.isWrapperFor(HikariDataSource.class)) {
                 dataSource.unwrap(HikariDataSource.class).evictConnection(connection);
                 return;
             }

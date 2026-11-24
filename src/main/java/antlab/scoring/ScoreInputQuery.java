@@ -16,6 +16,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class ScoreInputQuery {
 
+    // ManagerPartsQuery mirrors this finish order to hold back seasons that wait for an earlier score; change both together.
     private static final String UNSCORED = """
             SELECT s.id
             FROM season s
