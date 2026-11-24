@@ -65,3 +65,23 @@ describe('abandonText (A9)', () => {
     );
   });
 });
+
+describe('openButtonLabel', () => {
+  it('names the next turn of a season in progress', () => {
+    expect(openButtonLabel({ status: 'IN_PROGRESS', currentTurnNo: 0 })).toBe(
+      '팀 구성 이어하기',
+    );
+    expect(openButtonLabel({ status: 'IN_PROGRESS', currentTurnNo: 3 })).toBe(
+      '4턴으로 이어하기',
+    );
+  });
+
+  it('keeps the labels of the other statuses', () => {
+    expect(openButtonLabel({ status: 'FINISHED', currentTurnNo: 12 })).toBe(
+      '결과 보기',
+    );
+    expect(openButtonLabel({ status: 'ABANDONING', currentTurnNo: 2 })).toBe(
+      '시즌 보기',
+    );
+  });
+});
