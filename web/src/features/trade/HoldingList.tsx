@@ -40,6 +40,11 @@ export function HoldingList({
 }) {
   const advancing = useIsMutating({ mutationKey: advanceKey(seasonId) }) > 0;
   const [selected, setSelected] = useState<Selection | null>(null);
+  // undefined = nothing chosen yet, so the first holding is open; null = all
+  // closed. Exactly one row is open at a time.
+  const [openId, setOpenId] = useState<number | null | undefined>(undefined);
+  const openAssetId =
+    openId === undefined ? (holdings[0]?.assetId ?? null) : openId;
   const opener = useRef<HTMLButtonElement | null>(null);
   const heading = useRef<HTMLHeadingElement | null>(null);
   const nameOf = (assetId: number) => names.get(assetId) ?? UNKNOWN_ASSET_NAME;
@@ -63,6 +68,12 @@ export function HoldingList({
               key={holding.assetId}
               holding={holding}
               name={nameOf(holding.assetId)}
+              open={holding.assetId === openAssetId}
+              onToggle={() => {
+                setOpenId(
+                  holding.assetId === openAssetId ? null : holding.assetId,
+                );
+              }}
               disabled={advancing}
               canChangePosition={canChangePosition}
               onChangePosition={(picked, button) => {
@@ -117,7 +128,7 @@ export function HoldingList({
           cashBalance={cashBalance}
           onClose={() => {
             setSelected(null);
-            // A fully sold holding's card is gone: fall back to the heading.
+            // A fully sold holding's row is gone: fall back to the heading.
             if (opener.current?.isConnected) opener.current.focus();
             else heading.current?.focus();
           }}

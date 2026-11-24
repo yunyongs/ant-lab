@@ -36,18 +36,11 @@
   margin: 0;
   padding: 0;
   flex-direction: column;
-  gap: var(--space-3);
   list-style: none;
-}
-
-.cash {
-  display: flex;
-  flex-direction: column;
-}
-
-.cashValue {
-  font-size: var(--font-xl);
-  overflow-wrap: anywhere;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  overflow: hidden;
 }
 
 .rowBetween {
@@ -61,55 +54,180 @@
   overflow-wrap: anywhere;
 }
 
-.cardTitle {
+.summary {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
   gap: var(--space-2);
 }
 
-.pill {
-  padding: 0 var(--space-3);
-  border-radius: 999px;
-  background: var(--color-border);
-  color: var(--color-text);
+.figures {
+  display: grid;
+  margin: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.figure {
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+}
+
+.figure dt {
+  color: var(--color-text-muted);
   font-size: 0.875rem;
+}
+
+.figure dd {
+  margin: var(--space-1) 0 0;
+  font-size: var(--font-lg);
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.more summary {
+  display: flex;
+  min-height: 48px;
+  align-items: center;
+  padding: 0 var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.more[open] summary {
+  margin-bottom: var(--space-3);
+}
+
+.moreBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+}
+
+.row + .row {
+  border-top: 1px solid var(--color-border);
+}
+
+.rowToggle {
+  display: flex;
+  width: 100%;
+  min-height: 44px;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+/* The list clips its rounded corners, so the focus ring is drawn inside. */
+.rowToggle:focus-visible {
+  outline: 3px solid var(--color-primary);
+  outline-offset: -3px;
+}
+
+.rowLine {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-3);
+}
+
+.rowLine > :last-child {
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.rowLine + .rowLine {
+  font-size: 0.875rem;
+}
+
+.rowName {
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.rowPosition {
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+  font-weight: 400;
+}
+
+.rowPnl {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0 var(--space-2);
+}
+
+.weightTrack {
+  display: block;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--color-bg);
+  overflow: hidden;
+}
+
+.weightFill {
+  display: block;
+  height: 100%;
+  background: var(--color-primary);
+}
+
+.rowPanel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: 0 var(--space-4) var(--space-4);
 }
 
 .facts {
   display: grid;
   margin: 0;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding: var(--space-3);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--space-2);
+  border-radius: var(--radius);
+  background: var(--color-bg);
 }
 
 .facts dt {
   color: var(--color-text-muted);
-  font-size: 0.875rem;
+  font-size: 0.75rem;
 }
 
 .facts dd {
-  margin: 0;
+  margin: var(--space-1) 0 0;
+  font-size: 0.875rem;
   overflow-wrap: anywhere;
 }
 
-@media (min-width: 768px) {
-  .facts {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-}
-
-.buttons {
+.actions {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--space-2);
 }
 
+.actions:has(> :nth-child(2):last-child) {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .primary,
-.sell {
+.sell,
+.positionAction {
   display: inline-flex;
-  min-height: 48px;
+  min-height: 44px;
   align-items: center;
   justify-content: center;
   border-radius: var(--radius);
@@ -131,8 +249,17 @@
   color: var(--color-error);
 }
 
+.positionAction {
+  border: 1px solid var(--color-input-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 0.875rem;
+  font-weight: 400;
+}
+
 .primary:disabled,
-.sell:disabled {
+.sell:disabled,
+.positionAction:disabled {
   cursor: default;
   opacity: 0.6;
 }
