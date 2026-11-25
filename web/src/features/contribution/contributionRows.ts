@@ -1,4 +1,5 @@
 import { compareDecimal } from '../format/compareDecimal.ts';
+import { shareWidth } from '../format/derive.ts';
 import { positionLabel } from '../seasons/labels.ts';
 import type { PoolAsset } from '../team/queries.ts';
 import { UNKNOWN_ASSET_NAME } from '../trade/HoldingCard.tsx';
@@ -52,4 +53,19 @@ export function contributionLists(
     .sort((a, b) => compareDecimal(a.contribution, b.contribution))
     .slice(0, TOP_MOVERS);
   return { up, down, all, hasMore: all.length > up.length + down.length };
+}
+
+const withoutMinus = (value: string) => value.replace(/^-/, '');
+
+// The bar width of one row: its size against the largest size in the list.
+export function moverWidth(
+  row: ContributionRow,
+  all: readonly ContributionRow[],
+): string | null {
+  let largest = '0';
+  for (const other of all) {
+    const size = withoutMinus(other.contribution);
+    if (compareDecimal(size, largest) > 0) largest = size;
+  }
+  return shareWidth(withoutMinus(row.contribution), largest);
 }

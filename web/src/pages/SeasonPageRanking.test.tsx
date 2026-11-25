@@ -98,13 +98,13 @@ describe('ranking on the now page', () => {
     const world = serveTurnWorld({ current: 5 });
     world.ranking = (turnNo) => rankingFixture(turnNo);
     const { router } = renderRoute('/seasons/7/turns/3');
-    await screen.findByRole('tablist');
+    await screen.findByRole('tablist', { name: '순위 종류' });
     for (const path of ['/seasons/7', '/seasons/7/turns/3']) {
       await act(async () => {
         await router.navigate(path);
       });
       if (path === '/seasons/7') await expandRanking();
-      await screen.findByRole('tablist');
+      await screen.findByRole('tablist', { name: '순위 종류' });
     }
     expect(world.rankingGets.filter((n) => n === 3)).toHaveLength(1);
     expect(world.rankingGets.filter((n) => n === 5)).toHaveLength(1);
@@ -117,7 +117,7 @@ describe('ranking on the now page', () => {
     renderRoute('/seasons/7');
     const user = userEvent.setup();
     await expandRanking();
-    await screen.findByRole('tablist');
+    await screen.findByRole('tablist', { name: '순위 종류' });
     await user.click(screen.getByRole('button', { name: '6턴으로 넘기기' }));
     await screen.findByRole('heading', { name: '6턴 결과' });
     await waitFor(() => {

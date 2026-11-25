@@ -1,10 +1,13 @@
 import { useId, useState } from 'react';
 import { Change } from '../format/Change.tsx';
 import { formatWon } from '../format/money.ts';
-import { SectionHeading, type Collapse } from '../layout/SectionHeading.tsx';
 import { QueryError } from '../seasons/QueryError.tsx';
 import { usePool } from '../team/queries.ts';
-import { contributionLists, type ContributionRow } from './contributionRows.ts';
+import {
+  contributionLists,
+  moverWidth,
+  type ContributionRow,
+} from './contributionRows.ts';
 import {
   useTurnContribution,
   type PositionContribution,
@@ -12,28 +15,20 @@ import {
 } from './queries.ts';
 import styles from './Contribution.module.css';
 
-// Where one played turn's change came from, and the season report's benchmark
-// up to that turn. The caller passes a turn that is at most the season's
-// current turn; turn 0 and anything later are not requested. A failure stays
-// inside this section.
-export function ContributionSection({
+// Where one played turn's change came from. The caller passes a turn that is
+// at most the season's current turn; turn 0 and anything later are not
+// requested. A failure stays inside this panel.
+export function ContributionPanel({
   seasonId,
   turnNo,
   currentTurnNo,
-  title,
-  collapse,
 }: {
   seasonId: number;
   turnNo: number;
   currentTurnNo: number;
-  title: string;
-  collapse?: Collapse;
 }) {
-  const titleId = useId();
-  const panelId = useId();
-  const [open, setOpen] = useState(collapse?.defaultOpen ?? true);
   const inRange = turnNo >= 1 && turnNo <= currentTurnNo;
-  const contribution = useTurnContribution(seasonId, turnNo, inRange && open);
+  const contribution = useTurnContribution(seasonId, turnNo, inRange);
   const pool = usePool();
   if (!inRange) return null;
   const error = contribution.isError
@@ -42,44 +37,28 @@ export function ContributionSection({
       ? pool.error
       : null;
   return (
-    <section aria-labelledby={titleId} className={styles.section}>
-      <SectionHeading
-        id={titleId}
-        className={styles.title}
-        collapsible={collapse !== undefined}
-        open={open}
-        panelId={panelId}
-        onToggle={() => {
-          setOpen((value) => !value);
-        }}
-      >
-        {title}
-      </SectionHeading>
-      {open && (
-        <div id={panelId} className={styles.panel}>
-          {(contribution.isPending || pool.isPending) && error === null && (
-            <p role="status" className={styles.note}>
-              기여를 불러오는 중입니다…
-            </p>
-          )}
-          {error !== null && (
-            <QueryError
-              error={error}
-              onRetry={() => {
-                if (contribution.isError) void contribution.refetch();
-                if (pool.isError) void pool.refetch();
-              }}
-            />
-          )}
-          {contribution.data !== undefined && pool.data !== undefined && (
-            <ContributionBody
-              data={contribution.data}
-              lists={contributionLists(contribution.data.holdings, pool.data)}
-            />
-          )}
-        </div>
+    <div className={styles.panel}>
+      {(contribution.isPending || pool.isPending) && error === null && (
+        <p role="status" className={styles.note}>
+          기여를 불러오는 중입니다…
+        </p>
       )}
-    </section>
+      {error !== null && (
+        <QueryError
+          error={error}
+          onRetry={() => {
+            if (contribution.isError) void contribution.refetch();
+            if (pool.isError) void pool.refetch();
+          }}
+        />
+      )}
+      {contribution.data !== undefined && pool.data !== undefined && (
+        <ContributionBody
+          data={contribution.data}
+          lists={contributionLists(contribution.data.holdings, pool.data)}
+        />
+      )}
+    </div>
   );
 }
 
@@ -96,6 +75,12 @@ function ContributionBody({
     <>
       <dl className={styles.rows}>
         <div className={styles.row}>
+          <dt>이 턴까지 팀 누적 수익률</dt>
+          <dd>
+            <Change value={data.totalReturn} kind="percent" />
+          </dd>
+        </div>
+        <div className={styles.row}>
           <dt>가격 변화 기여 합</dt>
           <dd>
             <Change value={data.holdingsContribution} kind="won" />
@@ -111,38 +96,6 @@ function ContributionBody({
         비용·세금)
       </p>
 
-      <div className={styles.group}>
-        <h4 className={styles.subtitle}>기준 대비</h4>
-        <dl className={styles.rows}>
-          <div className={styles.row}>
-            <dt>팀 누적 수익률</dt>
-            <dd>
-              <Change value={data.totalReturn} kind="percent" />
-            </dd>
-          </div>
-          <div className={styles.row}>
-            <dt>기준선 평가액</dt>
-            <dd>{formatWon(data.benchmark.value)}</dd>
-          </div>
-          <div className={styles.row}>
-            <dt>기준선 누적 수익률</dt>
-            <dd>
-              <Change value={data.benchmark.totalReturn} kind="percent" />
-            </dd>
-          </div>
-          <div className={styles.row}>
-            <dt>초과 수익률</dt>
-            <dd>
-              <Change value={data.benchmark.excessReturn} kind="percent" />
-            </dd>
-          </div>
-        </dl>
-        <p className={styles.hint}>
-          기준선은 성적표와 같은 시장 지수 기준선입니다. 초과 수익률 = (팀
-          평가액 − 기준선 평가액) ÷ 초기 자금
-        </p>
-      </div>
-
       {data.holdings.length === 0 ? (
         <p className={styles.note}>
           이 턴으로 넘어오는 동안 보유한 종목이 없습니다.
@@ -152,11 +105,13 @@ function ContributionBody({
           <MoverGroup
             title="많이 더한 종목"
             rows={lists.up}
+            all={lists.all}
             empty="값을 더한 종목이 없습니다."
           />
           <MoverGroup
             title="많이 뺀 종목"
             rows={lists.down}
+            all={lists.all}
             empty="값을 뺀 종목이 없습니다."
           />
           {lists.hasMore && (
@@ -177,7 +132,7 @@ function ContributionBody({
               {showAll && (
                 <div id={allId} className={styles.group}>
                   <h4 className={styles.subtitle}>전체 종목 기여</h4>
-                  <HoldingRows rows={lists.all} />
+                  <HoldingRows rows={lists.all} all={lists.all} />
                 </div>
               )}
             </div>
@@ -187,7 +142,7 @@ function ContributionBody({
 
       <div className={styles.group}>
         <h4 className={styles.subtitle}>포지션별 기여</h4>
-        <ul className={styles.list}>
+        <ul className={styles.grid}>
           <PositionRow
             label="골키퍼 (현금 포함)"
             row={data.positions.goalkeeper}
@@ -208,10 +163,12 @@ function ContributionBody({
 function MoverGroup({
   title,
   rows,
+  all,
   empty,
 }: {
   title: string;
   rows: ContributionRow[];
+  all: ContributionRow[];
   empty: string;
 }) {
   return (
@@ -220,13 +177,19 @@ function MoverGroup({
       {rows.length === 0 ? (
         <p className={styles.note}>{empty}</p>
       ) : (
-        <HoldingRows rows={rows} />
+        <HoldingRows rows={rows} all={all} />
       )}
     </div>
   );
 }
 
-function HoldingRows({ rows }: { rows: ContributionRow[] }) {
+function HoldingRows({
+  rows,
+  all,
+}: {
+  rows: ContributionRow[];
+  all: ContributionRow[];
+}) {
   return (
     <ul className={styles.list}>
       {rows.map((row) => (
@@ -239,9 +202,25 @@ function HoldingRows({ rows }: { rows: ContributionRow[] }) {
             {`${row.position} · ${String(row.quantity)}주 · 가격 `}
             <Change value={row.priceReturn} kind="percent" />
           </span>
+          <BarOf row={row} all={all} />
         </li>
       ))}
     </ul>
+  );
+}
+
+// A bar as long as this holding's share of the largest move: geometry only.
+function BarOf({ row, all }: { row: ContributionRow; all: ContributionRow[] }) {
+  const width = moverWidth(row, all);
+  if (width === null) return null;
+  const down = row.contribution.startsWith('-');
+  return (
+    <span className={styles.bar} aria-hidden="true">
+      <span
+        className={down ? styles.barDown : styles.barUp}
+        style={{ width }}
+      />
+    </span>
   );
 }
 

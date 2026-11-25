@@ -1,8 +1,7 @@
-import { lazy, Suspense, useId, useMemo, useState } from 'react';
+import { lazy, Suspense, useMemo } from 'react';
 import { valueChartData } from '../chart/adapter.ts';
 import { ChartErrorBoundary } from '../chart/ChartErrorBoundary.tsx';
 import { ratioToPercentTrimmed } from '../format/ratio.ts';
-import { SectionHeading, type Collapse } from '../layout/SectionHeading.tsx';
 import { QueryError } from '../seasons/QueryError.tsx';
 import type { Season } from '../seasons/labels.ts';
 import { useTurnSummaries } from './queries.ts';
@@ -16,8 +15,8 @@ import {
   LEGEND_LINE,
   legendGuide,
   CHART_FAILED,
+  CHART_UNDRAWABLE,
   VALUE_LOADING,
-  VALUE_TITLE,
   VALUE_TOO_FEW,
 } from './valueLineMessages.ts';
 import styles from './ValueLine.module.css';
@@ -25,20 +24,50 @@ import styles from './ValueLine.module.css';
 // The chart library is fetched only when a chart is drawn.
 const ValueLineChart = lazy(() => import('../chart/ValueLineChart.tsx'));
 
-// Total value per turn, 0 up to the current turn: a line chart with the risk
-// limit as a guide, and the same numbers as a table below it.
-export function ValueSection({
+// Total value per turn, 0 up to the turn shown. Past turns never show later
+// ones: the list is cut at `throughTurn`.
+function useValueItems(season: Season, throughTurn: number) {
+  const list = useTurnSummaries(season.id, season.currentTurnNo, true);
+  const items = useMemo(
+    () => list.data?.filter((item) => item.turnNo <= throughTurn),
+    [list.data, throughTurn],
+  );
+  return { list, items };
+}
+
+function LoadState({
+  list,
+}: {
+  list: ReturnType<typeof useValueItems>['list'];
+}) {
+  return (
+    <>
+      {list.isPending && (
+        <p role="status" className={styles.note}>
+          {VALUE_LOADING}
+        </p>
+      )}
+      {list.isError && (
+        <QueryError
+          error={list.error}
+          onRetry={() => {
+            void list.refetch();
+          }}
+        />
+      )}
+    </>
+  );
+}
+
+// The line chart with the risk limit as a guide.
+export function ValueChartPanel({
   season,
-  collapse,
+  throughTurn,
 }: {
   season: Season;
-  collapse?: Collapse;
+  throughTurn: number;
 }) {
-  const titleId = useId();
-  const panelId = useId();
-  const [open, setOpen] = useState(collapse?.defaultOpen ?? true);
-  const list = useTurnSummaries(season.id, season.currentTurnNo, open);
-  const items = list.data;
+  const { list, items } = useValueItems(season, throughTurn);
   const chart = useMemo(
     () =>
       items === undefined ? null : valueChartData(items, season.riskLimit),
@@ -47,75 +76,66 @@ export function ValueSection({
   const limit = ratioToPercentTrimmed(season.riskLimit);
   const lastTurn = items?.[items.length - 1]?.turnNo ?? 0;
   return (
-    <section aria-labelledby={titleId} className={styles.section}>
-      <SectionHeading
-        id={titleId}
-        className={styles.title}
-        collapsible={collapse !== undefined}
-        open={open}
-        panelId={panelId}
-        onToggle={() => {
-          setOpen((value) => !value);
-        }}
-      >
-        {VALUE_TITLE}
-      </SectionHeading>
-      {open && (
-        <div id={panelId} className={styles.panel}>
-          {list.isPending && (
-            <p role="status" className={styles.note}>
-              {VALUE_LOADING}
-            </p>
-          )}
-          {list.isError && (
-            <QueryError
-              error={list.error}
-              onRetry={() => {
-                void list.refetch();
-              }}
-            />
-          )}
-          {items !== undefined && items.length < 2 && (
-            <p className={styles.note}>{VALUE_TOO_FEW}</p>
-          )}
-          {chart !== null && (
-            <figure className={styles.figure}>
-              <ChartErrorBoundary
-                key={lastTurn}
-                fallback={
-                  <p role="status" className={styles.note}>
-                    {CHART_FAILED}
-                  </p>
-                }
-              >
-                <Suspense fallback={<div className={styles.placeholder} />}>
-                  <ValueLineChart
-                    data={chart}
-                    guideTitle={guideTitle(limit)}
-                    label={chartLabel(lastTurn)}
-                  />
-                </Suspense>
-              </ChartErrorBoundary>
-              <figcaption className={styles.legend}>
-                <ul>
-                  <li>{LEGEND_LINE}</li>
-                  {chart.guide !== null && <li>{legendGuide(limit)}</li>}
-                  <li>{LEGEND_AXIS}</li>
-                </ul>
-                <p className={styles.attribution}>
-                  {ATTRIBUTION_TEXT}{' '}
-                  <a href={ATTRIBUTION_URL} rel="noopener noreferrer">
-                    {ATTRIBUTION_URL}
-                  </a>
-                </p>
-              </figcaption>
-            </figure>
-          )}
-          {items !== undefined && items.length > 0 && (
-            <ValueTable items={items} />
-          )}
-        </div>
+    <div className={styles.panel}>
+      <LoadState list={list} />
+      {items !== undefined && items.length < 2 && (
+        <p className={styles.note}>{VALUE_TOO_FEW}</p>
       )}
-    </section>
+      {items !== undefined && items.length >= 2 && chart === null && (
+        <p role="status" className={styles.note}>
+          {CHART_UNDRAWABLE}
+        </p>
+      )}
+      {chart !== null && (
+        <figure className={styles.figure}>
+          <ChartErrorBoundary
+            key={lastTurn}
+            fallback={
+              <p role="status" className={styles.note}>
+                {CHART_FAILED}
+              </p>
+            }
+          >
+            <Suspense fallback={<div className={styles.placeholder} />}>
+              <ValueLineChart
+                data={chart}
+                guideTitle={guideTitle(limit)}
+                label={chartLabel(lastTurn)}
+              />
+            </Suspense>
+          </ChartErrorBoundary>
+          <figcaption className={styles.legend}>
+            <ul>
+              <li>{LEGEND_LINE}</li>
+              {chart.guide !== null && <li>{legendGuide(limit)}</li>}
+              <li>{LEGEND_AXIS}</li>
+            </ul>
+            <p className={styles.attribution}>
+              {ATTRIBUTION_TEXT}{' '}
+              <a href={ATTRIBUTION_URL} rel="noopener noreferrer">
+                {ATTRIBUTION_URL}
+              </a>
+            </p>
+          </figcaption>
+        </figure>
+      )}
+    </div>
+  );
+}
+
+// The same numbers as text, one row per turn.
+export function ValueTablePanel({
+  season,
+  throughTurn,
+}: {
+  season: Season;
+  throughTurn: number;
+}) {
+  const { list, items } = useValueItems(season, throughTurn);
+  return (
+    <div className={styles.tableCard}>
+      <LoadState list={list} />
+      {items !== undefined && items.length > 0 && <ValueTable items={items} />}
+    </div>
   );
 }

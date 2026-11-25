@@ -1,13 +1,16 @@
-export const VALUE_TITLE = '총 평가액 흐름';
 export const VALUE_LOADING = '총 평가액 흐름을 불러오는 중입니다…';
 export const VALUE_TOO_FEW =
-  '턴을 하나 넘기면 총 평가액 그래프가 그려집니다. 지금은 아래 표만 봐 주세요.';
+  '턴을 하나 넘기면 총 평가액 그래프가 그려집니다. 지금은 표 탭만 봐 주세요.';
 export const TABLE_CAPTION = '턴별 총 평가액 (그래프와 같은 숫자)';
+export const DRAWDOWN_ALL_ZERO = '누적 낙폭은 모든 턴 0.00%';
 export const CHART_FAILED =
-  '그래프를 불러오지 못했습니다. 같은 숫자는 아래 표에 있습니다.';
+  '그래프를 불러오지 못했습니다. 같은 숫자는 표 탭에 있습니다.';
+
+export const CHART_UNDRAWABLE =
+  '그래프로 그릴 수 없습니다 — 표 탭에서 확인하세요.';
 
 export const chartLabel = (lastTurn: number) =>
-  `0턴부터 ${String(lastTurn)}턴까지 총 평가액 선 그래프. 같은 숫자는 아래 표에 있습니다.`;
+  `0턴부터 ${String(lastTurn)}턴까지 총 평가액 선 그래프. 같은 숫자는 표 탭에 있습니다.`;
 
 export const guideTitle = (limit: string) => `위험 선언 ${limit}`;
 
