@@ -260,6 +260,11 @@ class LeastPrivilegeFlowTest {
         Reply stored = admin.send(HttpMethod.POST, run, null, null, "application/json");
         assertThat(stored.status()).as("parts run " + stored.body()).isEqualTo(200);
         assertThat(stored.json().get("ranked").asInt()).as(stored.body()).isOne();
+
+        // the leaderboard reads every table it joins as the app role, in one REPEATABLE_READ read-only snapshot
+        Reply board = admin.send(HttpMethod.GET, "/api/v1/leaderboards/manager", null, null, "application/json");
+        assertThat(board.status()).as("leaderboard " + board.body()).isEqualTo(200);
+        assertThat(board.json().get("me").get("counted").asInt()).as(board.body()).isOne();
     }
 
     private void runTheAgent() {

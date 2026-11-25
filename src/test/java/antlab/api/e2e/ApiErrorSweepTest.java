@@ -197,6 +197,9 @@ class ApiErrorSweepTest {
         if (op.template.equals("/api/v1/seasons")) {
             probes.add(new Probe("unknown member token", 401, ErrorCode.UNAUTHENTICATED));
         }
+        if (op.template.equals("/api/v1/leaderboards/manager")) {
+            probes.add(new Probe("unknown query kind", 400, ErrorCode.INVALID_ARGUMENT));
+        }
         return probes;
     }
 
@@ -234,6 +237,8 @@ class ApiErrorSweepTest {
                 return http.send(method, op.path("1", "abc"), null, null, json);
             case "non-numeric query turnNo":
                 return http.send(method, op.path("1") + "?turnNo=abc", null, null, json);
+            case "unknown query kind":
+                return http.send(method, op.path("1") + "?kind=ROBOT", null, null, json);
             case "unknown season":
                 return http.send(method, op.path(UNKNOWN_SEASON), op.hasBody() ? op.validBody() : null,
                         op.hasBody() ? json : null, json);
@@ -334,7 +339,7 @@ class ApiErrorSweepTest {
                 Arrays.asList("wrong method", "Accept: application/xml", "text/plain body", "malformed JSON",
                         "empty object body", "non-numeric season id", "non-numeric turn number", "non-numeric query turnNo",
                         "unknown season", "unknown member token", "unknown credentials", "no refresh cookie", "no bearer token",
-                        "forged bearer token", "user token on an admin path"));
+                        "forged bearer token", "user token on an admin path", "unknown query kind"));
         return tests.stream();
     }
 }

@@ -404,3 +404,8 @@ Content-Type: application/json
 # 선택, 관리자 전용: 매니저 부품 대기열을 지금 실행한다(AG-06). 예약 잡이 1분에 끝난 시즌 하나씩 같은 일을 하지만 기본은 꺼져 있다(ANTLAB_PARTS_JOB_ENABLED=false). 배포에서 이 요청이 실제 시즌의 집계 행을 저장할 때까지 그렇다. 그러니 먼저 limit=1로 실행하고 답에 ranked=1이 보이면 잡을 켠다. 이 요청은 소급 채우기이기도 하다. 필요하면 시즌을 먼저 채점한 뒤 엔진에 묻으므로 엔진이 떠 있어야 하고, status가 ENGINE_UNAVAILABLE이면 엔진이 답하지 않은 것이다(저장 없음, 나중에 다시 실행). 답은 건수뿐이다. 저장된 행은 바꾸지 않으며 앱 역할은 지울 수도 없다: 잘못 저장된 행(예: Java 쪽 결함으로 생긴 REFERENCE_MISMATCH)은 소유자 역할이 SQL로 지우거나 새 기준 판으로 고치고, 앱으로 고치지 않는다.
 POST {{base}}/api/v1/admin/manager-parts/run?limit=1
 Authorization: Bearer {{token}}
+
+### 18. Optional: read the manager leaderboard (AG-06). Members are ranked by L once they have 3 (human) or 5 (agent) counted seasons; `me` shows your own progress and seasons whatever `kind` is. Change `kind` to ALL, HUMAN or AGENT; another value answers 400. Rows stay empty until the parts queue (block 17) has stored rows. A league seat waits in `awaitingLeagueClose` until the league owner closes the league, and one unsettled seat blocks the close.
+# 선택: 감독 리더보드를 본다(AG-06). 집계 시즌이 3개(사람) 또는 5개(에이전트)가 되면 L 로 순위에 오르고, `me` 는 `kind` 와 무관하게 내 진행과 시즌을 보인다. `kind` 는 ALL·HUMAN·AGENT 로 바꾼다. 다른 값이면 400이다. 부품 대기열(17번 블록)이 행을 저장하기 전에는 rows 가 비어 있다. 리그 자리는 리그 소유자가 리그를 닫을 때까지 `awaitingLeagueClose` 에 머물고, 정산되지 않은 자리가 하나라도 있으면 닫을 수 없다.
+GET {{base}}/api/v1/leaderboards/manager?kind=ALL
+Authorization: Bearer {{token}}
