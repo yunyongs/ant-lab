@@ -1,12 +1,16 @@
 import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { http, HttpResponse } from 'msw';
 import { describe, expect, it } from 'vitest';
 import { expectNoDatePattern } from '../test/expectNoDatePattern.ts';
+import { holdingsWithMidfielder } from '../test/fixtures/holdings.ts';
+import { pricesFixture } from '../test/fixtures/prices.ts';
 import { renderRoute } from '../test/renderWithProviders.tsx';
 import { serveAbandonWorld, type AbandonWorld } from '../test/serveAbandon.ts';
+import { server } from '../test/server.ts';
 import { gate } from '../test/serveTurns.ts';
 
-const OPEN = '시즌 포기';
+const OPEN = '시즌 포기…';
 const KEEP = '포기하지 않기';
 const CONFIRM = '포기하고 끝까지 진행';
 const RESUME = '이어서 정리';
@@ -14,11 +18,27 @@ const RESUME = '이어서 정리';
 async function openSeason(start: Parameters<typeof serveAbandonWorld>[0] = {}) {
   const world = serveAbandonWorld(start);
   const view = renderRoute('/seasons/7');
-  await screen.findByRole('region', { name: '시즌 요약' });
+  // The header line shows for every status once the season is read.
+  await within(screen.getByRole('banner')).findByText(/\d+ ?\/ ?\d+턴/);
   return { world, view };
 }
 
-async function openDialog(user: ReturnType<typeof userEvent.setup>) {
+type User = ReturnType<typeof userEvent.setup>;
+
+async function menuButton(user: User) {
+  const button = screen.getByRole('button', { name: '메뉴' });
+  if (button.getAttribute('aria-expanded') !== 'true') await user.click(button);
+  return button;
+}
+
+// The abandon item of the open header menu; null when it is not offered.
+async function abandonItem(user: User) {
+  await menuButton(user);
+  return screen.queryByRole('button', { name: OPEN });
+}
+
+async function openDialog(user: User) {
+  await menuButton(user);
   await user.click(await screen.findByRole('button', { name: OPEN }));
   return screen.findByRole('dialog', { name: '시즌을 포기할까요?' });
 }
@@ -33,7 +53,7 @@ describe('abandon button (A1)', () => {
     'is offered for an in-progress season at turn %i',
     async (turn) => {
       await openSeason({ current: turn });
-      expect(screen.getByRole('button', { name: OPEN })).toBeEnabled();
+      expect(await abandonItem(userEvent.setup())).toBeEnabled();
       expect(screen.queryByRole('button', { name: RESUME })).toBeNull();
       // Nothing is asked of the server by merely showing it.
     },
@@ -43,7 +63,7 @@ describe('abandon button (A1)', () => {
     'is not offered for a %s season',
     async (status) => {
       await openSeason({ current: status === 'FINISHED' ? 12 : 5, status });
-      expect(screen.queryByRole('button', { name: OPEN })).toBeNull();
+      expect(await abandonItem(userEvent.setup())).toBeNull();
       expect(screen.queryByRole('button', { name: RESUME })).toBeNull();
     },
   );
@@ -54,6 +74,7 @@ describe('abandon button (A1)', () => {
     world.advanceGate = hold.promise;
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: '다음 턴 (6턴으로)' }));
+    await menuButton(user);
     await waitFor(() => {
       expect(screen.getByRole('button', { name: OPEN })).toBeDisabled();
     });
@@ -63,14 +84,26 @@ describe('abandon button (A1)', () => {
     });
   });
 
-  it('sits after the advance button, at the bottom of the page', async () => {
+  it('has no abandon button left on the page; the item sits in the menu', async () => {
     await openSeason({ current: 5 });
-    const advance = screen.getByRole('button', { name: /^다음 턴/ });
-    const abandon = screen.getByRole('button', { name: OPEN });
-    expect(
-      advance.compareDocumentPosition(abandon) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
+    expect(screen.queryByRole('button', { name: '시즌 포기' })).toBeNull();
+    expect(screen.queryByRole('region', { name: '시즌 포기' })).toBeNull();
+    const user = userEvent.setup();
+    await menuButton(user);
+    const menu = screen.getByRole('button', { name: OPEN }).parentElement;
+    expect(menu).toContainElement(
+      screen.getByRole('button', { name: '로그아웃' }),
+    );
+  });
+
+  it('closes the menu when the item is pressed', async () => {
+    await openSeason({ current: 5 });
+    const user = userEvent.setup();
+    await openDialog(user);
+    expect(screen.getByRole('button', { name: '메뉴' })).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    );
   });
 });
 
@@ -101,7 +134,7 @@ describe('confirm step (A2, A12)', () => {
     const dialog = await openDialog(user);
     await user.click(within(dialog).getByRole('button', { name: KEEP }));
     expect(screen.queryByRole('dialog')).toBeNull();
-    expect(screen.getByRole('button', { name: OPEN })).toHaveFocus();
+    expect(screen.getByRole('button', { name: '메뉴' })).toHaveFocus();
     expect(bodies(world)).toEqual([]);
   });
 
@@ -111,7 +144,7 @@ describe('confirm step (A2, A12)', () => {
     await openDialog(user);
     await user.keyboard('{Escape}');
     expect(screen.queryByRole('dialog')).toBeNull();
-    expect(screen.getByRole('button', { name: OPEN })).toHaveFocus();
+    expect(screen.getByRole('button', { name: '메뉴' })).toHaveFocus();
     expect(bodies(world)).toEqual([]);
   });
 
@@ -141,12 +174,12 @@ describe('confirm and finish (A3)', () => {
     ).toBe('number');
     expect(world.seasonGets).toBe(2);
     expect(screen.queryByRole('dialog')).toBeNull();
-    expect(screen.queryByRole('button', { name: OPEN })).toBeNull();
     expect(screen.getAllByText('5턴에서 포기')).not.toHaveLength(0);
     // The last turn is read once the season is finished; focus follows it.
     await waitFor(() => {
       expect(heading).toHaveFocus();
     });
+    expect(await abandonItem(userEvent.setup())).toBeNull();
     expect(screen.getByText('시즌이 끝났습니다')).toBeInTheDocument();
     expectNoDatePattern(view.container);
   });
@@ -241,7 +274,7 @@ describe('continuation (A4, A5)', () => {
     expect(
       screen.getByText('아직 7턴이 남았습니다. 이어서 정리해 주세요.'),
     ).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: OPEN })).toBeNull();
+    expect(await abandonItem(userEvent.setup())).toBeNull();
     expect(resume).toBeEnabled();
     // Nothing more is sent by itself.
     await new Promise((resolve) => setTimeout(resolve, 50));
@@ -338,9 +371,9 @@ describe('failures', () => {
       expect(world.seasonGets).toBe(2);
     });
     expect(bodies(world)).toHaveLength(1);
-    // Focus is not lost to the document: it is back on the button.
+    // Focus is not lost to the document: it is back on the menu button.
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: OPEN })).toHaveFocus();
+      expect(screen.getByRole('button', { name: '메뉴' })).toHaveFocus();
     });
     // A new request clears the old page notice before it is answered.
     const hold = gate();
@@ -397,7 +430,7 @@ describe('failures', () => {
     expect(screen.getByRole('alert')).toHaveTextContent(
       '관리자 확인이 필요합니다',
     );
-    expect(screen.queryByRole('button', { name: OPEN })).toBeNull();
+    expect(await abandonItem(userEvent.setup())).toBeNull();
     expect(screen.queryByRole('button', { name: RESUME })).toBeNull();
   });
 
@@ -428,7 +461,7 @@ describe('resume of a season found abandoning (A8)', () => {
       abandonedTurnNo: 5,
     });
     expect(screen.getByText('시즌을 정리하는 중입니다.')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: OPEN })).toBeNull();
+    expect(await abandonItem(userEvent.setup())).toBeNull();
     expect(screen.getAllByText('5턴에서 포기')).not.toHaveLength(0);
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: RESUME }));
@@ -454,5 +487,64 @@ describe('resume of a season found abandoning (A8)', () => {
     expect(screen.getByRole('button', { name: '정리하는 중…' })).toBeDisabled();
     hold.release();
     await screen.findByText('시즌이 끝났습니다');
+  });
+});
+
+describe('entry from the trade page and by keyboard (C3)', () => {
+  function serveTradeData() {
+    server.use(
+      http.get('*/api/v1/seasons/7/holdings', () =>
+        HttpResponse.json(holdingsWithMidfielder),
+      ),
+      http.get('*/api/v1/seasons/7/prices', () =>
+        HttpResponse.json(pricesFixture(1)),
+      ),
+    );
+  }
+
+  it('cancels without a request, returns focus to ☰ and stays closed on back and forward', async () => {
+    const world = serveAbandonWorld({ current: 5 });
+    serveTradeData();
+    const { router } = renderRoute('/seasons/7/trade');
+    await within(screen.getByRole('banner')).findByText(/\d+ ?\/ ?\d+턴/);
+    const user = userEvent.setup();
+    const dialog = await openDialog(user);
+    expect(router.state.location.pathname).toBe('/seasons/7');
+    await user.click(within(dialog).getByRole('button', { name: KEEP }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(screen.getByRole('button', { name: '메뉴' })).toHaveFocus();
+    expect(bodies(world)).toEqual([]);
+    await act(async () => {
+      await router.navigate(-1);
+    });
+    expect(router.state.location.pathname).toBe('/seasons/7/trade');
+    await act(async () => {
+      await router.navigate(1);
+    });
+    await screen.findByRole('heading', { name: '5턴 결과' });
+    expect(router.state.location.pathname).toBe('/seasons/7');
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(bodies(world)).toEqual([]);
+  });
+
+  it('opens by Tab and Enter, and the safe button takes the first focus', async () => {
+    const world = serveAbandonWorld({ current: 5 });
+    serveTradeData();
+    renderRoute('/seasons/7/trade');
+    await within(screen.getByRole('banner')).findByText(/\d+ ?\/ ?\d+턴/);
+    const user = userEvent.setup();
+    screen.getByRole('button', { name: '메뉴' }).focus();
+    await user.keyboard('{Enter}');
+    const item = await screen.findByRole('button', { name: OPEN });
+    for (let step = 0; step < 6 && document.activeElement !== item; step += 1) {
+      await user.tab();
+    }
+    expect(item).toHaveFocus();
+    await user.keyboard('{Enter}');
+    const dialog = await screen.findByRole('dialog', {
+      name: '시즌을 포기할까요?',
+    });
+    expect(within(dialog).getByRole('button', { name: KEEP })).toHaveFocus();
+    expect(bodies(world)).toEqual([]);
   });
 });

@@ -8,19 +8,15 @@ import { serveSeason } from '../test/serve.ts';
 import { server } from '../test/server.ts';
 
 describe('SeasonPage', () => {
-  it('shows the summary and the team build at turn 0', async () => {
+  it('shows the header line instead of a summary card at turn 0', async () => {
     serveSeason({});
     renderRoute('/seasons/7');
-    const summary = await screen.findByRole('region', { name: '시즌 요약' });
-    expect(within(summary).getByText('진행 중 · 팀 구성')).toBeInTheDocument();
-    expect(within(summary).getByText('0 / 12턴')).toBeInTheDocument();
-    expect(within(summary).getByText('-20.00%')).toBeInTheDocument();
-    expect(within(summary).getByText('100,000,000원')).toBeInTheDocument();
     expect(
-      within(summary).getByText(
-        '골키퍼 40 · 수비수 30 · 미드필더 20 · 공격수 10',
+      await within(screen.getByRole('banner')).findByText(
+        '0/12턴 · 포메이션 40·30·20·10',
       ),
     ).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: '시즌 요약' })).toBeNull();
     expect(
       await screen.findByRole('heading', { name: '0턴 팀 구성' }),
     ).toBeInTheDocument();
@@ -39,6 +35,9 @@ describe('SeasonPage', () => {
     serveSeason({ status: 'FINISHED', currentTurnNo: 12 });
     renderRoute('/seasons/7');
     expect(await screen.findByText('시즌이 끝났습니다')).toBeInTheDocument();
+    expect(
+      screen.getByRole('region', { name: '시즌 요약' }),
+    ).toBeInTheDocument();
   });
 
   it('shows a summary only for an abandoning season', async () => {
