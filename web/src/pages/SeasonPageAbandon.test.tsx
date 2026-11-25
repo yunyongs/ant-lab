@@ -73,7 +73,7 @@ describe('abandon button (A1)', () => {
     const hold = gate();
     world.advanceGate = hold.promise;
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: '다음 턴 (6턴으로)' }));
+    await user.click(screen.getByRole('button', { name: '6턴으로 넘기기' }));
     await menuButton(user);
     await waitFor(() => {
       expect(screen.getByRole('button', { name: OPEN })).toBeDisabled();

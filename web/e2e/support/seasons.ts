@@ -116,6 +116,6 @@ export async function checkSeasonProgress(
     .getByRole('link', { name: `${String(turn + 1)}턴으로 이어하기` })
     .click();
   await expect(
-    page.getByRole('button', { name: `다음 턴 (${String(turn + 1)}턴으로)` }),
+    page.getByRole('button', { name: `${String(turn + 1)}턴으로 넘기기` }),
   ).toBeVisible();
 }

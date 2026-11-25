@@ -1,5 +1,6 @@
 import { expect, type Page } from '@playwright/test';
 import { buyInSheet, type BuyReport } from './order.ts';
+import { mainNav } from './shell.ts';
 import { checkpoint, expectNoOverflow, type Run } from './steps.ts';
 
 const poolRegion = (page: Page) =>
@@ -30,6 +31,7 @@ export async function browsePool(page: Page, run: Run): Promise<void> {
   await page.getByRole('button', { name: '조건 지우기' }).click();
   await expect(page).not.toHaveURL(/[?&](market|sort)=/);
   await expectNoOverflow(page, 'pool-cleared');
+  await expectBarsClear(page);
   await expect(poolRegion(page).getByRole('status')).toHaveText(/^\d+개$/);
   await openFirstDetail(page);
   await checkpoint(run, 'pool-row-detail', { axe: 'pool-row-detail' });
@@ -96,7 +98,82 @@ export async function buyFromPool(
 
 export async function expectTeamBuilt(page: Page, run: Run): Promise<void> {
   await expect(page.getByText(/^보유 \d+주 · /)).toHaveCount(2);
+  await expectBarsClear(page);
+  await expectBarSegmentsFit(page);
   await checkpoint(run, 'team-built');
+}
+
+const rangeOf = (box: { y: number; height: number } | null) => {
+  expect(box).not.toBeNull();
+  return { top: box!.y, bottom: box!.y + box!.height };
+};
+
+// At the end of the page the last 사기 button is clear of the sticky start
+// bar and the bottom menu, and the start button sits inside the bar, above
+// the menu.
+async function expectBarsClear(page: Page): Promise<void> {
+  const last = picks(page).last();
+  await last.focus();
+  // Scrolling may still be settling (sheet close, scroll lock): retry it.
+  await expect
+    .poll(async () => {
+      await page.evaluate(() => {
+        window.scrollTo(0, document.documentElement.scrollHeight);
+      });
+      const box = await last.boundingBox();
+      return box === null ? Infinity : box.y + box.height;
+    })
+    .toBeLessThanOrEqual(page.viewportSize()!.height);
+  // Scroll and measure in the same step: a re-render can move the page
+  // between a separate scroll and a later read.
+  await expect
+    .poll(async () => {
+      await page.evaluate(() => {
+        window.scrollTo(0, document.documentElement.scrollHeight);
+      });
+      const buyBox = await last.boundingBox();
+      const barBox = await page
+        .getByRole('region', { name: '다음 단계' })
+        .boundingBox();
+      const navBox = await mainNav(page).boundingBox();
+      if (buyBox === null || barBox === null || navBox === null) return false;
+      const buyBottom = buyBox.y + buyBox.height;
+      const clearOfNav = buyBottom <= navBox.y + 1;
+      const clearOfBar =
+        buyBottom <= barBox.y + 1 || buyBox.y >= barBox.y + barBox.height - 1;
+      return clearOfNav && clearOfBar;
+    })
+    .toBe(true);
+  const bar = rangeOf(
+    await page.getByRole('region', { name: '다음 단계' }).boundingBox(),
+  );
+  const nav = rangeOf(await mainNav(page).boundingBox());
+  const start = rangeOf(
+    await page
+      .getByRole('region', { name: '다음 단계' })
+      .getByRole('button')
+      .boundingBox(),
+  );
+  expect(start.top).toBeGreaterThanOrEqual(bar.top - 1);
+  expect(start.bottom).toBeLessThanOrEqual(bar.bottom + 1);
+  expect(bar.bottom).toBeLessThanOrEqual(nav.top + 1);
+}
+
+// The four segments of the 지금 bar add up to the track (no clipped tail).
+async function expectBarSegmentsFit(page: Page): Promise<void> {
+  const keys = ['goalkeeper', 'defender', 'midfielder', 'forward'];
+  let sum = 0;
+  for (const key of keys) {
+    const box = await page.getByTestId(`fill-${key}`).boundingBox();
+    expect(box).not.toBeNull();
+    sum += box!.width;
+  }
+  const track = await page
+    .getByTestId('fill-goalkeeper')
+    .locator('..')
+    .boundingBox();
+  expect(track).not.toBeNull();
+  expect(Math.abs(sum - track!.width)).toBeLessThanOrEqual(1);
 }
 
 // Opt-in: the projection page needs the engine service and enough price

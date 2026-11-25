@@ -9,7 +9,7 @@ import { renderRoute } from '../test/renderWithProviders.tsx';
 import { failWithProblem, gate, serveTurnWorld } from '../test/serveTurns.ts';
 import { server } from '../test/server.ts';
 
-const NEXT = '다음 턴 (5턴으로)';
+const NEXT = '5턴으로 넘기기';
 
 async function openNow(current = 4) {
   const world = serveTurnWorld({ current });

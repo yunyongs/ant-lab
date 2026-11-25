@@ -6,7 +6,7 @@ import { rankingFixture } from '../test/fixtures/ranking.ts';
 import { renderRoute } from '../test/renderWithProviders.tsx';
 import { gate, serveTurnWorld } from '../test/serveTurns.ts';
 
-const NEXT = '다음 턴 (5턴으로)';
+const NEXT = '5턴으로 넘기기';
 
 async function openNow() {
   const world = serveTurnWorld({ current: 4 });
@@ -140,7 +140,7 @@ describe('turn screen layout', () => {
       await screen.findByRole('heading', { name: '5턴 결과' });
       expect(world.posts).toEqual([{ expectedTurnNo: 4 }]);
       const next = await screen.findByRole('button', {
-        name: '다음 턴 (6턴으로)',
+        name: '6턴으로 넘기기',
       });
       // A tap inside the window reaches no request.
       expect(next).toBeDisabled();
@@ -152,11 +152,11 @@ describe('turn screen layout', () => {
         await vi.advanceTimersByTimeAsync(900);
       });
       expect(
-        screen.getByRole('button', { name: '다음 턴 (6턴으로)' }),
+        screen.getByRole('button', { name: '6턴으로 넘기기' }),
       ).toBeEnabled();
       await userEvent
         .setup({ advanceTimers: vi.advanceTimersByTime })
-        .click(screen.getByRole('button', { name: '다음 턴 (6턴으로)' }));
+        .click(screen.getByRole('button', { name: '6턴으로 넘기기' }));
       await screen.findByRole('heading', { name: '6턴 결과' });
       expect(world.posts).toEqual([
         { expectedTurnNo: 4 },

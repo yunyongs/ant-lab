@@ -124,7 +124,7 @@ describe('position change entry', () => {
     const user = userEvent.setup();
     const { router } = renderRoute('/seasons/7');
     await user.click(
-      await screen.findByRole('button', { name: '다음 턴 (2턴으로)' }),
+      await screen.findByRole('button', { name: '2턴으로 넘기기' }),
     );
     await waitFor(() => {
       expect(world.posts).toHaveLength(1);

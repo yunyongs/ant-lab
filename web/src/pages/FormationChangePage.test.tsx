@@ -485,7 +485,7 @@ describe('FormationChangePage', () => {
     // Start an advance through the same mutation the turn page uses.
     await router.navigate('/seasons/7');
     await user.click(
-      await screen.findByRole('button', { name: '다음 턴 (5턴으로)' }),
+      await screen.findByRole('button', { name: '5턴으로 넘기기' }),
     );
     await router.navigate('/seasons/7/formation');
     await screen.findByRole('button', { name: '전술 변경 적용' });

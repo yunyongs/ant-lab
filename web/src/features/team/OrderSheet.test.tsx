@@ -343,7 +343,9 @@ describe('OrderSheet', () => {
       expect(within(summary).getAllByText('97,112,345원')).not.toHaveLength(0);
     });
     expect(spy.holdingsCalls).toBe(2);
-    expect(within(summary).getByText('96.81% / 목표 40%')).toBeInTheDocument();
+    expect(
+      within(summary).getByText('골키퍼 96.81% → 40%'),
+    ).toBeInTheDocument();
     expect(
       await screen.findByText('보유 13주 · 미드필더 선언'),
     ).toBeInTheDocument();

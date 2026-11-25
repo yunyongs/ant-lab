@@ -33,18 +33,22 @@ describe('TeamBuild', () => {
     expect(screen.queryByRole('heading', { name: '0턴 팀 구성' })).toBeNull();
   });
 
-  it('shows the server strings for cash, weights and targets', async () => {
+  it('shows cash, the target and current weights and the buy hint', async () => {
     serveSeason({});
     renderRoute('/seasons/7');
     const summary = await screen.findByRole('region', { name: '팀 요약' });
-    expect(within(summary).getAllByText('100,000,000원')).toHaveLength(2);
-    expect(within(summary).getByText('100.00% / 목표 40%')).toBeInTheDocument();
-    expect(within(summary).getByText('0.00% / 목표 30%')).toBeInTheDocument();
-    expect(within(summary).getByText('0.00% / 목표 20%')).toBeInTheDocument();
-    expect(within(summary).getByText('0.00% / 목표 10%')).toBeInTheDocument();
+    expect(within(summary).getByText('남은 현금')).toBeInTheDocument();
+    expect(within(summary).getByText('100,000,000원')).toBeInTheDocument();
+    expect(within(summary).getByText('목표 포메이션')).toBeInTheDocument();
+    expect(within(summary).getByText('골키퍼 100.00% → 40%')).toBeVisible();
+    expect(within(summary).getByText('수비수 0.00% → 30%')).toBeVisible();
+    expect(within(summary).getByText('미드필더 0.00% → 20%')).toBeVisible();
+    expect(within(summary).getByText('공격수 0.00% → 10%')).toBeVisible();
     expect(
       within(summary).getByText(/골키퍼에는 현금이 포함됩니다/),
-    ).toBeInTheDocument();
+    ).toHaveTextContent(
+      '수비수 약 3,000만 원, 미드필더 약 2,000만 원, 공격수 약 1,000만 원을 사면 목표와 맞습니다.',
+    );
     const fill = within(summary).getByTestId('fill-goalkeeper');
     expect(parseCssPercent(fill.style.width)).toBe('100');
   });
@@ -65,24 +69,40 @@ describe('TeamBuild', () => {
     );
     renderRoute('/seasons/7');
     const summary = await screen.findByRole('region', { name: '팀 요약' });
-    expect(within(summary).getByText('40.00% / 목표 40%')).toBeInTheDocument();
-    expect(within(summary).getByText('10.00% / 목표 10%')).toBeInTheDocument();
+    expect(within(summary).getByText('골키퍼 40.00% → 40%')).toBeVisible();
+    expect(within(summary).getByText('공격수 10.00% → 10%')).toBeVisible();
     // jsdom rounds long CSS values; the exact string is covered in ratio.test.
     expect(within(summary).getByTestId('fill-goalkeeper').style.width).toBe(
       '40%',
     );
   });
 
-  it('explains the next step for no holdings and for one or more', async () => {
+  it('labels the start bar by holdings and sends one advance request', async () => {
     serveSeason({});
+    const calls = { advance: 0 };
+    server.use(
+      http.post('*/api/v1/seasons/7/turns', () => {
+        calls.advance += 1;
+        return HttpResponse.json(turnResultFixture({ turnNo: 1 }), {
+          status: 201,
+        });
+      }),
+    );
+    const user = userEvent.setup();
     const first = renderRoute('/seasons/7');
     const card = await screen.findByRole('region', { name: '다음 단계' });
     expect(card).toHaveTextContent(
       '아직 산 종목이 없습니다. 이대로 넘기면 전부 현금(골키퍼)으로 시작합니다.',
     );
-    expect(
-      within(card).getByRole('button', { name: '다음 턴 (1턴으로)' }),
-    ).toBeInTheDocument();
+    const start = within(card).getByRole('button', {
+      name: '구성 마치고 1턴 시작',
+    });
+    await user.dblClick(start);
+    await waitFor(() => {
+      expect(calls.advance).toBe(1);
+    });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(calls.advance).toBe(1);
     first.unmount();
 
     server.use(
@@ -92,12 +112,9 @@ describe('TeamBuild', () => {
     );
     renderRoute('/seasons/7');
     const second = await screen.findByRole('region', { name: '다음 단계' });
-    await within(second).findByText(/팀 구성을 마쳤으면/);
-    expect(second).toHaveTextContent(
-      '넘긴 뒤에는 턴 사이에만 매매할 수 있습니다.',
-    );
+    await within(second).findByText('남은 현금은 골키퍼로 1턴을 맞습니다');
     expect(
-      within(second).getByRole('button', { name: '다음 턴 (1턴으로)' }),
+      within(second).getByRole('button', { name: '구성 마치고 1턴 시작' }),
     ).toBeInTheDocument();
   });
 
@@ -117,7 +134,7 @@ describe('TeamBuild', () => {
     const card = await screen.findByRole('region', { name: '다음 단계' });
     await screen.findByRole('button', { name: '종목 가 사기' });
     await user.click(
-      within(card).getByRole('button', { name: '다음 턴 (1턴으로)' }),
+      within(card).getByRole('button', { name: '구성 마치고 1턴 시작' }),
     );
     await waitFor(() => {
       for (const button of screen.getAllByRole('button', { name: /사기$/ })) {

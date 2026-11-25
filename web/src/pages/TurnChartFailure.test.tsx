@@ -48,7 +48,7 @@ describe('turn screen when the chart fails', () => {
     expect(within(table).getAllByRole('row')).toHaveLength(6);
     expect(within(section).queryByRole('img')).not.toBeInTheDocument();
     expect(
-      screen.getByRole('button', { name: '다음 턴 (5턴으로)' }),
+      screen.getByRole('button', { name: '5턴으로 넘기기' }),
     ).toBeInTheDocument();
     expect(screen.queryByText('문제가 발생했습니다')).not.toBeInTheDocument();
   });

@@ -1,37 +1,58 @@
 import { formatWon } from '../format/money.ts';
-import { WeightBars } from '../seasons/WeightBars.tsx';
-import { weightRowsOf } from '../seasons/weightRows.ts';
+import { ratioToCssPercent, ratioToPercent } from '../format/ratio.ts';
 import type { Holdings } from './queries.ts';
-import styles from './Team.module.css';
+import { buyHint, slicesOf } from './teamHint.ts';
+import styles from './TeamSummary.module.css';
 
 export function TeamSummary({ holdings }: { holdings: Holdings }) {
-  const formation = holdings.currentFormation;
+  const slices = slicesOf(holdings);
+  const hint = buyHint(holdings);
   return (
     <section className={styles.card} aria-label="팀 요약">
       <div className={styles.cash}>
-        <span className={styles.muted}>현금 잔액</span>
+        <span className={styles.muted}>남은 현금</span>
         <strong className={styles.cashValue}>
           {formatWon(holdings.cashBalance)}
         </strong>
       </div>
-      <div className={styles.rowBetween}>
-        <span className={styles.muted}>총 평가액</span>
-        <span>{formatWon(holdings.totalValue)}</span>
+      <div className={styles.bars}>
+        <span className={styles.barLabel}>목표 포메이션</span>
+        <div className={styles.bar} aria-hidden="true">
+          {slices.map((slice) => (
+            <span
+              key={slice.key}
+              className={`${styles.segment} ${styles[slice.key]}`}
+              style={{ width: `${String(slice.target)}%` }}
+            />
+          ))}
+        </div>
+        <span className={styles.barLabel}>지금</span>
+        <div className={styles.bar} aria-hidden="true">
+          {slices.map((slice) => (
+            <span
+              key={slice.key}
+              className={`${styles.segment} ${styles[slice.key]}`}
+              data-testid={`fill-${slice.key}`}
+              style={{ width: ratioToCssPercent(slice.weight) }}
+            />
+          ))}
+        </div>
       </div>
+      <ul className={styles.legend}>
+        {slices.map((slice) => (
+          <li key={slice.key} className={styles.legendItem}>
+            <span
+              aria-hidden="true"
+              className={`${styles.swatch} ${styles[slice.key]}`}
+            />
+            {`${slice.label} ${ratioToPercent(slice.weight)} → ${String(slice.target)}%`}
+          </li>
+        ))}
+      </ul>
       <p className={styles.hint}>
-        포메이션 대비 현재 비중 (검은 선 = 목표). 골키퍼에는 현금이 포함됩니다.
+        골키퍼에는 현금이 포함됩니다.
+        {hint !== null && ` ${hint}`}
       </p>
-      <WeightBars
-        rows={weightRowsOf(
-          {
-            goalkeeperWeight: holdings.goalkeeperWeight,
-            defenderWeight: holdings.defenderWeight,
-            midfielderWeight: holdings.midfielderWeight,
-            forwardWeight: holdings.forwardWeight,
-          },
-          formation,
-        )}
-      />
     </section>
   );
 }
