@@ -1,11 +1,19 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link, Outlet, useLocation, useMatch } from 'react-router';
+import { useIsMutating } from '@tanstack/react-query';
+import { Link, Outlet, useLocation, useMatch, useNavigate } from 'react-router';
+import {
+  MENU_ABANDON_ITEM,
+  MENU_BUTTON_ID,
+} from '../features/abandon/abandonMessages.ts';
+import { abandonMode } from '../features/abandon/abandonMode.ts';
 import { useAuth } from '../features/auth/useAuth.ts';
 import { ConventionToggle } from '../features/format/ConventionToggle.tsx';
 import { ApiStatus } from '../features/health/ApiStatus.tsx';
 import { MAX_ROUTE_ID, parseWholeNumber } from '../features/format/integer.ts';
-import { headerSeasonLine } from '../features/seasons/labels.ts';
+import { headerSeasonLine, type Season } from '../features/seasons/labels.ts';
 import { useSeason, useSeasons } from '../features/seasons/queries.ts';
+import { canChangeFormation } from '../features/seasons/seasonGate.ts';
+import { advanceKey } from '../features/turn/queries.ts';
 import { APP_NAME } from './appName.ts';
 import { NAV_CONFIG, type NavConfig } from './navItems.ts';
 import styles from './AppShell.module.css';
@@ -130,8 +138,52 @@ function ListPageNav() {
   return <BottomNav seasonId={null} linkSeasonId={useSoleActiveSeasonId()} />;
 }
 
-function HeaderMenu() {
+// Reads no query itself: a late-mounted observer of a stale season would
+// refetch it. The header menu reads the season while the header is mounted.
+function SeasonMenuItems({
+  seasonId,
+  data,
+  close,
+}: {
+  seasonId: number;
+  data: Season | undefined;
+  close: () => void;
+}) {
+  const navigate = useNavigate();
+  const advancing = useIsMutating({ mutationKey: advanceKey(seasonId) }) > 0;
+  if (data === undefined) return null;
+  const base = `/seasons/${String(seasonId)}`;
+  return (
+    <>
+      {canChangeFormation(data) && (
+        <Link
+          to={`${base}/formation`}
+          className={styles.menuItem}
+          onClick={close}
+        >
+          포메이션 바꾸기
+        </Link>
+      )}
+      {abandonMode(data) === 'start' && (
+        <button
+          type="button"
+          className={`${styles.menuItem} ${styles.menuDanger}`}
+          disabled={advancing}
+          onClick={() => {
+            close();
+            void navigate(base, { state: { openAbandon: true } });
+          }}
+        >
+          {MENU_ABANDON_ITEM}
+        </button>
+      )}
+    </>
+  );
+}
+
+function HeaderMenu({ seasonId }: { seasonId: number | null }) {
   const { logout } = useAuth();
+  const { data: season } = useSeason(seasonId);
   const [open, setOpen] = useState(false);
   const wrap = useRef<HTMLDivElement>(null);
   const button = useRef<HTMLButtonElement>(null);
@@ -166,6 +218,7 @@ function HeaderMenu() {
     <div ref={wrap} className={styles.menuWrap}>
       <button
         ref={button}
+        id={MENU_BUTTON_ID}
         type="button"
         className={styles.menuButton}
         aria-label="메뉴"
@@ -180,6 +233,15 @@ function HeaderMenu() {
       {open && (
         <div id="header-menu" className={styles.menu}>
           <ConventionToggle className={styles.menuItem} />
+          {seasonId !== null && (
+            <SeasonMenuItems
+              seasonId={seasonId}
+              data={season}
+              close={() => {
+                setOpen(false);
+              }}
+            />
+          )}
           <button
             type="button"
             className={styles.menuItem}
@@ -204,7 +266,7 @@ export function AppShell() {
         <div className={`${styles.inner} ${styles.headerRow}`}>
           <span className={styles.title}>{APP_NAME}</span>
           <ApiStatus compact />
-          <HeaderMenu />
+          <HeaderMenu seasonId={seasonId} />
         </div>
         {seasonId !== null && (
           <div className={styles.inner}>

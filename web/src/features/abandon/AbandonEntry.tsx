@@ -5,7 +5,7 @@ import { advanceKey } from '../turn/queries.ts';
 import { AbandonDialog } from './AbandonDialog.tsx';
 import { abandonMode } from './abandonMode.ts';
 import {
-  ABANDON_BUTTON,
+  MENU_BUTTON_ID,
   RESUME_BUTTON,
   WORKING_TEXT,
   failureText,
@@ -20,10 +20,15 @@ export function AbandonEntry({
   season,
   onNotice,
   onFinished,
+  openRequest = false,
+  onOpenHandled,
 }: {
   season: Pick<Season, 'id' | 'status' | 'currentTurnNo' | 'pathLength'>;
   onNotice: (text: string | null) => void;
   onFinished: (turnNo: number) => void;
+  // Set when the header menu asked for the confirmation step.
+  openRequest?: boolean;
+  onOpenHandled?: () => void;
 }) {
   const { mutation, progress } = useAbandonSeason(season.id, {
     onNotice,
@@ -31,7 +36,6 @@ export function AbandonEntry({
   });
   const advancing = useIsMutating({ mutationKey: advanceKey(season.id) }) > 0;
   const [confirming, setConfirming] = useState(false);
-  const opener = useRef<HTMLButtonElement>(null);
   const alertBox = useRef<HTMLDivElement>(null);
   // Two taps before the first re-render must send one request.
   const inFlight = useRef(false);
@@ -43,15 +47,24 @@ export function AbandonEntry({
     if (alertText !== null) alertBox.current?.focus();
   }, [alertText, mutation.error]);
 
-  // A stale refusal closes the dialog and shows a page notice; focus goes
-  // back to the button instead of falling to the document.
+  // The opener is the header menu button: after the dialog closes, and after
+  // a stale refusal, focus goes back there instead of falling to the document.
   const refocus = useRef(false);
   useEffect(() => {
     if (!confirming && refocus.current) {
       refocus.current = false;
-      opener.current?.focus();
+      focusMenuButton();
     }
   }, [confirming]);
+
+  // The request opens the step at once (state set while rendering, guarded);
+  // the page clears it right after, so it cannot open a second time.
+  const busy = advancing || pending;
+  if (openRequest && mode === 'start' && !busy && !confirming)
+    setConfirming(true);
+  useEffect(() => {
+    if (openRequest) onOpenHandled?.();
+  }, [openRequest, onOpenHandled]);
 
   function send() {
     if (inFlight.current || pending) return;
@@ -82,47 +95,47 @@ export function AbandonEntry({
         );
   const leftover = mutation.data;
 
+  const hasEntry =
+    alertText !== null || mode === 'resume' || (pending && !confirming);
+
   return (
-    <section className={styles.entry} aria-label="시즌 포기">
-      {pending && !confirming && (
-        <p role="status" className={styles.note}>
-          {workingText}
-        </p>
-      )}
-      {alertText !== null && (
-        <div ref={alertBox} role="alert" tabIndex={-1} className={styles.alert}>
-          <p>{alertText}</p>
-        </div>
-      )}
-      {mode === null ? null : mode === 'resume' ? (
-        <>
-          {leftover?.status === 'ABANDONING' && !pending && (
-            <p className={styles.note}>
-              {leftoverText(leftover.remainingTurns)}
+    <>
+      {hasEntry && (
+        <section className={styles.entry} aria-label="시즌 포기">
+          {pending && !confirming && (
+            <p role="status" className={styles.note}>
+              {workingText}
             </p>
           )}
-          <button
-            type="button"
-            className={styles.primary}
-            disabled={pending}
-            aria-busy={pending ? 'true' : undefined}
-            onClick={send}
-          >
-            {pending ? '정리하는 중…' : RESUME_BUTTON}
-          </button>
-        </>
-      ) : (
-        <button
-          ref={opener}
-          type="button"
-          className={styles.secondary}
-          disabled={advancing || pending}
-          onClick={() => {
-            setConfirming(true);
-          }}
-        >
-          {ABANDON_BUTTON}
-        </button>
+          {alertText !== null && (
+            <div
+              ref={alertBox}
+              role="alert"
+              tabIndex={-1}
+              className={styles.alert}
+            >
+              <p>{alertText}</p>
+            </div>
+          )}
+          {mode === 'resume' && (
+            <>
+              {leftover?.status === 'ABANDONING' && !pending && (
+                <p className={styles.note}>
+                  {leftoverText(leftover.remainingTurns)}
+                </p>
+              )}
+              <button
+                type="button"
+                className={styles.primary}
+                disabled={pending}
+                aria-busy={pending ? 'true' : undefined}
+                onClick={send}
+              >
+                {pending ? '정리하는 중…' : RESUME_BUTTON}
+              </button>
+            </>
+          )}
+        </section>
       )}
       {confirming && (
         <AbandonDialog
@@ -132,10 +145,14 @@ export function AbandonEntry({
           onConfirm={send}
           onClose={() => {
             setConfirming(false);
-            opener.current?.focus();
+            focusMenuButton();
           }}
         />
       )}
-    </section>
+    </>
   );
+}
+
+function focusMenuButton() {
+  document.getElementById(MENU_BUTTON_ID)?.focus();
 }

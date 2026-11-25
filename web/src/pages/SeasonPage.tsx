@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Link, useParams } from 'react-router';
+import { useCallback, useState } from 'react';
+import { Link, useLocation, useNavigate, useParams } from 'react-router';
 import { ProblemError } from '../api/problem.ts';
 import { MAX_ROUTE_ID, parseWholeNumber } from '../features/format/integer.ts';
 import { AbandonEntry } from '../features/abandon/AbandonEntry.tsx';
@@ -17,6 +17,16 @@ import styles from './Page.module.css';
 const HALTED_NOTE =
   '점검 중인 시즌입니다. 지금은 턴을 넘기거나 매매할 수 없고, 저장된 결과만 볼 수 있습니다.';
 
+// The header menu opens the abandon dialog by navigating here with this state.
+function asksForAbandon(state: unknown): boolean {
+  return (
+    typeof state === 'object' &&
+    state !== null &&
+    'openAbandon' in state &&
+    state.openAbandon === true
+  );
+}
+
 function isTeamBuild(season: Season): boolean {
   return season.status === 'IN_PROGRESS' && season.currentTurnNo === 0;
 }
@@ -26,6 +36,13 @@ export function SeasonPage() {
   const id = parseWholeNumber(seasonId, MAX_ROUTE_ID);
   const query = useSeason(id);
   const [notice, setNotice] = useState<string | null>(null);
+  const location = useLocation();
+  const navigate = useNavigate();
+  const openRequest = asksForAbandon(location.state);
+  // Clear the request so a reload or a back step does not open it again.
+  const clearRequest = useCallback(() => {
+    void navigate(location.pathname, { replace: true, state: null });
+  }, [navigate, location.pathname]);
   // The turn whose result heading takes focus once it is on screen.
   const [focusTurnNo, setFocusTurnNo] = useState<number | null>(null);
   if (id === null) return <NotFoundPage />;
@@ -62,7 +79,9 @@ export function SeasonPage() {
       )}
       {query.data && (
         <>
-          <SeasonSummary season={query.data} />
+          {query.data.status !== 'IN_PROGRESS' && (
+            <SeasonSummary season={query.data} />
+          )}
           {query.data.status === 'ABANDONING' && (
             <p className={seasons.note}>시즌을 정리하는 중입니다.</p>
           )}
@@ -92,6 +111,8 @@ export function SeasonPage() {
             season={query.data}
             onNotice={setNotice}
             onFinished={setFocusTurnNo}
+            openRequest={openRequest}
+            onOpenHandled={clearRequest}
           />
         </>
       )}

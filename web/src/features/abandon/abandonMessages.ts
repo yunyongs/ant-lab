@@ -2,7 +2,9 @@ import { messageFor } from '../../api/errorMessages.ts';
 import { ProblemError } from '../../api/problem.ts';
 import { UNKNOWN_OUTCOME_TEXT } from '../turn/turnMessages.ts';
 
-export const ABANDON_BUTTON = '시즌 포기';
+export const MENU_ABANDON_ITEM = '시즌 포기…';
+// The header menu button; focus returns here after the dialog.
+export const MENU_BUTTON_ID = 'header-menu-button';
 export const RESUME_BUTTON = '이어서 정리';
 export const KEEP_BUTTON = '포기하지 않기';
 export const CONFIRM_BUTTON = '포기하고 끝까지 진행';

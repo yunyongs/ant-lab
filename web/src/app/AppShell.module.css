@@ -96,6 +96,20 @@
   text-align: left;
 }
 
+.menuItem:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.menuDanger {
+  border-top: 1px solid var(--color-border);
+  color: var(--color-error);
+}
+
+a.menuItem {
+  text-decoration: none;
+}
+
 .title {
   flex: 1;
   font-size: var(--font-lg);
