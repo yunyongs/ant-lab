@@ -227,7 +227,7 @@ describe('AppShell', () => {
     const user = userEvent.setup();
     const { router } = renderRoute('/seasons/7');
     await user.click(
-      await screen.findByRole('button', { name: '다음 턴 (5턴으로)' }),
+      await screen.findByRole('button', { name: '5턴으로 넘기기' }),
     );
     expect(await screen.findByRole('alert')).toHaveTextContent(
       '화면의 턴이 지난 턴입니다.',

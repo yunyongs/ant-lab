@@ -174,7 +174,7 @@ describe('feed on the now page', () => {
     ).toBeEnabled();
     const post = gate();
     world.postGate = post.promise;
-    await user.click(screen.getByRole('button', { name: '다음 턴 (6턴으로)' }));
+    await user.click(screen.getByRole('button', { name: '6턴으로 넘기기' }));
     await waitFor(() => {
       expect(screen.getByRole('button', { name: BUY_FIRST })).toBeDisabled();
     });
@@ -267,7 +267,7 @@ describe.each([
     expect(within(region).getAllByRole('listitem')).toHaveLength(3);
     expect(screen.queryByRole('button', { name: /매수|매도/ })).toBeNull();
     expect(
-      screen.queryByRole('button', { name: /다음 턴|턴 넘기|턴을 넘기/ }),
+      screen.queryByRole('button', { name: /턴으로 넘기기|턴 넘기|턴을 넘기/ }),
     ).toBeNull();
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(world.holdingsGets).toBe(0);
@@ -287,7 +287,7 @@ describe('HALTED now page', () => {
     ).toBeInTheDocument();
     expect(
       screen.queryByRole('button', {
-        name: /다음 턴|턴 넘기|턴을 넘기|매수|매도/,
+        name: /턴으로 넘기기|턴 넘기|턴을 넘기|매수|매도/,
       }),
     ).toBeNull();
   });

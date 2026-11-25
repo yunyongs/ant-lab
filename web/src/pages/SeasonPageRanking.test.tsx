@@ -118,7 +118,7 @@ describe('ranking on the now page', () => {
     const user = userEvent.setup();
     await expandRanking();
     await screen.findByRole('tablist');
-    await user.click(screen.getByRole('button', { name: '다음 턴 (6턴으로)' }));
+    await user.click(screen.getByRole('button', { name: '6턴으로 넘기기' }));
     await screen.findByRole('heading', { name: '6턴 결과' });
     await waitFor(() => {
       expect(world.rankingGets).toContain(6);
@@ -136,7 +136,7 @@ describe('ranking on the now page', () => {
       const region = await expandRanking();
       await within(region).findByText('종목 나');
       expect(
-        screen.queryByRole('button', { name: /매수|매도|다음 턴/ }),
+        screen.queryByRole('button', { name: /매수|매도|턴으로 넘기기/ }),
       ).toBeNull();
     },
   );

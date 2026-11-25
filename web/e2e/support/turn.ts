@@ -9,9 +9,9 @@ export const feedRegion = (page: Page) =>
   page.getByRole('region', { name: '소식', exact: true });
 
 export async function advanceTo(page: Page, turn: number): Promise<void> {
-  await page
-    .getByRole('button', { name: `다음 턴 (${String(turn)}턴으로)` })
-    .click();
+  const name =
+    turn === 1 ? '구성 마치고 1턴 시작' : `${String(turn)}턴으로 넘기기`;
+  await page.getByRole('button', { name }).click();
   await expect(
     page.getByRole('heading', { name: `${String(turn)}턴 결과` }),
   ).toBeVisible();
@@ -75,7 +75,7 @@ export async function playTurnOne(page: Page, run: Run): Promise<void> {
   ).toBeVisible();
   const actions = page.getByRole('group', { name: '턴 행동' });
   await expect(
-    actions.getByRole('button', { name: '다음 턴 (2턴으로)' }),
+    actions.getByRole('button', { name: '2턴으로 넘기기' }),
   ).toBeInViewport();
   await expect(actions.getByRole('link', { name: '매매' })).toBeInViewport();
   // Trade on the left, the primary advance on the right.
@@ -108,7 +108,7 @@ export async function playTurnOne(page: Page, run: Run): Promise<void> {
 
 // Turn 2: the ranking board opens on its first tab, the keyboard moves on.
 export async function playTurnTwo(page: Page, run: Run): Promise<void> {
-  await page.getByRole('button', { name: '다음 턴 (2턴으로)' }).click();
+  await page.getByRole('button', { name: '2턴으로 넘기기' }).click();
   await expect(page.getByRole('heading', { name: '2턴 결과' })).toBeVisible();
   await expect(turnCard(page)).toBeVisible();
   const ranking = page.getByRole('region', { name: '순위', exact: true });
@@ -142,7 +142,7 @@ export async function playRemainingTurns(
     const isLast = turn === last;
     await page
       .getByRole('button', {
-        name: isLast ? /^마지막 턴 넘기기/ : `다음 턴 (${String(turn)}턴으로)`,
+        name: isLast ? /^마지막 턴 넘기기/ : `${String(turn)}턴으로 넘기기`,
       })
       .click();
     await expect(
