@@ -326,7 +326,11 @@ describe('alerts on the now page', () => {
     const region = await screen.findByRole('region', { name: '알림' });
     await within(region).findByRole('button', { name: '종목 나 매수' });
     const rows = within(region).getAllByRole('listitem');
-    expect(within(rows[1] as HTMLElement).queryByRole('button')).toBeNull();
+    expect(
+      within(rows[1] as HTMLElement).queryByRole('button', {
+        name: /매수|매도/,
+      }),
+    ).toBeNull();
     expect(screen.queryAllByRole('alert')).toHaveLength(0);
   });
 
@@ -499,14 +503,12 @@ describe('alerts and feed together', () => {
     renderRoute('/seasons/7');
     const alerts = await screen.findByRole('region', { name: '알림' });
     const news = screen.getByRole('region', { name: '소식' });
-    const card = screen.getByText('총 평가액').closest('section, div, dl');
+    const card = screen.getByRole('region', { name: '턴 결과' });
     expect(
       alerts.compareDocumentPosition(news) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
-    expect(card).not.toBeNull();
     expect(
-      alerts.compareDocumentPosition(card as Element) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
+      alerts.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
   });
 });

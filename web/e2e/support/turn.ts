@@ -67,14 +67,27 @@ async function expectEndClearOfBars(page: Page): Promise<void> {
 export async function playTurnOne(page: Page, run: Run): Promise<void> {
   await advanceTo(page, 1);
   await expect(turnCard(page)).toBeVisible();
+  const summary = page.getByRole('region', { name: '1턴 요약', exact: true });
+  await expect(summary).toBeInViewport();
+  await expect(summary.getByText('시장 기준선보다')).toBeVisible();
   await expect(
-    page.getByRole('region', { name: '요약', exact: true }),
-  ).toBeInViewport();
+    summary.getByRole('meter', { name: '위험 선언 대비 누적 낙폭' }),
+  ).toBeVisible();
   const actions = page.getByRole('group', { name: '턴 행동' });
   await expect(
     actions.getByRole('button', { name: '다음 턴 (2턴으로)' }),
   ).toBeInViewport();
   await expect(actions.getByRole('link', { name: '매매' })).toBeInViewport();
+  // Trade on the left, the primary advance on the right.
+  const tradeBox = await actions
+    .getByRole('link', { name: '매매' })
+    .boundingBox();
+  const advanceBox = await actions
+    .getByRole('button', { name: '다음 턴 (2턴으로)' })
+    .boundingBox();
+  expect(tradeBox).not.toBeNull();
+  expect(advanceBox).not.toBeNull();
+  expect(tradeBox!.x).toBeLessThan(advanceBox!.x);
   const barBox = await actions.boundingBox();
   const navBox = await mainNav(page).boundingBox();
   expect(barBox).not.toBeNull();
