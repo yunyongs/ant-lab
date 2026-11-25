@@ -15,6 +15,9 @@ export function TurnActionBar({
 }) {
   return (
     <div className={styles.bar} role="group" aria-label="턴 행동">
+      <Link className={styles.trade} to={`/seasons/${String(season.id)}/trade`}>
+        매매
+      </Link>
       <div className={styles.advance}>
         <AdvanceTurnButton
           season={season}
@@ -22,9 +25,6 @@ export function TurnActionBar({
           onAdvanced={onAdvanced}
         />
       </div>
-      <Link className={styles.trade} to={`/seasons/${String(season.id)}/trade`}>
-        매매
-      </Link>
     </div>
   );
 }
