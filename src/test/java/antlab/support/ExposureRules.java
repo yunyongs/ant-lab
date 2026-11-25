@@ -4,6 +4,7 @@ import antlab.agent.AgentPartDto;
 import antlab.agent.RejectDto;
 import antlab.agent.decision.DecisionResultDto;
 import antlab.common.exposure.ExposedFrom;
+import antlab.leaderboard.ManagerLeaderboardDto;
 import antlab.scoring.SeasonAnalysisDto;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.RecordComponent;
@@ -99,7 +100,24 @@ public final class ExposureRules {
             Map.entry(antlab.agent.detection.DetectionImportDto.class, Set.of("created", "windows")),
             // the admin parts run answers counts of what it did; no column value is read back
             Map.entry(antlab.leaderboard.ManagerPartsRunDto.class,
-                    Set.of("status", "ranked", "excluded", "alreadyStored", "failed", "pending")));
+                    Set.of("status", "ranked", "excluded", "alreadyStored", "failed", "pending")),
+            // the leaderboard echoes the requested filter and counts the parts queue
+            Map.entry(ManagerLeaderboardDto.class, Set.of("kind", "pendingSeasons")),
+            // rank and seasonsUsed are positions and counts over the response's own rows; me and ownedByMe compare with the token
+            Map.entry(ManagerLeaderboardDto.Row.class, Set.of("rank", "me", "ownedByMe", "seasonsUsed")),
+            // every bucket is a count of the member's seasons; no column value is shown
+            Map.entry(ManagerLeaderboardDto.Counts.class, Set.of("counted", "voided", "unfinished", "awaitingLeagueClose",
+                    "pending", "notStarted", "mismatch", "noReference")),
+            // no outlook record exists before AG-07: always null
+            Map.entry(ManagerLeaderboardDto.Agent.class, Set.of("outlook")),
+            // whether any detection row exists for the model
+            Map.entry(ManagerLeaderboardDto.Detection.class, Set.of("status")),
+            // member counts below the minimum
+            Map.entry(ManagerLeaderboardDto.Unranked.class, Set.of("humans", "agents")),
+            // counts, the fixed minimum per kind and the viewer's position in the response's own rows
+            Map.entry(ManagerLeaderboardDto.Me.class, Set.of("counted", "minimum", "ranked", "rank")),
+            // the viewer's own ordinal in finish order and whether L uses the season
+            Map.entry(ManagerLeaderboardDto.MySeason.class, Set.of("seasonNo", "used")));
 
     /**
      * The engine's own record of what it rejected in the previous decision: {@code [내부]} in the DB, but the agent is
@@ -121,6 +139,17 @@ public final class ExposureRules {
             "agent_call.outcome");
     public static final Set<Class<?>> OWNER_AGENT_RECORDS = Set.of(antlab.agent.AgentSummaryDto.class,
             antlab.league.LeagueTableAiDto.class, antlab.league.LeagueTableEntryDto.class);
+
+    /**
+     * Columns tagged {@code [내부]} that the manager leaderboard shows every signed-in member on purpose (AG-06 G2, D13): the
+     * member kind, an agent's persona name, persona and memory version pins and model id, and the final-call outcome as a
+     * failed-turn count. Each source is allowed in its own record only, matched by class, so no other response gets them.
+     */
+    public static final Map<Class<?>, Set<String>> LEADERBOARD_ALLOWED = Map.of(
+            ManagerLeaderboardDto.Row.class, Set.of("member.kind", "persona_version.display_name", "agent_profile.model_id"),
+            ManagerLeaderboardDto.Agent.class, Set.of("persona_version.display_name", "season_agent_config.persona_version",
+                    "season_agent_config.memory_version", "agent_profile.model_id", "agent_call.outcome"),
+            ManagerLeaderboardDto.Me.class, Set.of("member.kind"));
 
     /**
      * Columns tagged {@code [내부]} that the runner's memory answers show the agent on purpose (AG-05 C1, C2): how a memory
@@ -236,6 +265,9 @@ public final class ExposureRules {
                         continue;
                     }
                     if (MEMORY_AGENT_ALLOWED.getOrDefault(record, Set.of()).contains(source) && catalog.has(source)) {
+                        continue;
+                    }
+                    if (LEADERBOARD_ALLOWED.getOrDefault(record, Set.of()).contains(source) && catalog.has(source)) {
                         continue;
                     }
                     out.addAll(checkRestricted(where, source, from.value(), rc.getType(), catalog, finishedSeasonOnly,
