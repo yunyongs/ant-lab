@@ -2,8 +2,49 @@ import { expect, type Page } from '@playwright/test';
 import { checkSeasonMenu, mainNav } from './shell.ts';
 import { checkpoint, type Run } from './steps.ts';
 
-export const turnCard = (page: Page) =>
-  page.getByRole('region', { name: '턴 결과', exact: true });
+// The three views of one turn: 그래프, 기여, 표.
+export const turnTabs = (page: Page, turn: number) =>
+  page.getByRole('tablist', { name: `${String(turn)}턴 자세히`, exact: true });
+
+async function openTab(page: Page, turn: number, name: string) {
+  const tab = turnTabs(page, turn).getByRole('tab', { name, exact: true });
+  await tab.click();
+  await expect(tab).toHaveAttribute('aria-selected', 'true');
+  const panel = page.getByRole('tabpanel', { name, exact: true });
+  await expect(panel).toBeVisible();
+  return panel;
+}
+
+// Each tab shows its own content; every one gets a screenshot and an axe scan.
+async function checkTurnTabs(
+  page: Page,
+  run: Run,
+  turn: number,
+): Promise<void> {
+  const chart = await openTab(page, turn, '그래프');
+  await expect(chart.getByRole('img').first()).toBeVisible();
+  const contribution = await openTab(page, turn, '기여');
+  await expect(
+    contribution.getByText('가격 변화 기여 합', { exact: true }),
+  ).toBeVisible();
+  await expect(
+    contribution.getByRole('heading', { name: '포지션별 기여', exact: true }),
+  ).toBeVisible();
+  await checkpoint(run, `turn-${String(turn)}-contribution`, {
+    axe: 'turn-contribution',
+  });
+  const table = await openTab(page, turn, '표');
+  await expect(table.getByRole('table')).toBeVisible();
+  await expect(table.getByText('보유 평가액', { exact: true })).toBeVisible();
+  await expect(table.getByText('포메이션 이탈', { exact: true })).toBeVisible();
+  await checkpoint(run, `turn-${String(turn)}-table`, { axe: 'turn-table' });
+  // The arrow keys move through the tabs and wrap.
+  await turnTabs(page, turn).getByRole('tab', { name: '표' }).focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(
+    turnTabs(page, turn).getByRole('tab', { name: '그래프' }),
+  ).toHaveAttribute('aria-selected', 'true');
+}
 
 export const feedRegion = (page: Page) =>
   page.getByRole('region', { name: '소식', exact: true });
@@ -66,7 +107,7 @@ async function expectEndClearOfBars(page: Page): Promise<void> {
 // (WEB-14), and the bar ends at or above the menu's top edge.
 export async function playTurnOne(page: Page, run: Run): Promise<void> {
   await advanceTo(page, 1);
-  await expect(turnCard(page)).toBeVisible();
+  await expect(turnTabs(page, 1)).toBeVisible();
   const summary = page.getByRole('region', { name: '1턴 요약', exact: true });
   await expect(summary).toBeInViewport();
   await expect(summary.getByText('시장 기준선보다')).toBeVisible();
@@ -103,6 +144,7 @@ export async function playTurnOne(page: Page, run: Run): Promise<void> {
   // The feed region is always there: items, or the no-news sentence.
   await expect(feedRegion(page)).toBeVisible();
   await checkpoint(run, 'turn-1', { axe: 'turn-result' });
+  await checkTurnTabs(page, run, 1);
   await checkSeasonMenu(page);
 }
 
@@ -110,7 +152,7 @@ export async function playTurnOne(page: Page, run: Run): Promise<void> {
 export async function playTurnTwo(page: Page, run: Run): Promise<void> {
   await page.getByRole('button', { name: '2턴으로 넘기기' }).click();
   await expect(page.getByRole('heading', { name: '2턴 결과' })).toBeVisible();
-  await expect(turnCard(page)).toBeVisible();
+  await expect(turnTabs(page, 2)).toBeVisible();
   const ranking = page.getByRole('region', { name: '순위', exact: true });
   await expect(page.getByRole('button', { name: /^순위/ })).toHaveAttribute(
     'aria-expanded',
@@ -152,7 +194,12 @@ export async function playRemainingTurns(
           : `${String(turn)}턴 결과`,
       }),
     ).toBeVisible();
-    await expect(turnCard(page)).toBeVisible();
+    // The finished view keeps the full result card; the others have tabs.
+    await expect(
+      isLast
+        ? page.getByRole('region', { name: '턴 결과', exact: true })
+        : turnTabs(page, turn),
+    ).toBeVisible();
     if (!isLast) {
       await checkpoint(run, `turn-${String(turn)}`, { screenshot: false });
     }

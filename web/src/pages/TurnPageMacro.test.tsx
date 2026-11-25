@@ -65,13 +65,13 @@ describe('macro panel on turn screens', () => {
     expect(world.turnGets).toEqual([]);
   });
 
-  it('sits below the result card and above the feed', async () => {
+  it('sits below the tabs and above the feed', async () => {
     const world = serveTurnWorld({ current: 4 });
     world.feed = (turnNo) => feedOfTurn(turnNo);
     world.macro = macroOfTurn;
     renderRoute('/seasons/7');
     const panel = await screen.findByRole('region', { name: '거시 환경' });
-    const card = screen.getByRole('region', { name: '턴 결과' });
+    const card = screen.getByRole('tablist', { name: '4턴 자세히' });
     const feed = await screen.findByRole('region', { name: '소식' });
     const follows = Node.DOCUMENT_POSITION_FOLLOWING;
     expect(card.compareDocumentPosition(panel) & follows).toBeTruthy();
@@ -84,7 +84,7 @@ describe('macro panel on turn screens', () => {
     world.macro = macroOfTurn;
     renderRoute('/seasons/7/turns/2');
     const panel = await screen.findByRole('region', { name: '거시 환경' });
-    const card = screen.getByRole('region', { name: '턴 결과' });
+    const card = screen.getByRole('tablist', { name: '2턴 자세히' });
     const feed = await screen.findByRole('region', { name: '소식' });
     const follows = Node.DOCUMENT_POSITION_FOLLOWING;
     expect(card.compareDocumentPosition(panel) & follows).toBeTruthy();

@@ -497,13 +497,13 @@ describe('alerts and feed together', () => {
     expect(screen.getAllByRole('alert')).toHaveLength(1);
   });
 
-  it('places the alerts above the turn result and the feed', async () => {
+  it('places the alerts above the tabs and the feed', async () => {
     const world = openWorld();
     world.alerts = (turnNo) => alertsOfTurn(turnNo);
     renderRoute('/seasons/7');
     const alerts = await screen.findByRole('region', { name: '알림' });
     const news = screen.getByRole('region', { name: '소식' });
-    const card = screen.getByRole('region', { name: '턴 결과' });
+    const card = screen.getByRole('tablist', { name: '5턴 자세히' });
     expect(
       alerts.compareDocumentPosition(news) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();

@@ -22,7 +22,7 @@ describe('turn screen layout', () => {
     await openNow();
     const summary = await screen.findByRole('region', { name: '4턴 요약' });
     const heading = screen.getByRole('heading', { name: '4턴 결과' });
-    const detail = screen.getByRole('region', { name: '턴 결과' });
+    const detail = screen.getByRole('tablist', { name: '4턴 자세히' });
     expect(
       heading.compareDocumentPosition(summary) &
         Node.DOCUMENT_POSITION_FOLLOWING,
@@ -72,15 +72,17 @@ describe('turn screen layout', () => {
     expect(rankingToggle).toHaveAttribute('aria-expanded', 'false');
     // A collapsed board is not requested.
     expect(world.rankingGets).toEqual([]);
-    expect(screen.queryByRole('tablist')).toBeNull();
+    expect(screen.queryByRole('tablist', { name: '순위 종류' })).toBeNull();
     await user.click(rankingToggle);
     expect(rankingToggle).toHaveAttribute('aria-expanded', 'true');
-    expect(await screen.findByRole('tablist')).toBeInTheDocument();
+    expect(
+      await screen.findByRole('tablist', { name: '순위 종류' }),
+    ).toBeInTheDocument();
     await waitFor(() => {
       expect(world.rankingGets).toEqual([4]);
     });
     await user.click(rankingToggle);
-    expect(screen.queryByRole('tablist')).toBeNull();
+    expect(screen.queryByRole('tablist', { name: '순위 종류' })).toBeNull();
     await user.click(feedToggle);
     expect(feedToggle).toHaveAttribute('aria-expanded', 'false');
     expect(

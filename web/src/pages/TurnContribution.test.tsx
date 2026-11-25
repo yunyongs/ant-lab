@@ -10,12 +10,11 @@ import {
   holdingContributionFixture,
 } from '../test/fixtures/contribution.ts';
 import { poolAssetFixture } from '../test/fixtures/pool.ts';
+import { seasonFixture } from '../test/fixtures/seasons.ts';
 import { renderRoute } from '../test/renderWithProviders.tsx';
 import { serveTurnWorld } from '../test/serveTurns.ts';
 import { server } from '../test/server.ts';
 import { settle } from '../test/settle.ts';
-
-const TITLE = '이번 턴 기여';
 
 // Eight holdings in the server's order (largest contribution first): four up,
 // one zero, three down. Names come from the pool by assetId.
@@ -60,9 +59,13 @@ function countContributionGets(): number[] {
   return gets;
 }
 
+// The contribution is the second tab of the turn screen.
 async function openSection() {
-  const region = await screen.findByRole('region', { name: TITLE });
-  await within(region).findByRole('heading', { name: '기준 대비' });
+  await userEvent
+    .setup()
+    .click(await screen.findByRole('tab', { name: '기여' }));
+  const region = await screen.findByRole('tabpanel', { name: '기여' });
+  await within(region).findByText('가격 변화 기여 합');
   return region;
 }
 
@@ -127,7 +130,7 @@ describe('turn contribution on the turn screen', () => {
     ).toBeNull();
   });
 
-  it('shows the sums, the benchmark row and the positions as whole won and 2-decimal percent', async () => {
+  it('shows the sums and the positions as whole won and 2-decimal percent', async () => {
     serveTurnWorld({ current: 4 });
     const { container } = renderRoute('/seasons/7');
     const region = await openSection();
@@ -136,13 +139,6 @@ describe('turn contribution on the turn screen', () => {
       'up',
     );
     expect(within(region).getByText('17,440원')).toBeInTheDocument();
-    expect(within(region).getByText('+4.82%')).toBeInTheDocument();
-    expect(within(region).getByText('102,800,000원')).toBeInTheDocument();
-    expect(within(region).getByText('+2.80%')).toBeInTheDocument();
-    expect(within(region).getByText('+2.02%')).toHaveAttribute(
-      'data-direction',
-      'up',
-    );
     const positions = listUnder(region, '포지션별 기여');
     expect(names(positions)).toEqual([
       '골키퍼 (현금 포함)',
@@ -222,12 +218,17 @@ describe('turn contribution on the turn screen', () => {
       ),
     );
     renderRoute('/seasons/7');
-    const region = await screen.findByRole('region', { name: TITLE });
+    await userEvent
+      .setup()
+      .click(await screen.findByRole('tab', { name: '기여' }));
+    const region = await screen.findByRole('tabpanel', { name: '기여' });
     const alert = await within(region).findByRole('alert');
     expect(alert).toHaveTextContent('서버에 문제가 생겼습니다');
     expect(screen.getAllByRole('alert')).toHaveLength(1);
     // The rest of the turn screen is still there.
-    expect(screen.getByRole('region', { name: '턴 결과' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('tablist', { name: '4턴 자세히' }),
+    ).toBeInTheDocument();
     expect(
       screen.getByRole('region', { name: '4턴 요약' }),
     ).toBeInTheDocument();
@@ -237,31 +238,26 @@ describe('turn contribution on the turn screen', () => {
     await user.click(
       within(alert).getByRole('button', { name: '다시 불러오기' }),
     );
-    await within(region).findByRole('heading', { name: '기준 대비' });
+    await within(region).findByText('가격 변화 기여 합');
     expect(within(region).queryByRole('alert')).toBeNull();
   });
 
-  it('is a collapsible section that is open by default and stops asking when closed', async () => {
+  it('is the second tab: one request, headings in order, nothing before it is chosen', async () => {
     serveTurnWorld({ current: 4 });
     const gets = countContributionGets();
     renderRoute('/seasons/7');
-    const toggle = await screen.findByRole('button', { name: /^이번 턴 기여/ });
-    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    const tab = await screen.findByRole('tab', { name: '기여' });
+    expect(tab).toHaveAttribute('aria-selected', 'false');
+    expect(screen.queryByText('가격 변화 기여 합')).toBeNull();
     const region = await openSection();
+    expect(tab).toHaveAttribute('aria-selected', 'true');
+    // The summary's baseline row uses the same query: one request in all.
     expect(gets).toEqual([4]);
-    // Heading levels: turn heading (2), section (3), sub-groups (4).
+    // Heading levels: turn heading (2), sub-groups (4) inside the tab panel.
     expect(
       screen.getByRole('heading', { level: 2, name: '4턴 결과' }),
     ).toBeInTheDocument();
-    expect(
-      within(region).getByRole('heading', { level: 3, name: /이번 턴 기여/ }),
-    ).toBeInTheDocument();
-    for (const name of [
-      '기준 대비',
-      '많이 더한 종목',
-      '많이 뺀 종목',
-      '포지션별 기여',
-    ]) {
+    for (const name of ['많이 더한 종목', '많이 뺀 종목', '포지션별 기여']) {
       expect(
         within(region).getByRole('heading', { level: 4, name }),
       ).toBeInTheDocument();
@@ -269,21 +265,41 @@ describe('turn contribution on the turn screen', () => {
     expect(within(region).getAllByRole('list').length).toBeGreaterThanOrEqual(
       3,
     );
-    const user = userEvent.setup();
-    await user.click(toggle);
-    expect(toggle).toHaveAttribute('aria-expanded', 'false');
-    expect(
-      within(region).queryByRole('heading', { name: '기준 대비' }),
-    ).toBeNull();
   });
 
   it('shows the past turn it belongs to and never asks for a later turn', async () => {
     serveTurnWorld({ current: 5 });
     const gets = countContributionGets();
     renderRoute('/seasons/7/turns/3');
-    const region = await screen.findByRole('region', { name: '이 턴의 기여' });
-    await within(region).findByRole('heading', { name: '기준 대비' });
+    await openSection();
     expect(gets).toEqual([3]);
+  });
+
+  it('shows the team return as of the past turn, not the latest season value', async () => {
+    serveTurnWorld({ current: 5 });
+    server.use(
+      http.get('*/api/v1/seasons/7', () =>
+        HttpResponse.json(
+          seasonFixture({
+            id: 7,
+            currentTurnNo: 5,
+            totalReturn: '0.09990000',
+          }),
+        ),
+      ),
+      http.get('*/api/v1/seasons/7/turns/:turnNo/contribution', () =>
+        HttpResponse.json(
+          contributionFixture({ turnNo: 3, totalReturn: '0.01230000' }),
+        ),
+      ),
+    );
+    renderRoute('/seasons/7/turns/3');
+    const region = await openSection();
+    const row =
+      within(region).getByText('이 턴까지 팀 누적 수익률').parentElement;
+    expect(row).not.toBeNull();
+    expect(row?.textContent).toContain('1.23%');
+    expect(within(region).queryByText(/9\.99%/)).toBeNull();
   });
 
   it('has no section and sends no request for an out-of-range turn', async () => {
@@ -291,7 +307,7 @@ describe('turn contribution on the turn screen', () => {
     const gets = countContributionGets();
     renderRoute('/seasons/7/turns/6');
     await screen.findByText('아직 진행하지 않은 턴입니다.');
-    expect(screen.queryByRole('region', { name: '이 턴의 기여' })).toBeNull();
+    expect(screen.queryByRole('tab', { name: '기여' })).toBeNull();
     expect(gets).toEqual([]);
   });
 
@@ -301,7 +317,7 @@ describe('turn contribution on the turn screen', () => {
     const { queryClient } = renderRoute('/seasons/7');
     await screen.findByRole('heading', { name: '시즌 7' });
     await settle(queryClient);
-    expect(screen.queryByRole('region', { name: TITLE })).toBeNull();
+    expect(screen.queryByRole('tab', { name: '기여' })).toBeNull();
     expect(screen.queryByText(/턴 기여/)).toBeNull();
     expect(gets).toEqual([]);
   });

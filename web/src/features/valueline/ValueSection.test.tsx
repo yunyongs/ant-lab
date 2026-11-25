@@ -9,7 +9,7 @@ import { server } from '../../test/server.ts';
 import { formatWon } from '../format/money.ts';
 import { ratioToPercent } from '../format/ratio.ts';
 import { signedChange } from '../format/signedChange.ts';
-import { ValueSection } from './ValueSection.tsx';
+import { ValueChartPanel, ValueTablePanel } from './ValueSection.tsx';
 
 const lib = vi.hoisted(() => {
   const series = {
@@ -40,9 +40,21 @@ function serveSummaries(currentTurnNo: number) {
   return body.items;
 }
 
-function renderSection(currentTurnNo: number) {
+function renderSection(currentTurnNo: number, throughTurn = currentTurnNo) {
   return renderWithProviders(
-    <ValueSection season={seasonFixture({ id: 7, currentTurnNo })} />,
+    <ValueChartPanel
+      season={seasonFixture({ id: 7, currentTurnNo })}
+      throughTurn={throughTurn}
+    />,
+  );
+}
+
+function renderTable(currentTurnNo: number, throughTurn = currentTurnNo) {
+  return renderWithProviders(
+    <ValueTablePanel
+      season={seasonFixture({ id: 7, currentTurnNo })}
+      throughTurn={throughTurn}
+    />,
   );
 }
 
@@ -67,7 +79,7 @@ describe('value chart section', () => {
     serveSummaries(4);
     const view = renderSection(4);
     const chart = await screen.findByRole('img', {
-      name: '0턴부터 4턴까지 총 평가액 선 그래프. 같은 숫자는 아래 표에 있습니다.',
+      name: '0턴부터 4턴까지 총 평가액 선 그래프. 같은 숫자는 표 탭에 있습니다.',
     });
     expect(chart).toBeInTheDocument();
     await waitFor(() => {
@@ -105,7 +117,7 @@ describe('value chart section', () => {
 
   it('lists the same numbers as the API in a table', async () => {
     const items = serveSummaries(4);
-    renderSection(4);
+    renderTable(4);
     const table = await screen.findByRole('table', {
       name: '턴별 총 평가액 (그래프와 같은 숫자)',
     });
@@ -133,11 +145,10 @@ describe('value chart section', () => {
     renderSection(0);
     expect(
       await screen.findByText(
-        '턴을 하나 넘기면 총 평가액 그래프가 그려집니다. 지금은 아래 표만 봐 주세요.',
+        '턴을 하나 넘기면 총 평가액 그래프가 그려집니다. 지금은 표 탭만 봐 주세요.',
       ),
     ).toBeInTheDocument();
     expect(screen.queryByRole('img')).not.toBeInTheDocument();
-    expect(screen.getByRole('table')).toBeInTheDocument();
     expect(lib.createOptionsChart).not.toHaveBeenCalled();
   });
 
@@ -162,11 +173,60 @@ describe('value chart section', () => {
         }),
       ),
     );
-    renderSection(1);
+    renderTable(1);
     expect(
       await screen.findByText('9,007,199,254,740,993원'),
     ).toBeInTheDocument();
     expect(screen.queryByRole('img')).not.toBeInTheDocument();
+  });
+
+  it('tells the chart tab it cannot draw a value that is too large', async () => {
+    server.use(
+      http.get('*/api/v1/seasons/7/turns', () =>
+        HttpResponse.json({
+          items: [
+            {
+              turnNo: 0,
+              totalValue: '100000000',
+              drawdown: '0.00000000',
+              periodReturn: '0.00000000',
+            },
+            {
+              turnNo: 1,
+              totalValue: '9007199254740993',
+              drawdown: '0.00000000',
+              periodReturn: '90071991.54740993',
+            },
+          ],
+        }),
+      ),
+    );
+    renderSection(1);
+    expect(
+      await screen.findByText(
+        '그래프로 그릴 수 없습니다 — 표 탭에서 확인하세요.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('img')).not.toBeInTheDocument();
+    expect(lib.createOptionsChart).not.toHaveBeenCalled();
+  });
+
+  it('keeps a past turn out of the chart data and the risk guide', async () => {
+    serveSummaries(4);
+    renderSection(4, 2);
+    await screen.findByRole('img', { name: /0턴부터 2턴까지/ });
+    await waitFor(() => {
+      expect(lib.series.setData).toHaveBeenCalled();
+    });
+    expect(lib.series.setData).toHaveBeenCalledWith([
+      { time: 0, value: 100000000 },
+      { time: 1, value: 103300000 },
+      { time: 2, value: 101250000 },
+    ]);
+    // Peak through turn 2 is 103,300,000; the later peak 104,820,000 is unseen.
+    expect(lib.series.createPriceLine).toHaveBeenCalledWith(
+      expect.objectContaining({ price: 82640000 }),
+    );
   });
 
   it('follows the up/down convention when it changes', async () => {
@@ -185,23 +245,32 @@ describe('value chart section', () => {
     resetConventionForTests();
   });
 
-  it('asks for the list only while the section is open', () => {
-    let gets = 0;
-    server.use(
-      http.get('*/api/v1/seasons/7/turns', () => {
-        gets += 1;
-        return HttpResponse.json(turnSummariesFixture(2));
-      }),
-    );
-    renderWithProviders(
-      <ValueSection
-        season={seasonFixture({ id: 7, currentTurnNo: 2 })}
-        collapse={{ defaultOpen: false }}
-      />,
-    );
+  it('replaces an all-zero drawdown column with one sentence', async () => {
+    serveSummaries(1);
+    renderTable(1);
+    const table = await screen.findByRole('table');
     expect(
-      screen.getByRole('button', { name: /총 평가액 흐름/ }),
-    ).toHaveAttribute('aria-expanded', 'false');
-    expect(gets).toBe(0);
+      within(table).queryByRole('columnheader', { name: '누적 낙폭' }),
+    ).toBeNull();
+    expect(screen.getByText('누적 낙폭은 모든 턴 0.00%')).toBeInTheDocument();
+  });
+
+  it('shows the drawdown column once any turn has a drawdown', async () => {
+    serveSummaries(2);
+    renderTable(2);
+    const table = await screen.findByRole('table');
+    expect(
+      within(table).getByRole('columnheader', { name: '누적 낙폭' }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('누적 낙폭은 모든 턴 0.00%')).toBeNull();
+  });
+
+  it('never shows a turn after the one being viewed', async () => {
+    serveSummaries(4);
+    renderTable(4, 2);
+    const table = await screen.findByRole('table');
+    expect(within(table).getAllByRole('row')).toHaveLength(1 + 3);
+    expect(within(table).queryByText('3턴')).toBeNull();
+    expect(within(table).queryByText('4턴')).toBeNull();
   });
 });
