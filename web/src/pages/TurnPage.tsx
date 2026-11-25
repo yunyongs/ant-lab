@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { Link, useParams } from 'react-router';
-import { ContributionSection } from '../features/contribution/ContributionSection.tsx';
 import { MAX_ROUTE_ID, parseWholeNumber } from '../features/format/integer.ts';
 import { MacroPanel } from '../features/macro/MacroPanel.tsx';
 import { AlertList } from '../features/feed/AlertList.tsx';
@@ -9,7 +8,9 @@ import { RankingSection } from '../features/ranking/RankingSection.tsx';
 import { QueryError } from '../features/seasons/QueryError.tsx';
 import { useSeason } from '../features/seasons/queries.ts';
 import { useTurn } from '../features/turn/queries.ts';
-import { TurnResultCard } from '../features/turn/TurnResultCard.tsx';
+import { BreachNotice } from '../features/turn/TurnDetailRows.tsx';
+import { TurnSummary } from '../features/turn/TurnSummary.tsx';
+import { TurnTabs } from '../features/turn/TurnTabs.tsx';
 import { NOT_REACHED_TEXT } from '../features/turn/turnMessages.ts';
 import turnStyles from '../features/turn/Turn.module.css';
 import seasons from '../features/seasons/Seasons.module.css';
@@ -95,6 +96,7 @@ export function TurnPage() {
               }}
             />
           )}
+          {turn.data && <TurnSummary turn={turn.data} />}
           {turn.data && (
             <AlertList
               items={turn.data.alerts}
@@ -103,15 +105,8 @@ export function TurnPage() {
               onNotice={setNotice}
             />
           )}
-          {turn.data && <TurnResultCard turn={turn.data} />}
-          {turn.data && (
-            <ContributionSection
-              seasonId={season.data.id}
-              turnNo={k}
-              currentTurnNo={season.data.currentTurnNo}
-              title="이 턴의 기여"
-            />
-          )}
+          {turn.data && <BreachNotice turn={turn.data} />}
+          {turn.data && <TurnTabs season={season.data} turn={turn.data} />}
           {turn.data && <MacroPanel macro={turn.data.macro} />}
           {turn.data && (
             <FeedSection
