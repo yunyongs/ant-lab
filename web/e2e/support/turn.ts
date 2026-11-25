@@ -83,7 +83,7 @@ export async function playTurnOne(page: Page, run: Run): Promise<void> {
     .getByRole('link', { name: '매매' })
     .boundingBox();
   const advanceBox = await actions
-    .getByRole('button', { name: '다음 턴 (2턴으로)' })
+    .getByRole('button', { name: '2턴으로 넘기기' })
     .boundingBox();
   expect(tradeBox).not.toBeNull();
   expect(advanceBox).not.toBeNull();
