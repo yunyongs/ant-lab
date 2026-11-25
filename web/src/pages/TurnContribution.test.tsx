@@ -228,7 +228,9 @@ describe('turn contribution on the turn screen', () => {
     expect(screen.getAllByRole('alert')).toHaveLength(1);
     // The rest of the turn screen is still there.
     expect(screen.getByRole('region', { name: '턴 결과' })).toBeInTheDocument();
-    expect(screen.getByRole('region', { name: '요약' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('region', { name: '4턴 요약' }),
+    ).toBeInTheDocument();
     expect(screen.getByRole('group', { name: '턴 행동' })).toBeInTheDocument();
     fail = false;
     const user = userEvent.setup();

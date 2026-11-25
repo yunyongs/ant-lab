@@ -20,7 +20,7 @@ async function openNow() {
 describe('turn screen layout', () => {
   it('opens with the summary right after the heading, before the details', async () => {
     await openNow();
-    const summary = await screen.findByRole('region', { name: '요약' });
+    const summary = await screen.findByRole('region', { name: '4턴 요약' });
     const heading = screen.getByRole('heading', { name: '4턴 결과' });
     const detail = screen.getByRole('region', { name: '턴 결과' });
     expect(
@@ -41,14 +41,14 @@ describe('turn screen layout', () => {
     const advance = within(bar).getByRole('button', { name: NEXT });
     const trade = within(bar).getByRole('link', { name: '매매' });
     expect(trade).toHaveAttribute('href', '/seasons/7/trade');
-    // Focus order: advance before trade, both after the ranking toggle.
+    // Focus order: trade (left) before advance (right), both after the ranking toggle.
     const rankingToggle = screen.getByRole('button', { name: /^순위/ });
     expect(
-      rankingToggle.compareDocumentPosition(advance) &
+      rankingToggle.compareDocumentPosition(trade) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(
-      advance.compareDocumentPosition(trade) & Node.DOCUMENT_POSITION_FOLLOWING,
+      trade.compareDocumentPosition(advance) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     // Tab walks the real order: ranking toggle, the links, then the bar.
     const user = userEvent.setup();
@@ -58,9 +58,9 @@ describe('turn screen layout', () => {
     await user.tab();
     expect(screen.getByRole('link', { name: '예상 분포 보기' })).toHaveFocus();
     await user.tab();
-    expect(advance).toHaveFocus();
-    await user.tab();
     expect(trade).toHaveFocus();
+    await user.tab();
+    expect(advance).toHaveFocus();
   });
 
   it('shows the feed open and the ranking collapsed, and toggles both', async () => {
