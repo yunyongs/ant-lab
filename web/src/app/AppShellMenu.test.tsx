@@ -2,8 +2,10 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { describe, expect, it } from 'vitest';
+import { holdingsWithMidfielder } from '../test/fixtures/holdings.ts';
 import { seasonFixture } from '../test/fixtures/seasons.ts';
 import { renderRoute } from '../test/renderWithProviders.tsx';
+import { serveSeason } from '../test/serve.ts';
 import { server } from '../test/server.ts';
 
 function serveSeasons(items: ReturnType<typeof seasonFixture>[]) {
@@ -78,6 +80,92 @@ describe('AppShell header menu', () => {
     await user.click(menuButton());
     await user.click(menuButton());
     expect(menuButton()).toHaveAttribute('aria-expanded', 'false');
+  });
+});
+
+describe('AppShell menu inside a season', () => {
+  const formation = () =>
+    screen.queryByRole('link', { name: '포메이션 바꾸기' });
+  const abandon = () => screen.queryByRole('button', { name: '시즌 포기…' });
+
+  it('adds the formation link and the abandon item for a season from turn 1', async () => {
+    serveSeason({ currentTurnNo: 2 });
+    const user = userEvent.setup();
+    renderRoute('/seasons/7');
+    await screen.findByRole('heading', { name: '2턴 결과' });
+    await user.click(menuButton());
+    expect(formation()).toHaveAttribute('href', '/seasons/7/formation');
+    expect(abandon()).toBeEnabled();
+    // The colour toggle first, logout last, abandon set apart before it.
+    const menu = screen.getByRole('button', { name: '로그아웃' }).parentElement;
+    const items = Array.from(menu?.children ?? []);
+    expect(items.map((item) => item.textContent)).toEqual([
+      expect.stringMatching(/^색:/),
+      '포메이션 바꾸기',
+      '시즌 포기…',
+      '로그아웃',
+    ]);
+  });
+
+  it('offers no formation change at turn 0, only the abandon item', async () => {
+    serveSeason({ currentTurnNo: 0 });
+    const user = userEvent.setup();
+    renderRoute('/seasons/7');
+    await screen.findByRole('heading', { name: '0턴 팀 구성' });
+    await user.click(menuButton());
+    expect(formation()).toBeNull();
+    expect(abandon()).toBeEnabled();
+  });
+
+  it('offers neither for a finished season or outside a season', async () => {
+    serveSeason({ status: 'FINISHED', currentTurnNo: 12 });
+    const user = userEvent.setup();
+    const { unmount } = renderRoute('/seasons/7');
+    await screen.findByText('시즌이 끝났습니다');
+    await user.click(menuButton());
+    expect(formation()).toBeNull();
+    expect(abandon()).toBeNull();
+    unmount();
+    renderRoute('/');
+    await user.click(menuButton());
+    expect(formation()).toBeNull();
+    expect(abandon()).toBeNull();
+  });
+
+  it('closes the menu when the formation link is followed', async () => {
+    serveSeason({ currentTurnNo: 2 });
+    const user = userEvent.setup();
+    renderRoute('/seasons/7');
+    await screen.findByRole('heading', { name: '2턴 결과' });
+    await user.click(menuButton());
+    await user.click(screen.getByRole('link', { name: '포메이션 바꾸기' }));
+    expect(menuButton()).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('moves focus to the destination heading after the keyboard opens the formation page', async () => {
+    serveSeason({ currentTurnNo: 2 });
+    server.use(
+      http.get('*/api/v1/seasons/7/holdings', () =>
+        HttpResponse.json(holdingsWithMidfielder),
+      ),
+    );
+    const user = userEvent.setup();
+    renderRoute('/seasons/7');
+    await screen.findByRole('heading', { name: '2턴 결과' });
+    menuButton().focus();
+    await user.keyboard('{Enter}');
+    const link = screen.getByRole('link', { name: '포메이션 바꾸기' });
+    for (let step = 0; step < 6 && document.activeElement !== link; step += 1) {
+      await user.tab();
+    }
+    expect(link).toHaveFocus();
+    await user.keyboard('{Enter}');
+    const heading = await screen.findByRole('heading', {
+      name: /2턴 전술 변경/,
+    });
+    await waitFor(() => {
+      expect(heading).toHaveFocus();
+    });
   });
 });
 

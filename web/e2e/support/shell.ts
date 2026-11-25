@@ -91,6 +91,39 @@ export async function openMenu(page: Page): Promise<void> {
   await expect(button).toHaveAttribute('aria-expanded', 'true');
 }
 
+// Season abandon lives in the header menu: open it, press the item. The
+// confirmation dialog opens on the season page.
+export async function openAbandonDialog(page: Page): Promise<void> {
+  await openMenu(page);
+  await page.getByRole('button', { name: '시즌 포기…' }).click();
+  await expect(menuButton(page)).toHaveAttribute('aria-expanded', 'false');
+  await expect(
+    page.getByRole('dialog', { name: '시즌을 포기할까요?' }),
+  ).toBeVisible();
+}
+
+// The in-season menu with its two new items: own screenshot, axe, overflow
+// and 44 px touch targets (run on a season in progress, before the finish).
+export async function checkSeasonMenu(page: Page): Promise<void> {
+  const run = startRun(page, `${test.info().project.name}-season-menu`);
+  await openMenu(page);
+  const formation = page.getByRole('link', { name: '포메이션 바꾸기' });
+  const abandon = page.getByRole('button', { name: '시즌 포기…' });
+  await expect(formation).toBeVisible();
+  await expect(abandon).toBeVisible();
+  for (const item of [formation, abandon]) {
+    const box = await item.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.width, 'menu item width').toBeGreaterThanOrEqual(44);
+    expect(box!.height, 'menu item height').toBeGreaterThanOrEqual(44);
+  }
+  await checkpoint(run, 'season-menu-open', { axe: 'season-menu' });
+  expect(run.axeLines, 'axe violations in the season menu').toEqual([]);
+  writeAxeSummary(run);
+  await page.keyboard.press('Escape');
+  await expect(menuButton(page)).toHaveAttribute('aria-expanded', 'false');
+}
+
 // The open menu has its own screenshot and axe scan (own folder, own counter).
 async function checkOpenMenu(page: Page): Promise<void> {
   const run = startRun(page, `${test.info().project.name}-menu`);

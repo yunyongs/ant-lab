@@ -39,6 +39,10 @@ export function leagueText(season: Pick<Season, 'leagueId'>): string | null {
 }
 
 export function headerSeasonLine(season: Season): string {
+  if (season.status === 'IN_PROGRESS') {
+    const f = season.currentFormation;
+    return `${String(season.currentTurnNo)}/${String(season.pathLength)}턴 · 포메이션 ${String(f.goalkeeper)}·${String(f.defender)}·${String(f.midfielder)}·${String(f.forward)}`;
+  }
   return `시즌 ${String(season.id)} · ${String(season.currentTurnNo)}/${String(season.pathLength)}턴 · ${statusLabel(season)}`;
 }
 

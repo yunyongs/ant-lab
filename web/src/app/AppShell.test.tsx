@@ -91,7 +91,7 @@ describe('AppShell', () => {
     );
     const header = screen.getByRole('banner');
     expect(
-      await within(header).findByText('시즌 7 · 3/12턴 · 진행 중'),
+      await within(header).findByText('3/12턴 · 포메이션 40·30·20·10'),
     ).toBeInTheDocument();
     await screen.findByRole('heading', { name: '시즌 7' });
     await screen.findByText(/API 연결됨/);

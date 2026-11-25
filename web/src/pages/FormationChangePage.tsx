@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { ProblemError } from '../api/problem.ts';
 import { MAX_ROUTE_ID, parseWholeNumber } from '../features/format/integer.ts';
@@ -16,6 +16,11 @@ export function FormationChangePage() {
   const id = parseWholeNumber(seasonId, MAX_ROUTE_ID);
   const query = useSeason(id);
   const [notice, setNotice] = useState<string | null>(null);
+  const heading = useRef<HTMLHeadingElement>(null);
+  // Arriving from the header menu removed the focused link: land on the heading.
+  useEffect(() => {
+    heading.current?.focus();
+  }, []);
   if (id === null) return <NotFoundPage />;
   const season = query.data;
   const notFound =
@@ -30,7 +35,7 @@ export function FormationChangePage() {
           : TURN_ZERO_TEXT;
   return (
     <div className={styles.page}>
-      <h1 className={styles.heading}>
+      <h1 ref={heading} tabIndex={-1} className={styles.heading}>
         {season === undefined
           ? `시즌 ${String(id)} 전술 변경`
           : `${String(season.currentTurnNo)}턴 전술 변경`}

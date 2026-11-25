@@ -33,7 +33,9 @@ describe('turn advance on the now page', () => {
     expect(world.turnGets).toEqual([4]);
     expect(world.seasonGets).toBe(2);
     expect(heading).toHaveFocus();
-    expect(screen.getByText('시즌 7 · 5/12턴 · 진행 중')).toBeInTheDocument();
+    expect(
+      screen.getByText('5/12턴 · 포메이션 40·30·20·10'),
+    ).toBeInTheDocument();
     expectNoDatePattern(view.container);
   });
 

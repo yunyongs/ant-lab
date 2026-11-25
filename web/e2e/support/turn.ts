@@ -1,5 +1,5 @@
 import { expect, type Page } from '@playwright/test';
-import { mainNav } from './shell.ts';
+import { checkSeasonMenu, mainNav } from './shell.ts';
 import { checkpoint, type Run } from './steps.ts';
 
 export const turnCard = (page: Page) =>
@@ -15,6 +15,51 @@ export async function advanceTo(page: Page, turn: number): Promise<void> {
   await expect(
     page.getByRole('heading', { name: `${String(turn)}턴 결과` }),
   ).toBeVisible();
+}
+
+// At the end of the page the last ordinary control (outside the action bar)
+// is fully clear of the action bar and the bottom menu.
+async function expectEndClearOfBars(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    window.scrollTo(0, document.documentElement.scrollHeight);
+  });
+  const found = await page.evaluate(() => {
+    const bar = document.querySelector('[role="group"][aria-label="턴 행동"]');
+    const nav = document.querySelector('nav[aria-label="주 메뉴"]');
+    const controls = Array.from(
+      document.querySelectorAll<HTMLElement>('main a[href], main button'),
+    ).filter(
+      (el) =>
+        !(bar?.contains(el) ?? false) &&
+        el.getClientRects().length > 0 &&
+        el.getBoundingClientRect().height > 0,
+    );
+    const last = controls.reduce<HTMLElement | null>(
+      (best, el) =>
+        best === null ||
+        el.getBoundingClientRect().bottom >= best.getBoundingClientRect().bottom
+          ? el
+          : best,
+      null,
+    );
+    if (last === null || bar === null || nav === null) return null;
+    return {
+      bottom: last.getBoundingClientRect().bottom,
+      barTop: bar.getBoundingClientRect().top,
+      navTop: nav.getBoundingClientRect().top,
+    };
+  });
+  expect(
+    found,
+    'a last control, the action bar and the menu exist',
+  ).not.toBeNull();
+  expect(found!.bottom, 'last control above the menu').toBeLessThanOrEqual(
+    found!.navTop + 1,
+  );
+  expect(
+    found!.bottom,
+    'last control above the action bar',
+  ).toBeLessThanOrEqual(found!.barTop + 1);
 }
 
 // Turn 1: the actions stay in reach without scrolling, summary first
@@ -35,24 +80,9 @@ export async function playTurnOne(page: Page, run: Run): Promise<void> {
   expect(barBox).not.toBeNull();
   expect(navBox).not.toBeNull();
   expect(barBox!.y + barBox!.height).toBeLessThanOrEqual(navBox!.y + 1);
-  // At the end of the page the last control is fully clear of the bar and the menu.
-  const abandon = page.getByRole('button', { name: '시즌 포기' });
-  await abandon.focus();
-  await page.evaluate(() => {
-    window.scrollTo(0, document.documentElement.scrollHeight);
-  });
-  const abandonBox = await abandon.boundingBox();
-  const barEnd = await actions.boundingBox();
-  const navEnd = await mainNav(page).boundingBox();
-  expect(abandonBox).not.toBeNull();
-  expect(barEnd).not.toBeNull();
-  expect(navEnd).not.toBeNull();
-  const abandonBottom = abandonBox!.y + abandonBox!.height;
-  expect(abandonBottom).toBeLessThanOrEqual(navEnd!.y + 1);
-  expect(
-    abandonBottom <= barEnd!.y + 1 ||
-      abandonBox!.y >= barEnd!.y + barEnd!.height - 1,
-  ).toBe(true);
+  // No abandon button stays on the page: the action lives in the header menu.
+  await expect(page.getByRole('button', { name: '시즌 포기' })).toHaveCount(0);
+  await expectEndClearOfBars(page);
   // Every link has an accessible name (the chart's logo link is off).
   await expect(
     page.locator('main a:not([aria-label])').filter({ hasText: /^$/ }),
@@ -60,6 +90,7 @@ export async function playTurnOne(page: Page, run: Run): Promise<void> {
   // The feed region is always there: items, or the no-news sentence.
   await expect(feedRegion(page)).toBeVisible();
   await checkpoint(run, 'turn-1', { axe: 'turn-result' });
+  await checkSeasonMenu(page);
 }
 
 // Turn 2: the ranking board opens on its first tab, the keyboard moves on.
