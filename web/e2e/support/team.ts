@@ -124,13 +124,30 @@ async function expectBarsClear(page: Page): Promise<void> {
       return box === null ? Infinity : box.y + box.height;
     })
     .toBeLessThanOrEqual(page.viewportSize()!.height);
-  const buy = rangeOf(await last.boundingBox());
+  // Scroll and measure in the same step: a re-render can move the page
+  // between a separate scroll and a later read.
+  await expect
+    .poll(async () => {
+      await page.evaluate(() => {
+        window.scrollTo(0, document.documentElement.scrollHeight);
+      });
+      const buyBox = await last.boundingBox();
+      const barBox = await page
+        .getByRole('region', { name: '다음 단계' })
+        .boundingBox();
+      const navBox = await mainNav(page).boundingBox();
+      if (buyBox === null || barBox === null || navBox === null) return false;
+      const buyBottom = buyBox.y + buyBox.height;
+      const clearOfNav = buyBottom <= navBox.y + 1;
+      const clearOfBar =
+        buyBottom <= barBox.y + 1 || buyBox.y >= barBox.y + barBox.height - 1;
+      return clearOfNav && clearOfBar;
+    })
+    .toBe(true);
   const bar = rangeOf(
     await page.getByRole('region', { name: '다음 단계' }).boundingBox(),
   );
   const nav = rangeOf(await mainNav(page).boundingBox());
-  expect(buy.bottom).toBeLessThanOrEqual(nav.top + 1);
-  expect(buy.bottom <= bar.top + 1 || buy.top >= bar.bottom - 1).toBe(true);
   const start = rangeOf(
     await page
       .getByRole('region', { name: '다음 단계' })
