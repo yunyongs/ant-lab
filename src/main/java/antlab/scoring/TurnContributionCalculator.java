@@ -107,11 +107,10 @@ public final class TurnContributionCalculator {
 
     private static BenchmarkToDateDto benchmark(SeasonTerms season, int turnNo, BigDecimal teamTotal,
             Map<AssetKey, List<BigDecimal>> prices) {
-        for (AssetKey key : List.of(Phase0MarketBaseline.BENCH_KR, Phase0MarketBaseline.BENCH_US)) {
-            List<BigDecimal> series = prices.get(key);
-            if (series == null || series.size() != turnNo + 1 || series.stream().anyMatch(p -> p == null)) {
-                throw inconsistent("기준선 대용 종목이 시즌 풀 또는 가격에 없다");
-            }
+        try {
+            Phase0MarketBaseline.requirePrices(prices, turnNo);
+        } catch (IllegalStateException ex) {
+            throw inconsistent(ex.getMessage());
         }
         BigDecimal initialCash = season.initialCash();
         BigDecimal value = valueAt(season, prices, turnNo);

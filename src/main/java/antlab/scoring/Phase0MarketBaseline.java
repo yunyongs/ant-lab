@@ -66,4 +66,17 @@ public final class Phase0MarketBaseline implements MarketBaselineSeries {
         }
         return held.add(cash);
     }
+
+    /** Requires both proxy series to contain exactly the prices used by the report turn. */
+    static void requirePrices(Map<AssetKey, List<BigDecimal>> benchmarkPrices, int turnNo) {
+        if (benchmarkPrices == null) {
+            throw new IllegalStateException("기준선 대용 종목이 시즌 풀 또는 가격에 없다");
+        }
+        for (AssetKey key : LEGS.stream().map(Leg::key).toList()) {
+            List<BigDecimal> prices = benchmarkPrices.get(key);
+            if (prices == null || prices.size() != turnNo + 1 || prices.stream().anyMatch(price -> price == null)) {
+                throw new IllegalStateException("기준선 대용 종목이 시즌 풀 또는 가격에 없다");
+            }
+        }
+    }
 }

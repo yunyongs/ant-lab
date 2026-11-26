@@ -4,6 +4,7 @@ import antlab.common.error.DomainException;
 import antlab.common.error.ErrorCode;
 import antlab.member.CurrentMember;
 import antlab.common.money.MoneyMath;
+import antlab.scoring.MarketBenchmarkLine;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
@@ -24,16 +25,18 @@ public class TurnQueryService {
     private final FormationChangeRepository formationChanges;
     private final TurnFeedRepository feeds;
     private final SeasonPathRepository seasonPaths;
+    private final MarketBenchmarkLine benchmarkLine;
 
     public TurnQueryService(CurrentMember currentMember, SeasonRepository seasons, TurnRepository turns,
             FormationChangeRepository formationChanges, TurnFeedRepository feeds,
-            SeasonPathRepository seasonPaths) {
+            SeasonPathRepository seasonPaths, MarketBenchmarkLine benchmarkLine) {
         this.currentMember = currentMember;
         this.seasons = seasons;
         this.turns = turns;
         this.formationChanges = formationChanges;
         this.feeds = feeds;
         this.seasonPaths = seasonPaths;
+        this.benchmarkLine = benchmarkLine;
     }
 
     /** 아직 진행하지 않은 턴(현재 턴 초과)은 409. 번호가 1 미만이면 호출 전에 400 이다. */
@@ -64,8 +67,9 @@ public class TurnQueryService {
     }
 
     /**
-     * Value line for turns 0..current: one season read and one turn-range read. Turn 0 has no stored row, so it is the
-     * initial capital with drawdown and return 0. Nothing above the current turn is ever read.
+     * Value line for turns 0..current: one season read, one turn-range read and one bounded benchmark-price read when
+     * current is positive. Turn 0 has no stored row, so it is the initial capital with drawdown and return 0. Nothing
+     * above the current turn is ever read.
      */
     @Transactional(readOnly = true)
     public TurnSummaryListDto summaries(Long seasonId) {
@@ -75,15 +79,19 @@ public class TurnQueryService {
                 .orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND, "시즌을 찾을 수 없다"));
         int current = season.getCurrentTurnNo();
         BigDecimal zero = MoneyMath.exactRate(BigDecimal.ZERO);
+        List<BigDecimal> benchmarkValues = benchmarkLine.wonValues(season.getId(), current, season.getInitialCash(),
+                season.getFeeRateKr(), season.getFeeRateUs(), season.getFxSpreadRate()).orElse(null);
         List<TurnSummaryDto> items = new ArrayList<>();
-        items.add(new TurnSummaryDto(0, MoneyMath.exactWon(season.getInitialCash()), zero, zero));
+        items.add(new TurnSummaryDto(0, MoneyMath.exactWon(season.getInitialCash()), zero, zero,
+                benchmarkValues == null ? null : benchmarkValues.get(0)));
         BigDecimal previous = season.getInitialCash();
         if (current >= 1) {
             for (Turn turn : turns.findBySeasonIdAndTurnNoBetween(season.getId(), 1, current)) {
                 BigDecimal total = turn.getTotalValue();
                 items.add(new TurnSummaryDto(turn.getTurnNo(), MoneyMath.exactWon(total),
                         MoneyMath.exactRate(turn.getDrawdown()),
-                        MoneyMath.ratio(total.subtract(previous), previous)));
+                        MoneyMath.ratio(total.subtract(previous), previous),
+                        benchmarkValues == null ? null : benchmarkValues.get(turn.getTurnNo())));
                 previous = total;
             }
         }
