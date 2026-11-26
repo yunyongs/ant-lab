@@ -138,6 +138,19 @@ function ListPageNav() {
   return <BottomNav seasonId={null} linkSeasonId={useSoleActiveSeasonId()} />;
 }
 
+function usesWideContent(
+  pathname: string,
+  seasonId: number | null,
+  currentTurnNo: number | undefined,
+): boolean {
+  if (seasonId === null) return false;
+  const base = `/seasons/${String(seasonId)}`;
+  if (pathname === `${base}/trade` || pathname.startsWith(`${base}/turns/`)) {
+    return true;
+  }
+  return pathname === base && (currentTurnNo ?? 0) >= 1;
+}
+
 // Reads no query itself: a late-mounted observer of a stale season would
 // refetch it. The header menu reads the season while the header is mounted.
 function SeasonMenuItems({
@@ -260,10 +273,18 @@ function HeaderMenu({ seasonId }: { seasonId: number | null }) {
 export function AppShell() {
   const seasonId = useRouteSeasonId();
   const { pathname } = useLocation();
+  const { data: season } = useSeason(seasonId);
+  const wideContent = usesWideContent(
+    pathname,
+    seasonId,
+    season?.currentTurnNo,
+  );
   return (
     <div className={styles.shell}>
       <header className={styles.header}>
-        <div className={`${styles.inner} ${styles.headerRow}`}>
+        <div
+          className={`${styles.inner} ${styles.headerRow} ${wideContent ? styles.wide : ''}`}
+        >
           <Link to="/" className={styles.title}>
             {APP_NAME}
           </Link>
@@ -274,13 +295,13 @@ export function AppShell() {
           <HeaderMenu seasonId={seasonId} />
         </div>
         {seasonId !== null && (
-          <div className={styles.inner}>
+          <div className={`${styles.inner} ${wideContent ? styles.wide : ''}`}>
             <SeasonLine id={seasonId} />
           </div>
         )}
       </header>
       <main className={styles.main}>
-        <div className={styles.inner}>
+        <div className={`${styles.inner} ${wideContent ? styles.wide : ''}`}>
           <Outlet />
         </div>
       </main>
