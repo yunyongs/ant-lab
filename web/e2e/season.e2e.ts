@@ -9,6 +9,7 @@ import {
 } from './support/seasons.ts';
 import {
   coldStartToLogin,
+  checkLeaderboardFromHeader,
   expectTokensInMemoryOnly,
   logoutAndProbe,
   signUpFromLogin,
@@ -44,6 +45,7 @@ test('plays one 12-turn season from signup to review', async ({
   // 01 cold start, 02 sign up, 03 empty home
   await coldStartToLogin(page, run);
   await signUpFromLogin(page, run, guards, member);
+  await checkLeaderboardFromHeader(page, run);
   await expectEmptyHome(page, run);
 
   // 04 new season, 04b pool browser, 04c a 180-asset pool

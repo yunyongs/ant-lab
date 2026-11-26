@@ -64,6 +64,20 @@ export async function signUpDirect(
   await submitSignup(page, guards);
 }
 
+export async function checkLeaderboardFromHeader(
+  page: Page,
+  run: Run,
+): Promise<void> {
+  await page
+    .getByRole('banner')
+    .getByRole('link', { name: '리더보드' })
+    .click();
+  await expect(page.getByRole('heading', { name: '리더보드' })).toBeVisible();
+  await checkpoint(run, 'leaderboard', { axe: 'leaderboard' });
+  await page.goBack();
+  await expect(page.getByRole('heading', { name: '내 시즌' })).toBeVisible();
+}
+
 // Tokens live in memory only; the refresh cookie is HttpOnly.
 export async function expectTokensInMemoryOnly(page: Page): Promise<void> {
   const storage = await page.evaluate(() => ({
