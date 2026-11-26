@@ -264,7 +264,12 @@ export function AppShell() {
     <div className={styles.shell}>
       <header className={styles.header}>
         <div className={`${styles.inner} ${styles.headerRow}`}>
-          <span className={styles.title}>{APP_NAME}</span>
+          <Link to="/" className={styles.title}>
+            {APP_NAME}
+          </Link>
+          <Link to="/leaderboard" className={styles.leaderboardLink}>
+            리더보드
+          </Link>
           <ApiStatus compact />
           <HeaderMenu seasonId={seasonId} />
         </div>

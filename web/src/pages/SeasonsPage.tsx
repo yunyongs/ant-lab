@@ -14,7 +14,12 @@ export function SeasonsPage() {
   const others = (query.data ?? []).filter((s) => s.status !== 'IN_PROGRESS');
   return (
     <div className={styles.page}>
-      <h1 className={styles.heading}>내 시즌</h1>
+      <div className={styles.headingRow}>
+        <h1 className={styles.heading}>내 시즌</h1>
+        <Link to="/leaderboard" className={styles.link}>
+          리더보드
+        </Link>
+      </div>
       {query.isPending && (
         <p role="status" className={seasons.note}>
           시즌을 불러오는 중입니다…

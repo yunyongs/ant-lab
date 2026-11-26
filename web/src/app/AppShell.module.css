@@ -111,9 +111,23 @@ a.menuItem {
 }
 
 .title {
+  display: inline-flex;
   flex: 1;
+  min-height: var(--nav-item-height);
+  align-items: center;
   font-size: var(--font-lg);
   font-weight: 700;
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+.leaderboardLink {
+  display: inline-flex;
+  min-height: var(--nav-item-height);
+  align-items: center;
+  color: var(--color-primary);
+  font-size: var(--font-sm);
+  text-decoration: none;
 }
 
 .main {

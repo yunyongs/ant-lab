@@ -97,7 +97,7 @@ export function SignupPage() {
         <TextField
           id="signup-name"
           label="표시 이름"
-          hint="1–50자"
+          hint="리더보드에 보입니다 · 1–50자"
           type="text"
           autoComplete="nickname"
           value={name}
