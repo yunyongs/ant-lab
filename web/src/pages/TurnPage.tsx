@@ -96,53 +96,59 @@ export function TurnPage() {
               }}
             />
           )}
-          {turn.data && <TurnSummary turn={turn.data} />}
-          {turn.data && (
-            <AlertList
-              items={turn.data.alerts}
-              feed={turn.data.feed}
-              season={season.data}
-              onNotice={setNotice}
-            />
-          )}
-          {turn.data && <BreachNotice turn={turn.data} />}
-          {turn.data && <TurnTabs season={season.data} turn={turn.data} />}
-          {turn.data && <MacroPanel macro={turn.data.macro} />}
-          {turn.data && (
-            <FeedSection
-              items={turn.data.feed}
-              season={season.data}
-              onNotice={setNotice}
-            />
-          )}
-          {turn.data && (
-            <RankingSection
-              seasonId={season.data.id}
-              turnNo={k}
-              currentTurnNo={season.data.currentTurnNo}
-            />
-          )}
-          <nav aria-label="턴 이동" className={turnStyles.links}>
-            {k >= 2 && (
-              <Link
-                className={turnStyles.link}
-                to={`${base}/turns/${String(k - 1)}`}
-              >
-                {`← ${String(k - 1)}턴`}
-              </Link>
-            )}
-            <Link className={turnStyles.link} to={base}>
-              지금 턴으로
-            </Link>
-            {k < (current ?? 0) && (
-              <Link
-                className={turnStyles.link}
-                to={`${base}/turns/${String(k + 1)}`}
-              >
-                {`${String(k + 1)}턴 →`}
-              </Link>
-            )}
-          </nav>
+          <div className={turnStyles.desktopGrid}>
+            <div className={turnStyles.resultColumn}>
+              {turn.data && <TurnSummary turn={turn.data} />}
+              {turn.data && (
+                <AlertList
+                  items={turn.data.alerts}
+                  feed={turn.data.feed}
+                  season={season.data}
+                  onNotice={setNotice}
+                />
+              )}
+              {turn.data && <BreachNotice turn={turn.data} />}
+              {turn.data && <TurnTabs season={season.data} turn={turn.data} />}
+            </div>
+            <div className={turnStyles.supportColumn}>
+              {turn.data && <MacroPanel macro={turn.data.macro} />}
+              {turn.data && (
+                <FeedSection
+                  items={turn.data.feed}
+                  season={season.data}
+                  onNotice={setNotice}
+                />
+              )}
+              {turn.data && (
+                <RankingSection
+                  seasonId={season.data.id}
+                  turnNo={k}
+                  currentTurnNo={season.data.currentTurnNo}
+                />
+              )}
+              <nav aria-label="턴 이동" className={turnStyles.links}>
+                {k >= 2 && (
+                  <Link
+                    className={turnStyles.link}
+                    to={`${base}/turns/${String(k - 1)}`}
+                  >
+                    {`← ${String(k - 1)}턴`}
+                  </Link>
+                )}
+                <Link className={turnStyles.link} to={base}>
+                  지금 턴으로
+                </Link>
+                {k < (current ?? 0) && (
+                  <Link
+                    className={turnStyles.link}
+                    to={`${base}/turns/${String(k + 1)}`}
+                  >
+                    {`${String(k + 1)}턴 →`}
+                  </Link>
+                )}
+              </nav>
+            </div>
+          </div>
         </div>
       )}
     </div>
