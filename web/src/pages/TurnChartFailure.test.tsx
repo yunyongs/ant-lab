@@ -6,6 +6,7 @@ import { serveTurnWorld } from '../test/serveTurns.ts';
 
 vi.mock('lightweight-charts', () => ({
   BaselineSeries: 'Baseline',
+  LineSeries: 'Line',
   ColorType: { Solid: 'solid' },
   LineStyle: { Dashed: 2 },
   createOptionsChart: () => {

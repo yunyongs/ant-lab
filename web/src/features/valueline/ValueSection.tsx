@@ -12,6 +12,7 @@ import {
   chartLabel,
   guideTitle,
   LEGEND_AXIS,
+  LEGEND_BENCHMARK,
   LEGEND_LINE,
   legendGuide,
   CHART_FAILED,
@@ -100,13 +101,14 @@ export function ValueChartPanel({
               <ValueLineChart
                 data={chart}
                 guideTitle={guideTitle(limit)}
-                label={chartLabel(lastTurn)}
+                label={chartLabel(lastTurn, chart.benchmark !== null)}
               />
             </Suspense>
           </ChartErrorBoundary>
           <figcaption className={styles.legend}>
             <ul>
               <li>{LEGEND_LINE}</li>
+              {chart.benchmark !== null && <li>{LEGEND_BENCHMARK}</li>}
               {chart.guide !== null && <li>{legendGuide(limit)}</li>}
               <li>{LEGEND_AXIS}</li>
             </ul>

@@ -5,9 +5,14 @@ import {
   valueChartData,
   wonToChartNumber,
 } from './adapter.ts';
+import type { ValuePointText } from './adapter.ts';
 
 const rows = (...totals: string[]) =>
-  totals.map((totalValue, turnNo) => ({ turnNo, totalValue }));
+  totals.map((totalValue, turnNo) => ({
+    turnNo,
+    totalValue,
+    benchmarkValue: String(100000000 + turnNo * 1000000),
+  }));
 
 describe('wonToChartNumber', () => {
   it('converts whole won exactly', () => {
@@ -36,6 +41,11 @@ describe('valueChartData', () => {
         { time: 1, value: 104820000 },
         { time: 2, value: 97000000 },
       ],
+      benchmark: [
+        { time: 0, value: 100000000 },
+        { time: 1, value: 101000000 },
+        { time: 2, value: 102000000 },
+      ],
       base: 100000000,
       guide: 83856000,
     });
@@ -51,6 +61,43 @@ describe('valueChartData', () => {
       valueChartData(rows('100000000', '9007199254740992'), '-0.20000000'),
     ).toBeNull();
     expect(valueChartData(rows('100000000', '1.5'), '-0.20000000')).toBeNull();
+  });
+
+  it('draws the benchmark only when every shown value converts', () => {
+    const valid: [ValuePointText, ValuePointText] = [
+      { turnNo: 0, totalValue: '100', benchmarkValue: '100' },
+      { turnNo: 1, totalValue: '110', benchmarkValue: '105' },
+    ];
+    const expected = valueChartData(valid, 'x');
+    expect(expected?.benchmark).toEqual([
+      { time: 0, value: 100 },
+      { time: 1, value: 105 },
+    ]);
+    const cases: [string, ValuePointText][] = [
+      ['null', { ...valid[1], benchmarkValue: null }],
+      ['malformed', { ...valid[1], benchmarkValue: '1.5' }],
+      ['absent', { turnNo: 1, totalValue: '110' }],
+    ] as const;
+    for (const [name, second] of cases) {
+      const data = valueChartData([valid[0], second], 'x');
+      expect(data?.benchmark, name).toBeNull();
+      expect(data?.points, name).toEqual(expected?.points);
+      expect(data?.base, name).toBe(expected?.base);
+      expect(data?.guide, name).toBe(expected?.guide);
+    }
+  });
+
+  it('cuts the benchmark at the shown turn', () => {
+    const data = valueChartData(
+      rows('100000000', '104820000', '97000000').filter(
+        (item) => item.turnNo <= 1,
+      ),
+      '-0.20000000',
+    );
+    expect(data?.benchmark).toEqual([
+      { time: 0, value: 100000000 },
+      { time: 1, value: 101000000 },
+    ]);
   });
 
   it('draws no chart when turns are not strictly ascending', () => {

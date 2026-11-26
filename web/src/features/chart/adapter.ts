@@ -23,6 +23,7 @@ export interface ChartPoint {
 
 export interface ValueChartData {
   points: ChartPoint[];
+  benchmark: ChartPoint[] | null;
   // Turn 0's total (the initial capital): above it is up, below it is down.
   base: number;
   // Where the drawdown reaches the risk limit from the highest total so far.
@@ -32,6 +33,7 @@ export interface ValueChartData {
 export interface ValuePointText {
   turnNo: number;
   totalValue: string;
+  benchmarkValue?: string | null;
 }
 
 export function valueChartData(
@@ -50,12 +52,29 @@ export function valueChartData(
   }
   const base = points[0]?.value;
   if (base === undefined) return null;
+  const benchmark: ChartPoint[] = [];
+  for (const item of items) {
+    const value =
+      item.benchmarkValue === undefined || item.benchmarkValue === null
+        ? null
+        : wonToChartNumber(item.benchmarkValue);
+    if (value === null) {
+      benchmark.length = 0;
+      break;
+    }
+    benchmark.push({ time: item.turnNo, value });
+  }
   const guideText = riskGuideWon(
     items.map((item) => item.totalValue),
     riskLimit,
   );
   const guide = guideText === null ? null : wonToChartNumber(guideText);
-  return { points, base, guide };
+  return {
+    points,
+    benchmark: benchmark.length === items.length ? benchmark : null,
+    base,
+    guide,
+  };
 }
 
 // Axis ticks and the crosshair label are positions the chart picked, not
