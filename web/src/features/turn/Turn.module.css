@@ -4,6 +4,25 @@
   gap: var(--space-3);
 }
 
+.desktopGrid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.resultColumn,
+.supportColumn {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* No turn data yet (loading or error): keep the empty column out of the gap. */
+.resultColumn:empty {
+  display: none;
+}
+
 .heading {
   margin: 0;
   font-size: var(--font-lg);
@@ -203,4 +222,13 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
+}
+
+@media (min-width: 1024px) {
+  .desktopGrid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(20rem, 0.85fr);
+    align-items: start;
+    column-gap: var(--space-6);
+  }
 }

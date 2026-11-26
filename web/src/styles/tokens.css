@@ -1,7 +1,7 @@
 /*
  * Breakpoints (literal values in @media rules; variables cannot be used there):
  *   768px  — content column is centred
- *   1024px — reserved for wider layouts
+ *   1024px — turn and trade screens use wider desktop layouts
  */
 :root {
   color-scheme: light;
@@ -36,6 +36,7 @@
 
   --radius: 0.5rem;
   --content-max: 40rem;
+  --content-max-wide: 72rem;
   --nav-item-height: 44px;
   /* menu item, its 1px border and the bottom safe area */
   --bottom-nav-height: calc(

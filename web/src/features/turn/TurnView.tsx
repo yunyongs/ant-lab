@@ -55,45 +55,51 @@ export function TurnView({
           }}
         />
       )}
-      {turn.data && <TurnSummary turn={turn.data} />}
-      {turn.data && (
-        <AlertList
-          items={turn.data.alerts}
-          feed={turn.data.feed}
-          season={season}
-          onNotice={onNotice}
-        />
-      )}
-      {turn.data && <BreachNotice turn={turn.data} />}
-      {turn.data && <TurnTabs season={season} turn={turn.data} />}
-      {turn.data && <MacroPanel macro={turn.data.macro} />}
-      {turn.data && (
-        <FeedSection
-          items={turn.data.feed}
-          season={season}
-          onNotice={onNotice}
-          collapse={{ defaultOpen: true }}
-        />
-      )}
-      {turn.data && (
-        <RankingSection
-          seasonId={season.id}
-          turnNo={season.currentTurnNo}
-          currentTurnNo={season.currentTurnNo}
-          collapse={{ defaultOpen: false }}
-        />
-      )}
-      {season.currentTurnNo >= 2 && (
-        <div className={styles.links}>
-          <Link
-            className={styles.link}
-            to={`/seasons/${String(season.id)}/turns/${String(season.currentTurnNo - 1)}`}
-          >
-            지난 턴 보기
-          </Link>
+      <div className={styles.desktopGrid}>
+        <div className={styles.resultColumn}>
+          {turn.data && <TurnSummary turn={turn.data} />}
+          {turn.data && (
+            <AlertList
+              items={turn.data.alerts}
+              feed={turn.data.feed}
+              season={season}
+              onNotice={onNotice}
+            />
+          )}
+          {turn.data && <BreachNotice turn={turn.data} />}
+          {turn.data && <TurnTabs season={season} turn={turn.data} />}
         </div>
-      )}
-      <ProjectionLink seasonId={season.id} />
+        <div className={styles.supportColumn}>
+          {turn.data && <MacroPanel macro={turn.data.macro} />}
+          {turn.data && (
+            <FeedSection
+              items={turn.data.feed}
+              season={season}
+              onNotice={onNotice}
+              collapse={{ defaultOpen: true }}
+            />
+          )}
+          {turn.data && (
+            <RankingSection
+              seasonId={season.id}
+              turnNo={season.currentTurnNo}
+              currentTurnNo={season.currentTurnNo}
+              collapse={{ defaultOpen: false }}
+            />
+          )}
+          {season.currentTurnNo >= 2 && (
+            <div className={styles.links}>
+              <Link
+                className={styles.link}
+                to={`/seasons/${String(season.id)}/turns/${String(season.currentTurnNo - 1)}`}
+              >
+                지난 턴 보기
+              </Link>
+            </div>
+          )}
+          <ProjectionLink seasonId={season.id} />
+        </div>
+      </div>
       {canTrade(season) && (
         <TurnActionBar
           season={season}

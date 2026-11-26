@@ -188,3 +188,14 @@ a.menuItem {
     margin: 0 auto;
   }
 }
+
+/* breakpoint: 1024px (see tokens.css) */
+@media (min-width: 1024px) {
+  .header > .wide {
+    max-width: var(--content-max-wide);
+  }
+
+  .main > .wide {
+    max-width: var(--content-max-wide);
+  }
+}

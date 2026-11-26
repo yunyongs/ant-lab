@@ -9,6 +9,7 @@ import { serveReport } from '../test/serveReport.ts';
 import { serveReview } from '../test/serveReview.ts';
 import { failWithProblem, serveTurnWorld } from '../test/serveTurns.ts';
 import { APP_NAME } from './appName.ts';
+import styles from './AppShell.module.css';
 
 describe('AppShell', () => {
   it('renders header, main and the labelled bottom navigation', async () => {
@@ -40,6 +41,36 @@ describe('AppShell', () => {
     renderRoute('/seasons/7');
     await screen.findByRole('heading', { name: '4턴 결과' });
     expect(screen.queryByText('시즌을 열면 쓸 수 있습니다')).toBeNull();
+  });
+
+  it('applies the wide content class only to turn and trade screens', async () => {
+    serveTurnWorld({ current: 4 });
+    const rendered = renderRoute('/seasons/7');
+    await screen.findByRole('heading', { name: '4턴 결과' });
+    expect(
+      rendered.container.querySelector(`.${styles.wide}`),
+    ).toBeInTheDocument();
+    expect(
+      rendered.container
+        .querySelector('header')
+        ?.querySelector(`.${styles.wide}`),
+    ).toBeInTheDocument();
+
+    rendered.unmount();
+    const trade = renderRoute('/seasons/7/trade');
+    await screen.findByRole('heading', { name: '4턴 매매' });
+    expect(
+      trade.container.querySelector(`.${styles.wide}`),
+    ).toBeInTheDocument();
+
+    trade.unmount();
+    const report = renderRoute('/seasons/7/report');
+    expect(report.container.querySelector(`.${styles.wide}`)).toBeNull();
+    expect(
+      report.container
+        .querySelector('header')
+        ?.querySelector(`.${styles.wide}`),
+    ).toBeNull();
   });
 
   it('shows five menu items: season active, the rest disabled outside a season', () => {

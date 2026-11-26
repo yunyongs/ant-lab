@@ -77,26 +77,32 @@ export function TradeBody({
   return (
     <>
       {failed && <QueryError error={error} onRetry={retry} />}
-      <TradeSummary holdings={holdings.data} />
-      <FormationEntry season={season} />
-      <ProjectionLink seasonId={season.id} />
-      <HoldingList
-        holdings={held}
-        names={names}
-        systemPositions={systemPositions}
-        canChangePosition={canChangeFormation(season)}
-        {...common}
-      />
-      <details
-        className={styles.pool}
-        open={open}
-        onToggle={(event) => {
-          setPoolOpen(event.currentTarget.open);
-        }}
-      >
-        <summary>종목 풀에서 새로 사기</summary>
-        <PoolList assets={pool.data} holdings={held} {...common} />
-      </details>
+      <div className={styles.desktopGrid}>
+        <div className={styles.holdingsColumn}>
+          <TradeSummary holdings={holdings.data} />
+          <FormationEntry season={season} />
+          <ProjectionLink seasonId={season.id} />
+          <HoldingList
+            holdings={held}
+            names={names}
+            systemPositions={systemPositions}
+            canChangePosition={canChangeFormation(season)}
+            {...common}
+          />
+        </div>
+        <div className={styles.poolColumn}>
+          <details
+            className={styles.pool}
+            open={open}
+            onToggle={(event) => {
+              setPoolOpen(event.currentTarget.open);
+            }}
+          >
+            <summary>종목 풀에서 새로 사기</summary>
+            <PoolList assets={pool.data} holdings={held} {...common} />
+          </details>
+        </div>
+      </div>
     </>
   );
 }
