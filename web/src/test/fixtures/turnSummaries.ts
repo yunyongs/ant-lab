@@ -9,31 +9,37 @@ const ROWS: Omit<TurnSummaryDto, 'turnNo'>[] = [
     totalValue: '100000000',
     drawdown: '0.00000000',
     periodReturn: '0.00000000',
+    benchmarkValue: '100000000',
   },
   {
     totalValue: '103300000',
     drawdown: '0.00000000',
     periodReturn: '0.03300000',
+    benchmarkValue: '100512000',
   },
   {
     totalValue: '101250000',
     drawdown: '-0.01984511',
     periodReturn: '-0.01984511',
+    benchmarkValue: '99870000',
   },
   {
     totalValue: '104820000',
     drawdown: '0.00000000',
     periodReturn: '0.03525926',
+    benchmarkValue: '101230000',
   },
   {
     totalValue: '97000000',
     drawdown: '-0.07460408',
     periodReturn: '-0.07460408',
+    benchmarkValue: '98650000',
   },
   {
     totalValue: '99100000',
     drawdown: '-0.05456974',
     periodReturn: '0.02164948',
+    benchmarkValue: '99410000',
   },
 ];
 
