@@ -3,6 +3,7 @@ import type { RouteObject } from 'react-router';
 import { PublicOnly } from '../features/auth/PublicOnly.tsx';
 import { RequireAuth } from '../features/auth/RequireAuth.tsx';
 import { FormationChangePage } from '../pages/FormationChangePage.tsx';
+import { LeaderboardPage } from '../pages/LeaderboardPage.tsx';
 import { LoginPage } from '../pages/LoginPage.tsx';
 import { NewSeasonPage } from '../pages/NewSeasonPage.tsx';
 import { ProjectionPage } from '../pages/ProjectionPage.tsx';
@@ -41,6 +42,7 @@ export const routes: RouteObject[] = [
         element: <AppShell />,
         children: [
           { index: true, element: <SeasonsPage /> },
+          { path: 'leaderboard', element: <LeaderboardPage /> },
           { path: 'seasons/new', element: <NewSeasonPage /> },
           {
             path: 'seasons/:seasonId',

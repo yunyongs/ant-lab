@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { formatDecimal, roundDecimalText } from './decimal.ts';
+import {
+  formatDecimal,
+  formatDecimalFixed,
+  roundDecimalText,
+} from './decimal.ts';
 
 describe('formatDecimal', () => {
   it.each([
@@ -31,5 +35,20 @@ describe('roundDecimalText', () => {
       fraction: '',
     });
     expect(roundDecimalText('-0.4', 0)?.negative).toBe(false);
+  });
+});
+
+describe('formatDecimalFixed', () => {
+  it.each([
+    ['61.5', 2, '61.50'],
+    ['1.999', 2, '2.00'],
+    ['-0.004', 2, '0.00'],
+    ['1234567.1', 2, '1,234,567.10'],
+  ])('formats %s at %d places as %s', (input, places, expected) => {
+    expect(formatDecimalFixed(input, places)).toBe(expected);
+  });
+
+  it('returns invalid input unchanged', () => {
+    expect(formatDecimalFixed('abc', 2)).toBe('abc');
   });
 });

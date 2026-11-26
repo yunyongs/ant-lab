@@ -9,6 +9,13 @@
   font-size: var(--font-xl);
 }
 
+.headingRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
 .link {
   display: inline-flex;
   min-height: 44px;
