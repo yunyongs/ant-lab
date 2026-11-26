@@ -1148,7 +1148,7 @@ export interface components {
         TurnSummaryListDto: {
             items: components["schemas"]["TurnSummaryDto"][];
         };
-        /** @description One turn of the value line, turn number, total valuation, cumulative drawdown and period return. No date or month block / 가치 곡선의 한 턴, 턴 번호, 총 평가액, 누적 낙폭, 기간 수익률. 날짜·월 블록 없음 */
+        /** @description One turn of the value line, turn number, total valuation, cumulative drawdown, period return and market benchmark value. No date or month block / 가치 곡선의 한 턴, 턴 번호, 총 평가액, 누적 낙폭, 기간 수익률, 시장 기준선 평가액. 날짜·월 블록 없음 */
         TurnSummaryDto: {
             /**
              * Format: int32
@@ -1170,6 +1170,11 @@ export interface components {
              * @description Period return = change ÷ previous total valuation, 8 decimal places; 0 at turn 0 / 기간 수익률 = 변화 ÷ 직전 총 평가액, 소수 8자리. 0턴은 0
              */
             periodReturn: string;
+            /**
+             * Format: decimal
+             * @description Market benchmark valuation at this turn (the market index proxies bought at turn 0 and held, same initial capital and fees), whole KRW; initial capital at turn 0. Equals benchmark.value of the turn contribution. Null on every item when the benchmark cannot be computed for the season / 이 턴의 시장 기준선 평가액(시장 지수 대용 종목을 0턴에 사서 보유, 같은 초기 자금과 수수료), 원 단위 정수. 0턴은 초기 자금. 턴 기여의 benchmark.value 와 같다. 시즌의 기준선을 계산할 수 없으면 모든 항목에서 null
+             */
+            benchmarkValue: string | null;
         };
         /** @description Prices of the whole pool for one turn (ascending asset number) / 한 턴의 풀 전체 가격(종목 번호 오름차순) */
         TurnPricesDto: {
