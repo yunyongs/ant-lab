@@ -70,3 +70,10 @@ export function formatDecimal(value: string): string {
   const whole = groupThousands(rounded.whole);
   return fraction === '' ? `${sign}${whole}` : `${sign}${whole}.${fraction}`;
 }
+
+export function formatDecimalFixed(value: string, places: number): string {
+  const rounded = roundDecimalText(value, places);
+  if (rounded === null) return value;
+  const sign = rounded.negative ? '-' : '';
+  return `${sign}${groupThousands(rounded.whole)}.${rounded.fraction}`;
+}
