@@ -5,6 +5,19 @@
   gap: var(--space-3);
 }
 
+.desktopGrid,
+.holdingsColumn,
+.poolColumn {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.holdingsColumn,
+.poolColumn {
+  min-width: 0;
+}
+
 .sectionTitle,
 .cardHeading {
   margin: 0;
@@ -337,6 +350,15 @@
   background: var(--color-surface);
   color: var(--color-primary);
   font-weight: 700;
+}
+
+@media (min-width: 1024px) {
+  .desktopGrid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(24rem, 1.15fr);
+    align-items: start;
+    column-gap: var(--space-6);
+  }
 }
 
 .entryDisabled {
