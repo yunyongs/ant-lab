@@ -3,6 +3,7 @@ import {
   BaselineSeries,
   ColorType,
   createOptionsChart,
+  LineSeries,
   LineStyle,
   type AutoscaleInfoProvider,
   type IChartApiBase,
@@ -89,6 +90,17 @@ export default function ValueLineChart({
       handleScale: false,
       timeScale: { fixLeftEdge: true, fixRightEdge: true },
     });
+    if (data.benchmark !== null) {
+      const benchmarkLine = chart.addSeries(LineSeries, {
+        color: token('--color-text-muted'),
+        lineWidth: 2,
+        lineStyle: LineStyle.Dashed,
+        priceLineVisible: false,
+        lastValueVisible: false,
+        crosshairMarkerVisible: false,
+      });
+      benchmarkLine.setData(data.benchmark);
+    }
     const line = chart.addSeries(BaselineSeries, {
       ...lineColours(),
       baseValue: { type: 'price', price: data.base },
