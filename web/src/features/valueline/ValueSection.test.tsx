@@ -3,32 +3,47 @@ import { http, HttpResponse } from 'msw';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { expectNoDatePattern } from '../../test/expectNoDatePattern.ts';
 import { seasonFixture } from '../../test/fixtures/seasons.ts';
-import { turnSummariesFixture } from '../../test/fixtures/turnSummaries.ts';
+import {
+  turnSummariesFixture,
+  turnSummariesWithNullBenchmarkFixture,
+} from '../../test/fixtures/turnSummaries.ts';
 import { renderWithProviders } from '../../test/renderWithProviders.tsx';
 import { server } from '../../test/server.ts';
 import { formatWon } from '../format/money.ts';
 import { ratioToPercent } from '../format/ratio.ts';
 import { signedChange } from '../format/signedChange.ts';
+import type { TurnSummary } from './queries.ts';
 import { ValueChartPanel, ValueTablePanel } from './ValueSection.tsx';
 
 const lib = vi.hoisted(() => {
-  const series = {
+  const benchmarkSeries = {
+    setData: vi.fn(),
+    createPriceLine: vi.fn(),
+    applyOptions: vi.fn(),
+  };
+  const teamSeries = {
     setData: vi.fn(),
     createPriceLine: vi.fn(),
     applyOptions: vi.fn(),
   };
   const chart = {
-    addSeries: vi.fn(() => series),
+    addSeries: vi.fn(),
     timeScale: vi.fn(() => ({ fitContent: vi.fn() })),
     remove: vi.fn(),
   };
-  return { series, chart, createOptionsChart: vi.fn(() => chart) };
+  return {
+    benchmarkSeries,
+    teamSeries,
+    chart,
+    createOptionsChart: vi.fn(() => chart),
+  };
 });
 
 vi.mock('lightweight-charts', () => ({
   BaselineSeries: 'Baseline',
   ColorType: { Solid: 'solid' },
   LineStyle: { Dashed: 2 },
+  LineSeries: 'Line',
   createOptionsChart: lib.createOptionsChart,
 }));
 
@@ -59,6 +74,10 @@ function renderTable(currentTurnNo: number, throughTurn = currentTurnNo) {
 }
 
 beforeEach(() => {
+  lib.chart.addSeries
+    .mockReset()
+    .mockImplementationOnce(() => lib.benchmarkSeries)
+    .mockImplementationOnce(() => lib.teamSeries);
   vi.stubGlobal(
     'ResizeObserver',
     class {
@@ -79,21 +98,54 @@ describe('value chart section', () => {
     serveSummaries(4);
     const view = renderSection(4);
     const chart = await screen.findByRole('img', {
-      name: '0턴부터 4턴까지 총 평가액 선 그래프. 같은 숫자는 표 탭에 있습니다.',
+      name: '0턴부터 4턴까지 총 평가액과 시장 기준선 선 그래프. 같은 숫자는 표 탭에 있습니다.',
     });
     expect(chart).toBeInTheDocument();
     await waitFor(() => {
       expect(lib.createOptionsChart).toHaveBeenCalledTimes(1);
     });
-    expect(lib.series.setData).toHaveBeenCalledWith([
+    expect(lib.chart.addSeries).toHaveBeenNthCalledWith(
+      1,
+      'Line',
+      expect.objectContaining({
+        lineWidth: 2,
+        lineStyle: 2,
+        priceLineVisible: false,
+        lastValueVisible: false,
+        crosshairMarkerVisible: false,
+      }),
+    );
+    expect(lib.chart.addSeries).toHaveBeenNthCalledWith(
+      2,
+      'Baseline',
+      expect.objectContaining({
+        baseValue: { type: 'price', price: 100000000 },
+        topFillColor1: 'transparent',
+        topFillColor2: 'transparent',
+        bottomFillColor1: 'transparent',
+        bottomFillColor2: 'transparent',
+        lineWidth: 2,
+        priceLineVisible: false,
+        lastValueVisible: false,
+      }),
+    );
+    expect(lib.benchmarkSeries.setData).toHaveBeenCalledWith([
+      { time: 0, value: 100000000 },
+      { time: 1, value: 100512000 },
+      { time: 2, value: 99870000 },
+      { time: 3, value: 101230000 },
+      { time: 4, value: 98650000 },
+    ]);
+    expect(lib.teamSeries.setData).toHaveBeenCalledWith([
       { time: 0, value: 100000000 },
       { time: 1, value: 103300000 },
       { time: 2, value: 101250000 },
       { time: 3, value: 104820000 },
       { time: 4, value: 97000000 },
     ]);
+    expect(lib.chart.addSeries).toHaveBeenCalledTimes(2);
     // Peak 104,820,000 x (1 - 0.20) = 83,856,000, without an axis number.
-    expect(lib.series.createPriceLine).toHaveBeenCalledWith(
+    expect(lib.teamSeries.createPriceLine).toHaveBeenCalledWith(
       expect.objectContaining({
         price: 83856000,
         axisLabelVisible: false,
@@ -102,7 +154,7 @@ describe('value chart section', () => {
     );
     expect(
       screen.getByText(
-        '점선: 위험 선언 -20%. 지금까지 가장 높았던 총 평가액에서 그만큼 내려간 높이입니다.',
+        '빨간 가로 점선: 위험 선언 -20%. 지금까지 가장 높았던 총 평가액에서 그만큼 내려간 높이입니다.',
       ),
     ).toBeInTheDocument();
     expect(
@@ -130,11 +182,15 @@ describe('value chart section', () => {
       expect(within(row).getByRole('rowheader').textContent).toBe(
         `${String(item.turnNo)}턴`,
       );
-      expect(cells[0]?.textContent).toBe(formatWon(item.totalValue));
-      expect(cells[1]?.textContent).toBe(
+      expect(cells[0]?.textContent).toContain(formatWon(item.totalValue));
+      expect(
+        within(row).getByText(`기준선 ${formatWon(item.benchmarkValue ?? '')}`),
+      ).toBeInTheDocument();
+      expect(cells[1]?.textContent).toBe(formatWon(item.benchmarkValue ?? ''));
+      expect(cells[2]?.textContent).toBe(
         signedChange(item.periodReturn, 'percent').text,
       );
-      expect(cells[2]?.textContent).toBe(ratioToPercent(item.drawdown));
+      expect(cells[3]?.textContent).toBe(ratioToPercent(item.drawdown));
     });
     expect(within(table).getByText('104,820,000원')).toBeInTheDocument();
     expect(within(table).getAllByText('-7.46%')).toHaveLength(2);
@@ -216,15 +272,20 @@ describe('value chart section', () => {
     renderSection(4, 2);
     await screen.findByRole('img', { name: /0턴부터 2턴까지/ });
     await waitFor(() => {
-      expect(lib.series.setData).toHaveBeenCalled();
+      expect(lib.benchmarkSeries.setData).toHaveBeenCalled();
     });
-    expect(lib.series.setData).toHaveBeenCalledWith([
+    expect(lib.benchmarkSeries.setData).toHaveBeenCalledWith([
+      { time: 0, value: 100000000 },
+      { time: 1, value: 100512000 },
+      { time: 2, value: 99870000 },
+    ]);
+    expect(lib.teamSeries.setData).toHaveBeenCalledWith([
       { time: 0, value: 100000000 },
       { time: 1, value: 103300000 },
       { time: 2, value: 101250000 },
     ]);
     // Peak through turn 2 is 103,300,000; the later peak 104,820,000 is unseen.
-    expect(lib.series.createPriceLine).toHaveBeenCalledWith(
+    expect(lib.teamSeries.createPriceLine).toHaveBeenCalledWith(
       expect.objectContaining({ price: 82640000 }),
     );
   });
@@ -233,14 +294,14 @@ describe('value chart section', () => {
     serveSummaries(2);
     renderSection(2);
     await waitFor(() => {
-      expect(lib.chart.addSeries).toHaveBeenCalledTimes(1);
+      expect(lib.chart.addSeries).toHaveBeenCalledTimes(2);
     });
     const { setConvention, resetConventionForTests } =
       await import('../format/convention.ts');
-    lib.series.applyOptions.mockClear();
+    lib.teamSeries.applyOptions.mockClear();
     setConvention('western');
     await waitFor(() => {
-      expect(lib.series.applyOptions).toHaveBeenCalledTimes(1);
+      expect(lib.teamSeries.applyOptions).toHaveBeenCalledTimes(1);
     });
     resetConventionForTests();
   });
@@ -263,6 +324,81 @@ describe('value chart section', () => {
       within(table).getByRole('columnheader', { name: '누적 낙폭' }),
     ).toBeInTheDocument();
     expect(screen.queryByText('누적 낙폭은 모든 턴 0.00%')).toBeNull();
+  });
+
+  it('omits the benchmark line and column when one shown value is null', async () => {
+    server.use(
+      http.get('*/api/v1/seasons/7/turns', () =>
+        HttpResponse.json(turnSummariesWithNullBenchmarkFixture(2)),
+      ),
+    );
+    renderSection(2);
+    expect(
+      await screen.findByRole('img', {
+        name: '0턴부터 2턴까지 총 평가액 선 그래프. 같은 숫자는 표 탭에 있습니다.',
+      }),
+    ).toBeInTheDocument();
+    expect(lib.chart.addSeries).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText(/회색 점선: 시장 기준선/)).toBeNull();
+    renderTable(2);
+    const table = await screen.findByRole('table');
+    expect(
+      within(table).queryByRole('columnheader', { name: '시장 기준선' }),
+    ).toBeNull();
+    expect(within(table).queryByText(/기준선/)).toBeNull();
+  });
+
+  it.each([
+    ['null', (item: TurnSummary) => ({ ...item, benchmarkValue: null })],
+    ['malformed', (item: TurnSummary) => ({ ...item, benchmarkValue: '1.5' })],
+    [
+      'absent',
+      (item: TurnSummary) => {
+        const { benchmarkValue, ...withoutBenchmark } = item;
+        void benchmarkValue;
+        return withoutBenchmark;
+      },
+    ],
+  ])('keeps total value cells when benchmark is %s', async (_name, change) => {
+    const fixture = turnSummariesFixture(2);
+    server.use(
+      http.get('*/api/v1/seasons/7/turns', () =>
+        HttpResponse.json({
+          items: fixture.items.map((item, index) =>
+            index === 1 ? change(item) : item,
+          ),
+        }),
+      ),
+    );
+    renderTable(2);
+    const table = await screen.findByRole('table');
+    expect(
+      within(table).queryByRole('columnheader', { name: '시장 기준선' }),
+    ).toBeNull();
+    expect(within(table).queryByText(/기준선/)).toBeNull();
+    expect(within(table).getByText('100,000,000원')).toBeInTheDocument();
+    expect(within(table).getByText('103,300,000원')).toBeInTheDocument();
+    expect(within(table).getByText('101,250,000원')).toBeInTheDocument();
+  });
+
+  it('keeps a benchmark when only a later turn is null', async () => {
+    const fixture = turnSummariesFixture(4);
+    server.use(
+      http.get('*/api/v1/seasons/7/turns', () =>
+        HttpResponse.json({
+          items: fixture.items.map((item) =>
+            item.turnNo === 3 ? { ...item, benchmarkValue: null } : item,
+          ),
+        }),
+      ),
+    );
+    renderSection(4, 2);
+    await screen.findByRole('img', { name: /0턴부터 2턴까지/ });
+    expect(lib.benchmarkSeries.setData).toHaveBeenCalledWith([
+      { time: 0, value: 100000000 },
+      { time: 1, value: 100512000 },
+      { time: 2, value: 99870000 },
+    ]);
   });
 
   it('never shows a turn after the one being viewed', async () => {

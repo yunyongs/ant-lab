@@ -23,6 +23,7 @@ vi.mock('lightweight-charts', () => {
   const { chart } = lib;
   return {
     BaselineSeries: 'Baseline',
+    LineSeries: 'Line',
     ColorType: { Solid: 'solid' },
     LineStyle: { Dashed: 2 },
     createOptionsChart: vi.fn(() => chart),
@@ -62,7 +63,9 @@ describe('turn tabs', () => {
     );
     expect(screen.getAllByRole('tabpanel')).toHaveLength(1);
     expect(screen.getByRole('tabpanel')).toHaveAccessibleName('그래프');
-    await screen.findByRole('img', { name: /총 평가액 선 그래프/ });
+    await screen.findByRole('img', {
+      name: /총 평가액과 시장 기준선 선 그래프/,
+    });
 
     const user = userEvent.setup();
     chart.focus();

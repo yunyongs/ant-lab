@@ -37,6 +37,19 @@ async function checkTurnTabs(
   await expect(table.getByRole('table')).toBeVisible();
   await expect(table.getByText('보유 평가액', { exact: true })).toBeVisible();
   await expect(table.getByText('포메이션 이탈', { exact: true })).toBeVisible();
+  const tableWidth = page.viewportSize()?.width ?? 0;
+  const firstTurn = table.getByRole('row', { name: /^1턴 / });
+  if (tableWidth < 768) {
+    await expect(
+      table.getByRole('columnheader', { name: '시장 기준선', exact: true }),
+    ).toHaveCount(0);
+    await expect(firstTurn.getByText(/^기준선 /)).toBeVisible();
+  } else {
+    await expect(
+      table.getByRole('columnheader', { name: '시장 기준선', exact: true }),
+    ).toBeVisible();
+    await expect(firstTurn.getByText(/^기준선 /)).toBeHidden();
+  }
   await checkpoint(run, `turn-${String(turn)}-table`, { axe: 'turn-table' });
   // The arrow keys move through the tabs and wrap.
   await turnTabs(page, turn).getByRole('tab', { name: '표' }).focus();

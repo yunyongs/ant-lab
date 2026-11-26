@@ -53,3 +53,14 @@ export function turnSummariesFixture(currentTurnNo: number): {
   }
   return { items };
 }
+
+export function turnSummariesWithNullBenchmarkFixture(currentTurnNo: number): {
+  items: TurnSummaryDto[];
+} {
+  const fixture = turnSummariesFixture(currentTurnNo);
+  return {
+    items: fixture.items.map((item, index) =>
+      index === 1 ? { ...item, benchmarkValue: null } : item,
+    ),
+  };
+}
